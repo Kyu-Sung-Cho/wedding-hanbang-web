@@ -89,20 +89,12 @@ export default function Logo({ size = "md", variant = "default", showText = true
       </svg>
 
       {showText && (
-        <div className="flex flex-col">
-          <span
-            className="font-display tracking-[0.15em] uppercase leading-none"
-            style={{ fontSize: s.text, color: textColor, fontWeight: 400 }}
-          >
-            HANBANG
-          </span>
-          <span
-            className="font-serif-kr leading-none mt-[2px]"
-            style={{ fontSize: s.text * 0.55, color: variant === "white" ? "rgba(255,255,255,0.5)" : "#928980", fontWeight: 300, letterSpacing: "0.08em" }}
-          >
-            웨딩한방
-          </span>
-        </div>
+        <span
+          className="font-serif-kr font-medium leading-none"
+          style={{ fontSize: s.text, color: textColor, letterSpacing: "-0.02em" }}
+        >
+          웨딩한방
+        </span>
       )}
     </div>
   );
