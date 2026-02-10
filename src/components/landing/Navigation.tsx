@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Logo from "@/components/ui/Logo";
 
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
@@ -29,13 +30,8 @@ export default function Navigation() {
           : ""
       }`}
     >
-      <a href="#" className="flex items-center gap-2.5 no-underline text-noir-800">
-        <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-gold rounded-[10px] flex items-center justify-center text-[16px] text-white font-semibold font-display tracking-tight">
-          한
-        </div>
-        <span className="font-serif-kr font-medium text-[18px] tracking-tight">
-          웨딩한방
-        </span>
+      <a href="#" className="no-underline">
+        <Logo size="sm" />
       </a>
 
       <div className="flex gap-9 items-center max-md:hidden">

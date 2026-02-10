@@ -1,16 +1,13 @@
+import Logo from "@/components/ui/Logo";
+
 export default function Footer() {
   return (
     <footer className="bg-noir-800 text-white pt-20 pb-10 px-[60px] max-md:px-5">
       <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-[60px] max-w-[1200px] mx-auto mb-[60px] max-lg:grid-cols-2 max-md:grid-cols-1 max-md:gap-8">
         {/* 브랜드 */}
         <div>
-          <a href="#" className="flex items-center gap-2.5 no-underline">
-            <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-gold rounded-[10px] flex items-center justify-center text-[16px] text-white font-semibold font-display tracking-tight">
-              한
-            </div>
-            <span className="font-serif-kr font-medium text-[18px] tracking-tight text-white">
-              웨딩한방
-            </span>
+          <a href="#" className="no-underline">
+            <Logo size="sm" variant="white" />
           </a>
           <p className="text-[14px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
             AI가 이끄는 새로운 결혼 준비의 시작.
