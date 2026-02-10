@@ -1,10 +1,13 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 export async function sendPreregistrationEmail(email: string) {
+  if (!process.env.RESEND_API_KEY) return;
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: "Hanbang <noreply@hanbang.ai>",
       to: email,
       subject: "웨딩한방 사전등록이 완료되었습니다!",

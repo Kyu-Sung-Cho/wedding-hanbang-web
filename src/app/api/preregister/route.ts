@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { sendPreregistrationEmail } from "@/lib/resend";
+
+export const dynamic = "force-dynamic";
 
 // Service role 클라이언트 (서버 전용)
 function getServiceClient() {
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 확인 이메일 발송 (비동기, 실패해도 등록은 성공)
+    const { sendPreregistrationEmail } = await import("@/lib/resend");
     sendPreregistrationEmail(email);
 
     return NextResponse.json({ success: true });
