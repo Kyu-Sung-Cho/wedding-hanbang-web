@@ -30,13 +30,12 @@ export default function Hero() {
           transition={{ duration: 1, delay: 0.4 }}
           className="font-serif-kr text-[clamp(40px,6vw,72px)] font-light leading-[1.25] tracking-tight mb-7"
         >
-          결혼 준비,
+          당신의 완벽한 결혼,
           <br />
-          이제{" "}
           <em className="not-italic font-medium bg-gradient-to-br from-rose-500 to-gold bg-clip-text text-transparent">
-            AI 한 방
+            웨딩한방
           </em>
-          이면 됩니다
+          이 함께합니다
         </motion.h1>
 
         <motion.p
