@@ -43,11 +43,19 @@ function LoginContent() {
     });
 
     if (authError) {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      console.error("Login error:", authError.message, authError.status);
+      if (authError.message === "Invalid login credentials") {
+        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      } else if (authError.message === "Email not confirmed") {
+        setError("이메일 인증이 필요합니다. 메일함을 확인해주세요.");
+      } else {
+        setError(`로그인 실패: ${authError.message}`);
+      }
       setLoading(false);
       return;
     }
 
+    router.refresh();
     router.push(redirect);
   };
 

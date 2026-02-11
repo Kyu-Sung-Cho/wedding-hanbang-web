@@ -56,13 +56,15 @@ export default function SignupPage() {
   const handleSocialLogin = async (provider: "google" | "kakao") => {
     const supabase = createClient();
     setLoading(true);
+    setError("");
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/callback?redirect=/dashboard`,
+        redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent("/dashboard")}`,
       },
     });
     if (authError) {
+      console.error("OAuth error:", authError);
       setError("소셜 로그인에 실패했습니다.");
       setLoading(false);
     }
