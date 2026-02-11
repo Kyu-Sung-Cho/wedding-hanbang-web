@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, MessageSquare, Wallet, CalendarDays,
-  Shirt, Store, BookOpen, Settings, LogOut,
+  Shirt, Store, BookOpen, Settings, LogOut, ClipboardCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
+  { href: "/checklist", icon: ClipboardCheck, label: "체크리스트" },
   { href: "/chat", icon: MessageSquare, label: "AI 채팅" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarDays, label: "일정 관리" },

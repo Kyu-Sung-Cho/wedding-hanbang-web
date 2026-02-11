@@ -36,6 +36,7 @@ export async function updateSession(request: NextRequest) {
   // 인증이 필요한 페이지 목록
   const protectedPaths = [
     "/dashboard",
+    "/checklist",
     "/chat",
     "/budget",
     "/schedule",
