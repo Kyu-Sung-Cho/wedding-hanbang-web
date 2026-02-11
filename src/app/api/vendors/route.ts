@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("vendors")
       .select("*", { count: "exact" })
-      .order("rating", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (category) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (region) {
-      query = query.eq("region", region);
+      query = query.ilike("region", `%${region}%`);
     }
 
     if (keyword) {

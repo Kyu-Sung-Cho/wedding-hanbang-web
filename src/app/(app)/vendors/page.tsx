@@ -288,15 +288,19 @@ function VendorListCard({ vendor }: { vendor: Vendor }) {
                 vendor.category}
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            <Star className="h-3.5 w-3.5 fill-gold text-gold" />
-            <span className="text-sm font-medium text-noir-800">
-              {vendor.rating.toFixed(1)}
-            </span>
-            <span className="text-xs text-taupe-400">
-              ({vendor.review_count})
-            </span>
-          </div>
+          {vendor.rating != null && (
+            <div className="flex items-center gap-1">
+              <Star className="h-3.5 w-3.5 fill-gold text-gold" />
+              <span className="text-sm font-medium text-noir-800">
+                {vendor.rating.toFixed(1)}
+              </span>
+              {vendor.review_count != null && (
+                <span className="text-xs text-taupe-400">
+                  ({vendor.review_count})
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-2 flex items-center gap-1 text-xs text-taupe-400">

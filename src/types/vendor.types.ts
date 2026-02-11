@@ -14,8 +14,8 @@ export interface Vendor {
   style_tags: string[];
   is_fixed_price: boolean;
   is_verified: boolean;
-  rating: number;
-  review_count: number;
+  rating: number | null;
+  review_count: number | null;
   thumbnail_url?: string;
   created_at: string;
   updated_at: string;
