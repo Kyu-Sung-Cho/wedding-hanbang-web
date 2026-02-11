@@ -37,12 +37,14 @@ export default function VendorCard({ vendor }: VendorCardProps) {
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              <Star className="h-3 w-3 fill-gold text-gold" />
-              <span className="text-xs font-medium text-noir-800">
-                {vendor.rating.toFixed(1)}
-              </span>
-            </div>
+            {vendor.rating != null && (
+              <div className="flex items-center gap-0.5">
+                <Star className="h-3 w-3 fill-gold text-gold" />
+                <span className="text-xs font-medium text-noir-800">
+                  {vendor.rating.toFixed(1)}
+                </span>
+              </div>
+            )}
             <span className="text-xs font-medium text-rose-500">
               {vendor.priceRange}
             </span>

@@ -14,7 +14,7 @@ export interface VendorCard {
   category: string;
   region: string;
   priceRange: string;
-  rating: number;
+  rating: number | null;
   thumbnailUrl?: string;
   tags?: string[];
 }
@@ -69,6 +69,18 @@ export interface CategoryBudgetInfo {
   isOverBudget: boolean;
 }
 
+export interface UrgentCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  status: string;
+  progress: string;
+  latestDaysBefore: number;
+  isOverdue: boolean;
+  estimatedCost: string;
+  nextUncheckedItem?: string;
+}
+
 export interface ChatContext {
   coupleId?: string;
   weddingDate?: string;
@@ -84,6 +96,7 @@ export interface ChatContext {
   };
   completedCategories?: string[];
   inProgressCategories?: string[];
+  urgentCategories?: UrgentCategory[];
   previousContext?: PreviousConversationContext;
 }
 
@@ -129,13 +142,14 @@ export interface AIResponse {
 export const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: '안녕하세요! 👋 저는 웨딩한방 AI 플래너예요.\n\n결혼 준비 뭐든 도와드릴게요! 아래 버튼을 눌러보세요 😊',
+  content: '안녕하세요! 👋 저는 웨딩한방 AI 플래너예요.\n\n함께 최고의 웨딩을 만들어볼까요? ✨\n먼저 어떤 분위기의 결혼식을 꿈꾸고 계신지 궁금해요!',
   timestamp: new Date().toISOString(),
+  sender: 'ai',
   buttons: [
-    { value: 'venue', label: '🏛️ 웨딩홀/스드메', desc: '업체 추천받기' },
-    { value: 'budget', label: '💰 예산 상담', desc: '비용 계획 세우기' },
-    { value: 'etiquette', label: '📋 상견례/예절', desc: '예절 가이드' },
-    { value: 'schedule', label: '📅 일정 관리', desc: '할 일 체크' },
+    { value: '모던하고 세련된 웨딩이 좋아요', label: '🖤 모던·세련', desc: '심플하고 도시적인 느낌', recommended: true },
+    { value: '따뜻하고 클래식한 웨딩이 좋아요', label: '🌹 클래식·로맨틱', desc: '우아하고 전통적인 느낌' },
+    { value: '자연스럽고 편안한 야외 웨딩이 좋아요', label: '🌿 내추럴·가든', desc: '야외 또는 자연 느낌' },
+    { value: '아직 잘 모르겠어요. 추천해주세요', label: '💡 추천해주세요', desc: '취향 파악부터 도와드릴게요' },
   ],
-  quickReplies: ['진행 상황 보여줘', '뭐부터 해야 해?', '예산 현황', '오늘 할 일'],
+  quickReplies: ['뭐부터 해야 해?', '예산 상담', '진행 상황 보여줘', '스드메 알아보기'],
 };

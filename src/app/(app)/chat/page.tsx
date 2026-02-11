@@ -5,6 +5,9 @@ import { useChatStore } from "@/stores/chatStore";
 import { useJourneyStore } from "@/stores/journeyStore";
 import { useBudgetStore } from "@/stores/budgetStore";
 import { WELCOME_MESSAGE, Message, ButtonOption } from "@/types/chat.types";
+import { subscribeToChatMessages } from "@/lib/services/chatService";
+import { CATEGORIES } from "@/constants/categories";
+import { CategoryId, CategoryStatus } from "@/types";
 import ChatBubble from "@/components/app/chat/ChatBubble";
 import ChatInput from "@/components/app/chat/ChatInput";
 import ButtonOptions from "@/components/app/chat/ButtonOptions";
@@ -20,12 +23,66 @@ export default function ChatPage() {
     setContext,
   } = useChatStore();
 
-  const { weddingDate, getDaysUntilWedding, categoryStatuses } =
+  const { weddingDate, getDaysUntilWedding, categoryStatuses, checklistProgress, role } =
     useJourneyStore();
   const { totalBudget, getTotalSpent } = useBudgetStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // 현재 사용자 역할 (신부/신랑)
+  const currentSender = role || "bride";
+
+  // Supabase Realtime 구독 - 상대방 메시지 실시간 수신
+  useEffect(() => {
+    const coupleId = useChatStore.getState().coupleId;
+    if (!coupleId) return;
+
+    const unsubscribe = subscribeToChatMessages(coupleId, (newMessage) => {
+      // 이미 로컬에 있는 메시지면 무시 (내가 보낸 것)
+      const existing = useChatStore.getState().messages;
+      if (existing.some((m) => m.id === newMessage.id)) return;
+      useChatStore.getState().addMessage(newMessage);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // D-day 기반 긴급 카테고리 계산
+  const getUrgentCategories = () => {
+    const dday = getDaysUntilWedding();
+    if (dday === null) return [];
+
+    return CATEGORIES
+      .filter((cat) => {
+        const status = categoryStatuses[cat.id] as CategoryStatus | undefined;
+        if (status === "completed" || status === "skipped") return false;
+        // latestDaysBefore 이하면 긴급
+        return dday <= cat.suggestedTiming.latestDaysBefore;
+      })
+      .sort((a, b) => b.suggestedTiming.latestDaysBefore - a.suggestedTiming.latestDaysBefore)
+      .map((cat) => {
+        const status = categoryStatuses[cat.id] as CategoryStatus | undefined;
+        const checkedCount = cat.checklistItems.filter(
+          (item) => checklistProgress[`${cat.id}_${item.id}`]
+        ).length;
+        const totalCount = cat.checklistItems.length;
+        const isOverdue = dday < cat.suggestedTiming.latestDaysBefore;
+        return {
+          id: cat.id,
+          name: cat.name,
+          emoji: cat.emoji,
+          status: status || "not_started",
+          progress: `${checkedCount}/${totalCount}`,
+          latestDaysBefore: cat.suggestedTiming.latestDaysBefore,
+          isOverdue,
+          estimatedCost: cat.estimatedCost,
+          nextUncheckedItem: cat.checklistItems.find(
+            (item) => !checklistProgress[`${cat.id}_${item.id}`]
+          )?.title,
+        };
+      });
+  };
 
   // 컨텍스트 업데이트
   useEffect(() => {
@@ -37,10 +94,13 @@ export default function ChatPage() {
       .filter(([, status]) => status === "in_progress")
       .map(([id]) => id);
 
+    const urgentCategories = getUrgentCategories();
+
     setContext({
       weddingDate: weddingDate
         ? new Date(weddingDate).toISOString().split("T")[0]
         : undefined,
+      role: role || undefined,
       budget: {
         total: totalBudget || undefined,
         spent: getTotalSpent() || undefined,
@@ -48,8 +108,10 @@ export default function ChatPage() {
       },
       completedCategories,
       inProgressCategories,
+      urgentCategories,
     });
-  }, [weddingDate, categoryStatuses, totalBudget, getTotalSpent, setContext]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weddingDate, categoryStatuses, checklistProgress, totalBudget, getTotalSpent, setContext]);
 
   // 메시지 스크롤
   useEffect(() => {
@@ -66,7 +128,7 @@ export default function ChatPage() {
     .find((m) => m.role === "assistant");
 
   const handleSend = (text: string) => {
-    sendMessage(text);
+    sendMessage(text, currentSender);
   };
 
   const handleClear = () => {
@@ -160,6 +222,7 @@ export default function ChatPage() {
       <ChatInput
         onSend={handleSend}
         disabled={isLoading}
+        sender={currentSender}
         quickReplies={
           lastAssistantMsg?.quickReplies || [
             "진행 상황 보여줘",

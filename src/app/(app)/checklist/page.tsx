@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2, Circle, ChevronDown, ChevronRight,
   Sparkles, SkipForward, Clock, MapPin,
@@ -29,7 +30,16 @@ export default function ChecklistPage() {
     weddingDate,
   } = useJourneyStore();
 
+  const searchParams = useSearchParams();
   const [expandedCategory, setExpandedCategory] = useState<CategoryId | null>(null);
+
+  // URL 쿼리 파라미터로 자동 펼침
+  useEffect(() => {
+    const openId = searchParams.get("open") as CategoryId | null;
+    if (openId && CATEGORIES.some((c) => c.id === openId)) {
+      setExpandedCategory(openId);
+    }
+  }, [searchParams]);
 
   const overallProgress = getOverallProgress();
   const dday = getDaysUntilWedding();

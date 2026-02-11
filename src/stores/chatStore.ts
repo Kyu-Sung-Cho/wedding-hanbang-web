@@ -124,6 +124,30 @@ export const useChatStore = create<ChatState & ChatActions>()(
                   if (data === "[DONE]") break;
                   try {
                     const parsed = JSON.parse(data);
+                    // 서버 에러 처리
+                    if (parsed.error) {
+                      fullContent += parsed.error;
+                      set((state) => ({
+                        messages: state.messages.map((m) =>
+                          m.id === aiMessageId
+                            ? { ...m, content: fullContent }
+                            : m
+                        ),
+                        error: parsed.error,
+                      }));
+                      break;
+                    }
+                    // textReplace: 서버가 ---ACTIONS--- 마커를 제거한 깨끗한 텍스트
+                    if (parsed.textReplace !== undefined) {
+                      fullContent = parsed.textReplace;
+                      set((state) => ({
+                        messages: state.messages.map((m) =>
+                          m.id === aiMessageId
+                            ? { ...m, content: fullContent }
+                            : m
+                        ),
+                      }));
+                    }
                     if (parsed.text) {
                       fullContent += parsed.text;
                       set((state) => ({

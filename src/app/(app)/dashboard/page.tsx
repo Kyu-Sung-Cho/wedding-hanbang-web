@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import {
   Heart, TrendingUp, CheckCircle2, Clock,
-  ArrowRight, Sparkles, Calendar,
+  ArrowRight, Sparkles, Calendar, CalendarDays, RotateCcw,
 } from "lucide-react";
 import { useJourneyStore } from "@/stores/journeyStore";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import { useBudgetStore } from "@/stores/budgetStore";
 import { CATEGORIES } from "@/constants/categories";
 import { formatDday, formatBudgetAmount } from "@/utils/format";
-import { CategoryStatus } from "@/types";
+import { CategoryId, CategoryStatus } from "@/types";
 import Card from "@/components/ui/Card";
 
 export default function DashboardPage() {
@@ -20,6 +20,7 @@ export default function DashboardPage() {
     getDaysUntilWedding,
     getOverallProgress,
     categoryStatuses,
+    setCategoryStatus,
   } = useJourneyStore();
 
   const schedules = useScheduleStore((s) => s.schedules);
@@ -154,18 +155,50 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={category.id}
-                    className="flex cursor-pointer flex-col items-center gap-2 bg-white p-4 transition-colors hover:bg-ivory-50"
-                    onClick={() => router.push(`/schedule?category=${category.id}`)}
+                    className="flex flex-col items-center gap-2 bg-white p-4"
                   >
-                    <span className="text-2xl">{category.emoji}</span>
-                    <span className="text-xs font-medium text-noir-800 text-center">
-                      {category.name}
-                    </span>
+                    {/* 이모지 + 이름 → 체크리스트로 이동 */}
+                    <button
+                      onClick={() => router.push(`/checklist?open=${category.id}`)}
+                      className="flex flex-col items-center gap-1.5 rounded-lg px-2 py-1 transition-colors hover:bg-ivory-50"
+                    >
+                      <span className="text-2xl">{category.emoji}</span>
+                      <span className="text-xs font-medium text-noir-800 text-center">
+                        {category.name}
+                      </span>
+                    </button>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor[status]}`}
                     >
                       {statusLabel[status]}
                     </span>
+                    {/* 액션 버튼 */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => router.push(`/schedule?category=${category.id}`)}
+                        className="rounded-md p-1 text-taupe-400 transition-colors hover:bg-blue-50 hover:text-blue-500"
+                        title="일정"
+                      >
+                        <CalendarDays className="h-3.5 w-3.5" />
+                      </button>
+                      {status !== "completed" ? (
+                        <button
+                          onClick={() => setCategoryStatus(category.id as CategoryId, "completed")}
+                          className="rounded-md p-1 text-taupe-400 transition-colors hover:bg-green-50 hover:text-green-500"
+                          title="완료"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setCategoryStatus(category.id as CategoryId, "not_started")}
+                          className="rounded-md p-1 text-taupe-400 transition-colors hover:bg-gray-100 hover:text-noir-800"
+                          title="초기화"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

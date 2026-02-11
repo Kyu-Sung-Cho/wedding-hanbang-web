@@ -7,12 +7,14 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   quickReplies?: string[];
+  sender?: "bride" | "groom";
 }
 
 export default function ChatInput({
   onSend,
   disabled = false,
   quickReplies,
+  sender = "bride",
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +66,12 @@ export default function ChatInput({
 
       {/* 입력 영역 */}
       <div className="flex items-end gap-3">
+        {/* 발신자 표시 */}
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ${
+          sender === "groom" ? "bg-blue-500" : "bg-rose-500"
+        }`}>
+          {sender === "groom" ? "신랑" : "신부"}
+        </div>
         <textarea
           ref={textareaRef}
           value={text}
@@ -78,7 +86,11 @@ export default function ChatInput({
         <button
           onClick={handleSend}
           disabled={disabled || !text.trim()}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white transition-colors hover:bg-rose-600 disabled:bg-taupe-400 disabled:opacity-50"
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:bg-taupe-400 disabled:opacity-50 ${
+            sender === "groom"
+              ? "bg-blue-500 hover:bg-blue-600"
+              : "bg-rose-500 hover:bg-rose-600"
+          }`}
         >
           <Send className="h-4 w-4" />
         </button>

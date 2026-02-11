@@ -13,14 +13,21 @@ import {
   STYLE_TAGS,
 } from "@/types/vendor.types";
 import Card from "@/components/ui/Card";
-import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 
-const VENDOR_CATEGORIES: { value: VendorCategory; label: string }[] =
-  Object.entries(CATEGORY_LABELS).map(([key, label]) => ({
-    value: key as VendorCategory,
-    label,
-  }));
+const CATEGORY_TABS: { value: VendorCategory | ""; label: string; emoji: string }[] = [
+  { value: "", label: "전체", emoji: "🏪" },
+  { value: "studio", label: "스튜디오", emoji: "📸" },
+  { value: "dress", label: "드레스", emoji: "👗" },
+  { value: "makeup", label: "메이크업", emoji: "💄" },
+  { value: "package", label: "패키지", emoji: "📦" },
+  { value: "snap", label: "본식스냅", emoji: "📷" },
+  { value: "dvd", label: "본식DVD", emoji: "🎬" },
+  { value: "hanbok", label: "한복", emoji: "👘" },
+  { value: "suit", label: "예복", emoji: "🤵" },
+  { value: "jewelry", label: "예물", emoji: "💍" },
+  { value: "invitation", label: "청첩장", emoji: "💌" },
+];
 
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -29,7 +36,6 @@ export default function VendorsPage() {
   const [keyword, setKeyword] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  const [filter, setFilter] = useState<VendorFilter>({});
   const [selectedCategory, setSelectedCategory] = useState<
     VendorCategory | ""
   >("");
@@ -90,10 +96,30 @@ export default function VendorsPage() {
   };
 
   const hasActiveFilters =
-    selectedCategory || selectedRegion || selectedTags.length > 0 || keyword;
+    selectedRegion || selectedTags.length > 0 || keyword;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {/* 카테고리 탭 */}
+      <div className="overflow-x-auto scrollbar-hide -mx-2">
+        <div className="flex gap-2 px-2 pb-1">
+          {CATEGORY_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setSelectedCategory(selectedCategory === tab.value ? "" : tab.value)}
+              className={`flex shrink-0 flex-col items-center gap-1.5 rounded-xl border px-4 py-3 transition-all ${
+                selectedCategory === tab.value
+                  ? "border-rose-500 bg-rose-glow text-rose-500 shadow-sm"
+                  : "border-platinum bg-white text-taupe-500 hover:bg-ivory-50 hover:text-noir-800"
+              }`}
+            >
+              <span className="text-xl">{tab.emoji}</span>
+              <span className="text-[11px] font-medium whitespace-nowrap">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 검색바 */}
       <form onSubmit={handleSearch} className="flex gap-3">
         <div className="relative flex-1">
@@ -120,19 +146,17 @@ export default function VendorsPage() {
           필터
           {hasActiveFilters && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">
-              {[selectedCategory, selectedRegion, ...selectedTags].filter(
-                Boolean
-              ).length}
+              {[selectedRegion, ...selectedTags].filter(Boolean).length}
             </span>
           )}
         </button>
       </form>
 
-      {/* 필터 패널 */}
+      {/* 필터 패널 (지역 + 스타일) */}
       {showFilters && (
         <Card>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-noir-800">필터</h3>
+            <h3 className="text-sm font-medium text-noir-800">상세 필터</h3>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -142,32 +166,6 @@ export default function VendorsPage() {
                 초기화
               </button>
             )}
-          </div>
-
-          {/* 카테고리 */}
-          <div className="mb-4">
-            <label className="mb-2 block text-xs font-medium text-taupe-500">
-              카테고리
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {VENDOR_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.value}
-                  onClick={() =>
-                    setSelectedCategory(
-                      selectedCategory === cat.value ? "" : cat.value
-                    )
-                  }
-                  className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
-                    selectedCategory === cat.value
-                      ? "bg-rose-500 text-white"
-                      : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 지역 */}
@@ -223,8 +221,18 @@ export default function VendorsPage() {
       {/* 결과 수 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-taupe-500">
-          {loading ? "검색 중..." : `${total}개 업체`}
+          {loading
+            ? "검색 중..."
+            : `${selectedCategory ? CATEGORY_LABELS[selectedCategory] + " " : ""}${total}개 업체`}
         </p>
+        {selectedCategory && (
+          <button
+            onClick={() => setSelectedCategory("")}
+            className="flex items-center gap-1 text-xs text-rose-500 hover:underline"
+          >
+            전체 보기
+          </button>
+        )}
       </div>
 
       {/* 업체 목록 */}
