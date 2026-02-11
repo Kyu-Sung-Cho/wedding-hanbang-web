@@ -1,26 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Noto+Serif+KR:wght@200;300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts */
+  --font-sans: 'Noto Sans KR', sans-serif;
+  --font-serif: 'Noto Serif KR', serif;
+  --font-display: 'Cormorant Garamond', serif;
+
+  /* Primary - Noir */
+  --color-noir-50: #F5F5F6;
+  --color-noir-100: #E5E5E7;
+  --color-noir-200: #CCCCD0;
+  --color-noir-300: #A8A8AE;
+  --color-noir-400: #7C7C84;
+  --color-noir-500: #616169;
+  --color-noir-600: #53535A;
+  --color-noir-700: #47474D;
+  --color-noir-800: #1A1A1F;
+  --color-noir-900: #0D0D0F;
+  --color-noir-soft: #2D2D33;
+
+  /* Accent - Rose Champagne */
+  --color-rose-50: #FDF6F3;
+  --color-rose-100: #FAEAE3;
+  --color-rose-200: #F5D5C7;
+  --color-rose-300: #E8B9A6;
+  --color-rose-400: #D4AFA0;
+  --color-rose-500: #C4967E;
+  --color-rose-600: #9A6B62;
+  --color-rose-700: #7D554E;
+  --color-rose-800: #674844;
+  --color-rose-900: #583F3C;
+  --color-rose-light: #D4AFA0;
+  --color-rose-pale: #E8D5CD;
+  --color-rose-glow: rgba(196, 150, 126, 0.15);
+
+  /* Background - Warm Ivory */
+  --color-ivory-50: #FDFCFA;
+  --color-ivory-100: #FAF8F5;
+  --color-ivory-200: #F5F2ED;
+  --color-ivory-warm: #FAF7F2;
+  --color-ivory-deep: #F5F0E8;
+
+  /* Taupe */
+  --color-taupe-300: #C5BEB6;
+  --color-taupe-400: #B5ADA3;
+  --color-taupe-500: #928980;
+  --color-taupe-600: #7A726A;
+  --color-taupe-light: #B5ADA3;
+
+  /* Gold */
+  --color-gold: #C9A96E;
+  --color-gold-light: #DCC9A0;
+
+  /* Charcoal */
+  --color-charcoal: #4A4A52;
+
+  /* Platinum */
+  --color-platinum: #E8E4E0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background: var(--color-ivory-50);
+  color: var(--color-noir-800);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 스크롤바 커스텀 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-taupe-400);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-taupe-500);
+}
+
+/* 커스텀 애니메이션 */
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+@keyframes scrollLine {
+  0% { transform: scaleY(0); transform-origin: top; }
+  50% { transform: scaleY(1); transform-origin: top; }
+  51% { transform: scaleY(1); transform-origin: bottom; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes scanLine {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes phoneScan {
+  0% { top: 60px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: calc(100% - 80px); opacity: 0; }
+}
+
+@keyframes floatCard {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
