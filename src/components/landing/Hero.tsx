@@ -1,90 +1,179 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
 
 export default function Hero() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async () => {
+    if (!email || !email.includes("@")) return;
+
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/preregister", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (res.ok) {
+        setStatus("success");
+        setEmail("");
+        setTimeout(() => setStatus("idle"), 3000);
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "등록에 실패했습니다.");
+        setStatus("error");
+        setTimeout(() => setStatus("idle"), 3000);
+      }
+    } catch {
+      setErrorMsg("네트워크 오류가 발생했습니다.");
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  };
+
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-ivory-50 via-ivory-warm to-ivory-deep">
-      {/* 배경 오브 */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-[10%] -right-[5%] h-[500px] w-[500px] animate-[orbFloat_20s_ease-in-out_infinite] rounded-full bg-[radial-gradient(circle,_var(--color-rose-pale),_transparent)] opacity-40 blur-[80px]" />
-        <div className="absolute -bottom-[15%] -left-[5%] h-[400px] w-[400px] animate-[orbFloat_20s_ease-in-out_infinite_-7s] rounded-full bg-[radial-gradient(circle,_var(--color-gold-light),_transparent)] opacity-40 blur-[80px]" />
-        <div className="absolute top-[40%] left-[30%] h-[300px] w-[300px] animate-[orbFloat_20s_ease-in-out_infinite_-14s] rounded-full bg-[radial-gradient(circle,_rgba(196,150,126,0.3),_transparent)] opacity-40 blur-[80px]" />
+    <section className="bg-white pt-24 pb-16 md:pt-32 md:pb-24">
+      <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 md:grid-cols-2 md:gap-16">
+        {/* 좌측: 텍스트 + CTA */}
+        <div>
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-gray-100 px-4 py-1.5 text-xs font-medium text-gray-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            지금 바로 무료로 시작
+          </div>
+
+          <h1 className="mb-6 text-[clamp(36px,5vw,60px)] font-bold leading-[1.15] tracking-[-0.02em] text-gray-900">
+            결혼 준비,
+            <br />
+            AI 한 방이면
+            <br />
+            됩니다
+          </h1>
+
+          <p className="mb-8 max-w-lg text-lg leading-relaxed text-gray-500">
+            24시간 AI 웨딩 플래너, 가상 드레스 피팅, 스마트 예산 관리까지.
+            웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.
+          </p>
+
+          {/* 이메일 CTA */}
+          <div className="mb-4 flex max-w-md flex-col gap-3 sm:flex-row">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              placeholder="이메일을 입력하세요"
+              className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-900"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={status === "loading"}
+              className={`whitespace-nowrap rounded-lg px-6 py-3 text-sm font-medium transition-colors ${
+                status === "success"
+                  ? "bg-green-600 text-white"
+                  : status === "error"
+                    ? "bg-red-500 text-white"
+                    : "bg-gray-900 text-white hover:bg-gray-800"
+              }`}
+            >
+              {status === "loading"
+                ? "등록 중..."
+                : status === "success"
+                  ? "등록 완료!"
+                  : status === "error"
+                    ? errorMsg
+                    : "무료로 시작하기"}
+            </button>
+          </div>
+
+          {status === "idle" && (
+            <p className="text-xs text-gray-400">
+              무료로 시작하세요. 신용카드가 필요하지 않습니다.
+            </p>
+          )}
+        </div>
+
+        {/* 우측: 대시보드 목업 */}
+        <div className="relative">
+          {/* 브라우저 프레임 */}
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+            {/* 브라우저 탑바 */}
+            <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3">
+              <div className="flex gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
+              </div>
+              <div className="mx-auto rounded-md bg-white px-8 py-1 text-xs text-gray-400">
+                hanbang.ai/dashboard
+              </div>
+            </div>
+
+            {/* 대시보드 내용 */}
+            <div className="space-y-4 p-5">
+              {/* 상단 카드 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-gray-900 p-4 text-white">
+                  <p className="mb-1 text-xs text-gray-400">결혼식까지</p>
+                  <p className="text-2xl font-bold">D-120</p>
+                  <p className="mt-1 text-xs text-gray-400">2025.10.18</p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="mb-1 text-xs text-gray-500">총 예산</p>
+                  <p className="text-lg font-bold text-gray-900">₩10,000,000</p>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-full w-[45%] rounded-full bg-gray-900" />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400">45% 사용</p>
+                </div>
+              </div>
+
+              {/* AI 채팅 프리뷰 */}
+              <div className="rounded-lg border border-gray-100 p-4">
+                <p className="mb-3 text-xs font-medium text-gray-500">AI 웨딩 플래너</p>
+                <div className="space-y-2">
+                  <div className="self-end rounded-lg rounded-br-sm bg-gray-900 px-3 py-2 text-xs text-white">
+                    스튜디오 어떻게 골라야 해?
+                  </div>
+                  <div className="rounded-lg rounded-bl-sm bg-gray-100 px-3 py-2 text-xs text-gray-700">
+                    D-120일 기준 스튜디오 선택 시 중요한 4가지를 알려드릴게요...
+                  </div>
+                </div>
+              </div>
+
+              {/* 카테고리 진행률 */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "스튜디오", pct: 100 },
+                  { label: "드레스", pct: 60 },
+                  { label: "메이크업", pct: 30 },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border border-gray-100 p-3 text-center">
+                    <p className="text-xs text-gray-500">{item.label}</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">{item.pct}%</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 플로팅 배지 */}
+          <div className="absolute -bottom-4 -left-4 rounded-lg border border-gray-200 bg-white px-4 py-2.5 shadow-lg">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-xs">
+                ✓
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-900">AI 피팅 완료</p>
+                <p className="text-[10px] text-gray-400">방금 전</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div className="relative z-[2] px-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.2 }}
-          className="mb-10 inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-white/70 px-5 py-2 text-[13px] tracking-[0.02em] text-charcoal backdrop-blur-[10px]"
-        >
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
-          AI 웨딩 플래너 — 지금 바로 시작하세요
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.4 }}
-          className="mb-7 font-serif text-[clamp(40px,6vw,72px)] font-light leading-[1.25] tracking-[-0.03em]"
-        >
-          결혼 준비,
-          <br />
-          이제{" "}
-          <em className="bg-gradient-to-br from-rose-500 to-gold bg-clip-text not-italic font-medium text-transparent">
-            AI 한 방
-          </em>
-          이면 됩니다
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.6 }}
-          className="mx-auto mb-12 max-w-[560px] text-[17px] font-light leading-[1.7] tracking-[-0.01em] text-charcoal"
-        >
-          24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지.
-          <br />
-          웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.8 }}
-          className="flex flex-wrap justify-center gap-4"
-        >
-          <Link
-            href="/login"
-            className="group inline-flex items-center gap-2.5 rounded-full bg-noir-800 px-9 py-4 text-[15px] font-medium tracking-[-0.01em] text-white transition-all duration-400 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)]"
-          >
-            무료로 시작하기
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-          <a
-            href="#features"
-            className="inline-flex items-center gap-2.5 rounded-full border-[1.5px] border-platinum px-9 py-4 text-[15px] font-normal tracking-[-0.01em] text-noir-800 transition-all duration-400 hover:-translate-y-0.5 hover:border-rose-500 hover:text-rose-500"
-          >
-            기능 둘러보기
-          </a>
-        </motion.div>
-      </div>
-
-      {/* 스크롤 힌트 */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1, delay: 1.2 }}
-        className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2"
-      >
-        <span className="text-[11px] uppercase tracking-[0.15em] text-taupe-500">
-          Scroll
-        </span>
-        <div className="h-10 w-px animate-[scrollLine_2s_ease-in-out_infinite] bg-gradient-to-b from-taupe-light to-transparent" />
-      </motion.div>
     </section>
   );
 }

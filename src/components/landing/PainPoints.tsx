@@ -1,52 +1,78 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { Clock, DollarSign, HelpCircle, Shirt } from "lucide-react";
 
 const painCards = [
-  { icon: "⏰", title: "시간 부족", desc: "직장인 커플은 업체 방문할 시간이 절대적으로 부족합니다" },
-  { icon: "💸", title: "불투명한 비용", desc: "숨겨진 추가 비용과 20~30% 커미션이 가격에 포함됩니다" },
-  { icon: "😰", title: "정보의 바다", desc: "어디서부터 시작해야 할지, 무엇이 적정 가격인지 모릅니다" },
-  { icon: "👗", title: "드레스 선택 지옥", desc: "10곳 이상 방문해도 마음에 드는 드레스를 찾기 어렵습니다" },
+  { icon: Clock, title: "시간 부족", desc: "직장인 커플은 업체 방문할 시간이 절대적으로 부족합니다" },
+  { icon: DollarSign, title: "불투명한 비용", desc: "숨겨진 추가 비용과 20~30% 커미션이 가격에 포함됩니다" },
+  { icon: HelpCircle, title: "정보의 바다", desc: "어디서부터 시작해야 할지, 무엇이 적정 가격인지 모릅니다" },
+  { icon: Shirt, title: "드레스 선택 지옥", desc: "10곳 이상 방문해도 마음에 드는 드레스를 찾기 어렵습니다" },
 ];
 
 export default function PainPoints() {
-  return (
-    <section className="relative overflow-hidden bg-noir-800 px-5 py-[100px] text-white md:px-[60px] md:py-[140px]">
-      <div className="absolute -top-[200px] -right-[200px] h-[600px] w-[600px] rounded-full bg-[radial-gradient(circle,_rgba(196,150,126,0.08),_transparent)]" />
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
-      <div className="mx-auto grid max-w-[1200px] items-center gap-12 md:grid-cols-2 md:gap-20">
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section className="bg-white px-6 py-20 md:py-28">
+      <div
+        ref={ref}
+        className="mx-auto grid max-w-7xl items-center gap-12 md:grid-cols-2 md:gap-20"
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(24px)",
+          transition: "opacity 0.6s ease, transform 0.6s ease",
+        }}
+      >
         <div>
-          <div className="mb-5 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-rose-light">
-            <span className="h-px w-5 bg-rose-light" />
-            Problem
-          </div>
-          <h2 className="mb-5 font-serif text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-[-0.02em] text-white">
+          <h2 className="mb-5 text-[clamp(28px,3.5vw,40px)] font-bold leading-[1.25] tracking-[-0.02em] text-gray-900">
             결혼 준비,
             <br />
             왜 이렇게 힘들까요?
           </h2>
-          <p className="max-w-[520px] text-base font-light leading-[1.75] text-white/60">
+          <p className="max-w-lg text-base leading-relaxed text-gray-500">
             평균 결혼 준비 기간 10개월. 그 시간 동안 수십 곳의 업체를 비교하고, 불투명한 가격에 지치고, 추가 비용에 놀라는 일의 연속입니다.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {painCards.map((card, i) => (
-            <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.8, delay: i * 0.1 }}
-              className="group rounded-2xl border border-white/[0.06] bg-white/[0.04] p-7 transition-all duration-400 hover:-translate-y-1 hover:border-rose-500/20 hover:bg-white/[0.07]"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-[10px] bg-rose-500/15 text-lg">
-                {card.icon}
+          {painCards.map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.title}
+                className="rounded-xl border border-gray-100 bg-white p-6"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? "translateY(0)" : "translateY(16px)",
+                  transition: `opacity 0.5s ease ${i * 0.1}s, transform 0.5s ease ${i * 0.1}s`,
+                }}
+              >
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
+                  <Icon className="h-5 w-5 text-gray-600" />
+                </div>
+                <h4 className="mb-2 text-sm font-semibold text-gray-900">{card.title}</h4>
+                <p className="text-sm leading-relaxed text-gray-500">{card.desc}</p>
               </div>
-              <h4 className="mb-2 text-[15px] font-medium text-white/90">{card.title}</h4>
-              <p className="text-[13px] font-light leading-[1.6] text-white/45">{card.desc}</p>
-            </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

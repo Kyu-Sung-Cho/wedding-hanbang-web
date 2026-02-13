@@ -2,75 +2,120 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[1000] flex h-[72px] items-center justify-between px-5 transition-all duration-500 md:px-[60px] ${
-        scrolled
-          ? "bg-ivory-50/92 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-[20px] backdrop-saturate-[180%]"
-          : ""
+      className={`fixed top-0 left-0 right-0 z-[1000] bg-white transition-shadow duration-300 ${
+        scrolled ? "shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : ""
       }`}
     >
-      <Link href="/" className="flex items-center gap-2.5 no-underline">
-        <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-gradient-to-br from-rose-500 to-gold text-base font-semibold text-white font-display tracking-[-0.5px]">
-          한
-        </div>
-        <span className="text-lg font-medium font-serif tracking-[-0.5px] text-noir-800">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+        {/* 로고 */}
+        <Link href="/" className="text-xl font-bold tracking-tight text-gray-900">
           웨딩한방
-        </span>
-      </Link>
+        </Link>
 
-      <div className="hidden items-center gap-9 md:flex">
-        <a
-          href="#features"
-          className="group relative text-sm font-normal text-charcoal tracking-[0.02em] transition-colors hover:text-noir-800"
+        {/* 데스크톱 네비 */}
+        <div className="hidden items-center gap-8 md:flex">
+          <a href="#features" className="text-sm text-gray-600 transition-colors hover:text-gray-900">
+            기능
+          </a>
+          <a href="#comparison" className="text-sm text-gray-600 transition-colors hover:text-gray-900">
+            비교
+          </a>
+          <a href="#how" className="text-sm text-gray-600 transition-colors hover:text-gray-900">
+            이용방법
+          </a>
+          <a href="#reviews" className="text-sm text-gray-600 transition-colors hover:text-gray-900">
+            후기
+          </a>
+        </div>
+
+        {/* 데스크톱 CTA */}
+        <div className="hidden items-center gap-4 md:flex">
+          <Link
+            href="/login"
+            className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            로그인
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            무료로 시작하기
+          </Link>
+        </div>
+
+        {/* 모바일 햄버거 */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 md:hidden"
         >
-          기능
-          <span className="absolute -bottom-1 left-0 h-[1.5px] w-0 bg-rose-500 transition-all duration-300 group-hover:w-full" />
-        </a>
-        <a
-          href="#fitting"
-          className="group relative text-sm font-normal text-charcoal tracking-[0.02em] transition-colors hover:text-noir-800"
-        >
-          가상 피팅
-          <span className="absolute -bottom-1 left-0 h-[1.5px] w-0 bg-rose-500 transition-all duration-300 group-hover:w-full" />
-        </a>
-        <a
-          href="#how"
-          className="group relative text-sm font-normal text-charcoal tracking-[0.02em] transition-colors hover:text-noir-800"
-        >
-          이용방법
-          <span className="absolute -bottom-1 left-0 h-[1.5px] w-0 bg-rose-500 transition-all duration-300 group-hover:w-full" />
-        </a>
-        <a
-          href="#reviews"
-          className="group relative text-sm font-normal text-charcoal tracking-[0.02em] transition-colors hover:text-noir-800"
-        >
-          후기
-          <span className="absolute -bottom-1 left-0 h-[1.5px] w-0 bg-rose-500 transition-all duration-300 group-hover:w-full" />
-        </a>
-        <Link
-          href="/login"
-          className="rounded-full border-[1.5px] border-platinum px-5 py-2 text-[13px] font-medium tracking-[0.03em] text-noir-800 transition-all hover:-translate-y-px hover:border-rose-500 hover:text-rose-500"
-        >
-          로그인
-        </Link>
-        <Link
-          href="/login"
-          className="rounded-full bg-noir-800 px-6 py-2.5 text-[13px] font-medium tracking-[0.03em] text-white transition-all hover:-translate-y-px hover:bg-noir-soft"
-        >
-          서비스 시작하기
-        </Link>
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </div>
+
+      {/* 모바일 메뉴 */}
+      {mobileOpen && (
+        <div className="border-t border-gray-100 bg-white px-6 py-4 md:hidden">
+          <div className="flex flex-col gap-3">
+            <a
+              href="#features"
+              onClick={() => setMobileOpen(false)}
+              className="py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              기능
+            </a>
+            <a
+              href="#comparison"
+              onClick={() => setMobileOpen(false)}
+              className="py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              비교
+            </a>
+            <a
+              href="#how"
+              onClick={() => setMobileOpen(false)}
+              className="py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              이용방법
+            </a>
+            <a
+              href="#reviews"
+              onClick={() => setMobileOpen(false)}
+              className="py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              후기
+            </a>
+            <div className="mt-2 flex flex-col gap-2 border-t border-gray-100 pt-4">
+              <Link
+                href="/login"
+                className="py-2 text-sm font-medium text-gray-600"
+              >
+                로그인
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-lg bg-gray-900 px-5 py-2.5 text-center text-sm font-medium text-white"
+              >
+                무료로 시작하기
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

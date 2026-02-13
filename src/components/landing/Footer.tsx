@@ -23,19 +23,14 @@ const companyLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-noir-800 px-5 pt-20 pb-10 text-white md:px-[60px]">
-      <div className="mx-auto mb-15 grid max-w-[1200px] grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4 md:gap-15">
+    <footer className="bg-gray-900 px-6 pt-16 pb-10">
+      <div className="mx-auto mb-12 grid max-w-7xl grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4 md:gap-12">
         {/* 브랜드 */}
         <div>
-          <Link href="/" className="flex items-center gap-2.5 no-underline">
-            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-gradient-to-br from-rose-500 to-gold text-base font-semibold text-white font-display tracking-[-0.5px]">
-              한
-            </div>
-            <span className="text-lg font-medium font-serif tracking-[-0.5px] text-white">
-              웨딩한방
-            </span>
+          <Link href="/" className="text-lg font-bold tracking-tight text-white no-underline">
+            웨딩한방
           </Link>
-          <p className="mt-4 max-w-[300px] text-sm font-light leading-[1.7] text-white/40">
+          <p className="mt-4 max-w-[300px] text-sm leading-relaxed text-gray-500">
             AI가 이끄는 새로운 결혼 준비의 시작.
             <br />
             웨딩 플래너 없이도 완벽한 결혼을 준비하세요.
@@ -44,9 +39,9 @@ export default function Footer() {
 
         {/* 서비스 */}
         <div>
-          <h5 className="mb-5 text-xs font-medium uppercase tracking-[0.15em] text-white/30">서비스</h5>
+          <h5 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">서비스</h5>
           {serviceLinks.map((link) => (
-            <Link key={link.label} href={link.href} className="mb-3 block text-sm font-light text-white/60 transition-colors hover:text-rose-light">
+            <Link key={link.label} href={link.href} className="mb-2.5 block text-sm text-gray-400 transition-colors hover:text-white">
               {link.label}
             </Link>
           ))}
@@ -54,9 +49,9 @@ export default function Footer() {
 
         {/* 고객 지원 */}
         <div>
-          <h5 className="mb-5 text-xs font-medium uppercase tracking-[0.15em] text-white/30">고객 지원</h5>
+          <h5 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">고객 지원</h5>
           {supportLinks.map((link) => (
-            <a key={link.label} href={link.href} className="mb-3 block text-sm font-light text-white/60 transition-colors hover:text-rose-light">
+            <a key={link.label} href={link.href} className="mb-2.5 block text-sm text-gray-400 transition-colors hover:text-white">
               {link.label}
             </a>
           ))}
@@ -64,20 +59,20 @@ export default function Footer() {
 
         {/* 회사 */}
         <div>
-          <h5 className="mb-5 text-xs font-medium uppercase tracking-[0.15em] text-white/30">회사</h5>
+          <h5 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">회사</h5>
           {companyLinks.map((link) => (
-            <a key={link.label} href={link.href} className="mb-3 block text-sm font-light text-white/60 transition-colors hover:text-rose-light">
+            <a key={link.label} href={link.href} className="mb-2.5 block text-sm text-gray-400 transition-colors hover:text-white">
               {link.label}
             </a>
           ))}
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-10 sm:flex-row">
-        <span className="text-[13px] font-light text-white/30">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 border-t border-gray-800 pt-8 sm:flex-row">
+        <span className="text-sm text-gray-600">
           © 2025 웨딩한방. All rights reserved.
         </span>
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           {[
             { label: "IG", title: "Instagram" },
             { label: "KT", title: "KakaoTalk" },
@@ -87,7 +82,7 @@ export default function Footer() {
               key={social.label}
               href="#"
               title={social.title}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-sm text-white/40 transition-all hover:bg-rose-500/15 hover:text-rose-light"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-xs text-gray-500 transition-colors hover:bg-gray-700 hover:text-white"
             >
               {social.label}
             </a>

@@ -1,34 +1,66 @@
-export type FittingStatus = "pending" | "processing" | "completed" | "failed";
+/**
+ * AI 실시간 드레스 피팅 관련 타입 정의
+ * Decart API (Lucy Pro V2V) 기반 실시간 카메라 피팅
+ * 앱과 동일한 타입 구조 사용
+ */
 
+// 피팅 세션 상태
+export type FittingStatus = "pending" | "streaming" | "completed" | "failed";
+
+/**
+ * 드레스 피팅 이미지 (업체 등록)
+ * dress_fitting_images 테이블
+ */
+export interface DressFittingImage {
+  id: string;
+  vendor_id: string;
+  product_id: string | null;
+  image_url: string;
+  is_fitting_enabled: boolean;
+}
+
+/**
+ * 피팅 세션/결과 (실시간 카메라 기반)
+ * fitting_requests 테이블
+ */
 export interface FittingRequest {
   id: string;
-  user_id: string;
   couple_id: string;
-  user_photo_url: string;
-  dress_style: string;
+  vendor_id?: string;
+  dress_image_url: string;
   status: FittingStatus;
-  result_url: string | null;
-  video_url: string | null;
+  session_id: string | null;
+  saved_video_url: string | null;
   cost_krw: number;
   is_saved: boolean;
   expires_at: string | null;
   created_at: string;
+  completed_at: string | null;
 }
 
-export interface FittingUsage {
-  id: string;
-  user_id: string;
-  couple_id: string;
-  period_start: string;
-  free_limit: number;
-  free_used: number;
+/**
+ * 실시간 피팅 세션 생성 입력
+ */
+export interface FittingSessionInput {
+  vendorId?: string;
+  dressImageUrl: string;
 }
 
-export const DRESS_STYLES = [
-  { id: "a_line", label: "A라인", emoji: "👗", description: "클래식하고 우아한 실루엣" },
-  { id: "mermaid", label: "머메이드", emoji: "🧜‍♀️", description: "몸매를 강조하는 피트앤플레어" },
-  { id: "ball_gown", label: "볼가운", emoji: "👸", description: "풍성하고 화려한 공주풍" },
-  { id: "empire", label: "엠파이어", emoji: "🏛️", description: "하이웨이스트로 우아한 라인" },
-  { id: "sheath", label: "시스", emoji: "✨", description: "슬림하고 모던한 직선 실루엣" },
-  { id: "tea_length", label: "티 렝스", emoji: "🌸", description: "종아리 길이의 빈티지 스타일" },
-] as const;
+/**
+ * 실시간 피팅 세션 응답
+ */
+export interface FittingSessionResponse {
+  requestId: string;
+  sessionId: string;
+  streamUrl: string;
+  cost: number;
+}
+
+/**
+ * 피팅 서비스 응답
+ */
+export interface FittingServiceResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}

@@ -1,197 +1,247 @@
+/**
+ * AI 실시간 드레스 피팅 Zustand 스토어
+ * 실시간 카메라 기반 피팅 세션 관리
+ * 앱과 동일한 구조 사용
+ */
+
 import { create } from "zustand";
-import { FittingRequest, FittingUsage } from "@/types/fitting";
+import {
+  FittingRequest,
+  FittingSessionInput,
+} from "@/types/fitting";
 import * as fittingService from "@/lib/services/fittingService";
 
-type FittingStep = "upload" | "style" | "processing" | "result";
+type FittingStep = "select" | "confirm" | "connecting" | "streaming" | "result";
 
 interface FittingState {
+  // 단계
   step: FittingStep;
-  selectedPhotoFile: File | null;
-  selectedPhotoPreview: string | null;
-  selectedDressStyle: string | null;
-  currentRequest: FittingRequest | null;
-  history: FittingRequest[];
-  usage: FittingUsage | null;
-  isLoading: boolean;
+
+  // 실시간 스트리밍 상태
+  isStreaming: boolean;
+  sessionId: string | null;
+  streamUrl: string | null;
+  currentRequestId: string | null;
+  currentFitting: FittingRequest | null;
   error: string | null;
-  pollingInterval: ReturnType<typeof setInterval> | null;
+  isLoading: boolean;
+
+  // 피팅 기록
+  fittingHistory: FittingRequest[];
+
+  // 선택된 드레스 이미지
+  selectedDressImageUrl: string | null;
+  selectedVendorId: string | null;
+
+  // 드레스 이미지 업로드
+  uploadedDressPreview: string | null;
 }
 
 interface FittingActions {
   setStep: (step: FittingStep) => void;
-  setSelectedPhoto: (file: File | null, preview: string | null) => void;
-  setSelectedDressStyle: (style: string | null) => void;
-  startFitting: (userId: string, coupleId: string) => Promise<void>;
-  pollResult: (requestId: string) => void;
-  stopPolling: () => void;
-  loadHistory: (coupleId: string) => Promise<void>;
-  loadUsage: (userId: string, coupleId: string) => Promise<void>;
-  toggleSave: (requestId: string) => Promise<void>;
-  deleteFitting: (requestId: string) => Promise<void>;
+
+  // 드레스 선택
+  selectDress: (imageUrl: string, vendorId?: string) => void;
+  setUploadedDressPreview: (preview: string | null) => void;
+  uploadDressImage: (file: File) => Promise<string | null>;
+
+  // 실시간 피팅 세션
+  startSession: (coupleId: string) => Promise<boolean>;
+  endSession: () => void;
+
+  // 영상 캡처/저장
+  captureVideo: (videoBlob: Blob) => Promise<boolean>;
+  saveFitting: (requestId: string) => Promise<boolean>;
+  deleteFitting: (requestId: string) => Promise<boolean>;
+
+  // 피팅 기록
+  loadFittingHistory: (coupleId: string) => Promise<void>;
+
+  // 상태 관리
   reset: () => void;
-  getRemainingFree: () => number;
+  setError: (error: string | null) => void;
 }
 
 const initialState: FittingState = {
-  step: "upload",
-  selectedPhotoFile: null,
-  selectedPhotoPreview: null,
-  selectedDressStyle: null,
-  currentRequest: null,
-  history: [],
-  usage: null,
-  isLoading: false,
+  step: "select",
+  isStreaming: false,
+  sessionId: null,
+  streamUrl: null,
+  currentRequestId: null,
+  currentFitting: null,
   error: null,
-  pollingInterval: null,
+  isLoading: false,
+  fittingHistory: [],
+  selectedDressImageUrl: null,
+  selectedVendorId: null,
+  uploadedDressPreview: null,
 };
 
 export const useFittingStore = create<FittingState & FittingActions>()((set, get) => ({
   ...initialState,
 
   setStep: (step) => set({ step }),
-  setSelectedPhoto: (file, preview) => set({ selectedPhotoFile: file, selectedPhotoPreview: preview }),
-  setSelectedDressStyle: (style) => set({ selectedDressStyle: style }),
 
-  startFitting: async (userId, coupleId) => {
-    const { selectedPhotoFile, selectedDressStyle } = get();
-    if (!selectedPhotoFile || !selectedDressStyle) return;
+  // ========== 드레스 선택 ==========
 
-    set({ isLoading: true, error: null, step: "processing" });
-
-    try {
-      // 1. 사진 업로드
-      const photoUrl = await fittingService.uploadUserPhoto(userId, selectedPhotoFile);
-      if (!photoUrl) {
-        set({ error: "사진 업로드에 실패했습니다.", isLoading: false, step: "upload" });
-        return;
-      }
-
-      // 2. 피팅 요청 생성
-      const request = await fittingService.createFittingRequest(
-        userId,
-        coupleId,
-        photoUrl,
-        selectedDressStyle
-      );
-      if (!request) {
-        set({ error: "피팅 요청 생성에 실패했습니다.", isLoading: false, step: "upload" });
-        return;
-      }
-
-      set({ currentRequest: request });
-
-      // 3. Edge Function 호출
-      const started = await fittingService.startAIFitting(request.id);
-      if (!started) {
-        set({ error: "AI 피팅 시작에 실패했습니다.", isLoading: false, step: "upload" });
-        return;
-      }
-
-      // 4. 사용량 증가
-      await fittingService.incrementFittingUsage(userId, coupleId);
-
-      // 5. 결과 폴링 시작
-      get().pollResult(request.id);
-    } catch (error) {
-      console.error("피팅 프로세스 오류:", error);
-      set({ error: "피팅 처리 중 오류가 발생했습니다.", isLoading: false, step: "upload" });
-    }
-  },
-
-  pollResult: (requestId) => {
-    const { pollingInterval } = get();
-    if (pollingInterval) clearInterval(pollingInterval);
-
-    const interval = setInterval(async () => {
-      try {
-        const request = await fittingService.getFittingRequest(requestId);
-        if (!request) return;
-
-        set({ currentRequest: request });
-
-        if (request.status === "completed") {
-          get().stopPolling();
-          set({ step: "result", isLoading: false });
-        } else if (request.status === "failed") {
-          get().stopPolling();
-          set({
-            error: "AI 피팅 생성에 실패했습니다. 다시 시도해주세요.",
-            isLoading: false,
-            step: "upload",
-          });
-        }
-      } catch (error) {
-        console.error("폴링 오류:", error);
-      }
-    }, 3000);
-
-    set({ pollingInterval: interval });
-  },
-
-  stopPolling: () => {
-    const { pollingInterval } = get();
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      set({ pollingInterval: null });
-    }
-  },
-
-  loadHistory: async (coupleId) => {
-    try {
-      const history = await fittingService.getFittingHistory(coupleId);
-      set({ history });
-    } catch (error) {
-      console.error("피팅 히스토리 로드 실패:", error);
-    }
-  },
-
-  loadUsage: async (userId, coupleId) => {
-    try {
-      const usage = await fittingService.getFittingUsage(userId, coupleId);
-      set({ usage });
-    } catch (error) {
-      console.error("피팅 사용량 로드 실패:", error);
-    }
-  },
-
-  toggleSave: async (requestId) => {
-    const { history, currentRequest } = get();
-    const target = history.find((h) => h.id === requestId) || (currentRequest?.id === requestId ? currentRequest : null);
-    if (!target) return;
-
-    const newSaved = !target.is_saved;
-    await fittingService.toggleFittingSave(requestId, newSaved);
-
-    // 로컬 상태 업데이트
+  selectDress: (imageUrl, vendorId) => {
     set({
-      history: history.map((h) => h.id === requestId ? { ...h, is_saved: newSaved } : h),
-      currentRequest: currentRequest?.id === requestId ? { ...currentRequest, is_saved: newSaved } : currentRequest,
+      selectedDressImageUrl: imageUrl,
+      selectedVendorId: vendorId || null,
+      step: "confirm",
     });
+  },
+
+  setUploadedDressPreview: (preview) => set({ uploadedDressPreview: preview }),
+
+  uploadDressImage: async (file) => {
+    set({ isLoading: true, error: null });
+    const result = await fittingService.uploadDressImage(file);
+    set({ isLoading: false });
+
+    if (result.success && result.data) {
+      return result.data;
+    }
+    set({ error: result.error || "이미지 업로드 실패" });
+    return null;
+  },
+
+  // ========== 실시간 피팅 세션 ==========
+
+  startSession: async (coupleId) => {
+    const { selectedDressImageUrl, selectedVendorId } = get();
+    if (!selectedDressImageUrl) {
+      set({ error: "드레스 이미지를 선택해주세요." });
+      return false;
+    }
+
+    set({ step: "connecting", isLoading: true, error: null });
+
+    try {
+      const input: FittingSessionInput = {
+        vendorId: selectedVendorId || undefined,
+        dressImageUrl: selectedDressImageUrl,
+      };
+
+      const result = await fittingService.createFittingSession(input, coupleId);
+
+      if (result.success && result.data) {
+        set({
+          isStreaming: true,
+          sessionId: result.data.sessionId,
+          streamUrl: result.data.streamUrl,
+          currentRequestId: result.data.requestId,
+          step: "streaming",
+          isLoading: false,
+        });
+        return true;
+      } else {
+        set({
+          error: result.error || "세션 생성 실패",
+          step: "confirm",
+          isLoading: false,
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("[FittingStore] startSession error:", error);
+      set({
+        error: "피팅 세션 시작 중 오류가 발생했습니다.",
+        step: "confirm",
+        isLoading: false,
+      });
+      return false;
+    }
+  },
+
+  endSession: () => {
+    const { currentRequestId } = get();
+    if (currentRequestId) {
+      fittingService.endFittingSession(currentRequestId);
+    }
+    set({
+      isStreaming: false,
+      sessionId: null,
+      streamUrl: null,
+      step: "result",
+    });
+  },
+
+  // ========== 영상 캡처/저장 ==========
+
+  captureVideo: async (videoBlob) => {
+    try {
+      const { currentRequestId } = get();
+      if (!currentRequestId) {
+        set({ error: "활성 세션이 없습니다." });
+        return false;
+      }
+
+      const result = await fittingService.saveVideoCapture(currentRequestId, videoBlob);
+
+      if (result.success) {
+        return true;
+      } else {
+        set({ error: result.error || "영상 저장 실패" });
+        return false;
+      }
+    } catch (error) {
+      console.error("[FittingStore] captureVideo error:", error);
+      set({ error: "영상 캡처 중 오류가 발생했습니다." });
+      return false;
+    }
+  },
+
+  saveFitting: async (requestId) => {
+    const result = await fittingService.saveFitting(requestId);
+    if (result.success) {
+      set((state) => ({
+        fittingHistory: state.fittingHistory.map((f) =>
+          f.id === requestId ? { ...f, is_saved: true, expires_at: null } : f
+        ),
+        currentFitting: state.currentFitting?.id === requestId
+          ? { ...state.currentFitting, is_saved: true, expires_at: null }
+          : state.currentFitting,
+      }));
+      return true;
+    }
+    set({ error: result.error || "저장 실패" });
+    return false;
   },
 
   deleteFitting: async (requestId) => {
-    await fittingService.deleteFitting(requestId);
-    set((state) => ({
-      history: state.history.filter((h) => h.id !== requestId),
-    }));
+    const result = await fittingService.deleteFitting(requestId);
+    if (result.success) {
+      set((state) => ({
+        fittingHistory: state.fittingHistory.filter((f) => f.id !== requestId),
+      }));
+      return true;
+    }
+    set({ error: result.error || "삭제 실패" });
+    return false;
   },
 
+  // ========== 피팅 기록 ==========
+
+  loadFittingHistory: async (coupleId) => {
+    const result = await fittingService.getMyFittings(coupleId);
+    if (result.success && result.data) {
+      set({ fittingHistory: result.data });
+    }
+  },
+
+  // ========== 상태 관리 ==========
+
   reset: () => {
-    get().stopPolling();
+    const { isStreaming } = get();
+    if (isStreaming) {
+      get().endSession();
+    }
     set({
-      step: "upload",
-      selectedPhotoFile: null,
-      selectedPhotoPreview: null,
-      selectedDressStyle: null,
-      currentRequest: null,
-      isLoading: false,
-      error: null,
+      ...initialState,
+      fittingHistory: get().fittingHistory,
     });
   },
 
-  getRemainingFree: () => {
-    const { usage } = get();
-    if (!usage) return 5;
-    return Math.max(0, usage.free_limit - usage.free_used);
-  },
+  setError: (error) => set({ error }),
 }));
