@@ -64,7 +64,7 @@ export default function CTA() {
         </h2>
         <p className="text-[16px] text-charcoal leading-relaxed font-light mb-10">
           사전 등록하시면 정식 출시 시 우선 초대와 함께
-          <br />
+          <br className="hidden md:block" />
           특별 할인 혜택을 드립니다.
         </p>
 
@@ -79,7 +79,7 @@ export default function CTA() {
           <button
             type="submit"
             disabled={status === "loading"}
-            className={`px-8 py-4 rounded-full text-[14px] font-medium whitespace-nowrap transition-all hover:-translate-y-0.5 ${
+            className={`px-8 py-4 rounded-full text-[14px] font-medium whitespace-nowrap transition-all hover:-translate-y-0.5 max-md:w-full ${
               status === "success"
                 ? "bg-[#2E7D5A] text-white"
                 : "bg-noir-800 text-white hover:bg-noir-soft"

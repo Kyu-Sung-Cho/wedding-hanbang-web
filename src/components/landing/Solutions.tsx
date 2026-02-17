@@ -33,7 +33,7 @@ export default function Solutions() {
       <div className="max-w-[1200px] mx-auto grid grid-cols-2 gap-6 max-lg:grid-cols-1">
         {/* AI 플래너 - 큰 카드 */}
         <motion.div {...fadeInUp} className="col-span-2 max-lg:col-span-1 bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 max-lg:grid-cols-1">
-          <div className="h-80 bg-gradient-to-br from-noir-800 to-noir-soft p-8 flex flex-col justify-center">
+          <div className="h-80 max-md:h-auto max-md:min-h-[280px] bg-gradient-to-br from-noir-800 to-noir-soft p-8 max-md:p-6 flex flex-col justify-center">
             <div className="flex flex-col gap-3.5">
               <div className="self-end max-w-[80%] px-[18px] py-3.5 rounded-2xl rounded-br-md bg-rose-500 text-white text-[13.5px] leading-relaxed">
                 스튜디오 어떻게 골라야 해? 🤔
@@ -71,7 +71,7 @@ export default function Solutions() {
 
         {/* 드레스 피팅 */}
         <motion.div {...fadeInUp} className="bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500">
-          <div className="h-80 bg-gradient-to-br from-ivory-deep to-[#EDE5DA] flex items-center justify-center relative">
+          <div className="h-80 max-md:h-64 bg-gradient-to-br from-ivory-deep to-[#EDE5DA] flex items-center justify-center relative">
             <div className="relative w-[200px] h-[260px]">
               <div className="w-full h-full bg-gradient-to-b from-rose-pale via-rose-light to-ivory-deep rounded-[40%_40%_50%_50%/30%_30%_45%_45%] shadow-[0_20px_60px_rgba(196,150,126,0.2)]" />
               <div className="absolute top-0 -left-5 -right-5 h-[3px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-[scanLine_3s_ease-in-out_infinite] rounded shadow-[0_0_20px_rgba(196,150,126,0.4)]" />
@@ -97,9 +97,9 @@ export default function Solutions() {
 
         {/* 예산 관리 */}
         <motion.div {...fadeInUp} className="bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500">
-          <div className="h-80 bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] p-8 flex flex-col justify-center gap-4">
+          <div className="h-80 max-md:h-auto max-md:min-h-[260px] bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] p-8 max-md:p-6 flex flex-col justify-center gap-4">
             <div className="font-serif-kr text-[13px] font-medium text-noir-soft mb-2">스마트 예산 관리</div>
-            <div className="font-display text-[36px] font-light text-noir-800 mb-5">₩10,000,000</div>
+            <div className="font-display text-[36px] max-md:text-[28px] font-light text-noir-800 mb-5">₩10,000,000</div>
             <div className="flex flex-col gap-3">
               {[
                 { label: "스튜디오", width: "75%", color: "bg-rose-500", pct: "75%" },

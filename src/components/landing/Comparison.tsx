@@ -34,41 +34,67 @@ export default function Comparison() {
         </p>
       </motion.div>
 
+      {/* 데스크톱 테이블 */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
-        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum max-md:overflow-x-auto"
+        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
-        <div className="max-md:min-w-[600px]">
-          {/* 헤더 */}
-          <div className="grid grid-cols-[200px_1fr_1fr] max-lg:grid-cols-[120px_1fr_1fr] bg-noir-800 text-white">
-            <div className="p-5 px-7 text-[13px] font-medium tracking-wide" />
-            <div className="p-5 px-7 text-[13px] font-medium tracking-wide">기존 방식</div>
-            <div className="p-5 px-7 text-[13px] font-medium tracking-wide">웨딩한방</div>
-          </div>
-
-          {/* 행 */}
-          {rows.map((row, i) => (
-            <div
-              key={row.label}
-              className={`grid grid-cols-[200px_1fr_1fr] max-lg:grid-cols-[120px_1fr_1fr] ${i < rows.length - 1 ? "border-b border-black/[0.04]" : ""}`}
-            >
-              <div className="p-5 px-7 text-[13px] font-medium text-charcoal bg-ivory-warm flex items-center">
-                {row.label}
-              </div>
-              <div className="p-5 px-7 text-[13px] text-taupe-500 font-light flex items-center">
-                {row.old}
-              </div>
-              <div className="p-5 px-7 text-[13px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
-                <span className="text-rose-500 font-semibold mr-2">✓</span>
-                {row.new}
-              </div>
-            </div>
-          ))}
+        {/* 헤더 */}
+        <div className="grid grid-cols-[200px_1fr_1fr] lg:grid-cols-[200px_1fr_1fr] bg-noir-800 text-white">
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide" />
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">기존 방식</div>
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">웨딩한방</div>
         </div>
+
+        {/* 행 */}
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className={`grid grid-cols-[200px_1fr_1fr] lg:grid-cols-[200px_1fr_1fr] ${i < rows.length - 1 ? "border-b border-black/[0.04]" : ""}`}
+          >
+            <div className="p-5 px-7 text-[13px] font-medium text-charcoal bg-ivory-warm flex items-center">
+              {row.label}
+            </div>
+            <div className="p-5 px-7 text-[13px] text-taupe-500 font-light flex items-center">
+              {row.old}
+            </div>
+            <div className="p-5 px-7 text-[13px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
+              <span className="text-rose-500 font-semibold mr-2">✓</span>
+              {row.new}
+            </div>
+          </div>
+        ))}
       </motion.div>
+
+      {/* 모바일 카드 레이아웃 */}
+      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
+        {rows.map((row, i) => (
+          <motion.div
+            key={row.label}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-30px" }}
+            transition={{ duration: 0.6, delay: i * 0.08 }}
+            className="rounded-2xl border border-platinum overflow-hidden"
+          >
+            <div className="bg-ivory-warm px-5 py-3 text-[13px] font-medium text-charcoal">
+              {row.label}
+            </div>
+            <div className="px-5 py-3 text-[13px] text-taupe-500 font-light border-b border-black/[0.04]">
+              <span className="text-[11px] text-taupe-400 block mb-1">기존 방식</span>
+              {row.old}
+            </div>
+            <div className="px-5 py-3 text-[13px] text-noir-800 font-normal bg-rose-500/[0.04]">
+              <span className="text-[11px] text-rose-500 block mb-1">웨딩한방</span>
+              <span className="text-rose-500 font-semibold mr-1.5">✓</span>
+              {row.new}
+            </div>
+          </motion.div>
+        ))}
+      </div>
     </section>
   );
 }

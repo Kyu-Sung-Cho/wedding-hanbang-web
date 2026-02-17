@@ -26,16 +26,16 @@ export default function VirtualFitting() {
           </div>
 
           {/* 플로팅 카드 1 */}
-          <div className="absolute top-[60px] right-[-20px] bg-white rounded-2xl px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,0.08)] z-20 animate-[floatCard_6s_ease-in-out_infinite]">
+          <div className="absolute top-[60px] right-[-20px] max-md:right-2 max-md:top-4 bg-white rounded-2xl px-5 py-4 max-md:px-3.5 max-md:py-3 shadow-[0_8px_32px_rgba(0,0,0,0.08)] z-20 animate-[floatCard_6s_ease-in-out_infinite]">
             <div className="text-[11px] text-taupe-500 font-medium mb-1.5">스타일 매칭</div>
-            <div className="text-[16px] font-semibold text-noir-800 font-serif-kr">A라인 · 내추럴</div>
+            <div className="text-[16px] max-md:text-[14px] font-semibold text-noir-800 font-serif-kr">A라인 · 내추럴</div>
             <div className="text-[11px] text-rose-500 mt-1">98% 적합도</div>
           </div>
 
           {/* 플로팅 카드 2 */}
-          <div className="absolute bottom-20 left-[-30px] bg-white rounded-2xl px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,0.08)] z-20 animate-[floatCard_6s_ease-in-out_infinite_-3s]">
+          <div className="absolute bottom-20 left-[-30px] max-md:left-2 max-md:bottom-10 bg-white rounded-2xl px-5 py-4 max-md:px-3.5 max-md:py-3 shadow-[0_8px_32px_rgba(0,0,0,0.08)] z-20 animate-[floatCard_6s_ease-in-out_infinite_-3s]">
             <div className="text-[11px] text-taupe-500 font-medium mb-1.5">절약된 시간</div>
-            <div className="text-[16px] font-semibold text-noir-800 font-serif-kr">약 8시간</div>
+            <div className="text-[16px] max-md:text-[14px] font-semibold text-noir-800 font-serif-kr">약 8시간</div>
             <div className="text-[11px] text-rose-500 mt-1">매장 방문 대비</div>
           </div>
         </motion.div>
