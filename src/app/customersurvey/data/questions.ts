@@ -328,15 +328,13 @@ export const sections: Section[] = [
         options: [
           { value: 1, label: '웨딩홀/예식장' },
           { value: 2, label: '신혼여행' },
-          { value: 3, label: '허니문 숙소/항공' },
+          { value: 3, label: '사회/축가' },
           { value: 4, label: '예물/예단' },
           { value: 5, label: '한복' },
           { value: 6, label: '청첩장/모바일 청첩장' },
           { value: 7, label: '부케/꽃장식' },
           { value: 8, label: '폐백/이바지' },
-          { value: 9, label: '혼수가전/가구' },
-          { value: 10, label: '신혼집 인테리어' },
-          { value: 11, label: '기타', hasTextInput: true },
+          { value: 9, label: '기타', hasTextInput: true },
         ],
       },
       {
