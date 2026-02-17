@@ -193,19 +193,22 @@ export function useSurveyState() {
     return Object.keys(newErrors).length === 0;
   }, [currentSectionIndex, getVisibleQuestions, answers, otherTexts]);
 
-  // 다음 섹션으로
+  // 다음 섹션으로 (마지막 섹션에서는 검증만, 완료 처리는 submitSurvey에서)
   const goNext = useCallback((): boolean => {
     if (!validateCurrentSection()) return false;
 
     if (currentSectionIndex < sections.length - 1) {
       setCurrentSectionIndex((prev) => prev + 1);
       setErrors({});
-    } else {
-      setStatus('completed');
-      clearDraft();
     }
     return true;
   }, [currentSectionIndex, validateCurrentSection]);
+
+  // 제출 완료 처리
+  const markCompleted = useCallback(() => {
+    setStatus('completed');
+    clearDraft();
+  }, []);
 
   // 이전 섹션으로
   const goPrev = useCallback(() => {
@@ -249,5 +252,6 @@ export function useSurveyState() {
     resumeDraft,
     dismissDraft,
     setStatus,
+    markCompleted,
   };
 }

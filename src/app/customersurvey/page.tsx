@@ -31,7 +31,7 @@ export default function CustomerSurveyPage() {
     startSurvey,
     resumeDraft,
     dismissDraft,
-    setStatus,
+    markCompleted,
   } = useSurveyState();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,13 +54,13 @@ export default function CustomerSurveyPage() {
       });
 
       if (!res.ok) throw new Error('Submit failed');
-      setStatus('completed');
+      markCompleted();
     } catch {
       alert('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, otherTexts, completionTimeSeconds, setStatus]);
+  }, [answers, otherTexts, completionTimeSeconds, markCompleted]);
 
   // 다음 버튼 핸들러
   const handleNext = useCallback(() => {
