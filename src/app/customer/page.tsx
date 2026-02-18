@@ -2,6 +2,7 @@ import CustomerNav from "@/components/customer-landing/CustomerNav";
 import CustomerHero from "@/components/customer-landing/CustomerHero";
 import CustomerPainPoints from "@/components/customer-landing/CustomerPainPoints";
 import CustomerSolutions from "@/components/customer-landing/CustomerSolutions";
+import CustomerFeatures from "@/components/customer-landing/CustomerFeatures";
 import CustomerComparison from "@/components/customer-landing/CustomerComparison";
 import CustomerHowItWorks from "@/components/customer-landing/CustomerHowItWorks";
 import CustomerStats from "@/components/customer-landing/CustomerStats";
@@ -22,6 +23,7 @@ export default function CustomerPage() {
       <CustomerHero />
       <CustomerPainPoints />
       <CustomerSolutions />
+      <CustomerFeatures />
       <CustomerComparison />
       <CustomerHowItWorks />
       <CustomerStats />
