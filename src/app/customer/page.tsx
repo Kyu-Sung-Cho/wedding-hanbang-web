@@ -1,14 +1,12 @@
-import SparkleCanvas from "@/components/landing/SparkleCanvas";
-import Navigation from "@/components/landing/Navigation";
-import Hero from "@/components/landing/Hero";
-import PainPoints from "@/components/landing/PainPoints";
-import Solutions from "@/components/landing/Solutions";
-import Comparison from "@/components/landing/Comparison";
-import VirtualFitting from "@/components/landing/VirtualFitting";
-import Stats from "@/components/landing/Stats";
-import HowItWorks from "@/components/landing/HowItWorks";
-import Testimonials from "@/components/landing/Testimonials";
-import CTA from "@/components/landing/CTA";
+import CustomerNav from "@/components/customer-landing/CustomerNav";
+import CustomerHero from "@/components/customer-landing/CustomerHero";
+import CustomerPainPoints from "@/components/customer-landing/CustomerPainPoints";
+import CustomerSolutions from "@/components/customer-landing/CustomerSolutions";
+import CustomerComparison from "@/components/customer-landing/CustomerComparison";
+import CustomerHowItWorks from "@/components/customer-landing/CustomerHowItWorks";
+import CustomerStats from "@/components/customer-landing/CustomerStats";
+import CustomerTestimonials from "@/components/customer-landing/CustomerTestimonials";
+import CustomerCTA from "@/components/customer-landing/CustomerCTA";
 import Footer from "@/components/landing/Footer";
 
 export const metadata = {
@@ -20,17 +18,15 @@ export const metadata = {
 export default function CustomerPage() {
   return (
     <>
-      <SparkleCanvas />
-      <Navigation />
-      <Hero />
-      <PainPoints />
-      <Solutions />
-      <Comparison />
-      <VirtualFitting />
-      <Stats />
-      <HowItWorks />
-      <Testimonials />
-      <CTA />
+      <CustomerNav />
+      <CustomerHero />
+      <CustomerPainPoints />
+      <CustomerSolutions />
+      <CustomerComparison />
+      <CustomerHowItWorks />
+      <CustomerStats />
+      <CustomerTestimonials />
+      <CustomerCTA />
       <Footer />
     </>
   );
