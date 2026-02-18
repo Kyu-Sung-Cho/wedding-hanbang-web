@@ -17,16 +17,34 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
+  Clock,
+  Timer,
 } from "lucide-react";
 import {
   mockVendors,
   CATEGORY_PRODUCT_FIELDS,
+  HOURS,
+  DAYS,
+  formatDuration,
   type VendorProduct,
   type ProductFieldDef,
   type VendorCategory,
+  type TimeSlot,
 } from "@/data/mockVendors";
+import WeeklyTimeGrid from "@/components/vendor/WeeklyTimeGrid";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
+
+// 신규 상품용 빈 타임슬롯 생성
+function generateEmptySlots(): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 9; hour <= 20; hour++) {
+      slots.push({ day, hour, available: false, maxBookings: 1, currentBookings: 0 });
+    }
+  }
+  return slots;
+}
 
 // 가격 포맷
 function formatPrice(price: number): string {
@@ -135,14 +153,17 @@ function ProductEditModal({ product, category, onSave, onClose }: {
     name: "",
     description: "",
     price: 0,
+    duration: 60,
     isActive: true,
     isPopular: false,
     sortOrder: 0,
     categoryFields: {},
     includes: [],
     images: [],
+    timeSlots: generateEmptySlots(),
     createdAt: new Date().toISOString().split("T")[0],
   });
+  const [showTimeGrid, setShowTimeGrid] = useState(!!product?.timeSlots?.some(s => s.available));
 
   const [includeInput, setIncludeInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
@@ -203,6 +224,13 @@ function ProductEditModal({ product, category, onSave, onClose }: {
                 <div>
                   <label className="block text-[12px] font-medium text-noir-800 mb-1.5">할인가 (원)</label>
                   <input type="number" value={form.discountPrice || ""} onChange={(e) => setForm({ ...form, discountPrice: Number(e.target.value) || undefined })} placeholder="할인 시 입력" className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-noir-800 mb-1.5">소요 시간 (분) *</label>
+                <div className="flex items-center gap-3">
+                  <input type="number" value={form.duration || 60} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} placeholder="120" min={15} step={15} className="w-[120px] px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors" />
+                  <span className="text-[12px] text-taupe-400">= {formatDuration(form.duration || 60)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -267,6 +295,33 @@ function ProductEditModal({ product, category, onSave, onClose }: {
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* 예약 가능 시간 (캐치테이블 스타일) */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowTimeGrid(!showTimeGrid)}
+              className="flex items-center gap-2 text-[13px] font-medium text-taupe-500 mb-3 uppercase tracking-wider w-full"
+            >
+              {showTimeGrid ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <Clock className="w-3.5 h-3.5" />
+              예약 가능 시간 설정
+              <span className="text-[11px] font-normal text-taupe-400 ml-1">
+                ({form.timeSlots?.filter(s => s.available).length || 0}개 슬롯 활성)
+              </span>
+            </button>
+            {showTimeGrid && (
+              <div className="border border-black/[0.04] rounded-xl p-4 bg-ivory-50/50">
+                <p className="text-[12px] text-taupe-400 font-light mb-3">
+                  이 상품의 예약 가능한 시간을 설정합니다. 클릭/드래그로 활성화하세요.
+                </p>
+                <WeeklyTimeGrid
+                  slots={form.timeSlots || generateEmptySlots()}
+                  onChange={(newSlots) => setForm({ ...form, timeSlots: newSlots })}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -389,6 +444,16 @@ export default function VendorProductsPage() {
                           </>
                         ) : (
                           <span className="text-[14px] font-medium text-noir-800">{formatPrice(product.price)}</span>
+                        )}
+                        {product.duration > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-taupe-400">
+                            <Timer className="w-3 h-3" />{formatDuration(product.duration)}
+                          </span>
+                        )}
+                        {product.timeSlots?.filter(s => s.available).length > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-[#2E7D5A]">
+                            <Clock className="w-3 h-3" />{product.timeSlots.filter(s => s.available).length}슬롯
+                          </span>
                         )}
                       </div>
                     </div>

@@ -185,13 +185,23 @@ export interface VendorProduct {
   description: string;
   price: number;
   discountPrice?: number;
+  duration: number;           // 소요시간 (분 단위, 예: 120 = 2시간)
   isActive: boolean;
   isPopular: boolean;
   sortOrder: number;
   categoryFields: Record<string, string | number | boolean | string[]>;
   includes: string[];
   images: string[];
+  timeSlots: TimeSlot[];      // 상품별 자체 예약 가능 시간
   createdAt: string;
+}
+
+// 소요시간 포맷 헬퍼
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}분`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
 }
 
 export interface Vendor {
@@ -248,88 +258,114 @@ function generateDefaultSlots(pattern: "weekday-heavy" | "weekend-heavy" | "full
 
 // ─── Mock 상품 데이터 ───
 
+// 상품별 타임슬롯 생성 헬퍼
+function generateProductSlots(availableHours: number[], availableDays: number[]): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 9; hour <= 20; hour++) {
+      const available = availableDays.includes(day) && availableHours.includes(hour);
+      slots.push({ day, hour, available, maxBookings: 1, currentBookings: 0 });
+    }
+  }
+  return slots;
+}
+
 const mockProductsStudio1: VendorProduct[] = [
   {
     id: "p1-1", vendorId: "v1", name: "베이직 촬영 패키지", description: "팀장급 포토그래퍼의 2시간 촬영. 기본에 충실한 자연광 스튜디오 촬영 패키지입니다.",
-    price: 2500000, isActive: true, isPopular: false, sortOrder: 1, includes: ["보정 사진 20컷", "원본 일부 제공", "10x10 앨범 1권"], images: [], createdAt: "2025-12-01",
+    price: 2500000, duration: 120, isActive: true, isPopular: false, sortOrder: 1, includes: ["보정 사진 20컷", "원본 일부 제공", "10x10 앨범 1권"], images: [], createdAt: "2025-12-01",
     categoryFields: { photographerRank: "팀장", shootingHours: "2시간", conceptCount: 2, outfitCount: 2, editedPhotos: 20, originalProvide: "일부 제공 (200컷 이상)", albumType: "10x10 (20p)", additionalAlbum: "없음", frameType: "미포함", videoIncluded: "미포함", hairMakeup: false, outdoorAvailable: false, assistantIncluded: false, additionalPersonFee: 10, retouchDelivery: "4주" },
+    timeSlots: generateProductSlots([10, 11, 13, 14, 15, 16], [0, 1, 2, 3, 4, 5, 6]), // 매일 10-16시 (점심 제외)
   },
   {
     id: "p1-2", vendorId: "v1", name: "프리미엄 촬영 패키지", description: "실장급 포토그래퍼와 3시간 촬영. 야외촬영 포함, 3가지 컨셉으로 다양한 느낌을 담아드립니다.",
-    price: 3200000, discountPrice: 2900000, isActive: true, isPopular: true, sortOrder: 2, includes: ["보정 사진 40컷", "원본 전체 제공", "12x12 앨범 1권", "양가 부모님 앨범 2권", "액자 1개"], images: [], createdAt: "2025-12-01",
+    price: 3200000, discountPrice: 2900000, duration: 180, isActive: true, isPopular: true, sortOrder: 2, includes: ["보정 사진 40컷", "원본 전체 제공", "12x12 앨범 1권", "양가 부모님 앨범 2권", "액자 1개"], images: [], createdAt: "2025-12-01",
     categoryFields: { photographerRank: "실장", shootingHours: "3시간", conceptCount: 3, outfitCount: 3, editedPhotos: 40, originalProvide: "전체 제공", albumType: "12x12 (30p)", additionalAlbum: "양가 부모님 앨범 2권", frameType: "16x20 1개", videoIncluded: "하이라이트 (1분)", hairMakeup: true, outdoorAvailable: true, assistantIncluded: true, additionalPersonFee: 10, retouchDelivery: "3주" },
+    timeSlots: generateProductSlots([10, 11, 13, 14], [0, 1, 2, 3, 4, 5]), // 월~토 10-14시
   },
   {
     id: "p1-3", vendorId: "v1", name: "시그니처 촬영 패키지", description: "원장 직접 촬영. 4시간 촬영 + 시네마틱 영상까지 포함된 최고급 패키지입니다.",
-    price: 4500000, isActive: true, isPopular: false, sortOrder: 3, includes: ["보정 사진 60컷", "원본 전체 제공", "14x14 앨범 1권", "양가 부모님 앨범 2권", "액자 세트", "시네마틱 무비"], images: [], createdAt: "2025-12-01",
+    price: 4500000, duration: 240, isActive: true, isPopular: false, sortOrder: 3, includes: ["보정 사진 60컷", "원본 전체 제공", "14x14 앨범 1권", "양가 부모님 앨범 2권", "액자 세트", "시네마틱 무비"], images: [], createdAt: "2025-12-01",
     categoryFields: { photographerRank: "원장", shootingHours: "4시간", conceptCount: 5, outfitCount: 4, editedPhotos: 60, originalProvide: "전체 제공", albumType: "14x14 (40p)", additionalAlbum: "양가 부모님 앨범 2권", frameType: "세트 (3개)", videoIncluded: "시네마틱 무비", hairMakeup: true, outdoorAvailable: true, assistantIncluded: true, additionalPersonFee: 0, retouchDelivery: "2주" },
+    timeSlots: generateProductSlots([10, 14], [5, 6]), // 주말만 10시, 14시 (원장 한정)
   },
 ];
 
 const mockProductsDress3: VendorProduct[] = [
   {
     id: "p3-1", vendorId: "v3", name: "기본 드레스 대여", description: "국내 디자이너 드레스 기본 라인. 1회 피팅 포함.",
-    price: 1500000, isActive: true, isPopular: false, sortOrder: 1, includes: ["드레스 1벌", "기본 베일", "1회 피팅"], images: [], createdAt: "2025-11-20",
+    price: 1500000, duration: 60, isActive: true, isPopular: false, sortOrder: 1, includes: ["드레스 1벌", "기본 베일", "1회 피팅"], images: [], createdAt: "2025-11-20",
     categoryFields: { dressType: "웨딩 드레스", dressLine: ["A라인", "슬림라인"], grade: "기본", brand: "", rentalPeriod: "2박3일", fittingCount: "1회", alterationIncluded: false, accessories: ["베일"], undergarment: "기본 속옷", additionalDress: "불가", cleaningFee: true, insuranceAvailable: false },
+    timeSlots: generateProductSlots([10, 11, 13, 14, 15, 16, 17], [0, 1, 2, 3, 4]),
   },
   {
     id: "p3-2", vendorId: "v3", name: "프리미엄 드레스 대여", description: "수입 디자이너 드레스 프리미엄 라인. 전담 스타일리스트가 3회 피팅을 도와드립니다.",
-    price: 2200000, discountPrice: 1980000, isActive: true, isPopular: true, sortOrder: 2, includes: ["드레스 1벌", "베일+글러브", "3회 피팅", "드레스용 속옷 세트", "수선 포함"], images: [], createdAt: "2025-11-20",
+    price: 2200000, discountPrice: 1980000, duration: 90, isActive: true, isPopular: true, sortOrder: 2, includes: ["드레스 1벌", "베일+글러브", "3회 피팅", "드레스용 속옷 세트", "수선 포함"], images: [], createdAt: "2025-11-20",
     categoryFields: { dressType: "웨딩 드레스", dressLine: ["A라인", "머메이드", "볼가운"], grade: "프리미엄", brand: "Rosa Clara", rentalPeriod: "3박4일", fittingCount: "3회", alterationIncluded: true, accessories: ["베일", "글러브", "슈즈"], undergarment: "드레스용 속옷 세트", additionalDress: "1벌 추가 가능", cleaningFee: false, insuranceAvailable: true },
+    timeSlots: generateProductSlots([11, 14, 16], [0, 1, 2, 3, 4, 5]),
   },
   {
     id: "p3-3", vendorId: "v3", name: "럭셔리 드레스 패키지", description: "해외 명품 드레스 + 미니 드레스 포함. 무제한 피팅과 풀 액세서리 세트.",
-    price: 3500000, isActive: true, isPopular: false, sortOrder: 3, includes: ["웨딩 드레스 1벌", "미니 드레스 1벌", "풀 액세서리", "무제한 피팅", "수선+세탁 포함"], images: [], createdAt: "2025-11-20",
+    price: 3500000, duration: 120, isActive: true, isPopular: false, sortOrder: 3, includes: ["웨딩 드레스 1벌", "미니 드레스 1벌", "풀 액세서리", "무제한 피팅", "수선+세탁 포함"], images: [], createdAt: "2025-11-20",
     categoryFields: { dressType: "웨딩 드레스", dressLine: ["A라인", "머메이드", "볼가운", "엠파이어"], grade: "럭셔리", brand: "Vera Wang", rentalPeriod: "1주일", fittingCount: "무제한", alterationIncluded: true, accessories: ["베일", "글러브", "슈즈", "티아라", "이어링"], undergarment: "드레스용 속옷 세트", additionalDress: "2벌 추가 가능", cleaningFee: false, insuranceAvailable: true },
+    timeSlots: generateProductSlots([11, 14], [5, 6]),
   },
 ];
 
 const mockProductsMakeup5: VendorProduct[] = [
   {
     id: "p5-1", vendorId: "v5", name: "본식 메이크업", description: "본식 당일 신부 메이크업+헤어. 실장급 아티스트가 담당합니다.",
-    price: 800000, isActive: true, isPopular: false, sortOrder: 1, includes: ["신부 메이크업", "신부 헤어", "터치업 1회"], images: [], createdAt: "2025-12-10",
+    price: 800000, duration: 90, isActive: true, isPopular: false, sortOrder: 1, includes: ["신부 메이크업", "신부 헤어", "터치업 1회"], images: [], createdAt: "2025-12-10",
     categoryFields: { serviceType: "본식 메이크업", includesHair: true, includesMakeup: true, artistLevel: "실장", brideIncluded: true, motherCount: "미포함", familyMakeup: "불가", touchUpCount: "1회", onLocation: "출장 가능 (추가비 별도)", consultIncluded: false, cosmeticsGrade: "백화점 브랜드", additionalPersonFee: 15 },
+    timeSlots: generateProductSlots([6, 7, 8, 9, 10], [0, 1, 2, 3, 4, 5, 6]), // 새벽~오전 (본식)
   },
   {
     id: "p5-2", vendorId: "v5", name: "본식+리허설 패키지", description: "본식 + 리허설 메이크업 패키지. 사전 상담 포함으로 당일 완벽한 메이크업을 보장합니다.",
-    price: 1200000, discountPrice: 1080000, isActive: true, isPopular: true, sortOrder: 2, includes: ["본식 메이크업+헤어", "리허설 메이크업+헤어", "사전 상담", "터치업 2회"], images: [], createdAt: "2025-12-10",
+    price: 1200000, discountPrice: 1080000, duration: 120, isActive: true, isPopular: true, sortOrder: 2, includes: ["본식 메이크업+헤어", "리허설 메이크업+헤어", "사전 상담", "터치업 2회"], images: [], createdAt: "2025-12-10",
     categoryFields: { serviceType: "본식+리허설 패키지", includesHair: true, includesMakeup: true, artistLevel: "부원장", brideIncluded: true, motherCount: "미포함", familyMakeup: "1인 추가 가능", touchUpCount: "2회", onLocation: "출장 가능 (추가비 없음)", consultIncluded: true, cosmeticsGrade: "백화점 브랜드", additionalPersonFee: 15 },
+    timeSlots: generateProductSlots([10, 11, 13, 14, 15], [0, 1, 2, 3, 4, 5]),
   },
   {
     id: "p5-3", vendorId: "v5", name: "올인원 패키지", description: "신부 + 양가 어머니까지 모두 포함. 원장이 직접 시술하는 프리미엄 패키지.",
-    price: 1800000, isActive: true, isPopular: false, sortOrder: 3, includes: ["신부 본식+리허설", "양가 어머니 2분", "사전 상담", "무제한 터치업", "하이엔드 화장품"], images: [], createdAt: "2025-12-10",
+    price: 1800000, duration: 180, isActive: true, isPopular: false, sortOrder: 3, includes: ["신부 본식+리허설", "양가 어머니 2분", "사전 상담", "무제한 터치업", "하이엔드 화장품"], images: [], createdAt: "2025-12-10",
     categoryFields: { serviceType: "올인원 패키지", includesHair: true, includesMakeup: true, artistLevel: "원장", brideIncluded: true, motherCount: "2명", familyMakeup: "3인 추가 가능", touchUpCount: "무제한", onLocation: "출장 가능 (추가비 없음)", consultIncluded: true, cosmeticsGrade: "하이엔드 (샤넬, 디올 등)", additionalPersonFee: 0 },
+    timeSlots: generateProductSlots([10, 14], [5, 6]), // 주말만 (원장 한정)
   },
 ];
 
 const mockProductsVenue6: VendorProduct[] = [
   {
     id: "p6-1", vendorId: "v6", name: "그랜드홀 패키지", description: "200명 수용 가능한 그랜드홀. 뷔페 식사와 기본 데코 포함.",
-    price: 4500000, isActive: true, isPopular: true, sortOrder: 1, includes: ["그랜드홀 대관", "뷔페 식사 (200명)", "기본 꽃장식", "신부대기실", "주차 100대"], images: [], createdAt: "2025-11-01",
+    price: 4500000, duration: 180, isActive: true, isPopular: true, sortOrder: 1, includes: ["그랜드홀 대관", "뷔페 식사 (200명)", "기본 꽃장식", "신부대기실", "주차 100대"], images: [], createdAt: "2025-11-01",
     categoryFields: { hallName: "그랜드홀", hallType: "그랜드홀", capacity: 200, ceremonyTime: "90분", mealType: "뷔페", mealPricePerPerson: 65000, minGuarantee: 150, basicDeco: true, decoGrade: "기본", parkingSpaces: 100, brideRoom: true, pyebaekRoom: true, outdoorAvailable: false, rentalFee: 300 },
+    timeSlots: generateProductSlots([11, 13, 15, 17], [5, 6]), // 주말 예식시간대
   },
   {
     id: "p6-2", vendorId: "v6", name: "프리미엄 가든 패키지", description: "아름다운 야외 가든에서 진행되는 프리미엄 웨딩. 양식 코스와 럭셔리 데코.",
-    price: 7000000, isActive: true, isPopular: false, sortOrder: 2, includes: ["가든 대관", "양식 코스 (150명)", "프리미엄 꽃장식", "신부대기실", "폐백실", "주차 150대"], images: [], createdAt: "2025-11-01",
+    price: 7000000, duration: 240, isActive: true, isPopular: false, sortOrder: 2, includes: ["가든 대관", "양식 코스 (150명)", "프리미엄 꽃장식", "신부대기실", "폐백실", "주차 150대"], images: [], createdAt: "2025-11-01",
     categoryFields: { hallName: "가든 테라스", hallType: "가든", capacity: 150, ceremonyTime: "120분", mealType: "양식 코스", mealPricePerPerson: 85000, minGuarantee: 100, basicDeco: true, decoGrade: "럭셔리", parkingSpaces: 150, brideRoom: true, pyebaekRoom: true, outdoorAvailable: true, rentalFee: 500 },
+    timeSlots: generateProductSlots([11, 14], [5, 6]), // 주말 오전/오후
   },
 ];
 
 const mockProductsHanbok8: VendorProduct[] = [
   {
     id: "p8-1", vendorId: "v8", name: "신부 한복 대여 (기본)", description: "실크 원단 신부 한복 세트. 노리개+비녀 포함.",
-    price: 500000, isActive: true, isPopular: false, sortOrder: 1, includes: ["저고리+치마", "노리개", "비녀"], images: [], createdAt: "2026-01-15",
+    price: 500000, duration: 60, isActive: true, isPopular: false, sortOrder: 1, includes: ["저고리+치마", "노리개", "비녀"], images: [], createdAt: "2026-01-15",
     categoryFields: { productType: "대여", target: "신부", hanbokType: "전통 한복", fabric: "실크", setComposition: ["저고리", "치마"], accessories: ["노리개", "비녀"], rentalPeriod: "2박3일", alterationIncluded: false, cleaningIncluded: true },
+    timeSlots: generateProductSlots([10, 11, 13, 14, 15, 16], [0, 1, 2, 3, 4]),
   },
   {
     id: "p8-2", vendorId: "v8", name: "양가 어머니 한복 (2벌 세트)", description: "양가 어머니 한복 세트 대여. 옥사 원단으로 고급스러움을 더했습니다.",
-    price: 800000, discountPrice: 720000, isActive: true, isPopular: true, sortOrder: 2, includes: ["어머니 한복 2벌", "각 노리개", "수선 포함"], images: [], createdAt: "2026-01-15",
+    price: 800000, discountPrice: 720000, duration: 90, isActive: true, isPopular: true, sortOrder: 2, includes: ["어머니 한복 2벌", "각 노리개", "수선 포함"], images: [], createdAt: "2026-01-15",
     categoryFields: { productType: "대여", target: "혼주 (어머니)", hanbokType: "전통 한복", fabric: "옥사", setComposition: ["저고리", "치마"], accessories: ["노리개"], rentalPeriod: "2박3일", alterationIncluded: true, cleaningIncluded: true },
+    timeSlots: generateProductSlots([10, 11, 14, 15], [0, 1, 2, 3, 4, 5]),
   },
   {
     id: "p8-3", vendorId: "v8", name: "맞춤 한복 풀세트", description: "신부+신랑+양가 어머니 맞춤 제작. 프리미엄 실크 원단.",
-    price: 2500000, isActive: true, isPopular: false, sortOrder: 3, includes: ["신부 한복", "신랑 한복", "양가 어머니 한복 2벌", "전체 액세서리", "맞춤 수선"], images: [], createdAt: "2026-01-15",
+    price: 2500000, duration: 120, isActive: true, isPopular: false, sortOrder: 3, includes: ["신부 한복", "신랑 한복", "양가 어머니 한복 2벌", "전체 액세서리", "맞춤 수선"], images: [], createdAt: "2026-01-15",
     categoryFields: { productType: "맞춤 제작", target: "가족", hanbokType: "전통 한복", fabric: "실크", setComposition: ["저고리", "치마", "바지", "마고자", "두루마기"], accessories: ["노리개", "비녀", "족두리", "화관"], rentalPeriod: "1주일", alterationIncluded: true, cleaningIncluded: true },
+    timeSlots: generateProductSlots([11, 14], [5, 6]),
   },
 ];
 
