@@ -8,32 +8,24 @@ const painPoints = [
     emoji: "😰",
     title: "정보는 넘치는데\n뭐부터 해야 할지 모르겠어요",
     desc: "블로그, 카페, 인스타… 정보는 많은데 다 달라요. 누구 말을 믿어야 할지, 어떤 순서로 해야 할지 막막합니다.",
-    stat: "87%",
-    statLabel: "예비부부가 정보 과부하를 경험",
   },
   {
     num: "02",
     emoji: "💸",
     title: "숨겨진 비용이\n자꾸 나와요",
     desc: "견적에 없던 추가 비용, 수수료, 옵션 비용. 예산은 계속 늘어나는데 어디서 새는지 파악이 안 됩니다.",
-    stat: "340만원",
-    statLabel: "평균 예산 초과 금액",
   },
   {
     num: "03",
     emoji: "⏰",
     title: "시간이 너무\n많이 들어요",
     desc: "맞벌이 커플에게 주말마다 상담 다니는 건 큰 부담이에요. 드레스만 해도 5곳 이상 투어해야 마음에 드는 걸 찾습니다.",
-    stat: "156시간",
-    statLabel: "평균 결혼 준비에 소요되는 시간",
   },
   {
     num: "04",
     emoji: "😤",
     title: "커플 간에\n의견 조율이 어려워요",
     desc: "각자 알아본 정보는 제각각, 예산 감각도 다르고, 카톡으로 공유하다 보면 어디까지 결정한 건지 헷갈립니다.",
-    stat: "73%",
-    statLabel: "결혼 준비 중 갈등을 경험한 커플",
   },
 ];
 
@@ -88,16 +80,9 @@ export default function CustomerPainPoints() {
             <h3 className="font-serif-kr text-[20px] font-normal text-white leading-snug mb-3 tracking-tight whitespace-pre-line max-md:text-[18px]">
               {pain.title}
             </h3>
-            <p className="text-[13px] text-white/50 font-light leading-relaxed mb-6">
+            <p className="text-[13px] text-white/50 font-light leading-relaxed">
               {pain.desc}
             </p>
-
-            <div className="pt-5 border-t border-white/[0.06] flex items-center gap-3">
-              <span className="font-display text-[24px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
-                {pain.stat}
-              </span>
-              <span className="text-[12px] text-white/30 font-light">{pain.statLabel}</span>
-            </div>
           </motion.div>
         ))}
       </div>

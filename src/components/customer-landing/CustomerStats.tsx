@@ -39,9 +39,9 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 
 const stats = [
   { value: 24, suffix: "시간", label: "AI 상담 가능 시간", desc: "새벽에도 즉시 답변" },
-  { value: 127, suffix: "가지", label: "체크리스트 항목", desc: "20개 카테고리 완벽 커버" },
-  { value: 30, suffix: "초", label: "가상 드레스 피팅", desc: "사진 한 장이면 완성" },
   { value: 20, suffix: "개", label: "웨딩 카테고리", desc: "빠짐없이 체계적으로" },
+  { value: 1, suffix: "개 앱", label: "올인원 플랫폼", desc: "상담·예산·일정 통합" },
+  { value: 2, suffix: "인", label: "커플 연동", desc: "함께 보는 결혼 준비" },
 ];
 
 export default function CustomerStats() {

@@ -97,8 +97,8 @@ export default function CustomerHero() {
         >
           {[
             { num: "24시간", label: "AI 상담 가능" },
-            { num: "127가지", label: "체크리스트 항목" },
-            { num: "30초", label: "드레스 가상 피팅" },
+            { num: "20개", label: "웨딩 카테고리" },
+            { num: "All-in-One", label: "결혼 준비 플랫폼" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="font-display text-[clamp(18px,2.5vw,26px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">

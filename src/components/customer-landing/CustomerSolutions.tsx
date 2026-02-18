@@ -39,8 +39,8 @@ const solutions = [
   {
     num: "02",
     title: "AI 가상 드레스 피팅",
-    desc: "집에서 10분 만에 10벌을 입어보세요. AI가 체형을 분석하고 드레스를 합성합니다. 마음에 드는 것만 직접 방문해서 확인하세요.",
-    tags: ["업계 최초 AI 피팅", "30초 완성"],
+    desc: "집에서 편하게 다양한 드레스를 가상으로 입어보세요. AI가 체형을 분석하고 드레스를 합성합니다. 마음에 드는 것만 직접 방문해서 확인하세요.",
+    tags: ["AI 가상 피팅", "집에서 간편하게"],
     visual: (
       <div className="bg-gradient-to-br from-ivory-deep to-[#EDE5DA] rounded-2xl h-full flex items-center justify-center relative py-10">
         <div className="relative w-[160px] h-[220px]">
@@ -95,8 +95,8 @@ const solutions = [
   {
     num: "04",
     title: "AI D-day 플래닝",
-    desc: "결혼일 기준으로 해야 할 일을 자동으로 제안하고, 적절한 시점에 알림을 보내드립니다. 20개 카테고리, 127개 체크리스트를 체계적으로 관리하세요.",
-    tags: ["D-day 맞춤 자동 플래닝", "127개 체크리스트"],
+    desc: "결혼일 기준으로 해야 할 일을 자동으로 제안하고, 적절한 시점에 알림을 보내드립니다. 20개 카테고리별 체크리스트를 체계적으로 관리하세요.",
+    tags: ["D-day 맞춤 자동 플래닝", "20개 카테고리"],
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-5">

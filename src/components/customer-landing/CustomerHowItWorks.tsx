@@ -12,7 +12,7 @@ const steps = [
     ),
     title: "앱 다운로드",
     desc: "App Store / Google Play에서 웨딩한방을 다운로드하세요.",
-    highlight: "30초면 완료",
+    highlight: "간편 설치",
   },
   {
     num: "02",
@@ -34,7 +34,7 @@ const steps = [
     ),
     title: "AI 온보딩",
     desc: "결혼일, 예산, 선호도만 입력하면 AI가 맞춤 플랜을 자동 생성합니다.",
-    highlight: "3분 온보딩",
+    highlight: "간단한 설정",
   },
   {
     num: "04",

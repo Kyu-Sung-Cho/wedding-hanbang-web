@@ -79,7 +79,7 @@ export default function B2BHero() {
           className="flex justify-center gap-12 mt-20 max-md:gap-8 max-md:mt-14"
         >
           {[
-            { num: "LOW", label: "업계 최저 수수료" },
+            { num: "LOW", label: "합리적 수수료" },
             { num: "24h", label: "AI 고객 응대" },
             { num: "∞", label: "성장 가능성" },
           ].map((stat) => (

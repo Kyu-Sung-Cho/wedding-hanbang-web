@@ -39,7 +39,7 @@ export default function B2BCTA() {
           </p>
 
           <p className="text-[13px] text-white/30 font-light mb-10">
-            업계 최저 수수료 · 가입비 없음 · 언제든 해지 가능
+            합리적 수수료 · 가입비 없음 · 언제든 해지 가능
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
