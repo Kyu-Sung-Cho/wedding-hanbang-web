@@ -1,0 +1,111 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import Logo from "@/components/ui/Logo";
+import {
+  LayoutDashboard,
+  MessageCircle,
+  Wallet,
+  CalendarCheck,
+  Store,
+  Sparkles,
+  BookOpen,
+  Settings,
+  LogOut,
+  X,
+} from "lucide-react";
+
+const menuItems = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
+  { href: "/chat", icon: MessageCircle, label: "AI 상담" },
+  { href: "/budget", icon: Wallet, label: "예산 관리" },
+  { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
+  { href: "/vendors", icon: Store, label: "업체 탐색" },
+  { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },
+  { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
+  { href: "/settings", icon: Settings, label: "설정" },
+];
+
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const pathname = usePathname();
+
+  return (
+    <>
+      {/* 모바일 오버레이 */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside
+        className={`fixed top-0 left-0 h-screen w-[260px] bg-noir-800 flex flex-col z-50 transition-transform duration-300 ${
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* 로고 영역 */}
+        <div className="flex items-center justify-between px-6 h-[72px] border-b border-white/[0.06]">
+          <Link href="/dashboard">
+            <Logo size="sm" variant="white" />
+          </Link>
+          <button
+            onClick={onClose}
+            className="md:hidden w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 메뉴 */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          <div className="flex flex-col gap-1">
+            {menuItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-all duration-200 ${
+                    isActive
+                      ? "bg-rose-500/15 text-rose-500 font-medium"
+                      : "text-white/50 hover:text-white/80 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* 유저 섹션 */}
+        <div className="px-3 pb-4">
+          <div className="px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[13px] font-medium">
+                김
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] text-white font-medium truncate">김지은</div>
+                <div className="text-[11px] text-white/30">2026.10.15 예정</div>
+              </div>
+            </div>
+          </div>
+          <button className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[13px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full">
+            <LogOut className="w-4 h-4" />
+            로그아웃
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
