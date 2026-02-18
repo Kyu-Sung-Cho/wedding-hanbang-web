@@ -47,7 +47,10 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   );
 
-  if (!user && isProtectedPath) {
+  // 데모 모드 쿠키가 있으면 인증 없이 접근 허용
+  const isDemoMode = request.cookies.get("demo_mode")?.value === "true";
+
+  if (!user && !isDemoMode && isProtectedPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

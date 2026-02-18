@@ -72,10 +72,10 @@ export default function CustomerHero() {
           className="flex gap-4 justify-center flex-wrap mb-16"
         >
           <a
-            href="#cta"
+            href="/login"
             className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)] transition-all duration-400"
           >
-            무료 사전등록
+            무료로 시작하기
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>

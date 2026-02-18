@@ -56,8 +56,7 @@ export default function CustomerNav() {
           업체 파트너
         </a>
         <a
-          href="#cta"
-          onClick={(e) => handleClick(e, "#cta")}
+          href="/login"
           className="px-6 py-2.5 bg-noir-800 text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:bg-noir-soft hover:-translate-y-0.5 transition-all"
         >
           무료 시작하기
