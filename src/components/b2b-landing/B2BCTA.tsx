@@ -42,18 +42,26 @@ export default function B2BCTA() {
             합리적 수수료 · 가입비 없음 · 언제든 해지 가능
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+            <Link
+              href="/vendor/register"
+              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all max-md:w-full max-md:text-center"
+            >
+              업체 등록하기
+            </Link>
             <Link
               href="#partner-types"
-              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all max-md:w-full max-md:text-center"
+              className="px-10 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all max-md:w-full max-md:text-center"
             >
               파트너 설문 참여하기
             </Link>
+          </div>
+          <div className="flex justify-center mb-16">
             <a
               href="mailto:partner@hanbang.ai"
-              className="px-10 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all max-md:w-full max-md:text-center"
+              className="text-[13px] text-white/40 hover:text-white/60 transition-colors underline underline-offset-4"
             >
-              문의하기
+              이메일 문의: partner@hanbang.ai
             </a>
           </div>
         </motion.div>
