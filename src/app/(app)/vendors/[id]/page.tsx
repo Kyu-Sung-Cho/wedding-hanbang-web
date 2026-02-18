@@ -2,20 +2,117 @@
 
 import { useState, use } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check } from "lucide-react";
+import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { mockVendors, DAYS, HOURS } from "@/data/mockVendors";
+import { mockVendors, DAYS, CATEGORY_PRODUCT_FIELDS, type VendorProduct, type ProductFieldDef } from "@/data/mockVendors";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
+function formatPrice(price: number): string {
+  if (price >= 10000) return `${(price / 10000).toFixed(0)}만원`;
+  return `${price.toLocaleString()}원`;
+}
+
+function renderFieldValue(field: ProductFieldDef, value: unknown): string {
+  if (value === undefined || value === null) return "-";
+  if (field.type === "boolean") return value ? "포함" : "미포함";
+  if (field.type === "multiselect" && Array.isArray(value)) return value.join(", ");
+  if (field.type === "number" && field.unit) return `${value}${field.unit}`;
+  return String(value);
+}
+
+// 상품 카드 컴포넌트
+function ProductCard({ product, category, isSelected, onSelect }: {
+  product: VendorProduct;
+  category: string;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const config = CATEGORY_PRODUCT_FIELDS[category as keyof typeof CATEGORY_PRODUCT_FIELDS];
+
+  return (
+    <div className={`rounded-xl border transition-all cursor-pointer ${isSelected ? "border-rose-500 bg-rose-500/[0.03]" : "border-black/[0.04] bg-white hover:border-rose-500/30"}`}>
+      <div className="p-4" onClick={onSelect}>
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="text-[14px] font-medium text-noir-800">{product.name}</h4>
+              {product.isPopular && (
+                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gold/10 text-[10px] text-gold font-medium">
+                  <Star className="w-2.5 h-2.5 fill-gold" />인기
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {product.discountPrice ? (
+                <>
+                  <span className="text-[15px] font-medium text-rose-500">{formatPrice(product.discountPrice)}</span>
+                  <span className="text-[12px] text-taupe-400 line-through">{formatPrice(product.price)}</span>
+                </>
+              ) : (
+                <span className="text-[15px] font-medium text-noir-800">{formatPrice(product.price)}</span>
+              )}
+            </div>
+          </div>
+          {isSelected && (
+            <div className="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center flex-shrink-0">
+              <Check className="w-3.5 h-3.5 text-white" />
+            </div>
+          )}
+        </div>
+
+        {/* 포함 항목 태그 */}
+        {product.includes.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {product.includes.slice(0, 4).map((item, idx) => (
+              <span key={idx} className="px-2 py-0.5 rounded-full bg-ivory-warm text-[10px] text-charcoal font-medium">{item}</span>
+            ))}
+            {product.includes.length > 4 && (
+              <span className="px-2 py-0.5 rounded-full bg-ivory-warm text-[10px] text-taupe-400">+{product.includes.length - 4}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 상세 토글 */}
+      <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="w-full flex items-center justify-center gap-1 py-2 border-t border-black/[0.03] text-[11px] text-taupe-400 hover:text-rose-500 transition-colors">
+        {expanded ? "접기" : "상세 보기"}
+        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-black/[0.03]">
+          {product.description && (
+            <p className="text-[12px] text-taupe-500 font-light mt-3 mb-3">{product.description}</p>
+          )}
+          <div className="space-y-1.5">
+            {config?.fields.map((field) => {
+              const val = product.categoryFields[field.key];
+              if (val === undefined || val === null || val === "" || val === false) return null;
+              return (
+                <div key={field.key} className="flex items-center justify-between">
+                  <span className="text-[11px] text-taupe-400">{field.label}</span>
+                  <span className="text-[11px] text-noir-800 font-medium">{renderFieldValue(field, val)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const vendor = mockVendors.find((v) => v.id === id);
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
 
   if (!vendor) {
@@ -30,6 +127,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const daySlots = vendor.timeSlots.filter((s) => s.day === selectedDay && s.available);
+  const activeProducts = vendor.products.filter((p) => p.isActive);
+  const config = CATEGORY_PRODUCT_FIELDS[vendor.category];
 
   const handleBook = () => {
     setBooked(true);
@@ -75,7 +174,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 <span className="text-[13px] text-rose-500 font-medium">{vendor.priceRange}</span>
               </div>
 
-              <div className="flex items-center gap-4 mb-5 text-[13px] text-taupe-500">
+              <div className="flex items-center gap-4 mb-3 text-[13px] text-taupe-500">
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-taupe-400" />
                   {vendor.address}
@@ -99,15 +198,58 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <p className="text-[14px] text-charcoal font-light leading-[1.8]">{vendor.description}</p>
             </div>
           </motion.div>
+
+          {/* 상품/패키지 섹션 */}
+          {activeProducts.length > 0 && (
+            <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.1 }}>
+              <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Package className="w-5 h-5 text-rose-500" />
+                  <h2 className="text-[17px] font-medium text-noir-800">{config.productLabel}</h2>
+                  <span className="text-[12px] text-taupe-400 ml-1">{activeProducts.length}개</span>
+                </div>
+
+                <div className="space-y-3">
+                  {activeProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      category={vendor.category}
+                      isSelected={selectedProduct === product.id}
+                      onSelect={() => setSelectedProduct(selectedProduct === product.id ? null : product.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* 예약 패널 */}
         <motion.div
           {...fadeIn}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
           className="col-span-2"
         >
           <div className="sticky top-[88px] space-y-4">
+            {/* 선택된 상품 요약 */}
+            {selectedProduct && (() => {
+              const p = activeProducts.find((prod) => prod.id === selectedProduct);
+              if (!p) return null;
+              return (
+                <div className="bg-white rounded-2xl border border-rose-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Tag className="w-4 h-4 text-rose-500" />
+                    <span className="text-[12px] text-rose-500 font-medium">선택한 상품</span>
+                  </div>
+                  <h4 className="text-[14px] font-medium text-noir-800 mb-1">{p.name}</h4>
+                  <p className="text-[15px] font-medium text-rose-500">
+                    {p.discountPrice ? formatPrice(p.discountPrice) : formatPrice(p.price)}
+                  </p>
+                </div>
+              );
+            })()}
+
             <div className="bg-white rounded-2xl border border-black/[0.04] p-5">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarCheck className="w-5 h-5 text-rose-500" />

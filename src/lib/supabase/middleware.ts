@@ -41,7 +41,7 @@ export async function updateSession(request: NextRequest) {
   // 인증이 필요한 페이지 접근 시 로그인으로 리다이렉트
   const protectedPaths = [
     "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
-    "/vendor/dashboard", "/vendor/profile", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings",
+    "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings",
   ];
   const isProtectedPath = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)

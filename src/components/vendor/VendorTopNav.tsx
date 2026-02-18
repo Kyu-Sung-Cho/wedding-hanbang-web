@@ -6,6 +6,7 @@ import { Menu, Bell, Shield, ShieldCheck, ShieldX } from "lucide-react";
 const pageTitles: Record<string, string> = {
   "/vendor/dashboard": "대시보드",
   "/vendor/profile": "업체 프로필",
+  "/vendor/products": "상품 관리",
   "/vendor/timeslots": "타임슬롯 관리",
   "/vendor/bookings": "예약 현황",
   "/vendor/settings": "설정",

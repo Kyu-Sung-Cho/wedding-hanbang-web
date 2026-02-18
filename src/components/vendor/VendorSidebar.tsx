@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Store,
+  Package,
   Clock,
   CalendarCheck,
-  Star,
   Settings,
   X,
   LogOut,
@@ -17,6 +17,7 @@ import Logo from "@/components/ui/Logo";
 const menuItems = [
   { href: "/vendor/dashboard", icon: LayoutDashboard, label: "대시보드" },
   { href: "/vendor/profile", icon: Store, label: "업체 프로필" },
+  { href: "/vendor/products", icon: Package, label: "상품 관리" },
   { href: "/vendor/timeslots", icon: Clock, label: "타임슬롯 관리" },
   { href: "/vendor/bookings", icon: CalendarCheck, label: "예약 현황" },
   { href: "/vendor/settings", icon: Settings, label: "설정" },

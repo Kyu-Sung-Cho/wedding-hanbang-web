@@ -126,8 +126,8 @@ export default function VendorDashboardPage() {
           </div>
           <div className="space-y-3">
             {[
-              { href: "/vendor/timeslots", label: "타임슬롯 관리", desc: "예약 가능 시간 설정", color: "from-rose-500 to-gold" },
-              { href: "/vendor/profile", label: "프로필 수정", desc: "업체 정보 업데이트", color: "from-noir-800 to-noir-soft" },
+              { href: "/vendor/products", label: "상품 관리", desc: "패키지/상품 등록·수정", color: "from-rose-500 to-gold" },
+              { href: "/vendor/timeslots", label: "타임슬롯 관리", desc: "예약 가능 시간 설정", color: "from-noir-800 to-noir-soft" },
               { href: "/vendor/bookings", label: "예약 관리", desc: `${pendingBookings.length}건 확인 대기`, color: "from-[#2E7D5A] to-[#4CAF80]" },
             ].map((action) => (
               <Link

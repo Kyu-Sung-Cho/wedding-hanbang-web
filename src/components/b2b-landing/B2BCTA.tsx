@@ -44,10 +44,10 @@ export default function B2BCTA() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link
-              href="/vendor/register"
+              href="/vendor/service"
               className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all max-md:w-full max-md:text-center"
             >
-              업체 등록하기
+              서비스 안내 & 업체 등록
             </Link>
             <Link
               href="#partner-types"
