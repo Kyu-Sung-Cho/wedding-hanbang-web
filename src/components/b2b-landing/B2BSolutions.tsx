@@ -16,7 +16,7 @@ const solutions = [
             <div className="text-[12px] text-white/60">김지은 예비신부</div>
             <div className="text-[13px] text-white/90 font-medium">예산 300만원 · 야외 촬영 선호</div>
           </div>
-          <div className="text-[11px] text-rose-500 bg-rose-500/15 px-2 py-1 rounded-full">98% 매칭</div>
+          <div className="text-[11px] text-rose-500 bg-rose-500/15 px-2 py-1 rounded-full">매칭</div>
         </div>
         <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-4 py-3">
           <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-[12px]">👰</div>
@@ -24,7 +24,7 @@ const solutions = [
             <div className="text-[12px] text-white/60">박서연 예비신부</div>
             <div className="text-[13px] text-white/90 font-medium">예산 250만원 · 내추럴 컨셉</div>
           </div>
-          <div className="text-[11px] text-gold bg-gold/15 px-2 py-1 rounded-full">94% 매칭</div>
+          <div className="text-[11px] text-gold bg-gold/15 px-2 py-1 rounded-full">매칭</div>
         </div>
       </div>
     ),
@@ -33,7 +33,7 @@ const solutions = [
     num: "02",
     title: "사전 고객 인사이트",
     desc: "상담 전에 고객의 예산, 선호 스타일, 구매 의향까지 미리 파악해서 알려드립니다. 불필요한 질문 없이 바로 핵심 제안이 가능해집니다.",
-    highlight: "상담 시간 50% 단축",
+    highlight: "상담 효율 극대화",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
         <div className="text-[11px] text-white/40 mb-3">고객 A님 사전 분석 리포트</div>
@@ -62,7 +62,10 @@ const solutions = [
     highlight: "데이터 기반 의사결정",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
-        <div className="text-[11px] text-white/40 mb-3">월간 분석 리포트</div>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[11px] text-white/40">월간 분석 리포트</span>
+          <span className="text-[9px] text-white/25 bg-white/[0.06] px-1.5 py-0.5 rounded">화면 예시</span>
+        </div>
         <div className="flex flex-col gap-3">
           {[
             { label: "야외 촬영 선호도", pct: 78, color: "bg-rose-500" },

@@ -39,9 +39,9 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 
 const stats = [
   { value: 0, suffix: "%", label: "입점 수수료", sub: "숨겨진 비용 없음" },
-  { value: 98, suffix: "%", label: "파트너 만족도 목표", sub: "전담 매니저 지원" },
-  { value: 3, suffix: "X", label: "전환율 향상 목표", sub: "AI 맞춤 고객 매칭" },
+  { value: 20, suffix: "개", label: "웨딩 카테고리", sub: "스튜디오·드레스·메이크업 등" },
   { value: 24, suffix: "h", label: "AI 고객 응대", sub: "연중무휴 자동 응답" },
+  { value: 1, suffix: ":1", label: "전담 매니저", sub: "입점부터 운영까지 지원" },
 ];
 
 export default function B2BStats() {

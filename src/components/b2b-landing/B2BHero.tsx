@@ -81,7 +81,7 @@ export default function B2BHero() {
           {[
             { num: "0%", label: "입점 수수료" },
             { num: "24h", label: "AI 고객 응대" },
-            { num: "3X", label: "전환율 향상 목표" },
+            { num: "∞", label: "성장 가능성" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="font-display text-[clamp(24px,3vw,36px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">

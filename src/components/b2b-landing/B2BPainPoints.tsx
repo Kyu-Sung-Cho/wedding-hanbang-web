@@ -5,27 +5,23 @@ import { motion } from "framer-motion";
 const painCards = [
   {
     icon: "💸",
-    stat: "20~30%",
     title: "높은 수수료 부담",
-    desc: "플래너·플랫폼 수수료가 매출의 상당 부분을 차지하고 있습니다",
+    desc: "플래너·플랫폼 수수료가 매출의 상당 부분을 차지하고 있습니다. 열심히 일해도 남는 게 적습니다.",
   },
   {
     icon: "📉",
-    stat: "60%+",
     title: "낮은 계약 전환율",
-    desc: "상담에 오지만 예산·취향이 맞지 않아 계약으로 이어지지 않는 고객이 대부분입니다",
+    desc: "상담에 오지만 예산·취향이 맞지 않아 계약으로 이어지지 않는 경우가 많습니다.",
   },
   {
     icon: "⏰",
-    stat: "2시간+",
     title: "비효율적인 상담 시간",
-    desc: "고객 취향 파악에만 긴 시간을 소비하고, 정작 중요한 제안을 할 시간이 부족합니다",
+    desc: "고객 취향 파악에만 긴 시간을 소비하고, 정작 중요한 제안을 할 시간이 부족합니다.",
   },
   {
     icon: "📊",
-    stat: "0건",
     title: "데이터 부재",
-    desc: "고객 행동 데이터나 경쟁사 분석 없이 감에 의존하여 의사결정을 하고 있습니다",
+    desc: "고객 행동 데이터나 경쟁사 분석 없이 감에 의존하여 의사결정을 하고 있습니다.",
   },
 ];
 
@@ -67,9 +63,6 @@ export default function B2BPainPoints() {
           >
             <div className="w-11 h-11 rounded-xl bg-noir-800 flex items-center justify-center mb-5 text-[18px]">
               {card.icon}
-            </div>
-            <div className="font-display text-[28px] font-light text-rose-500 mb-2">
-              {card.stat}
             </div>
             <h4 className="text-[16px] font-medium mb-2 text-noir-800">{card.title}</h4>
             <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{card.desc}</p>
