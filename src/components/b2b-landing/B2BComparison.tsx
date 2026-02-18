@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 
 const rows = [
-  { label: "수수료", old: "높은 고정 수수료", new: "0% 입점 수수료" },
+  { label: "수수료", old: "높은 고정 수수료", new: "업계 최저 수준의 합리적 수수료" },
   { label: "고객 품질", old: "예산·취향 무관 무작위 연결", new: "AI가 매칭한 맞춤 고객" },
   { label: "사전 정보", old: "상담 시 직접 파악", new: "예산·선호·의향 사전 제공" },
   { label: "데이터", old: "기본 통계만 (또는 없음)", new: "경쟁사 비교·트렌드 리포트" },
