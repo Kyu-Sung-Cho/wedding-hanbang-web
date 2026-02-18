@@ -9,9 +9,9 @@ export const studioConfig: ShopConfig = {
     '고객 취향 파악하려면 이것저것 물어봐야 해서 상담이 길어지고...',
   ],
   solutions: [
-    'AI가 미리 고객 예산, 촬영 컨셉, 계약 의향까지 파악해서 딱 맞는 고객을 우선으로 연결해드려요.',
+    '웨딩한방이 미리 고객 예산, 촬영 컨셉, 계약 의향까지 파악해서 딱 맞는 고객을 우선으로 연결해드려요.',
     "상담 전에 '이 고객은 야외 배경 선호, 원본 추가 구매 의향 있음' 같은 정보를 미리 알려드려요.",
-    '24시간 AI가 새벽에도 고객 취향을 수집해서 정리해드려요.',
+    '24시간 웨딩한방이 새벽에도 고객 취향을 수집해서 정리해드려요.',
   ],
   sections: [
     {
@@ -179,7 +179,7 @@ export const studioConfig: ShopConfig = {
           id: 'q11',
           type: 'text_area',
           required: false,
-          question: 'AI가 고객한테 미리 물어봐서 사장님께 알려드렸으면 하는 정보가 있으세요?',
+          question: '웨딩한방이 고객한테 미리 물어봐서 사장님께 알려드렸으면 하는 정보가 있으세요?',
           placeholder: '예: 예산, 촬영 컨셉, 선호 배경, 원본 추가 구매 의향 등',
           maxLength: 500,
         },
@@ -187,7 +187,7 @@ export const studioConfig: ShopConfig = {
           id: 'q12',
           type: 'text_area',
           required: false,
-          question: '계약 후 ~ 촬영 전에 AI가 고객한테 미리 확인해뒀으면 하는 정보가 있으세요?',
+          question: '계약 후 ~ 촬영 전에 웨딩한방이 고객한테 미리 확인해뒀으면 하는 정보가 있으세요?',
           placeholder: '예: 헤어/메이크업 스타일, 촬영 당일 준비물, 컨디션 체크 등',
           maxLength: 500,
         },
