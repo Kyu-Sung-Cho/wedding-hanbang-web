@@ -2,47 +2,131 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useAuthStore } from "@/stores/authStore";
 import {
   MessageCircle,
   Wallet,
   CalendarCheck,
   TrendingUp,
-  CheckCircle2,
   Clock,
   ArrowRight,
+  Copy,
+  Check,
 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
-const categories = [
-  { name: "스튜디오", status: "완료", color: "bg-[#2E7D5A]" },
-  { name: "드레스", status: "진행중", color: "bg-rose-500" },
-  { name: "메이크업", status: "예정", color: "bg-taupe-400" },
-  { name: "예식장", status: "완료", color: "bg-[#2E7D5A]" },
-  { name: "예물", status: "진행중", color: "bg-rose-500" },
-  { name: "한복", status: "예정", color: "bg-taupe-400" },
-  { name: "신혼여행", status: "예정", color: "bg-taupe-400" },
-  { name: "혼수", status: "예정", color: "bg-taupe-400" },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  venue: "예식장",
+  studio: "스튜디오",
+  dress: "드레스",
+  makeup: "메이크업",
+  ring: "예물(반지)",
+  hanbok: "한복",
+  honeymoon: "신혼여행",
+  houseware: "혼수",
+  invitation: "청첩장",
+  gift: "답례품",
+};
 
-const recentActivity = [
-  { text: "스튜디오 '로즈스튜디오' 계약 완료", time: "2시간 전", icon: CheckCircle2 },
-  { text: "AI 상담: 드레스 추천 3곳 확인", time: "어제", icon: MessageCircle },
-  { text: "예산 항목 '예식장' 업데이트", time: "2일 전", icon: Wallet },
-  { text: "D-120 체크리스트 완료", time: "3일 전", icon: CalendarCheck },
-];
+const STATUS_STYLES: Record<string, { label: string; color: string }> = {
+  completed: { label: "완료", color: "bg-[#2E7D5A]" },
+  in_progress: { label: "진행중", color: "bg-rose-500" },
+  not_started: { label: "예정", color: "bg-taupe-400" },
+};
 
 export default function DashboardPage() {
-  const dday = 240;
-  const completedCategories = 2;
-  const totalCategories = 8;
-  const progressPercent = Math.round((completedCategories / totalCategories) * 100);
+  const { profile, partner, journey, couple } = useAuthStore();
+  const [inviteCode, setInviteCode] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // 커플 코드 불러오기
+  useEffect(() => {
+    if (couple && !partner) {
+      fetch("/api/couple/code")
+        .then((r) => r.json())
+        .then((d) => { if (d.inviteCode) setInviteCode(d.inviteCode); })
+        .catch(() => {});
+    }
+  }, [couple, partner]);
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(inviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // D-day 계산
+  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const today = new Date();
+  const dday = weddingDate
+    ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  // 진행률 계산
+  const progress = journey?.progress ?? {};
+  const totalCategories = Object.keys(CATEGORY_LABELS).length;
+  const completedCategories = Object.values(progress).filter(
+    (p) => (p as { status: string }).status === "completed"
+  ).length;
+  const progressPercent =
+    totalCategories > 0
+      ? Math.round((completedCategories / totalCategories) * 100)
+      : 0;
+
+  // 예산 포맷
+  const budget = journey?.total_budget ?? 0;
+  const budgetStr =
+    budget >= 10000
+      ? `₩${(budget / 10000).toLocaleString()}만원`
+      : `₩${budget.toLocaleString()}`;
+
+  const userName = profile?.name ?? "사용자";
+  const partnerName = partner?.name;
+  const coupleStr = partnerName
+    ? `${userName} & ${partnerName}`
+    : userName;
+
+  const dateStr = weddingDate
+    ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
+    : "날짜 미정";
 
   return (
     <div className="max-w-[1100px] mx-auto">
+      {/* 파트너 미연동 안내 */}
+      {couple && !partner && inviteCode && (
+        <motion.div
+          {...fadeIn}
+          className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3"
+        >
+          <div>
+            <p className="text-[14px] font-medium text-noir-800">
+              파트너에게 초대 코드를 공유하세요
+            </p>
+            <p className="text-[12px] text-taupe-400 mt-0.5">
+              파트너가 회원가입 시 이 코드를 입력하면 커플 연동됩니다
+            </p>
+          </div>
+          <button
+            onClick={copyCode}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-black/[0.06] hover:border-rose-500/30 transition-all"
+          >
+            <span className="font-mono text-[15px] font-bold text-noir-800 tracking-wider">
+              {inviteCode}
+            </span>
+            {copied ? (
+              <Check className="w-4 h-4 text-[#2E7D5A]" />
+            ) : (
+              <Copy className="w-4 h-4 text-taupe-400" />
+            )}
+          </button>
+        </motion.div>
+      )}
+
       {/* D-day 히어로 */}
       <motion.div
         {...fadeIn}
@@ -57,11 +141,11 @@ export default function DashboardPage() {
             </p>
             <div className="flex items-baseline gap-3 max-md:justify-center">
               <span className="font-display text-[72px] max-md:text-[56px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent leading-none">
-                D-{dday}
+                {dday !== null && dday > 0 ? `D-${dday}` : "미정"}
               </span>
             </div>
             <p className="text-white/40 text-[14px] font-light mt-3">
-              2026년 10월 15일 · 김지은 & 박민수
+              {dateStr} · {coupleStr}
             </p>
           </div>
           <div className="text-center">
@@ -99,8 +183,8 @@ export default function DashboardPage() {
       >
         {[
           { href: "/chat", icon: MessageCircle, label: "AI에게 물어보기", desc: "결혼 준비 뭐든 상담하세요", accent: "from-rose-500 to-gold" },
-          { href: "/budget", icon: Wallet, label: "예산 현황 보기", desc: "잔여 예산 ₩4,000,000", accent: "from-[#2E7D5A] to-[#4CAF80]" },
-          { href: "/schedule", icon: CalendarCheck, label: "오늘의 할 일", desc: "드레스 투어 예약 확인", accent: "from-gold to-[#DCC9A0]" },
+          { href: "/budget", icon: Wallet, label: "예산 현황 보기", desc: `총 예산 ${budgetStr}`, accent: "from-[#2E7D5A] to-[#4CAF80]" },
+          { href: "/schedule", icon: CalendarCheck, label: "일정 관리", desc: "체크리스트를 확인하세요", accent: "from-gold to-[#DCC9A0]" },
         ].map((action) => (
           <Link
             key={action.href}
@@ -130,18 +214,23 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
-            {categories.map((cat) => (
-              <div key={cat.name} className="flex items-center justify-between px-4 py-3 rounded-xl bg-ivory-50 border border-black/[0.02]">
-                <span className="text-[13px] text-noir-800 font-medium">{cat.name}</span>
-                <span className={`text-[11px] px-2.5 py-1 rounded-full text-white font-medium ${cat.color}`}>
-                  {cat.status}
-                </span>
-              </div>
-            ))}
+            {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
+              const item = progress[key] as { status: string } | undefined;
+              const status = item?.status ?? "not_started";
+              const style = STATUS_STYLES[status] ?? STATUS_STYLES.not_started;
+              return (
+                <div key={key} className="flex items-center justify-between px-4 py-3 rounded-xl bg-ivory-50 border border-black/[0.02]">
+                  <span className="text-[13px] text-noir-800 font-medium">{label}</span>
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full text-white font-medium ${style.color}`}>
+                    {style.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
 
-        {/* 최근 활동 */}
+        {/* 최근 활동 / 안내 */}
         <motion.div
           {...fadeIn}
           transition={{ duration: 0.6, delay: 0.3 }}
@@ -149,22 +238,30 @@ export default function DashboardPage() {
         >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-4 h-4 text-rose-500" />
-            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">최근 활동</h3>
+            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
-            {recentActivity.map((activity, i) => (
-              <div key={i} className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-ivory-50 transition-colors">
+            {[
+              { text: "AI 상담으로 결혼 준비 계획 세우기", href: "/chat", icon: MessageCircle },
+              { text: "예산을 설정하고 항목별로 관리하기", href: "/budget", icon: Wallet },
+              { text: "일정을 확인하고 체크리스트 진행하기", href: "/schedule", icon: CalendarCheck },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-ivory-50 transition-colors"
+              >
                 <div className="w-8 h-8 rounded-lg bg-ivory-warm flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <activity.icon className="w-4 h-4 text-rose-500" />
+                  <item.icon className="w-4 h-4 text-rose-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-noir-800 font-light leading-snug">{activity.text}</p>
+                  <p className="text-[13px] text-noir-800 font-light leading-snug">{item.text}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <Clock className="w-3 h-3 text-taupe-400" />
-                    <span className="text-[11px] text-taupe-400">{activity.time}</span>
+                    <span className="text-[11px] text-taupe-400">시작하기</span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </motion.div>

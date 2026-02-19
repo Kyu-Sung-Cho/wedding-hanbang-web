@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
+import { useAuthStore } from "@/stores/authStore";
 import {
   LayoutDashboard,
   MessageCircle,
@@ -34,6 +35,17 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { profile, journey, signOut } = useAuthStore();
+
+  const userName = profile?.name ?? "사용자";
+  const userInitial = userName.charAt(0);
+  const weddingDateStr = journey?.wedding_date
+    ? new Date(journey.wedding_date).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).replace(/\. /g, ".").replace(".", ".")
+    : "미정";
 
   return (
     <>
@@ -92,15 +104,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[13px] font-medium">
-                김
+                {userInitial}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-white font-medium truncate">김지은</div>
-                <div className="text-[11px] text-white/30">2026.10.15 예정</div>
+                <div className="text-[13px] text-white font-medium truncate">{userName}</div>
+                <div className="text-[11px] text-white/30">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
               </div>
             </div>
           </div>
-          <button className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[13px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full">
+          <button
+            onClick={() => signOut()}
+            className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[13px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full"
+          >
             <LogOut className="w-4 h-4" />
             로그아웃
           </button>

@@ -56,5 +56,23 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // 온보딩 미완료 유저가 앱 페이지 접근 시 온보딩으로 리다이렉트
+  const appPaths = [
+    "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
+  ];
+  const isAppPath = appPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+
+  if (user && !isDemoMode && isAppPath) {
+    const onboardingComplete =
+      request.cookies.get("onboarding_complete")?.value === "true";
+    if (!onboardingComplete) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }

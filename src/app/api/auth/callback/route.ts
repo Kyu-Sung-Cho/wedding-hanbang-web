@@ -26,6 +26,31 @@ export async function GET(request: Request) {
     );
 
     await supabase.auth.exchangeCodeForSession(code);
+
+    // 온보딩 완료 여부 확인
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile || !profile.onboarding_completed) {
+        return NextResponse.redirect(`${origin}/onboarding`);
+      }
+
+      // 온보딩 완료 쿠키 설정
+      const response = NextResponse.redirect(`${origin}/dashboard`);
+      response.cookies.set("onboarding_complete", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      return response;
+    }
   }
 
   return NextResponse.redirect(`${origin}/dashboard`);

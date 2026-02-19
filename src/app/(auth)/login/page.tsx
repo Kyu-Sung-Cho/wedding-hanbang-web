@@ -84,7 +84,24 @@ export default function LoginPage() {
             ? "이메일 또는 비밀번호가 올바르지 않습니다."
             : signInError.message);
         } else {
-          window.location.href = "/dashboard";
+          // 온보딩 완료 여부 확인
+          const { data: { user: loggedInUser } } = await supabase.auth.getUser();
+          if (loggedInUser) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("onboarding_completed")
+              .eq("id", loggedInUser.id)
+              .single();
+
+            if (profile?.onboarding_completed) {
+              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+              window.location.href = "/dashboard";
+            } else {
+              window.location.href = "/onboarding";
+            }
+          } else {
+            window.location.href = "/dashboard";
+          }
         }
       }
     } catch (err) {
