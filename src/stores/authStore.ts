@@ -14,8 +14,6 @@ interface AuthState {
   isInitialized: boolean;
 
   initialize: () => Promise<void>;
-  fetchProfile: () => Promise<Profile | null>;
-  fetchCoupleAndJourney: () => Promise<void>;
   signOut: () => Promise<void>;
   reset: () => void;
 }
@@ -34,103 +32,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
         set({ isLoading: false, isInitialized: true });
         return;
       }
 
-      set({ user: { id: user.id, email: user.email ?? "" } });
+      const data = await res.json();
 
-      const profile = await get().fetchProfile();
-      if (profile?.couple_id) {
-        await get().fetchCoupleAndJourney();
-      }
+      set({
+        user: data.user ?? null,
+        profile: data.profile ?? null,
+        couple: data.couple ?? null,
+        partner: data.partner ?? null,
+        journey: data.journey ?? null,
+      });
     } catch (err) {
       console.error("Auth store init error:", err);
     } finally {
       set({ isLoading: false, isInitialized: true });
-    }
-  },
-
-  fetchProfile: async () => {
-    const { user } = get();
-    if (!user) return null;
-
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (error || !data) {
-      // 프로필이 없으면 기본 생성
-      const { data: newProfile } = await supabase
-        .from("profiles")
-        .insert({
-          id: user.id,
-          name: user.email.split("@")[0],
-          email: user.email,
-          onboarding_completed: false,
-          onboarding_step: 0,
-        })
-        .select()
-        .single();
-
-      if (newProfile) {
-        set({ profile: newProfile as Profile });
-        return newProfile as Profile;
-      }
-      return null;
-    }
-
-    set({ profile: data as Profile });
-    return data as Profile;
-  },
-
-  fetchCoupleAndJourney: async () => {
-    const { profile } = get();
-    if (!profile?.couple_id) return;
-
-    const supabase = createClient();
-
-    // 커플 정보 조회
-    const { data: couple } = await supabase
-      .from("couples")
-      .select("*")
-      .eq("id", profile.couple_id)
-      .single();
-
-    if (couple) {
-      set({ couple: couple as Couple });
-
-      // 파트너 정보 조회
-      const partnerId =
-        couple.bride_id === profile.id ? couple.groom_id : couple.bride_id;
-      if (partnerId) {
-        const { data: partner } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", partnerId)
-          .single();
-        if (partner) set({ partner: partner as Profile });
-      }
-    }
-
-    // 웨딩 여정 조회
-    const { data: journey } = await supabase
-      .from("wedding_journeys")
-      .select("*")
-      .eq("couple_id", profile.couple_id)
-      .single();
-
-    if (journey) {
-      set({ journey: journey as WeddingJourney });
     }
   },
 
