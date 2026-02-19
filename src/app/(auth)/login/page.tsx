@@ -21,15 +21,22 @@ export default function LoginPage() {
     setError("");
     try {
       const supabase = createClient();
-      await supabase.auth.signInWithOAuth({
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: `${window.location.origin}/api/auth/callback`,
         },
       });
-    } catch {
+      if (oauthError) {
+        console.error("OAuth error:", oauthError);
+        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        setLoading(null);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("OAuth catch error:", msg);
       setLoading(null);
-      setError("소셜 로그인에 실패했습니다. 다시 시도해주세요.");
+      setError(`소셜 로그인 실패: ${msg}`);
     }
   };
 
@@ -80,8 +87,10 @@ export default function LoginPage() {
           window.location.href = "/dashboard";
         }
       }
-    } catch {
-      setError("오류가 발생했습니다. 다시 시도해주세요.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Auth error:", msg);
+      setError(`오류: ${msg}`);
     } finally {
       setLoading(null);
     }
