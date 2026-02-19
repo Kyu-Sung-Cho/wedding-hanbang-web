@@ -150,5 +150,13 @@ DROP POLICY IF EXISTS "chat_insert_couple" ON chat_messages;
 CREATE POLICY "chat_insert_couple" ON chat_messages FOR INSERT
   WITH CHECK (couple_id IN (SELECT couple_id FROM profiles WHERE id = auth.uid()));
 
--- 11. Realtime 활성화
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+-- 11. Realtime 활성화 (이미 등록되어 있으면 스킵)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'chat_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+  END IF;
+END $$;
