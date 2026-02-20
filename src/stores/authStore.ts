@@ -66,6 +66,7 @@ interface AuthState {
 
   initialize: () => Promise<void>;
   updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<void>;
+  updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   updateProfile: (updates: Partial<Pick<Profile, "name">>) => Promise<void>;
   signOut: () => Promise<void>;
   reset: () => void;
@@ -121,6 +122,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       set({ isLoading: false, isInitialized: true });
     }
+  },
+
+  // AI 도구 실행 후 로컬 상태만 업데이트 (서버가 이미 DB 저장)
+  updateJourneyLocal: (updates) => {
+    const { journey } = get();
+    if (!journey) return;
+    set({ journey: { ...journey, ...updates } });
   },
 
   updateJourney: async (updates) => {

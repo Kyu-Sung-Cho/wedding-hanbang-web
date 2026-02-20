@@ -2,26 +2,72 @@
 
 import { create } from "zustand";
 import { createClient } from "@/lib/supabase/client";
-import type { ChatMessage, MessageSenderRole } from "@/types/database.types";
+import type {
+  ChatMessage,
+  MessageSenderRole,
+  ToolExecutionResult,
+  ChatMessageMetadata,
+} from "@/types/database.types";
+import type { SSEEvent, WeddingContext } from "@/types/chat.types";
+import { useAuthStore } from "./authStore";
 
 interface ChatStoreState {
   messages: ChatMessage[];
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
+  streamingToolResults: ToolExecutionResult[];
+  suggestions: string[];
   error: string | null;
 
   loadMessages: (coupleId: string) => Promise<void>;
-  sendMessage: (
-    content: string,
-    senderId: string,
-    senderRole: MessageSenderRole,
-    coupleId: string,
-    senderName: string,
-    weddingContext?: { weddingDate: string | null; budget: number; progress: Record<string, unknown> }
-  ) => Promise<void>;
+  sendMessage: (params: {
+    content: string;
+    senderId: string;
+    senderRole: MessageSenderRole;
+    coupleId: string;
+    senderName: string;
+    weddingContext: WeddingContext;
+  }) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
+}
+
+// 도구 결과를 authStore에 반영
+function syncToolResult(result: ToolExecutionResult) {
+  if (!result.success) return;
+
+  const authStore = useAuthStore.getState();
+
+  switch (result.toolName) {
+    case "update_budget":
+      authStore.updateJourneyLocal({
+        total_budget: result.toolOutput.total_budget as number,
+      });
+      break;
+    case "update_wedding_date":
+      authStore.updateJourneyLocal({
+        wedding_date: result.toolOutput.wedding_date as string,
+      });
+      break;
+    case "update_task_status": {
+      const category = result.toolInput.category as string;
+      const status = result.toolInput.status as string;
+      const currentProgress = authStore.journey?.progress ?? {};
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentProgress,
+          [category]: { category, status } as { category: string; status: "not_started" | "in_progress" | "completed" },
+        },
+      });
+      break;
+    }
+    case "update_venue":
+      authStore.updateJourneyLocal({
+        venue: result.toolOutput.venue as string,
+      });
+      break;
+  }
 }
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
@@ -29,6 +75,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   isLoading: false,
   isStreaming: false,
   streamingContent: "",
+  streamingToolResults: [],
+  suggestions: [],
   error: null,
 
   loadMessages: async (coupleId: string) => {
@@ -43,7 +91,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .limit(100);
 
       if (error) throw error;
-      set({ messages: (data ?? []) as ChatMessage[] });
+
+      // metadata가 없는 오래된 메시지 호환 처리
+      const messages = (data ?? []).map((m) => ({
+        ...m,
+        metadata: m.metadata ?? null,
+      })) as ChatMessage[];
+
+      set({ messages });
     } catch (err) {
       console.error("채팅 로드 에러:", err);
       set({ error: "채팅을 불러오지 못했습니다." });
@@ -52,43 +107,71 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content, senderId, senderRole, coupleId, senderName, weddingContext) => {
+  sendMessage: async ({
+    content,
+    senderId,
+    senderRole,
+    coupleId,
+    senderName,
+    weddingContext,
+  }) => {
     const supabase = createClient();
+    const isDemo = document.cookie.includes("demo_mode=true");
 
     // 유저 메시지 저장
-    const userMsg: Partial<ChatMessage> = {
-      couple_id: coupleId,
-      sender_id: senderId,
-      sender_role: senderRole,
-      content,
-    };
+    if (!isDemo) {
+      const { data: inserted, error: insertErr } = await supabase
+        .from("chat_messages")
+        .insert({
+          couple_id: coupleId,
+          sender_id: senderId,
+          sender_role: senderRole,
+          content,
+        })
+        .select()
+        .single();
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from("chat_messages")
-      .insert(userMsg)
-      .select()
-      .single();
+      if (insertErr) {
+        console.error("메시지 저장 에러:", insertErr);
+        set({ error: "메시지 전송에 실패했습니다." });
+        return;
+      }
 
-    if (insertErr) {
-      console.error("메시지 저장 에러:", insertErr);
-      set({ error: "메시지 전송에 실패했습니다." });
-      return;
+      set((s) => ({
+        messages: [...s.messages, { ...inserted, metadata: null } as ChatMessage],
+      }));
+    } else {
+      // 데모: 로컬 메시지 추가
+      const demoMsg: ChatMessage = {
+        id: `demo-${Date.now()}`,
+        couple_id: coupleId,
+        sender_id: senderId,
+        sender_role: senderRole,
+        content,
+        metadata: null,
+        created_at: new Date().toISOString(),
+      };
+      set((s) => ({ messages: [...s.messages, demoMsg] }));
     }
 
-    // 로컬 메시지 즉시 추가 (Realtime 보다 빠르게)
-    set((s) => ({ messages: [...s.messages, inserted as ChatMessage] }));
-
-    // AI 응답 요청
-    set({ isStreaming: true, streamingContent: "" });
+    // AI 응답 요청 (SSE)
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingToolResults: [],
+      error: null,
+    });
 
     try {
-      const recentMessages = get().messages.slice(-20).map((m) => ({
-        role: m.sender_role === "ai" ? "assistant" : "user",
-        content:
-          m.sender_role === "ai"
-            ? m.content
-            : `[${m.sender_role === "bride" ? "신부" : "신랑"}] ${m.content}`,
-      }));
+      const recentMessages = get()
+        .messages.slice(-20)
+        .map((m) => ({
+          role: m.sender_role === "ai" ? "assistant" : "user",
+          content:
+            m.sender_role === "ai"
+              ? m.content
+              : `[${m.sender_role === "bride" ? "신부" : "신랑"}] ${m.content}`,
+        }));
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -97,38 +180,117 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           messages: recentMessages,
           coupleId,
           senderName,
-          weddingContext: weddingContext ?? {
-            weddingDate: null,
-            budget: 0,
-            progress: {},
-          },
+          senderRole,
+          weddingContext,
         }),
       });
 
       if (!res.ok) throw new Error("AI 응답 실패");
 
-      const data = await res.json();
+      // SSE 파싱
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+      let finalMetadata: ChatMessageMetadata | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+
+          try {
+            const event: SSEEvent = JSON.parse(line.slice(6));
+
+            switch (event.type) {
+              case "text_delta":
+                set((s) => ({
+                  streamingContent: s.streamingContent + event.content,
+                }));
+                break;
+
+              case "tool_result":
+                syncToolResult(event.result);
+                set((s) => ({
+                  streamingToolResults: [
+                    ...s.streamingToolResults,
+                    event.result,
+                  ],
+                }));
+                break;
+
+              case "suggestions":
+                set({ suggestions: event.suggestions });
+                break;
+
+              case "done":
+                fullContent = event.fullContent;
+                finalMetadata = event.metadata;
+                break;
+
+              case "error":
+                set({ error: event.message });
+                break;
+            }
+          } catch {
+            // JSON 파싱 실패 무시
+          }
+        }
+      }
 
       // AI 메시지 저장
-      const { data: aiInserted } = await supabase
-        .from("chat_messages")
-        .insert({
-          couple_id: coupleId,
-          sender_id: null,
-          sender_role: "ai",
-          content: data.content,
-        })
-        .select()
-        .single();
+      if (fullContent) {
+        if (!isDemo) {
+          const { data: aiInserted } = await supabase
+            .from("chat_messages")
+            .insert({
+              couple_id: coupleId,
+              sender_id: null,
+              sender_role: "ai",
+              content: fullContent,
+              metadata: finalMetadata,
+            })
+            .select()
+            .single();
 
-      if (aiInserted) {
-        set((s) => ({ messages: [...s.messages, aiInserted as ChatMessage] }));
+          if (aiInserted) {
+            set((s) => ({
+              messages: [
+                ...s.messages,
+                { ...aiInserted, metadata: aiInserted.metadata ?? finalMetadata } as ChatMessage,
+              ],
+            }));
+          }
+        } else {
+          // 데모: 로컬 AI 메시지
+          const demoAiMsg: ChatMessage = {
+            id: `demo-ai-${Date.now()}`,
+            couple_id: coupleId,
+            sender_id: null,
+            sender_role: "ai",
+            content: fullContent,
+            metadata: finalMetadata,
+            created_at: new Date().toISOString(),
+          };
+          set((s) => ({ messages: [...s.messages, demoAiMsg] }));
+        }
       }
     } catch (err) {
       console.error("AI 응답 에러:", err);
       set({ error: "AI 응답을 받지 못했습니다." });
     } finally {
-      set({ isStreaming: false, streamingContent: "" });
+      set({
+        isStreaming: false,
+        streamingContent: "",
+        streamingToolResults: [],
+      });
     }
   },
 
@@ -146,11 +308,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
         (payload) => {
           const newMsg = payload.new as ChatMessage;
-          // 중복 방지
           set((s) => {
             const exists = s.messages.some((m) => m.id === newMsg.id);
             if (exists) return s;
-            return { messages: [...s.messages, newMsg] };
+            return {
+              messages: [
+                ...s.messages,
+                { ...newMsg, metadata: newMsg.metadata ?? null },
+              ],
+            };
           });
         }
       )
@@ -167,6 +333,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       isLoading: false,
       isStreaming: false,
       streamingContent: "",
+      streamingToolResults: [],
+      suggestions: [],
       error: null,
     });
   },

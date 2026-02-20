@@ -41,12 +41,26 @@ export interface ProgressItem {
   notes?: string;
 }
 
+export interface ToolExecutionResult {
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  toolOutput: Record<string, unknown>;
+  success: boolean;
+  displayMessage: string;
+}
+
+export interface ChatMessageMetadata {
+  suggestions?: string[];
+  toolResults?: ToolExecutionResult[];
+}
+
 export interface ChatMessage {
   id: string;
   couple_id: string;
   sender_id: string | null;
   sender_role: MessageSenderRole;
   content: string;
+  metadata: ChatMessageMetadata | null;
   created_at: string;
 }
 
