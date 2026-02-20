@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Check, Circle, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import type { ProgressItem } from "@/types/database.types";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -70,17 +71,43 @@ const TIMELINE_TEMPLATE: TimelineSection[] = [
 ];
 
 export default function SchedulePage() {
-  const { journey } = useAuthStore();
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(1);
+  const { journey, updateJourney } = useAuthStore();
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+  const [saving, setSaving] = useState(false);
 
   const progress = journey?.progress ?? {};
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
 
-  // 진행 상태에 따라 done 여부 결정
-  const isTaskDone = (key: string) => {
-    if (key.startsWith("_")) return false;
+  const getTaskStatus = useCallback((key: string): string => {
+    if (key.startsWith("_")) return "not_started";
     const item = progress[key] as { status: string } | undefined;
-    return item?.status === "completed";
+    return item?.status ?? "not_started";
+  }, [progress]);
+
+  const isTaskDone = useCallback((key: string): boolean => {
+    return getTaskStatus(key) === "completed";
+  }, [getTaskStatus]);
+
+  // 체크리스트 토글
+  const toggleTask = async (key: string) => {
+    if (key.startsWith("_") || saving) return;
+
+    const currentStatus = getTaskStatus(key);
+    const newStatus: ProgressItem["status"] = currentStatus === "completed" ? "not_started" : "completed";
+
+    const existing = progress[key];
+    const updated: ProgressItem = existing
+      ? { ...existing, status: newStatus }
+      : { category: key, status: newStatus };
+
+    const newProgress: Record<string, ProgressItem> = {
+      ...progress,
+      [key]: updated,
+    };
+
+    setSaving(true);
+    await updateJourney({ progress: newProgress });
+    setSaving(false);
   };
 
   const totalTasks = TIMELINE_TEMPLATE.reduce((s, t) => s + t.tasks.length, 0);
@@ -89,7 +116,6 @@ export default function SchedulePage() {
     0
   );
 
-  // D-day 계산
   const today = new Date();
   const dday = weddingDate
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -157,7 +183,6 @@ export default function SchedulePage() {
               transition={{ duration: 0.5, delay: si * 0.08 }}
               className="relative pl-12 mb-4 max-md:pl-10"
             >
-              {/* 타임라인 도트 */}
               <div className={`absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] ${
                 allDone
                   ? "border-[#2E7D5A] bg-[#2E7D5A]"
@@ -166,11 +191,11 @@ export default function SchedulePage() {
                   : "border-taupe-400 bg-white"
               } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`} />
 
-              <button
-                onClick={() => setExpandedIdx(isExpanded ? null : si)}
-                className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow"
-              >
-                <div className="flex items-center justify-between px-5 py-4">
+              <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow">
+                <button
+                  onClick={() => setExpandedIdx(isExpanded ? null : si)}
+                  className="w-full flex items-center justify-between px-5 py-4"
+                >
                   <div className="flex items-center gap-3">
                     <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                       {section.dday}
@@ -182,33 +207,47 @@ export default function SchedulePage() {
                     <span className="text-[12px] text-taupe-400">{sectionDone}/{section.tasks.length}</span>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-taupe-400" /> : <ChevronDown className="w-4 h-4 text-taupe-400" />}
                   </div>
-                </div>
+                </button>
 
                 {isExpanded && (
                   <div className="border-t border-black/[0.03] px-5 pb-4">
                     {section.tasks.map((task, ti) => {
                       const done = isTaskDone(task.key);
+                      const isToggleable = !task.key.startsWith("_");
                       return (
-                        <div key={ti} className="flex items-start gap-3 py-3 border-b border-black/[0.02] last:border-0">
+                        <div
+                          key={ti}
+                          onClick={() => isToggleable && toggleTask(task.key)}
+                          className={`flex items-start gap-3 py-3 border-b border-black/[0.02] last:border-0 ${
+                            isToggleable ? "cursor-pointer hover:bg-ivory-50 -mx-2 px-2 rounded-lg transition-colors" : ""
+                          }`}
+                        >
                           <div className="mt-0.5">
                             {done ? (
                               <Check className="w-5 h-5 text-[#2E7D5A]" />
                             ) : (
-                              <Circle className="w-5 h-5 text-taupe-400" />
+                              <Circle className={`w-5 h-5 ${isToggleable ? "text-taupe-400 hover:text-rose-500" : "text-taupe-300"}`} />
                             )}
                           </div>
-                          <div className="text-left">
+                          <div className="text-left flex-1">
                             <p className={`text-[13px] font-medium ${done ? "text-taupe-400 line-through" : "text-noir-800"}`}>
                               {task.title}
                             </p>
                             <p className="text-[11px] text-taupe-400 font-light mt-0.5">{task.desc}</p>
                           </div>
+                          {isToggleable && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              done ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" : "bg-taupe-400/10 text-taupe-400"
+                            }`}>
+                              {done ? "완료" : "진행전"}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </button>
+              </div>
             </motion.div>
           );
         })}

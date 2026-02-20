@@ -12,6 +12,9 @@ import {
   ChevronRight,
   Copy,
   Check,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -21,7 +24,7 @@ const fadeIn = {
 };
 
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, signOut } = useAuthStore();
+  const { profile, partner, couple, journey, signOut, updateJourney, updateProfile } = useAuthStore();
   const [notifications, setNotifications] = useState({
     schedule: true,
     budget: true,
@@ -31,7 +34,15 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
 
-  // 커플 코드 가져오기
+  // 수정 모드
+  const [editingName, setEditingName] = useState(false);
+  const [editingDate, setEditingDate] = useState(false);
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [dateInput, setDateInput] = useState("");
+  const [budgetInput, setBudgetInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     if (couple) {
       fetch("/api/couple/code")
@@ -48,13 +59,38 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 프로필 데이터
+  // 이름 저장
+  const saveName = async () => {
+    if (!nameInput.trim()) return;
+    setSaving(true);
+    await updateProfile({ name: nameInput.trim() });
+    setSaving(false);
+    setEditingName(false);
+  };
+
+  // 날짜 저장
+  const saveDate = async () => {
+    setSaving(true);
+    await updateJourney({ wedding_date: dateInput || null });
+    setSaving(false);
+    setEditingDate(false);
+  };
+
+  // 예산 저장
+  const saveBudget = async () => {
+    const value = parseInt(budgetInput) * 10000;
+    if (isNaN(value) || value <= 0) return;
+    setSaving(true);
+    await updateJourney({ total_budget: value });
+    setSaving(false);
+    setEditingBudget(false);
+  };
+
   const userName = profile?.name ?? "사용자";
   const userEmail = profile?.email ?? "";
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
-  // 웨딩 데이터
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
@@ -64,7 +100,6 @@ export default function SettingsPage() {
     ? `₩${(totalBudget / 10000).toLocaleString()}만원`
     : "미설정";
 
-  // 파트너 정보
   const partnerName = partner?.name;
   const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
 
@@ -80,32 +115,116 @@ export default function SettingsPage() {
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center">
             <span className="font-display text-[24px] text-white font-light">{initials}</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-[18px] font-medium text-noir-800">{userName}</h2>
-              {userRole && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-medium">
-                  {userRole}
-                </span>
-              )}
-            </div>
-            <p className="text-[13px] text-taupe-500 font-light">{userEmail}</p>
+          <div className="flex-1">
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  className="px-3 py-1.5 rounded-lg border border-rose-500/30 text-[16px] text-noir-800 outline-none w-[150px]"
+                  autoFocus
+                />
+                <button onClick={saveName} disabled={saving} className="w-7 h-7 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <Save className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => setEditingName(false)} className="w-7 h-7 rounded-lg bg-taupe-400/20 flex items-center justify-center text-taupe-500">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h2 className="text-[18px] font-medium text-noir-800">{userName}</h2>
+                {userRole && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-medium">
+                    {userRole}
+                  </span>
+                )}
+                <button
+                  onClick={() => { setNameInput(userName); setEditingName(true); }}
+                  className="w-6 h-6 rounded-md flex items-center justify-center text-taupe-400 hover:text-rose-500 hover:bg-rose-500/5 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <p className="text-[13px] text-taupe-500 font-light mt-0.5">{userEmail}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+          {/* 결혼 예정일 */}
           <div className="flex items-center gap-3 p-4 rounded-xl bg-ivory-50 border border-black/[0.02]">
-            <Calendar className="w-5 h-5 text-rose-500" />
-            <div>
+            <Calendar className="w-5 h-5 text-rose-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
               <p className="text-[11px] text-taupe-400">결혼 예정일</p>
-              <p className="text-[14px] font-medium text-noir-800">{dateStr}</p>
+              {editingDate ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <input
+                    type="date"
+                    value={dateInput}
+                    onChange={(e) => setDateInput(e.target.value)}
+                    className="px-2 py-1 rounded-md border border-rose-500/30 text-[13px] text-noir-800 outline-none"
+                    autoFocus
+                  />
+                  <button onClick={saveDate} disabled={saving} className="w-6 h-6 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                    <Save className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => setEditingDate(false)} className="w-6 h-6 rounded-md bg-taupe-400/20 flex items-center justify-center text-taupe-500">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[14px] font-medium text-noir-800">{dateStr}</p>
+                  <button
+                    onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
+                    className="w-5 h-5 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500 transition-colors"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* 설정 예산 */}
           <div className="flex items-center gap-3 p-4 rounded-xl bg-ivory-50 border border-black/[0.02]">
-            <Wallet className="w-5 h-5 text-gold" />
-            <div>
+            <Wallet className="w-5 h-5 text-gold flex-shrink-0" />
+            <div className="flex-1 min-w-0">
               <p className="text-[11px] text-taupe-400">설정 예산</p>
-              <p className="text-[14px] font-medium text-noir-800">{budgetStr}</p>
+              {editingBudget ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      value={budgetInput}
+                      onChange={(e) => setBudgetInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveBudget()}
+                      className="w-[80px] px-2 py-1 rounded-md border border-rose-500/30 text-[13px] text-noir-800 outline-none text-right"
+                      autoFocus
+                    />
+                    <span className="text-[12px] text-taupe-400 ml-1">만원</span>
+                  </div>
+                  <button onClick={saveBudget} disabled={saving} className="w-6 h-6 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                    <Save className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => setEditingBudget(false)} className="w-6 h-6 rounded-md bg-taupe-400/20 flex items-center justify-center text-taupe-500">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[14px] font-medium text-noir-800">{budgetStr}</p>
+                  <button
+                    onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    className="w-5 h-5 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500 transition-colors"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -233,10 +352,10 @@ export default function SettingsPage() {
         className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
       >
         {[
-          { label: "이용약관", href: "#" },
-          { label: "개인정보 처리방침", href: "#" },
-          { label: "고객센터", href: "#" },
-          { label: "앱 버전", href: "#", value: "v1.0.0 (Beta)" },
+          { label: "이용약관" },
+          { label: "개인정보 처리방침" },
+          { label: "고객센터" },
+          { label: "앱 버전", value: "v1.0.0 (Beta)" },
         ].map((item, i) => (
           <button
             key={item.label}
