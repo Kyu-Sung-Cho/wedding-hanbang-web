@@ -2,23 +2,26 @@
 
 import { motion } from "framer-motion";
 import { TrendingDown, TrendingUp, AlertTriangle, ChevronRight } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
-const budgetItems = [
-  { category: "예식장", budget: 5000000, spent: 4800000, status: "완료" },
-  { category: "스튜디오", budget: 2800000, spent: 2800000, status: "완료" },
-  { category: "드레스", budget: 2000000, spent: 800000, status: "진행중" },
-  { category: "메이크업", budget: 1200000, spent: 0, status: "예정" },
-  { category: "예물", budget: 3000000, spent: 1500000, status: "진행중" },
-  { category: "한복", budget: 800000, spent: 0, status: "예정" },
-  { category: "신혼여행", budget: 3000000, spent: 0, status: "예정" },
-  { category: "혼수", budget: 2000000, spent: 0, status: "예정" },
-  { category: "답례품", budget: 500000, spent: 0, status: "예정" },
-  { category: "예비비", budget: 1200000, spent: 200000, status: "진행중" },
+// 카테고리별 예산 비율 (기본값)
+const CATEGORY_RATIOS: { key: string; label: string; ratio: number }[] = [
+  { key: "venue", label: "예식장", ratio: 0.23 },
+  { key: "studio", label: "스튜디오", ratio: 0.13 },
+  { key: "dress", label: "드레스", ratio: 0.09 },
+  { key: "makeup", label: "메이크업", ratio: 0.06 },
+  { key: "ring", label: "예물", ratio: 0.14 },
+  { key: "hanbok", label: "한복", ratio: 0.04 },
+  { key: "honeymoon", label: "신혼여행", ratio: 0.14 },
+  { key: "houseware", label: "혼수", ratio: 0.09 },
+  { key: "invitation", label: "청첩장", ratio: 0.02 },
+  { key: "gift", label: "답례품", ratio: 0.02 },
+  { key: "reserve", label: "예비비", ratio: 0.04 },
 ];
 
 function formatMoney(n: number) {
@@ -27,10 +30,40 @@ function formatMoney(n: number) {
 }
 
 export default function BudgetPage() {
-  const totalBudget = budgetItems.reduce((s, i) => s + i.budget, 0);
+  const { journey } = useAuthStore();
+
+  const totalBudget = journey?.total_budget ?? 20000000;
+  const progress = journey?.progress ?? {};
+
+  // 카테고리별 예산 계산
+  const budgetItems = CATEGORY_RATIOS.map((cat) => {
+    const categoryBudget = Math.round(totalBudget * cat.ratio);
+    const progressItem = progress[cat.key] as { status: string } | undefined;
+    const status = progressItem?.status ?? "not_started";
+
+    // 상태에 따라 지출 추정
+    let spent = 0;
+    let statusLabel = "예정";
+    if (status === "completed") {
+      spent = categoryBudget;
+      statusLabel = "완료";
+    } else if (status === "in_progress") {
+      spent = Math.round(categoryBudget * 0.4);
+      statusLabel = "진행중";
+    }
+
+    return {
+      key: cat.key,
+      category: cat.label,
+      budget: categoryBudget,
+      spent,
+      status: statusLabel,
+    };
+  });
+
   const totalSpent = budgetItems.reduce((s, i) => s + i.spent, 0);
   const remaining = totalBudget - totalSpent;
-  const spentPercent = Math.round((totalSpent / totalBudget) * 100);
+  const spentPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
     <div className="max-w-[1000px] mx-auto">
@@ -89,7 +122,7 @@ export default function BudgetPage() {
           <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">카테고리별 예산</h3>
           <div className="flex items-center gap-1.5 text-[11px] text-taupe-400">
             <AlertTriangle className="w-3.5 h-3.5 text-gold" />
-            추가 비용 알림 ON
+            총 예산 ₩{(totalBudget / 10000).toFixed(0)}만원 기준
           </div>
         </div>
         <div className="divide-y divide-black/[0.03]">
@@ -98,7 +131,7 @@ export default function BudgetPage() {
             const isOver = item.spent > item.budget;
             return (
               <motion.div
-                key={item.category}
+                key={item.key}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 + i * 0.03 }}

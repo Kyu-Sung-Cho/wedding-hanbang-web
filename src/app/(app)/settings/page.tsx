@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -8,12 +8,12 @@ import {
   Wallet,
   Heart,
   Bell,
-  BellOff,
   LogOut,
   ChevronRight,
   Copy,
   Check,
 } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -21,6 +21,7 @@ const fadeIn = {
 };
 
 export default function SettingsPage() {
+  const { profile, partner, couple, journey, signOut } = useAuthStore();
   const [notifications, setNotifications] = useState({
     schedule: true,
     budget: true,
@@ -28,14 +29,44 @@ export default function SettingsPage() {
     marketing: false,
   });
   const [copied, setCopied] = useState(false);
+  const [coupleCode, setCoupleCode] = useState("");
 
-  const coupleCode = "WH-2026-JMKS";
+  // 커플 코드 가져오기
+  useEffect(() => {
+    if (couple) {
+      fetch("/api/couple/code")
+        .then((r) => r.json())
+        .then((d) => { if (d.inviteCode) setCoupleCode(d.inviteCode); })
+        .catch(() => {});
+    }
+  }, [couple]);
 
   const handleCopy = () => {
+    if (!coupleCode) return;
     navigator.clipboard.writeText(coupleCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // 프로필 데이터
+  const userName = profile?.name ?? "사용자";
+  const userEmail = profile?.email ?? "";
+  const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
+  const initials = userName.slice(0, 2).toUpperCase();
+
+  // 웨딩 데이터
+  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const dateStr = weddingDate
+    ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
+    : "날짜 미정";
+  const totalBudget = journey?.total_budget ?? 0;
+  const budgetStr = totalBudget > 0
+    ? `₩${(totalBudget / 10000).toLocaleString()}만원`
+    : "미설정";
+
+  // 파트너 정보
+  const partnerName = partner?.name;
+  const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
 
   return (
     <div className="max-w-[700px] mx-auto">
@@ -47,11 +78,18 @@ export default function SettingsPage() {
       >
         <div className="flex items-center gap-5 mb-6">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center">
-            <span className="font-display text-[24px] text-white font-light">JE</span>
+            <span className="font-display text-[24px] text-white font-light">{initials}</span>
           </div>
           <div>
-            <h2 className="text-[18px] font-medium text-noir-800">김지은</h2>
-            <p className="text-[13px] text-taupe-500 font-light">jieun.kim@email.com</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[18px] font-medium text-noir-800">{userName}</h2>
+              {userRole && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-medium">
+                  {userRole}
+                </span>
+              )}
+            </div>
+            <p className="text-[13px] text-taupe-500 font-light">{userEmail}</p>
           </div>
         </div>
 
@@ -60,14 +98,14 @@ export default function SettingsPage() {
             <Calendar className="w-5 h-5 text-rose-500" />
             <div>
               <p className="text-[11px] text-taupe-400">결혼 예정일</p>
-              <p className="text-[14px] font-medium text-noir-800">2026년 10월 15일</p>
+              <p className="text-[14px] font-medium text-noir-800">{dateStr}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 p-4 rounded-xl bg-ivory-50 border border-black/[0.02]">
             <Wallet className="w-5 h-5 text-gold" />
             <div>
               <p className="text-[11px] text-taupe-400">설정 예산</p>
-              <p className="text-[14px] font-medium text-noir-800">₩2,150만원</p>
+              <p className="text-[14px] font-medium text-noir-800">{budgetStr}</p>
             </div>
           </div>
         </div>
@@ -90,39 +128,54 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-ivory-50 rounded-xl p-4 border border-black/[0.02]">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-[12px] text-taupe-400 mb-1">나의 커플 코드</p>
-              <p className="text-[16px] font-display font-medium text-noir-800 tracking-wider">{coupleCode}</p>
+          {coupleCode && (
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[12px] text-taupe-400 mb-1">나의 커플 코드</p>
+                <p className="text-[16px] font-display font-medium text-noir-800 tracking-wider">{coupleCode}</p>
+              </div>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[12px] text-charcoal hover:border-rose-500 hover:text-rose-500 transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[#2E7D5A]" />
+                    <span className="text-[#2E7D5A]">복사됨</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    코드 복사
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[12px] text-charcoal hover:border-rose-500 hover:text-rose-500 transition-colors"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-[#2E7D5A]" />
-                  <span className="text-[#2E7D5A]">복사됨</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  코드 복사
-                </>
-              )}
-            </button>
-          </div>
+          )}
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-white border border-dashed border-taupe-400/30">
-            <div className="w-10 h-10 rounded-full bg-ivory-warm flex items-center justify-center">
-              <User className="w-5 h-5 text-taupe-400" />
+          {partner ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-white border border-[#2E7D5A]/20">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center">
+                <span className="text-[13px] text-white font-medium">{partnerName?.slice(0, 2)}</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] text-noir-800 font-medium">{partnerName}</p>
+                <p className="text-[11px] text-[#2E7D5A]">{partnerRole} · 연동 완료</p>
+              </div>
+              <Check className="w-5 h-5 text-[#2E7D5A]" />
             </div>
-            <div className="flex-1">
-              <p className="text-[13px] text-taupe-400 font-light">파트너 미연동</p>
-              <p className="text-[11px] text-taupe-400/70">코드를 공유해서 파트너를 초대하세요</p>
+          ) : (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-white border border-dashed border-taupe-400/30">
+              <div className="w-10 h-10 rounded-full bg-ivory-warm flex items-center justify-center">
+                <User className="w-5 h-5 text-taupe-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] text-taupe-400 font-light">파트너 미연동</p>
+                <p className="text-[11px] text-taupe-400/70">코드를 공유해서 파트너를 초대하세요</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-taupe-400" />
             </div>
-            <ChevronRight className="w-4 h-4 text-taupe-400" />
-          </div>
+          )}
         </div>
       </motion.div>
 
@@ -206,7 +259,10 @@ export default function SettingsPage() {
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <button className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-red-200 text-red-400 text-[14px] font-medium hover:bg-red-50 transition-colors">
+        <button
+          onClick={signOut}
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-red-200 text-red-400 text-[14px] font-medium hover:bg-red-50 transition-colors"
+        >
           <LogOut className="w-4 h-4" />
           로그아웃
         </button>
