@@ -29,14 +29,23 @@ export const ONBOARDING_STEPS = [
 ] as const;
 
 export const PROGRESS_CHECKLIST_ITEMS: ProgressChecklistItem[] = [
+  { key: "meeting", label: "상견례", done: false },
   { key: "venue", label: "예식장", done: false },
   { key: "studio", label: "스튜디오", done: false },
-  { key: "dress", label: "드레스", done: false },
+  { key: "dress", label: "드레스/턱시도", done: false },
   { key: "makeup", label: "메이크업", done: false },
   { key: "ring", label: "예물(반지)", done: false },
   { key: "hanbok", label: "한복", done: false },
+  { key: "yedan", label: "예단", done: false },
   { key: "honeymoon", label: "신혼여행", done: false },
-  { key: "houseware", label: "혼수", done: false },
+  { key: "houseware", label: "혼수(가전/가구)", done: false },
+  { key: "housing", label: "신혼집", done: false },
   { key: "invitation", label: "청첩장", done: false },
+  { key: "snap", label: "본식스냅/영상", done: false },
+  { key: "shoes", label: "웨딩구두", done: false },
+  { key: "bouquet", label: "부케/꽃장식", done: false },
   { key: "gift", label: "답례품", done: false },
+  { key: "mc", label: "사회/축가", done: false },
+  { key: "ham", label: "함", done: false },
+  { key: "pyebaek", label: "폐백", done: false },
 ];

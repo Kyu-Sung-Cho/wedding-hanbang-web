@@ -3,24 +3,34 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 const CATEGORY_LABELS: Record<string, string> = {
+  meeting: "상견례",
   venue: "예식장",
   studio: "스튜디오",
-  dress: "드레스",
+  dress: "드레스/턱시도",
   makeup: "메이크업",
-  ring: "예물",
+  ring: "예물(반지)",
   hanbok: "한복",
+  yedan: "예단",
   honeymoon: "신혼여행",
-  houseware: "혼수",
+  houseware: "혼수(가전/가구)",
+  housing: "신혼집",
   invitation: "청첩장",
+  snap: "본식스냅/영상",
+  shoes: "웨딩구두",
+  bouquet: "부케/꽃장식",
   gift: "답례품",
+  mc: "사회/축가",
+  ham: "함",
+  pyebaek: "폐백",
 };
 
 // D-day 기준 우선순위 일정
 const TIMELINE_THRESHOLDS = [
-  { dDay: 360, items: ["venue"] },
+  { dDay: 360, items: ["meeting", "venue"] },
   { dDay: 300, items: ["studio", "dress", "makeup", "ring"] },
-  { dDay: 180, items: ["hanbok", "invitation", "honeymoon", "houseware"] },
-  { dDay: 90, items: ["gift"] },
+  { dDay: 180, items: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
+  { dDay: 120, items: ["invitation", "snap"] },
+  { dDay: 90, items: ["shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
 ];
 
 export async function GET() {

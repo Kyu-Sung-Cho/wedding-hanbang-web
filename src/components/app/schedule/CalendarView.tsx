@@ -23,10 +23,12 @@ import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  venue: "예식장", studio: "스튜디오", dress: "드레스",
-  makeup: "메이크업", ring: "예물", hanbok: "한복",
-  honeymoon: "신혼여행", houseware: "혼수",
-  invitation: "청첩장", gift: "답례품",
+  meeting: "상견례", venue: "예식장", studio: "스튜디오",
+  dress: "드레스/턱시도", makeup: "메이크업", ring: "예물(반지)",
+  hanbok: "한복", yedan: "예단", honeymoon: "신혼여행",
+  houseware: "혼수(가전/가구)", housing: "신혼집", invitation: "청첩장",
+  snap: "본식스냅/영상", shoes: "웨딩구두", bouquet: "부케/꽃장식",
+  gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
 };
 
 interface Milestone {

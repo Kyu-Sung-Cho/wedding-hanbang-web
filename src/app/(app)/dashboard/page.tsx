@@ -25,16 +25,25 @@ const fadeIn = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  meeting: "상견례",
   venue: "예식장",
   studio: "스튜디오",
-  dress: "드레스",
+  dress: "드레스/턱시도",
   makeup: "메이크업",
   ring: "예물(반지)",
   hanbok: "한복",
+  yedan: "예단",
   honeymoon: "신혼여행",
-  houseware: "혼수",
+  houseware: "혼수(가전/가구)",
+  housing: "신혼집",
   invitation: "청첩장",
+  snap: "본식스냅/영상",
+  shoes: "웨딩구두",
+  bouquet: "부케/꽃장식",
   gift: "답례품",
+  mc: "사회/축가",
+  ham: "함",
+  pyebaek: "폐백",
 };
 
 const STATUS_STYLES: Record<string, { label: string; color: string }> = {
@@ -74,9 +83,10 @@ export default function DashboardPage() {
 
   // 진행률 계산
   const progress = journey?.progress ?? {};
-  const totalCategories = Object.keys(CATEGORY_LABELS).length;
-  const completedCategories = Object.values(progress).filter(
-    (p) => (p as { status: string }).status === "completed"
+  const categoryKeys = Object.keys(CATEGORY_LABELS);
+  const totalCategories = categoryKeys.length;
+  const completedCategories = categoryKeys.filter(
+    (k) => (progress[k] as { status: string } | undefined)?.status === "completed"
   ).length;
   const progressPercent =
     totalCategories > 0
