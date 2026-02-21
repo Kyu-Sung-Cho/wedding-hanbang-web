@@ -12,7 +12,13 @@ export function mergeChecklist(
     if (status === "completed") {
       return template.map((item) => ({ ...item, done: true }));
     }
-    return template.map((item) => ({ ...item }));
+    if (status === "in_progress") {
+      // 진행중이면 앞쪽 절반을 완료 처리
+      const halfDone = Math.ceil(template.length / 2);
+      return template.map((item, i) => ({ ...item, done: i < halfDone }));
+    }
+    // not_started → 전부 false
+    return template.map((item) => ({ ...item, done: false }));
   }
 
   const savedMap = new Map(saved.map((s) => [s.id, s]));
