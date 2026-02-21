@@ -10,13 +10,6 @@ import ActionCard from "@/components/app/chat/ActionCard";
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 
-const DEFAULT_SUGGESTIONS = [
-  "예산 현황 보여줘",
-  "진행 상황 알려줘",
-  "예식장 계약 시 주의사항",
-  "다음에 뭐 준비해야 해?",
-];
-
 export default function ChatPage() {
   const { profile, couple, journey } = useAuthStore();
   const {
@@ -28,11 +21,13 @@ export default function ChatPage() {
     suggestions,
     loadMessages,
     sendMessage,
+    requestInitialGreeting,
     subscribeToMessages,
     reset,
   } = useChatStore();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialGreetingRequested = useRef(false);
   const coupleId = couple?.id;
 
   // 메시지 로드 + 실시간 구독
@@ -45,6 +40,41 @@ export default function ChatPage() {
       reset();
     };
   }, [coupleId, loadMessages, subscribeToMessages, reset]);
+
+  // 메시지 로드 완료 후, 메시지가 없으면 AI 첫 인사 자동 요청
+  useEffect(() => {
+    if (
+      !coupleId ||
+      !profile ||
+      isLoading ||
+      initialGreetingRequested.current ||
+      messages.length > 0 ||
+      isStreaming
+    )
+      return;
+
+    initialGreetingRequested.current = true;
+
+    requestInitialGreeting({
+      coupleId,
+      senderRole: profile.role ?? "bride",
+      senderName: profile.name ?? "사용자",
+      weddingContext: {
+        weddingDate: journey?.wedding_date ?? null,
+        budget: journey?.total_budget ?? 0,
+        venue: journey?.venue ?? null,
+        progress: journey?.progress ?? {},
+      },
+    });
+  }, [
+    coupleId,
+    profile,
+    journey,
+    isLoading,
+    messages.length,
+    isStreaming,
+    requestInitialGreeting,
+  ]);
 
   // 스크롤 자동 이동
   useEffect(() => {
@@ -88,38 +118,13 @@ export default function ChatPage() {
     );
   }
 
-  // 표시할 제안 버튼
-  const displaySuggestions =
-    suggestions.length > 0 ? suggestions : messages.length === 0 ? DEFAULT_SUGGESTIONS : [];
+  // 표시할 제안 버튼 (항상 suggestions 사용, 비어있으면 안 보여줌)
+  const displaySuggestions = suggestions;
 
   return (
     <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex flex-col">
       {/* 채팅 영역 */}
       <div className="flex-1 overflow-y-auto pb-4 space-y-4 px-2">
-        {/* 환영 메시지 */}
-        {messages.length === 0 && !isLoading && (
-          <div className="flex items-start gap-3 max-w-[85%]">
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[#928980]">
-                AI 플래너
-              </span>
-              <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 border border-black/[0.06] shadow-sm">
-                <p className="text-sm text-[#1A1A1F] leading-relaxed">
-                  안녕하세요, {profile?.name ?? ""}님! 웨딩한방 AI
-                  플래너입니다 ✨
-                  <br />
-                  <br />
-                  예산 관리, 일정 변경, 준비 현황 확인 등 무엇이든
-                  물어보세요! 직접 예산이나 일정을 수정해 드릴 수도 있어요.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 메시지 목록 */}
         <AnimatePresence>
           {messages.map((msg) => {

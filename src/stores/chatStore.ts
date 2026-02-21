@@ -29,6 +29,12 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
   }) => Promise<void>;
+  requestInitialGreeting: (params: {
+    coupleId: string;
+    senderRole: MessageSenderRole;
+    senderName: string;
+    weddingContext: WeddingContext;
+  }) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
 }
@@ -291,6 +297,121 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         streamingContent: "",
         streamingToolResults: [],
       });
+    }
+  },
+
+  // 첫 진입 시 AI가 상황 분석 후 먼저 인사
+  requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
+    // 이미 메시지가 있거나 스트리밍 중이면 스킵
+    if (get().messages.length > 0 || get().isStreaming || get().isLoading) return;
+
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingToolResults: [],
+      error: null,
+    });
+
+    try {
+      const roleLabel = senderRole === "bride" ? "신부" : "신랑";
+      const initialMessage = `[${roleLabel}] [INITIAL_GREETING]`;
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: initialMessage }],
+          coupleId,
+          senderName,
+          senderRole,
+          weddingContext,
+        }),
+      });
+
+      if (!res.ok) throw new Error("AI 초기 인사 실패");
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+      let finalMetadata: ChatMessageMetadata | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+
+          try {
+            const event: SSEEvent = JSON.parse(line.slice(6));
+            switch (event.type) {
+              case "text_delta":
+                set((s) => ({ streamingContent: s.streamingContent + event.content }));
+                break;
+              case "tool_result":
+                syncToolResult(event.result);
+                set((s) => ({ streamingToolResults: [...s.streamingToolResults, event.result] }));
+                break;
+              case "suggestions":
+                set({ suggestions: event.suggestions });
+                break;
+              case "done":
+                fullContent = event.fullContent;
+                finalMetadata = event.metadata;
+                break;
+              case "error":
+                set({ error: event.message });
+                break;
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      // AI 인사 메시지 저장
+      if (fullContent) {
+        const isDemo = document.cookie.includes("demo_mode=true");
+        if (!isDemo) {
+          const supabase = createClient();
+          const { data: aiInserted } = await supabase
+            .from("chat_messages")
+            .insert({
+              couple_id: coupleId,
+              sender_id: null,
+              sender_role: "ai",
+              content: fullContent,
+              metadata: finalMetadata,
+            })
+            .select()
+            .single();
+
+          if (aiInserted) {
+            set((s) => ({
+              messages: [...s.messages, { ...aiInserted, metadata: aiInserted.metadata ?? finalMetadata } as ChatMessage],
+            }));
+          }
+        } else {
+          const demoAiMsg: ChatMessage = {
+            id: `demo-ai-init-${Date.now()}`,
+            couple_id: coupleId,
+            sender_id: null,
+            sender_role: "ai",
+            content: fullContent,
+            metadata: finalMetadata,
+            created_at: new Date().toISOString(),
+          };
+          set((s) => ({ messages: [...s.messages, demoAiMsg] }));
+        }
+      }
+    } catch (err) {
+      console.error("초기 인사 에러:", err);
+    } finally {
+      set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
     }
   },
 
