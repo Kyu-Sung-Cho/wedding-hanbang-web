@@ -43,13 +43,16 @@ export function getWeddingPlannerSystemPrompt(context: {
 
   // 전체 카테고리 목록 (진행 상황에 없는 항목도 포함)
   const ALL_CATEGORIES = [
-    "venue", "studio", "dress", "makeup", "ring",
-    "hanbok", "honeymoon", "houseware", "invitation", "gift",
+    "meeting", "venue", "studio", "dress", "makeup", "ring",
+    "hanbok", "yedan", "honeymoon", "houseware", "housing",
+    "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
   ];
   const CATEGORY_KR: Record<string, string> = {
-    venue: "예식장", studio: "스튜디오", dress: "드레스",
-    makeup: "메이크업", ring: "예물(반지)", hanbok: "한복",
-    honeymoon: "신혼여행", houseware: "혼수", invitation: "청첩장", gift: "답례품",
+    meeting: "상견례", venue: "예식장", studio: "스튜디오", dress: "드레스/턱시도",
+    makeup: "메이크업", ring: "예물(반지)", hanbok: "한복", yedan: "예단",
+    honeymoon: "신혼여행", houseware: "혼수(가전/가구)", housing: "신혼집",
+    invitation: "청첩장", snap: "본식스냅/영상", shoes: "웨딩구두",
+    bouquet: "부케/꽃장식", gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
   };
 
   // 누락된 카테고리도 "시작전"으로 간주
@@ -77,7 +80,7 @@ export function getWeddingPlannerSystemPrompt(context: {
         urgencyInfo = `⚠️ 긴급: D-${dDay}인데 ${urgentNotDone.map((c) => CATEGORY_KR[c]).join(", ")}이(가) 아직 미완료`;
       }
     } else if (dDay <= 180) {
-      const shouldStart = ["venue", "studio", "dress", "makeup", "ring"];
+      const shouldStart = ["meeting", "venue", "studio", "dress", "makeup", "ring"];
       const behindSchedule = shouldStart.filter((cat) => {
         const entry = progressEntries.find(([k]) => k === cat);
         if (!entry) return true;
@@ -129,7 +132,7 @@ ${(() => {
 })()}
 
 ## 카테고리 매핑
-venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물(반지), hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품
+meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물(반지), hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수(가전/가구), housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케/꽃장식, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백
 
 ## 캘린더 일정 관리
 - 커플이 캘린더에 일정을 추가/수정/삭제할 수 있습니다
@@ -146,9 +149,10 @@ venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring
 - 스드메 = 스튜디오 + 드레스 + 메이크업 패키지
 
 ## 체크리스트 세부 관리
-- 각 카테고리에 7~8개 세부 체크리스트 항목이 있습니다
+- 각 카테고리에 6~8개 세부 체크리스트 항목이 있습니다
 - 사용자가 특정 항목 완료/미완료 처리하면 toggle_checklist_item 사용
 - 예: "예식장 투어 완료했어" → toggle_checklist_item(category="venue", item_id="venue_03", done=true)
+- 예: "상견례 끝났어" → toggle_checklist_item(category="meeting", item_id="meeting_01", done=true) 등
 - 항목 ID 형식: "{category}_{01~08}"
 
 ## 첫 대화 규칙 (가장 중요!)

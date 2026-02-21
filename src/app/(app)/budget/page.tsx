@@ -9,6 +9,7 @@ import {
   Pencil,
   Check,
   X,
+  Users,
   Camera,
   Shirt,
   Palette,
@@ -17,9 +18,17 @@ import {
   Flower2,
   Plane,
   Home,
+  Key,
   Mail,
   Gift,
   Wallet,
+  Video,
+  Package,
+  Sparkles,
+  Flower,
+  Heart,
+  Mic,
+  Box,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -30,23 +39,33 @@ const fadeIn = {
 };
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  Building2, Camera, Shirt, Palette, Gem,
-  Flower2, Plane, Home, Mail, Gift, Wallet,
+  Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
+  Flower2, Plane, Home, Key, Mail, Gift, Wallet,
+  Sparkles, Flower, Heart, Mic, Box,
 };
 
 // 카테고리별 예산 비율 (기본값)
 const CATEGORY_RATIOS: { key: string; label: string; icon: string; ratio: number }[] = [
-  { key: "venue", label: "예식장", icon: "Building2", ratio: 0.23 },
-  { key: "studio", label: "스튜디오", icon: "Camera", ratio: 0.13 },
-  { key: "dress", label: "드레스", icon: "Shirt", ratio: 0.09 },
-  { key: "makeup", label: "메이크업", icon: "Palette", ratio: 0.06 },
-  { key: "ring", label: "예물", icon: "Gem", ratio: 0.14 },
-  { key: "hanbok", label: "한복", icon: "Flower2", ratio: 0.04 },
-  { key: "honeymoon", label: "신혼여행", icon: "Plane", ratio: 0.14 },
-  { key: "houseware", label: "혼수", icon: "Home", ratio: 0.09 },
+  { key: "meeting", label: "상견례", icon: "Users", ratio: 0.01 },
+  { key: "venue", label: "예식장", icon: "Building2", ratio: 0.20 },
+  { key: "studio", label: "스튜디오", icon: "Camera", ratio: 0.10 },
+  { key: "dress", label: "드레스/턱시도", icon: "Shirt", ratio: 0.07 },
+  { key: "makeup", label: "메이크업", icon: "Palette", ratio: 0.05 },
+  { key: "snap", label: "본식 스냅/영상", icon: "Video", ratio: 0.04 },
+  { key: "ring", label: "예물", icon: "Gem", ratio: 0.12 },
+  { key: "yedan", label: "예단", icon: "Package", ratio: 0.05 },
+  { key: "hanbok", label: "한복", icon: "Flower2", ratio: 0.03 },
+  { key: "shoes", label: "웨딩 구두", icon: "Sparkles", ratio: 0.01 },
+  { key: "bouquet", label: "부케/꽃장식", icon: "Flower", ratio: 0.01 },
+  { key: "honeymoon", label: "신혼여행", icon: "Plane", ratio: 0.12 },
+  { key: "houseware", label: "혼수", icon: "Home", ratio: 0.07 },
+  { key: "housing", label: "신혼집", icon: "Key", ratio: 0.00 },
   { key: "invitation", label: "청첩장", icon: "Mail", ratio: 0.02 },
   { key: "gift", label: "답례품", icon: "Gift", ratio: 0.02 },
-  { key: "reserve", label: "예비비", icon: "Wallet", ratio: 0.04 },
+  { key: "mc", label: "사회/축가", icon: "Mic", ratio: 0.01 },
+  { key: "ham", label: "함", icon: "Box", ratio: 0.01 },
+  { key: "pyebaek", label: "폐백", icon: "Heart", ratio: 0.01 },
+  { key: "reserve", label: "예비비", icon: "Wallet", ratio: 0.05 },
 ];
 
 // 스드메 키

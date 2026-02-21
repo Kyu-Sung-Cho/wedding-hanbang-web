@@ -17,6 +17,15 @@ import {
   Home,
   Mail,
   Gift,
+  Users,
+  Video,
+  Package,
+  Sparkles,
+  Flower,
+  Heart,
+  Mic,
+  Box,
+  Key,
 } from "lucide-react";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
@@ -34,6 +43,15 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Home,
   Mail,
   Gift,
+  Users,
+  Video,
+  Package,
+  Sparkles,
+  Flower,
+  Heart,
+  Mic,
+  Box,
+  Key,
 };
 
 const STATUS_COLORS: Record<string, string> = {

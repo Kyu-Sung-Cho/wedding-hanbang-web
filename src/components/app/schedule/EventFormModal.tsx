@@ -8,16 +8,25 @@ import type { ScheduleEvent } from "@/types/database.types";
 const CATEGORY_OPTIONS = [
   { key: "", label: "카테고리 선택 (선택사항)" },
   { key: "general", label: "일반 (모임, 상담 등)" },
+  { key: "meeting", label: "상견례" },
   { key: "venue", label: "예식장" },
   { key: "studio", label: "스튜디오" },
-  { key: "dress", label: "드레스" },
+  { key: "dress", label: "드레스/턱시도" },
   { key: "makeup", label: "메이크업" },
   { key: "ring", label: "예물(반지)" },
   { key: "hanbok", label: "한복" },
+  { key: "yedan", label: "예단" },
   { key: "honeymoon", label: "신혼여행" },
-  { key: "houseware", label: "혼수" },
+  { key: "houseware", label: "혼수(가전/가구)" },
+  { key: "housing", label: "신혼집" },
   { key: "invitation", label: "청첩장" },
+  { key: "snap", label: "본식 스냅/영상" },
+  { key: "shoes", label: "웨딩 구두" },
+  { key: "bouquet", label: "부케/꽃장식" },
   { key: "gift", label: "답례품" },
+  { key: "mc", label: "사회/축가" },
+  { key: "ham", label: "함" },
+  { key: "pyebaek", label: "폐백" },
 ];
 
 interface Props {

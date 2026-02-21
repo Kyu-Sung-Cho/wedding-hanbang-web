@@ -4,16 +4,25 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
 
 const CATEGORY_LABELS: Record<string, string> = {
+  meeting: "상견례",
   venue: "예식장",
   studio: "스튜디오",
-  dress: "드레스",
+  dress: "드레스/턱시도",
   makeup: "메이크업",
-  ring: "예물",
+  ring: "예물(반지)",
   hanbok: "한복",
+  yedan: "예단",
   honeymoon: "신혼여행",
-  houseware: "혼수",
+  houseware: "혼수(가전/가구)",
+  housing: "신혼집",
   invitation: "청첩장",
+  snap: "본식 스냅/영상",
+  shoes: "웨딩 구두",
+  bouquet: "부케/꽃장식",
   gift: "답례품",
+  mc: "사회/축가",
+  ham: "함",
+  pyebaek: "폐백",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -23,17 +32,26 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_RATIOS: Record<string, number> = {
-  venue: 0.23,
-  studio: 0.13,
-  dress: 0.09,
-  makeup: 0.06,
-  ring: 0.14,
-  hanbok: 0.04,
-  honeymoon: 0.14,
-  houseware: 0.09,
+  meeting: 0.01,
+  venue: 0.20,
+  studio: 0.09,
+  dress: 0.07,
+  makeup: 0.04,
+  ring: 0.10,
+  hanbok: 0.03,
+  yedan: 0.04,
+  honeymoon: 0.10,
+  houseware: 0.06,
+  housing: 0.10,
   invitation: 0.02,
+  snap: 0.04,
+  shoes: 0.01,
+  bouquet: 0.01,
   gift: 0.02,
-  reserve: 0.04,
+  mc: 0.01,
+  ham: 0.01,
+  pyebaek: 0.01,
+  reserve: 0.03,
 };
 
 function getAdminClient() {

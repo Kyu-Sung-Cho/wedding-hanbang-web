@@ -41,19 +41,12 @@ export const WEDDING_TOOLS: Tool[] = [
         category: {
           type: "string",
           enum: [
-            "venue",
-            "studio",
-            "dress",
-            "makeup",
-            "ring",
-            "hanbok",
-            "honeymoon",
-            "houseware",
-            "invitation",
-            "gift",
+            "meeting", "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "yedan", "honeymoon", "houseware", "housing",
+            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
           ],
           description:
-            "변경할 카테고리. venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물, hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품",
+            "변경할 카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
         },
         status: {
           type: "string",
@@ -99,11 +92,12 @@ export const WEDDING_TOOLS: Tool[] = [
         category: {
           type: "string",
           enum: [
-            "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "honeymoon", "houseware", "invitation", "gift", "reserve",
+            "meeting", "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "yedan", "honeymoon", "houseware", "housing",
+            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "reserve",
           ],
           description:
-            "카테고리. venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물, hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품, reserve=예비비",
+            "카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백, reserve=예비비",
         },
         budget: {
           type: "number",
@@ -159,10 +153,11 @@ export const WEDDING_TOOLS: Tool[] = [
         category_key: {
           type: "string",
           enum: [
-            "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "honeymoon", "houseware", "invitation", "gift",
+            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "yedan", "honeymoon", "houseware", "housing",
+            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
           ],
-          description: "관련 카테고리 (선택). 일정이 특정 웨딩 준비 카테고리와 관련될 때 지정",
+          description: "관련 카테고리 (선택). general=일반, meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
         },
       },
       required: ["date", "title"],
@@ -220,11 +215,12 @@ export const WEDDING_TOOLS: Tool[] = [
         category: {
           type: "string",
           enum: [
-            "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "honeymoon", "houseware", "invitation", "gift",
+            "meeting", "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "yedan", "honeymoon", "houseware", "housing",
+            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
           ],
           description:
-            "카테고리. venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물, hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품",
+            "카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
         },
         item_id: {
           type: "string",
