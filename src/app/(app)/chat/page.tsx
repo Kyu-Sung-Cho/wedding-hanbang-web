@@ -38,7 +38,7 @@ export default function ChatPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const initialGreetingRequested = useRef<string | null>(null);
+  const greetingRequestedForRoom = useRef<Set<string>>(new Set());
   const coupleId = couple?.id;
 
   // 방 목록 초기화
@@ -63,13 +63,13 @@ export default function ChatPage() {
       !coupleId ||
       !profile ||
       isLoading ||
-      initialGreetingRequested.current === activeRoomId ||
+      isStreaming ||
       messages.length > 0 ||
-      isStreaming
+      greetingRequestedForRoom.current.has(activeRoomId)
     )
       return;
 
-    initialGreetingRequested.current = activeRoomId;
+    greetingRequestedForRoom.current.add(activeRoomId);
 
     requestInitialGreeting({
       coupleId,
@@ -118,25 +118,26 @@ export default function ChatPage() {
     if (!newRoomId) {
       alert(`최대 ${MAX_ROOMS}개까지만 만들 수 있어요.`);
     }
+    // 새 방은 greeting tracker에 없으므로 자동으로 AI 인사가 트리거됨
   };
 
   const handleClearRoom = async () => {
     if (!coupleId) return;
     await clearRoom(coupleId, activeRoomId);
-    initialGreetingRequested.current = null;
+    // 초기화 후 다시 AI 인사를 받을 수 있도록 tracker에서 제거
+    greetingRequestedForRoom.current.delete(activeRoomId);
     setShowClearConfirm(false);
   };
 
   const handleDeleteRoom = async (roomId: string) => {
     if (!coupleId) return;
     await deleteRoom(coupleId, roomId);
-    initialGreetingRequested.current = null;
+    greetingRequestedForRoom.current.delete(roomId);
     setShowDeleteConfirm(null);
   };
 
   const handleSwitchRoom = (roomId: string) => {
     if (roomId === activeRoomId) return;
-    initialGreetingRequested.current = null;
     switchRoom(roomId);
   };
 

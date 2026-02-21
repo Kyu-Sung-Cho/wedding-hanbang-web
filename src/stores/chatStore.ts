@@ -394,9 +394,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
-  // 첫 진입 시 AI 인사
+  // 첫 진입 시 AI 인사 (호출자인 useEffect가 이미 isLoading/messages 가드 처리)
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
-    if (get().messages.length > 0 || get().isStreaming || get().isLoading) return;
+    if (get().isStreaming) return;
 
     const { activeRoomId } = get();
     set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
