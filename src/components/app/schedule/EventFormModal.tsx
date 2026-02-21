@@ -6,7 +6,8 @@ import { X, Trash2, CalendarDays } from "lucide-react";
 import type { ScheduleEvent } from "@/types/database.types";
 
 const CATEGORY_OPTIONS = [
-  { key: "", label: "카테고리 없음" },
+  { key: "", label: "카테고리 선택 (선택사항)" },
+  { key: "general", label: "일반 (모임, 상담 등)" },
   { key: "venue", label: "예식장" },
   { key: "studio", label: "스튜디오" },
   { key: "dress", label: "드레스" },
@@ -141,7 +142,7 @@ export default function EventFormModal({
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="예: 드레스 피팅 예약"
+                  placeholder="예: 드레스 피팅, 친구들과 청첩장 모임, 혼수 쇼핑"
                   className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
                 />
               </div>
@@ -167,7 +168,7 @@ export default function EventFormModal({
                 <textarea
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
-                  placeholder="예: 강남 드레스샵 오후 2시"
+                  placeholder="예: 강남 드레스샵 오후 2시, 참석자: 지은, 수현"
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
                 />

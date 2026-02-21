@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { List, Calendar } from "lucide-react";
+import { List, Calendar, Plus, Pencil, Trash2, CalendarDays } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
@@ -23,6 +23,13 @@ const CATEGORY_KEYS = [
   "hanbok", "honeymoon", "houseware", "invitation", "gift",
 ];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  venue: "예식장", studio: "스튜디오", dress: "드레스",
+  makeup: "메이크업", ring: "예물", hanbok: "한복",
+  honeymoon: "신혼여행", houseware: "혼수",
+  invitation: "청첩장", gift: "답례품",
+};
+
 export default function SchedulePage() {
   const { journey, updateJourney } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
@@ -38,6 +45,15 @@ export default function SchedulePage() {
 
   // 이벤트 목록
   const events = getEvents(progress as Record<string, unknown>);
+
+  // 다가오는 일정 (오늘 이후, 최대 5개)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcomingEvents = useMemo(() => {
+    return events
+      .filter((e) => e.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 5);
+  }, [events, todayStr]);
 
   // 전체 체크리스트 기준 완료 수 계산
   const { totalDone, totalItems } = CATEGORY_KEYS.reduce(
@@ -97,12 +113,18 @@ export default function SchedulePage() {
     [journey, progress, updateJourney]
   );
 
-  // 캘린더 이벤트 CRUD
+  // 이벤트 CRUD
   const handleAddEvent = useCallback((date: string) => {
     setSelectedDateForAdd(date);
     setEditingEvent(null);
     setEventFormMode("add");
   }, []);
+
+  const handleAddEventQuick = useCallback(() => {
+    setSelectedDateForAdd(todayStr);
+    setEditingEvent(null);
+    setEventFormMode("add");
+  }, [todayStr]);
 
   const handleEditEvent = useCallback((event: ScheduleEvent) => {
     setEditingEvent(event);
@@ -118,7 +140,6 @@ export default function SchedulePage() {
       const currentEvents = getEvents(progressObj);
 
       if (eventFormMode === "edit" && editingEvent) {
-        // 수정
         const updatedEvents = currentEvents.map((e) =>
           e.id === editingEvent.id
             ? { ...e, ...data, updatedAt: new Date().toISOString() }
@@ -128,7 +149,6 @@ export default function SchedulePage() {
           progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
         });
       } else {
-        // 추가
         const now = new Date().toISOString();
         const newEvent: ScheduleEvent = {
           id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -168,6 +188,25 @@ export default function SchedulePage() {
     },
     [journey, progress, updateJourney]
   );
+
+  // 날짜 포맷 (M/D 요일)
+  function formatEventDate(dateString: string): string {
+    const d = new Date(dateString + "T00:00:00");
+    const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+    return `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+  }
+
+  // D-day 계산
+  function getDaysUntil(dateString: string): string {
+    const diff = Math.ceil(
+      (new Date(dateString + "T00:00:00").getTime() - today.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+    if (diff === 0) return "오늘";
+    if (diff === 1) return "내일";
+    if (diff < 0) return `${Math.abs(diff)}일 전`;
+    return `${diff}일 후`;
+  }
 
   return (
     <div className="max-w-[800px] mx-auto">
@@ -218,33 +257,121 @@ export default function SchedulePage() {
         </div>
       </motion.div>
 
-      {/* 탭 전환 */}
+      {/* 다가오는 일정 */}
+      {upcomingEvents.length > 0 && (
+        <motion.div
+          {...fadeIn}
+          transition={{ duration: 0.5, delay: 0.03 }}
+          className="bg-white rounded-2xl border border-black/[0.04] mb-6 overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/[0.03]">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
+              <span className="text-[13px] font-medium text-noir-800">다가오는 일정</span>
+              <span className="text-[11px] text-taupe-400">{upcomingEvents.length}건</span>
+            </div>
+            <button
+              onClick={handleAddEventQuick}
+              className="flex items-center gap-1 text-[11px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              일정 추가
+            </button>
+          </div>
+          <div className="divide-y divide-black/[0.02]">
+            {upcomingEvents.map((evt) => (
+              <div
+                key={evt.id}
+                className="flex items-center gap-3 px-5 py-3 hover:bg-ivory-50 transition-colors group"
+              >
+                {/* 날짜 */}
+                <div className="flex-shrink-0 w-[60px] text-center">
+                  <p className="text-[13px] font-medium text-noir-800">
+                    {formatEventDate(evt.date).split(" ")[0]}
+                  </p>
+                  <p className="text-[10px] text-taupe-400">
+                    {formatEventDate(evt.date).split(" ")[1]}
+                  </p>
+                </div>
+                {/* 구분선 */}
+                <div className="w-[3px] h-8 rounded-full bg-[#C9A96E]/40 flex-shrink-0" />
+                {/* 내용 */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-noir-800 font-medium truncate">
+                    {evt.title}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {evt.memo && (
+                      <p className="text-[11px] text-taupe-400 truncate">{evt.memo}</p>
+                    )}
+                    {evt.categoryKey && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E] flex-shrink-0">
+                        {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* D-day */}
+                <span className="text-[11px] text-taupe-400 flex-shrink-0">
+                  {getDaysUntil(evt.date)}
+                </span>
+                {/* 편집/삭제 (hover) */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button
+                    onClick={() => handleEditEvent(evt)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-100 hover:text-rose-500 transition-colors"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteEvent(evt.id)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-red-50 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* 탭 전환 + 일정 추가 버튼 */}
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="flex items-center gap-2 mb-6"
+        className="flex items-center justify-between mb-6"
       >
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode("timeline")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+              viewMode === "timeline"
+                ? "bg-[#1A1A1F] text-white shadow-sm"
+                : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
+            }`}
+          >
+            <List className="w-4 h-4" />
+            타임라인
+          </button>
+          <button
+            onClick={() => setViewMode("calendar")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+              viewMode === "calendar"
+                ? "bg-[#1A1A1F] text-white shadow-sm"
+                : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            캘린더
+          </button>
+        </div>
         <button
-          onClick={() => setViewMode("timeline")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-            viewMode === "timeline"
-              ? "bg-[#1A1A1F] text-white shadow-sm"
-              : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
-          }`}
+          onClick={handleAddEventQuick}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
         >
-          <List className="w-4 h-4" />
-          타임라인
-        </button>
-        <button
-          onClick={() => setViewMode("calendar")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-            viewMode === "calendar"
-              ? "bg-[#1A1A1F] text-white shadow-sm"
-              : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          캘린더
+          <Plus className="w-4 h-4" />
+          일정 추가
         </button>
       </motion.div>
 
