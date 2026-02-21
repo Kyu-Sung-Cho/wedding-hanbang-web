@@ -101,6 +101,25 @@ function syncToolResult(result: ToolExecutionResult) {
         venue: result.toolOutput.venue as string,
       });
       break;
+    case "update_category_budget": {
+      const catBudget = result.toolInput.category as string;
+      const curProgressBudget = authStore.journey?.progress ?? {};
+      const existingCatBudget = curProgressBudget[catBudget];
+      const budgetUpdates: Record<string, unknown> = {};
+      if (result.toolInput.budget !== undefined) budgetUpdates.budget = result.toolInput.budget;
+      if (result.toolInput.spent !== undefined) budgetUpdates.spent = result.toolInput.spent;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...curProgressBudget,
+          [catBudget]: {
+            ...(existingCatBudget ?? { category: catBudget, status: "not_started" }),
+            category: catBudget,
+            ...budgetUpdates,
+          },
+        },
+      });
+      break;
+    }
     case "add_schedule_event": {
       const currentP1 = authStore.journey?.progress ?? {};
       const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as unknown[];

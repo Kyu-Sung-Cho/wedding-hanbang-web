@@ -90,6 +90,34 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
   {
+    name: "update_category_budget",
+    description:
+      "특정 카테고리의 예산 또는 지출 금액을 변경합니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: [
+            "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "honeymoon", "houseware", "invitation", "gift", "reserve",
+          ],
+          description:
+            "카테고리. venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물, hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품, reserve=예비비",
+        },
+        budget: {
+          type: "number",
+          description: "새 예산 금액 (원 단위). 예: 4000000 = 400만원. 예산 변경 불필요 시 생략",
+        },
+        spent: {
+          type: "number",
+          description: "새 지출 금액 (원 단위). 예: 2500000 = 250만원. 지출 변경 불필요 시 생략",
+        },
+      },
+      required: ["category"],
+    },
+  },
+  {
     name: "get_schedule_summary",
     description:
       "현재 웨딩 준비 진행 상황을 조회합니다. 사용자가 '지금 뭐가 완료됐어?', '진행 현황 알려줘' 같은 질문을 할 때 사용합니다.",

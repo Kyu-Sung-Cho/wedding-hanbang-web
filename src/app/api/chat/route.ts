@@ -317,6 +317,30 @@ async function executeDemoTool(
         displayMessage: `결혼 예정일이 ${newDate}로 변경되었습니다. (D-${dDay})`,
       };
     }
+    case "update_category_budget": {
+      const catKey = toolInput.category as string;
+      const existing = ctx.weddingContext.progress[catKey] ?? { category: catKey, status: "not_started" };
+      const updates: Record<string, unknown> = { ...existing, category: catKey };
+      const changes: string[] = [];
+      if (toolInput.budget !== undefined) {
+        updates.budget = toolInput.budget;
+        changes.push(`예산 ${formatWon(toolInput.budget as number)}`);
+      }
+      if (toolInput.spent !== undefined) {
+        updates.spent = toolInput.spent;
+        changes.push(`지출 ${formatWon(toolInput.spent as number)}`);
+      }
+      ctx.weddingContext.progress = {
+        ...ctx.weddingContext.progress,
+        [catKey]: updates as { category: string; status: string },
+      };
+      return {
+        toolName, toolInput,
+        toolOutput: { category: catKey, label: CATEGORY_LABELS[catKey] || catKey, ...updates },
+        success: true,
+        displayMessage: `${CATEGORY_LABELS[catKey] || catKey} ${changes.join(", ")}(으)로 설정되었습니다.`,
+      };
+    }
     case "update_task_status": {
       const category = toolInput.category as string;
       const status = toolInput.status as string;

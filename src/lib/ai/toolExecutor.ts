@@ -75,6 +75,8 @@ export async function executeTool(
         return await executeUpdateTaskStatus(toolInput, context);
       case "update_venue":
         return await executeUpdateVenue(toolInput, context);
+      case "update_category_budget":
+        return await executeUpdateCategoryBudget(toolInput, context);
       case "get_budget_summary":
         return executeGetBudgetSummary(context);
       case "get_schedule_summary":
@@ -198,6 +200,51 @@ async function executeUpdateTaskStatus(
     toolOutput: { category, status, label, statusLabel },
     success: true,
     displayMessage: `${label} 상태가 "${statusLabel}"(으)로 변경되었습니다.`,
+  };
+}
+
+async function executeUpdateCategoryBudget(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const category = input.category as string;
+  const label = CATEGORY_LABELS[category] || category;
+
+  const existing = ctx.weddingContext.progress[category] ?? { category, status: "not_started" };
+  const updates: Record<string, unknown> = { ...existing, category };
+  const changes: string[] = [];
+
+  if (input.budget !== undefined) {
+    const newBudget = input.budget as number;
+    updates.budget = newBudget;
+    changes.push(`예산 ${formatWon(newBudget)}`);
+  }
+  if (input.spent !== undefined) {
+    const newSpent = input.spent as number;
+    updates.spent = newSpent;
+    changes.push(`지출 ${formatWon(newSpent)}`);
+  }
+
+  const newProgress = {
+    ...ctx.weddingContext.progress,
+    [category]: updates,
+  };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+
+  return {
+    toolName: "update_category_budget",
+    toolInput: input,
+    toolOutput: { category, label, ...updates },
+    success: true,
+    displayMessage: `${label} ${changes.join(", ")}(으)로 설정되었습니다.`,
   };
 }
 

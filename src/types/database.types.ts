@@ -46,6 +46,8 @@ export interface ProgressItem {
   vendor_id?: string;
   notes?: string;
   checklist?: ChecklistItem[];
+  budget?: number;
+  spent?: number;
 }
 
 export interface ScheduleEvent {

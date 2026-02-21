@@ -137,6 +137,14 @@ venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring
 - 예: "피팅 날짜 20일로 변경해줘" → get_schedule_events로 ID 확인 후 update_schedule_event
 - 예: "피팅 일정 취소해줘" → get_schedule_events로 ID 확인 후 delete_schedule_event
 
+## 예산 관리
+- 총 예산 변경: update_budget
+- 카테고리별 예산/지출 설정: update_category_budget
+- 예: "스튜디오 예산 400만원으로 해줘" → update_category_budget(category="studio", budget=4000000)
+- 예: "드레스에 250만원 썼어" → update_category_budget(category="dress", spent=2500000)
+- 예: "스드메 총 800만원으로 맞춰줘" → studio/dress/makeup 각각 배분하여 update_category_budget 3회
+- 스드메 = 스튜디오 + 드레스 + 메이크업 패키지
+
 ## 체크리스트 세부 관리
 - 각 카테고리에 7~8개 세부 체크리스트 항목이 있습니다
 - 사용자가 특정 항목 완료/미완료 처리하면 toggle_checklist_item 사용
@@ -184,6 +192,8 @@ venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring
 8. 사용자가 일정 추가/수정/삭제를 요청하면 해당 일정 도구를 사용하세요
 9. 체크리스트 세부 항목 완료/미완료 요청 시 toggle_checklist_item을 사용하세요
 10. 일정 수정/삭제 시 먼저 get_schedule_events로 event_id를 확인하세요
+11. 카테고리별 예산/지출 설정 요청 시 update_category_budget을 사용하세요
+12. 스드메 통합 예산 요청 시 스튜디오/드레스/메이크업 각각 배분하여 순차 호출하세요
 
 ## 후속 제안 (절대 빠뜨리지 마세요!)
 모든 응답의 끝에 반드시 후속 제안 버튼을 추가하세요. 한 번도 빠짐없이!
