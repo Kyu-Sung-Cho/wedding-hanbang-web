@@ -64,9 +64,9 @@ export async function GET() {
     // 최근 메시지 확인 (중복 알림 방지)
     const { data: recentMessages } = await admin
       .from("chat_messages")
-      .select("id, created_at, sender_role")
+      .select("id, created_at, sender_type")
       .eq("couple_id", profile.couple_id)
-      .eq("sender_role", "ai")
+      .eq("sender_type", "ai")
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -132,7 +132,8 @@ export async function GET() {
       .insert({
         couple_id: profile.couple_id,
         sender_id: null,
-        sender_role: "ai",
+        sender_type: "ai",
+        role: "assistant",
         content: proactiveMessage,
         metadata: {
           suggestions: ["예산 설정하기", "일정 확인하기", "준비 현황 보기"],

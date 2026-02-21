@@ -159,6 +159,19 @@ function messageMatchesRoom(msg: ChatMessage, roomId: string): boolean {
   return msgRoom === roomId;
 }
 
+// DB row → 내부 ChatMessage 변환 (sender_type → sender_role)
+function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
+  return {
+    id: row.id as string,
+    couple_id: row.couple_id as string,
+    sender_id: (row.sender_id as string) ?? null,
+    sender_role: (row.sender_type as MessageSenderRole) ?? (row.sender_role as MessageSenderRole) ?? "ai",
+    content: row.content as string,
+    metadata: (row.metadata as ChatMessageMetadata) ?? null,
+    created_at: row.created_at as string,
+  };
+}
+
 // AI 메시지를 로컬 state에 먼저 추가, 그 다음 DB 저장 시도
 async function saveAiMessage(
   set: (fn: ((s: ChatStoreState) => Partial<ChatStoreState>) | Partial<ChatStoreState>) => void,
@@ -193,7 +206,8 @@ async function saveAiMessage(
         .insert({
           couple_id: coupleId,
           sender_id: null,
-          sender_role: "ai",
+          sender_type: "ai",
+          role: "assistant",
           content: fullContent,
           metadata: aiMetadata,
         })
@@ -204,9 +218,7 @@ async function saveAiMessage(
       if (aiInserted) {
         set((s) => ({
           messages: s.messages.map((m) =>
-            m.id === tempId
-              ? { ...aiInserted, metadata: aiInserted.metadata ?? aiMetadata } as ChatMessage
-              : m
+            m.id === tempId ? dbRowToMessage(aiInserted as Record<string, unknown>) : m
           ),
         }));
       }
@@ -314,10 +326,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (get().isStreaming) return;
 
       const { activeRoomId } = get();
-      const allMessages = (data ?? []).map((m) => ({
-        ...m,
-        metadata: m.metadata ?? null,
-      })) as ChatMessage[];
+      const allMessages = (data ?? []).map((m) => dbRowToMessage(m as Record<string, unknown>));
 
       // 현재 방 메시지만 필터
       const roomMessages = allMessages.filter((m) =>
@@ -349,7 +358,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .insert({
           couple_id: coupleId,
           sender_id: senderId,
-          sender_role: senderRole,
+          sender_type: senderRole,
+          role: "user",
           content,
           metadata: msgMetadata,
         })
@@ -363,7 +373,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
 
       set((s) => ({
-        messages: [...s.messages, { ...inserted, metadata: inserted.metadata ?? null } as ChatMessage],
+        messages: [...s.messages, dbRowToMessage(inserted as Record<string, unknown>)],
       }));
     } else {
       const demoMsg: ChatMessage = {
@@ -492,7 +502,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           filter: `couple_id=eq.${coupleId}`,
         },
         (payload) => {
-          const newMsg = payload.new as ChatMessage;
+          const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
           const { activeRoomId } = get();
           // 현재 방 메시지만 추가
           if (!messageMatchesRoom(newMsg, activeRoomId)) return;
@@ -500,9 +510,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => {
             const exists = s.messages.some((m) => m.id === newMsg.id);
             if (exists) return s;
-            return {
-              messages: [...s.messages, { ...newMsg, metadata: newMsg.metadata ?? null }],
-            };
+            return { messages: [...s.messages, newMsg] };
           });
         }
       )
