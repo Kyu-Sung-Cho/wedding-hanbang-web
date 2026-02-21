@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useNotificationPrefs } from "@/hooks/useNotifications";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -25,12 +26,7 @@ const fadeIn = {
 
 export default function SettingsPage() {
   const { profile, partner, couple, journey, signOut, updateJourney, updateProfile } = useAuthStore();
-  const [notifications, setNotifications] = useState({
-    schedule: true,
-    budget: true,
-    ai: false,
-    marketing: false,
-  });
+  const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
 
@@ -327,9 +323,7 @@ export default function SettingsPage() {
                 <p className="text-[12px] text-taupe-400 font-light">{item.desc}</p>
               </div>
               <button
-                onClick={() =>
-                  setNotifications((prev) => ({ ...prev, [item.key]: !prev[item.key] }))
-                }
+                onClick={() => toggleNotification(item.key)}
                 className={`w-11 h-6 rounded-full transition-colors relative ${
                   notifications[item.key] ? "bg-rose-500" : "bg-taupe-400/30"
                 }`}

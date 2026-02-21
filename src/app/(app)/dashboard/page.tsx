@@ -12,8 +12,12 @@ import {
   ArrowRight,
   Copy,
   Check,
+  ChevronRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { CHECKLIST_MAP } from "@/constants/checklists";
+import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -43,6 +47,7 @@ export default function DashboardPage() {
   const { profile, partner, journey, couple } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // 커플 코드 불러오기
   useEffect(() => {
@@ -215,15 +220,30 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
             {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
-              const item = progress[key] as { status: string } | undefined;
+              const item = progress[key] as { status: string; checklist?: { id: string; label: string; done: boolean }[] } | undefined;
               const status = item?.status ?? "not_started";
               const style = STATUS_STYLES[status] ?? STATUS_STYLES.not_started;
+              const template = CHECKLIST_MAP[key];
+              const merged = template ? mergeChecklist(template.items, item?.checklist) : [];
+              const { done, total } = getChecklistCounts(merged);
               return (
-                <div key={key} className="flex items-center justify-between px-4 py-3 rounded-xl bg-ivory-50 border border-black/[0.02]">
-                  <span className="text-[13px] text-noir-800 font-medium">{label}</span>
-                  <span className={`text-[11px] px-2.5 py-1 rounded-full text-white font-medium ${style.color}`}>
-                    {style.label}
-                  </span>
+                <div
+                  key={key}
+                  onClick={() => setSelectedCategory(key)}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-ivory-50 border border-black/[0.02] cursor-pointer hover:bg-ivory-100 hover:border-rose-500/20 transition-all group"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-noir-800 font-medium">{label}</span>
+                    {total > 0 && (
+                      <span className="text-[11px] text-taupe-400">{done}/{total}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[11px] px-2.5 py-1 rounded-full text-white font-medium ${style.color}`}>
+                      {style.label}
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
                 </div>
               );
             })}
@@ -266,6 +286,13 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* 카테고리 체크리스트 모달 */}
+      <CategoryChecklistModal
+        categoryKey={selectedCategory ?? ""}
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+      />
     </div>
   );
 }

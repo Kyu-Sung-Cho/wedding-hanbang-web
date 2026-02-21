@@ -34,11 +34,18 @@ export interface WeddingJourney {
   updated_at: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
 export interface ProgressItem {
   category: string;
   status: "not_started" | "in_progress" | "completed";
   vendor_id?: string;
   notes?: string;
+  checklist?: ChecklistItem[];
 }
 
 export interface ToolExecutionResult {
