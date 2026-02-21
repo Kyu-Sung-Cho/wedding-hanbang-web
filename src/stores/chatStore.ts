@@ -40,6 +40,8 @@ interface ChatStoreState {
   streamingToolResults: ToolExecutionResult[];
   suggestions: string[];
   error: string | null;
+  initialLoadDone: boolean;
+  defaultRoomTitle: string;
 
   initRooms: (coupleId: string) => void;
   createRoom: (coupleId: string) => string | null;
@@ -61,6 +63,7 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
   }) => Promise<void>;
+  updateRoomTitle: (coupleId: string, roomId: string, title: string) => void;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
 }
@@ -238,11 +241,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   streamingToolResults: [],
   suggestions: [],
   error: null,
+  initialLoadDone: false,
+  defaultRoomTitle: "",
 
   // 방 목록 초기화
   initRooms: (coupleId: string) => {
     const rooms = loadRoomsFromStorage(coupleId);
-    set({ rooms, activeRoomId: "default" });
+    let defaultRoomTitle = "";
+    if (typeof window !== "undefined") {
+      defaultRoomTitle = localStorage.getItem(`hanbang_default_title_${coupleId}`) ?? "";
+    }
+    set({ rooms, activeRoomId: "default", defaultRoomTitle });
   },
 
   // 새 채팅방 생성 (최대 5개)
@@ -251,10 +260,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // default + 추가 방 합쳐서 MAX_ROOMS
     if (rooms.length >= MAX_ROOMS - 1) return null;
 
+    const now = new Date();
     const newRoom: ChatRoom = {
       id: `room-${Date.now()}`,
-      title: `상담 ${rooms.length + 2}`,
-      createdAt: new Date().toISOString(),
+      title: `${now.getMonth() + 1}/${now.getDate()} 상담`,
+      createdAt: now.toISOString(),
     };
 
     const updated = [...rooms, newRoom];
@@ -265,7 +275,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 방 전환
   switchRoom: (roomId: string) => {
-    set({ activeRoomId: roomId, messages: [], suggestions: [], error: null });
+    set({ activeRoomId: roomId, messages: [], suggestions: [], error: null, initialLoadDone: false });
   },
 
   // 방 삭제 (메시지도 삭제)
@@ -310,7 +320,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // 스트리밍 중에는 메시지 로드하지 않음 (로컬 메시지 덮어쓰기 방지)
     if (get().isStreaming) return;
 
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, initialLoadDone: false });
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -338,7 +348,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       console.error("채팅 로드 에러:", err);
       set({ error: "채팅을 불러오지 못했습니다." });
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, initialLoadDone: true });
     }
   },
 
@@ -348,6 +358,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
     const { activeRoomId } = get();
+
+    // 첫 사용자 메시지인지 확인 (방 제목 자동 설정용)
+    const isFirstUserMessage = !get().messages.some((m) => m.sender_role !== "ai");
 
     // roomId를 포함한 metadata
     const msgMetadata: ChatMessageMetadata | null = activeRoomId !== "default" ? { roomId: activeRoomId } : null;
@@ -386,6 +399,24 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         created_at: new Date().toISOString(),
       };
       set((s) => ({ messages: [...s.messages, demoMsg] }));
+    }
+
+    // 첫 사용자 메시지면 방 제목 자동 설정
+    if (isFirstUserMessage) {
+      const shortTitle = content.length > 20 ? content.slice(0, 20) + "…" : content;
+      if (activeRoomId === "default") {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`hanbang_default_title_${coupleId}`, shortTitle);
+        }
+        set({ defaultRoomTitle: shortTitle });
+      } else {
+        const currentRooms = get().rooms;
+        const updatedRooms = currentRooms.map((r) =>
+          r.id === activeRoomId ? { ...r, title: shortTitle } : r
+        );
+        saveRoomsToStorage(coupleId, updatedRooms);
+        set({ rooms: updatedRooms });
+      }
     }
 
     // AI 응답
@@ -489,6 +520,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
+  // 방 제목 업데이트
+  updateRoomTitle: (coupleId: string, roomId: string, title: string) => {
+    if (roomId === "default") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`hanbang_default_title_${coupleId}`, title);
+      }
+      set({ defaultRoomTitle: title });
+    } else {
+      const { rooms } = get();
+      const updated = rooms.map((r) => r.id === roomId ? { ...r, title } : r);
+      saveRoomsToStorage(coupleId, updated);
+      set({ rooms: updated });
+    }
+  },
+
   subscribeToMessages: (coupleId: string) => {
     const supabase = createClient();
     const channel = supabase
@@ -532,6 +578,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       streamingToolResults: [],
       suggestions: [],
       error: null,
+      initialLoadDone: false,
+      defaultRoomTitle: "",
     });
   },
 }));

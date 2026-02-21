@@ -23,6 +23,8 @@ export default function ChatPage() {
     streamingContent,
     streamingToolResults,
     suggestions,
+    initialLoadDone,
+    defaultRoomTitle,
     initRooms,
     createRoom,
     switchRoom,
@@ -62,7 +64,7 @@ export default function ChatPage() {
     if (
       !coupleId ||
       !profile ||
-      isLoading ||
+      !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
       greetingRequestedForRoom.current.has(activeRoomId)
@@ -82,7 +84,7 @@ export default function ChatPage() {
         progress: journey?.progress ?? {},
       },
     });
-  }, [coupleId, profile, journey, isLoading, messages.length, isStreaming, activeRoomId, requestInitialGreeting]);
+  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, activeRoomId, requestInitialGreeting]);
 
   // 스크롤 자동 이동
   useEffect(() => {
@@ -157,8 +159,8 @@ export default function ChatPage() {
   }
 
   const allRoomTabs = [
-    { id: "default", title: "상담 1" },
-    ...rooms.map((r, i) => ({ id: r.id, title: r.title || `상담 ${i + 2}` })),
+    { id: "default", title: defaultRoomTitle || "새 상담" },
+    ...rooms.map((r) => ({ id: r.id, title: r.title || "새 상담" })),
   ];
   const totalRooms = allRoomTabs.length;
 
