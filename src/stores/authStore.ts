@@ -92,7 +92,12 @@ const DEMO_JOURNEY: WeddingJourney = {
     houseware: { category: "houseware", status: "not_started" },
     invitation: { category: "invitation", status: "not_started" },
     gift: { category: "gift", status: "not_started" },
-  },
+    __events: [
+      { id: "evt_demo1", date: "2026-03-15", title: "드레스 2차 피팅", memo: "강남 드레스하우스 오후 2시", categoryKey: "dress", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+      { id: "evt_demo2", date: "2026-04-10", title: "메이크업 리허설", memo: "청담 메이크업샵", categoryKey: "makeup", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+      { id: "evt_demo3", date: "2026-05-01", title: "청첩장 시안 확인", categoryKey: "invitation", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+    ],
+  } as unknown as WeddingJourney["progress"],
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };

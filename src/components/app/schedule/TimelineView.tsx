@@ -1,145 +1,206 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { Check, Circle, ChevronDown, ChevronUp } from "lucide-react";
-import { CHECKLIST_MAP } from "@/constants/checklists";
+import { useState, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Building2,
+  Camera,
+  Shirt,
+  Palette,
+  Gem,
+  Flower2,
+  Plane,
+  Home,
+  Mail,
+  Gift,
+} from "lucide-react";
+import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
 
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
+const ICON_MAP: Record<string, React.ElementType> = {
+  Building2,
+  Camera,
+  Shirt,
+  Palette,
+  Gem,
+  Flower2,
+  Plane,
+  Home,
+  Mail,
+  Gift,
 };
 
-interface Task {
-  key: string;
-  title: string;
-  desc: string;
-}
+const STATUS_COLORS: Record<string, string> = {
+  completed: "bg-[#2E7D5A]",
+  in_progress: "bg-rose-500",
+  not_started: "bg-taupe-400",
+};
 
-interface TimelineSection {
-  dday: string;
+const STATUS_LABELS: Record<string, string> = {
+  completed: "완료",
+  in_progress: "진행중",
+  not_started: "시작전",
+};
+
+// 페이즈 정의 (ddayStart 기준)
+interface Phase {
+  label: string;
   period: string;
-  category: string;
-  tasks: Task[];
+  dday: string;
+  categories: typeof CATEGORY_CHECKLISTS;
 }
 
-const TIMELINE_TEMPLATE: TimelineSection[] = [
-  {
-    dday: "D-360 ~ D-300",
-    period: "12~10개월 전",
-    category: "초기 준비",
-    tasks: [
-      { key: "venue", title: "예식장 투어 및 계약", desc: "최소 3곳 이상 비교" },
-      { key: "_budget_plan", title: "결혼 예산 설정", desc: "양가 상의 후 총 예산 확정" },
-      { key: "_planner", title: "웨딩 플래너 선정", desc: "AI 플래너 활용 가능" },
-    ],
-  },
-  {
-    dday: "D-300 ~ D-180",
-    period: "10~6개월 전",
-    category: "핵심 계약",
-    tasks: [
-      { key: "studio", title: "스튜디오 계약", desc: "촬영 스타일, 보정본 수 확인" },
-      { key: "dress", title: "드레스 투어 시작", desc: "AI 가상 피팅으로 사전 비교" },
-      { key: "makeup", title: "메이크업 업체 선정", desc: "리허설 포함 패키지 확인" },
-      { key: "ring", title: "예물 구매", desc: "반지, 시계 등 예산 내 결정" },
-    ],
-  },
-  {
-    dday: "D-180 ~ D-90",
-    period: "6~3개월 전",
-    category: "세부 준비",
-    tasks: [
-      { key: "hanbok", title: "한복 맞춤/대여", desc: "양가 어머니 한복 포함" },
-      { key: "invitation", title: "청첩장 제작", desc: "디자인 선정, 수량 결정" },
-      { key: "honeymoon", title: "신혼여행 예약", desc: "항공권, 숙소 조기 예약 할인" },
-      { key: "houseware", title: "혼수 준비", desc: "가전, 가구 리스트 작성" },
-    ],
-  },
-  {
-    dday: "D-90 ~ D-30",
-    period: "3~1개월 전",
-    category: "마무리",
-    tasks: [
-      { key: "_rehearsal_makeup", title: "메이크업 리허설", desc: "최소 1회 필수" },
-      { key: "_rehearsal_wedding", title: "본식 리허설", desc: "식장 방문, 동선 확인" },
-      { key: "gift", title: "답례품 준비", desc: "수량: 하객 수 + 여유분" },
-      { key: "_guest_list", title: "최종 하객 명단 확정", desc: "식대 인원 확정 통보" },
-    ],
-  },
-];
+function buildPhases(): Phase[] {
+  const phase1 = CATEGORY_CHECKLISTS.filter((c) => c.ddayStart >= 300);
+  const phase2 = CATEGORY_CHECKLISTS.filter(
+    (c) => c.ddayStart >= 200 && c.ddayStart < 300
+  );
+  const phase3 = CATEGORY_CHECKLISTS.filter(
+    (c) => c.ddayStart >= 100 && c.ddayStart < 200
+  );
+  const phase4 = CATEGORY_CHECKLISTS.filter((c) => c.ddayStart < 100);
+
+  return [
+    {
+      label: "초기 준비",
+      period: "12~10개월 전",
+      dday: "D-360 ~ D-270",
+      categories: phase1,
+    },
+    {
+      label: "핵심 계약",
+      period: "10~6개월 전",
+      dday: "D-270 ~ D-120",
+      categories: phase2,
+    },
+    {
+      label: "세부 준비",
+      period: "6~3개월 전",
+      dday: "D-180 ~ D-30",
+      categories: phase3,
+    },
+    {
+      label: "마무리",
+      period: "3개월 ~ D-day",
+      dday: "D-90 ~ D-14",
+      categories: phase4,
+    },
+  ].filter((p) => p.categories.length > 0);
+}
 
 interface Props {
   progress: Record<string, ProgressItem>;
-  onCategoryClick: (key: string) => void;
+  onToggleChecklistItem: (categoryKey: string, itemId: string) => Promise<void>;
 }
 
-export default function TimelineView({ progress, onCategoryClick }: Props) {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+export default function TimelineView({
+  progress,
+  onToggleChecklistItem,
+}: Props) {
+  const phases = useMemo(() => buildPhases(), []);
+  const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [togglingItem, setTogglingItem] = useState<string | null>(null);
 
-  const getTaskStatus = useCallback(
-    (key: string): string => {
-      if (key.startsWith("_")) return "not_started";
-      const item = progress[key] as { status: string } | undefined;
-      return item?.status ?? "not_started";
+  const getCategoryData = useCallback(
+    (key: string) => {
+      const template = CHECKLIST_MAP[key];
+      if (!template) return { done: 0, total: 0, status: "not_started" as const };
+      const existing = progress[key];
+      const merged = mergeChecklist(
+        template.items,
+        existing?.checklist,
+        existing?.status
+      );
+      const { done, total } = getChecklistCounts(merged);
+      const status = existing?.status ?? "not_started";
+      return { done, total, status, merged };
     },
     [progress]
   );
 
-  const isTaskDone = useCallback(
-    (key: string): boolean => getTaskStatus(key) === "completed",
-    [getTaskStatus]
+  const handleToggle = useCallback(
+    async (categoryKey: string, itemId: string) => {
+      if (togglingItem) return;
+      setTogglingItem(itemId);
+      try {
+        await onToggleChecklistItem(categoryKey, itemId);
+      } finally {
+        setTogglingItem(null);
+      }
+    },
+    [togglingItem, onToggleChecklistItem]
   );
 
   return (
     <div className="relative">
       <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-rose-500 via-gold to-platinum max-md:left-[15px]" />
 
-      {TIMELINE_TEMPLATE.map((section, si) => {
-        const isExpanded = expandedIdx === si;
-        const sectionDone = section.tasks.filter((t) => isTaskDone(t.key)).length;
-        const allDone = sectionDone === section.tasks.length;
+      {phases.map((phase, pi) => {
+        const isPhaseExpanded = expandedPhase === pi;
+
+        // 페이즈 전체 완료 수
+        const phaseStats = phase.categories.reduce(
+          (acc, cat) => {
+            const data = getCategoryData(cat.key);
+            return {
+              done: acc.done + data.done,
+              total: acc.total + data.total,
+            };
+          },
+          { done: 0, total: 0 }
+        );
+        const allPhaseDone =
+          phaseStats.total > 0 && phaseStats.done === phaseStats.total;
 
         return (
           <motion.div
-            key={section.dday}
-            {...fadeIn}
-            transition={{ duration: 0.5, delay: si * 0.08 }}
+            key={phase.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: pi * 0.08 }}
             className="relative pl-12 mb-4 max-md:pl-10"
           >
+            {/* 타임라인 점 */}
             <div
               className={`absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] ${
-                allDone
+                allPhaseDone
                   ? "border-[#2E7D5A] bg-[#2E7D5A]"
-                  : sectionDone > 0
+                  : phaseStats.done > 0
                   ? "border-rose-500 bg-white"
                   : "border-taupe-400 bg-white"
               } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`}
             />
 
+            {/* 페이즈 카드 */}
             <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow">
+              {/* 페이즈 헤더 */}
               <button
-                onClick={() => setExpandedIdx(isExpanded ? null : si)}
+                onClick={() =>
+                  setExpandedPhase(isPhaseExpanded ? null : pi)
+                }
                 className="w-full flex items-center justify-between px-5 py-4"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
-                    {section.dday}
+                    {phase.dday}
                   </span>
                   <span className="text-[14px] font-medium text-noir-800">
-                    {section.category}
+                    {phase.label}
                   </span>
                   <span className="text-[11px] text-taupe-400 font-light">
-                    {section.period}
+                    {phase.period}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] text-taupe-400">
-                    {sectionDone}/{section.tasks.length}
+                    {phaseStats.done}/{phaseStats.total}
                   </span>
-                  {isExpanded ? (
+                  {isPhaseExpanded ? (
                     <ChevronUp className="w-4 h-4 text-taupe-400" />
                   ) : (
                     <ChevronDown className="w-4 h-4 text-taupe-400" />
@@ -147,85 +208,131 @@ export default function TimelineView({ progress, onCategoryClick }: Props) {
                 </div>
               </button>
 
-              {isExpanded && (
-                <div className="border-t border-black/[0.03] px-5 pb-4">
-                  {section.tasks.map((task, ti) => {
-                    const done = isTaskDone(task.key);
-                    const isCategory = !task.key.startsWith("_");
-                    const template = isCategory ? CHECKLIST_MAP[task.key] : null;
-                    const existing = isCategory ? progress[task.key] : undefined;
-                    const merged = template
-                      ? mergeChecklist(template.items, existing?.checklist, existing?.status)
-                      : [];
-                    const { done: checkDone, total: checkTotal } =
-                      getChecklistCounts(merged);
+              {/* 페이즈 내 카테고리들 */}
+              <AnimatePresence>
+                {isPhaseExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-black/[0.03] px-4 pb-4">
+                      {phase.categories.map((cat) => {
+                        const data = getCategoryData(cat.key);
+                        const isCatExpanded = expandedCategory === cat.key;
+                        const Icon = ICON_MAP[cat.icon] ?? Building2;
+                        const percent =
+                          data.total > 0
+                            ? Math.round((data.done / data.total) * 100)
+                            : 0;
 
-                    return (
-                      <div
-                        key={ti}
-                        onClick={() => isCategory && onCategoryClick(task.key)}
-                        className={`flex items-start gap-3 py-3 border-b border-black/[0.02] last:border-0 ${
-                          isCategory
-                            ? "cursor-pointer hover:bg-ivory-50 -mx-2 px-2 rounded-lg transition-colors"
-                            : ""
-                        }`}
-                      >
-                        <div className="mt-0.5">
-                          {done ? (
-                            <Check className="w-5 h-5 text-[#2E7D5A]" />
-                          ) : (
-                            <Circle
-                              className={`w-5 h-5 ${
-                                isCategory
-                                  ? "text-taupe-400 hover:text-rose-500"
-                                  : "text-taupe-300"
-                              }`}
-                            />
-                          )}
-                        </div>
-                        <div className="text-left flex-1">
-                          <p
-                            className={`text-[13px] font-medium ${
-                              done
-                                ? "text-taupe-400 line-through"
-                                : "text-noir-800"
-                            }`}
-                          >
-                            {task.title}
-                          </p>
-                          <p className="text-[11px] text-taupe-400 font-light mt-0.5">
-                            {task.desc}
-                          </p>
-                        </div>
-                        {isCategory && (
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {checkTotal > 0 && (
-                              <span className="text-[10px] text-taupe-400">
-                                {checkDone}/{checkTotal}
-                              </span>
-                            )}
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full ${
-                                done
-                                  ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
-                                  : getTaskStatus(task.key) === "in_progress"
-                                  ? "bg-rose-500/10 text-rose-500"
-                                  : "bg-taupe-400/10 text-taupe-400"
-                              }`}
+                        return (
+                          <div key={cat.key} className="mt-3">
+                            {/* 카테고리 헤더 */}
+                            <button
+                              onClick={() =>
+                                setExpandedCategory(
+                                  isCatExpanded ? null : cat.key
+                                )
+                              }
+                              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-ivory-50 transition-colors"
                             >
-                              {done
-                                ? "완료"
-                                : getTaskStatus(task.key) === "in_progress"
-                                ? "진행중"
-                                : "진행전"}
-                            </span>
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500/10 to-gold/10 flex items-center justify-center flex-shrink-0">
+                                <Icon className="w-4 h-4 text-rose-500" />
+                              </div>
+
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[13px] font-medium text-noir-800">
+                                    {cat.label}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${
+                                      STATUS_COLORS[data.status]
+                                    }`}
+                                  >
+                                    {STATUS_LABELS[data.status]}
+                                  </span>
+                                </div>
+                                {/* 진행률 바 */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 bg-ivory-warm rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all duration-500"
+                                      style={{ width: `${percent}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-taupe-400 flex-shrink-0">
+                                    {data.done}/{data.total}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex-shrink-0">
+                                {isCatExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-taupe-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-taupe-400" />
+                                )}
+                              </div>
+                            </button>
+
+                            {/* 인라인 체크리스트 */}
+                            <AnimatePresence>
+                              {isCatExpanded && data.merged && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="ml-11 mr-2 mt-1 mb-2 border-l-2 border-rose-500/10 pl-3">
+                                    {data.merged.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        onClick={() =>
+                                          handleToggle(cat.key, item.id)
+                                        }
+                                        className={`flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-ivory-50 transition-colors ${
+                                          togglingItem === item.id
+                                            ? "opacity-50 pointer-events-none"
+                                            : ""
+                                        }`}
+                                      >
+                                        <div className="flex-shrink-0">
+                                          {item.done ? (
+                                            <div className="w-5 h-5 rounded-full bg-[#2E7D5A] flex items-center justify-center">
+                                              <Check className="w-3 h-3 text-white" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-5 h-5 rounded-full border-2 border-taupe-400 hover:border-rose-500 transition-colors" />
+                                          )}
+                                        </div>
+                                        <span
+                                          className={`text-[12px] leading-snug ${
+                                            item.done
+                                              ? "text-taupe-400 line-through"
+                                              : "text-noir-800"
+                                          }`}
+                                        >
+                                          {item.label}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         );

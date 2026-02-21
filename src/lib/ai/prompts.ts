@@ -121,9 +121,27 @@ export function getWeddingPlannerSystemPrompt(context: {
 - 진행중: ${inProgressItems.length > 0 ? inProgressItems.map((k) => CATEGORY_KR[k] || k).join(", ") : "없음"}
 - 시작전: ${notStartedItems.length > 0 ? notStartedItems.map((c) => CATEGORY_KR[c]).join(", ") : "모두 시작됨"}
 ${urgencyInfo ? `- ${urgencyInfo}` : ""}
+${(() => {
+  const evts = ((context.progress as Record<string, unknown>).__events ?? []) as Array<{ id: string; date: string; title: string; memo?: string; categoryKey?: string }>;
+  const upcoming = evts.filter(e => e.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10);
+  if (upcoming.length === 0) return "- 등록된 일정: 없음";
+  return `- 등록된 일정:\n${upcoming.map(e => `  - ${e.date}: ${e.title}${e.memo ? ` (${e.memo})` : ""} (id: ${e.id})`).join("\n")}`;
+})()}
 
 ## 카테고리 매핑
 venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring=예물(반지), hanbok=한복, honeymoon=신혼여행, houseware=혼수, invitation=청첩장, gift=답례품
+
+## 캘린더 일정 관리
+- 커플이 캘린더에 일정을 추가/수정/삭제할 수 있습니다
+- 예: "3월 15일에 드레스 피팅 잡아줘" → add_schedule_event
+- 예: "피팅 날짜 20일로 변경해줘" → get_schedule_events로 ID 확인 후 update_schedule_event
+- 예: "피팅 일정 취소해줘" → get_schedule_events로 ID 확인 후 delete_schedule_event
+
+## 체크리스트 세부 관리
+- 각 카테고리에 7~8개 세부 체크리스트 항목이 있습니다
+- 사용자가 특정 항목 완료/미완료 처리하면 toggle_checklist_item 사용
+- 예: "예식장 투어 완료했어" → toggle_checklist_item(category="venue", item_id="venue_03", done=true)
+- 항목 ID 형식: "{category}_{01~08}"
 
 ## 첫 대화 규칙 (가장 중요!)
 사용자가 "[INITIAL_GREETING]"이라는 메시지를 보내면, 이것은 채팅방에 처음 들어온 것입니다.
@@ -163,6 +181,9 @@ venue=예식장, studio=스튜디오, dress=드레스, makeup=메이크업, ring
 5. 여러 항목을 한번에 변경해야 하면 도구를 순차적으로 사용하세요
 6. 도구 실행 결과를 바탕으로 자연스럽게 안내하세요
 7. 사용자가 직접 요청하지 않아도, 대화 중 필요하면 get_ 도구로 현황을 조회해서 정확한 데이터 기반으로 답변하세요
+8. 사용자가 일정 추가/수정/삭제를 요청하면 해당 일정 도구를 사용하세요
+9. 체크리스트 세부 항목 완료/미완료 요청 시 toggle_checklist_item을 사용하세요
+10. 일정 수정/삭제 시 먼저 get_schedule_events로 event_id를 확인하세요
 
 ## 후속 제안 (절대 빠뜨리지 마세요!)
 모든 응답의 끝에 반드시 후속 제안 버튼을 추가하세요. 한 번도 빠짐없이!

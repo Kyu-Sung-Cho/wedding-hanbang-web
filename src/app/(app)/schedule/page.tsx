@@ -5,10 +5,13 @@ import { motion } from "framer-motion";
 import { List, Calendar } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
+import { getEvents } from "@/utils/scheduleEvents";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import EventFormModal from "@/components/app/schedule/EventFormModal";
+import type { ScheduleEvent, ProgressItem } from "@/types/database.types";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -21,12 +24,20 @@ const CATEGORY_KEYS = [
 ];
 
 export default function SchedulePage() {
-  const { journey } = useAuthStore();
+  const { journey, updateJourney } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const progress = journey?.progress ?? {};
+  // 이벤트 CRUD 상태
+  const [eventFormMode, setEventFormMode] = useState<"add" | "edit" | null>(null);
+  const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
+  const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
+
+  const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+
+  // 이벤트 목록
+  const events = getEvents(progress as Record<string, unknown>);
 
   // 전체 체크리스트 기준 완료 수 계산
   const { totalDone, totalItems } = CATEGORY_KEYS.reduce(
@@ -52,6 +63,111 @@ export default function SchedulePage() {
   const handleCategoryClick = useCallback((key: string) => {
     setSelectedCategory(key);
   }, []);
+
+  // 타임라인 인라인 체크리스트 토글
+  const handleToggleChecklistItem = useCallback(
+    async (categoryKey: string, itemId: string) => {
+      if (!journey) return;
+
+      const template = CHECKLIST_MAP[categoryKey];
+      if (!template) return;
+
+      const existing = progress[categoryKey];
+      const merged = mergeChecklist(
+        template.items,
+        existing?.checklist,
+        existing?.status
+      );
+      const updated = merged.map((c) =>
+        c.id === itemId ? { ...c, done: !c.done } : c
+      );
+      const newStatus = calculateStatus(updated);
+      const newProgress: Record<string, ProgressItem> = {
+        ...progress,
+        [categoryKey]: {
+          ...(existing ?? { category: categoryKey }),
+          category: categoryKey,
+          status: newStatus,
+          checklist: updated,
+        },
+      };
+
+      await updateJourney({ progress: newProgress });
+    },
+    [journey, progress, updateJourney]
+  );
+
+  // 캘린더 이벤트 CRUD
+  const handleAddEvent = useCallback((date: string) => {
+    setSelectedDateForAdd(date);
+    setEditingEvent(null);
+    setEventFormMode("add");
+  }, []);
+
+  const handleEditEvent = useCallback((event: ScheduleEvent) => {
+    setEditingEvent(event);
+    setSelectedDateForAdd(null);
+    setEventFormMode("edit");
+  }, []);
+
+  const handleSaveEvent = useCallback(
+    async (data: { date: string; title: string; memo?: string; categoryKey?: string }) => {
+      if (!journey) return;
+
+      const progressObj = progress as Record<string, unknown>;
+      const currentEvents = getEvents(progressObj);
+
+      if (eventFormMode === "edit" && editingEvent) {
+        // 수정
+        const updatedEvents = currentEvents.map((e) =>
+          e.id === editingEvent.id
+            ? { ...e, ...data, updatedAt: new Date().toISOString() }
+            : e
+        );
+        await updateJourney({
+          progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
+        });
+      } else {
+        // 추가
+        const now = new Date().toISOString();
+        const newEvent: ScheduleEvent = {
+          id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+          date: data.date,
+          title: data.title,
+          memo: data.memo,
+          categoryKey: data.categoryKey,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await updateJourney({
+          progress: { ...progress, __events: [...currentEvents, newEvent] } as unknown as Record<string, ProgressItem>,
+        });
+      }
+
+      setEventFormMode(null);
+      setEditingEvent(null);
+      setSelectedDateForAdd(null);
+    },
+    [journey, progress, eventFormMode, editingEvent, updateJourney]
+  );
+
+  const handleDeleteEvent = useCallback(
+    async (eventId: string) => {
+      if (!journey) return;
+
+      const progressObj = progress as Record<string, unknown>;
+      const currentEvents = getEvents(progressObj);
+      const filtered = currentEvents.filter((e) => e.id !== eventId);
+
+      await updateJourney({
+        progress: { ...progress, __events: filtered } as unknown as Record<string, ProgressItem>,
+      });
+
+      setEventFormMode(null);
+      setEditingEvent(null);
+    },
+    [journey, progress, updateJourney]
+  );
 
   return (
     <div className="max-w-[800px] mx-auto">
@@ -138,23 +254,44 @@ export default function SchedulePage() {
         transition={{ duration: 0.5, delay: 0.1 }}
       >
         {viewMode === "timeline" ? (
-          <TimelineView progress={progress} onCategoryClick={handleCategoryClick} />
+          <TimelineView
+            progress={progress}
+            onToggleChecklistItem={handleToggleChecklistItem}
+          />
         ) : (
           <div className="bg-white rounded-2xl p-6 border border-black/[0.04]">
             <CalendarView
               weddingDate={weddingDate}
               progress={progress}
+              events={events}
               onCategoryClick={handleCategoryClick}
+              onAddEvent={handleAddEvent}
+              onEditEvent={handleEditEvent}
             />
           </div>
         )}
       </motion.div>
 
-      {/* 체크리스트 모달 */}
+      {/* 체크리스트 모달 (캘린더에서 카테고리 클릭 시) */}
       <CategoryChecklistModal
         categoryKey={selectedCategory ?? ""}
         isOpen={!!selectedCategory}
         onClose={() => setSelectedCategory(null)}
+      />
+
+      {/* 이벤트 추가/수정 모달 */}
+      <EventFormModal
+        isOpen={eventFormMode !== null}
+        mode={eventFormMode ?? "add"}
+        event={editingEvent}
+        defaultDate={selectedDateForAdd}
+        onSave={handleSaveEvent}
+        onDelete={editingEvent ? () => handleDeleteEvent(editingEvent.id) : undefined}
+        onClose={() => {
+          setEventFormMode(null);
+          setEditingEvent(null);
+          setSelectedDateForAdd(null);
+        }}
       />
     </div>
   );

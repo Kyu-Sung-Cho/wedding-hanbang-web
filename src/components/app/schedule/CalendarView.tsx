@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -18,9 +18,16 @@ import {
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
-import type { ProgressItem } from "@/types/database.types";
+import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  venue: "예식장", studio: "스튜디오", dress: "드레스",
+  makeup: "메이크업", ring: "예물", hanbok: "한복",
+  honeymoon: "신혼여행", houseware: "혼수",
+  invitation: "청첩장", gift: "답례품",
+};
 
 interface Milestone {
   date: Date;
@@ -33,10 +40,20 @@ interface Milestone {
 interface Props {
   weddingDate: Date | null;
   progress: Record<string, ProgressItem>;
+  events: ScheduleEvent[];
   onCategoryClick: (key: string) => void;
+  onAddEvent: (date: string) => void;
+  onEditEvent: (event: ScheduleEvent) => void;
 }
 
-export default function CalendarView({ weddingDate, progress, onCategoryClick }: Props) {
+export default function CalendarView({
+  weddingDate,
+  progress,
+  events,
+  onCategoryClick,
+  onAddEvent,
+  onEditEvent,
+}: Props) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -85,8 +102,13 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
   const getMilestonesForDate = (date: Date) =>
     milestones.filter((m) => isSameDay(m.date, date));
 
-  // 선택된 날짜의 마일스톤
+  // 특정 날짜의 이벤트
+  const getEventsForDate = (date: Date) =>
+    events.filter((e) => e.date === format(date, "yyyy-MM-dd"));
+
+  // 선택된 날짜의 마일스톤 & 이벤트
   const selectedMilestones = selectedDate ? getMilestonesForDate(selectedDate) : [];
+  const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
   const today = new Date();
 
@@ -144,6 +166,7 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
           const isWedding = weddingDate && isSameDay(day, weddingDate);
           const isSelected = selectedDate && isSameDay(day, selectedDate);
           const dayMilestones = getMilestonesForDate(day);
+          const dayEvents = getEventsForDate(day);
           const dayNum = day.getDay();
 
           return (
@@ -167,14 +190,22 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
               }`}
             >
               <span>{format(day, "d")}</span>
-              {/* 마일스톤 점 */}
-              {inMonth && dayMilestones.length > 0 && (
+              {/* 마일스톤 + 이벤트 점 */}
+              {inMonth && (dayMilestones.length > 0 || dayEvents.length > 0) && (
                 <div className="flex gap-0.5">
-                  {dayMilestones.slice(0, 3).map((m, i) => (
+                  {dayMilestones.slice(0, 2).map((m, i) => (
                     <div
-                      key={i}
+                      key={`m${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${
                         isWedding || isSelected ? "bg-white/60" : statusColor(m.status)
+                      }`}
+                    />
+                  ))}
+                  {dayEvents.slice(0, 2).map((_, i) => (
+                    <div
+                      key={`e${i}`}
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isWedding || isSelected ? "bg-white/60" : "bg-[#C9A96E]"
                       }`}
                     />
                   ))}
@@ -185,8 +216,8 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
         })}
       </div>
 
-      {/* 결혼식 날짜 범례 */}
-      <div className="flex items-center gap-4 mt-4 px-2">
+      {/* 범례 */}
+      <div className="flex items-center gap-4 mt-4 px-2 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E]" />
           <span className="text-[11px] text-[#928980]">결혼식</span>
@@ -203,11 +234,15 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
           <div className="w-3 h-3 rounded-full bg-[#B5ADA3]" />
           <span className="text-[11px] text-[#928980]">미시작</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#C9A96E]" />
+          <span className="text-[11px] text-[#928980]">내 일정</span>
+        </div>
       </div>
 
-      {/* 선택된 날짜의 마일스톤 */}
+      {/* 선택된 날짜 상세 */}
       <AnimatePresence>
-        {selectedDate && selectedMilestones.length > 0 && (
+        {selectedDate && (selectedMilestones.length > 0 || selectedEvents.length > 0 || true) && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -215,13 +250,26 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
             className="mt-4 overflow-hidden"
           >
             <div className="bg-[#FDFCFA] rounded-2xl border border-black/[0.04] p-4">
-              <p className="text-[12px] text-[#928980] mb-3">
-                {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[12px] text-[#928980]">
+                  {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
+                </p>
+                <button
+                  onClick={() =>
+                    onAddEvent(format(selectedDate, "yyyy-MM-dd"))
+                  }
+                  className="flex items-center gap-1 text-[11px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  일정 추가
+                </button>
+              </div>
+
               <div className="flex flex-col gap-2">
+                {/* 마일스톤 */}
                 {selectedMilestones.map((m, i) => (
                   <button
-                    key={i}
+                    key={`m${i}`}
                     onClick={() => onCategoryClick(m.categoryKey)}
                     className="flex items-center gap-3 p-3 bg-white rounded-xl border border-black/[0.04] hover:border-[#C4967E]/30 transition-colors text-left"
                   >
@@ -243,6 +291,35 @@ export default function CalendarView({ weddingDate, progress, onCategoryClick }:
                     </span>
                   </button>
                 ))}
+
+                {/* 이벤트 */}
+                {selectedEvents.map((evt) => (
+                  <button
+                    key={evt.id}
+                    onClick={() => onEditEvent(evt)}
+                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-black/[0.04] hover:border-[#C9A96E]/30 transition-colors text-left"
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#C9A96E]" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-[#1A1A1F] font-medium">{evt.title}</p>
+                      {evt.memo && (
+                        <p className="text-[11px] text-[#928980] truncate">{evt.memo}</p>
+                      )}
+                    </div>
+                    {evt.categoryKey && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
+                        {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                      </span>
+                    )}
+                  </button>
+                ))}
+
+                {/* 빈 날짜 */}
+                {selectedMilestones.length === 0 && selectedEvents.length === 0 && (
+                  <p className="text-[12px] text-[#B5ADA3] text-center py-4">
+                    이 날짜에 등록된 일정이 없습니다
+                  </p>
+                )}
               </div>
             </div>
           </motion.div>

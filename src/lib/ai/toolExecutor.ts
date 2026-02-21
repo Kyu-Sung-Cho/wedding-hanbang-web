@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
-import type { ToolExecutionResult } from "@/types/database.types";
+import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
+import { CHECKLIST_MAP } from "@/constants/checklists";
+import { mergeChecklist, calculateStatus } from "@/utils/checklist";
 
 const CATEGORY_LABELS: Record<string, string> = {
   venue: "예식장",
@@ -79,6 +81,16 @@ export async function executeTool(
         return executeGetScheduleSummary(context);
       case "get_wedding_info":
         return executeGetWeddingInfo(context);
+      case "add_schedule_event":
+        return await executeAddScheduleEvent(toolInput, context);
+      case "update_schedule_event":
+        return await executeUpdateScheduleEvent(toolInput, context);
+      case "delete_schedule_event":
+        return await executeDeleteScheduleEvent(toolInput, context);
+      case "toggle_checklist_item":
+        return await executeToggleChecklistItem(toolInput, context);
+      case "get_schedule_events":
+        return executeGetScheduleEvents(toolInput, context);
       default:
         return {
           toolName,
@@ -278,6 +290,222 @@ function executeGetScheduleSummary(ctx: ExecutionContext): ToolExecutionResult {
     },
     success: true,
     displayMessage: `전체 ${allKeys.length}개 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개 (${Math.round((completed.length / allKeys.length) * 100)}%)`,
+  };
+}
+
+// ---- 일정 이벤트 관련 도구 ----
+
+function getEventsFromProgress(progress: Record<string, unknown>): ScheduleEvent[] {
+  return ((progress as Record<string, unknown>).__events as ScheduleEvent[] | undefined) ?? [];
+}
+
+async function executeAddScheduleEvent(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const date = input.date as string;
+  const title = input.title as string;
+  const memo = input.memo as string | undefined;
+  const categoryKey = input.category_key as string | undefined;
+
+  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const now = new Date().toISOString();
+  const newEvent: ScheduleEvent = {
+    id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    date, title, memo, categoryKey, createdAt: now, updatedAt: now,
+  };
+
+  const newProgress = { ...ctx.weddingContext.progress, __events: [...events, newEvent] };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+
+  return {
+    toolName: "add_schedule_event", toolInput: input,
+    toolOutput: { event: newEvent },
+    success: true,
+    displayMessage: `${date}에 "${title}" 일정이 추가되었습니다.`,
+  };
+}
+
+async function executeUpdateScheduleEvent(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const eventId = input.event_id as string;
+  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const existing = events.find((e) => e.id === eventId);
+  if (!existing) {
+    return {
+      toolName: "update_schedule_event", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: `일정을 찾을 수 없습니다 (ID: ${eventId})`,
+    };
+  }
+
+  const updates: Partial<ScheduleEvent> = {};
+  if (input.date) updates.date = input.date as string;
+  if (input.title) updates.title = input.title as string;
+  if (input.memo !== undefined) updates.memo = input.memo as string;
+
+  const updatedEvents = events.map((e) =>
+    e.id === eventId ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e
+  );
+  const newProgress = { ...ctx.weddingContext.progress, __events: updatedEvents };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  const updated = updatedEvents.find((e) => e.id === eventId)!;
+
+  return {
+    toolName: "update_schedule_event", toolInput: input,
+    toolOutput: { event: updated, updates },
+    success: true,
+    displayMessage: `"${updated.title}" 일정이 수정되었습니다.`,
+  };
+}
+
+async function executeDeleteScheduleEvent(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const eventId = input.event_id as string;
+  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const existing = events.find((e) => e.id === eventId);
+  if (!existing) {
+    return {
+      toolName: "delete_schedule_event", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: `일정을 찾을 수 없습니다 (ID: ${eventId})`,
+    };
+  }
+
+  const newProgress = {
+    ...ctx.weddingContext.progress,
+    __events: events.filter((e) => e.id !== eventId),
+  };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+
+  return {
+    toolName: "delete_schedule_event", toolInput: input,
+    toolOutput: { deleted_event: existing },
+    success: true,
+    displayMessage: `"${existing.title}" (${existing.date}) 일정이 삭제되었습니다.`,
+  };
+}
+
+async function executeToggleChecklistItem(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const category = input.category as string;
+  const itemId = input.item_id as string;
+  const done = input.done as boolean;
+  const label = CATEGORY_LABELS[category] || category;
+
+  const template = CHECKLIST_MAP[category];
+  if (!template) {
+    return {
+      toolName: "toggle_checklist_item", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: `알 수 없는 카테고리: ${category}`,
+    };
+  }
+
+  const existing = ctx.weddingContext.progress[category];
+  const merged = mergeChecklist(
+    template.items,
+    (existing as { checklist?: { id: string; label: string; done: boolean }[] })?.checklist,
+    (existing?.status as "not_started" | "in_progress" | "completed") ?? "not_started"
+  );
+  const updated = merged.map((c) => (c.id === itemId ? { ...c, done } : c));
+  const newStatus = calculateStatus(updated);
+  const item = updated.find((c) => c.id === itemId);
+
+  if (!item) {
+    return {
+      toolName: "toggle_checklist_item", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: `항목을 찾을 수 없습니다 (ID: ${itemId})`,
+    };
+  }
+
+  const newProgress = {
+    ...ctx.weddingContext.progress,
+    [category]: {
+      ...(existing ?? { category }),
+      category, status: newStatus, checklist: updated,
+    },
+  };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as ExecutionContext["weddingContext"]["progress"];
+
+  return {
+    toolName: "toggle_checklist_item", toolInput: input,
+    toolOutput: { category, item_id: itemId, done, new_status: newStatus, item_label: item.label },
+    success: true,
+    displayMessage: `${label} - "${item.label}" ${done ? "완료" : "미완료"}로 변경되었습니다.`,
+  };
+}
+
+function executeGetScheduleEvents(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): ToolExecutionResult {
+  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const today = new Date().toISOString().slice(0, 10);
+  const fromDate = (input.from_date as string) || today;
+
+  let toDate = input.to_date as string;
+  if (!toDate) {
+    const d = new Date(fromDate);
+    d.setDate(d.getDate() + 30);
+    toDate = d.toISOString().slice(0, 10);
+  }
+
+  const filtered = events
+    .filter((e) => e.date >= fromDate && e.date <= toDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    toolName: "get_schedule_events", toolInput: input,
+    toolOutput: {
+      events: filtered,
+      count: filtered.length,
+      from_date: fromDate,
+      to_date: toDate,
+    },
+    success: true,
+    displayMessage: filtered.length > 0
+      ? `${fromDate} ~ ${toDate} 기간에 ${filtered.length}개 일정: ${filtered.map((e) => `${e.date} ${e.title}`).join(", ")}`
+      : `${fromDate} ~ ${toDate} 기간에 등록된 일정이 없습니다.`,
   };
 }
 

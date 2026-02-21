@@ -101,6 +101,58 @@ function syncToolResult(result: ToolExecutionResult) {
         venue: result.toolOutput.venue as string,
       });
       break;
+    case "add_schedule_event": {
+      const currentP1 = authStore.journey?.progress ?? {};
+      const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as unknown[];
+      const newEvt = result.toolOutput.event;
+      authStore.updateJourneyLocal({
+        progress: { ...currentP1, __events: [...curEvents1, newEvt] } as unknown as typeof currentP1,
+      });
+      break;
+    }
+    case "update_schedule_event": {
+      const currentP2 = authStore.journey?.progress ?? {};
+      const curEvents2 = ((currentP2 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
+      const evtId2 = result.toolInput.event_id as string;
+      const evtUpdates = result.toolOutput.updates as Record<string, unknown>;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentP2,
+          __events: curEvents2.map((e) => e.id === evtId2 ? { ...e, ...evtUpdates, updatedAt: new Date().toISOString() } : e),
+        } as unknown as typeof currentP2,
+      });
+      break;
+    }
+    case "delete_schedule_event": {
+      const currentP3 = authStore.journey?.progress ?? {};
+      const curEvents3 = ((currentP3 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
+      const evtId3 = result.toolInput.event_id as string;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentP3,
+          __events: curEvents3.filter((e) => e.id !== evtId3),
+        } as unknown as typeof currentP3,
+      });
+      break;
+    }
+    case "toggle_checklist_item": {
+      const currentP4 = authStore.journey?.progress ?? {};
+      const cat = result.toolInput.category as string;
+      const iId = result.toolInput.item_id as string;
+      const doneVal = result.toolInput.done as boolean;
+      const newStat = result.toolOutput.new_status as string;
+      const existingCat = currentP4[cat];
+      const cl = (existingCat?.checklist ?? []).map((c: { id: string; label: string; done: boolean }) =>
+        c.id === iId ? { ...c, done: doneVal } : c
+      );
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentP4,
+          [cat]: { ...(existingCat ?? { category: cat }), category: cat, status: newStat as "not_started" | "in_progress" | "completed", checklist: cl },
+        },
+      });
+      break;
+    }
   }
 }
 

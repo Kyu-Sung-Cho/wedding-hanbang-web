@@ -346,6 +346,45 @@ async function executeDemoTool(
         displayMessage: `예식장이 "${venue}"(으)로 설정되었습니다.`,
       };
     }
+    case "add_schedule_event": {
+      const events = ((ctx.weddingContext.progress as Record<string, unknown>).__events ?? []) as Array<Record<string, unknown>>;
+      const now = new Date().toISOString();
+      const newEvent = {
+        id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        date: toolInput.date, title: toolInput.title,
+        memo: toolInput.memo, categoryKey: toolInput.category_key,
+        createdAt: now, updatedAt: now,
+      };
+      (ctx.weddingContext.progress as Record<string, unknown>).__events = [...events, newEvent];
+      return {
+        toolName, toolInput, toolOutput: { event: newEvent }, success: true,
+        displayMessage: `${toolInput.date}에 "${toolInput.title}" 일정이 추가되었습니다.`,
+      };
+    }
+    case "update_schedule_event": {
+      const events = ((ctx.weddingContext.progress as Record<string, unknown>).__events ?? []) as Array<Record<string, unknown>>;
+      const idx = events.findIndex((e) => e.id === toolInput.event_id);
+      if (idx === -1) return { toolName, toolInput, toolOutput: {}, success: false, displayMessage: "일정을 찾을 수 없습니다." };
+      const updated = { ...events[idx], ...(toolInput.date ? { date: toolInput.date } : {}), ...(toolInput.title ? { title: toolInput.title } : {}), ...(toolInput.memo !== undefined ? { memo: toolInput.memo } : {}), updatedAt: new Date().toISOString() };
+      events[idx] = updated;
+      (ctx.weddingContext.progress as Record<string, unknown>).__events = [...events];
+      return { toolName, toolInput, toolOutput: { event: updated }, success: true, displayMessage: `"${updated.title}" 일정이 수정되었습니다.` };
+    }
+    case "delete_schedule_event": {
+      const events = ((ctx.weddingContext.progress as Record<string, unknown>).__events ?? []) as Array<Record<string, unknown>>;
+      const target = events.find((e) => e.id === toolInput.event_id);
+      if (!target) return { toolName, toolInput, toolOutput: {}, success: false, displayMessage: "일정을 찾을 수 없습니다." };
+      (ctx.weddingContext.progress as Record<string, unknown>).__events = events.filter((e) => e.id !== toolInput.event_id);
+      return { toolName, toolInput, toolOutput: { deleted_event: target }, success: true, displayMessage: `"${target.title}" 일정이 삭제되었습니다.` };
+    }
+    case "toggle_checklist_item": {
+      const { executeTool: exec } = await import("@/lib/ai/toolExecutor");
+      return exec(toolName, toolInput, ctx);
+    }
+    case "get_schedule_events": {
+      const { executeTool: exec } = await import("@/lib/ai/toolExecutor");
+      return exec(toolName, toolInput, ctx);
+    }
     default:
       return {
         toolName, toolInput, toolOutput: {}, success: false,

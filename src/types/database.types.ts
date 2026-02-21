@@ -48,6 +48,16 @@ export interface ProgressItem {
   checklist?: ChecklistItem[];
 }
 
+export interface ScheduleEvent {
+  id: string;
+  date: string;
+  title: string;
+  memo?: string;
+  categoryKey?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ToolExecutionResult {
   toolName: string;
   toolInput: Record<string, unknown>;
