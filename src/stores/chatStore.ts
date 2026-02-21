@@ -159,6 +159,63 @@ function messageMatchesRoom(msg: ChatMessage, roomId: string): boolean {
   return msgRoom === roomId;
 }
 
+// AI 메시지를 로컬 state에 먼저 추가, 그 다음 DB 저장 시도
+async function saveAiMessage(
+  set: (fn: ((s: ChatStoreState) => Partial<ChatStoreState>) | Partial<ChatStoreState>) => void,
+  params: {
+    coupleId: string;
+    fullContent: string;
+    aiMetadata: ChatMessageMetadata;
+    isDemo: boolean;
+  }
+) {
+  const { coupleId, fullContent, aiMetadata, isDemo } = params;
+  const tempId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  // 1) 로컬 state에 즉시 추가 (화면에 바로 보임)
+  const localMsg: ChatMessage = {
+    id: tempId,
+    couple_id: coupleId,
+    sender_id: null,
+    sender_role: "ai",
+    content: fullContent,
+    metadata: aiMetadata,
+    created_at: new Date().toISOString(),
+  };
+  set((s) => ({ messages: [...s.messages, localMsg] }));
+
+  // 2) DB에 저장 시도 (실패해도 로컬 메시지는 유지)
+  if (!isDemo) {
+    try {
+      const supabase = createClient();
+      const { data: aiInserted } = await supabase
+        .from("chat_messages")
+        .insert({
+          couple_id: coupleId,
+          sender_id: null,
+          sender_role: "ai",
+          content: fullContent,
+          metadata: aiMetadata,
+        })
+        .select()
+        .single();
+
+      // DB 저장 성공 시 tempId를 실제 ID로 교체
+      if (aiInserted) {
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === tempId
+              ? { ...aiInserted, metadata: aiInserted.metadata ?? aiMetadata } as ChatMessage
+              : m
+          ),
+        }));
+      }
+    } catch (err) {
+      console.error("AI 메시지 DB 저장 실패 (로컬에는 표시됨):", err);
+    }
+  }
+}
+
 export const useChatStore = create<ChatStoreState>((set, get) => ({
   messages: [],
   rooms: [],
@@ -236,8 +293,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     set({ messages: [], suggestions: [] });
   },
 
-  // 메시지 로드 (현재 방 필터)
+  // 메시지 로드 (현재 방 필터) — 스트리밍 중이면 스킵
   loadMessages: async (coupleId: string) => {
+    // 스트리밍 중에는 메시지 로드하지 않음 (로컬 메시지 덮어쓰기 방지)
+    if (get().isStreaming) return;
+
     set({ isLoading: true, error: null });
     try {
       const supabase = createClient();
@@ -249,6 +309,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .limit(500);
 
       if (error) throw error;
+
+      // 스트리밍이 시작되었으면 결과 무시 (race condition 방지)
+      if (get().isStreaming) return;
 
       const { activeRoomId } = get();
       const allMessages = (data ?? []).map((m) => ({
@@ -278,7 +341,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const { activeRoomId } = get();
 
     // roomId를 포함한 metadata
-    const msgMetadata = activeRoomId !== "default" ? { roomId: activeRoomId } : null;
+    const msgMetadata: ChatMessageMetadata | null = activeRoomId !== "default" ? { roomId: activeRoomId } : null;
 
     if (!isDemo) {
       const { data: inserted, error: insertErr } = await supabase
@@ -349,42 +412,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
 
       if (fullContent) {
-        // AI 메시지에도 roomId 태깅
         const aiMetadata: ChatMessageMetadata = {
           ...(finalMetadata ?? {}),
           ...(activeRoomId !== "default" ? { roomId: activeRoomId } : {}),
         };
 
-        if (!isDemo) {
-          const { data: aiInserted } = await supabase
-            .from("chat_messages")
-            .insert({
-              couple_id: coupleId,
-              sender_id: null,
-              sender_role: "ai",
-              content: fullContent,
-              metadata: aiMetadata,
-            })
-            .select()
-            .single();
-
-          if (aiInserted) {
-            set((s) => ({
-              messages: [...s.messages, { ...aiInserted, metadata: aiInserted.metadata ?? aiMetadata } as ChatMessage],
-            }));
-          }
-        } else {
-          const demoAiMsg: ChatMessage = {
-            id: `demo-ai-${Date.now()}`,
-            couple_id: coupleId,
-            sender_id: null,
-            sender_role: "ai",
-            content: fullContent,
-            metadata: aiMetadata,
-            created_at: new Date().toISOString(),
-          };
-          set((s) => ({ messages: [...s.messages, demoAiMsg] }));
-        }
+        // 로컬에 먼저 추가 → DB 저장 시도 (실패해도 보임)
+        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
       console.error("AI 응답 에러:", err);
@@ -435,37 +469,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         };
         const isDemo = document.cookie.includes("demo_mode=true");
 
-        if (!isDemo) {
-          const supabase = createClient();
-          const { data: aiInserted } = await supabase
-            .from("chat_messages")
-            .insert({
-              couple_id: coupleId,
-              sender_id: null,
-              sender_role: "ai",
-              content: fullContent,
-              metadata: aiMetadata,
-            })
-            .select()
-            .single();
-
-          if (aiInserted) {
-            set((s) => ({
-              messages: [...s.messages, { ...aiInserted, metadata: aiInserted.metadata ?? aiMetadata } as ChatMessage],
-            }));
-          }
-        } else {
-          const demoAiMsg: ChatMessage = {
-            id: `demo-ai-init-${Date.now()}`,
-            couple_id: coupleId,
-            sender_id: null,
-            sender_role: "ai",
-            content: fullContent,
-            metadata: aiMetadata,
-            created_at: new Date().toISOString(),
-          };
-          set((s) => ({ messages: [...s.messages, demoAiMsg] }));
-        }
+        // 로컬에 먼저 추가 → DB 저장 시도 (실패해도 보임)
+        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
       console.error("초기 인사 에러:", err);

@@ -123,9 +123,10 @@ export default function ChatPage() {
 
   const handleClearRoom = async () => {
     if (!coupleId) return;
-    await clearRoom(coupleId, activeRoomId);
-    // 초기화 후 다시 AI 인사를 받을 수 있도록 tracker에서 제거
+    // tracker를 먼저 삭제해야 clearRoom의 set({messages:[]}) 후
+    // 재렌더링에서 greeting effect가 바로 트리거됨
     greetingRequestedForRoom.current.delete(activeRoomId);
+    await clearRoom(coupleId, activeRoomId);
     setShowClearConfirm(false);
   };
 
