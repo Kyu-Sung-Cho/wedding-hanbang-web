@@ -50,4 +50,11 @@ export type SSEEvent =
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
   | { type: "error"; message: string };
 
+// 채팅방
+export interface ChatRoom {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
 export type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata };

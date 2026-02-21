@@ -50,6 +50,7 @@ export interface ToolExecutionResult {
 }
 
 export interface ChatMessageMetadata {
+  roomId?: string;
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
 }
