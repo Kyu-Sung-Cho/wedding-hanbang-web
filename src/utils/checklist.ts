@@ -1,11 +1,17 @@
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 // 템플릿과 저장된 체크리스트 병합
+// status를 전달하면 체크리스트 데이터가 없을 때 status에 맞게 done 값 설정
 export function mergeChecklist(
   template: ChecklistItem[],
-  saved: ChecklistItem[] | undefined
+  saved: ChecklistItem[] | undefined,
+  status?: ProgressItem["status"]
 ): ChecklistItem[] {
   if (!saved || saved.length === 0) {
+    // 체크리스트 데이터가 없으면 기존 status 기반으로 초기화
+    if (status === "completed") {
+      return template.map((item) => ({ ...item, done: true }));
+    }
     return template.map((item) => ({ ...item }));
   }
 

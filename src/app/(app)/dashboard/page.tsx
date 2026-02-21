@@ -224,7 +224,7 @@ export default function DashboardPage() {
               const status = item?.status ?? "not_started";
               const style = STATUS_STYLES[status] ?? STATUS_STYLES.not_started;
               const template = CHECKLIST_MAP[key];
-              const merged = template ? mergeChecklist(template.items, item?.checklist) : [];
+              const merged = template ? mergeChecklist(template.items, item?.checklist, status as "not_started" | "in_progress" | "completed") : [];
               const { done, total } = getChecklistCounts(merged);
               return (
                 <div

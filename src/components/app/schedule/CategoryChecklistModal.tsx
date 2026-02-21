@@ -66,7 +66,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   // 모달 열릴 때 체크리스트 초기화
   useEffect(() => {
     if (!isOpen || !template) return;
-    const merged = mergeChecklist(template.items, existing?.checklist);
+    const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
     setChecklist(merged);
   }, [isOpen, categoryKey, template, existing?.checklist]);
 

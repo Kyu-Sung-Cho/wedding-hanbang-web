@@ -155,7 +155,7 @@ export default function TimelineView({ progress, onCategoryClick }: Props) {
                     const template = isCategory ? CHECKLIST_MAP[task.key] : null;
                     const existing = isCategory ? progress[task.key] : undefined;
                     const merged = template
-                      ? mergeChecklist(template.items, existing?.checklist)
+                      ? mergeChecklist(template.items, existing?.checklist, existing?.status)
                       : [];
                     const { done: checkDone, total: checkTotal } =
                       getChecklistCounts(merged);

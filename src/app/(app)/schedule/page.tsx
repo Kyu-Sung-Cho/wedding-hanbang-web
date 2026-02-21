@@ -34,7 +34,7 @@ export default function SchedulePage() {
       const template = CHECKLIST_MAP[key];
       if (!template) return acc;
       const existing = progress[key];
-      const merged = mergeChecklist(template.items, existing?.checklist);
+      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
       const { done, total } = getChecklistCounts(merged);
       return { totalDone: acc.totalDone + done, totalItems: acc.totalItems + total };
     },
