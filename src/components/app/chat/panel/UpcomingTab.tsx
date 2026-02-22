@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AlertTriangle, CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
@@ -9,8 +9,8 @@ import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
-  overdue: { badge: "bg-red-500 text-white", text: "text-red-500" },
-  urgent: { badge: "bg-orange-500 text-white", text: "text-orange-500" },
+  overdue: { badge: "bg-[#9A6B62] text-white", text: "text-[#9A6B62]" },
+  urgent: { badge: "bg-[#C4967E] text-white", text: "text-[#C4967E]" },
   soon: { badge: "bg-[#C9A96E] text-white", text: "text-[#C9A96E]" },
 };
 
@@ -75,7 +75,7 @@ export default function UpcomingTab() {
                   key={item.key}
                   className="flex items-center gap-2.5 py-1.5"
                 >
-                  <AlertTriangle className={`w-3.5 h-3.5 flex-shrink-0 ${colors.text}`} />
+                  <Clock className={`w-3.5 h-3.5 flex-shrink-0 ${colors.text}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-noir-800 font-medium truncate">
