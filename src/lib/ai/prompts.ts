@@ -1,3 +1,6 @@
+import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+
 export function getWeddingPlannerSystemPrompt(context: {
   weddingDate: string | null;
   budget: number;
@@ -102,10 +105,20 @@ export function getWeddingPlannerSystemPrompt(context: {
     }
   }
 
-  // 준비 완료율 계산
-  const totalCategories = ALL_CATEGORIES.length;
-  const completedCount = completedItems.length;
-  const progressPercent = Math.round((completedCount / totalCategories) * 100);
+  // 준비 완료율 계산 (개별 체크리스트 항목 기준)
+  const { itemDone, itemTotal } = CATEGORY_CHECKLISTS.reduce(
+    (acc, cat) => {
+      const template = CHECKLIST_MAP[cat.key];
+      if (!template) return acc;
+      const existing = progressEntries.find(([k]) => k === cat.key);
+      const entry = existing ? existing[1] as { status?: string; checklist?: { id: string; label: string; done: boolean }[] } : undefined;
+      const merged = mergeChecklist(template.items, entry?.checklist, entry?.status as "not_started" | "in_progress" | "completed" | undefined);
+      const counts = getChecklistCounts(merged);
+      return { itemDone: acc.itemDone + counts.done, itemTotal: acc.itemTotal + counts.total };
+    },
+    { itemDone: 0, itemTotal: 0 }
+  );
+  const progressPercent = itemTotal > 0 ? Math.round((itemDone / itemTotal) * 100) : 0;
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너입니다.
 
@@ -119,7 +132,7 @@ export function getWeddingPlannerSystemPrompt(context: {
 - ${dateInfo} ${dDayInfo ? `(${dDayInfo})` : ""}
 - ${budgetInfo}
 - ${venueInfo}
-- 준비 완료율: ${progressPercent}% (${completedCount}/${totalCategories})
+- 준비 완료율: ${progressPercent}% (${itemDone}/${itemTotal} 항목)
 - 완료: ${completedItems.length > 0 ? completedItems.map((k) => CATEGORY_KR[k] || k).join(", ") : "없음"}
 - 진행중: ${inProgressItems.length > 0 ? inProgressItems.map((k) => CATEGORY_KR[k] || k).join(", ") : "없음"}
 - 시작전: ${notStartedItems.length > 0 ? notStartedItems.map((c) => CATEGORY_KR[c]).join(", ") : "모두 시작됨"}

@@ -15,7 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { CHECKLIST_MAP } from "@/constants/checklists";
+import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 
@@ -81,17 +81,20 @@ export default function DashboardPage() {
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  // 진행률 계산
+  // 진행률 계산 (개별 체크리스트 항목 기준 — 일정/채팅 패널과 동일)
   const progress = journey?.progress ?? {};
-  const categoryKeys = Object.keys(CATEGORY_LABELS);
-  const totalCategories = categoryKeys.length;
-  const completedCategories = categoryKeys.filter(
-    (k) => (progress[k] as { status: string } | undefined)?.status === "completed"
-  ).length;
-  const progressPercent =
-    totalCategories > 0
-      ? Math.round((completedCategories / totalCategories) * 100)
-      : 0;
+  const { totalDone, totalItems } = CATEGORY_CHECKLISTS.reduce(
+    (acc, cat) => {
+      const template = CHECKLIST_MAP[cat.key];
+      if (!template) return acc;
+      const existing = progress[cat.key] as { status?: string; checklist?: { id: string; label: string; done: boolean }[] } | undefined;
+      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status as "not_started" | "in_progress" | "completed" | undefined);
+      const counts = getChecklistCounts(merged);
+      return { totalDone: acc.totalDone + counts.done, totalItems: acc.totalItems + counts.total };
+    },
+    { totalDone: 0, totalItems: 0 }
+  );
+  const progressPercent = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
   // 예산 포맷
   const budget = journey?.total_budget ?? 0;
@@ -185,7 +188,7 @@ export default function DashboardPage() {
                 <span className="text-[10px] text-white/30">진행률</span>
               </div>
             </div>
-            <p className="text-white/40 text-[12px] mt-2">{completedCategories}/{totalCategories} 카테고리 완료</p>
+            <p className="text-white/40 text-[12px] mt-2">{totalDone}/{totalItems} 항목 완료</p>
           </div>
         </div>
       </motion.div>
