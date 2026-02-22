@@ -7,9 +7,11 @@ import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { getEvents } from "@/utils/scheduleEvents";
+import { getImminentCategories } from "@/utils/imminentChecklist";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import type { ScheduleEvent, ProgressItem } from "@/types/database.types";
 
@@ -57,6 +59,12 @@ export default function SchedulePage() {
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 5);
   }, [events, todayStr]);
+
+  // 임박 카테고리
+  const imminentCategories = useMemo(
+    () => getImminentCategories(progress, weddingDate),
+    [progress, weddingDate]
+  );
 
   // 전체 체크리스트 기준 완료 수 계산
   const { totalDone, totalItems } = CATEGORY_KEYS.reduce(
@@ -259,6 +267,12 @@ export default function SchedulePage() {
           </div>
         </div>
       </motion.div>
+
+      {/* 임박 체크리스트 */}
+      <ImminentAlerts
+        items={imminentCategories}
+        onCategoryClick={handleCategoryClick}
+      />
 
       {/* 다가오는 일정 */}
       {upcomingEvents.length > 0 && (

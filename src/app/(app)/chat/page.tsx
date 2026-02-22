@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Plus, Trash2, X, MessageSquare } from "lucide-react";
+import { Send, Sparkles, Plus, Trash2, X, MessageSquare, PanelRightOpen } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
 import ActionCard from "@/components/app/chat/ActionCard";
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
+import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 
 const MAX_ROOMS = 5;
 
@@ -39,6 +40,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const greetingRequestedForRoom = useRef<Set<string>>(new Set());
   const coupleId = couple?.id;
@@ -206,11 +208,24 @@ export default function ChatPage() {
           </button>
         )}
 
+        {/* 정보 패널 토글 */}
+        <button
+          onClick={() => setInfoPanelOpen(!infoPanelOpen)}
+          className={`flex-shrink-0 ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+            infoPanelOpen
+              ? "text-[#C4967E] bg-[#C4967E]/10"
+              : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
+          }`}
+        >
+          <PanelRightOpen className="w-3 h-3" />
+          정보
+        </button>
+
         {/* 현재 방 초기화 버튼 */}
         {messages.length > 0 && (
           <button
             onClick={() => setShowClearConfirm(true)}
-            className="flex-shrink-0 ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           >
             <Trash2 className="w-3 h-3" />
             초기화
@@ -328,6 +343,9 @@ export default function ChatPage() {
           </button>
         </div>
       </div>
+
+      {/* 정보 패널 */}
+      <ChatInfoPanel isOpen={infoPanelOpen} onClose={() => setInfoPanelOpen(false)} />
     </div>
   );
 }
