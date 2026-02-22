@@ -9,6 +9,7 @@ import {
   Pencil,
   Check,
   X,
+  RotateCcw,
   Users,
   Camera,
   Shirt,
@@ -87,11 +88,15 @@ function formatWonFull(n: number): string {
 function InlineMoneyEdit({
   value,
   onSave,
+  onReset,
   label,
+  highlight,
 }: {
   value: number;
   onSave: (v: number) => void;
+  onReset?: () => void;
   label: string;
+  highlight?: "spent" | "budget";
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
@@ -134,10 +139,10 @@ function InlineMoneyEdit({
           className="w-[80px] px-2 py-1 rounded-lg border border-rose-500/30 text-[13px] text-right text-noir-800 focus:outline-none focus:border-rose-500"
         />
         <span className="text-[11px] text-taupe-400">만원</span>
-        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10">
+        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10" title="저장">
           <Check className="w-3.5 h-3.5" />
         </button>
-        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10">
+        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10" title="취소">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -145,16 +150,35 @@ function InlineMoneyEdit({
   }
 
   return (
-    <button
-      onClick={startEdit}
-      className="flex items-center gap-1 group"
-      title={`${label} 수정`}
-    >
-      <span className="text-[13px] font-medium text-noir-800">
-        {formatWon(value)}
-      </span>
-      <Pencil className="w-3 h-3 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-    </button>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={startEdit}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${
+          highlight === "spent"
+            ? "hover:bg-rose-500/5 border border-transparent hover:border-rose-500/20"
+            : "hover:bg-gold/5 border border-transparent hover:border-gold/20"
+        }`}
+        title={`${label} 수정`}
+      >
+        <span className={`text-[13px] font-medium ${
+          highlight === "spent" ? "text-noir-800" : "text-taupe-500"
+        }`}>
+          {formatWon(value)}
+        </span>
+        <Pencil className={`w-3 h-3 ${
+          highlight === "spent" ? "text-rose-500/40" : "text-gold/40"
+        }`} />
+      </button>
+      {onReset && value > 0 && (
+        <button
+          onClick={onReset}
+          className="w-5 h-5 rounded flex items-center justify-center text-taupe-400/50 hover:text-red-400 hover:bg-red-50 transition-colors"
+          title={`${label} 초기화`}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -168,6 +192,7 @@ function BudgetRow({
   status,
   onBudgetChange,
   onSpentChange,
+  onSpentReset,
   delay,
 }: {
   catKey: string;
@@ -178,10 +203,11 @@ function BudgetRow({
   status: string;
   onBudgetChange: (key: string, val: number) => void;
   onSpentChange: (key: string, val: number) => void;
+  onSpentReset: (key: string) => void;
   delay: number;
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-  const isOver = spent > budget;
+  const isOver = spent > budget && budget > 0;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
@@ -189,46 +215,62 @@ function BudgetRow({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay }}
-      className="flex items-center gap-4 px-5 py-4 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
+      className="flex items-center gap-3 px-5 py-3.5 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
     >
       {/* 아이콘 + 이름 */}
-      <div className="flex items-center gap-2.5 w-[110px] flex-shrink-0 max-md:w-full">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500/10 to-gold/10 flex items-center justify-center flex-shrink-0">
-          <Icon className="w-4 h-4 text-rose-500" />
+      <div className="flex items-center gap-2.5 w-[120px] flex-shrink-0 max-md:w-full">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          isOver
+            ? "bg-red-50 ring-1 ring-red-200"
+            : "bg-gradient-to-br from-rose-500/10 to-gold/10"
+        }`}>
+          <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-rose-500"}`} />
         </div>
         <span className="text-[13px] font-medium text-noir-800">{label}</span>
       </div>
 
-      {/* 진행 바 */}
+      {/* 진행 바 + 퍼센트 */}
       <div className="flex-1 min-w-0 max-md:order-last max-md:w-full">
-        <div className="h-2 bg-ivory-warm rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              isOver ? "bg-red-400" : "bg-gradient-to-r from-rose-500 to-gold"
-            }`}
-            style={{ width: `${Math.min(percent, 100)}%` }}
-          />
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-2 bg-ivory-warm rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isOver ? "bg-red-400" : "bg-gradient-to-r from-rose-500 to-gold"
+              }`}
+              style={{ width: `${Math.min(percent, 100)}%` }}
+            />
+          </div>
+          <span className={`text-[10px] font-medium w-[32px] text-right flex-shrink-0 ${
+            isOver ? "text-red-400" : percent >= 100 ? "text-[#2E7D5A]" : "text-taupe-400"
+          }`}>
+            {percent}%
+          </span>
         </div>
       </div>
 
-      {/* 지출 (편집 가능) */}
-      <div className="w-[120px] flex-shrink-0 text-right max-md:w-auto">
+      {/* 지출 (편집 가능) - 라벨 포함 */}
+      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
+        <span className="text-[9px] text-taupe-400 mb-0.5">지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
+          onReset={() => onSpentReset(catKey)}
           label={`${label} 지출`}
+          highlight="spent"
         />
       </div>
 
       {/* 구분선 */}
-      <span className="text-[11px] text-taupe-300 flex-shrink-0">/</span>
+      <span className="text-[11px] text-taupe-300 flex-shrink-0 self-end mb-1">/</span>
 
-      {/* 예산 (편집 가능) */}
-      <div className="w-[120px] flex-shrink-0 text-right max-md:w-auto">
+      {/* 예산 (편집 가능) - 라벨 포함 */}
+      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
+        <span className="text-[9px] text-taupe-400 mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
           onSave={(v) => onBudgetChange(catKey, v)}
           label={`${label} 예산`}
+          highlight="budget"
         />
       </div>
 
@@ -333,6 +375,22 @@ export default function BudgetPage() {
           ...(existing ?? { category: key, status: "not_started" as const }),
           category: key,
           spent: newSpent,
+        },
+      };
+      await updateJourney({ progress: newProgress });
+    },
+    [progress, updateJourney]
+  );
+
+  const handleSpentReset = useCallback(
+    async (key: string) => {
+      const existing = progress[key];
+      const newProgress = {
+        ...progress,
+        [key]: {
+          ...(existing ?? { category: key, status: "not_started" as const }),
+          category: key,
+          spent: 0,
         },
       };
       await updateJourney({ progress: newProgress });
@@ -491,6 +549,7 @@ export default function BudgetPage() {
                 status={getStatusLabel(key)}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
+                onSpentReset={handleSpentReset}
                 delay={0.2 + i * 0.03}
               />
             );
@@ -507,8 +566,8 @@ export default function BudgetPage() {
         <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
           <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">기타 카테고리</h3>
           <div className="flex items-center gap-1.5 text-[11px] text-taupe-400">
-            <AlertTriangle className="w-3.5 h-3.5 text-gold" />
-            금액을 클릭하면 수정할 수 있어요
+            <Pencil className="w-3 h-3 text-rose-500/40" />
+            클릭하여 수정 · <X className="w-3 h-3 text-taupe-400/50" /> 초기화
           </div>
         </div>
         <div className="divide-y divide-black/[0.03]">
@@ -525,6 +584,7 @@ export default function BudgetPage() {
                 status={getStatusLabel(key)}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
+                onSpentReset={handleSpentReset}
                 delay={0.3 + i * 0.03}
               />
             );
