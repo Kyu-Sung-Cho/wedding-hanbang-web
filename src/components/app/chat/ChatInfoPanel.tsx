@@ -27,13 +27,13 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* 배경 오버레이 */}
+          {/* 배경 오버레이 (모바일만) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/20 z-40"
+            className="fixed inset-0 bg-black/20 z-40 md:hidden"
             onClick={onClose}
           />
 

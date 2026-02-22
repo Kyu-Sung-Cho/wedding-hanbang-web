@@ -167,7 +167,9 @@ export default function ChatPage() {
   const totalRooms = allRoomTabs.length;
 
   return (
-    <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex flex-col">
+    <div className={`max-w-[800px] mx-auto h-[calc(100vh-144px)] flex flex-col transition-all duration-300 ${
+      infoPanelOpen ? "md:mr-[390px]" : ""
+    }`}>
       {/* 방 탭 바 */}
       <div className="flex items-center gap-1.5 px-2 pb-2 pt-1 overflow-x-auto scrollbar-hide">
         {allRoomTabs.map((tab) => (
