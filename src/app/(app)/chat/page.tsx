@@ -167,9 +167,10 @@ export default function ChatPage() {
   const totalRooms = allRoomTabs.length;
 
   return (
-    <div className={`max-w-[800px] mx-auto h-[calc(100vh-144px)] flex flex-col transition-all duration-300 ${
-      infoPanelOpen ? "md:mr-[390px]" : ""
+    <div className={`h-[calc(100vh-144px)] transition-all duration-300 ${
+      infoPanelOpen ? "md:pr-[390px]" : ""
     }`}>
+    <div className="max-w-[800px] mx-auto h-full flex flex-col">
       {/* 방 탭 바 */}
       <div className="flex items-center gap-1.5 px-2 pb-2 pt-1 overflow-x-auto scrollbar-hide">
         {allRoomTabs.map((tab) => (
@@ -346,6 +347,7 @@ export default function ChatPage() {
         </div>
       </div>
 
+    </div>
       {/* 정보 패널 */}
       <ChatInfoPanel isOpen={infoPanelOpen} onClose={() => setInfoPanelOpen(false)} />
     </div>
