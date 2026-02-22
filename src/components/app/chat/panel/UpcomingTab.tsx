@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { getImminentCategories } from "@/utils/imminentChecklist";
+import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
@@ -50,6 +50,11 @@ export default function UpcomingTab() {
     [progress, weddingDate]
   );
 
+  const completedImminent = useMemo(
+    () => getCompletedImminentCategories(progress, weddingDate),
+    [progress, weddingDate]
+  );
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
     return getEvents(progress as Record<string, unknown>)
@@ -60,7 +65,7 @@ export default function UpcomingTab() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* 임박 체크리스트 */}
+      {/* 임박 체크리스트 (미완료) */}
       <CollapsibleSection
         title="임박 체크리스트"
         count={imminentCategories.length}
@@ -98,6 +103,37 @@ export default function UpcomingTab() {
         ) : (
           <p className="text-[11px] text-taupe-400 py-2 text-center">
             {weddingDate ? "임박한 항목이 없습니다" : "결혼 날짜를 설정하세요"}
+          </p>
+        )}
+      </CollapsibleSection>
+
+      {/* 완료된 임박 항목 */}
+      <CollapsibleSection
+        title="완료된 항목"
+        count={completedImminent.length}
+      >
+        {completedImminent.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            {completedImminent.map((item) => (
+              <div
+                key={item.key}
+                className="flex items-center gap-2.5 py-1.5 opacity-60"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7D5A] flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-[11px] text-noir-800 font-medium truncate block">
+                    {item.label}
+                  </span>
+                </div>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 bg-[#2E7D5A] text-white">
+                  완료
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-taupe-400 py-2 text-center">
+            아직 완료된 임박 항목이 없습니다
           </p>
         )}
       </CollapsibleSection>

@@ -71,3 +71,52 @@ export function getImminentCategories(
 
   return result;
 }
+
+/**
+ * 완료된 임박 카테고리 계산
+ * 마감일 60일 이내이면서 status === "completed"인 카테고리
+ */
+export function getCompletedImminentCategories(
+  progress: Record<string, ProgressItem>,
+  weddingDate: Date | null
+): ImminentCategory[] {
+  if (!weddingDate) return [];
+
+  const now = new Date();
+  const result: ImminentCategory[] = [];
+
+  for (const cat of CATEGORY_CHECKLISTS) {
+    const item = progress[cat.key];
+    const status: ProgressItem["status"] = item?.status ?? "not_started";
+    if (status !== "completed") continue;
+
+    const deadlineDate = new Date(weddingDate);
+    deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
+
+    const daysLeft = Math.ceil(
+      (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysLeft > 60) continue;
+
+    const template = CHECKLIST_MAP[cat.key];
+    const merged = template
+      ? mergeChecklist(template.items, item?.checklist, status)
+      : [];
+    const { done, total } = getChecklistCounts(merged);
+
+    result.push({
+      key: cat.key,
+      label: cat.label,
+      icon: cat.icon,
+      status,
+      doneCount: done,
+      totalCount: total,
+      deadlineDaysLeft: daysLeft,
+      urgency: daysLeft <= 0 ? "overdue" : daysLeft <= 30 ? "urgent" : "soon",
+    });
+  }
+
+  result.sort((a, b) => a.deadlineDaysLeft - b.deadlineDaysLeft);
+  return result;
+}
