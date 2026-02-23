@@ -44,7 +44,7 @@ const steps = [
       </svg>
     ),
     title: "완벽한 결혼 준비 시작",
-    desc: "AI가 D-day까지 함께합니다. 상담, 예산, 일정 모든 걸 하나의 앱에서.",
+    desc: "AI가 D-day까지 함께합니다. 상담, 예산, 일정 모든 걸 하나의 플랫폼에서.",
     highlight: "All-in-One",
   },
 ];

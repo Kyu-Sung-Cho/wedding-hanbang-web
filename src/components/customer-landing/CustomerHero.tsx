@@ -46,7 +46,7 @@ export default function CustomerHero() {
           결혼 준비,
           <br />
           <em className="not-italic font-medium bg-gradient-to-br from-rose-500 to-gold bg-clip-text text-transparent">
-            이제 혼자 고민하지 마세요
+            한방에 해결하세요
           </em>
         </motion.h1>
 
@@ -55,13 +55,13 @@ export default function CustomerHero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.6 }}
-          className="text-[clamp(15px,1.6vw,18px)] leading-[1.8] text-charcoal max-w-[520px] mx-auto mb-12 font-light"
+          className="text-[clamp(15px,1.6vw,18px)] leading-[1.8] text-charcoal max-w-[540px] mx-auto mb-12 font-light"
         >
-          새벽 2시에도 답해주는 AI 웨딩 플래너,
+          AI가 나에게 딱 맞는 업체를 추천하고,
           <br />
-          집에서 입어보는 가상 드레스 피팅,
+          새벽에도 답해주는 웨딩 플래너가 되어주고,
           <br />
-          커플이 함께 관리하는 스마트 예산까지.
+          커플이 함께 예산과 일정을 관리할 수 있어요.
         </motion.p>
 
         {/* CTA */}

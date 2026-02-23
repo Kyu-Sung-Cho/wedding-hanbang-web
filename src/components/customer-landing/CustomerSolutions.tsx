@@ -201,10 +201,10 @@ export default function CustomerSolutions() {
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.num}
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.8, delay: i * 0.05 }}
+            viewport={{ once: true, margin: "-30px" }}
+            transition={{ duration: 0.6, delay: i * 0.03 }}
             className={`bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-1 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 items-stretch max-md:grid-cols-1 ${
               i % 2 === 1 ? "md:direction-rtl" : ""
             }`}

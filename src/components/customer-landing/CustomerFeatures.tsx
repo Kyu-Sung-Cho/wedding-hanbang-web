@@ -30,7 +30,7 @@ const features = [
       </svg>
     ),
     title: "업체 포트폴리오 탐색",
-    desc: "실제 촬영 사진, 드레스 컬렉션, 메이크업 포트폴리오를 앱에서 바로 확인하세요. 다른 커플들의 리뷰도 함께 볼 수 있습니다.",
+    desc: "실제 촬영 사진, 드레스 컬렉션, 메이크업 포트폴리오를 바로 확인하세요. 다른 커플들의 리뷰도 함께 볼 수 있습니다.",
     tag: "탐색",
   },
   {
@@ -50,7 +50,7 @@ const features = [
       </svg>
     ),
     title: "업체 직접 문의",
-    desc: "궁금한 점은 앱 내에서 업체에 바로 문의하세요. AI가 기본 답변을 즉시 해주고, 자세한 내용은 업체가 직접 답변합니다.",
+    desc: "궁금한 점은 플랫폼에서 업체에 바로 문의하세요. AI가 기본 답변을 즉시 해주고, 자세한 내용은 업체가 직접 답변합니다.",
     tag: "문의",
   },
 ];
@@ -85,11 +85,11 @@ export default function CustomerFeatures() {
         {features.map((feat, i) => (
           <motion.div
             key={feat.title}
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.7, delay: i * 0.08 }}
-            className="group bg-ivory-warm rounded-2xl p-7 border border-transparent hover:border-rose-pale hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all duration-500"
+            viewport={{ once: true, margin: "-30px" }}
+            transition={{ duration: 0.5, delay: i * 0.05 }}
+            className="group bg-ivory-warm rounded-2xl p-7 border border-transparent hover:border-rose-pale hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all duration-500"
           >
             <div className="w-12 h-12 rounded-xl bg-noir-800 text-rose-500 flex items-center justify-center mb-5 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-500">
               {feat.icon}

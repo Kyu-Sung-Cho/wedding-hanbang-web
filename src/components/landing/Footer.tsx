@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-[60px] max-w-[1200px] mx-auto mb-[60px] max-lg:grid-cols-2 max-md:grid-cols-1 max-md:gap-8">
         {/* 브랜드 */}
         <div>
-          <a href="#" className="no-underline">
+          <a href="/" className="no-underline">
             <Logo size="sm" variant="white" />
           </a>
           <p className="text-[14px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
@@ -21,10 +21,10 @@ export default function Footer() {
           <h5 className="text-[12px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
             서비스
           </h5>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">AI 웨딩 플래너</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">가상 드레스 피팅</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">예산 관리</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">일정 관리</a>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">AI 웨딩 플래너</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">AI 맞춤 업체 추천</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">예산 관리</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">일정 관리</span>
         </div>
 
         {/* 고객 지원 */}
@@ -32,10 +32,10 @@ export default function Footer() {
           <h5 className="text-[12px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
             고객 지원
           </h5>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">자주 묻는 질문</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">이용약관</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">개인정보처리방침</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">제휴 문의</a>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">자주 묻는 질문</span>
+          <a href="/terms" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">이용약관</a>
+          <a href="/privacy" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">개인정보처리방침</a>
+          <a href="mailto:contact@hanbang.ai" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">제휴 문의</a>
         </div>
 
         {/* 회사 */}
@@ -43,10 +43,10 @@ export default function Footer() {
           <h5 className="text-[12px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
             회사
           </h5>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">웨딩한방 소개</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">채용</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">블로그</a>
-          <a href="#" className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors">보도자료</a>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">웨딩한방 소개</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">채용</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">블로그</span>
+          <span className="block text-white/60 text-[14px] mb-3 font-light">보도자료</span>
         </div>
       </div>
 
@@ -60,14 +60,13 @@ export default function Footer() {
             { label: "KT", title: "KakaoTalk" },
             { label: "BL", title: "Blog" },
           ].map((social) => (
-            <a
+            <span
               key={social.label}
-              href="#"
               title={social.title}
-              className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/40 no-underline text-[14px] hover:bg-rose-500/15 hover:text-rose-light transition-all"
+              className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/40 text-[14px] cursor-default"
             >
               {social.label}
-            </a>
+            </span>
           ))}
         </div>
       </div>
