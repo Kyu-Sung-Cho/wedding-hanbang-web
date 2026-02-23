@@ -91,6 +91,33 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
           </div>
         )}
 
+        {/* 설문 참여 혜택 */}
+        <div className="bg-white rounded-2xl border border-platinum p-6 mb-5">
+          <p className="text-[12px] text-rose-500 font-medium tracking-wide mb-3">
+            설문 참여 혜택
+          </p>
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-start gap-2.5">
+              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
+              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
+                정식 출시 <span className="font-medium">우선 초대</span>
+              </p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
+              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
+                베타 파트너 <span className="font-medium">수수료 할인</span>
+              </p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
+              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
+                맞춤 기능 <span className="font-medium">우선 개발</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* 안내 */}
         <div className="flex items-center justify-center gap-6 mb-8 text-[13px] text-taupe-500">
           <span className="flex items-center gap-1.5">
