@@ -183,7 +183,7 @@ export const makeupConfig: ShopConfig = {
           id: 'q11',
           type: 'text_area',
           required: false,
-          question: '플랫폼이 고객한테 미리 물어봐서 사장님께 알려드렸으면 하는 정보가 있으세요?',
+          question: '플랫폼이 고객한테 미리 물어봐서 대표님께 알려드렸으면 하는 정보가 있으세요?',
           placeholder: '예: 피부 타입, 선호 스타일(내추럴/글램), 알레르기 유무 등',
           maxLength: 500,
         },
@@ -200,7 +200,7 @@ export const makeupConfig: ShopConfig = {
     {
       id: 'section4',
       title: '기능 평가',
-      sectionNote: '아래 기능들이 실제로 제공된다면, 사장님 사업에 얼마나 도움이 될 것 같으세요?',
+      sectionNote: '아래 기능들이 실제로 제공된다면, 대표님 사업에 얼마나 도움이 될 것 같으세요?',
       questions: [
         {
           id: 'q13',
@@ -248,7 +248,7 @@ export const makeupConfig: ShopConfig = {
           id: 'q20',
           type: 'likert_5',
           required: true,
-          question: "'경쟁사 대비 사장님 샵의 리허설 만족도가 30% 높아요' 같은 분석 리포트를 드린다면?",
+          question: "'경쟁사 대비 대표님 샵의 리허설 만족도가 30% 높아요' 같은 분석 리포트를 드린다면?",
         },
         {
           id: 'q_traits',

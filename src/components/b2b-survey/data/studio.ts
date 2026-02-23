@@ -183,7 +183,7 @@ export const studioConfig: ShopConfig = {
           id: 'q11',
           type: 'text_area',
           required: false,
-          question: '플랫폼이 고객한테 미리 물어봐서 사장님께 알려드렸으면 하는 정보가 있으세요?',
+          question: '플랫폼이 고객한테 미리 물어봐서 대표님께 알려드렸으면 하는 정보가 있으세요?',
           placeholder: '예: 예산, 촬영 컨셉, 선호 배경, 원본 추가 구매 의향 등',
           maxLength: 500,
         },
@@ -200,7 +200,7 @@ export const studioConfig: ShopConfig = {
     {
       id: 'section4',
       title: '기능 평가',
-      sectionNote: '아래 기능들이 실제로 제공된다면, 사장님 사업에 얼마나 도움이 될 것 같으세요?',
+      sectionNote: '아래 기능들이 실제로 제공된다면, 대표님 사업에 얼마나 도움이 될 것 같으세요?',
       questions: [
         {
           id: 'q13',
@@ -230,7 +230,7 @@ export const studioConfig: ShopConfig = {
           id: 'q17',
           type: 'likert_5',
           required: true,
-          question: "'경쟁사 A 대비 사장님 스튜디오의 야외 선호도가 20% 높아요' 같은 분석 리포트를 드린다면?",
+          question: "'경쟁사 A 대비 대표님 스튜디오의 야외 선호도가 20% 높아요' 같은 분석 리포트를 드린다면?",
         },
         {
           id: 'q18',

@@ -26,7 +26,7 @@ export default function ThankYou({ shopTypeName }: Props) {
           감사합니다!
         </h2>
         <p className="text-[15px] text-charcoal font-light leading-relaxed mb-3">
-          {shopTypeName} 사장님의 소중한 의견,
+          {shopTypeName} 대표님의 소중한 의견,
           <br />
           서비스 개발에 적극 반영하겠습니다.
         </p>

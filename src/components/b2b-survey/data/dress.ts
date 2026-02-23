@@ -183,7 +183,7 @@ export const dressConfig: ShopConfig = {
           id: 'q11',
           type: 'text_area',
           required: false,
-          question: '플랫폼이 고객한테 미리 물어봐서 사장님께 알려드렸으면 하는 정보가 있으세요?',
+          question: '플랫폼이 고객한테 미리 물어봐서 대표님께 알려드렸으면 하는 정보가 있으세요?',
           placeholder: '예: 예산, 선호 드레스 라인, 체형 정보, 웨딩홀 유형 등',
           maxLength: 500,
         },
@@ -237,7 +237,7 @@ export const dressConfig: ShopConfig = {
           id: 'q17',
           type: 'likert_5',
           required: true,
-          question: "'경쟁사 대비 사장님 드레스샵의 프리미엄 드레스 선호도가 20% 높아요' 같은 분석 리포트를 드린다면?",
+          question: "'경쟁사 대비 대표님 드레스샵의 프리미엄 드레스 선호도가 20% 높아요' 같은 분석 리포트를 드린다면?",
         },
         {
           id: 'q18',

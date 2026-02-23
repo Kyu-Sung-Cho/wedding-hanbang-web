@@ -34,17 +34,17 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
           <p className="text-[14px] text-charcoal font-light leading-relaxed">
             AI 웨딩 플랫폼 &lsquo;웨딩한방&rsquo;이
             <br className="md:hidden" />
-            {" "}{config.shopTypeName} 사장님께 여쭤봅니다
+            {" "}{config.shopTypeName} 대표님께 여쭤봅니다
           </p>
         </div>
 
         {/* 공감 메시지 */}
         <div className="bg-white rounded-2xl border border-platinum p-6 mb-5">
           <p className="text-[15px] text-noir-800 font-medium mb-4 leading-relaxed">
-            사장님들의 소중한 의견을 듣고, 정말 도움이 되는 서비스를 만들고 싶습니다.
+            대표님들의 소중한 의견을 듣고, 정말 도움이 되는 서비스를 만들고 싶습니다.
           </p>
           <p className="text-[13px] text-charcoal font-light leading-relaxed">
-            아래 설문에 응답해주시면, 사장님께 실질적으로 도움이 되는 기능을 우선 개발하는 데 반영하겠습니다.
+            아래 설문에 응답해주시면, 대표님께 실질적으로 도움이 되는 기능을 우선 개발하는 데 반영하겠습니다.
           </p>
         </div>
 
@@ -92,28 +92,43 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
         )}
 
         {/* 설문 참여 혜택 */}
-        <div className="bg-white rounded-2xl border border-platinum p-6 mb-5">
-          <p className="text-[12px] text-rose-500 font-medium tracking-wide mb-3">
+        <div className="bg-ivory-deep rounded-2xl border border-platinum p-6 mb-5">
+          <p className="text-[13px] text-charcoal font-medium mb-4">
             설문 참여 혜택
           </p>
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-4">
             <div className="flex items-start gap-2.5">
-              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
-              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
-                정식 출시 <span className="font-medium">우선 초대</span>
-              </p>
+              <span className="text-rose-500 text-[13px] mt-0.5 shrink-0">&#x2713;</span>
+              <div>
+                <p className="text-[13px] text-noir-800 font-medium leading-relaxed">
+                  정식 출시 우선 초대
+                </p>
+                <p className="text-[12px] text-taupe-500 font-light mt-0.5">
+                  서비스 오픈 시 가장 먼저 안내드려요
+                </p>
+              </div>
             </div>
             <div className="flex items-start gap-2.5">
-              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
-              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
-                베타 파트너 <span className="font-medium">수수료 할인</span>
-              </p>
+              <span className="text-rose-500 text-[13px] mt-0.5 shrink-0">&#x2713;</span>
+              <div>
+                <p className="text-[13px] text-noir-800 font-medium leading-relaxed">
+                  베타 파트너 수수료 할인
+                </p>
+                <p className="text-[12px] text-taupe-500 font-light mt-0.5">
+                  설문 참여자 한정 특별 수수료 혜택
+                </p>
+              </div>
             </div>
             <div className="flex items-start gap-2.5">
-              <span className="text-gold text-[13px] mt-0.5 shrink-0">★</span>
-              <p className="text-[13px] text-noir-800 font-light leading-relaxed">
-                맞춤 기능 <span className="font-medium">우선 개발</span>
-              </p>
+              <span className="text-rose-500 text-[13px] mt-0.5 shrink-0">&#x2713;</span>
+              <div>
+                <p className="text-[13px] text-noir-800 font-medium leading-relaxed">
+                  맞춤 기능 우선 개발
+                </p>
+                <p className="text-[12px] text-taupe-500 font-light mt-0.5">
+                  대표님 의견이 서비스에 직접 반영돼요
+                </p>
+              </div>
             </div>
           </div>
         </div>
