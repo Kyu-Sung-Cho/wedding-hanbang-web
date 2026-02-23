@@ -8,7 +8,7 @@ const rows = [
   { label: "비용 투명성", old: "업체마다 다른 견적, 숨겨진 추가 비용", new: "항목별 평균가 비교, 추가비용 사전 알림" },
   { label: "예산 관리", old: "엑셀·메모장으로 수동 관리", new: "실시간 자동 추적, 커플 공유" },
   { label: "일정 관리", old: "카톡으로 공유, 뭐 했는지 기억 안남", new: "D-day 맞춤 체크리스트 자동 제안" },
-  { label: "커플 소통", old: "각자 알아보고 카톡으로 공유", new: "하나의 앱에서 함께 확인·결정" },
+  { label: "커플 소통", old: "각자 알아보고 카톡으로 공유", new: "하나의 플랫폼에서 함께 확인·결정" },
 ];
 
 export default function CustomerComparison() {

@@ -40,7 +40,7 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 const stats = [
   { value: 24, suffix: "시간", label: "AI 상담 가능 시간", desc: "새벽에도 즉시 답변" },
   { value: 20, suffix: "개", label: "웨딩 카테고리", desc: "빠짐없이 체계적으로" },
-  { value: 1, suffix: "개 앱", label: "올인원 플랫폼", desc: "상담·예산·일정 통합" },
+  { value: 1, suffix: "개", label: "올인원 플랫폼", desc: "상담·예산·일정·업체 추천 통합" },
   { value: 2, suffix: "인", label: "커플 연동", desc: "함께 보는 결혼 준비" },
 ];
 

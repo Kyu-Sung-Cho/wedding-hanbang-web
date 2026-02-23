@@ -99,9 +99,9 @@ export default function CustomerCTA() {
           )}
 
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-taupe-500">
-            <span>✦ 스팸 없이 출시 소식만</span>
-            <span>✦ 우선 초대권 제공</span>
-            <span>✦ 특별 할인 혜택</span>
+            <span>✦ 정식 출시 시 우선 초대</span>
+            <span>✦ 사전등록자 한정 첫 3개월 무료</span>
+            <span>✦ 스팸 없이 출시 소식만 전달</span>
           </div>
         </motion.div>
       </div>

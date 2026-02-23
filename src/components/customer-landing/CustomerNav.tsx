@@ -37,7 +37,7 @@ export default function CustomerNav() {
       <div className="flex gap-9 items-center max-md:hidden">
         {[
           { href: "#features", label: "기능" },
-          { href: "#reviews", label: "후기" },
+          { href: "#reviews", label: "이용 사례" },
           { href: "#cta", label: "사전등록" },
         ].map((link) => (
           <a

@@ -5,9 +5,45 @@ import { motion } from "framer-motion";
 const solutions = [
   {
     num: "01",
+    title: "AI 맞춤 업체 추천",
+    desc: "예산, 지역, 스타일 선호도를 분석해서 나에게 딱 맞는 업체를 AI가 추천합니다. 발품 팔 필요 없이 최적의 업체를 만나보세요.",
+    tags: ["AI 매칭", "예산·스타일 분석"],
+    visual: (
+      <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
+        <div className="flex items-center justify-between mb-5">
+          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">AI 맞춤 추천</span>
+          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">매칭 완료</span>
+        </div>
+        <div className="flex flex-col gap-3">
+          {[
+            { name: "로즈가든 스튜디오", match: "98%", tags: ["야외촬영", "자연광"], price: "280만원~" },
+            { name: "르블랑 드레스", match: "95%", tags: ["머메이드", "프리미엄"], price: "200만원~" },
+            { name: "블룸 메이크업", match: "92%", tags: ["내추럴", "본식전문"], price: "80만원~" },
+          ].map((vendor) => (
+            <div key={vendor.name} className="bg-white rounded-xl p-3.5 border border-black/[0.04] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-gold/20 flex items-center justify-center text-[11px] font-medium text-rose-500 shrink-0">
+                {vendor.match}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-noir-800 truncate">{vendor.name}</div>
+                <div className="flex gap-1.5 mt-1">
+                  {vendor.tags.map((tag) => (
+                    <span key={tag} className="text-[10px] text-taupe-500 bg-ivory-warm px-1.5 py-0.5 rounded">{tag}</span>
+                  ))}
+                  <span className="text-[10px] text-rose-500 font-medium ml-auto">{vendor.price}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: "02",
     title: "24시간 AI 웨딩 플래너",
-    desc: "단순한 챗봇이 아닙니다. 결혼일, 예산, 선호도를 기억하고 실제 웨딩 플래너처럼 맞춤 조언을 제공합니다. 새벽 2시 갑자기 든 고민도 바로 해결하세요.",
-    tags: ["Claude AI 기반", "맞춤 상담"],
+    desc: "단순한 챗봇이 아닙니다. 결혼일, 예산, 선호도를 기억하고 실제 웨딩 플래너처럼 맞춤 조언을 제공합니다. 커플이 함께 같은 채팅방에서 AI와 상담할 수 있어, 따로 공유할 필요가 없습니다.",
+    tags: ["AI 웨딩 플래너", "커플 동시 상담"],
     visual: (
       <div className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center gap-2 mb-4">
@@ -15,13 +51,17 @@ const solutions = [
             <div className="w-2 h-2 rounded-full bg-rose-500" />
           </div>
           <span className="text-[11px] text-white/40">웨딩한방 AI 플래너</span>
+          <div className="ml-auto flex -space-x-1.5">
+            <div className="w-5 h-5 rounded-full bg-rose-500/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신부</div>
+            <div className="w-5 h-5 rounded-full bg-gold/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신랑</div>
+          </div>
         </div>
         <div className="flex flex-col gap-3">
           <div className="self-end max-w-[85%] px-4 py-3 rounded-2xl rounded-br-md bg-rose-500 text-white text-[13px] leading-relaxed">
             스튜디오 선택 기준이 뭐야? 유명한 곳이 좋을까?
           </div>
           <div className="self-start max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 text-[13px] leading-[1.7]">
-            지은님, D-120일 남으셨네요! 지금이 딱 좋은 타이밍이에요 😊
+            지은님, 민수님! D-120일 남으셨네요 😊
             <br /><br />
             유명세보다 중요한 4가지를 체크해보세요:
           </div>
@@ -32,30 +72,6 @@ const solutions = [
               </span>
             ))}
           </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    num: "02",
-    title: "AI 가상 드레스 피팅",
-    desc: "집에서 편하게 다양한 드레스를 가상으로 입어보세요. AI가 체형을 분석하고 드레스를 합성합니다. 마음에 드는 것만 직접 방문해서 확인하세요.",
-    tags: ["AI 가상 피팅", "집에서 간편하게"],
-    visual: (
-      <div className="bg-gradient-to-br from-ivory-deep to-[#EDE5DA] rounded-2xl h-full flex items-center justify-center relative py-10">
-        <div className="relative w-[160px] h-[220px]">
-          <div className="w-full h-full bg-gradient-to-b from-rose-pale via-rose-light to-ivory-deep rounded-[40%_40%_50%_50%/30%_30%_45%_45%] shadow-[0_20px_60px_rgba(196,150,126,0.2)]" />
-          <div className="absolute top-0 -left-5 -right-5 h-[3px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-[scanLine_3s_ease-in-out_infinite] rounded shadow-[0_0_20px_rgba(196,150,126,0.4)]" />
-          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full text-[12px] font-medium text-rose-500 shadow-[0_4px_20px_rgba(0,0,0,0.08)] whitespace-nowrap flex items-center gap-1.5">
-            ✦ AI 가상 피팅 중...
-          </div>
-        </div>
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
-          {["A", "B", "C"].map((label) => (
-            <div key={label} className="w-10 h-12 rounded-lg bg-white/80 border border-rose-pale/30 shadow-sm flex items-center justify-center text-[10px] text-rose-500">
-              {label}
-            </div>
-          ))}
         </div>
       </div>
     ),
@@ -121,6 +137,30 @@ const solutions = [
                 <h5 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
                 <p className="text-[11px] text-taupe-500">{item.desc}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: "05",
+    title: "AI 가상 드레스 피팅",
+    desc: "집에서 편하게 다양한 드레스를 가상으로 입어보세요. AI가 체형을 분석하고 드레스를 합성합니다. 마음에 드는 것만 직접 방문해서 확인하세요.",
+    tags: ["AI 가상 피팅", "집에서 간편하게"],
+    visual: (
+      <div className="bg-gradient-to-br from-ivory-deep to-[#EDE5DA] rounded-2xl h-full flex items-center justify-center relative py-10">
+        <div className="relative w-[160px] h-[220px]">
+          <div className="w-full h-full bg-gradient-to-b from-rose-pale via-rose-light to-ivory-deep rounded-[40%_40%_50%_50%/30%_30%_45%_45%] shadow-[0_20px_60px_rgba(196,150,126,0.2)]" />
+          <div className="absolute top-0 -left-5 -right-5 h-[3px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-[scanLine_3s_ease-in-out_infinite] rounded shadow-[0_0_20px_rgba(196,150,126,0.4)]" />
+          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full text-[12px] font-medium text-rose-500 shadow-[0_4px_20px_rgba(0,0,0,0.08)] whitespace-nowrap flex items-center gap-1.5">
+            ✦ AI 가상 피팅 중...
+          </div>
+        </div>
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+          {["A", "B", "C"].map((label) => (
+            <div key={label} className="w-10 h-12 rounded-lg bg-white/80 border border-rose-pale/30 shadow-sm flex items-center justify-center text-[10px] text-rose-500">
+              {label}
             </div>
           ))}
         </div>
