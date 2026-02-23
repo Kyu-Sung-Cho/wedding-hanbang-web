@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Logo from '@/components/ui/Logo';
 
 interface IntroScreenProps {
   onStart: () => void;
@@ -23,14 +24,14 @@ export default function IntroScreen({
         transition={{ duration: 0.6 }}
         className="text-center max-w-lg"
       >
-        {/* 로고 아이콘 */}
+        {/* 로고 */}
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
-          className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center mx-auto mb-8"
+          className="flex justify-center mb-8"
         >
-          <span className="text-white font-display text-[24px] font-semibold">H</span>
+          <Logo size="md" />
         </motion.div>
 
         <h1 className="text-[clamp(26px,5vw,36px)] font-serif-kr font-medium text-noir-800 mb-4 leading-tight">

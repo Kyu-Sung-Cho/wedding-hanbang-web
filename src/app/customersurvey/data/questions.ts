@@ -147,7 +147,7 @@ export const sections: Section[] = [
   },
   {
     id: 'section3',
-    title: '웨딩 플래너 및 비용 구조',
+    title: '웨딩 플래너 이용 경험',
     questions: [
       {
         id: 'q8',
@@ -155,15 +155,21 @@ export const sections: Section[] = [
         required: true,
         question: '웨딩 플래너(컨설팅)를 이용했거나 이용할 계획이 있습니까?',
         options: [
-          { value: 1, label: '이용했다', showNext: 'q8_1' },
+          { value: 1, label: '이용했다' },
           { value: 2, label: '이용할 계획이다' },
-          { value: 3, label: '이용하지 않을 계획이다', showNext: 'q8_2' },
+          { value: 3, label: '이용하지 않을 계획이다' },
         ],
       },
+    ],
+  },
+  {
+    id: 'section3_1',
+    title: '웨딩 플래너 및 비용 구조',
+    questions: [
       {
         id: 'q8_1',
         type: 'likert_5',
-        required: false,
+        required: true,
         conditionalDisplay: { questionId: 'q8', value: 1 },
         question: '웨딩 플래너를 통한 전반적인 경험에 만족하셨습니까?',
         scale: ['전혀 그렇지 않다', '그렇지 않다', '보통이다', '그렇다', '매우 그렇다'],
@@ -171,7 +177,7 @@ export const sections: Section[] = [
       {
         id: 'q8_2',
         type: 'multiple_choice',
-        required: false,
+        required: true,
         conditionalDisplay: { questionId: 'q8', value: 3 },
         maxSelect: 2,
         question: '플래너를 이용하지 않는 주된 이유는? (최대 2개)',
@@ -227,7 +233,7 @@ export const sections: Section[] = [
       {
         id: 'q11_1',
         type: 'likert_5',
-        required: false,
+        required: true,
         conditionalDisplay: { questionId: 'q11', valueNot: 8 },
         question: '위에서 선택한 채널의 만족도는 어떠했습니까?',
         scale: ['전혀 그렇지 않다', '그렇지 않다', '보통이다', '그렇다', '매우 그렇다'],
@@ -235,7 +241,7 @@ export const sections: Section[] = [
       {
         id: 'q12',
         type: 'multiple_choice',
-        required: false,
+        required: true,
         conditionalDisplay: { questionId: 'q11_1', valueIn: [1, 2, 3] },
         maxSelect: 2,
         question: '해당 서비스에서 불만족스러웠던 점은? (최대 2개)',

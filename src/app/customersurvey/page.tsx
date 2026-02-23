@@ -39,6 +39,24 @@ export default function CustomerSurveyPage() {
 
   const visibleQuestions = getVisibleQuestions(currentSectionIndex);
 
+  // 섹션 전환 시 스크롤 상단으로 이동
+  useEffect(() => {
+    if (status === 'in_progress') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentSectionIndex, status]);
+
+  // 검증 에러 발생 시 첫 번째 에러 항목으로 스크롤
+  useEffect(() => {
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstErrorEl = document.getElementById(`question-${errorKeys[0]}`);
+      if (firstErrorEl) {
+        firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [errors]);
+
   // 설문 제출
   const submitSurvey = useCallback(async () => {
     setIsSubmitting(true);

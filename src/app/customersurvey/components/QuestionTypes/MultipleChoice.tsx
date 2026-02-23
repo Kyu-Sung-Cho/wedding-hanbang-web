@@ -94,11 +94,13 @@ export default function MultipleChoice({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 className="mt-3 ml-8"
+                onClick={(e) => e.stopPropagation()}
               >
                 <input
                   type="text"
                   value={otherText ?? ''}
                   onChange={(e) => onOtherTextChange?.(questionId, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
                   placeholder="직접 입력해 주세요"
                   className="w-full px-4 py-2.5 text-[14px] rounded-xl border border-platinum bg-ivory-50 focus:border-rose-500 focus:outline-none transition-colors"
                 />

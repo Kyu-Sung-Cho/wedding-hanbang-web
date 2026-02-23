@@ -148,6 +148,7 @@ export function useSurveyState() {
         if (question?.options) {
           const selectedOption = question.options.find((o) => o.value === value);
           if (selectedOption?.screenOut) {
+            clearDraft();
             setTimeout(() => setStatus('screen_out'), 300);
           }
         }
