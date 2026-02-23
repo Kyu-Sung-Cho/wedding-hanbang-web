@@ -17,6 +17,7 @@ export interface ContactField {
   id: string;
   label: string;
   placeholder?: string;
+  inputType?: string;
 }
 
 export interface Question {
@@ -43,6 +44,7 @@ export interface Section {
   title: string;
   note?: string;
   sectionNote?: string;
+  additionalNotes?: string[];
   exampleBox?: string;
   questions: Question[];
 }

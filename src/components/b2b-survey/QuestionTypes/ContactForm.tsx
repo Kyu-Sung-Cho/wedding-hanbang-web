@@ -32,7 +32,7 @@ export default function ContactForm({ fields, value, onChange }: Props) {
             {field.label}
           </label>
           <input
-            type="text"
+            type={field.inputType || "text"}
             value={value[field.id] || ""}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}

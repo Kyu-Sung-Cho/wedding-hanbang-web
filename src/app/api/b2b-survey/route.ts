@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
       contact_shop_name: contact?.shop_name ?? null,
       contact_name: contact?.contact_name ?? null,
       contact_info: contact?.contact_info ?? null,
+      contact_phone: contact?.phone ?? null,
+      contact_email: contact?.email ?? null,
 
       // 메타
       completion_time_seconds: completionTimeSeconds ?? null,

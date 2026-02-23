@@ -6,10 +6,11 @@ interface Props {
   sectionIndex: number;
   title: string;
   sectionNote?: string;
+  additionalNotes?: string[];
   exampleBox?: string;
 }
 
-export default function SectionHeader({ sectionIndex, title, sectionNote, exampleBox }: Props) {
+export default function SectionHeader({ sectionIndex, title, sectionNote, additionalNotes, exampleBox }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -29,6 +30,15 @@ export default function SectionHeader({ sectionIndex, title, sectionNote, exampl
         <p className="text-[13px] text-charcoal font-light leading-relaxed ml-10 mb-3">
           {sectionNote}
         </p>
+      )}
+      {additionalNotes && additionalNotes.length > 0 && (
+        <div className="ml-10 mb-3 flex flex-col gap-0.5">
+          {additionalNotes.map((note, i) => (
+            <p key={i} className="text-[11px] text-taupe-500 font-light leading-relaxed">
+              {note}
+            </p>
+          ))}
+        </div>
       )}
       {exampleBox && (
         <div className="ml-10 bg-ivory-deep rounded-xl p-4 border border-platinum">

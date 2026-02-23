@@ -131,6 +131,7 @@ export default function B2BSurveyPage({ config }: Props) {
               sectionIndex={currentSection}
               title={section.title}
               sectionNote={section.sectionNote}
+              additionalNotes={section.additionalNotes}
               exampleBox={section.exampleBox}
             />
 
