@@ -308,10 +308,13 @@ export default function BudgetPage() {
   const getCategoryBudget = useCallback(
     (key: string) => {
       const item = progress[key];
-      // 저장된 커스텀 예산이 있으면 사용, 없으면 비율 기반 기본값
+      // 1. 저장된 커스텀 예산이 있으면 사용
+      if (item?.budget !== undefined && item.budget > 0) return item.budget;
+      // 2. 완료 항목에 cost가 있으면 cost를 예산으로 사용
+      if (item?.cost !== undefined && item.cost > 0) return item.cost;
+      // 3. 없으면 비율 기반 기본값
       const catRatio = CATEGORY_RATIOS.find((c) => c.key === key);
-      const defaultBudget = catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
-      return item?.budget ?? defaultBudget;
+      return catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
     },
     [progress, totalBudget]
   );
