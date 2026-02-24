@@ -48,6 +48,7 @@ export interface ProgressItem {
   status: "not_started" | "in_progress" | "completed";
   budget?: number;
   spent?: number;
+  cost?: number;
   vendor?: string;
   notes?: string;
   checklist?: ChecklistItem[];

@@ -319,14 +319,14 @@ export default function BudgetPage() {
   const getCategorySpent = useCallback(
     (key: string) => {
       const item = progress[key];
-      // 저장된 지출이 있으면 사용, 없으면 상태 기반 추정
+      // 1. 직접 수정한 지출이 있으면 최우선
       if (item?.spent !== undefined) return item.spent;
-      const budget = getCategoryBudget(key);
-      if (item?.status === "completed") return budget;
-      if (item?.status === "in_progress") return Math.round(budget * 0.4);
+      // 2. 온보딩에서 입력한 비용(cost)이 있으면 사용
+      if (item?.cost !== undefined && item.cost > 0) return item.cost;
+      // 3. 없으면 상태 기반 추정 (완료=0, 진행중=0, 예정=0)
       return 0;
     },
-    [progress, getCategoryBudget]
+    [progress]
   );
 
   const getStatusLabel = useCallback(
@@ -385,13 +385,12 @@ export default function BudgetPage() {
   const handleSpentReset = useCallback(
     async (key: string) => {
       const existing = progress[key];
+      if (!existing) return;
+      // spent를 제거하여 cost(온보딩 입력값)로 폴백되도록
+      const { spent: _spent, ...rest } = existing;
       const newProgress = {
         ...progress,
-        [key]: {
-          ...(existing ?? { category: key, status: "not_started" as const }),
-          category: key,
-          spent: 0,
-        },
+        [key]: { ...rest, category: key },
       };
       await updateJourney({ progress: newProgress });
     },
