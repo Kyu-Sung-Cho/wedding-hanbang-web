@@ -67,10 +67,10 @@ export default function OnboardingPage() {
     try {
       const progress: Record<string, { status: string; cost?: number | null; budget?: number | null }> = {};
       store.progressChecklist.forEach((item) => {
-        // cost는 만원 단위 입력 → 원 단위로 변환
-        const costInWon = item.done && item.cost ? item.cost * 10000 : null;
+        // cost는 만원 단위 입력 → 원 단위로 변환 (완료 항목만)
+        const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
         progress[item.key] = {
-          status: item.done ? "completed" : "not_started",
+          status: item.status,
           cost: costInWon,
           // 완료 항목에 비용 입력 시 예산도 동일하게 설정
           budget: costInWon,
@@ -193,7 +193,7 @@ export default function OnboardingPage() {
               {store.currentStep === 4 && (
                 <ProgressChecklist
                   items={store.progressChecklist}
-                  onToggle={store.toggleChecklistItem}
+                  onStatusChange={store.setChecklistItemStatus}
                   onCostChange={store.setChecklistItemCost}
                 />
               )}

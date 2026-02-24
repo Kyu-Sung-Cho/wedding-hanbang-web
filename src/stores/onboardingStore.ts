@@ -5,6 +5,7 @@ import type { UserRole } from "@/types/database.types";
 import {
   PROGRESS_CHECKLIST_ITEMS,
   type ProgressChecklistItem,
+  type ChecklistStatus,
 } from "@/types/onboarding.types";
 
 interface OnboardingStoreState {
@@ -32,7 +33,7 @@ interface OnboardingStoreState {
   setVenue: (venue: string | null) => void;
   setVenueUndecided: (value: boolean) => void;
   setBudget: (budget: number) => void;
-  toggleChecklistItem: (key: string) => void;
+  setChecklistItemStatus: (key: string, status: ChecklistStatus) => void;
   setChecklistItemCost: (key: string, cost: number | undefined) => void;
   setChecklist: (items: ProgressChecklistItem[]) => void;
   reset: () => void;
@@ -69,10 +70,12 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   setVenueUndecided: (value) =>
     set({ venueUndecided: value, venue: value ? null : undefined }),
   setBudget: (budget) => set({ approximateBudget: budget }),
-  toggleChecklistItem: (key) =>
+  setChecklistItemStatus: (key, status) =>
     set((s) => ({
       progressChecklist: s.progressChecklist.map((item) =>
-        item.key === key ? { ...item, done: !item.done, cost: !item.done ? item.cost : undefined } : item
+        item.key === key
+          ? { ...item, status, cost: status === "completed" ? item.cost : undefined }
+          : item
       ),
     })),
   setChecklistItemCost: (key, cost) =>
