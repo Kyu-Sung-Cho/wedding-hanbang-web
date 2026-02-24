@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import {
   User,
   Calendar,
@@ -15,6 +16,7 @@ import {
   Pencil,
   Save,
   X,
+  Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -38,6 +40,10 @@ export default function SettingsPage() {
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     if (couple) {
@@ -80,6 +86,30 @@ export default function SettingsPage() {
     await updateJourney({ total_budget: value });
     setSaving(false);
     setEditingBudget(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "탈퇴합니다") return;
+    setDeleting(true);
+    setDeleteError("");
+
+    try {
+      const res = await fetch("/api/auth/delete", { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
+        return;
+      }
+
+      document.cookie = "onboarding_complete=; path=/; max-age=0";
+      document.cookie = "demo_mode=; path=/; max-age=0";
+      window.location.href = "/login";
+    } catch {
+      setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const userName = profile?.name ?? "사용자";
@@ -367,10 +397,11 @@ export default function SettingsPage() {
         ))}
       </motion.div>
 
-      {/* 로그아웃 */}
+      {/* 로그아웃 & 탈퇴 */}
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.2 }}
+        className="flex flex-col gap-3"
       >
         <button
           onClick={signOut}
@@ -379,7 +410,84 @@ export default function SettingsPage() {
           <LogOut className="w-4 h-4" />
           로그아웃
         </button>
+
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 text-taupe-400 text-[13px] font-light hover:text-red-400 transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          계정 탈퇴
+        </button>
       </motion.div>
+
+      {/* 계정 탈퇴 모달 */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-[400px] bg-white rounded-3xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+            >
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-400" />
+              </div>
+
+              <h3 className="text-[20px] font-semibold text-noir-800 text-center mb-2">
+                정말 탈퇴하시겠어요?
+              </h3>
+              <p className="text-[13px] text-taupe-400 text-center leading-relaxed mb-6">
+                탈퇴하면 모든 데이터가 영구 삭제되며
+                <br />
+                복구할 수 없습니다.
+              </p>
+
+              <div className="mb-5">
+                <p className="text-[12px] text-taupe-500 mb-2">
+                  확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
+                </p>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="탈퇴합니다"
+                  className="w-full px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-red-400 transition-colors placeholder:text-taupe-400"
+                />
+              </div>
+
+              {deleteError && (
+                <p className="text-[12px] text-red-500 text-center mb-4">{deleteError}</p>
+              )}
+
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== "탈퇴합니다" || deleting}
+                className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {deleting ? "삭제 중..." : "계정 영구 삭제"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText("");
+                  setDeleteError("");
+                }}
+                className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
+              >
+                취소
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
