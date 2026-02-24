@@ -32,23 +32,11 @@ interface AdminVendor {
   createdAt: string;
 }
 
-type AuthState = "loading" | "not_logged_in" | "not_admin" | "admin";
+type AuthState = "loading" | "not_authenticated" | "admin";
 
 export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [adminEmail, setAdminEmail] = useState("");
-  const [setupPassword, setSetupPassword] = useState("");
-  const [setupLoading, setSetupLoading] = useState(false);
-  const [setupError, setSetupError] = useState("");
-
-  // 로그인/회원가입 폼 상태
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [adminSetupPw, setAdminSetupPw] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState("");
-  const [loginSuccess, setLoginSuccess] = useState("");
-  const [loginMode, setLoginMode] = useState<"login" | "signup">("signup");
 
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -65,155 +53,26 @@ export default function AdminPage() {
   const [vendorLoading, setVendorLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 관리자 인증 확인
+  // 관리자 인증 확인 → 비인증/비관리자는 /admin/login으로 리다이렉트
   useEffect(() => {
     async function checkAdmin() {
       try {
         const res = await fetch("/api/admin/auth");
         const data = await res.json();
 
-        if (res.status === 401) {
-          setAuthState("not_logged_in");
-        } else if (data.isAdmin) {
-          setAuthState("admin");
-          setAdminEmail(data.email || "");
-        } else {
-          setAuthState("not_admin");
-          setAdminEmail(data.email || "");
+        if (res.status === 401 || !data.isAdmin) {
+          window.location.href = "/admin/login";
+          return;
         }
+
+        setAuthState("admin");
+        setAdminEmail(data.email || "");
       } catch {
-        setAuthState("not_logged_in");
+        window.location.href = "/admin/login";
       }
     }
     checkAdmin();
   }, []);
-
-  // 관리자 로그인/회원가입 핸들러
-  const handleAdminAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail || !loginPassword || !adminSetupPw) {
-      setLoginError("모든 필드를 입력해주세요.");
-      return;
-    }
-    if (loginMode === "signup" && loginPassword.length < 6) {
-      setLoginError("비밀번호는 6자 이상이어야 합니다.");
-      return;
-    }
-
-    setLoginLoading(true);
-    setLoginError("");
-    setLoginSuccess("");
-
-    try {
-      if (loginMode === "signup") {
-        // 1. API로 계정 생성 + 관리자 설정
-        const res = await fetch("/api/admin/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "signup",
-            email: loginEmail,
-            password: loginPassword,
-            setupPassword: adminSetupPw,
-          }),
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          setLoginError(data.error || "계정 생성에 실패했습니다.");
-          setLoginLoading(false);
-          return;
-        }
-
-        // 2. 생성된 계정으로 로그인
-        const supabase = createClient();
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
-          password: loginPassword,
-        });
-
-        if (signInError) {
-          setLoginSuccess("계정이 생성되었습니다! 로그인 모드로 전환하여 로그인해주세요.");
-          setLoginMode("login");
-          setLoginLoading(false);
-          return;
-        }
-
-        // 쿠키 설정 후 새로고침
-        document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-        document.cookie = "admin_role=true; path=/; max-age=2592000";
-        window.location.reload();
-      } else {
-        // 로그인 모드
-        const supabase = createClient();
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
-          password: loginPassword,
-        });
-
-        if (signInError) {
-          setLoginError(
-            signInError.message === "Invalid login credentials"
-              ? "이메일 또는 비밀번호가 올바르지 않습니다."
-              : signInError.message
-          );
-          setLoginLoading(false);
-          return;
-        }
-
-        // 관리자 승격
-        const res = await fetch("/api/admin/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "login",
-            email: loginEmail,
-            password: loginPassword,
-            setupPassword: adminSetupPw,
-          }),
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          setLoginError(data.error || "관리자 설정에 실패했습니다.");
-          setLoginLoading(false);
-          return;
-        }
-
-        document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-        document.cookie = "admin_role=true; path=/; max-age=2592000";
-        window.location.reload();
-      }
-    } catch {
-      setLoginError("서버 오류가 발생했습니다.");
-    }
-    setLoginLoading(false);
-  };
-
-  // 관리자 승격 핸들러 (이미 로그인된 상태)
-  const handleSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSetupLoading(true);
-    setSetupError("");
-
-    try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ setupPassword }),
-      });
-
-      if (res.ok) {
-        setAuthState("admin");
-      } else {
-        const data = await res.json();
-        setSetupError(data.error || "관리자 설정에 실패했습니다.");
-      }
-    } catch {
-      setSetupError("서버 오류가 발생했습니다.");
-    }
-    setSetupLoading(false);
-  };
 
   const fetchRegistrations = useCallback(async () => {
     try {
@@ -303,170 +162,13 @@ export default function AdminPage() {
   const approvedVendors = vendors.filter((v) => v.status === "approved").length;
   const rejectedVendors = vendors.filter((v) => v.status === "rejected").length;
 
-  // 로딩 중
-  if (authState === "loading") {
+  // 로딩 또는 인증 리다이렉트 중
+  if (authState !== "admin") {
     return (
       <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-[14px] text-taupe-500">인증 확인 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 로그인 안 된 상태 → 이메일/비밀번호 폼
-  if (authState === "not_logged_in") {
-    return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
-        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-[420px] w-full">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
-              한
-            </div>
-            <h1 className="font-serif-kr text-xl font-normal mb-1">
-              {loginMode === "signup" ? "관리자 계정 생성" : "관리자 로그인"}
-            </h1>
-            <p className="text-[13px] text-taupe-400">
-              {loginMode === "signup"
-                ? "웨딩한방 관리자 계정을 생성합니다"
-                : "관리자 계정으로 로그인하세요"}
-            </p>
-          </div>
-
-          <form onSubmit={handleAdminAuth} className="space-y-3">
-            <div>
-              <label className="block text-[12px] text-taupe-500 mb-1.5 px-1">이메일</label>
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
-                placeholder="admin@hanbang.ai"
-                className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] text-taupe-500 mb-1.5 px-1">비밀번호</label>
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
-                placeholder={loginMode === "signup" ? "6자 이상" : "비밀번호"}
-                className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors"
-              />
-            </div>
-
-            <div className="pt-2">
-              <div className="flex items-center gap-2 mb-1.5 px-1">
-                <Shield className="w-3.5 h-3.5 text-rose-500" />
-                <label className="text-[12px] text-rose-500 font-medium">관리자 인증 비밀번호</label>
-              </div>
-              <input
-                type="password"
-                value={adminSetupPw}
-                onChange={(e) => { setAdminSetupPw(e.target.value); setLoginError(""); }}
-                placeholder="관리자 인증 비밀번호"
-                className="w-full px-5 py-3.5 border border-rose-500/30 rounded-xl text-sm outline-none focus:border-rose-500 transition-colors bg-rose-500/[0.02]"
-              />
-              <p className="text-[11px] text-taupe-400 mt-1 px-1">
-                환경변수 ADMIN_PASSWORD에 설정된 비밀번호
-              </p>
-            </div>
-
-            {loginError && (
-              <p className="text-[12px] text-rose-500 px-1">{loginError}</p>
-            )}
-            {loginSuccess && (
-              <p className="text-[12px] text-[#2E7D5A] px-1">{loginSuccess}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors disabled:opacity-50 mt-2"
-            >
-              {loginLoading
-                ? "처리 중..."
-                : loginMode === "signup"
-                  ? "관리자 계정 생성"
-                  : "로그인"}
-            </button>
-          </form>
-
-          <p className="text-[13px] text-taupe-400 text-center mt-5">
-            {loginMode === "signup" ? (
-              <>
-                이미 계정이 있으신가요?{" "}
-                <button
-                  onClick={() => { setLoginMode("login"); setLoginError(""); setLoginSuccess(""); }}
-                  className="text-rose-500 font-medium hover:underline"
-                >
-                  로그인
-                </button>
-              </>
-            ) : (
-              <>
-                계정이 없으신가요?{" "}
-                <button
-                  onClick={() => { setLoginMode("signup"); setLoginError(""); setLoginSuccess(""); }}
-                  className="text-rose-500 font-medium hover:underline"
-                >
-                  계정 생성
-                </button>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // 로그인 됐지만 관리자 아닌 상태 → 관리자 설정
-  if (authState === "not_admin") {
-    return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
-        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-sm w-full">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
-              한
-            </div>
-            <h1 className="font-serif-kr text-xl font-normal mb-2">관리자 권한 설정</h1>
-            <p className="text-[13px] text-taupe-400">
-              {adminEmail}
-            </p>
-            <p className="text-[12px] text-taupe-400 mt-1">
-              관리자 비밀번호를 입력하여 권한을 활성화하세요
-            </p>
-          </div>
-
-          <form onSubmit={handleSetup}>
-            <input
-              type="password"
-              value={setupPassword}
-              onChange={(e) => { setSetupPassword(e.target.value); setSetupError(""); }}
-              placeholder="관리자 설정 비밀번호"
-              className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors mb-3"
-            />
-            {setupError && (
-              <p className="text-[12px] text-rose-500 px-1 mb-3">{setupError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={setupLoading}
-              className="w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors disabled:opacity-50"
-            >
-              {setupLoading ? "설정 중..." : "관리자 권한 활성화"}
-            </button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <button
-              onClick={handleLogout}
-              className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
-            >
-              다른 계정으로 로그인
-            </button>
-          </div>
         </div>
       </div>
     );

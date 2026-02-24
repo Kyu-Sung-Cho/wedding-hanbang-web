@@ -52,7 +52,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isCustomerPath = customerPaths.some((path) => pathname.startsWith(path));
   const isVendorPath = vendorPaths.some((path) => pathname.startsWith(path));
-  const isAdminPath = pathname.startsWith("/admin");
+  const isAdminPath = pathname === "/admin";
   const isProtectedPath = isCustomerPath || isVendorPath || isAdminPath;
 
   // 데모 모드 쿠키가 있으면 고객 앱 인증 없이 접근 허용
@@ -64,8 +64,8 @@ export async function updateSession(request: NextRequest) {
       // 업체 보호 경로 → 업체 로그인으로
       url.pathname = "/vendor/login";
     } else if (isAdminPath) {
-      // 관리자 경로 → 리다이렉트 안 함 (admin 페이지 자체에 로그인 폼 내장)
-      return supabaseResponse;
+      // 관리자 경로 → 관리자 로그인으로
+      url.pathname = "/admin/login";
     } else {
       // 고객 보호 경로 → 고객 로그인으로
       url.pathname = "/login";
