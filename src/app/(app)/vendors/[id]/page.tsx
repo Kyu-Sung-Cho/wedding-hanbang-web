@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X } from "lucide-react";
+import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
+import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
 
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -122,6 +123,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [staffList, setStaffList] = useState<{ id: string; name: string; role: string | null; timeSlots: { day: number; hour: number; maxBookings: number; currentBookings: number }[] }[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const { trackEvent } = useEventTracker();
+
+  // 체류시간 자동 추적
+  useViewDuration(id);
 
   useEffect(() => {
     (async () => {
@@ -130,6 +137,14 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         if (res.ok) {
           const data = await res.json();
           setVendor(data.vendor);
+          // 업체 조회 이벤트 추적
+          trackEvent("vendor_view", { vendorId: id, metadata: { source: "direct" } });
+        }
+        // 스태프 조회
+        const staffRes = await fetch(`/api/vendors/${id}/staff`);
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          setStaffList(staffData.staff ?? []);
         }
       } catch (err) {
         console.error("Fetch vendor error:", err);
@@ -137,7 +152,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, trackEvent]);
 
   if (loading) {
     return (
@@ -172,6 +187,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
     } else {
       setSelectedProduct(productId);
       setSelectedSlot(null);
+      // 상품 조회 이벤트 추적
+      trackEvent("product_view", { vendorId: id, productId });
     }
   };
 
@@ -190,12 +207,16 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
     const timeStr = `${String(selectedSlot).padStart(2, "0")}:00`;
 
     try {
+      // 예약 시작 이벤트
+      trackEvent("booking_start", { vendorId: vendor.id, productId: selectedProduct || undefined });
+
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorId: vendor.id,
           productId: selectedProduct || null,
+          staffId: selectedStaff || null,
           date: dateStr,
           time: timeStr,
         }),
@@ -203,6 +224,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
       if (res.ok) {
         setBooked(true);
+        // 예약 완료 이벤트
+        trackEvent("booking_complete", {
+          vendorId: vendor.id,
+          productId: selectedProduct || undefined,
+          metadata: { date: dateStr, time: timeStr },
+        });
         setTimeout(() => setBooked(false), 3000);
       }
     } catch (err) {
@@ -227,6 +254,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       if (res.ok) {
         setMessageSent(true);
         setMessageText("");
+        // 메시지 전송 이벤트 추적
+        trackEvent("message_send", { vendorId: vendor.id });
         setTimeout(() => { setMessageSent(false); setShowMessageBox(false); }, 2000);
       }
     } catch (err) {
@@ -332,6 +361,43 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               </div>
             )}
 
+            {/* 스태프 선택 */}
+            {staffList.length > 0 && (
+              <div className="bg-white rounded-2xl border border-black/[0.04] p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-rose-500" />
+                  <h3 className="text-[15px] font-medium text-noir-800">담당자 선택</h3>
+                  <span className="text-[11px] text-taupe-400">(선택사항)</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedStaff(null)}
+                    className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                      selectedStaff === null
+                        ? "bg-noir-800 text-white"
+                        : "bg-ivory-warm text-charcoal hover:bg-ivory-deep"
+                    }`}
+                  >
+                    아무나
+                  </button>
+                  {staffList.map((staff) => (
+                    <button
+                      key={staff.id}
+                      onClick={() => setSelectedStaff(staff.id)}
+                      className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                        selectedStaff === staff.id
+                          ? "bg-rose-500 text-white"
+                          : "bg-ivory-warm text-charcoal hover:bg-rose-500/10 hover:text-rose-500"
+                      }`}
+                    >
+                      {staff.name}
+                      {staff.role && <span className="text-[10px] opacity-70 ml-1">({staff.role})</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 예약 시간 선택 */}
             <div className="bg-white rounded-2xl border border-black/[0.04] p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -378,20 +444,36 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   {/* 시간 슬롯 */}
                   {daySlots.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2 mb-4">
-                      {daySlots.map((slot) => (
-                        <button
-                          key={`${slot.day}-${slot.hour}`}
-                          onClick={() => setSelectedSlot(slot.hour)}
-                          className={`py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
-                            selectedSlot === slot.hour
-                              ? "bg-rose-500 text-white"
-                              : "bg-ivory-warm text-charcoal hover:bg-rose-500/10 hover:text-rose-500"
-                          }`}
-                        >
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {String(slot.hour).padStart(2, "0")}:00
-                        </button>
-                      ))}
+                      {daySlots.map((slot) => {
+                        const remaining = slot.maxBookings - slot.currentBookings;
+                        const isFull = remaining <= 0;
+                        return (
+                          <button
+                            key={`${slot.day}-${slot.hour}`}
+                            onClick={() => !isFull && setSelectedSlot(slot.hour)}
+                            disabled={isFull}
+                            className={`py-2.5 rounded-lg text-[13px] font-medium transition-colors relative ${
+                              isFull
+                                ? "bg-taupe-400/10 text-taupe-400/50 cursor-not-allowed"
+                                : selectedSlot === slot.hour
+                                ? "bg-rose-500 text-white"
+                                : "bg-ivory-warm text-charcoal hover:bg-rose-500/10 hover:text-rose-500"
+                            }`}
+                          >
+                            <Clock className="w-3 h-3 inline mr-1" />
+                            {String(slot.hour).padStart(2, "0")}:00
+                            {isFull ? (
+                              <span className="block text-[10px] mt-0.5 opacity-70">마감</span>
+                            ) : remaining <= 2 && slot.maxBookings > 1 ? (
+                              <span className={`block text-[10px] mt-0.5 ${
+                                selectedSlot === slot.hour ? "text-white/80" : "text-rose-500"
+                              }`}>
+                                잔여 {remaining}석
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="py-6 text-center">

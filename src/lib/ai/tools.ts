@@ -253,4 +253,82 @@ export const WEDDING_TOOLS: Tool[] = [
       required: [],
     },
   },
+  // ── 업체 검색 & 추천 도구 ──
+  {
+    name: "search_vendors",
+    description:
+      "업체를 검색합니다. 고객이 '강남 스튜디오 찾아줘', '메이크업 업체 보여줘', '300만원 이하 드레스샵' 같은 요청을 할 때 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description: "업체 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물', '신혼여행'",
+        },
+        location: {
+          type: "string",
+          description: "지역. 예: '강남', '서울', '경기'",
+        },
+        price_min: {
+          type: "number",
+          description: "최소 가격 (원 단위)",
+        },
+        price_max: {
+          type: "number",
+          description: "최대 가격 (원 단위)",
+        },
+        search: {
+          type: "string",
+          description: "검색어 (업체명, 태그, 스타일 등)",
+        },
+        limit: {
+          type: "number",
+          description: "최대 결과 수 (기본 5)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "check_vendor_availability",
+    description:
+      "특정 업체의 예약 가능 시간을 조회합니다. 고객이 '이 업체 언제 예약 가능해?', '○○ 스튜디오 토요일 가능해?' 같은 요청에 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        vendor_id: {
+          type: "string",
+          description: "업체 ID",
+        },
+        product_id: {
+          type: "string",
+          description: "상품 ID (선택). 지정하면 해당 상품의 타임슬롯만 확인",
+        },
+        day: {
+          type: "number",
+          description: "특정 요일만 확인 (0=월 ~ 6=일). 생략하면 전체 요일",
+        },
+      },
+      required: ["vendor_id"],
+    },
+  },
+  {
+    name: "recommend_vendors",
+    description:
+      "고객의 예산, 선호도, 진행 상황을 고려하여 맞춤 업체를 추천합니다. 고객이 '업체 추천해줘', '예산에 맞는 스튜디오 찾아줘', '어디가 좋을까?' 같은 요청에 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description: "추천 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업'",
+        },
+        limit: {
+          type: "number",
+          description: "추천 업체 수 (기본 3)",
+        },
+      },
+      required: ["category"],
+    },
+  },
 ];

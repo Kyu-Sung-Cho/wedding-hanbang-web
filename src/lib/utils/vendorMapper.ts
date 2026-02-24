@@ -55,13 +55,13 @@ export function categoryToDb(category: VendorCategory): string {
 
 // ─── Timeslot 매퍼 ───
 
-export function timeslotRowsToSlots(rows: VendorTimeslotRow[] | ProductTimeslotRow[]): TimeSlot[] {
+export function timeslotRowsToSlots(rows: (VendorTimeslotRow | ProductTimeslotRow)[]): TimeSlot[] {
   return rows.map((r) => ({
     day: r.day,
     hour: r.hour,
     available: r.available,
     maxBookings: r.max_bookings,
-    currentBookings: 0,
+    currentBookings: (r as unknown as Record<string, unknown>).current_bookings as number ?? 0,
   }));
 }
 

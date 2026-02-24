@@ -39,9 +39,53 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ? await supabase.from("product_timeslots").select("*").in("product_id", productIds)
       : { data: [] };
 
+    // 향후 7일간 예약 수 조회 (잔여 슬롯 계산용)
+    const today = new Date();
+    const nextWeekDates: { date: string; day: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      nextWeekDates.push({
+        date: d.toISOString().split("T")[0],
+        day: (d.getDay() + 6) % 7, // 0=월 ~ 6=일
+      });
+    }
+
+    const dateStrings = nextWeekDates.map((d) => d.date);
+    const { data: upcomingBookings } = await supabase
+      .from("vendor_bookings")
+      .select("booking_date, booking_time, product_id")
+      .eq("vendor_id", id)
+      .in("booking_date", dateStrings)
+      .neq("status", "cancelled");
+
+    // 요일/시간별 예약 수 집계
+    const bookingCountMap = new Map<string, number>();
+    for (const b of upcomingBookings ?? []) {
+      const bDate = nextWeekDates.find((d) => d.date === b.booking_date);
+      if (!bDate) continue;
+      const hour = parseInt(b.booking_time.split(":")[0], 10);
+      const globalKey = `${bDate.day}:${hour}`;
+      bookingCountMap.set(globalKey, (bookingCountMap.get(globalKey) ?? 0) + 1);
+      if (b.product_id) {
+        const productKey = `${b.product_id}:${bDate.day}:${hour}`;
+        bookingCountMap.set(productKey, (bookingCountMap.get(productKey) ?? 0) + 1);
+      }
+    }
+
+    // 타임슬롯에 현재 예약 수 주입
+    const enrichedTimeslots = (timeslots ?? []).map((s) => ({
+      ...s,
+      current_bookings: bookingCountMap.get(`${s.day}:${s.hour}`) ?? 0,
+    }));
+
     const products = (productRows ?? []).map((row) => {
       const pts = (productTimeslots ?? []).filter((pt) => pt.product_id === row.id);
-      return productRowToProduct(row, pts);
+      const enrichedPts = pts.map((s) => ({
+        ...s,
+        current_bookings: bookingCountMap.get(`${row.id}:${s.day}:${s.hour}`) ?? 0,
+      }));
+      return productRowToProduct(row, enrichedPts as typeof pts);
     });
 
     // 리뷰
@@ -53,7 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const vendor = vendorRowToVendor(vendorRow, timeslots ?? [], products);
+    const vendor = vendorRowToVendor(vendorRow, enrichedTimeslots, products);
 
     // 조회수 기록
     const { data: { user } } = await supabase.auth.getUser();

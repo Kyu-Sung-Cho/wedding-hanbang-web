@@ -111,6 +111,12 @@ export async function executeTool(
         return await executeToggleChecklistItem(toolInput, context);
       case "get_schedule_events":
         return executeGetScheduleEvents(toolInput, context);
+      case "search_vendors":
+        return await executeSearchVendors(toolInput, context);
+      case "check_vendor_availability":
+        return await executeCheckVendorAvailability(toolInput);
+      case "recommend_vendors":
+        return await executeRecommendVendors(toolInput, context);
       default:
         return {
           toolName,
@@ -605,5 +611,281 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
     displayMessage: weddingDate
       ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 진행률: ${Math.round((completedCount / allKeys.length) * 100)}%`
       : `결혼 예정일 미설정 / 예산: ${formatWon(budget)}`,
+  };
+}
+
+// ── 업체 검색/추천 도구 ──
+
+const VENDOR_CATEGORY_MAP: Record<string, string> = {
+  "스튜디오": "studio", "드레스": "dress", "메이크업": "makeup",
+  "예식장": "venue", "한복": "hanbok", "예물": "jewelry", "신혼여행": "honeymoon", "기타": "other",
+};
+
+async function executeSearchVendors(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  let query = admin
+    .from("vendors")
+    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
+    .eq("status", "approved")
+    .limit((input.limit as number) || 5);
+
+  if (input.category) {
+    const dbCat = VENDOR_CATEGORY_MAP[input.category as string] || (input.category as string);
+    query = query.eq("category", dbCat);
+  }
+  if (input.location) {
+    query = query.or(`location.ilike.%${input.location}%,region.ilike.%${input.location}%`);
+  }
+  if (input.price_max) {
+    query = query.lte("price_min", input.price_max as number);
+  }
+  if (input.price_min) {
+    query = query.gte("price_max", input.price_min as number);
+  }
+  if (input.search) {
+    query = query.or(`name.ilike.%${input.search}%,tags.cs.{${input.search}}`);
+  }
+
+  query = query.order("rating", { ascending: false });
+
+  const { data: vendors, error } = await query;
+  if (error) throw error;
+
+  const results = (vendors ?? []).map((v) => ({
+    id: v.id,
+    name: v.name,
+    category: v.category,
+    location: v.location || v.region,
+    priceRange: v.price_range,
+    rating: v.rating,
+    reviewCount: v.review_count,
+    tags: v.tags,
+    aiRecommend: v.ai_recommend,
+    link: `/vendors/${v.id}`,
+  }));
+
+  // 검색 로그 기록
+  if (ctx.coupleId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("couple_id", ctx.coupleId)
+      .limit(1)
+      .single();
+    if (profile) {
+      await admin.from("search_logs").insert({
+        user_id: profile.id,
+        query: (input.search as string) || (input.category as string) || "AI 검색",
+        category: (input.category as string) || null,
+        result_count: results.length,
+      }).then(() => {});
+    }
+  }
+
+  return {
+    toolName: "search_vendors",
+    toolInput: input,
+    toolOutput: { vendors: results, count: results.length },
+    success: true,
+    displayMessage: results.length > 0
+      ? `${results.length}개 업체를 찾았습니다: ${results.map((v) => `${v.name}(${v.priceRange})`).join(", ")}`
+      : "조건에 맞는 업체가 없습니다.",
+  };
+}
+
+async function executeCheckVendorAvailability(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const vendorId = input.vendor_id as string;
+  const productId = input.product_id as string | undefined;
+  const targetDay = input.day as number | undefined;
+
+  // 업체 이름 조회
+  const { data: vendor } = await admin
+    .from("vendors")
+    .select("name")
+    .eq("id", vendorId)
+    .single();
+
+  if (!vendor) {
+    return {
+      toolName: "check_vendor_availability", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "업체를 찾을 수 없습니다.",
+    };
+  }
+
+  // 타임슬롯 조회
+  const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
+  const slotFk = productId ? "product_id" : "vendor_id";
+  const slotFkValue = productId || vendorId;
+
+  let slotQuery = admin
+    .from(slotTable)
+    .select("day, hour, available, max_bookings")
+    .eq(slotFk, slotFkValue)
+    .eq("available", true);
+
+  if (targetDay !== undefined) {
+    slotQuery = slotQuery.eq("day", targetDay);
+  }
+
+  const { data: slots } = await slotQuery;
+
+  // 향후 7일 예약 수 확인
+  const today = new Date();
+  const dateStrings: string[] = [];
+  const dayToDate = new Map<number, string>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dateStr = d.toISOString().split("T")[0];
+    const day = (d.getDay() + 6) % 7;
+    dateStrings.push(dateStr);
+    if (!dayToDate.has(day)) dayToDate.set(day, dateStr);
+  }
+
+  const { data: bookings } = await admin
+    .from("vendor_bookings")
+    .select("booking_date, booking_time")
+    .eq("vendor_id", vendorId)
+    .in("booking_date", dateStrings)
+    .neq("status", "cancelled");
+
+  const bookingCountMap = new Map<string, number>();
+  for (const b of bookings ?? []) {
+    const key = `${b.booking_date}:${b.booking_time}`;
+    bookingCountMap.set(key, (bookingCountMap.get(key) ?? 0) + 1);
+  }
+
+  const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+  const availableSlots = (slots ?? []).map((s) => {
+    const dateStr = dayToDate.get(s.day);
+    const timeStr = `${String(s.hour).padStart(2, "0")}:00`;
+    const currentBookings = dateStr ? (bookingCountMap.get(`${dateStr}:${timeStr}`) ?? 0) : 0;
+    const remaining = s.max_bookings - currentBookings;
+    return {
+      day: s.day,
+      dayLabel: DAYS[s.day],
+      hour: s.hour,
+      time: timeStr,
+      date: dateStr,
+      maxBookings: s.max_bookings,
+      currentBookings,
+      remaining,
+      available: remaining > 0,
+    };
+  }).filter((s) => s.available);
+
+  return {
+    toolName: "check_vendor_availability",
+    toolInput: input,
+    toolOutput: { vendorName: vendor.name, slots: availableSlots, count: availableSlots.length },
+    success: true,
+    displayMessage: availableSlots.length > 0
+      ? `${vendor.name}의 예약 가능 시간 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((s) => `${s.dayLabel} ${s.time}(잔여${s.remaining}석)`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}`
+      : `${vendor.name}은(는) 현재 예약 가능한 시간이 없습니다.`,
+  };
+}
+
+async function executeRecommendVendors(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const category = input.category as string;
+  const limit = (input.limit as number) || 3;
+  const dbCat = VENDOR_CATEGORY_MAP[category] || category;
+
+  // 고객 예산 (해당 카테고리)
+  const categoryProgress = ctx.weddingContext.progress[dbCat];
+  const categoryBudget = (categoryProgress as Record<string, unknown>)?.budget as number | undefined;
+  const totalBudget = ctx.weddingContext.budget;
+  const ratio = CATEGORY_RATIOS[dbCat] ?? 0.05;
+  const estimatedBudget = categoryBudget || Math.round(totalBudget * ratio);
+
+  // 이미 본 업체 제외 (고객 이벤트 데이터)
+  let viewedVendorIds: string[] = [];
+  if (ctx.coupleId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("couple_id", ctx.coupleId)
+      .limit(1)
+      .single();
+
+    if (profile) {
+      const { data: viewed } = await admin
+        .from("customer_events")
+        .select("vendor_id")
+        .eq("user_id", profile.id)
+        .eq("event_type", "vendor_view")
+        .not("vendor_id", "is", null)
+        .limit(50);
+      viewedVendorIds = (viewed ?? []).map((v) => v.vendor_id).filter(Boolean);
+    }
+  }
+
+  // 업체 검색 (예산 범위에 맞게)
+  let query = admin
+    .from("vendors")
+    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend, description")
+    .eq("status", "approved")
+    .eq("category", dbCat)
+    .order("rating", { ascending: false })
+    .limit(limit + viewedVendorIds.length);
+
+  if (estimatedBudget > 0) {
+    query = query.lte("price_min", Math.round(estimatedBudget * 1.3));
+  }
+
+  const { data: vendors, error } = await query;
+  if (error) throw error;
+
+  // 이미 본 업체 필터링 후 상위 N개
+  const filtered = (vendors ?? [])
+    .filter((v) => !viewedVendorIds.includes(v.id))
+    .slice(0, limit);
+
+  // 추천 이유 생성
+  const results = filtered.map((v) => {
+    const reasons: string[] = [];
+    if (v.ai_recommend) reasons.push("AI 추천 업체");
+    if (v.rating >= 4.5) reasons.push(`높은 평점 ${v.rating}점`);
+    if (estimatedBudget > 0 && v.price_min <= estimatedBudget) reasons.push("예산 범위 내");
+    if (v.review_count > 10) reasons.push(`리뷰 ${v.review_count}개`);
+    if (reasons.length === 0) reasons.push("카테고리 인기 업체");
+
+    return {
+      id: v.id,
+      name: v.name,
+      location: v.location || v.region,
+      priceRange: v.price_range,
+      rating: v.rating,
+      reviewCount: v.review_count,
+      tags: v.tags,
+      description: v.description?.slice(0, 100),
+      reasons,
+      link: `/vendors/${v.id}`,
+    };
+  });
+
+  return {
+    toolName: "recommend_vendors",
+    toolInput: input,
+    toolOutput: {
+      vendors: results,
+      count: results.length,
+      estimatedBudget,
+      category,
+    },
+    success: true,
+    displayMessage: results.length > 0
+      ? `${category} 추천 업체 ${results.length}개:\n${results.map((v, i) => `${i + 1}. ${v.name} (${v.priceRange}, ${v.rating}점) - ${v.reasons.join(", ")}`).join("\n")}`
+      : `${category} 카테고리에 조건에 맞는 업체가 없습니다.`,
   };
 }

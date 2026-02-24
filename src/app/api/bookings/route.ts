@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { vendorId, productId, date, time, brideName, groomName, contactPhone, memo } = body;
+    const { vendorId, productId, staffId, date, time, brideName, groomName, contactPhone, memo } = body;
 
     if (!vendorId || !date || !time) {
       return NextResponse.json({ error: "업체, 날짜, 시간은 필수입니다." }, { status: 400 });
@@ -38,13 +38,50 @@ export async function POST(req: Request) {
     }
 
     const bookingDate = new Date(date);
-    const dayOfWeek = bookingDate.getDay();
+    const dayOfWeek = (bookingDate.getDay() + 6) % 7; // 0=월 ~ 6=일
+    const bookingHour = parseInt(time.split(":")[0], 10);
+
+    // 용량 검증: 타임슬롯의 max_bookings 체크
+    const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
+    const slotFk = productId ? "product_id" : "vendor_id";
+    const slotFkValue = productId || vendorId;
+
+    const { data: slot } = await supabase
+      .from(slotTable)
+      .select("max_bookings, available")
+      .eq(slotFk, slotFkValue)
+      .eq("day", dayOfWeek)
+      .eq("hour", bookingHour)
+      .single();
+
+    if (slot && !slot.available) {
+      return NextResponse.json({ error: "해당 시간은 예약이 불가능합니다." }, { status: 409 });
+    }
+
+    const maxBookings = slot?.max_bookings ?? 1;
+
+    // 해당 날짜/시간의 기존 예약 수 확인 (취소 제외)
+    const { count: existingCount } = await supabase
+      .from("vendor_bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", vendorId)
+      .eq("booking_date", date)
+      .eq("booking_time", time)
+      .neq("status", "cancelled");
+
+    if ((existingCount ?? 0) >= maxBookings) {
+      return NextResponse.json(
+        { error: "해당 시간은 예약이 마감되었습니다." },
+        { status: 409 }
+      );
+    }
 
     const { data: booking, error } = await supabase
       .from("vendor_bookings")
       .insert({
         vendor_id: vendorId,
         product_id: productId || null,
+        staff_id: staffId || null,
         couple_id: profile?.couple_id || null,
         booking_date: date,
         booking_time: time,

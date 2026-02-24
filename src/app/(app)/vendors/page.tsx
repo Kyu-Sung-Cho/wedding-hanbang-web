@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Star, MapPin, Sparkles, Filter, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import type { Vendor } from "@/types/vendor.types";
+import { useEventTracker } from "@/hooks/useEventTracker";
 
 const categories = ["전체", "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행"];
 
@@ -12,6 +13,8 @@ export default function VendorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const { trackEvent } = useEventTracker();
+  const lastTrackedSearch = useRef("");
 
   const fetchVendors = useCallback(async () => {
     setLoading(true);
@@ -24,7 +27,21 @@ export default function VendorsPage() {
       const res = await fetch(`/api/vendors?${params}`);
       if (res.ok) {
         const data = await res.json();
-        setVendors(data.vendors ?? []);
+        const list = data.vendors ?? [];
+        setVendors(list);
+
+        // 검색 이벤트 추적
+        const q = searchQuery.trim();
+        if (q && q !== lastTrackedSearch.current) {
+          lastTrackedSearch.current = q;
+          trackEvent("search", {
+            metadata: {
+              query: q,
+              category: activeCategory !== "전체" ? activeCategory : undefined,
+              resultCount: list.length,
+            },
+          });
+        }
       }
     } catch (err) {
       console.error("Fetch vendors error:", err);

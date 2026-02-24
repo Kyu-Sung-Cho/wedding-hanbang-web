@@ -9,6 +9,8 @@ import {
   Clock,
   CalendarCheck,
   MessageSquare,
+  BarChart3,
+  Users,
   Settings,
   X,
   LogOut,
@@ -23,6 +25,8 @@ const menuItems = [
   { href: "/vendor/timeslots", icon: Clock, label: "타임슬롯 관리" },
   { href: "/vendor/bookings", icon: CalendarCheck, label: "예약 현황" },
   { href: "/vendor/messages", icon: MessageSquare, label: "메시지" },
+  { href: "/vendor/staff", icon: Users, label: "스태프" },
+  { href: "/vendor/analytics", icon: BarChart3, label: "분석" },
   { href: "/vendor/settings", icon: Settings, label: "설정" },
 ];
 
