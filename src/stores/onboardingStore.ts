@@ -33,6 +33,7 @@ interface OnboardingStoreState {
   setVenueUndecided: (value: boolean) => void;
   setBudget: (budget: number) => void;
   toggleChecklistItem: (key: string) => void;
+  setChecklistItemCost: (key: string, cost: number | undefined) => void;
   setChecklist: (items: ProgressChecklistItem[]) => void;
   reset: () => void;
 }
@@ -71,7 +72,13 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   toggleChecklistItem: (key) =>
     set((s) => ({
       progressChecklist: s.progressChecklist.map((item) =>
-        item.key === key ? { ...item, done: !item.done } : item
+        item.key === key ? { ...item, done: !item.done, cost: !item.done ? item.cost : undefined } : item
+      ),
+    })),
+  setChecklistItemCost: (key, cost) =>
+    set((s) => ({
+      progressChecklist: s.progressChecklist.map((item) =>
+        item.key === key ? { ...item, cost } : item
       ),
     })),
   setChecklist: (items) => set({ progressChecklist: items }),

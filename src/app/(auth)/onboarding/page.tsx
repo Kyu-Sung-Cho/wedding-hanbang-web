@@ -15,6 +15,8 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inviteCodeResult, setInviteCodeResult] = useState("");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -30,7 +32,6 @@ export default function OnboardingPage() {
           return; // 프로필 없으면 온보딩 진행
         }
         if (data.profile.onboarding_completed) {
-          // 쿠키도 세팅해두기
           document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
           window.location.href = "/dashboard";
         }
@@ -64,10 +65,11 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const progress: Record<string, { status: string }> = {};
+      const progress: Record<string, { status: string; cost?: number | null }> = {};
       store.progressChecklist.forEach((item) => {
         progress[item.key] = {
           status: item.done ? "completed" : "not_started",
+          cost: item.done && item.cost ? item.cost : null,
         };
       });
 
@@ -93,17 +95,44 @@ export default function OnboardingPage() {
         return;
       }
 
-      if (data.inviteCode) {
-        setInviteCodeResult(data.inviteCode);
-      }
-
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-      window.location.href = "/dashboard";
+
+      // 초대코드가 있고 "새로 시작하기"인 경우 모달 표시
+      if (data.inviteCode && store.coupleAction === "create") {
+        setInviteCodeResult(data.inviteCode);
+        setShowInviteModal(true);
+        // 리다이렉트 하지 않음 → 모달에서 사용자가 직접 이동
+      } else {
+        window.location.href = "/dashboard";
+      }
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSkipChecklist = async () => {
+    // 체크리스트를 모두 not_started로 유지한 채 제출
+    await handleSubmit();
+  };
+
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteCodeResult);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      // fallback
+      const textArea = document.createElement("textarea");
+      textArea.value = inviteCodeResult;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
     }
   };
 
@@ -161,6 +190,7 @@ export default function OnboardingPage() {
                 <ProgressChecklist
                   items={store.progressChecklist}
                   onToggle={store.toggleChecklistItem}
+                  onCostChange={store.setChecklistItemCost}
                 />
               )}
             </motion.div>
@@ -169,16 +199,6 @@ export default function OnboardingPage() {
           {/* 에러 */}
           {error && (
             <p className="text-[12px] text-rose-600 text-center mt-4">{error}</p>
-          )}
-
-          {/* 초대 코드 결과 */}
-          {inviteCodeResult && (
-            <div className="bg-ivory-100 rounded-2xl p-4 mt-4 text-center">
-              <p className="text-[12px] text-taupe-400 mb-1">파트너 초대 코드</p>
-              <p className="text-[20px] font-mono font-bold text-noir-800 tracking-wider">
-                {inviteCodeResult}
-              </p>
-            </div>
           )}
 
           {/* 버튼 */}
@@ -200,17 +220,90 @@ export default function OnboardingPage() {
                 다음
               </button>
             ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="flex-1 py-3 rounded-2xl text-[14px] font-medium transition-all bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
-              >
-                {loading ? "저장 중..." : "시작하기"}
-              </button>
+              <div className="flex-1 flex flex-col gap-2">
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
+                >
+                  {loading ? "저장 중..." : "시작하기"}
+                </button>
+                <button
+                  onClick={handleSkipChecklist}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
+                >
+                  나중에 하기
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* 초대코드 모달 */}
+      <AnimatePresence>
+        {showInviteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-[400px] bg-white rounded-3xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center"
+            >
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-rose-500/10 flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4967E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+
+              <h3 className="text-[20px] font-semibold text-noir-800 mb-2">
+                파트너 초대 코드
+              </h3>
+              <p className="text-[13px] text-taupe-400 mb-5 leading-relaxed">
+                아래 코드를 파트너에게 공유하세요.
+                <br />
+                파트너가 이 코드로 가입하면 함께 준비할 수 있어요!
+              </p>
+
+              <div className="bg-ivory-100 rounded-2xl p-5 mb-5">
+                <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
+                  {inviteCodeResult}
+                </p>
+              </div>
+
+              <button
+                onClick={handleCopyCode}
+                className={`w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 ${
+                  codeCopied
+                    ? "bg-green-500 text-white"
+                    : "bg-noir-800 text-white hover:bg-noir-soft"
+                }`}
+              >
+                {codeCopied ? "복사 완료!" : "코드 복사하기"}
+              </button>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/dashboard";
+                }}
+                className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
+              >
+                대시보드로 이동
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

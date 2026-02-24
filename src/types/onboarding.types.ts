@@ -19,6 +19,7 @@ export interface ProgressChecklistItem {
   key: string;
   label: string;
   done: boolean;
+  cost?: number;
 }
 
 export const ONBOARDING_STEPS = [

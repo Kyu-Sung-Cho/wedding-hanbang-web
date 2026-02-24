@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface WeddingDetailsProps {
   weddingDate: string | null;
   weddingDateUndecided: boolean;
@@ -37,6 +39,13 @@ export default function WeddingDetails({
   onBudgetChange,
   isPartnerData,
 }: WeddingDetailsProps) {
+  const [showCustomBudget, setShowCustomBudget] = useState(
+    budget > 50000000 || (budget >= 50000000 && !BUDGET_OPTIONS.some((o) => o.value === budget))
+  );
+  const [customBudgetText, setCustomBudgetText] = useState(
+    budget > 50000000 ? String(budget / 10000) : ""
+  );
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -115,17 +124,49 @@ export default function WeddingDetails({
           {BUDGET_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => onBudgetChange(opt.value)}
+              onClick={() => {
+                if (opt.value === 50000000) {
+                  setShowCustomBudget(true);
+                  onBudgetChange(opt.value);
+                } else {
+                  setShowCustomBudget(false);
+                  setCustomBudgetText("");
+                  onBudgetChange(opt.value);
+                }
+              }}
               className={`px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-                budget === opt.value
-                  ? "bg-noir-800 text-white"
-                  : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                opt.value === 50000000
+                  ? showCustomBudget
+                    ? "bg-noir-800 text-white"
+                    : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                  : budget === opt.value && !showCustomBudget
+                    ? "bg-noir-800 text-white"
+                    : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
               }`}
             >
               {opt.label}
             </button>
           ))}
         </div>
+        {showCustomBudget && (
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={customBudgetText}
+              onChange={(e) => {
+                const num = e.target.value.replace(/[^\d]/g, "");
+                setCustomBudgetText(num);
+                if (num) {
+                  onBudgetChange(Number(num) * 10000);
+                }
+              }}
+              placeholder="예: 7000"
+              className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+            />
+            <span className="text-[13px] text-taupe-500 whitespace-nowrap">만원</span>
+          </div>
+        )}
       </div>
     </div>
   );
