@@ -41,7 +41,7 @@ export default function CustomerHero() {
         >
           결혼 준비,
           <br />
-          <span className="font-light bg-gradient-to-r from-[#C4967E] via-[#C9A96E] to-[#B8976A] bg-clip-text text-transparent">
+          <span className="font-medium bg-gradient-to-r from-[#C4967E] via-[#C9A96E] to-[#B8976A] bg-clip-text text-transparent">
             한방
           </span>
           에
