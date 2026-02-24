@@ -48,11 +48,12 @@ export default function LoginPage() {
     setError("");
     try {
       const supabase = createClient();
+      const redirectTo = isVendorLogin
+        ? `${window.location.origin}/api/auth/callback?from=vendor`
+        : `${window.location.origin}/api/auth/callback`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
-        },
+        options: { redirectTo },
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
@@ -131,6 +132,10 @@ export default function LoginPage() {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               document.cookie = "vendor_role=true; path=/; max-age=2592000";
               window.location.href = "/vendor/dashboard";
+            } else if (isVendorLogin) {
+              // 업체 로그인으로 들어왔는데 업체 등록이 안 되어 있음
+              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+              window.location.href = "/vendor/register";
             } else if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               window.location.href = "/dashboard";

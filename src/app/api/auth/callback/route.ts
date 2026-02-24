@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const fromVendor = searchParams.get("from") === "vendor";
 
   if (!code) {
     console.error("콜백: code 파라미터 없음");
@@ -85,6 +86,16 @@ export async function GET(request: Request) {
       response.cookies.set("vendor_role", "true", {
         path: "/",
         maxAge: 60 * 60 * 24 * 30,
+      });
+      return response;
+    }
+
+    // 업체 로그인으로 왔는데 업체 등록이 안 되어 있으면 → 업체 등록으로
+    if (fromVendor) {
+      const response = NextResponse.redirect(`${origin}/vendor/register`);
+      response.cookies.set("onboarding_complete", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
       });
       return response;
     }
