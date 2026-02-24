@@ -25,20 +25,30 @@ export async function GET(request: Request) {
       }
     );
 
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
-    // 온보딩 완료 여부 확인 (세션 클라이언트 - RLS로 자기 프로필 조회)
+    if (sessionError) {
+      console.error("세션 교환 에러:", sessionError);
+      return NextResponse.redirect(`${origin}/login`);
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (user) {
-      const { data: profile } = await supabase
+      // 프로필 조회 (새 유저는 프로필이 없을 수 있음)
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("onboarding_completed")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
+      if (profileError) {
+        console.error("프로필 조회 에러:", profileError);
+      }
+
+      // 프로필이 없거나 온보딩 미완료 → 온보딩으로
       if (!profile || !profile.onboarding_completed) {
         return NextResponse.redirect(`${origin}/onboarding`);
       }
@@ -53,5 +63,6 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  // code가 없거나 user가 없으면 로그인으로
+  return NextResponse.redirect(`${origin}/login`);
 }
