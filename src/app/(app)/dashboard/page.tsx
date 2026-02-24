@@ -47,10 +47,22 @@ const STATUS_STYLES: Record<string, { label: string; color: string }> = {
 };
 
 export default function DashboardPage() {
-  const { profile, partner, journey, couple } = useAuthStore();
+  const { profile, partner, journey, couple, updateJourney } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // 카테고리 상태 변경
+  const handleStatusChange = async (key: string, newStatus: "not_started" | "in_progress" | "completed") => {
+    const currentProgress = { ...(journey?.progress ?? {}) };
+    const existing = currentProgress[key];
+    currentProgress[key] = {
+      ...existing,
+      category: key,
+      status: newStatus,
+    };
+    await updateJourney({ progress: currentProgress });
+  };
 
   // 커플 코드 불러오기
   useEffect(() => {
@@ -222,27 +234,52 @@ export default function DashboardPage() {
             {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
               const item = progress[key] as { status: string; checklist?: { id: string; label: string; done: boolean }[] } | undefined;
               const status = item?.status ?? "not_started";
-              const style = STATUS_STYLES[status] ?? STATUS_STYLES.not_started;
               const template = CHECKLIST_MAP[key];
               const merged = template ? mergeChecklist(template.items, item?.checklist, status as "not_started" | "in_progress" | "completed") : [];
               const { done, total } = getChecklistCounts(merged);
               return (
                 <div
                   key={key}
-                  onClick={() => setSelectedCategory(key)}
-                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-ivory-50 border border-black/[0.02] cursor-pointer hover:bg-ivory-100 hover:border-rose-500/20 transition-all group"
+                  className={`rounded-xl border transition-all ${
+                    status === "completed"
+                      ? "border-[#2E7D5A]/20 bg-[#2E7D5A]/[0.03]"
+                      : status === "in_progress"
+                        ? "border-rose-500/20 bg-rose-500/[0.03]"
+                        : "border-black/[0.02] bg-ivory-50"
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] text-noir-800 font-medium">{label}</span>
-                    {total > 0 && (
-                      <span className="text-[11px] text-taupe-400">{done}/{total}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[11px] px-2.5 py-1 rounded-full text-white font-medium ${style.color}`}>
-                      {style.label}
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div
+                    onClick={() => setSelectedCategory(key)}
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] text-noir-800 font-medium">{label}</span>
+                      {total > 0 && (
+                        <span className="text-[11px] text-taupe-400">{done}/{total}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {(["not_started", "in_progress", "completed"] as const).map((s) => {
+                        const opt = STATUS_STYLES[s];
+                        return (
+                          <button
+                            key={s}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(key, s);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
+                              status === s
+                                ? `${opt.color} text-white`
+                                : "bg-black/[0.04] text-taupe-400 hover:bg-black/[0.08]"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                      <ChevronRight className="w-3.5 h-3.5 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                    </div>
                   </div>
                 </div>
               );
