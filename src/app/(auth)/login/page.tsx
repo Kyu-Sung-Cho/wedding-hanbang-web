@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +15,15 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // 콜백에서 전달된 에러 표시
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const callbackError = params.get("error");
+    if (callbackError) {
+      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    }
+  }, []);
 
   const handleOAuth = async (provider: "kakao" | "google") => {
     setLoading(provider);
