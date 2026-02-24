@@ -21,11 +21,12 @@ export default function CustomerHero() {
 
       <div className="relative z-10 text-center max-w-[900px] px-6 py-32">
         {/* 배지 */}
-        <motion.div
+        <motion.button
           initial={{ opacity: 0, y: 16, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/70 backdrop-blur-[12px] border border-rose-pale/30 rounded-full mb-10"
+          onClick={() => document.getElementById("cta")?.scrollIntoView({ behavior: "smooth" })}
+          className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/70 backdrop-blur-[12px] border border-rose-pale/30 rounded-full mb-10 cursor-pointer hover:bg-white/90 hover:border-rose-500/30 transition-all"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
           <span className="text-[13px] text-charcoal tracking-wide font-light">
@@ -34,7 +35,7 @@ export default function CustomerHero() {
           <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">
             무료
           </span>
-        </motion.div>
+        </motion.button>
 
         {/* 메인 헤드라인 */}
         <motion.h1
