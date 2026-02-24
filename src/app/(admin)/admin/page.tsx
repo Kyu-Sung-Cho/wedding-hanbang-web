@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { mockVendors } from "@/data/mockVendors";
-import type { Vendor, VendorStatus } from "@/data/mockVendors";
-import { Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX, Loader2 } from "lucide-react";
 
 interface Registration {
   id: string;
@@ -15,6 +13,22 @@ interface Registration {
 interface DailyCount {
   date: string;
   count: number;
+}
+
+interface AdminVendor {
+  id: string;
+  name: string;
+  category: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  address: string;
+  businessNumber: string;
+  priceRange: string;
+  description: string;
+  tags: string[];
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
 }
 
 export default function AdminPage() {
@@ -29,10 +43,28 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"registrations" | "vendors">("registrations");
 
   // 업체 심사 상태
-  const [vendors, setVendors] = useState<Vendor[]>(mockVendors);
-  const [vendorFilter, setVendorFilter] = useState<VendorStatus | "all">("all");
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [vendors, setVendors] = useState<AdminVendor[]>([]);
+  const [vendorFilter, setVendorFilter] = useState<AdminVendor["status"] | "all">("all");
+  const [selectedVendor, setSelectedVendor] = useState<AdminVendor | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [vendorLoading, setVendorLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchVendors = useCallback(async () => {
+    setVendorLoading(true);
+    try {
+      const res = await fetch("/api/admin/vendors", {
+        headers: { "x-admin-password": password },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVendors(data.vendors);
+      }
+    } catch {
+      console.error("업체 목록 조회 실패");
+    }
+    setVendorLoading(false);
+  }, [password]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -56,19 +88,58 @@ export default function AdminPage() {
     setLoading(false);
   }
 
+  // 인증 후 업체 데이터 로드
   useEffect(() => {
-    if (!authenticated) return;
-  }, [authenticated]);
+    if (authenticated) {
+      fetchVendors();
+    }
+  }, [authenticated, fetchVendors]);
 
-  const handleApprove = (id: string) => {
-    setVendors(vendors.map((v) => v.id === id ? { ...v, status: "approved" as VendorStatus } : v));
-    setSelectedVendor(null);
+  const handleApprove = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": password,
+        },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (res.ok) {
+        await fetchVendors();
+        setSelectedVendor(null);
+      } else {
+        alert("승인 처리에 실패했습니다.");
+      }
+    } catch {
+      alert("서버 오류가 발생했습니다.");
+    }
+    setActionLoading(false);
   };
 
-  const handleReject = (id: string) => {
-    setVendors(vendors.map((v) => v.id === id ? { ...v, status: "rejected" as VendorStatus } : v));
-    setSelectedVendor(null);
-    setRejectReason("");
+  const handleReject = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": password,
+        },
+        body: JSON.stringify({ action: "reject", reason: rejectReason }),
+      });
+      if (res.ok) {
+        await fetchVendors();
+        setSelectedVendor(null);
+        setRejectReason("");
+      } else {
+        alert("반려 처리에 실패했습니다.");
+      }
+    } catch {
+      alert("서버 오류가 발생했습니다.");
+    }
+    setActionLoading(false);
   };
 
   const filteredVendors = vendorFilter === "all" ? vendors : vendors.filter((v) => v.status === vendorFilter);
@@ -288,70 +359,87 @@ export default function AdminPage() {
 
             {/* 업체 리스트 */}
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-platinum">
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체명</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업종</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">대표자</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">사업자번호</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredVendors.map((v) => (
-                      <tr key={v.id} className="border-b border-black/[0.02] hover:bg-ivory-warm/50 transition-colors">
-                        <td className="px-6 py-4 text-sm text-noir-800 font-medium">{v.name}</td>
-                        <td className="px-6 py-4 text-sm text-taupe-500">{v.category}</td>
-                        <td className="px-6 py-4 text-sm text-taupe-500">{v.ownerName}</td>
-                        <td className="px-6 py-4 text-sm text-taupe-500 font-mono">{v.businessNumber}</td>
-                        <td className="px-6 py-4 text-sm text-taupe-500">{v.registeredAt}</td>
-                        <td className="px-6 py-4">
-                          <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
-                            v.status === "approved" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
-                            v.status === "pending" ? "bg-gold/10 text-gold" :
-                            "bg-red-500/10 text-red-500"
-                          }`}>
-                            {v.status === "approved" ? "승인" : v.status === "pending" ? "대기" : "반려"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setSelectedVendor(v)}
-                              className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors"
-                              title="상세 보기"
-                            >
-                              <Eye className="w-4 h-4 text-taupe-400" />
-                            </button>
-                            {v.status === "pending" && (
-                              <>
-                                <button
-                                  onClick={() => handleApprove(v.id)}
-                                  className="p-1.5 rounded-lg hover:bg-[#2E7D5A]/10 transition-colors"
-                                  title="승인"
-                                >
-                                  <Check className="w-4 h-4 text-[#2E7D5A]" />
-                                </button>
-                                <button
-                                  onClick={() => { setSelectedVendor(v); }}
-                                  className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                  title="반려"
-                                >
-                                  <X className="w-4 h-4 text-red-500" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
+              {vendorLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
+                  <span className="ml-2 text-[14px] text-taupe-400">업체 목록 로딩 중...</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-platinum">
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체명</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업종</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">대표자</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">사업자번호</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredVendors.map((v) => (
+                        <tr key={v.id} className="border-b border-black/[0.02] hover:bg-ivory-warm/50 transition-colors">
+                          <td className="px-6 py-4 text-sm text-noir-800 font-medium">{v.name}</td>
+                          <td className="px-6 py-4 text-sm text-taupe-500">{v.category}</td>
+                          <td className="px-6 py-4 text-sm text-taupe-500">{v.ownerName}</td>
+                          <td className="px-6 py-4 text-sm text-taupe-500 font-mono">{v.businessNumber}</td>
+                          <td className="px-6 py-4 text-sm text-taupe-500">
+                            {v.createdAt ? new Date(v.createdAt).toLocaleDateString("ko-KR") : "-"}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
+                              v.status === "approved" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
+                              v.status === "pending" ? "bg-gold/10 text-gold" :
+                              "bg-red-500/10 text-red-500"
+                            }`}>
+                              {v.status === "approved" ? "승인" : v.status === "pending" ? "대기" : "반려"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setSelectedVendor(v)}
+                                className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors"
+                                title="상세 보기"
+                              >
+                                <Eye className="w-4 h-4 text-taupe-400" />
+                              </button>
+                              {v.status === "pending" && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(v.id)}
+                                    disabled={actionLoading}
+                                    className="p-1.5 rounded-lg hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50"
+                                    title="승인"
+                                  >
+                                    <Check className="w-4 h-4 text-[#2E7D5A]" />
+                                  </button>
+                                  <button
+                                    onClick={() => setSelectedVendor(v)}
+                                    className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                    title="반려"
+                                  >
+                                    <X className="w-4 h-4 text-red-500" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredVendors.length === 0 && !vendorLoading && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-taupe-400 text-sm">
+                            등록된 업체가 없습니다.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 업체 상세 모달 */}
@@ -371,28 +459,33 @@ export default function AdminPage() {
                       { label: "업종", value: selectedVendor.category },
                       { label: "대표자", value: selectedVendor.ownerName },
                       { label: "연락처", value: selectedVendor.phone },
+                      { label: "이메일", value: selectedVendor.email },
                       { label: "주소", value: selectedVendor.address },
                       { label: "사업자번호", value: selectedVendor.businessNumber },
                       { label: "가격대", value: selectedVendor.priceRange },
-                      { label: "등록일", value: selectedVendor.registeredAt },
+                      { label: "등록일", value: selectedVendor.createdAt ? new Date(selectedVendor.createdAt).toLocaleDateString("ko-KR") : "-" },
                     ].map((item) => (
                       <div key={item.label} className="flex items-start gap-3">
                         <span className="text-[12px] text-taupe-400 w-[80px] flex-shrink-0 pt-0.5">{item.label}</span>
-                        <span className="text-[14px] text-noir-800">{item.value}</span>
+                        <span className="text-[14px] text-noir-800">{item.value || "-"}</span>
                       </div>
                     ))}
-                    <div>
-                      <span className="text-[12px] text-taupe-400 block mb-1">소개</span>
-                      <p className="text-[13px] text-charcoal font-light leading-relaxed">{selectedVendor.description}</p>
-                    </div>
-                    <div>
-                      <span className="text-[12px] text-taupe-400 block mb-1">태그</span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {selectedVendor.tags.map((tag) => (
-                          <span key={tag} className="px-2.5 py-1 rounded-full bg-ivory-warm text-[11px] text-charcoal font-medium">{tag}</span>
-                        ))}
+                    {selectedVendor.description && (
+                      <div>
+                        <span className="text-[12px] text-taupe-400 block mb-1">소개</span>
+                        <p className="text-[13px] text-charcoal font-light leading-relaxed">{selectedVendor.description}</p>
                       </div>
-                    </div>
+                    )}
+                    {selectedVendor.tags && selectedVendor.tags.length > 0 && (
+                      <div>
+                        <span className="text-[12px] text-taupe-400 block mb-1">태그</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {selectedVendor.tags.map((tag) => (
+                            <span key={tag} className="px-2.5 py-1 rounded-full bg-ivory-warm text-[11px] text-charcoal font-medium">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {selectedVendor.status === "pending" && (
@@ -410,16 +503,18 @@ export default function AdminPage() {
                       <div className="flex gap-3">
                         <button
                           onClick={() => handleApprove(selectedVendor.id)}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors"
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50"
                         >
-                          <Check className="w-4 h-4" />
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                           승인
                         </button>
                         <button
                           onClick={() => handleReject(selectedVendor.id)}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors"
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
                         >
-                          <X className="w-4 h-4" />
+                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
                           반려
                         </button>
                       </div>

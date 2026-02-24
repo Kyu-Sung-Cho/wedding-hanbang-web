@@ -37,3 +37,94 @@ export async function sendPreregistrationEmail(email: string) {
     console.error("이메일 발송 실패:", error);
   }
 }
+
+export async function sendVendorApprovalEmail(email: string, vendorName: string) {
+  if (!process.env.RESEND_API_KEY) return;
+  try {
+    await getResend().emails.send({
+      from: "Hanbang <noreply@hanbang.ai>",
+      to: email,
+      subject: `[웨딩한방] ${vendorName} 업체 등록이 승인되었습니다!`,
+      html: `
+        <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #C4967E, #C9A96E); border-radius: 12px; line-height: 48px; color: white; font-size: 20px; font-weight: bold;">한</div>
+          </div>
+          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
+            업체 등록이 승인되었습니다!
+          </h1>
+          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
+            <strong>${vendorName}</strong>의 파트너 등록이 승인 완료되었습니다.<br>
+            이제 업체 포털에서 상품과 타임슬롯을 설정하고<br>
+            고객에게 노출을 시작할 수 있습니다.
+          </p>
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="https://hanbang.ai/login?from=vendor" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              업체 포털로 이동
+            </a>
+          </div>
+          <div style="text-align: center; padding: 24px; background: #FAF7F2; border-radius: 16px; margin-bottom: 32px;">
+            <p style="font-size: 13px; color: #928980; margin: 0 0 8px;">다음 단계</p>
+            <p style="font-size: 14px; color: #1A1A1F; margin: 0; line-height: 1.8;">
+              1. 상품/패키지 등록<br>
+              2. 예약 가능 시간 설정<br>
+              3. 고객 노출 시작!
+            </p>
+          </div>
+          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
+            © 2026 웨딩한방. All rights reserved.
+          </p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error("업체 승인 이메일 발송 실패:", error);
+  }
+}
+
+export async function sendVendorRejectionEmail(email: string, vendorName: string, reason?: string) {
+  if (!process.env.RESEND_API_KEY) return;
+  try {
+    const reasonBlock = reason
+      ? `<div style="padding: 20px; background: #FFF5F5; border-radius: 12px; margin-bottom: 24px; border-left: 3px solid #E53E3E;">
+            <p style="font-size: 13px; color: #928980; margin: 0 0 8px;">반려 사유</p>
+            <p style="font-size: 14px; color: #1A1A1F; margin: 0; line-height: 1.6;">${reason}</p>
+          </div>`
+      : "";
+
+    await getResend().emails.send({
+      from: "Hanbang <noreply@hanbang.ai>",
+      to: email,
+      subject: `[웨딩한방] ${vendorName} 업체 등록 심사 결과 안내`,
+      html: `
+        <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #C4967E, #C9A96E); border-radius: 12px; line-height: 48px; color: white; font-size: 20px; font-weight: bold;">한</div>
+          </div>
+          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
+            업체 등록 심사 결과 안내
+          </h1>
+          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 24px;">
+            <strong>${vendorName}</strong>의 파트너 등록 심사 결과,<br>
+            아쉽게도 현재 기준으로 승인이 어렵습니다.
+          </p>
+          ${reasonBlock}
+          <p style="font-size: 14px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
+            프로필 정보를 수정하신 후 다시 심사를 요청하실 수 있습니다.<br>
+            문의사항은 partner@hanbang.ai로 연락해주세요.
+          </p>
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="https://hanbang.ai/login?from=vendor" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              프로필 수정하기
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
+            © 2026 웨딩한방. All rights reserved.
+          </p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error("업체 반려 이메일 발송 실패:", error);
+  }
+}

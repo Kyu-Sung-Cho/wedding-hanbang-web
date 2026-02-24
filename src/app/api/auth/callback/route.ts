@@ -68,7 +68,28 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/onboarding`);
     }
 
-    // 온보딩 완료 쿠키 설정
+    // 업체 계정인지 확인
+    const { data: vendorRecord } = await supabase
+      .from("vendors")
+      .select("id, status")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (vendorRecord) {
+      // 업체 사용자 → 업체 포털로 리다이렉트
+      const response = NextResponse.redirect(`${origin}/vendor/dashboard`);
+      response.cookies.set("onboarding_complete", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+      response.cookies.set("vendor_role", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      return response;
+    }
+
+    // 일반 고객 → 대시보드
     const response = NextResponse.redirect(`${origin}/dashboard`);
     response.cookies.set("onboarding_complete", "true", {
       path: "/",

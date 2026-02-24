@@ -11,6 +11,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    // 예약 조회 → vendor 소유권 검증
+    const { data: booking } = await supabase
+      .from("vendor_bookings")
+      .select("vendor_id")
+      .eq("id", id)
+      .single();
+
+    if (!booking) {
+      return NextResponse.json({ error: "예약을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const { data: vendor } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", booking.vendor_id)
+      .eq("owner_id", user.id)
+      .single();
+
+    if (!vendor) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
     const { status, memo } = await req.json();
 
     if (!["confirmed", "cancelled", "completed"].includes(status)) {
@@ -24,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from("vendor_bookings")
       .update(updateData)
       .eq("id", id)
+      .eq("vendor_id", vendor.id)
       .select()
       .single();
 

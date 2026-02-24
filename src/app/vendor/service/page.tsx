@@ -91,9 +91,14 @@ export default function VendorServicePage() {
             <ArrowLeft className="w-4 h-4" />
             파트너 랜딩으로
           </Link>
-          <Link href="/vendor/register" className="px-4 py-2 bg-noir-800 text-white rounded-lg text-[13px] font-medium hover:bg-noir-soft transition-colors">
-            업체 등록하기
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/login?from=vendor" className="px-4 py-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
+              기존 업체 로그인
+            </Link>
+            <Link href="/vendor/register" className="px-4 py-2 bg-noir-800 text-white rounded-lg text-[13px] font-medium hover:bg-noir-soft transition-colors">
+              업체 등록하기
+            </Link>
+          </div>
         </div>
       </nav>
 

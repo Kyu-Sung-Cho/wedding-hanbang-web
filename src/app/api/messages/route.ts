@@ -26,6 +26,17 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: true });
 
     if (customerId) {
+      // customerId 지정 시 해당 vendor의 owner만 조회 가능
+      const { data: vendorOwner } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("id", vendorId)
+        .eq("owner_id", user.id)
+        .single();
+
+      if (!vendorOwner) {
+        return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+      }
       query = query.eq("customer_id", customerId);
     } else {
       query = query.eq("customer_id", user.id);
@@ -73,23 +84,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "vendorId와 content는 필수입니다." }, { status: 400 });
     }
 
-    // senderType 결정: 업체 소유자면 vendor, 아니면 customer
-    let resolvedSenderType = senderType;
-    let resolvedCustomerId = customerId || user.id;
+    // senderType 결정: 서버에서 항상 vendor ownership으로 판단 (클라이언트 값 무시)
+    const { data: vendorOwnership } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", vendorId)
+      .eq("owner_id", user.id)
+      .single();
 
-    if (!resolvedSenderType) {
-      const { data: vendor } = await supabase
-        .from("vendors")
-        .select("id")
-        .eq("id", vendorId)
-        .eq("owner_id", user.id)
-        .single();
-
-      resolvedSenderType = vendor ? "vendor" : "customer";
-      if (vendor && customerId) {
-        resolvedCustomerId = customerId;
-      }
-    }
+    const resolvedSenderType = vendorOwnership ? "vendor" : "customer";
+    const resolvedCustomerId = vendorOwnership && customerId ? customerId : user.id;
 
     const { data: message, error } = await supabase
       .from("vendor_messages")

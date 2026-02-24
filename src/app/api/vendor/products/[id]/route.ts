@@ -12,6 +12,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    // 상품 → vendor 소유권 검증
+    const { data: existingProduct } = await supabase
+      .from("vendor_products")
+      .select("vendor_id")
+      .eq("id", id)
+      .single();
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const { data: vendor } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", existingProduct.vendor_id)
+      .eq("owner_id", user.id)
+      .single();
+
+    if (!vendor) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
     const body = await req.json();
     const updateData = productToUpdateRow(body);
 
@@ -19,6 +41,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       .from("vendor_products")
       .update(updateData)
       .eq("id", id)
+      .eq("vendor_id", vendor.id)
       .select()
       .single();
 
@@ -54,13 +77,36 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    // 상품 → vendor 소유권 검증
+    const { data: existingProduct } = await supabase
+      .from("vendor_products")
+      .select("vendor_id")
+      .eq("id", id)
+      .single();
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const { data: vendor } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", existingProduct.vendor_id)
+      .eq("owner_id", user.id)
+      .single();
+
+    if (!vendor) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
     // 타임슬롯 먼저 삭제
     await supabase.from("product_timeslots").delete().eq("product_id", id);
 
     const { error } = await supabase
       .from("vendor_products")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("vendor_id", vendor.id);
 
     if (error) {
       return NextResponse.json({ error: "상품 삭제에 실패했습니다." }, { status: 500 });
