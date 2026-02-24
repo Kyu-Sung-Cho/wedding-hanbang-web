@@ -15,18 +15,12 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isVendorLogin, setIsVendorLogin] = useState(false);
 
   // 콜백에서 전달된 에러 표시 (query params + hash fragment)
   useEffect(() => {
     // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
     const callbackError = params.get("error");
-
-    // from=vendor 파라미터 확인
-    if (params.get("from") === "vendor") {
-      setIsVendorLogin(true);
-    }
 
     // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
     const hash = window.location.hash.substring(1);
@@ -48,12 +42,11 @@ export default function LoginPage() {
     setError("");
     try {
       const supabase = createClient();
-      const redirectTo = isVendorLogin
-        ? `${window.location.origin}/api/auth/callback?from=vendor`
-        : `${window.location.origin}/api/auth/callback`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo },
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback`,
+        },
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
@@ -132,10 +125,6 @@ export default function LoginPage() {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               document.cookie = "vendor_role=true; path=/; max-age=2592000";
               window.location.href = "/vendor/dashboard";
-            } else if (isVendorLogin) {
-              // 업체 로그인으로 들어왔는데 업체 등록이 안 되어 있음
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/vendor/register";
             } else if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               window.location.href = "/dashboard";
@@ -181,23 +170,19 @@ export default function LoginPage() {
             <Logo size="md" />
           </a>
           <p className="text-[14px] text-taupe-500 font-light mt-3">
-            {isVendorLogin ? "업체 파트너 관리 포털" : "AI 웨딩 플래너와 함께하는 결혼 준비"}
+            AI 웨딩 플래너와 함께하는 결혼 준비
           </p>
         </div>
 
         {/* 로그인 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
           <h1 className="font-serif-kr text-[24px] font-light text-noir-800 text-center mb-2">
-            {isVendorLogin
-              ? "업체 관리자 로그인"
-              : mode === "login" ? "로그인" : "회원가입"}
+            {mode === "login" ? "로그인" : "회원가입"}
           </h1>
           <p className="text-[13px] text-taupe-400 text-center mb-8">
-            {isVendorLogin
-              ? "업체 포털에 로그인하세요"
-              : mode === "login"
-                ? "계정에 로그인하세요"
-                : "이메일로 간편하게 가입하세요"}
+            {mode === "login"
+              ? "계정에 로그인하세요"
+              : "이메일로 간편하게 가입하세요"}
           </p>
 
           {/* 이메일 폼 */}
@@ -330,8 +315,8 @@ export default function LoginPage() {
 
         {/* 하단 링크 */}
         <div className="text-center mt-6">
-          <a href={isVendorLogin ? "/vendor/service" : "/"} className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
-            ← {isVendorLogin ? "업체 서비스 안내로" : "홈으로 돌아가기"}
+          <a href="/" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
+            ← 홈으로 돌아가기
           </a>
         </div>
       </motion.div>

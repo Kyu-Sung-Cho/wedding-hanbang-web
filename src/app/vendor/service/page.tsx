@@ -92,7 +92,7 @@ export default function VendorServicePage() {
             파트너 랜딩으로
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/login?from=vendor" className="px-4 py-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
+            <Link href="/vendor/login" className="px-4 py-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
               기존 업체 로그인
             </Link>
             <Link href="/vendor/register" className="px-4 py-2 bg-noir-800 text-white rounded-lg text-[13px] font-medium hover:bg-noir-soft transition-colors">

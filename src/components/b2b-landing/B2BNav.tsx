@@ -33,7 +33,7 @@ export default function B2BNav() {
             파트너 설문
           </Link>
           <Link
-            href="/login?from=vendor"
+            href="/vendor/login"
             className="hidden sm:block px-4 py-2 text-[13px] text-white/60 hover:text-white transition-colors"
           >
             업체 로그인

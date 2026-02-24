@@ -59,7 +59,7 @@ export async function sendVendorApprovalEmail(email: string, vendorName: string)
             고객에게 노출을 시작할 수 있습니다.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://hanbang.ai/login?from=vendor" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="https://hanbang.ai/vendor/login" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               업체 포털로 이동
             </a>
           </div>
@@ -114,7 +114,7 @@ export async function sendVendorRejectionEmail(email: string, vendorName: string
             문의사항은 partner@hanbang.ai로 연락해주세요.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://hanbang.ai/login?from=vendor" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="https://hanbang.ai/vendor/login" style="display: inline-block; padding: 14px 32px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               프로필 수정하기
             </a>
           </div>
