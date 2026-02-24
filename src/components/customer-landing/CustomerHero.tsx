@@ -92,7 +92,7 @@ export default function CustomerHero() {
         >
           {[
             { num: "24시간", label: "AI 상담" },
-            { num: "20+", label: "웨딩 카테고리" },
+            { num: "커플 연동", label: "함께 준비" },
             { num: "All-in-One", label: "결혼 준비" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
