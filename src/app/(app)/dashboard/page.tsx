@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -18,11 +17,6 @@ import { useState, useEffect } from "react";
 import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
 
 const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -117,9 +111,8 @@ export default function DashboardPage() {
     <div className="max-w-[1100px] mx-auto">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
-        <motion.div
-          {...fadeIn}
-          className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3"
+        <div
+          className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in"
         >
           <div>
             <p className="text-[14px] font-medium text-noir-800">
@@ -142,14 +135,12 @@ export default function DashboardPage() {
               <Copy className="w-4 h-4 text-taupe-400" />
             )}
           </button>
-        </motion.div>
+        </div>
       )}
 
       {/* D-day 히어로 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.6 }}
-        className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-10 max-md:p-6 mb-8 relative overflow-hidden"
+      <div
+        className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-10 max-md:p-6 mb-8 relative overflow-hidden animate-fade-in"
       >
         <div className="absolute top-[-20%] right-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
         <div className="relative z-10 flex items-center justify-between max-md:flex-col max-md:text-center max-md:gap-6">
@@ -191,13 +182,11 @@ export default function DashboardPage() {
             <p className="text-white/40 text-[12px] mt-2">{totalDone}/{totalItems} 항목 완료</p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* 빠른 액션 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1"
+      <div
+        className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1 animate-fade-in"
       >
         {[
           { href: "/chat", icon: MessageCircle, label: "AI에게 물어보기", desc: "결혼 준비 뭐든 상담하세요", accent: "from-rose-500 to-gold" },
@@ -216,14 +205,12 @@ export default function DashboardPage() {
             <p className="text-[12px] text-taupe-500 font-light">{action.desc}</p>
           </Link>
         ))}
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1">
         {/* 카테고리 현황 */}
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="col-span-3 bg-white rounded-2xl p-6 border border-black/[0.04]"
+        <div
+          className="col-span-3 bg-white rounded-2xl p-6 border border-black/[0.04] animate-fade-in"
         >
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">카테고리별 진행 상태</h3>
@@ -261,13 +248,11 @@ export default function DashboardPage() {
               );
             })}
           </div>
-        </motion.div>
+        </div>
 
         {/* 최근 활동 / 안내 */}
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="col-span-2 bg-white rounded-2xl p-6 border border-black/[0.04]"
+        <div
+          className="col-span-2 bg-white rounded-2xl p-6 border border-black/[0.04] animate-fade-in"
         >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-4 h-4 text-rose-500" />
@@ -297,7 +282,7 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* 카테고리 체크리스트 모달 */}

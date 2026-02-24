@@ -175,7 +175,7 @@ export default function CustomerSolutions() {
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
-        initial={{ opacity: 0, y: 40 }}
+        initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
@@ -201,11 +201,11 @@ export default function CustomerSolutions() {
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.num}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-30px" }}
-            transition={{ duration: 0.6, delay: i * 0.03 }}
-            className={`bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-1 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 items-stretch max-md:grid-cols-1 ${
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.8, delay: i * 0.05 }}
+            className={`bg-white rounded-3xl overflow-hidden border border-black/[0.04] md:hover:-translate-y-1 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 items-stretch max-md:grid-cols-1 ${
               i % 2 === 1 ? "md:direction-rtl" : ""
             }`}
             style={i % 2 === 1 ? { direction: "rtl" } : undefined}

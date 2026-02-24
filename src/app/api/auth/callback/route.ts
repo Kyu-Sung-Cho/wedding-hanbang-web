@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
     await supabase.auth.exchangeCodeForSession(code);
 
-    // 온보딩 완료 여부 확인
+    // 온보딩 완료 여부 확인 (세션 클라이언트 - RLS로 자기 프로필 조회)
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       const response = NextResponse.redirect(`${origin}/dashboard`);
       response.cookies.set("onboarding_complete", "true", {
         path: "/",
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: 60 * 60 * 24 * 365,
       });
       return response;
     }

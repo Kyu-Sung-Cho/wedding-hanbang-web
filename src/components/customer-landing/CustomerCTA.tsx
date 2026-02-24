@@ -48,7 +48,7 @@ export default function CustomerCTA() {
 
       <div className="relative z-10 max-w-[640px] mx-auto text-center">
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.8 }}

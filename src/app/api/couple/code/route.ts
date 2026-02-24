@@ -1,13 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function GET() {
   try {
@@ -20,10 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const admin = getAdminClient();
-
-    // 프로필에서 couple_id 조회
-    const { data: profile } = await admin
+    // 프로필에서 couple_id 조회 (RLS: profiles_select_own)
+    const { data: profile } = await supabase
       .from("profiles")
       .select("couple_id")
       .eq("id", user.id)
@@ -36,8 +26,8 @@ export async function GET() {
       );
     }
 
-    // 커플 정보에서 초대 코드 조회
-    const { data: couple } = await admin
+    // 커플 정보에서 초대 코드 조회 (RLS: couples_select_own)
+    const { data: couple } = await supabase
       .from("couples")
       .select("invite_code")
       .eq("id", profile.couple_id)
@@ -45,8 +35,8 @@ export async function GET() {
 
     if (!couple?.invite_code) {
       // 코드가 없으면 생성
-      const { data: newCode } = await admin.rpc("generate_invite_code");
-      await admin
+      const { data: newCode } = await supabase.rpc("generate_invite_code");
+      await supabase
         .from("couples")
         .update({ invite_code: newCode })
         .eq("id", profile.couple_id);

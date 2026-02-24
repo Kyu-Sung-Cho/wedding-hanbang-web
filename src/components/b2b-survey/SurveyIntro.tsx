@@ -1,7 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ShopConfig } from "./data/types";
+import Logo from "@/components/ui/Logo";
 
 interface Props {
   config: ShopConfig;
@@ -19,6 +21,13 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
         transition={{ duration: 0.6 }}
         className="max-w-[560px] w-full"
       >
+        {/* 로고 */}
+        <div className="flex items-center justify-center mb-8">
+          <Link href="/business">
+            <Logo size="sm" />
+          </Link>
+        </div>
+
         {/* 헤더 */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.15em] uppercase text-rose-500 font-medium mb-4">
@@ -93,7 +102,7 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
 
         {/* 설문 참여 혜택 */}
         <div className="bg-ivory-deep rounded-2xl border border-platinum p-6 mb-5">
-          <p className="text-[13px] text-charcoal font-medium mb-4">
+          <p className="text-[13px] text-rose-600 font-medium mb-4 tracking-wide">
             설문 참여 혜택
           </p>
           <div className="flex flex-col gap-4">

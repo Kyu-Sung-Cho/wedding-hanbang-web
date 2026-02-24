@@ -1,5 +1,8 @@
 export type UserRole = "bride" | "groom";
-export type MessageSenderRole = "bride" | "groom" | "ai";
+export type MessageSenderType = "bride" | "groom" | "ai";
+export type MessageRole = "user" | "assistant" | "system";
+// 하위 호환 alias
+export type MessageSenderRole = MessageSenderType;
 
 export interface Profile {
   id: string;
@@ -41,13 +44,13 @@ export interface ChecklistItem {
 }
 
 export interface ProgressItem {
-  category: string;
+  category?: string;
   status: "not_started" | "in_progress" | "completed";
-  vendor_id?: string;
-  notes?: string;
-  checklist?: ChecklistItem[];
   budget?: number;
   spent?: number;
+  vendor?: string;
+  notes?: string;
+  checklist?: ChecklistItem[];
 }
 
 export interface ScheduleEvent {
@@ -78,7 +81,7 @@ export interface ChatMessage {
   id: string;
   couple_id: string;
   sender_id: string | null;
-  sender_role: MessageSenderRole;
+  sender_role: MessageSenderType;  // 내부용: "bride" | "groom" | "ai" (DB의 sender_type에서 매핑)
   content: string;
   metadata: ChatMessageMetadata | null;
   created_at: string;

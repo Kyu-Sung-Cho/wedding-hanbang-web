@@ -1,13 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +12,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const admin = getAdminClient();
     const { inviteCode } = await request.json();
 
     if (!inviteCode) {
@@ -30,8 +21,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 내 프로필 조회
-    const { data: profile } = await admin
+    // 내 프로필 조회 (RLS: profiles_select_own)
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role, couple_id")
       .eq("id", user.id)
@@ -44,44 +35,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // 초대 코드로 커플 조회
-    const { data: couple, error: findError } = await admin
-      .from("couples")
-      .select("*")
-      .eq("invite_code", inviteCode)
-      .single();
+    // join_couple 함수로 원자적 커플 조인 (SECURITY DEFINER)
+    const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
+      p_invite_code: inviteCode,
+      p_role: profile.role,
+    });
 
-    if (findError || !couple) {
+    if (joinError) {
+      console.error("커플 연동 에러:", joinError);
       return NextResponse.json(
-        { error: "유효하지 않은 초대 코드입니다." },
-        { status: 404 }
+        { error: "커플 연동에 실패했습니다." },
+        { status: 500 }
       );
     }
 
-    // 역할 슬롯 확인
-    const targetField = profile.role === "bride" ? "bride_id" : "groom_id";
-    if (couple[targetField]) {
+    const result = joinResult as { success?: boolean; error?: string; couple_id?: string };
+
+    if (result.error) {
       return NextResponse.json(
-        {
-          error: `이미 ${profile.role === "bride" ? "신부" : "신랑"}가 연동되어 있습니다.`,
-        },
+        { error: result.error },
         { status: 409 }
       );
     }
 
-    // 커플 업데이트
-    await admin
-      .from("couples")
-      .update({ [targetField]: user.id })
-      .eq("id", couple.id);
-
-    // 프로필 업데이트
-    await admin
-      .from("profiles")
-      .update({ couple_id: couple.id })
-      .eq("id", user.id);
-
-    return NextResponse.json({ success: true, coupleId: couple.id });
+    return NextResponse.json({ success: true, coupleId: result.couple_id });
   } catch (err) {
     console.error("커플 연동 에러:", err);
     return NextResponse.json(

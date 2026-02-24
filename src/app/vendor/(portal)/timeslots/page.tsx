@@ -4,38 +4,49 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, RotateCcw, Calendar, Clock, Info, Package, Timer, ChevronDown } from "lucide-react";
 import WeeklyTimeGrid from "@/components/vendor/WeeklyTimeGrid";
-import { mockVendors, HOURS, DAYS, formatDuration } from "@/data/mockVendors";
-import type { TimeSlot, VendorProduct } from "@/data/mockVendors";
+import { HOURS, DAYS, formatDuration } from "@/data/mockVendors";
+import type { TimeSlot } from "@/types/vendor.types";
+import { useVendorStore } from "@/stores/vendorStore";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
 
 export default function TimeSlotsPage() {
-  const vendor = mockVendors[0];
-  const products = vendor.products.filter(p => p.isActive);
+  const { vendor, products, saveTimeSlots, saveProductTimeSlots } = useVendorStore();
+  const activeProducts = products.filter(p => p.isActive);
 
-  // "global" = 업체 기본 스케줄, 그 외 = 상품 ID
   const [selectedView, setSelectedView] = useState<string>("global");
-  const [globalSlots, setGlobalSlots] = useState<TimeSlot[]>(vendor.timeSlots);
+  const [globalSlots, setGlobalSlots] = useState<TimeSlot[]>(vendor?.timeSlots ?? []);
   const [productSlots, setProductSlots] = useState<Record<string, TimeSlot[]>>(() => {
     const map: Record<string, TimeSlot[]> = {};
-    products.forEach(p => { map[p.id] = [...p.timeSlots]; });
+    activeProducts.forEach(p => { map[p.id] = [...p.timeSlots]; });
     return map;
   });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [maxPerSlot, setMaxPerSlot] = useState(1);
 
   const isGlobal = selectedView === "global";
   const currentSlots = isGlobal ? globalSlots : (productSlots[selectedView] || []);
-  const currentProduct = products.find(p => p.id === selectedView);
+  const currentProduct = activeProducts.find(p => p.id === selectedView);
 
   const availableCount = currentSlots.filter(s => s.available).length;
   const totalSlots = HOURS.length * DAYS.length;
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const handleSave = async () => {
+    setSaving(true);
+    let success: boolean;
+    if (isGlobal) {
+      success = await saveTimeSlots(globalSlots);
+    } else {
+      success = await saveProductTimeSlots(selectedView, productSlots[selectedView] || []);
+    }
+    setSaving(false);
+    if (success) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+  };
   const handleReset = () => {
-    if (isGlobal) setGlobalSlots(vendor.timeSlots);
+    if (isGlobal) setGlobalSlots(vendor?.timeSlots ?? []);
     else {
-      const p = vendor.products.find(pr => pr.id === selectedView);
+      const p = products.find(pr => pr.id === selectedView);
       if (p) setProductSlots({ ...productSlots, [selectedView]: [...p.timeSlots] });
     }
   };
@@ -57,7 +68,7 @@ export default function TimeSlotsPage() {
   return (
     <div className="max-w-[1100px] mx-auto">
       {/* 상품별 탭 */}
-      {products.length > 0 && (
+      {activeProducts.length > 0 && (
         <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <Package className="w-4 h-4 text-taupe-400" />
@@ -232,8 +243,8 @@ export default function TimeSlotsPage() {
 
       {/* 저장 버튼 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.3 }} className="mt-6">
-        <button onClick={handleSave} className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[14px] font-medium transition-all ${saved ? "bg-[#2E7D5A] text-white" : "bg-noir-800 text-white hover:bg-noir-soft"}`}>
-          <Save className="w-4 h-4" />{saved ? "저장되었습니다!" : "스케줄 저장"}
+        <button onClick={handleSave} disabled={saving} className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[14px] font-medium transition-all ${saved ? "bg-[#2E7D5A] text-white" : "bg-noir-800 text-white hover:bg-noir-soft"} ${saving ? "opacity-70 cursor-not-allowed" : ""}`}>
+          <Save className="w-4 h-4" />{saving ? "저장 중..." : saved ? "저장되었습니다!" : "스케줄 저장"}
         </button>
       </motion.div>
     </div>

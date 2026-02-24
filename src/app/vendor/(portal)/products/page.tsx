@@ -21,16 +21,12 @@ import {
   Timer,
 } from "lucide-react";
 import {
-  mockVendors,
   CATEGORY_PRODUCT_FIELDS,
-  HOURS,
-  DAYS,
   formatDuration,
-  type VendorProduct,
   type ProductFieldDef,
-  type VendorCategory,
-  type TimeSlot,
 } from "@/data/mockVendors";
+import type { VendorProduct, VendorCategory, TimeSlot } from "@/types/vendor.types";
+import { useVendorStore } from "@/stores/vendorStore";
 import WeeklyTimeGrid from "@/components/vendor/WeeklyTimeGrid";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
@@ -159,9 +155,11 @@ function ProductEditModal({ product, category, onSave, onClose }: {
     sortOrder: 0,
     categoryFields: {},
     includes: [],
+    excludes: [],
     images: [],
     timeSlots: generateEmptySlots(),
     createdAt: new Date().toISOString().split("T")[0],
+    updatedAt: new Date().toISOString().split("T")[0],
   });
   const [showTimeGrid, setShowTimeGrid] = useState(!!product?.timeSlots?.some(s => s.available));
 
@@ -338,34 +336,44 @@ function ProductEditModal({ product, category, onSave, onClose }: {
 }
 
 export default function VendorProductsPage() {
-  const vendor = mockVendors[0]; // 스튜디오 (로즈스튜디오)
-  const config = CATEGORY_PRODUCT_FIELDS[vendor.category];
+  const { vendor, products, createProduct, updateProduct, deleteProduct } = useVendorStore();
+  const category = (vendor?.category ?? "스튜디오") as VendorCategory;
+  const config = CATEGORY_PRODUCT_FIELDS[category];
 
-  const [products, setProducts] = useState<VendorProduct[]>(vendor.products);
   const [editProduct, setEditProduct] = useState<VendorProduct | null | "new">(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const activeCount = products.filter((p) => p.isActive).length;
   const popularCount = products.filter((p) => p.isPopular).length;
 
-  const handleSaveProduct = (p: VendorProduct) => {
+  const handleSaveProduct = async (p: VendorProduct) => {
+    setSaving(true);
+    let success: boolean;
     if (editProduct === "new") {
-      setProducts([...products, { ...p, sortOrder: products.length + 1 }]);
+      success = await createProduct({ ...p, sortOrder: products.length + 1 });
     } else {
-      setProducts(products.map((prev) => prev.id === p.id ? p : prev));
+      success = await updateProduct(p.id, p);
     }
-    setEditProduct(null);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(false);
+    if (success) {
+      setEditProduct(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm("이 상품을 삭제하시겠습니까?")) return;
+    await deleteProduct(id);
   };
 
-  const handleToggleActive = (id: string) => {
-    setProducts(products.map((p) => p.id === id ? { ...p, isActive: !p.isActive } : p));
+  const handleToggleActive = async (id: string) => {
+    const product = products.find((p) => p.id === id);
+    if (product) {
+      await updateProduct(id, { isActive: !product.isActive });
+    }
   };
 
   return (
@@ -543,7 +551,7 @@ export default function VendorProductsPage() {
         {editProduct !== null && (
           <ProductEditModal
             product={editProduct === "new" ? null : editProduct}
-            category={vendor.category}
+            category={vendor?.category ?? "스튜디오"}
             onSave={handleSaveProduct}
             onClose={() => setEditProduct(null)}
           />
@@ -555,7 +563,7 @@ export default function VendorProductsPage() {
         <Tag className="w-4 h-4 text-taupe-400 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-[12px] text-taupe-500 font-light leading-relaxed">
-            <strong className="font-medium">{vendor.category}</strong> 카테고리에 최적화된 상품 필드가 제공됩니다.
+            <strong className="font-medium">{category}</strong> 카테고리에 최적화된 상품 필드가 제공됩니다.
             카테고리에 따라 촬영 패키지, 드레스 상품, 메이크업 패키지 등 각 업종에 맞는 상세 옵션을 설정할 수 있습니다.
           </p>
         </div>

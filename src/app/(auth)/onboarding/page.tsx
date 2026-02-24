@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboardingStore";
-import { createClient } from "@/lib/supabase/client";
 import Logo from "@/components/ui/Logo";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
@@ -20,19 +19,23 @@ export default function OnboardingPage() {
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
     const checkProfile = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("onboarding_completed")
-        .eq("id", user.id)
-        .single();
-      if (profile?.onboarding_completed) {
-        window.location.href = "/dashboard";
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) {
+          window.location.href = "/login";
+          return;
+        }
+        const data = await res.json();
+        if (!data.profile) {
+          return; // 프로필 없으면 온보딩 진행
+        }
+        if (data.profile.onboarding_completed) {
+          // 쿠키도 세팅해두기
+          document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+          window.location.href = "/dashboard";
+        }
+      } catch {
+        // 에러 시 온보딩 계속 진행
       }
     };
     checkProfile();
@@ -95,7 +98,7 @@ export default function OnboardingPage() {
       }
 
       // 온보딩 완료 쿠키 설정
-      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+      document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
       window.location.href = "/dashboard";
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");

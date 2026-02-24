@@ -58,16 +58,16 @@ export default function B2BHero() {
           className="flex flex-col sm:flex-row gap-4 justify-center"
         >
           <Link
-            href="#partner-types"
+            href="/vendor/service"
             className="px-8 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
           >
-            파트너 설문 참여하기
+            서비스 안내 & 업체 등록
           </Link>
           <Link
-            href="#features"
+            href="#partner-types"
             className="px-8 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all"
           >
-            서비스 알아보기
+            파트너 설문 참여하기
           </Link>
         </motion.div>
 

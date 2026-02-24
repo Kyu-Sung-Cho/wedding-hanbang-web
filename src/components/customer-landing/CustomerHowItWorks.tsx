@@ -10,9 +10,9 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
       </svg>
     ),
-    title: "앱 다운로드",
-    desc: "App Store / Google Play에서 웨딩한방을 다운로드하세요.",
-    highlight: "간편 설치",
+    title: "회원가입",
+    desc: "웨딩한방에서 간단히 가입하고 바로 시작하세요.",
+    highlight: "간편 가입",
   },
   {
     num: "02",
@@ -55,7 +55,7 @@ export default function CustomerHowItWorks() {
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
-        initial={{ opacity: 0, y: 40 }}
+        initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
@@ -83,10 +83,10 @@ export default function CustomerHowItWorks() {
           {steps.map((step, i) => (
             <motion.div
               key={step.num}
-              initial={{ opacity: 0, y: 40 }}
+              initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.7, delay: i * 0.12 }}
+              transition={{ duration: 0.7, delay: Math.min(i * 0.12, 0.3) }}
               className="text-center relative max-md:flex max-md:items-start max-md:gap-5 max-md:text-left max-md:py-6 max-md:border-l-[1.5px] max-md:border-rose-500/20 max-md:pl-7 max-md:ml-4"
             >
               {/* 모바일 타임라인 점 */}

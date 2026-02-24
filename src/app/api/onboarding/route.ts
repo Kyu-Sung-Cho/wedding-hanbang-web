@@ -1,18 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-// RLS 우회용 service role 클라이언트
-function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function POST(request: Request) {
   try {
-    // 인증 확인 (세션 클라이언트)
     const supabase = await createClient();
     const {
       data: { user },
@@ -21,9 +11,6 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-
-    // DB 작업은 service role로 (RLS 우회)
-    const admin = getAdminClient();
 
     const body = await request.json();
     const {
@@ -43,15 +30,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 프로필 존재 확인 (없으면 생성)
-    const { data: existingProfile } = await admin
+    // 프로필 존재 확인 (RLS: profiles_select_own)
+    const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
       .eq("id", user.id)
       .single();
 
     if (!existingProfile) {
-      await admin.from("profiles").insert({
+      // 프로필 생성 (RLS: profiles_insert_own)
+      await supabase.from("profiles").insert({
         id: user.id,
         name: user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자",
         email: user.email,
@@ -64,8 +52,8 @@ export async function POST(request: Request) {
     let inviteCode: string | null = null;
 
     if (coupleAction === "create") {
-      // 새 커플 생성
-      const { data: codeResult, error: rpcError } = await admin.rpc("generate_invite_code");
+      // 초대 코드 생성 (DB 함수)
+      const { data: codeResult, error: rpcError } = await supabase.rpc("generate_invite_code");
       if (rpcError) {
         console.error("초대 코드 생성 에러:", rpcError);
         return NextResponse.json(
@@ -75,6 +63,7 @@ export async function POST(request: Request) {
       }
       inviteCode = codeResult as string;
 
+      // 커플 생성 (RLS: couples_insert_own - bride/groom = auth.uid())
       const coupleData: Record<string, unknown> = {
         invite_code: inviteCode,
       };
@@ -84,7 +73,7 @@ export async function POST(request: Request) {
         coupleData.groom_id = user.id;
       }
 
-      const { data: couple, error: coupleError } = await admin
+      const { data: couple, error: coupleError } = await supabase
         .from("couples")
         .insert(coupleData)
         .select()
@@ -100,8 +89,20 @@ export async function POST(request: Request) {
 
       coupleId = couple.id;
 
-      // 웨딩 여정 생성
-      const { error: journeyError } = await admin.from("wedding_journeys").insert({
+      // ⚡ 프로필에 couple_id 먼저 설정 (RLS: profiles_update_own)
+      // 이렇게 해야 wedding_journeys INSERT 시 RLS 통과
+      await supabase
+        .from("profiles")
+        .update({
+          role,
+          couple_id: coupleId,
+          onboarding_completed: true,
+          onboarding_step: 4,
+        })
+        .eq("id", user.id);
+
+      // 웨딩 여정 생성 (RLS: journeys_insert_couple / journeys_insert_via_couple)
+      const { error: journeyError } = await supabase.from("wedding_journeys").insert({
         couple_id: coupleId,
         wedding_date: weddingDate || null,
         venue: venue || null,
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
         console.error("웨딩 여정 생성 에러:", journeyError);
       }
     } else {
-      // 파트너 코드로 기존 커플에 조인
+      // 파트너 코드로 기존 커플에 조인 (SECURITY DEFINER 함수)
       if (!partnerInviteCode) {
         return NextResponse.json(
           { error: "파트너 초대 코드를 입력해주세요." },
@@ -121,56 +122,49 @@ export async function POST(request: Request) {
         );
       }
 
-      const { data: couple, error: findError } = await admin
-        .from("couples")
-        .select("*")
-        .eq("invite_code", partnerInviteCode)
-        .single();
+      const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
+        p_invite_code: partnerInviteCode,
+        p_role: role,
+      });
 
-      if (findError || !couple) {
-        return NextResponse.json(
-          { error: "유효하지 않은 초대 코드입니다." },
-          { status: 404 }
-        );
-      }
-
-      // 역할 슬롯 확인
-      const targetField = role === "bride" ? "bride_id" : "groom_id";
-      if (couple[targetField]) {
-        return NextResponse.json(
-          {
-            error: `이미 ${role === "bride" ? "신부" : "신랑"}가 연동되어 있습니다.`,
-          },
-          { status: 409 }
-        );
-      }
-
-      // 커플 업데이트
-      const { error: updateError } = await admin
-        .from("couples")
-        .update({ [targetField]: user.id })
-        .eq("id", couple.id);
-
-      if (updateError) {
-        console.error("커플 조인 에러:", updateError);
+      if (joinError) {
+        console.error("커플 조인 에러:", joinError);
         return NextResponse.json(
           { error: "커플 연동에 실패했습니다." },
           { status: 500 }
         );
       }
 
-      coupleId = couple.id;
-      inviteCode = couple.invite_code;
+      const result = joinResult as { success?: boolean; error?: string; couple_id?: string; invite_code?: string };
 
-      // 기존 웨딩 여정이 있으면 사용, 없으면 생성
-      const { data: existingJourney } = await admin
+      if (result.error) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: 409 }
+        );
+      }
+
+      coupleId = result.couple_id!;
+      inviteCode = result.invite_code ?? null;
+
+      // 온보딩 완료 처리 (join_couple이 이미 couple_id, role 설정함)
+      await supabase
+        .from("profiles")
+        .update({
+          onboarding_completed: true,
+          onboarding_step: 4,
+        })
+        .eq("id", user.id);
+
+      // 기존 웨딩 여정 확인, 없으면 생성
+      const { data: existingJourney } = await supabase
         .from("wedding_journeys")
         .select("*")
         .eq("couple_id", coupleId)
         .single();
 
       if (!existingJourney) {
-        await admin.from("wedding_journeys").insert({
+        await supabase.from("wedding_journeys").insert({
           couple_id: coupleId,
           wedding_date: weddingDate || null,
           venue: venue || null,
@@ -187,31 +181,12 @@ export async function POST(request: Request) {
           updates.progress = merged;
         }
         if (Object.keys(updates).length > 0) {
-          await admin
+          await supabase
             .from("wedding_journeys")
             .update(updates)
             .eq("id", existingJourney.id);
         }
       }
-    }
-
-    // 프로필 업데이트
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({
-        role,
-        couple_id: coupleId,
-        onboarding_completed: true,
-        onboarding_step: 4,
-      })
-      .eq("id", user.id);
-
-    if (profileError) {
-      console.error("프로필 업데이트 에러:", profileError);
-      return NextResponse.json(
-        { error: `프로필 저장에 실패했습니다: ${profileError.message}` },
-        { status: 500 }
-      );
     }
 
     return NextResponse.json({

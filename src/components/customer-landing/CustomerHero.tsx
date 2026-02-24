@@ -22,7 +22,7 @@ export default function CustomerHero() {
       <div className="relative z-10 text-center max-w-[900px] px-6 py-32">
         {/* 배지 */}
         <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          initial={{ opacity: 0, y: 16, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
           className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/70 backdrop-blur-[12px] border border-rose-pale/30 rounded-full mb-10"
@@ -38,7 +38,7 @@ export default function CustomerHero() {
 
         {/* 메인 헤드라인 */}
         <motion.h1
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.4 }}
           className="font-serif-kr text-[clamp(36px,6vw,72px)] font-light leading-[1.2] tracking-tight mb-7"
@@ -52,7 +52,7 @@ export default function CustomerHero() {
 
         {/* 서브 카피 */}
         <motion.p
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.6 }}
           className="text-[clamp(15px,1.6vw,18px)] leading-[1.8] text-charcoal max-w-[540px] mx-auto mb-12 font-light"
@@ -66,7 +66,7 @@ export default function CustomerHero() {
 
         {/* CTA */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.8 }}
           className="flex gap-4 justify-center flex-wrap mb-16"

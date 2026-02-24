@@ -7,11 +7,11 @@ const partnerTypes = [
   {
     type: "스튜디오",
     icon: "📸",
-    desc: "웨딩 촬영 스튜디오를 운영하시는 사장님",
+    desc: "촬영 스튜디오 대표님의 현장 목소리를 듣고 싶습니다",
     benefits: [
-      "AI가 촬영 컨셉·예산 맞는 고객만 연결",
-      "포트폴리오 자동 최적화 노출",
-      "시즌별 촬영 트렌드 리포트 제공",
+      "고객 매칭 방식, 대표님이 직접 설계에 참여",
+      "포트폴리오 노출 방향을 함께 결정",
+      "현장의 진짜 어려움을 서비스에 반영",
     ],
     href: "/business_studio",
     gradient: "from-rose-500/20 to-gold/20",
@@ -21,11 +21,11 @@ const partnerTypes = [
   {
     type: "드레스샵",
     icon: "👗",
-    desc: "웨딩드레스·한복 매장을 운영하시는 사장님",
+    desc: "드레스·한복 매장 대표님의 경험을 서비스에 담고 싶습니다",
     benefits: [
-      "AI 가상 피팅으로 방문 전 흥미 유발",
-      "체형·스타일 맞춤 고객 매칭",
-      "대여/구매 의향 사전 파악",
+      "AI 가상 피팅, 현장 의견을 반영해 설계",
+      "고객 매칭 기준을 함께 만들어갑니다",
+      "매장 운영의 실제 고민을 서비스로 해결",
     ],
     href: "/business_dress",
     gradient: "from-gold/20 to-rose-500/20",
@@ -35,11 +35,11 @@ const partnerTypes = [
   {
     type: "메이크업",
     icon: "💄",
-    desc: "웨딩 메이크업샵을 운영하시는 사장님",
+    desc: "메이크업 전문가의 노하우가 서비스에 담깁니다",
     benefits: [
-      "피부 타입·선호 스타일 매칭",
-      "리허설+본식 패키지 제안 자동화",
-      "시술 후기 기반 고객 유입",
+      "고객 매칭 기준, 전문가 의견으로 설계",
+      "패키지 구성 방향을 함께 결정",
+      "현장 운영의 불편함을 서비스로 개선",
     ],
     href: "/business_makeup",
     gradient: "from-rose-500/20 to-[rgba(180,140,160,0.2)]",
@@ -68,9 +68,9 @@ export default function B2BPartnerTypes() {
           업종별 맞춤 파트너십
         </h2>
         <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          각 업종의 특성에 맞는 솔루션을 제공합니다.
+          대표님들의 현장 목소리를 직접 듣고 서비스에 반영합니다.
           <br className="hidden md:block" />
-          아래에서 해당하는 업종을 선택해 설문에 참여해주세요.
+          해당하는 업종을 선택해 소중한 의견을 들려주세요.
         </p>
       </motion.div>
 
@@ -103,6 +103,25 @@ export default function B2BPartnerTypes() {
                     <span className="text-[13px] text-charcoal font-light leading-relaxed">{benefit}</span>
                   </div>
                 ))}
+              </div>
+
+              {/* 설문 참여 혜택 */}
+              <div className="bg-ivory-100 rounded-xl p-4 mb-5 border border-platinum/50">
+                <p className="text-[12px] text-rose-600 font-medium mb-2 tracking-wide">참여 혜택</p>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                    정식 출시 우선 초대
+                  </span>
+                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                    베타 파트너 수수료 할인
+                  </span>
+                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                    맞춤 기능 우선 개발 반영
+                  </span>
+                </div>
               </div>
 
               <Link

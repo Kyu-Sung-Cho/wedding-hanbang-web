@@ -3,7 +3,7 @@ import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types"
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
 
-const CATEGORY_LABELS: Record<string, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
   venue: "예식장",
   studio: "스튜디오",

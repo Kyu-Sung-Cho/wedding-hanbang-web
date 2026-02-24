@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 interface Props {
   shopTypeName: string;
@@ -16,6 +17,13 @@ export default function ThankYou({ shopTypeName }: Props) {
         transition={{ duration: 0.5 }}
         className="max-w-[480px] w-full text-center"
       >
+        {/* 로고 */}
+        <div className="flex items-center justify-center mb-8">
+          <Link href="/business">
+            <Logo size="sm" />
+          </Link>
+        </div>
+
         <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-[var(--rose-glow)] flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4967E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20,6 9,17 4,12" />
@@ -37,10 +45,10 @@ export default function ThankYou({ shopTypeName }: Props) {
         </p>
 
         <Link
-          href="/"
+          href="/business"
           className="inline-flex px-8 py-3.5 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors"
         >
-          웨딩한방 홈으로
+          웨딩한방 파트너 홈으로
         </Link>
       </motion.div>
     </div>

@@ -98,6 +98,11 @@ export default function CustomerSurveyPage() {
     goPrev();
   }, [goPrev]);
 
+  // 섹션 전환 시 스크롤 최상단 이동
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentSectionIndex]);
+
   // 키보드 Enter 지원
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,18 +175,20 @@ export default function CustomerSurveyPage() {
             />
 
             {/* 질문 목록 */}
-            {visibleQuestions.map((question, index) => (
-              <QuestionRenderer
-                key={question.id}
-                question={question}
-                value={answers[question.id]}
-                onChange={setAnswer}
-                otherText={otherTexts[question.id]}
-                onOtherTextChange={setOtherText}
-                error={errors[question.id]}
-                index={index}
-              />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {visibleQuestions.map((question, index) => (
+                <QuestionRenderer
+                  key={question.id}
+                  question={question}
+                  value={answers[question.id]}
+                  onChange={setAnswer}
+                  otherText={otherTexts[question.id]}
+                  onOtherTextChange={setOtherText}
+                  error={errors[question.id]}
+                  index={index}
+                />
+              ))}
+            </AnimatePresence>
           </motion.div>
         </AnimatePresence>
 

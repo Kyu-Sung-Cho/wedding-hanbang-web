@@ -1,14 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Heart, Banknote, Shirt, UtensilsCrossed, Gift, Users, Camera, MapPin } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
 
 interface GuideItem {
   q: string;
@@ -145,11 +139,7 @@ export default function EtiquettePage() {
   return (
     <div className="max-w-[900px] mx-auto">
       {/* 인트로 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.5 }}
-        className="text-center mb-10"
-      >
+      <div className="text-center mb-10 animate-fade-in">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/10 text-rose-500 text-[12px] font-medium mb-4">
           <Heart className="w-3.5 h-3.5" />
           웨딩 예절 가이드
@@ -160,17 +150,14 @@ export default function EtiquettePage() {
         <p className="text-[14px] text-taupe-500 font-light">
           결혼 준비부터 예식 당일까지, 꼭 알아야 할 예절을 정리했어요
         </p>
-      </motion.div>
+      </div>
 
       {/* 카테고리 카드 */}
       <div className="flex flex-col gap-4">
         {guides.map((guide, catIdx) => (
-          <motion.div
+          <div
             key={guide.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: catIdx * 0.05 }}
-            className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden"
+            className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden animate-fade-in"
           >
             {/* 카테고리 헤더 */}
             <button
@@ -194,55 +181,39 @@ export default function EtiquettePage() {
             </button>
 
             {/* FAQ 아코디언 */}
-            <AnimatePresence>
-              {openCategory === catIdx && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <div className="border-t border-black/[0.03] px-6 pb-4">
-                    {guide.items.map((item, itemIdx) => (
-                      <div key={itemIdx} className="border-b border-black/[0.02] last:border-0">
-                        <button
-                          onClick={() => toggleItem(catIdx, itemIdx)}
-                          className="w-full py-4 flex items-start justify-between text-left"
-                        >
-                          <span className={`text-[14px] font-medium pr-4 ${
-                            openItem[`${catIdx}`] === itemIdx ? "text-rose-500" : "text-noir-800"
-                          }`}>
-                            {item.q}
-                          </span>
-                          <ChevronDown
-                            className={`w-4 h-4 text-taupe-400 flex-shrink-0 mt-0.5 transition-transform ${
-                              openItem[`${catIdx}`] === itemIdx ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-                        <AnimatePresence>
-                          {openItem[`${catIdx}`] === itemIdx && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
-                            >
-                              <p className="text-[13px] text-charcoal font-light leading-[1.8] pb-4 pl-0">
-                                {item.a}
-                              </p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            {openCategory === catIdx && (
+              <div className="overflow-hidden animate-fade-in">
+                <div className="border-t border-black/[0.03] px-6 pb-4">
+                  {guide.items.map((item, itemIdx) => (
+                    <div key={itemIdx} className="border-b border-black/[0.02] last:border-0">
+                      <button
+                        onClick={() => toggleItem(catIdx, itemIdx)}
+                        className="w-full py-4 flex items-start justify-between text-left"
+                      >
+                        <span className={`text-[14px] font-medium pr-4 ${
+                          openItem[`${catIdx}`] === itemIdx ? "text-rose-500" : "text-noir-800"
+                        }`}>
+                          {item.q}
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-taupe-400 flex-shrink-0 mt-0.5 transition-transform ${
+                            openItem[`${catIdx}`] === itemIdx ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      {openItem[`${catIdx}`] === itemIdx && (
+                        <div className="animate-fade-in">
+                          <p className="text-[13px] text-charcoal font-light leading-[1.8] pb-4 pl-0">
+                            {item.a}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>

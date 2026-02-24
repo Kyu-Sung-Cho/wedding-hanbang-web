@@ -8,11 +8,13 @@ import {
   Package,
   Clock,
   CalendarCheck,
+  MessageSquare,
   Settings,
   X,
   LogOut,
 } from "lucide-react";
 import Logo from "@/components/ui/Logo";
+import { useVendorStore } from "@/stores/vendorStore";
 
 const menuItems = [
   { href: "/vendor/dashboard", icon: LayoutDashboard, label: "대시보드" },
@@ -20,6 +22,7 @@ const menuItems = [
   { href: "/vendor/products", icon: Package, label: "상품 관리" },
   { href: "/vendor/timeslots", icon: Clock, label: "타임슬롯 관리" },
   { href: "/vendor/bookings", icon: CalendarCheck, label: "예약 현황" },
+  { href: "/vendor/messages", icon: MessageSquare, label: "메시지" },
   { href: "/vendor/settings", icon: Settings, label: "설정" },
 ];
 
@@ -30,6 +33,7 @@ interface VendorSidebarProps {
 
 export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
   const pathname = usePathname();
+  const { vendor } = useVendorStore();
 
   return (
     <>
@@ -89,8 +93,8 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
               <Store className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-noir-800 truncate">로즈스튜디오</p>
-              <p className="text-[11px] text-taupe-400">스튜디오 · 강남구</p>
+              <p className="text-[13px] font-medium text-noir-800 truncate">{vendor?.name ?? "업체"}</p>
+              <p className="text-[11px] text-taupe-400">{vendor?.category ?? ""} · {vendor?.location ?? ""}</p>
             </div>
           </div>
           <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-taupe-400 hover:text-red-400 hover:bg-red-50 transition-colors">

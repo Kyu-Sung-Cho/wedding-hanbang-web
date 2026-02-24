@@ -18,7 +18,7 @@ const scenarios = [
     feature: "가상 피팅",
   },
   {
-    text: "커플이 함께 앱을 쓰면 따로 카톡으로 공유할 필요 없이 예산 관리가 한눈에 됩니다. 의견 조율도 쉬워져요.",
+    text: "커플이 함께 사용하면 따로 카톡으로 공유할 필요 없이 예산 관리가 한눈에 됩니다. 의견 조율도 쉬워져요.",
     avatar: "💑",
     label: "예산 관리",
     situation: "커플이 함께 보는 예산 현황",
@@ -53,7 +53,7 @@ export default function CustomerTestimonials() {
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
-        initial={{ opacity: 0, y: 40 }}
+        initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
@@ -77,11 +77,11 @@ export default function CustomerTestimonials() {
         {scenarios.map((s, i) => (
           <motion.div
             key={s.label}
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.8, delay: i * 0.08 }}
-            className="bg-ivory-warm rounded-[20px] p-8 text-left border border-transparent hover:border-rose-pale hover:-translate-y-1.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.06)] transition-all duration-400"
+            transition={{ duration: 0.8, delay: Math.min(i * 0.08, 0.3) }}
+            className="bg-ivory-warm rounded-[20px] p-8 text-left border border-transparent hover:border-rose-pale md:hover:-translate-y-1.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.06)] transition-all duration-400"
           >
             <div className="flex items-center justify-between mb-4">
               <span className="text-[11px] text-taupe-500 font-light">{s.situation}</span>

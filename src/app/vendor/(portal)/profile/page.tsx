@@ -2,24 +2,41 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Save, Upload, Eye, MapPin, Star, Sparkles } from "lucide-react";
-import { mockVendors, VENDOR_CATEGORIES } from "@/data/mockVendors";
+import { Save, Upload, Eye, MapPin, Star, Sparkles, Loader2 } from "lucide-react";
+import { VENDOR_CATEGORIES } from "@/data/mockVendors";
+import { useVendorStore } from "@/stores/vendorStore";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
 
 export default function VendorProfilePage() {
-  const vendor = mockVendors[0];
-  const [name, setName] = useState(vendor.name);
-  const [category, setCategory] = useState(vendor.category);
-  const [description, setDescription] = useState(vendor.description);
-  const [address, setAddress] = useState(vendor.address);
-  const [phone, setPhone] = useState(vendor.phone);
-  const [priceMin, setPriceMin] = useState(String(vendor.priceMin / 10000));
-  const [priceMax, setPriceMax] = useState(String(vendor.priceMax / 10000));
-  const [tagInput, setTagInput] = useState(vendor.tags.join(", "));
-  const [saved, setSaved] = useState(false);
+  const { vendor, updateProfile } = useVendorStore();
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const [name, setName] = useState(vendor?.name ?? "");
+  const [category, setCategory] = useState(vendor?.category ?? "스튜디오");
+  const [description, setDescription] = useState(vendor?.description ?? "");
+  const [address, setAddress] = useState(vendor?.address ?? "");
+  const [phone, setPhone] = useState(vendor?.phone ?? "");
+  const [priceMin, setPriceMin] = useState(String((vendor?.priceMin ?? 0) / 10000));
+  const [priceMax, setPriceMax] = useState(String((vendor?.priceMax ?? 0) / 10000));
+  const [tagInput, setTagInput] = useState((vendor?.tags ?? []).join(", "));
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const success = await updateProfile({
+      name,
+      category,
+      description,
+      address,
+      phone,
+      priceMin: Number(priceMin) * 10000,
+      priceMax: Number(priceMax) * 10000,
+      tags: tagInput.split(",").map(t => t.trim()).filter(Boolean),
+    });
+    setSaving(false);
+    if (success) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+  };
 
   return (
     <div className="max-w-[1000px] mx-auto">
@@ -38,7 +55,7 @@ export default function VendorProfilePage() {
               <div><label className="block text-[13px] font-medium text-noir-800 mb-2">대표 사진</label><div className="grid grid-cols-3 gap-3">{[1, 2, 3].map((n) => (<div key={n} className="aspect-[4/3] bg-ivory-warm rounded-xl border-2 border-dashed border-platinum flex items-center justify-center hover:border-rose-500 transition-colors cursor-pointer"><Upload className="w-5 h-5 text-taupe-400" /></div>))}</div></div>
             </div>
           </motion.div>
-          <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.1 }}><button onClick={handleSave} className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[14px] font-medium transition-all ${saved ? "bg-[#2E7D5A] text-white" : "bg-noir-800 text-white hover:bg-noir-soft"}`}><Save className="w-4 h-4" />{saved ? "저장되었습니다!" : "변경사항 저장"}</button></motion.div>
+          <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.1 }}><button onClick={handleSave} disabled={saving} className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[14px] font-medium transition-all ${saved ? "bg-[#2E7D5A] text-white" : "bg-noir-800 text-white hover:bg-noir-soft"} ${saving ? "opacity-70 cursor-not-allowed" : ""}`}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? "저장 중..." : saved ? "저장되었습니다!" : "변경사항 저장"}</button></motion.div>
         </div>
         <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.15 }} className="col-span-2">
           <div className="sticky top-[88px]">
@@ -46,9 +63,9 @@ export default function VendorProfilePage() {
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
               <div className="h-[140px] bg-gradient-to-br from-ivory-deep to-ivory-warm flex items-center justify-center"><span className="text-[13px] text-taupe-400 font-light">{category} 사진</span></div>
               <div className="p-5">
-                {vendor.aiRecommend && <span className="flex items-center gap-1 text-[10px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium w-fit mb-2"><Sparkles className="w-2.5 h-2.5" />AI 추천</span>}
+                {vendor?.aiRecommend && <span className="flex items-center gap-1 text-[10px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium w-fit mb-2"><Sparkles className="w-2.5 h-2.5" />AI 추천</span>}
                 <h3 className="text-[16px] font-medium text-noir-800 mb-1">{name || "업체명"}</h3>
-                <div className="flex items-center gap-2 mb-2"><Star className="w-3.5 h-3.5 text-gold fill-gold" /><span className="text-[13px] text-noir-800 font-medium">{vendor.rating}</span><span className="text-[11px] text-taupe-400">({vendor.reviewCount})</span></div>
+                <div className="flex items-center gap-2 mb-2"><Star className="w-3.5 h-3.5 text-gold fill-gold" /><span className="text-[13px] text-noir-800 font-medium">{vendor?.rating ?? 0}</span><span className="text-[11px] text-taupe-400">({vendor?.reviewCount ?? 0})</span></div>
                 <div className="flex items-center gap-1.5 mb-3"><MapPin className="w-3.5 h-3.5 text-taupe-400" /><span className="text-[12px] text-taupe-500">{address ? address.split(",")[0] : "주소"}</span><span className="text-[12px] text-taupe-400 mx-1">·</span><span className="text-[12px] text-rose-500 font-medium">{priceMin && priceMax ? `${priceMin}~${priceMax}만원` : "가격 미설정"}</span></div>
                 <div className="flex gap-1.5 flex-wrap">{tagInput.split(",").filter(Boolean).slice(0, 5).map((tag) => (<span key={tag} className="px-2 py-0.5 rounded-full bg-ivory-warm text-[10px] text-charcoal font-medium">{tag.trim()}</span>))}</div>
                 {description && <p className="text-[12px] text-taupe-500 font-light mt-3 line-clamp-3">{description}</p>}

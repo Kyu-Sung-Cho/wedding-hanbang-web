@@ -151,8 +151,10 @@ export default function QuestionRenderer({
     <motion.div
       key={question.id}
       id={`question-${question.id}`}
+      layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
       transition={{ delay: index * 0.1, duration: 0.4 }}
       className="mb-10"
     >

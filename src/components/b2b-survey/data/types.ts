@@ -17,7 +17,7 @@ export interface ContactField {
   id: string;
   label: string;
   placeholder?: string;
-  inputType?: string;
+  inputType?: 'text' | 'tel' | 'email';
 }
 
 export interface Question {

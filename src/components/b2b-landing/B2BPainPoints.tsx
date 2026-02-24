@@ -41,7 +41,7 @@ export default function B2BPainPoints() {
           Problem
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
-          웨딩 업체 사장님들의
+          웨딩 업체 대표님들의
           <br />
           공통된 고민
         </h2>

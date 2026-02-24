@@ -10,18 +10,8 @@ const features = [
       </svg>
     ),
     title: "실시간 온라인 예약",
-    desc: "마음에 드는 업체에 24시간 언제든 바로 예약하세요. 전화나 카톡 없이도 빈 날짜를 확인하고 예약할 수 있습니다.",
+    desc: "전화나 카톡 없이 빈 날짜를 확인하고 원클릭으로 예약하세요. 예약 확인과 변경도 간편하게 처리됩니다.",
     tag: "예약",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
-      </svg>
-    ),
-    title: "투명한 비용 비교",
-    desc: "업체별 패키지 가격을 한눈에 비교하세요. 숨겨진 추가 비용까지 사전에 확인할 수 있어 예산 계획이 쉬워집니다.",
-    tag: "비용",
   },
   {
     icon: (
@@ -30,18 +20,18 @@ const features = [
       </svg>
     ),
     title: "업체 포트폴리오 탐색",
-    desc: "실제 촬영 사진, 드레스 컬렉션, 메이크업 포트폴리오를 바로 확인하세요. 다른 커플들의 리뷰도 함께 볼 수 있습니다.",
+    desc: "촬영 사진, 드레스 컬렉션, 메이크업 샘플을 한 곳에서 비교하세요. 다른 커플들의 이용 경험으로 선택에 확신을 더하세요.",
     tag: "탐색",
   },
   {
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
       </svg>
     ),
-    title: "스마트 알림",
-    desc: "예약 확인, 계약 일정, D-day 리마인더까지. 놓치면 안 되는 타이밍을 AI가 미리 알려드립니다.",
-    tag: "알림",
+    title: "패키지 가격 비교",
+    desc: "같은 카테고리 업체들의 패키지를 나란히 비교하세요. 포함 항목과 옵션 차이를 한눈에 파악하고 합리적으로 선택할 수 있습니다.",
+    tag: "비교",
   },
   {
     icon: (
@@ -50,8 +40,28 @@ const features = [
       </svg>
     ),
     title: "업체 직접 문의",
-    desc: "궁금한 점은 플랫폼에서 업체에 바로 문의하세요. AI가 기본 답변을 즉시 해주고, 자세한 내용은 업체가 직접 답변합니다.",
+    desc: "궁금한 점은 업체에 바로 문의하세요. 견적 요청부터 상세 조건 확인까지, 대화 내역이 자동으로 저장됩니다.",
     tag: "문의",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+      </svg>
+    ),
+    title: "커플 실시간 연동",
+    desc: "초대 코드 하나로 파트너와 연결됩니다. 찜한 업체, 예약 현황, 진행 상황을 함께 확인하며 의견을 나눌 수 있습니다.",
+    tag: "커플",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+      </svg>
+    ),
+    title: "웨딩 예절 가이드",
+    desc: "축의금 금액부터 하객 복장, 상견례 준비까지. 궁금한 결혼 예절을 상황별로 정리한 가이드를 제공합니다.",
+    tag: "가이드",
   },
 ];
 
@@ -61,7 +71,7 @@ export default function CustomerFeatures() {
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
-        initial={{ opacity: 0, y: 40 }}
+        initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
@@ -85,11 +95,11 @@ export default function CustomerFeatures() {
         {features.map((feat, i) => (
           <motion.div
             key={feat.title}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-30px" }}
-            transition={{ duration: 0.5, delay: i * 0.05 }}
-            className="group bg-ivory-warm rounded-2xl p-7 border border-transparent hover:border-rose-pale hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all duration-500"
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.7, delay: Math.min(i * 0.08, 0.3) }}
+            className="group bg-ivory-warm rounded-2xl p-7 border border-transparent hover:border-rose-pale md:hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all duration-500"
           >
             <div className="w-12 h-12 rounded-xl bg-noir-800 text-rose-500 flex items-center justify-center mb-5 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-500">
               {feat.icon}

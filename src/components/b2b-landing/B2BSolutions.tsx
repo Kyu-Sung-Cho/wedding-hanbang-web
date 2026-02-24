@@ -6,25 +6,25 @@ const solutions = [
   {
     num: "01",
     title: "AI 고객 매칭",
-    desc: "예산, 촬영 컨셉, 예약 시기가 맞는 고객을 우선으로 연결해드립니다. 상담 전에 이미 계약 의향이 높은 고객만 만나보세요.",
-    highlight: "계약 전환율 극대화",
+    desc: "고객이 예산과 취향을 입력하면, 조건에 맞는 업체로 자동 추천됩니다. 관심 있는 고객이 자연스럽게 찾아옵니다.",
+    highlight: "자연스러운 고객 유입",
     visual: (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-4 py-3">
-          <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center text-[12px]">👰</div>
-          <div className="flex-1">
-            <div className="text-[12px] text-white/60">김지은 예비신부</div>
-            <div className="text-[13px] text-white/90 font-medium">예산 300만원 · 야외 촬영 선호</div>
-          </div>
-          <div className="text-[11px] text-rose-500 bg-rose-500/15 px-2 py-1 rounded-full">매칭</div>
-        </div>
-        <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-4 py-3">
-          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-[12px]">👰</div>
-          <div className="flex-1">
-            <div className="text-[12px] text-white/60">박서연 예비신부</div>
-            <div className="text-[13px] text-white/90 font-medium">예산 250만원 · 내추럴 컨셉</div>
-          </div>
-          <div className="text-[11px] text-gold bg-gold/15 px-2 py-1 rounded-full">매칭</div>
+      <div className="bg-white/[0.06] rounded-xl p-4">
+        <div className="text-[11px] text-white/40 mb-3">이번 주 고객 유입 현황</div>
+        <div className="flex flex-col gap-2.5">
+          {[
+            { label: "AI 추천 노출", value: "142회", change: "+23%" },
+            { label: "상세 페이지 조회", value: "38회", change: "+15%" },
+            { label: "상담 요청", value: "12건", change: "+8%" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center justify-between text-[12px]">
+              <span className="text-white/50">{item.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-white/80 font-medium">{item.value}</span>
+                <span className="text-[10px] text-[#6BCB9A] bg-[#6BCB9A]/10 px-1.5 py-0.5 rounded">{item.change}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     ),
@@ -58,7 +58,7 @@ const solutions = [
   {
     num: "03",
     title: "데이터 분석 리포트",
-    desc: "경쟁사 대비 선호도, 인기 컨셉 트렌드, 고객 유입 채널 분석까지. 데이터 기반으로 사업 의사결정을 하세요.",
+    desc: "업종 평균 대비 선호도, 인기 컨셉 트렌드, 고객 유입 채널 분석까지. 데이터 기반으로 사업 의사결정을 하세요.",
     highlight: "데이터 기반 의사결정",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">

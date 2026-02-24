@@ -13,6 +13,7 @@ export const dressConfig: ShopConfig = {
     "상담 전에 '이 고객은 머메이드 라인 선호, 2벌 착용 의향 있음' 같은 정보를 미리 알려드려요.",
     '기존 플랫폼 대비 합리적인 비용 구조로 부담을 줄여드려요.',
   ],
+  extraBox: "[AI 가상 피팅 예시] 고객 A님이 '머메이드 라인' 드레스 3벌을 평균 45초씩 봤어요. → 피팅 예약 시 대표님께 '머메이드 관심 높음' 알림 전달",
   sections: [
     {
       id: 'section1',
@@ -183,7 +184,7 @@ export const dressConfig: ShopConfig = {
           id: 'q11',
           type: 'text_area',
           required: false,
-          question: '플랫폼이 고객한테 미리 물어봐서 대표님께 알려드렸으면 하는 정보가 있으세요?',
+          question: '웨딩한방이 고객한테 미리 물어봐서 대표님께 알려드렸으면 하는 정보가 있으세요?',
           placeholder: '예: 예산, 선호 드레스 라인, 체형 정보, 웨딩홀 유형 등',
           maxLength: 500,
         },
@@ -314,8 +315,8 @@ export const dressConfig: ShopConfig = {
           fields: [
             { id: 'shop_name', label: '업체명', placeholder: '드레스샵명을 입력해주세요' },
             { id: 'contact_name', label: '담당자명', placeholder: '성함을 입력해주세요' },
-            { id: 'phone', label: '전화번호', placeholder: '010-0000-0000', inputType: 'tel' },
-            { id: 'email', label: '이메일', placeholder: 'example@email.com', inputType: 'email' },
+            { id: 'contact_phone', label: '전화번호', placeholder: '010-0000-0000', inputType: 'tel' },
+            { id: 'contact_email', label: '이메일', placeholder: 'example@email.com', inputType: 'email' },
           ],
         },
       ],

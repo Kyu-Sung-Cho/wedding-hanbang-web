@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, use } from "react";
-import { motion } from "framer-motion";
-import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer } from "lucide-react";
+import { useState, useEffect, use } from "react";
+import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X } from "lucide-react";
 import Link from "next/link";
-import { mockVendors, DAYS, CATEGORY_PRODUCT_FIELDS, formatDuration, type VendorProduct, type ProductFieldDef } from "@/data/mockVendors";
+import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
+import type { Vendor, VendorProduct } from "@/types/vendor.types";
 
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
+const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 function formatPrice(price: number): string {
   if (price >= 10000) return `${(price / 10000).toFixed(0)}만원`;
@@ -114,11 +111,41 @@ function ProductCard({ product, category, isSelected, onSelect }: {
 
 export default function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const vendor = mockVendors.find((v) => v.id === id);
+  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [booked, setBooked] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const [showMessageBox, setShowMessageBox] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [messageSent, setMessageSent] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/vendors/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setVendor(data.vendor);
+        }
+      } catch (err) {
+        console.error("Fetch vendor error:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
+      </div>
+    );
+  }
 
   if (!vendor) {
     return (
@@ -132,7 +159,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const activeProducts = vendor.products.filter((p) => p.isActive);
-  const config = CATEGORY_PRODUCT_FIELDS[vendor.category];
+  const config = CATEGORY_PRODUCT_FIELDS[vendor.category as keyof typeof CATEGORY_PRODUCT_FIELDS];
   const currentProduct = activeProducts.find((p) => p.id === selectedProduct);
 
   // 상품이 선택되면 해당 상품의 타임슬롯, 아니면 업체 글로벌 타임슬롯
@@ -144,13 +171,69 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       setSelectedProduct(null);
     } else {
       setSelectedProduct(productId);
-      setSelectedSlot(null); // 상품 변경 시 시간 초기화
+      setSelectedSlot(null);
     }
   };
 
-  const handleBook = () => {
-    setBooked(true);
-    setTimeout(() => setBooked(false), 3000);
+  const handleBook = async () => {
+    if (selectedSlot === null) return;
+    setBooking(true);
+
+    // 오늘 기준으로 가장 가까운 선택 요일 날짜 계산
+    const today = new Date();
+    const todayDay = (today.getDay() + 6) % 7; // 0=월 ~ 6=일
+    let diff = selectedDay - todayDay;
+    if (diff <= 0) diff += 7;
+    const bookingDate = new Date(today);
+    bookingDate.setDate(today.getDate() + diff);
+    const dateStr = bookingDate.toISOString().split("T")[0];
+    const timeStr = `${String(selectedSlot).padStart(2, "0")}:00`;
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorId: vendor.id,
+          productId: selectedProduct || null,
+          date: dateStr,
+          time: timeStr,
+        }),
+      });
+
+      if (res.ok) {
+        setBooked(true);
+        setTimeout(() => setBooked(false), 3000);
+      }
+    } catch (err) {
+      console.error("Booking error:", err);
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !vendor) return;
+    setSendingMessage(true);
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorId: vendor.id,
+          content: messageText.trim(),
+        }),
+      });
+      if (res.ok) {
+        setMessageSent(true);
+        setMessageText("");
+        setTimeout(() => { setMessageSent(false); setShowMessageBox(false); }, 2000);
+      }
+    } catch (err) {
+      console.error("Send message error:", err);
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
   return (
@@ -163,7 +246,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1">
         {/* 업체 정보 + 상품 */}
         <div className="col-span-3 space-y-6">
-          <motion.div {...fadeIn} transition={{ duration: 0.5 }}>
+          <div className="animate-fade-in">
             <div className="h-[220px] bg-gradient-to-br from-ivory-deep to-ivory-warm rounded-2xl flex items-center justify-center relative mb-5">
               <span className="text-[14px] text-taupe-400 font-light">{vendor.category} 대표 사진</span>
               <div className="absolute top-3 left-3 flex gap-2">
@@ -199,15 +282,15 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               </div>
               <p className="text-[14px] text-charcoal font-light leading-[1.8]">{vendor.description}</p>
             </div>
-          </motion.div>
+          </div>
 
           {/* 상품 리스트 */}
           {activeProducts.length > 0 && (
-            <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.1 }}>
+            <div className="animate-fade-in">
               <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-5 h-5 text-rose-500" />
-                  <h2 className="text-[17px] font-medium text-noir-800">{config.productLabel}</h2>
+                  <h2 className="text-[17px] font-medium text-noir-800">{config?.productLabel ?? "상품"}</h2>
                   <span className="text-[12px] text-taupe-400 ml-1">{activeProducts.length}개</span>
                 </div>
                 <p className="text-[12px] text-taupe-400 font-light mb-5">상품을 선택하면 해당 상품의 예약 가능 시간이 표시됩니다</p>
@@ -223,12 +306,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   ))}
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
 
         {/* 예약 패널 */}
-        <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.15 }} className="col-span-2">
+        <div className="col-span-2 animate-fade-in">
           <div className="sticky top-[88px] space-y-4">
             {/* 선택 상품 요약 */}
             {currentProduct && (
@@ -319,7 +402,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   {/* 예약 버튼 */}
                   <button
                     onClick={handleBook}
-                    disabled={selectedSlot === null || booked}
+                    disabled={selectedSlot === null || booked || booking}
                     className={`w-full py-3.5 rounded-xl text-[14px] font-medium transition-all flex items-center justify-center gap-2 ${
                       booked
                         ? "bg-[#2E7D5A] text-white"
@@ -328,7 +411,9 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                         : "bg-taupe-400/20 text-taupe-400 cursor-not-allowed"
                     }`}
                   >
-                    {booked ? (
+                    {booking ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />예약 중...</>
+                    ) : booked ? (
                       <><Check className="w-4 h-4" />예약 신청 완료!</>
                     ) : selectedSlot !== null ? (
                       `${DAYS[selectedDay]} ${String(selectedSlot).padStart(2, "0")}:00 예약 신청`
@@ -351,9 +436,59 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 예약은 업체 확인 후 확정됩니다. 확정 시 등록하신 연락처로 안내해드립니다. 예약 변경/취소는 방문일 1일 전까지 가능합니다.
               </p>
             </div>
+
+            {/* 문의하기 */}
+            <button
+              onClick={() => setShowMessageBox(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-rose-500/30 text-[13px] text-rose-500 font-medium hover:bg-rose-500/5 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+              업체에 문의하기
+            </button>
           </div>
-        </motion.div>
+        </div>
       </div>
+
+      {/* 문의 다이얼로그 */}
+      {showMessageBox && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setShowMessageBox(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-rose-500" />
+                <h3 className="text-[16px] font-medium text-noir-800">{vendor.name}에 문의</h3>
+              </div>
+              <button onClick={() => setShowMessageBox(false)} className="p-1 rounded-lg hover:bg-ivory-warm transition-colors">
+                <X className="w-5 h-5 text-taupe-400" />
+              </button>
+            </div>
+            <textarea
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="궁금한 점을 자유롭게 작성해주세요..."
+              rows={4}
+              className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors resize-none mb-4"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!messageText.trim() || sendingMessage || messageSent}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[14px] font-medium transition-all ${
+                messageSent
+                  ? "bg-[#2E7D5A] text-white"
+                  : "bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-50"
+              }`}
+            >
+              {sendingMessage ? (
+                <><Loader2 className="w-4 h-4 animate-spin" />전송 중...</>
+              ) : messageSent ? (
+                <><Check className="w-4 h-4" />전송 완료!</>
+              ) : (
+                <><Send className="w-4 h-4" />문의 보내기</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

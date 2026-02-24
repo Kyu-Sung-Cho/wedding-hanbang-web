@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, X, Clock, CalendarCheck, Filter } from "lucide-react";
-import { mockBookings } from "@/data/mockVendors";
-import type { BookingStatus } from "@/data/mockVendors";
+import { useVendorStore } from "@/stores/vendorStore";
+import type { BookingStatus } from "@/types/vendor.types";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
 
@@ -25,17 +25,17 @@ const statusStyle: Record<BookingStatus, { bg: string; text: string; label: stri
 
 export default function BookingsPage() {
   const [activeTab, setActiveTab] = useState<BookingStatus | "all">("all");
-  const [bookings, setBookings] = useState(mockBookings);
+  const { bookings, updateBookingStatus } = useVendorStore();
 
   const filtered = activeTab === "all" ? bookings : bookings.filter((b) => b.status === activeTab);
   const pendingCount = bookings.filter((b) => b.status === "pending").length;
   const confirmedCount = bookings.filter((b) => b.status === "confirmed").length;
 
-  const handleConfirm = (id: string) => {
-    setBookings(bookings.map((b) => b.id === id ? { ...b, status: "confirmed" as BookingStatus } : b));
+  const handleConfirm = async (id: string) => {
+    await updateBookingStatus(id, "confirmed");
   };
-  const handleCancel = (id: string) => {
-    setBookings(bookings.map((b) => b.id === id ? { ...b, status: "cancelled" as BookingStatus } : b));
+  const handleCancel = async (id: string) => {
+    await updateBookingStatus(id, "cancelled");
   };
 
   return (
@@ -72,11 +72,11 @@ export default function BookingsPage() {
             return (
               <motion.div key={booking.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="flex items-center gap-4 px-6 py-4 hover:bg-ivory-50 transition-colors max-md:flex-col max-md:items-start">
                 <div className="w-[90px] flex-shrink-0">
-                  <p className="text-[14px] font-medium text-noir-800">{booking.date.slice(5)}</p>
-                  <p className="text-[12px] text-taupe-400">{booking.time}</p>
+                  <p className="text-[14px] font-medium text-noir-800">{booking.bookingDate.slice(5)}</p>
+                  <p className="text-[12px] text-taupe-400">{booking.bookingTime}</p>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] text-noir-800 font-medium">{booking.customerName}</p>
+                  <p className="text-[14px] text-noir-800 font-medium">{booking.brideName || booking.groomName || "고객"}</p>
                   <p className="text-[12px] text-taupe-400 font-light truncate">{booking.memo}</p>
                 </div>
                 <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${s.bg} ${s.text}`}>{s.label}</span>

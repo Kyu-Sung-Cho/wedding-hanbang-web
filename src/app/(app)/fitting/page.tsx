@@ -1,12 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Camera, Cpu, Sparkles, ShirtIcon, Bell, ArrowRight } from "lucide-react";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
 
 const steps = [
   {
@@ -39,11 +33,7 @@ export default function FittingPage() {
   return (
     <div className="max-w-[900px] mx-auto">
       {/* Coming Soon 히어로 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.6 }}
-        className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-12 max-md:p-7 mb-8 relative overflow-hidden text-center"
-      >
+      <div className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-12 max-md:p-7 mb-8 relative overflow-hidden text-center animate-fade-in">
         <div className="absolute top-[-30%] right-[-15%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent)] rounded-full" />
         <div className="absolute bottom-[-20%] left-[-10%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
 
@@ -76,25 +66,18 @@ export default function FittingPage() {
             출시 알림 받기
           </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* 프로세스 설명 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className="mb-8"
-      >
+      <div className="mb-8 animate-fade-in">
         <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 mb-6 text-center">
           이렇게 작동합니다
         </h2>
         <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
-          {steps.map((step, i) => (
-            <motion.div
+          {steps.map((step) => (
+            <div
               key={step.step}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.15 + i * 0.08 }}
-              className="bg-white rounded-2xl p-5 border border-black/[0.04] text-center"
+              className="bg-white rounded-2xl p-5 border border-black/[0.04] text-center animate-fade-in"
             >
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500/10 to-gold/10 flex items-center justify-center mx-auto mb-4">
                 <step.icon className="w-5 h-5 text-rose-500" />
@@ -102,17 +85,13 @@ export default function FittingPage() {
               <span className="text-[11px] text-rose-500 font-display font-semibold">{step.step}</span>
               <h3 className="text-[14px] font-medium text-noir-800 mt-1 mb-2">{step.title}</h3>
               <p className="text-[12px] text-taupe-500 font-light leading-relaxed">{step.desc}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* 샘플 결과 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="bg-white rounded-2xl border border-black/[0.04] p-8 max-md:p-5"
-      >
+      <div className="bg-white rounded-2xl border border-black/[0.04] p-8 max-md:p-5 animate-fade-in">
         <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 mb-6 text-center">
           미리보기
         </h2>
@@ -121,7 +100,7 @@ export default function FittingPage() {
             { label: "A라인 드레스", style: "클래식 & 로맨틱" },
             { label: "머메이드 드레스", style: "모던 & 글래머" },
             { label: "엠파이어 드레스", style: "엘레건트 & 심플" },
-          ].map((dress, i) => (
+          ].map((dress) => (
             <div key={dress.label} className="group cursor-pointer">
               <div className="h-[200px] bg-gradient-to-br from-ivory-deep to-ivory-warm rounded-xl mb-3 flex items-center justify-center relative overflow-hidden">
                 <span className="text-[13px] text-taupe-400 font-light">피팅 결과</span>
@@ -136,7 +115,7 @@ export default function FittingPage() {
             </div>
           ))}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
