@@ -16,11 +16,23 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // 콜백에서 전달된 에러 표시
+  // 콜백에서 전달된 에러 표시 (query params + hash fragment)
   useEffect(() => {
+    // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
     const callbackError = params.get("error");
-    if (callbackError) {
+
+    // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
+    const hash = window.location.hash.substring(1);
+    const hashParams = new URLSearchParams(hash);
+    const hashError = hashParams.get("error");
+    const hashDescription = hashParams.get("error_description");
+
+    if (hashDescription) {
+      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
+    } else if (hashError) {
+      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
+    } else if (callbackError) {
       setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
     }
   }, []);
