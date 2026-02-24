@@ -96,10 +96,10 @@ export default function CustomerHero() {
             { num: "All-in-One", label: "결혼 준비" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <div className="font-display text-[clamp(18px,2.5vw,24px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
+              <div className="font-display text-[clamp(20px,3vw,28px)] font-medium bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
                 {stat.num}
               </div>
-              <div className="text-[11px] text-taupe-400 mt-1.5 font-light tracking-wide">{stat.label}</div>
+              <div className="text-[13px] text-taupe-500 mt-1.5 font-normal tracking-wide">{stat.label}</div>
             </div>
           ))}
         </motion.div>
