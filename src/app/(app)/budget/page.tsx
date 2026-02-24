@@ -9,7 +9,6 @@ import {
   Pencil,
   Check,
   X,
-  RotateCcw,
   Users,
   Camera,
   Shirt,
@@ -82,6 +81,13 @@ function formatWon(n: number): string {
 function formatWonFull(n: number): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억원`;
   return `${Math.round(n / 10000).toLocaleString()}만원`;
+}
+
+// 이전 버전 호환: cost가 만원 단위로 저장된 경우 원 단위로 변환
+// 10만원(100000) 미만은 만원 단위로 간주 (웨딩 비용이 10만원 미만일 수 없음)
+function normalizeCost(cost: number | undefined): number {
+  if (!cost || cost <= 0) return 0;
+  return cost < 100000 ? cost * 10000 : cost;
 }
 
 // 인라인 금액 편집 컴포넌트
@@ -310,8 +316,9 @@ export default function BudgetPage() {
       const item = progress[key];
       // 1. 저장된 커스텀 예산이 있으면 사용
       if (item?.budget !== undefined && item.budget > 0) return item.budget;
-      // 2. 완료 항목에 cost가 있으면 cost를 예산으로 사용
-      if (item?.cost !== undefined && item.cost > 0) return item.cost;
+      // 2. 완료 항목에 cost가 있으면 cost를 예산으로 사용 (이전 데이터 호환)
+      const cost = normalizeCost(item?.cost);
+      if (cost > 0) return cost;
       // 3. 없으면 비율 기반 기본값
       const catRatio = CATEGORY_RATIOS.find((c) => c.key === key);
       return catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
@@ -324,9 +331,10 @@ export default function BudgetPage() {
       const item = progress[key];
       // 1. 직접 수정한 지출이 있으면 최우선
       if (item?.spent !== undefined) return item.spent;
-      // 2. 온보딩에서 입력한 비용(cost)이 있으면 사용
-      if (item?.cost !== undefined && item.cost > 0) return item.cost;
-      // 3. 없으면 상태 기반 추정 (완료=0, 진행중=0, 예정=0)
+      // 2. 온보딩에서 입력한 비용(cost)이 있으면 사용 (이전 데이터 호환)
+      const cost = normalizeCost(item?.cost);
+      if (cost > 0) return cost;
+      // 3. 없으면 0
       return 0;
     },
     [progress]
