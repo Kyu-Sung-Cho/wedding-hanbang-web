@@ -41,6 +41,15 @@ export default function AdminPage() {
   const [setupLoading, setSetupLoading] = useState(false);
   const [setupError, setSetupError] = useState("");
 
+  // 로그인/회원가입 폼 상태
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [adminSetupPw, setAdminSetupPw] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loginSuccess, setLoginSuccess] = useState("");
+  const [loginMode, setLoginMode] = useState<"login" | "signup">("signup");
+
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
@@ -79,7 +88,109 @@ export default function AdminPage() {
     checkAdmin();
   }, []);
 
-  // 관리자 승격 핸들러
+  // 관리자 로그인/회원가입 핸들러
+  const handleAdminAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail || !loginPassword || !adminSetupPw) {
+      setLoginError("모든 필드를 입력해주세요.");
+      return;
+    }
+    if (loginMode === "signup" && loginPassword.length < 6) {
+      setLoginError("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError("");
+    setLoginSuccess("");
+
+    try {
+      if (loginMode === "signup") {
+        // 1. API로 계정 생성 + 관리자 설정
+        const res = await fetch("/api/admin/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "signup",
+            email: loginEmail,
+            password: loginPassword,
+            setupPassword: adminSetupPw,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setLoginError(data.error || "계정 생성에 실패했습니다.");
+          setLoginLoading(false);
+          return;
+        }
+
+        // 2. 생성된 계정으로 로그인
+        const supabase = createClient();
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPassword,
+        });
+
+        if (signInError) {
+          setLoginSuccess("계정이 생성되었습니다! 로그인 모드로 전환하여 로그인해주세요.");
+          setLoginMode("login");
+          setLoginLoading(false);
+          return;
+        }
+
+        // 쿠키 설정 후 새로고침
+        document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+        document.cookie = "admin_role=true; path=/; max-age=2592000";
+        window.location.reload();
+      } else {
+        // 로그인 모드
+        const supabase = createClient();
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPassword,
+        });
+
+        if (signInError) {
+          setLoginError(
+            signInError.message === "Invalid login credentials"
+              ? "이메일 또는 비밀번호가 올바르지 않습니다."
+              : signInError.message
+          );
+          setLoginLoading(false);
+          return;
+        }
+
+        // 관리자 승격
+        const res = await fetch("/api/admin/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "login",
+            email: loginEmail,
+            password: loginPassword,
+            setupPassword: adminSetupPw,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setLoginError(data.error || "관리자 설정에 실패했습니다.");
+          setLoginLoading(false);
+          return;
+        }
+
+        document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+        document.cookie = "admin_role=true; path=/; max-age=2592000";
+        window.location.reload();
+      }
+    } catch {
+      setLoginError("서버 오류가 발생했습니다.");
+    }
+    setLoginLoading(false);
+  };
+
+  // 관리자 승격 핸들러 (이미 로그인된 상태)
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     setSetupLoading(true);
@@ -204,24 +315,107 @@ export default function AdminPage() {
     );
   }
 
-  // 로그인 안 된 상태
+  // 로그인 안 된 상태 → 이메일/비밀번호 폼
   if (authState === "not_logged_in") {
     return (
       <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
-        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-sm w-full text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
-            한
+        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-[420px] w-full">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
+              한
+            </div>
+            <h1 className="font-serif-kr text-xl font-normal mb-1">
+              {loginMode === "signup" ? "관리자 계정 생성" : "관리자 로그인"}
+            </h1>
+            <p className="text-[13px] text-taupe-400">
+              {loginMode === "signup"
+                ? "웨딩한방 관리자 계정을 생성합니다"
+                : "관리자 계정으로 로그인하세요"}
+            </p>
           </div>
-          <h1 className="font-serif-kr text-xl font-normal mb-2">관리자 페이지</h1>
-          <p className="text-[13px] text-taupe-400 mb-8">
-            관리자 계정으로 로그인이 필요합니다
+
+          <form onSubmit={handleAdminAuth} className="space-y-3">
+            <div>
+              <label className="block text-[12px] text-taupe-500 mb-1.5 px-1">이메일</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
+                placeholder="admin@hanbang.ai"
+                className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] text-taupe-500 mb-1.5 px-1">비밀번호</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
+                placeholder={loginMode === "signup" ? "6자 이상" : "비밀번호"}
+                className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+
+            <div className="pt-2">
+              <div className="flex items-center gap-2 mb-1.5 px-1">
+                <Shield className="w-3.5 h-3.5 text-rose-500" />
+                <label className="text-[12px] text-rose-500 font-medium">관리자 인증 비밀번호</label>
+              </div>
+              <input
+                type="password"
+                value={adminSetupPw}
+                onChange={(e) => { setAdminSetupPw(e.target.value); setLoginError(""); }}
+                placeholder="관리자 인증 비밀번호"
+                className="w-full px-5 py-3.5 border border-rose-500/30 rounded-xl text-sm outline-none focus:border-rose-500 transition-colors bg-rose-500/[0.02]"
+              />
+              <p className="text-[11px] text-taupe-400 mt-1 px-1">
+                환경변수 ADMIN_PASSWORD에 설정된 비밀번호
+              </p>
+            </div>
+
+            {loginError && (
+              <p className="text-[12px] text-rose-500 px-1">{loginError}</p>
+            )}
+            {loginSuccess && (
+              <p className="text-[12px] text-[#2E7D5A] px-1">{loginSuccess}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors disabled:opacity-50 mt-2"
+            >
+              {loginLoading
+                ? "처리 중..."
+                : loginMode === "signup"
+                  ? "관리자 계정 생성"
+                  : "로그인"}
+            </button>
+          </form>
+
+          <p className="text-[13px] text-taupe-400 text-center mt-5">
+            {loginMode === "signup" ? (
+              <>
+                이미 계정이 있으신가요?{" "}
+                <button
+                  onClick={() => { setLoginMode("login"); setLoginError(""); setLoginSuccess(""); }}
+                  className="text-rose-500 font-medium hover:underline"
+                >
+                  로그인
+                </button>
+              </>
+            ) : (
+              <>
+                계정이 없으신가요?{" "}
+                <button
+                  onClick={() => { setLoginMode("signup"); setLoginError(""); setLoginSuccess(""); }}
+                  className="text-rose-500 font-medium hover:underline"
+                >
+                  계정 생성
+                </button>
+              </>
+            )}
           </p>
-          <a
-            href="/login"
-            className="inline-block w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors"
-          >
-            로그인하러 가기
-          </a>
         </div>
       </div>
     );
