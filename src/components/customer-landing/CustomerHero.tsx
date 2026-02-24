@@ -47,8 +47,9 @@ export default function CustomerHero() {
           결혼 준비,
           <br />
           <em className="not-italic font-medium bg-gradient-to-br from-rose-500 to-gold bg-clip-text text-transparent">
-            한방에 해결하세요
+            한방
           </em>
+          에 해결하세요
         </motion.h1>
 
         {/* 서브 카피 */}
