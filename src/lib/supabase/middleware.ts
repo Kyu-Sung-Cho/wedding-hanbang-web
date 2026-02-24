@@ -41,22 +41,35 @@ export async function updateSession(request: NextRequest) {
   // 관리자 쿠키 확인
   const isAdmin = request.cookies.get("admin_role")?.value === "true";
 
-  // 인증이 필요한 페이지 접근 시 로그인으로 리다이렉트
-  const protectedPaths = [
+  // 경로별 보호 그룹 정의
+  const customerPaths = [
     "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
-    "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
-    "/admin",
   ];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
+  const vendorPaths = [
+    "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
+  ];
 
-  // 데모 모드 쿠키가 있으면 인증 없이 접근 허용
+  const pathname = request.nextUrl.pathname;
+  const isCustomerPath = customerPaths.some((path) => pathname.startsWith(path));
+  const isVendorPath = vendorPaths.some((path) => pathname.startsWith(path));
+  const isAdminPath = pathname.startsWith("/admin");
+  const isProtectedPath = isCustomerPath || isVendorPath || isAdminPath;
+
+  // 데모 모드 쿠키가 있으면 고객 앱 인증 없이 접근 허용
   const isDemoMode = request.cookies.get("demo_mode")?.value === "true";
 
   if (!user && !isDemoMode && isProtectedPath) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    if (isVendorPath) {
+      // 업체 보호 경로 → 업체 로그인으로
+      url.pathname = "/vendor/login";
+    } else if (isAdminPath) {
+      // 관리자 경로 → 리다이렉트 안 함 (admin 페이지 자체에 로그인 폼 내장)
+      return supabaseResponse;
+    } else {
+      // 고객 보호 경로 → 고객 로그인으로
+      url.pathname = "/login";
+    }
     return NextResponse.redirect(url);
   }
 

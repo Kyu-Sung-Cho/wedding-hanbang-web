@@ -105,35 +105,16 @@ export default function LoginPage() {
             ? "이메일 또는 비밀번호가 올바르지 않습니다."
             : signInError.message);
         } else {
-          // 온보딩 완료 여부 확인 + 관리자/업체 라우팅
+          // 고객 전용: 온보딩 완료 여부만 확인
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("onboarding_completed, is_admin")
+              .select("onboarding_completed")
               .eq("id", loggedInUser.id)
               .single();
 
-            // 관리자 확인
-            if (profile?.is_admin) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              document.cookie = "admin_role=true; path=/; max-age=2592000";
-              window.location.href = "/admin";
-              return;
-            }
-
-            // 업체 계정인지 확인
-            const { data: vendorRecord } = await supabase
-              .from("vendors")
-              .select("id, status")
-              .eq("owner_id", loggedInUser.id)
-              .maybeSingle();
-
-            if (vendorRecord) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              document.cookie = "vendor_role=true; path=/; max-age=2592000";
-              window.location.href = "/vendor/dashboard";
-            } else if (profile?.onboarding_completed) {
+            if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               window.location.href = "/dashboard";
             } else {
@@ -322,9 +303,13 @@ export default function LoginPage() {
         </div>
 
         {/* 하단 링크 */}
-        <div className="text-center mt-6">
+        <div className="flex items-center justify-center gap-4 mt-6">
           <a href="/" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
-            ← 홈으로 돌아가기
+            ← 홈으로
+          </a>
+          <span className="text-taupe-300">|</span>
+          <a href="/vendor/login" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
+            업체 파트너 로그인
           </a>
         </div>
       </motion.div>
