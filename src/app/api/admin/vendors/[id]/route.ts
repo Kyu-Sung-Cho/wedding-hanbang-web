@@ -1,21 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { sendVendorApprovalEmail, sendVendorRejectionEmail } from "@/lib/resend";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const password = req.headers.get("x-admin-password");
-    if (password !== ADMIN_PASSWORD) {
+    const { authorized } = await verifyAdmin(req);
+    if (!authorized) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

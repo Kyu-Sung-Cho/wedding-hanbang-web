@@ -13,6 +13,7 @@ export interface Profile {
   avatar_url: string | null;
   onboarding_completed: boolean;
   onboarding_step: number;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }

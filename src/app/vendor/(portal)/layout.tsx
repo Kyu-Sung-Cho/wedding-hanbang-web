@@ -119,11 +119,19 @@ export default function VendorPortalLayout({ children }: { children: React.React
     );
   }
 
+  const isAdmin = vendor.id === "admin";
+
   return (
     <div className="min-h-screen bg-ivory-50">
       <VendorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-[260px]">
-        <VendorTopNav onMenuToggle={() => setSidebarOpen(true)} status={vendor.status} />
+        <VendorTopNav onMenuToggle={() => setSidebarOpen(true)} status={vendor.status} isAdmin={isAdmin} />
+        {isAdmin && (
+          <div className="mx-8 max-md:mx-5 mt-4 bg-rose-500/5 border border-rose-500/20 rounded-xl px-5 py-3 flex items-center gap-3">
+            <span className="text-[13px] text-rose-600 font-medium">관리자 모드로 접속 중입니다</span>
+            <span className="text-[12px] text-taupe-400">업체 포털의 구조와 기능을 확인할 수 있습니다</span>
+          </div>
+        )}
         <main className="p-8 max-md:p-5">{children}</main>
       </div>
     </div>

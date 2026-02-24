@@ -56,12 +56,26 @@ export async function GET(request: Request) {
     // 프로필 조회 (새 유저는 프로필이 없을 수 있음)
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("onboarding_completed")
+      .select("onboarding_completed, is_admin")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profileError) {
       console.error("콜백: 프로필 조회 에러:", profileError.message);
+    }
+
+    // 관리자 확인 → 관리자 대시보드로
+    if (profile?.is_admin) {
+      const response = NextResponse.redirect(`${origin}/admin`);
+      response.cookies.set("onboarding_complete", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+      response.cookies.set("admin_role", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      return response;
     }
 
     // 업체 계정인지 확인 (온보딩보다 먼저 체크)

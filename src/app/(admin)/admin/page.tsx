@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX, Loader2, LogOut, LayoutDashboard, Building2 } from "lucide-react";
 
 interface Registration {
   id: string;
@@ -31,13 +32,18 @@ interface AdminVendor {
   createdAt: string;
 }
 
+type AuthState = "loading" | "not_logged_in" | "not_admin" | "admin";
+
 export default function AdminPage() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState("");
+
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<"registrations" | "vendors">("registrations");
@@ -50,12 +56,72 @@ export default function AdminPage() {
   const [vendorLoading, setVendorLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // 관리자 인증 확인
+  useEffect(() => {
+    async function checkAdmin() {
+      try {
+        const res = await fetch("/api/admin/auth");
+        const data = await res.json();
+
+        if (res.status === 401) {
+          setAuthState("not_logged_in");
+        } else if (data.isAdmin) {
+          setAuthState("admin");
+          setAdminEmail(data.email || "");
+        } else {
+          setAuthState("not_admin");
+          setAdminEmail(data.email || "");
+        }
+      } catch {
+        setAuthState("not_logged_in");
+      }
+    }
+    checkAdmin();
+  }, []);
+
+  // 관리자 승격 핸들러
+  const handleSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupLoading(true);
+    setSetupError("");
+
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setupPassword }),
+      });
+
+      if (res.ok) {
+        setAuthState("admin");
+      } else {
+        const data = await res.json();
+        setSetupError(data.error || "관리자 설정에 실패했습니다.");
+      }
+    } catch {
+      setSetupError("서버 오류가 발생했습니다.");
+    }
+    setSetupLoading(false);
+  };
+
+  const fetchRegistrations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/registrations");
+      if (res.ok) {
+        const data = await res.json();
+        setRegistrations(data.registrations);
+        setTotalCount(data.total);
+        setDailyCounts(data.dailyCounts);
+      }
+    } catch {
+      console.error("등록 목록 조회 실패");
+    }
+  }, []);
+
   const fetchVendors = useCallback(async () => {
     setVendorLoading(true);
     try {
-      const res = await fetch("/api/admin/vendors", {
-        headers: { "x-admin-password": password },
-      });
+      const res = await fetch("/api/admin/vendors");
       if (res.ok) {
         const data = await res.json();
         setVendors(data.vendors);
@@ -64,46 +130,22 @@ export default function AdminPage() {
       console.error("업체 목록 조회 실패");
     }
     setVendorLoading(false);
-  }, [password]);
+  }, []);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/registrations", {
-        headers: { "x-admin-password": password },
-      });
-      if (res.ok) {
-        setAuthenticated(true);
-        const data = await res.json();
-        setRegistrations(data.registrations);
-        setTotalCount(data.total);
-        setDailyCounts(data.dailyCounts);
-      } else {
-        alert("비밀번호가 틀렸습니다.");
-      }
-    } catch {
-      alert("서버 오류가 발생했습니다.");
-    }
-    setLoading(false);
-  }
-
-  // 인증 후 업체 데이터 로드
+  // 관리자 인증 후 데이터 로드
   useEffect(() => {
-    if (authenticated) {
+    if (authState === "admin") {
+      fetchRegistrations();
       fetchVendors();
     }
-  }, [authenticated, fetchVendors]);
+  }, [authState, fetchRegistrations, fetchVendors]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
     try {
       const res = await fetch(`/api/admin/vendors/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-password": password,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
       });
       if (res.ok) {
@@ -123,10 +165,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`/api/admin/vendors/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-password": password,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reason: rejectReason }),
       });
       if (res.ok) {
@@ -142,40 +181,104 @@ export default function AdminPage() {
     setActionLoading(false);
   };
 
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
+
   const filteredVendors = vendorFilter === "all" ? vendors : vendors.filter((v) => v.status === vendorFilter);
   const pendingVendors = vendors.filter((v) => v.status === "pending").length;
   const approvedVendors = vendors.filter((v) => v.status === "approved").length;
   const rejectedVendors = vendors.filter((v) => v.status === "rejected").length;
 
-  if (!authenticated) {
+  // 로딩 중
+  if (authState === "loading") {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
-        <form onSubmit={handleLogin} className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-sm w-full">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
-              한
-            </div>
-            <h1 className="font-serif-kr text-xl font-normal">관리자 로그인</h1>
-          </div>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="관리자 비밀번호"
-            className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors mb-4"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors"
-          >
-            {loading ? "확인 중..." : "로그인"}
-          </button>
-        </form>
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[14px] text-taupe-500">인증 확인 중...</p>
+        </div>
       </div>
     );
   }
 
+  // 로그인 안 된 상태
+  if (authState === "not_logged_in") {
+    return (
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
+        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-sm w-full text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
+            한
+          </div>
+          <h1 className="font-serif-kr text-xl font-normal mb-2">관리자 페이지</h1>
+          <p className="text-[13px] text-taupe-400 mb-8">
+            관리자 계정으로 로그인이 필요합니다
+          </p>
+          <a
+            href="/login"
+            className="inline-block w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors"
+          >
+            로그인하러 가기
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // 로그인 됐지만 관리자 아닌 상태 → 관리자 설정
+  if (authState === "not_admin") {
+    return (
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
+        <div className="bg-white rounded-3xl p-10 shadow-[0_8px_32px_rgba(0,0,0,0.06)] max-w-sm w-full">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-gold rounded-xl flex items-center justify-center text-white font-bold text-lg font-display mx-auto mb-4">
+              한
+            </div>
+            <h1 className="font-serif-kr text-xl font-normal mb-2">관리자 권한 설정</h1>
+            <p className="text-[13px] text-taupe-400">
+              {adminEmail}
+            </p>
+            <p className="text-[12px] text-taupe-400 mt-1">
+              관리자 비밀번호를 입력하여 권한을 활성화하세요
+            </p>
+          </div>
+
+          <form onSubmit={handleSetup}>
+            <input
+              type="password"
+              value={setupPassword}
+              onChange={(e) => { setSetupPassword(e.target.value); setSetupError(""); }}
+              placeholder="관리자 설정 비밀번호"
+              className="w-full px-5 py-3.5 border border-platinum rounded-xl text-sm outline-none focus:border-rose-500 transition-colors mb-3"
+            />
+            {setupError && (
+              <p className="text-[12px] text-rose-500 px-1 mb-3">{setupError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={setupLoading}
+              className="w-full py-3.5 bg-noir-800 text-white rounded-xl text-sm font-medium hover:bg-noir-soft transition-colors disabled:opacity-50"
+            >
+              {setupLoading ? "설정 중..." : "관리자 권한 활성화"}
+            </button>
+          </form>
+
+          <div className="mt-4 text-center">
+            <button
+              onClick={handleLogout}
+              className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
+            >
+              다른 계정으로 로그인
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 관리자 대시보드
   const maxDailyCount = Math.max(...dailyCounts.map((d) => d.count), 1);
 
   return (
@@ -185,14 +288,31 @@ export default function AdminPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="font-serif-kr text-2xl font-light">관리자 대시보드</h1>
-            <p className="text-sm text-taupe-500 mt-1">웨딩한방 관리 현황</p>
+            <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
-          <button
-            onClick={() => setAuthenticated(false)}
-            className="px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors"
-          >
-            로그아웃
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="/dashboard"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              고객 대시보드
+            </a>
+            <a
+              href="/vendor/dashboard"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              업체 포털
+            </a>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              로그아웃
+            </button>
+          </div>
         </div>
 
         {/* 탭 네비게이션 */}

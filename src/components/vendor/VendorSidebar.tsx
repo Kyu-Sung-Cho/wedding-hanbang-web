@@ -18,6 +18,8 @@ import {
 import Logo from "@/components/ui/Logo";
 import { useVendorStore } from "@/stores/vendorStore";
 
+import { Shield } from "lucide-react";
+
 const menuItems = [
   { href: "/vendor/dashboard", icon: LayoutDashboard, label: "대시보드" },
   { href: "/vendor/profile", icon: Store, label: "업체 프로필" },
@@ -70,6 +72,17 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
 
         {/* 메뉴 */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {/* 관리자 모드 링크 */}
+          {vendor?.id === "admin" && (
+            <Link
+              href="/admin"
+              onClick={onClose}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-colors bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 font-medium mb-2"
+            >
+              <Shield className="w-[18px] h-[18px] text-rose-500" />
+              관리자 대시보드
+            </Link>
+          )}
           {menuItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, bookingRowToBooking } from "@/lib/utils/vendorMapper";
 
@@ -19,6 +20,51 @@ export async function GET() {
       .single();
 
     if (vendorErr || !vendorRow) {
+      // 관리자인 경우 첫 번째 업체 데이터를 보여줌 (관리자 모드)
+      const serviceClient = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const { data: profile } = await serviceClient
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.is_admin) {
+        // 관리자용 가상 업체 데이터
+        return NextResponse.json({
+          vendor: {
+            id: "admin",
+            name: "관리자 모드",
+            category: "admin",
+            status: "approved",
+            ownerName: "관리자",
+            phone: "",
+            email: user.email || "",
+            address: "",
+            location: "",
+            region: "",
+            priceMin: 0,
+            priceMax: 0,
+            priceRange: "",
+            description: "관리자 계정으로 접속 중입니다.",
+            tags: [],
+            businessNumber: "",
+            thumbnailUrl: "",
+            rating: 0,
+            reviewCount: 0,
+            timeSlots: [],
+            businessHours: {},
+            notificationSettings: { booking: true, message: true, marketing: false },
+          },
+          products: [],
+          bookings: [],
+          stats: { monthlyViews: 0 },
+          isAdmin: true,
+        });
+      }
+
       return NextResponse.json({ error: "등록된 업체가 없습니다." }, { status: 404 });
     }
 

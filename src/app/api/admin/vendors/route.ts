@@ -1,19 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { vendorRowToVendor } from "@/lib/utils/vendorMapper";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 export async function GET(request: NextRequest) {
-  const password = request.headers.get("x-admin-password");
-  if (password !== ADMIN_PASSWORD) {
+  const { authorized } = await verifyAdmin(request);
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

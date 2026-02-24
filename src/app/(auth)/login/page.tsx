@@ -105,14 +105,22 @@ export default function LoginPage() {
             ? "이메일 또는 비밀번호가 올바르지 않습니다."
             : signInError.message);
         } else {
-          // 온보딩 완료 여부 확인 + 업체 라우팅
+          // 온보딩 완료 여부 확인 + 관리자/업체 라우팅
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("onboarding_completed")
+              .select("onboarding_completed, is_admin")
               .eq("id", loggedInUser.id)
               .single();
+
+            // 관리자 확인
+            if (profile?.is_admin) {
+              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+              document.cookie = "admin_role=true; path=/; max-age=2592000";
+              window.location.href = "/admin";
+              return;
+            }
 
             // 업체 계정인지 확인
             const { data: vendorRecord } = await supabase

@@ -15,9 +15,10 @@ const pageTitles: Record<string, string> = {
 interface VendorTopNavProps {
   onMenuToggle: () => void;
   status?: "pending" | "approved" | "rejected";
+  isAdmin?: boolean;
 }
 
-export default function VendorTopNav({ onMenuToggle, status = "approved" }: VendorTopNavProps) {
+export default function VendorTopNav({ onMenuToggle, status = "approved", isAdmin = false }: VendorTopNavProps) {
   const pathname = usePathname();
   const title = pageTitles[pathname] || "업체 포털";
 
@@ -42,12 +43,20 @@ export default function VendorTopNav({ onMenuToggle, status = "approved" }: Vend
       </div>
 
       <div className="flex items-center gap-3">
-        {/* 심사 상태 배지 */}
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${s.color}`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === "pending" ? "animate-pulse" : ""}`} />
-          <s.icon className="w-3.5 h-3.5" />
-          {s.label}
-        </div>
+        {/* 관리자 모드 배지 */}
+        {isAdmin ? (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-rose-500/10 text-rose-600">
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            <Shield className="w-3.5 h-3.5" />
+            관리자
+          </div>
+        ) : (
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${s.color}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === "pending" ? "animate-pulse" : ""}`} />
+            <s.icon className="w-3.5 h-3.5" />
+            {s.label}
+          </div>
+        )}
 
         {/* 알림 */}
         <button className="relative p-2 rounded-lg hover:bg-ivory-warm transition-colors">

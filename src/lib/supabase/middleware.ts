@@ -38,10 +38,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 관리자 쿠키 확인
+  const isAdmin = request.cookies.get("admin_role")?.value === "true";
+
   // 인증이 필요한 페이지 접근 시 로그인으로 리다이렉트
   const protectedPaths = [
     "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
     "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
+    "/admin",
   ];
   const isProtectedPath = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
@@ -54,6 +58,11 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  // 관리자는 모든 페이지 접근 가능 (온보딩 체크 건너뜀)
+  if (isAdmin) {
+    return supabaseResponse;
   }
 
   // 온보딩 미완료 유저가 앱 페이지 접근 시 온보딩으로 리다이렉트

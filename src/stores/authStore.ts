@@ -14,6 +14,7 @@ const DEMO_PROFILE: Profile = {
   avatar_url: null,
   onboarding_completed: true,
   onboarding_step: 4,
+  is_admin: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
