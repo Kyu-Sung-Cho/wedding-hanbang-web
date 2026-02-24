@@ -11,28 +11,6 @@ export default function VendorLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleOAuth = async (provider: "kakao" | "google") => {
-    setLoading(provider);
-    setError("");
-    try {
-      const supabase = createClient();
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/callback?from=vendor`,
-        },
-      });
-      if (oauthError) {
-        setError(`로그인 오류: ${oauthError.message}`);
-        setLoading(null);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setLoading(null);
-      setError(`로그인 실패: ${msg}`);
-    }
-  };
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -165,55 +143,6 @@ export default function VendorLoginPage() {
               {loading === "email" ? "로그인 중..." : "로그인"}
             </button>
           </form>
-
-          {/* 구분선 */}
-          <div className="flex items-center gap-4 mb-5">
-            <div className="flex-1 h-px bg-white/[0.1]" />
-            <span className="text-[11px] text-white/30">소셜 계정으로 로그인</span>
-            <div className="flex-1 h-px bg-white/[0.1]" />
-          </div>
-
-          {/* 소셜 로그인 */}
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={() => handleOAuth("kakao")}
-              disabled={loading !== null}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-medium transition-all bg-[#FEE500] text-[#191919] hover:shadow-[0_4px_16px_rgba(254,229,0,0.2)]"
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path
-                  d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z"
-                  fill="#191919"
-                />
-              </svg>
-              카카오
-            </button>
-            <button
-              onClick={() => handleOAuth("google")}
-              disabled={loading !== null}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-medium transition-all bg-white/[0.1] border border-white/[0.1] text-white hover:bg-white/[0.15]"
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path
-                  d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M3.97 10.71A5.41 5.41 0 013.68 9c0-.6.1-1.17.28-1.71V4.96H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.04l3.01-2.33z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Google
-            </button>
-          </div>
 
           {/* 업체 등록 안내 */}
           <div className="bg-white/[0.04] rounded-xl p-4 text-center">
