@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Store, MapPin, FileText, ChevronRight, ChevronLeft, Check, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
+import { createClient } from "@/lib/supabase/client";
 import type { VendorCategory } from "@/data/mockVendors";
 
 const BETA_CATEGORIES: VendorCategory[] = ["스튜디오", "드레스", "메이크업"];
@@ -24,11 +25,16 @@ export default function VendorRegisterPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Auth 상태
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
   const [shopName, setShopName] = useState("");
   const [category, setCategory] = useState<VendorCategory | "">("");
   const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
 
   const [address, setAddress] = useState("");
   const [priceMin, setPriceMin] = useState("");
@@ -37,6 +43,25 @@ export default function VendorRegisterPage() {
   const [tags, setTags] = useState("");
 
   const [businessNumber, setBusinessNumber] = useState("");
+
+  // 페이지 로드 시 로그인 상태 확인
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setIsLoggedIn(true);
+          setEmail(user.email || "");
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setIsLoggedIn(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const clearFieldError = (field: string) => {
     setFieldErrors((prev) => {
@@ -56,6 +81,13 @@ export default function VendorRegisterPage() {
       if (!phone.trim()) errors.phone = "연락처를 입력해 주세요";
       if (!email.trim()) errors.email = "이메일을 입력해 주세요";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "올바른 이메일 형식을 입력해 주세요";
+
+      // 비로그인 시 비밀번호 검증
+      if (!isLoggedIn) {
+        if (!password) errors.password = "비밀번호를 입력해 주세요";
+        else if (password.length < 6) errors.password = "비밀번호는 6자 이상이어야 합니다";
+        if (password !== passwordConfirm) errors.passwordConfirm = "비밀번호가 일치하지 않습니다";
+      }
     }
 
     if (step === 2) {
@@ -77,13 +109,23 @@ export default function VendorRegisterPage() {
     }
 
     return Object.keys(errors).length === 0;
-  }, [shopName, category, ownerName, phone, email, address, description, businessNumber]);
+  }, [shopName, category, ownerName, phone, email, address, description, businessNumber, password, passwordConfirm, isLoggedIn]);
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
       setCurrentStep((s) => s + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  };
+
+  const handleOAuthSignup = async (provider: "kakao" | "google") => {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback?from=vendor`,
+      },
+    });
   };
 
   const handleSubmit = async () => {
@@ -93,6 +135,35 @@ export default function VendorRegisterPage() {
     setErrorMsg("");
 
     try {
+      const supabase = createClient();
+
+      // 비로그인 상태: 계정 먼저 생성
+      if (!isLoggedIn) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name: ownerName },
+          },
+        });
+
+        if (signUpError) {
+          if (signUpError.message === "User already registered") {
+            setErrorMsg("이미 가입된 이메일입니다. 업체 로그인 후 등록해주세요.");
+          } else {
+            setErrorMsg(`계정 생성 실패: ${signUpError.message}`);
+          }
+          return;
+        }
+
+        // 이메일 인증이 필요한 경우 (session이 없음)
+        if (!signUpData.session) {
+          setErrorMsg("이메일 인증이 필요합니다. 메일함을 확인한 후 업체 로그인 페이지에서 로그인하여 등록을 완료해주세요.");
+          return;
+        }
+      }
+
+      // 업체 등록 API 호출
       const res = await fetch("/api/vendor/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -113,10 +184,17 @@ export default function VendorRegisterPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setErrorMsg(data.error || "등록에 실패했습니다.");
+        if (res.status === 401) {
+          setErrorMsg("인증에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요.");
+        } else {
+          setErrorMsg(data.error || "등록에 실패했습니다.");
+        }
         return;
       }
 
+      // 성공: 쿠키 설정
+      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+      document.cookie = "vendor_role=true; path=/; max-age=2592000";
       setCompleted(true);
     } catch {
       setErrorMsg("네트워크 오류가 발생했습니다.");
@@ -134,6 +212,18 @@ export default function VendorRegisterPage() {
     `w-full px-4 py-3 border rounded-xl text-[14px] outline-none transition-colors ${
       fieldErrors[field] ? "border-rose-500 bg-rose-500/[0.03]" : "border-platinum focus:border-rose-500"
     }`;
+
+  // Auth 체크 중 로딩
+  if (isLoggedIn === null) {
+    return (
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[14px] text-taupe-500">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (completed) {
     const roadmap = [
@@ -225,6 +315,28 @@ export default function VendorRegisterPage() {
       </header>
 
       <div className="max-w-[800px] mx-auto px-8 py-10 max-md:px-5">
+        {/* 비로그인 안내 배너 */}
+        {isLoggedIn === false && (
+          <div className="bg-noir-800 rounded-xl p-4 mb-6 text-center">
+            <p className="text-[13px] text-white font-medium mb-1">계정 생성 + 업체 등록을 한번에 진행합니다</p>
+            <p className="text-[12px] text-white/50">
+              이미 계정이 있으신가요?{" "}
+              <a href="/vendor/login" className="text-rose-400 underline font-medium hover:text-rose-300">로그인 후 등록하기</a>
+            </p>
+          </div>
+        )}
+
+        {/* 로그인 상태 안내 */}
+        {isLoggedIn === true && (
+          <div className="bg-[#2E7D5A]/10 rounded-xl p-4 mb-6 flex items-center gap-3">
+            <Check className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
+            <div>
+              <p className="text-[13px] text-[#2E7D5A] font-medium">로그인 상태로 등록을 진행합니다</p>
+              <p className="text-[12px] text-taupe-500">{email}</p>
+            </div>
+          </div>
+        )}
+
         {/* 스텝 인디케이터 */}
         <div className="flex items-center justify-center gap-2 mb-10">
           {steps.map((step, i) => (
@@ -288,9 +400,76 @@ export default function VendorRegisterPage() {
                 </div>
                 <div id="field-email">
                   <label className="block text-[13px] font-medium text-noir-800 mb-2">이메일 <span className="text-rose-500">*</span></label>
-                  <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }} placeholder="email@example.com" className={inputClass("email")} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
+                    placeholder="email@example.com"
+                    className={`${inputClass("email")} ${isLoggedIn ? "bg-ivory-50 text-taupe-500" : ""}`}
+                    readOnly={isLoggedIn === true}
+                  />
+                  {isLoggedIn && (
+                    <p className="text-[11px] text-[#2E7D5A] mt-1">로그인된 계정의 이메일입니다</p>
+                  )}
                   <FieldError field="email" />
                 </div>
+
+                {/* 비로그인: 비밀번호 + OAuth */}
+                {isLoggedIn === false && (
+                  <>
+                    <div id="field-password">
+                      <label className="block text-[13px] font-medium text-noir-800 mb-2">비밀번호 <span className="text-rose-500">*</span></label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+                        placeholder="6자 이상"
+                        className={inputClass("password")}
+                      />
+                      <FieldError field="password" />
+                    </div>
+                    <div id="field-passwordConfirm">
+                      <label className="block text-[13px] font-medium text-noir-800 mb-2">비밀번호 확인 <span className="text-rose-500">*</span></label>
+                      <input
+                        type="password"
+                        value={passwordConfirm}
+                        onChange={(e) => { setPasswordConfirm(e.target.value); clearFieldError("passwordConfirm"); }}
+                        placeholder="비밀번호 재입력"
+                        className={inputClass("passwordConfirm")}
+                      />
+                      <FieldError field="passwordConfirm" />
+                    </div>
+
+                    <div className="pt-2 border-t border-platinum">
+                      <p className="text-[12px] text-taupe-400 text-center mb-3">또는 소셜 계정으로 시작</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOAuthSignup("kakao")}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-medium bg-[#FEE500] text-[#191919] hover:shadow-[0_2px_8px_rgba(254,229,0,0.3)] transition-all"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                            <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
+                          </svg>
+                          카카오로 시작
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOAuthSignup("google")}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-medium border border-platinum text-charcoal hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                            <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
+                            <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z" fill="#34A853"/>
+                            <path d="M3.97 10.71A5.41 5.41 0 013.68 9c0-.6.1-1.17.28-1.71V4.96H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.04l3.01-2.33z" fill="#FBBC05"/>
+                            <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z" fill="#EA4335"/>
+                          </svg>
+                          Google로 시작
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}

@@ -64,12 +64,7 @@ export async function GET(request: Request) {
       console.error("콜백: 프로필 조회 에러:", profileError.message);
     }
 
-    // 프로필이 없거나 온보딩 미완료 → 온보딩으로
-    if (!profile || !profile.onboarding_completed) {
-      return NextResponse.redirect(`${origin}/onboarding`);
-    }
-
-    // 업체 계정인지 확인
+    // 업체 계정인지 확인 (온보딩보다 먼저 체크)
     const { data: vendorRecord } = await supabase
       .from("vendors")
       .select("id, status")
@@ -90,7 +85,7 @@ export async function GET(request: Request) {
       return response;
     }
 
-    // 업체 로그인으로 왔는데 업체 등록이 안 되어 있으면 → 업체 등록으로
+    // 업체 로그인 경로로 왔는데 업체가 없으면 → 업체 등록 (프로필/온보딩 무관)
     if (fromVendor) {
       const response = NextResponse.redirect(`${origin}/vendor/register`);
       response.cookies.set("onboarding_complete", "true", {
@@ -98,6 +93,11 @@ export async function GET(request: Request) {
         maxAge: 60 * 60 * 24 * 365,
       });
       return response;
+    }
+
+    // 일반 고객: 프로필/온보딩 체크
+    if (!profile || !profile.onboarding_completed) {
+      return NextResponse.redirect(`${origin}/onboarding`);
     }
 
     // 일반 고객 → 대시보드

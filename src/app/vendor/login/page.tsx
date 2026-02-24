@@ -218,13 +218,13 @@ export default function VendorLoginPage() {
           {/* 업체 등록 안내 */}
           <div className="bg-white/[0.04] rounded-xl p-4 text-center">
             <p className="text-[12px] text-white/40 mb-2">
-              아직 업체 등록을 안 하셨나요?
+              아직 계정이 없으신가요?
             </p>
             <a
               href="/vendor/register"
               className="text-[13px] text-rose-400 font-medium hover:text-rose-300 transition-colors"
             >
-              업체 등록 신청하기 →
+              회원가입 + 업체 등록하기 →
             </a>
           </div>
         </div>
