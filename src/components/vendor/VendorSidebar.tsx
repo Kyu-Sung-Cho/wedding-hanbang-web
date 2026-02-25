@@ -59,7 +59,7 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
         {/* 로고 & 닫기 */}
         <div className="h-[72px] flex items-center justify-between px-6 border-b border-black/[0.04]">
           <Link href="/vendor/dashboard" className="flex items-center gap-2.5">
-            <Logo size="sm" />
+            <Logo size="sm" showText={false} />
             <div>
               <span className="font-serif-kr text-[15px] font-medium text-noir-800">웨딩한방</span>
               <span className="block text-[10px] text-rose-500 font-medium tracking-wider">PARTNER</span>

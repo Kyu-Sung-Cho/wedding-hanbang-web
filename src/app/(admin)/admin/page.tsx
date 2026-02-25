@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
-  UserCheck, Phone,
+  UserCheck, Phone, UserPlus,
 } from "lucide-react";
 
 interface Registration {
@@ -70,7 +70,14 @@ interface AdminBooking {
   createdAt: string;
 }
 
-type TabKey = "registrations" | "vendors" | "customers" | "bookings";
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "admins";
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -109,6 +116,17 @@ export default function AdminPage() {
   const [bookingFilter, setBookingFilter] = useState<AdminBooking["status"] | "all">("all");
   const [bookingLoading, setBookingLoading] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
+
+  // 관리자 관리
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [adminListLoading, setAdminListLoading] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [newAdminName, setNewAdminName] = useState("");
+  const [adminSetupPw, setAdminSetupPw] = useState("");
+  const [createAdminLoading, setCreateAdminLoading] = useState(false);
+  const [createAdminError, setCreateAdminError] = useState("");
+  const [createAdminSuccess, setCreateAdminSuccess] = useState("");
 
   // 관리자 인증
   useEffect(() => {
@@ -179,14 +197,69 @@ export default function AdminPage() {
     setBookingLoading(false);
   }, []);
 
+  const fetchAdminUsers = useCallback(async () => {
+    setAdminListLoading(true);
+    try {
+      const res = await fetch("/api/admin/admins");
+      if (res.ok) {
+        const data = await res.json();
+        setAdminUsers(data.admins);
+      }
+    } catch { /* ignore */ }
+    setAdminListLoading(false);
+  }, []);
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminEmail || !newAdminPassword || !adminSetupPw) {
+      setCreateAdminError("모든 필드를 입력해주세요.");
+      return;
+    }
+    if (newAdminPassword.length < 6) {
+      setCreateAdminError("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+    setCreateAdminLoading(true);
+    setCreateAdminError("");
+    setCreateAdminSuccess("");
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create-admin",
+          email: newAdminEmail,
+          password: newAdminPassword,
+          name: newAdminName || "관리자",
+          setupPassword: adminSetupPw,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateAdminError(data.error || "관리자 생성에 실패했습니다.");
+      } else {
+        setCreateAdminSuccess("새 관리자 계정이 생성되었습니다.");
+        setNewAdminEmail("");
+        setNewAdminPassword("");
+        setNewAdminName("");
+        setAdminSetupPw("");
+        fetchAdminUsers();
+      }
+    } catch {
+      setCreateAdminError("서버 오류가 발생했습니다.");
+    }
+    setCreateAdminLoading(false);
+  };
+
   useEffect(() => {
     if (authState === "admin") {
       fetchRegistrations();
       fetchVendors();
       fetchCustomers();
       fetchBookings();
+      fetchAdminUsers();
     }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings]);
+  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
@@ -256,6 +329,7 @@ export default function AdminPage() {
     { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors || undefined },
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
+    { key: "admins", label: "관리자 관리", icon: UserPlus, badge: adminUsers.length || undefined },
   ];
 
   return (
@@ -762,6 +836,116 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </>
+        )}
+
+        {/* ===== 관리자 관리 탭 ===== */}
+        {activeTab === "admins" && (
+          <>
+            <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
+              {/* 관리자 추가 폼 */}
+              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+                <h2 className="font-serif-kr text-lg font-normal mb-1">새 관리자 추가</h2>
+                <p className="text-[12px] text-taupe-400 mb-6">기존 관리자만 새 관리자 계정을 생성할 수 있습니다.</p>
+                <form onSubmit={handleCreateAdmin} className="space-y-4">
+                  <div>
+                    <label className="block text-[12px] text-taupe-500 mb-1.5">이름</label>
+                    <input
+                      type="text"
+                      value={newAdminName}
+                      onChange={(e) => { setNewAdminName(e.target.value); setCreateAdminError(""); }}
+                      placeholder="관리자 이름"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-taupe-500 mb-1.5">이메일 <span className="text-rose-500">*</span></label>
+                    <input
+                      type="email"
+                      value={newAdminEmail}
+                      onChange={(e) => { setNewAdminEmail(e.target.value); setCreateAdminError(""); }}
+                      placeholder="admin@hanbang.ai"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-taupe-500 mb-1.5">비밀번호 <span className="text-rose-500">*</span></label>
+                    <input
+                      type="password"
+                      value={newAdminPassword}
+                      onChange={(e) => { setNewAdminPassword(e.target.value); setCreateAdminError(""); }}
+                      placeholder="6자 이상"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[12px] text-gold font-medium mb-1.5">
+                      <Shield className="w-3.5 h-3.5" /> 관리자 인증 비밀번호 <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={adminSetupPw}
+                      onChange={(e) => { setAdminSetupPw(e.target.value); setCreateAdminError(""); }}
+                      placeholder="ADMIN_PASSWORD"
+                      className="w-full px-4 py-3 border border-gold/30 bg-gold/[0.02] rounded-xl text-[14px] outline-none focus:border-gold transition-colors"
+                      required
+                    />
+                  </div>
+
+                  {createAdminError && (
+                    <p className="text-[12px] text-red-500 px-1">{createAdminError}</p>
+                  )}
+                  {createAdminSuccess && (
+                    <p className="text-[12px] text-[#2E7D5A] px-1">{createAdminSuccess}</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={createAdminLoading}
+                    className="w-full py-3 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {createAdminLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    {createAdminLoading ? "생성 중..." : "관리자 계정 생성"}
+                  </button>
+                </form>
+              </div>
+
+              {/* 관리자 목록 */}
+              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+                <h2 className="font-serif-kr text-lg font-normal mb-1">관리자 목록</h2>
+                <p className="text-[12px] text-taupe-400 mb-6">현재 등록된 관리자 계정입니다.</p>
+                {adminListLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
+                    <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                  </div>
+                ) : adminUsers.length === 0 ? (
+                  <p className="text-center text-taupe-400 text-sm py-12">등록된 관리자가 없습니다.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {adminUsers.map((admin) => (
+                      <div key={admin.id} className="flex items-center gap-4 p-4 rounded-xl bg-ivory-50 border border-black/[0.02]">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-rose-500 flex items-center justify-center flex-shrink-0">
+                          <Shield className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] text-noir-800 font-medium truncate">{admin.name || "관리자"}</p>
+                          <p className="text-[12px] text-taupe-400 truncate">{admin.email}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[11px] text-taupe-400">{formatDate(admin.createdAt)}</p>
+                          {admin.email === adminEmail && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold/10 text-gold font-medium">나</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>

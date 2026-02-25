@@ -140,7 +140,7 @@ function ProductEditModal({ product, category, onSave, onClose }: {
   onSave: (p: VendorProduct) => void;
   onClose: () => void;
 }) {
-  const config = CATEGORY_PRODUCT_FIELDS[category];
+  const config = CATEGORY_PRODUCT_FIELDS[category] ?? CATEGORY_PRODUCT_FIELDS["기타"];
   const isNew = !product;
 
   const [form, setForm] = useState<VendorProduct>(product ?? {
@@ -338,7 +338,7 @@ function ProductEditModal({ product, category, onSave, onClose }: {
 export default function VendorProductsPage() {
   const { vendor, products, createProduct, updateProduct, deleteProduct } = useVendorStore();
   const category = (vendor?.category ?? "스튜디오") as VendorCategory;
-  const config = CATEGORY_PRODUCT_FIELDS[category];
+  const config = CATEGORY_PRODUCT_FIELDS[category] ?? CATEGORY_PRODUCT_FIELDS["기타"];
 
   const [editProduct, setEditProduct] = useState<VendorProduct | null | "new">(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -458,7 +458,7 @@ export default function VendorProductsPage() {
                             <Timer className="w-3 h-3" />{formatDuration(product.duration)}
                           </span>
                         )}
-                        {product.timeSlots?.filter(s => s.available).length > 0 && (
+                        {(product.timeSlots?.filter(s => s.available).length ?? 0) > 0 && (
                           <span className="flex items-center gap-1 text-[11px] text-[#2E7D5A]">
                             <Clock className="w-3 h-3" />{product.timeSlots.filter(s => s.available).length}슬롯
                           </span>
