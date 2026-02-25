@@ -12,16 +12,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { action, reason } = await req.json();
 
-    if (!["approve", "reject"].includes(action)) {
+    if (!["approve", "reject", "revoke"].includes(action)) {
       return NextResponse.json({ error: "유효하지 않은 액션입니다." }, { status: 400 });
     }
 
     const supabase = getServiceClient();
-    const newStatus = action === "approve" ? "approved" : "rejected";
+    const newStatus = action === "approve" ? "approved" : action === "revoke" ? "pending" : "rejected";
 
     const updateData: Record<string, unknown> = { status: newStatus };
     if (action === "reject" && reason) {
       updateData.rejection_reason = reason;
+    }
+    if (action === "revoke") {
+      updateData.rejection_reason = null;
     }
 
     const { data: vendor, error } = await supabase
@@ -42,12 +45,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (vendorEmail) {
       if (action === "approve") {
         await sendVendorApprovalEmail(vendorEmail, vendorName);
-      } else {
+      } else if (action === "reject") {
         await sendVendorRejectionEmail(vendorEmail, vendorName, reason);
       }
     }
 
-    return NextResponse.json({ vendor, message: `업체가 ${action === "approve" ? "승인" : "반려"}되었습니다.` });
+    const actionLabel = action === "approve" ? "승인" : action === "revoke" ? "승인 취소" : "반려";
+    return NextResponse.json({ vendor, message: `업체가 ${actionLabel}되었습니다.` });
   } catch (err) {
     console.error("Admin vendor action error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

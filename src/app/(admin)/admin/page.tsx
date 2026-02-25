@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
-  UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick,
+  UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
 } from "lucide-react";
 
 interface Registration {
@@ -334,6 +334,23 @@ export default function AdminPage() {
     setActionLoading(false);
   };
 
+  const handleRevoke = async (id: string) => {
+    if (!confirm("이 업체의 승인을 취소하시겠습니까? 고객에게 더 이상 노출되지 않습니다.")) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revoke" }),
+      });
+      if (res.ok) {
+        await fetchVendors();
+        setSelectedVendor(null);
+      } else { alert("승인 취소에 실패했습니다."); }
+    } catch { alert("서버 오류가 발생했습니다."); }
+    setActionLoading(false);
+  };
+
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -578,6 +595,11 @@ export default function AdminPage() {
                                   </button>
                                 </>
                               )}
+                              {v.status === "approved" && (
+                                <button onClick={() => handleRevoke(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50" title="승인 취소">
+                                  <RotateCcw className="w-4 h-4 text-amber-600" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -652,6 +674,15 @@ export default function AdminPage() {
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} 반려
                         </button>
                       </div>
+                    </div>
+                  )}
+                  {selectedVendor.status === "approved" && (
+                    <div className="mt-6 pt-6 border-t border-black/[0.04]">
+                      <button onClick={() => handleRevoke(selectedVendor.id)} disabled={actionLoading}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
+                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 승인 취소
+                      </button>
+                      <p className="mt-2 text-[12px] text-taupe-400 text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
                     </div>
                   )}
                 </div>
