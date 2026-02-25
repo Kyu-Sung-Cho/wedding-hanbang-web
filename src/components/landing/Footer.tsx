@@ -6,8 +6,8 @@ import Logo from "@/components/ui/Logo";
 const infoLinks = [
   { label: "웨딩한방 소개", href: "/customer" },
   { label: "자주 묻는 질문", href: null },
-  { label: "이용약관", href: "/terms" },
-  { label: "개인정보처리방침", href: "/privacy" },
+  { label: "이용약관", href: null },
+  { label: "개인정보처리방침", href: null },
   { label: "제휴 문의", href: "mailto:contact@hanbang.ai" },
 ];
 
