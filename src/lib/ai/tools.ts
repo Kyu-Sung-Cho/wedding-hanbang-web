@@ -315,13 +315,33 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "recommend_vendors",
     description:
-      "고객의 예산, 선호도, 진행 상황을 고려하여 맞춤 업체를 추천합니다. 고객이 '업체 추천해줘', '예산에 맞는 스튜디오 찾아줘', '어디가 좋을까?' 같은 요청에 사용합니다.",
+      "고객의 예산, 선호도, 분위기, 시간 등을 종합적으로 고려하여 맞춤 업체를 추천합니다. 고객이 '업체 추천해줘', '예산에 맞는 스튜디오 찾아줘', '어디가 좋을까?', '모던한 분위기 스튜디오', '토요일 오후에 가능한 업체' 같은 요청에 사용합니다.",
     input_schema: {
       type: "object" as const,
       properties: {
         category: {
           type: "string",
-          description: "추천 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업'",
+          description: "추천 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물'",
+        },
+        mood: {
+          type: "string",
+          description: "고객이 원하는 분위기/스타일. 예: '모던', '클래식', '내추럴', '로맨틱', '빈티지', '럭셔리', '심플', '화려한', '따뜻한', '감성적인'",
+        },
+        preferred_day: {
+          type: "number",
+          description: "선호 요일 (0=월 ~ 6=일). 고객이 특정 요일을 원할 때. 예: 5=토요일",
+        },
+        preferred_time: {
+          type: "string",
+          description: "선호 시간대. 'morning'=오전(9~12), 'afternoon'=오후(12~17), 'evening'=저녁(17~21)",
+        },
+        price_max: {
+          type: "number",
+          description: "최대 가격 (원 단위). 고객이 구체적인 예산 한도를 말할 때",
+        },
+        location: {
+          type: "string",
+          description: "선호 지역. 예: '강남', '서울', '경기', '홍대'",
         },
         limit: {
           type: "number",

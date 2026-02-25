@@ -4,10 +4,14 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
+import { usePageViewTracker } from "@/hooks/useEventTracker";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { initialize, isInitialized, isLoading } = useAuthStore();
+
+  // 페이지뷰 클릭스트림 자동 추적
+  usePageViewTracker();
 
   useEffect(() => {
     if (!isInitialized) initialize();

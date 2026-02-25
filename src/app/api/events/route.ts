@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     const validTypes = [
       "vendor_view", "product_view", "search", "favorite_add", "favorite_remove",
       "booking_start", "booking_complete", "message_send", "comparison", "view_duration",
+      "page_view", "click",
     ];
     if (!validTypes.includes(eventType)) {
       return NextResponse.json({ error: "유효하지 않은 이벤트 타입입니다." }, { status: 400 });

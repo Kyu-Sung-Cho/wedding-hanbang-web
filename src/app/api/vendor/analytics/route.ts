@@ -77,6 +77,27 @@ export async function GET(req: Request) {
       .select("id", { count: "exact", head: true })
       .eq("vendor_id", vendor.id);
 
+    // 즐겨찾기 트렌드 (일별)
+    const { data: favoritesRaw } = await supabase
+      .from("vendor_favorites")
+      .select("created_at")
+      .eq("vendor_id", vendor.id)
+      .gte("created_at", startStr);
+
+    const favDateMap = new Map<string, number>();
+    for (const f of favoritesRaw ?? []) {
+      const dateStr = new Date(f.created_at).toISOString().split("T")[0];
+      favDateMap.set(dateStr, (favDateMap.get(dateStr) ?? 0) + 1);
+    }
+
+    // 이전 기간 즐겨찾기 수 (변화율)
+    const { count: prevFavoriteCount } = await supabase
+      .from("vendor_favorites")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", vendor.id)
+      .gte("created_at", prevStartStr)
+      .lt("created_at", startStr);
+
     // 예약 통계
     const { data: bookings } = await supabase
       .from("vendor_bookings")
@@ -128,6 +149,12 @@ export async function GET(req: Request) {
       date,
       views: data.views,
       bookings: data.bookings,
+      favorites: favDateMap.get(date) ?? 0,
+    }));
+
+    const favoriteTrend = Array.from(trendMap.keys()).map((date) => ({
+      date,
+      count: favDateMap.get(date) ?? 0,
     }));
 
     // 상품별 성과
@@ -196,6 +223,9 @@ export async function GET(req: Request) {
     const viewChange = prevViews > 0 ? (((totalViews - prevViews) / prevViews) * 100) : 0;
     const prevBookingCount = (prevEvents ?? []).filter((e) => e.event_type === "booking_complete").length;
     const bookingChange = prevBookingCount > 0 ? (((bookingRequests - prevBookingCount) / prevBookingCount) * 100) : 0;
+    const prevFavs = prevFavoriteCount ?? 0;
+    const currentFavs = (favoritesRaw ?? []).length;
+    const favoriteChange = prevFavs > 0 ? (((currentFavs - prevFavs) / prevFavs) * 100) : 0;
 
     return NextResponse.json({
       overview: {
@@ -203,6 +233,7 @@ export async function GET(req: Request) {
         viewChange: Number(viewChange.toFixed(1)),
         uniqueVisitors,
         favoriteCount: favoriteCount ?? 0,
+        favoriteChange: Number(favoriteChange.toFixed(1)),
         bookingRequests,
         bookingConfirmed,
         bookingChange: Number(bookingChange.toFixed(1)),
@@ -210,6 +241,7 @@ export async function GET(req: Request) {
         avgViewDuration,
       },
       trend,
+      favoriteTrend,
       products: productStats,
       customerInsights: {
         topSearchTerms,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users } from "lucide-react";
+import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
@@ -125,6 +125,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [sendingMessage, setSendingMessage] = useState(false);
   const [staffList, setStaffList] = useState<{ id: string; name: string; role: string | null; timeSlots: { day: number; hour: number; maxBookings: number; currentBookings: number }[] }[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
   const { trackEvent } = useEventTracker();
 
   // 체류시간 자동 추적
@@ -137,6 +138,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         if (res.ok) {
           const data = await res.json();
           setVendor(data.vendor);
+          if (data.isFavorite) setIsFavorite(true);
           // 업체 조회 이벤트 추적
           trackEvent("vendor_view", { vendorId: id, metadata: { source: "direct" } });
         }
@@ -172,6 +174,21 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       </div>
     );
   }
+
+  const toggleFavorite = async () => {
+    const was = isFavorite;
+    setIsFavorite(!was);
+    trackEvent(was ? "favorite_remove" : "favorite_add", { vendorId: id });
+    try {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId: id }),
+      });
+    } catch {
+      setIsFavorite(was);
+    }
+  };
 
   const activeProducts = vendor.products.filter((p) => p.isActive);
   const config = CATEGORY_PRODUCT_FIELDS[vendor.category as keyof typeof CATEGORY_PRODUCT_FIELDS];
@@ -288,7 +305,20 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             </div>
 
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
-              <h1 className="font-serif-kr text-[24px] font-normal text-noir-800 mb-2">{vendor.name}</h1>
+              <div className="flex items-center justify-between mb-2">
+                <h1 className="font-serif-kr text-[24px] font-normal text-noir-800">{vendor.name}</h1>
+                <button
+                  onClick={toggleFavorite}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full border transition-all ${
+                    isFavorite
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                      : "border-platinum text-taupe-400 hover:border-rose-500/30 hover:text-rose-500"
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-rose-500" : ""}`} />
+                  <span className="text-[13px] font-medium">{isFavorite ? "찜" : "찜하기"}</span>
+                </button>
+              </div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex items-center gap-1">
                   <Star className="w-4 h-4 text-gold fill-gold" />

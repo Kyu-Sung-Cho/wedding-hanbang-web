@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
-  UserCheck, Phone, UserPlus,
+  UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick,
 } from "lucide-react";
 
 interface Registration {
@@ -77,7 +77,30 @@ interface AdminUser {
   createdAt: string;
 }
 
-type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "admins";
+interface InsightsData {
+  overview: {
+    totalViews: number;
+    totalFavorites: number;
+    newFavorites: number;
+    totalBookings: number;
+    confirmedBookings: number;
+    activeUsers: number;
+    totalUsers: number;
+    totalVendors: number;
+  };
+  topVendors: { id: string; name: string; category: string; views: number; favorites: number; bookings: number }[];
+  categoryStats: { category: string; vendorCount: number; bookingCount: number; avgRating: number }[];
+  customerActivity: {
+    dailyActiveUsers: { date: string; count: number }[];
+    eventBreakdown: { event_type: string; count: number }[];
+    topPages: { path: string; count: number }[];
+  };
+  favoriteInsights: {
+    trend: { date: string; count: number }[];
+  };
+}
+
+type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "admins";
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -116,6 +139,11 @@ export default function AdminPage() {
   const [bookingFilter, setBookingFilter] = useState<AdminBooking["status"] | "all">("all");
   const [bookingLoading, setBookingLoading] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
+
+  // 인사이트
+  const [insights, setInsights] = useState<InsightsData | null>(null);
+  const [insightsPeriod, setInsightsPeriod] = useState<"7d" | "30d" | "90d">("30d");
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   // 관리자 관리
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -209,6 +237,17 @@ export default function AdminPage() {
     setAdminListLoading(false);
   }, []);
 
+  const fetchInsights = useCallback(async (p?: string) => {
+    setInsightsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/insights?period=${p || insightsPeriod}`);
+      if (res.ok) {
+        setInsights(await res.json());
+      }
+    } catch { /* ignore */ }
+    setInsightsLoading(false);
+  }, [insightsPeriod]);
+
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAdminEmail || !newAdminPassword || !adminSetupPw) {
@@ -258,8 +297,9 @@ export default function AdminPage() {
       fetchCustomers();
       fetchBookings();
       fetchAdminUsers();
+      fetchInsights();
     }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers]);
+  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
@@ -329,6 +369,7 @@ export default function AdminPage() {
     { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors || undefined },
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
+    { key: "insights", label: "인사이트", icon: BarChart3 },
     { key: "admins", label: "관리자 관리", icon: UserPlus, badge: adminUsers.length || undefined },
   ];
 
@@ -834,6 +875,257 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===== 인사이트 탭 ===== */}
+        {activeTab === "insights" && (
+          <>
+            {/* 기간 선택 */}
+            <div className="flex gap-1 bg-white rounded-lg p-1 border border-black/[0.04] w-fit mb-6">
+              {(["7d", "30d", "90d"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setInsightsPeriod(p); fetchInsights(p); }}
+                  className={`px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                    insightsPeriod === p ? "bg-noir-800 text-white" : "text-taupe-400 hover:text-charcoal"
+                  }`}
+                >
+                  {p === "7d" ? "7일" : p === "30d" ? "30일" : "90일"}
+                </button>
+              ))}
+            </div>
+
+            {insightsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
+                <span className="ml-2 text-[14px] text-taupe-400">인사이트 로딩 중...</span>
+              </div>
+            ) : insights ? (
+              <>
+                {/* 핵심 KPI */}
+                <div className="grid grid-cols-4 gap-4 mb-8 max-md:grid-cols-2">
+                  {[
+                    { label: "총 조회수", value: insights.overview.totalViews.toLocaleString(), icon: Eye, color: "text-rose-500" },
+                    { label: "활성 사용자", value: insights.overview.activeUsers.toLocaleString(), icon: Users, color: "text-[#2E7D5A]" },
+                    { label: "총 즐겨찾기", value: insights.overview.totalFavorites.toLocaleString(), icon: Heart, color: "text-rose-500" },
+                    { label: "기간 예약", value: insights.overview.totalBookings.toLocaleString(), icon: CalendarCheck, color: "text-gold" },
+                  ].map((kpi) => (
+                    <div key={kpi.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                        <p className="text-sm text-taupe-500">{kpi.label}</p>
+                      </div>
+                      <p className="font-display text-3xl font-light text-noir-800">{kpi.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 플랫폼 현황 요약 */}
+                <div className="grid grid-cols-4 gap-4 mb-8 max-md:grid-cols-2">
+                  {[
+                    { label: "전체 사용자", value: insights.overview.totalUsers },
+                    { label: "승인 업체", value: insights.overview.totalVendors },
+                    { label: "신규 찜", value: insights.overview.newFavorites },
+                    { label: "확정 예약", value: insights.overview.confirmedBookings },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-white rounded-2xl p-5 border border-black/[0.04]">
+                      <p className="text-[12px] text-taupe-400 mb-1">{s.label}</p>
+                      <p className="font-display text-2xl font-light text-noir-800">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 mb-8 max-lg:grid-cols-1">
+                  {/* 인기 업체 */}
+                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <TrendingUp className="w-4 h-4 text-rose-500" />
+                      <h2 className="font-serif-kr text-[16px] font-normal">인기 업체 TOP 10</h2>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-5 gap-2 px-3 text-[11px] text-taupe-400 font-medium">
+                        <span className="col-span-2">업체명</span>
+                        <span className="text-center">조회</span>
+                        <span className="text-center">찜</span>
+                        <span className="text-center">예약</span>
+                      </div>
+                      {insights.topVendors.map((v, i) => (
+                        <div key={v.id} className="grid grid-cols-5 gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center">
+                          <div className="col-span-2 flex items-center gap-2 min-w-0">
+                            <span className="text-[11px] text-taupe-400 font-medium w-4 flex-shrink-0">{i + 1}</span>
+                            <div className="min-w-0">
+                              <p className="text-[13px] text-noir-800 font-medium truncate">{v.name}</p>
+                              <p className="text-[10px] text-taupe-400">{v.category}</p>
+                            </div>
+                          </div>
+                          <span className="text-[13px] text-charcoal text-center">{v.views}</span>
+                          <span className="text-[13px] text-rose-500 text-center">{v.favorites}</span>
+                          <span className="text-[13px] text-[#2E7D5A] text-center font-medium">{v.bookings}</span>
+                        </div>
+                      ))}
+                      {insights.topVendors.length === 0 && (
+                        <p className="text-[13px] text-taupe-400 text-center py-6">데이터가 없습니다</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 카테고리별 통계 */}
+                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Store className="w-4 h-4 text-gold" />
+                      <h2 className="font-serif-kr text-[16px] font-normal">카테고리별 현황</h2>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-4 gap-2 px-3 text-[11px] text-taupe-400 font-medium">
+                        <span>카테고리</span>
+                        <span className="text-center">업체 수</span>
+                        <span className="text-center">예약</span>
+                        <span className="text-center">평점</span>
+                      </div>
+                      {insights.categoryStats.map((c) => (
+                        <div key={c.category} className="grid grid-cols-4 gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center">
+                          <span className="text-[13px] text-noir-800 font-medium">{c.category}</span>
+                          <span className="text-[13px] text-charcoal text-center">{c.vendorCount}</span>
+                          <span className="text-[13px] text-charcoal text-center">{c.bookingCount}</span>
+                          <span className="text-[13px] text-gold text-center">{c.avgRating > 0 ? `${c.avgRating}점` : "-"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-6 mb-8 max-lg:grid-cols-1">
+                  {/* 일별 활성 사용자 */}
+                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Users className="w-4 h-4 text-[#2E7D5A]" />
+                      <h2 className="text-[15px] font-medium text-noir-800">일별 활성 사용자</h2>
+                    </div>
+                    <p className="text-[12px] text-taupe-400 font-light mb-4">DAU 추이</p>
+                    {(() => {
+                      const dau = insights.customerActivity.dailyActiveUsers;
+                      const display = dau.length <= 14 ? dau : dau.filter((_, i) => i % Math.ceil(dau.length / 14) === 0 || i === dau.length - 1);
+                      const maxVal = Math.max(...display.map((d) => d.count), 1);
+                      return (
+                        <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
+                          {display.map((d, i) => (
+                            <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                                {d.date.slice(5)}: {d.count}명
+                              </div>
+                              <div
+                                className="w-full rounded-t-sm bg-[#2E7D5A]/50 group-hover:bg-[#2E7D5A] transition-colors"
+                                style={{ height: Math.max(2, (d.count / maxVal) * 50) }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 이벤트 유형 분석 */}
+                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <MousePointerClick className="w-4 h-4 text-rose-500" />
+                      <h2 className="text-[15px] font-medium text-noir-800">이벤트 분석</h2>
+                    </div>
+                    <div className="space-y-2">
+                      {insights.customerActivity.eventBreakdown.slice(0, 8).map((e) => {
+                        const total = insights.customerActivity.eventBreakdown.reduce((s, ev) => s + ev.count, 0);
+                        const pct = total > 0 ? ((e.count / total) * 100) : 0;
+                        const labels: Record<string, string> = {
+                          page_view: "페이지 조회",
+                          vendor_view: "업체 조회",
+                          product_view: "상품 조회",
+                          favorite_add: "즐겨찾기 추가",
+                          favorite_remove: "즐겨찾기 삭제",
+                          view_duration: "체류 시간",
+                          click: "클릭",
+                          booking_complete: "예약 완료",
+                        };
+                        return (
+                          <div key={e.event_type}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-[12px] text-charcoal">{labels[e.event_type] ?? e.event_type}</span>
+                              <span className="text-[11px] text-taupe-400">{e.count}건</span>
+                            </div>
+                            <div className="h-1.5 bg-ivory-warm rounded-full overflow-hidden">
+                              <div className="h-full bg-rose-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 인기 페이지 */}
+                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Eye className="w-4 h-4 text-gold" />
+                      <h2 className="text-[15px] font-medium text-noir-800">인기 페이지</h2>
+                    </div>
+                    <div className="space-y-2">
+                      {insights.customerActivity.topPages.slice(0, 10).map((p, i) => {
+                        return (
+                          <div key={i} className="flex items-center justify-between py-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[11px] text-taupe-400 w-4 flex-shrink-0">{i + 1}</span>
+                              <span className="text-[12px] text-noir-800 truncate">{p.path}</span>
+                            </div>
+                            <span className="text-[12px] text-taupe-400 flex-shrink-0 ml-2">{p.count}회</span>
+                          </div>
+                        );
+                      })}
+                      {insights.customerActivity.topPages.length === 0 && (
+                        <p className="text-[13px] text-taupe-400 text-center py-4">페이지 데이터가 없습니다</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 즐겨찾기 트렌드 */}
+                <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Heart className="w-4 h-4 text-rose-500" />
+                    <h2 className="text-[15px] font-medium text-noir-800">즐겨찾기 트렌드</h2>
+                  </div>
+                  <p className="text-[12px] text-taupe-400 font-light mb-4">일별 신규 즐겨찾기 추이</p>
+                  {(() => {
+                    const trend = insights.favoriteInsights.trend;
+                    const display = trend.length <= 30 ? trend : trend.filter((_, i) => i % Math.ceil(trend.length / 30) === 0 || i === trend.length - 1);
+                    const maxVal = Math.max(...display.map((d) => d.count), 1);
+                    const total = trend.reduce((s, d) => s + d.count, 0);
+                    return (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-[20px] font-semibold text-noir-800 font-display">{total}</span>
+                          <span className="text-[12px] text-taupe-400">건 (기간 내)</span>
+                        </div>
+                        <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
+                          {display.map((d, i) => (
+                            <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                                {d.date.slice(5)}: {d.count}건
+                              </div>
+                              <div
+                                className={`w-full rounded-t-sm transition-colors ${d.count > 0 ? "bg-rose-500 group-hover:bg-rose-600" : "bg-rose-500/10"}`}
+                                style={{ height: Math.max(2, (d.count / maxVal) * 50) }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-16">
+                <p className="text-[14px] text-taupe-400">인사이트 데이터를 불러올 수 없습니다.</p>
               </div>
             )}
           </>

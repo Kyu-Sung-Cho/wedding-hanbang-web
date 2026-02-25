@@ -800,13 +800,18 @@ async function executeRecommendVendors(
   const category = input.category as string;
   const limit = (input.limit as number) || 3;
   const dbCat = VENDOR_CATEGORY_MAP[category] || category;
+  const mood = input.mood as string | undefined;
+  const preferredDay = input.preferred_day as number | undefined;
+  const preferredTime = input.preferred_time as string | undefined;
+  const priceMax = input.price_max as number | undefined;
+  const location = input.location as string | undefined;
 
   // 고객 예산 (해당 카테고리)
   const categoryProgress = ctx.weddingContext.progress[dbCat];
   const categoryBudget = (categoryProgress as Record<string, unknown>)?.budget as number | undefined;
   const totalBudget = ctx.weddingContext.budget;
   const ratio = CATEGORY_RATIOS[dbCat] ?? 0.05;
-  const estimatedBudget = categoryBudget || Math.round(totalBudget * ratio);
+  const estimatedBudget = priceMax || categoryBudget || Math.round(totalBudget * ratio);
 
   // 이미 본 업체 제외 (고객 이벤트 데이터)
   let viewedVendorIds: string[] = [];
@@ -830,33 +835,124 @@ async function executeRecommendVendors(
     }
   }
 
-  // 업체 검색 (예산 범위에 맞게)
+  // 업체 검색 (예산 범위에 맞게, 더 많이 가져와서 필터링)
   let query = admin
     .from("vendors")
     .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend, description")
     .eq("status", "approved")
     .eq("category", dbCat)
     .order("rating", { ascending: false })
-    .limit(limit + viewedVendorIds.length);
+    .limit((limit + viewedVendorIds.length) * 2);
 
   if (estimatedBudget > 0) {
     query = query.lte("price_min", Math.round(estimatedBudget * 1.3));
   }
 
+  // 지역 필터
+  if (location) {
+    query = query.or(`location.ilike.%${location}%,region.ilike.%${location}%`);
+  }
+
   const { data: vendors, error } = await query;
   if (error) throw error;
 
-  // 이미 본 업체 필터링 후 상위 N개
-  const filtered = (vendors ?? [])
-    .filter((v) => !viewedVendorIds.includes(v.id))
-    .slice(0, limit);
+  // 이미 본 업체 필터링
+  let candidates = (vendors ?? []).filter((v) => !viewedVendorIds.includes(v.id));
+
+  // 분위기/스타일 매칭 점수 계산
+  if (mood) {
+    const moodKeywords = mood.toLowerCase().split(/[,\s]+/).filter(Boolean);
+    const scored = candidates.map((v) => {
+      const vendorText = [
+        ...(v.tags ?? []),
+        v.description ?? "",
+        v.name ?? "",
+      ].join(" ").toLowerCase();
+
+      let moodScore = 0;
+      for (const kw of moodKeywords) {
+        if (vendorText.includes(kw)) moodScore += 2;
+      }
+      if (v.tags) {
+        for (const tag of v.tags as string[]) {
+          for (const kw of moodKeywords) {
+            if (tag.toLowerCase().includes(kw)) moodScore += 3;
+          }
+        }
+      }
+      return { ...v, _moodScore: moodScore };
+    });
+    scored.sort((a, b) => {
+      if (b._moodScore !== a._moodScore) return b._moodScore - a._moodScore;
+      return (b.rating ?? 0) - (a.rating ?? 0);
+    });
+    candidates = scored;
+  }
+
+  // 시간 가용성 필터 (선호 요일/시간이 있는 경우)
+  let availableVendorIds: Set<string> | null = null;
+  if (preferredDay !== undefined || preferredTime) {
+    const timeHours: number[] = [];
+    if (preferredTime === "morning") {
+      for (let h = 9; h < 12; h++) timeHours.push(h);
+    } else if (preferredTime === "afternoon") {
+      for (let h = 12; h < 17; h++) timeHours.push(h);
+    } else if (preferredTime === "evening") {
+      for (let h = 17; h < 21; h++) timeHours.push(h);
+    }
+
+    const candidateIds = candidates.map((v) => v.id);
+    if (candidateIds.length > 0) {
+      let slotQuery = admin
+        .from("vendor_timeslots")
+        .select("vendor_id")
+        .in("vendor_id", candidateIds)
+        .eq("available", true);
+
+      if (preferredDay !== undefined) {
+        slotQuery = slotQuery.eq("day", preferredDay);
+      }
+      if (timeHours.length > 0) {
+        slotQuery = slotQuery.in("hour", timeHours);
+      }
+
+      const { data: availableSlots } = await slotQuery;
+      availableVendorIds = new Set((availableSlots ?? []).map((s) => s.vendor_id));
+    }
+  }
+
+  // 최종 필터링: 시간 가용성 있는 업체 우선
+  if (availableVendorIds) {
+    const available = candidates.filter((v) => availableVendorIds!.has(v.id));
+    if (available.length >= limit) {
+      candidates = available;
+    } else {
+      const notAvailable = candidates.filter((v) => !availableVendorIds!.has(v.id));
+      candidates = [...available, ...notAvailable];
+    }
+  }
+
+  const selected = candidates.slice(0, limit);
 
   // 추천 이유 생성
-  const results = filtered.map((v) => {
+  const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+  const results = selected.map((v) => {
     const reasons: string[] = [];
     if (v.ai_recommend) reasons.push("AI 추천 업체");
+    if (mood) {
+      const moodScore = (v as Record<string, unknown>)._moodScore as number ?? 0;
+      if (moodScore > 0) reasons.push(`'${mood}' 분위기 매칭`);
+    }
+    if (availableVendorIds?.has(v.id)) {
+      const timeLabel = preferredTime === "morning" ? "오전" : preferredTime === "afternoon" ? "오후" : preferredTime === "evening" ? "저녁" : "";
+      const dayLabel = preferredDay !== undefined ? `${DAYS[preferredDay]}요일` : "";
+      reasons.push(`${dayLabel} ${timeLabel} 예약 가능`.trim());
+    }
     if (v.rating >= 4.5) reasons.push(`높은 평점 ${v.rating}점`);
     if (estimatedBudget > 0 && v.price_min <= estimatedBudget) reasons.push("예산 범위 내");
+    if (location && ((v.location ?? "").includes(location) || (v.region ?? "").includes(location))) {
+      reasons.push(`${location} 지역`);
+    }
     if (v.review_count > 10) reasons.push(`리뷰 ${v.review_count}개`);
     if (reasons.length === 0) reasons.push("카테고리 인기 업체");
 
@@ -874,6 +970,13 @@ async function executeRecommendVendors(
     };
   });
 
+  const filterDesc = [
+    mood ? `분위기: ${mood}` : "",
+    preferredDay !== undefined ? `요일: ${DAYS[preferredDay]}` : "",
+    preferredTime ? `시간: ${preferredTime === "morning" ? "오전" : preferredTime === "afternoon" ? "오후" : "저녁"}` : "",
+    location ? `지역: ${location}` : "",
+  ].filter(Boolean).join(", ");
+
   return {
     toolName: "recommend_vendors",
     toolInput: input,
@@ -882,10 +985,11 @@ async function executeRecommendVendors(
       count: results.length,
       estimatedBudget,
       category,
+      filters: filterDesc || undefined,
     },
     success: true,
     displayMessage: results.length > 0
-      ? `${category} 추천 업체 ${results.length}개:\n${results.map((v, i) => `${i + 1}. ${v.name} (${v.priceRange}, ${v.rating}점) - ${v.reasons.join(", ")}`).join("\n")}`
+      ? `${category} 추천 업체 ${results.length}개${filterDesc ? ` (${filterDesc})` : ""}:\n${results.map((v, i) => `${i + 1}. ${v.name} (${v.priceRange}, ${v.rating}점) - ${v.reasons.join(", ")}`).join("\n")}`
       : `${category} 카테고리에 조건에 맞는 업체가 없습니다.`,
   };
 }

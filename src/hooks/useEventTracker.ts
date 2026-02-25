@@ -60,6 +60,41 @@ export function useEventTracker() {
   return { trackEvent };
 }
 
+// 페이지뷰 자동 추적 훅 (클릭스트림)
+export function usePageViewTracker() {
+  const lastPath = useRef("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const trackPageView = () => {
+      const path = window.location.pathname;
+      if (path === lastPath.current) return;
+      lastPath.current = path;
+      sendEvent("page_view", {
+        metadata: {
+          path,
+          referrer: document.referrer || undefined,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    };
+
+    // 첫 페이지뷰
+    trackPageView();
+
+    // SPA 네비게이션 감지
+    const observer = new MutationObserver(() => {
+      if (window.location.pathname !== lastPath.current) {
+        trackPageView();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+}
+
 // 체류시간 자동 추적 훅
 export function useViewDuration(vendorId?: string, productId?: string) {
   const startTimeRef = useRef<number>(Date.now());

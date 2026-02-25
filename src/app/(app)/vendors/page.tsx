@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Star, MapPin, Sparkles, Filter, Clock, Loader2 } from "lucide-react";
+import { Search, Star, MapPin, Sparkles, Filter, Clock, Loader2, Heart } from "lucide-react";
 import Link from "next/link";
 import type { Vendor } from "@/types/vendor.types";
 import { useEventTracker } from "@/hooks/useEventTracker";
@@ -13,8 +13,51 @@ export default function VendorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const { trackEvent } = useEventTracker();
   const lastTrackedSearch = useRef("");
+
+  // 즐겨찾기 목록 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/favorites");
+        if (res.ok) {
+          const data = await res.json();
+          setFavoriteIds(new Set(data.vendorIds ?? []));
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const toggleFavorite = async (e: React.MouseEvent, vendorId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wasFavorite = favoriteIds.has(vendorId);
+    // 낙관적 업데이트
+    setFavoriteIds(prev => {
+      const next = new Set(prev);
+      if (wasFavorite) next.delete(vendorId);
+      else next.add(vendorId);
+      return next;
+    });
+    trackEvent(wasFavorite ? "favorite_remove" : "favorite_add", { vendorId });
+    try {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendorId }),
+      });
+    } catch {
+      // 실패 시 롤백
+      setFavoriteIds(prev => {
+        const next = new Set(prev);
+        if (wasFavorite) next.add(vendorId);
+        else next.delete(vendorId);
+        return next;
+      });
+    }
+  };
 
   const fetchVendors = useCallback(async () => {
     setLoading(true);
@@ -127,6 +170,13 @@ export default function VendorsPage() {
                         </span>
                       )}
                     </div>
+                    {/* 즐겨찾기 버튼 */}
+                    <button
+                      onClick={(e) => toggleFavorite(e, vendor.id)}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors shadow-sm"
+                    >
+                      <Heart className={`w-4 h-4 transition-colors ${favoriteIds.has(vendor.id) ? "text-rose-500 fill-rose-500" : "text-taupe-400"}`} />
+                    </button>
                   </div>
 
                   {/* 콘텐츠 */}

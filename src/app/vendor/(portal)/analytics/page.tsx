@@ -13,13 +13,15 @@ interface AnalyticsData {
     viewChange: number;
     uniqueVisitors: number;
     favoriteCount: number;
+    favoriteChange: number;
     bookingRequests: number;
     bookingConfirmed: number;
     bookingChange: number;
     conversionRate: number;
     avgViewDuration: number;
   };
-  trend: { date: string; views: number; bookings: number }[];
+  trend: { date: string; views: number; bookings: number; favorites: number }[];
+  favoriteTrend: { date: string; count: number }[];
   products: { id: string; name: string; views: number; bookings: number; conversionRate: number }[];
   customerInsights: {
     topSearchTerms: { term: string; count: number }[];
@@ -94,7 +96,7 @@ function MiniBarChart({ data, maxHeight = 80 }: { data: { label: string; value: 
   );
 }
 
-function TrendChart({ data }: { data: { date: string; views: number; bookings: number }[] }) {
+function TrendChart({ data }: { data: { date: string; views: number; bookings: number; favorites: number }[] }) {
   if (data.length === 0) return null;
   const maxViews = Math.max(...data.map((d) => d.views), 1);
   const chartHeight = 120;
@@ -112,7 +114,7 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
             <div key={i} className="flex flex-col items-center flex-1 gap-1 group relative">
               {/* 호버 툴팁 */}
               <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
-                {d.date}: 조회 {d.views} | 예약 {d.bookings}
+                {d.date}: 조회 {d.views} | 찜 {d.favorites} | 예약 {d.bookings}
               </div>
               <div className="w-full flex flex-col items-center gap-0.5">
                 {d.bookings > 0 && (
@@ -121,8 +123,14 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
                     style={{ height: Math.max(4, (d.bookings / maxViews) * (chartHeight - 20)) }}
                   />
                 )}
+                {d.favorites > 0 && (
+                  <div
+                    className="w-2 bg-rose-500 rounded-full"
+                    style={{ height: Math.max(4, (d.favorites / maxViews) * (chartHeight - 20)) }}
+                  />
+                )}
                 <div
-                  className="w-full bg-rose-500/70 rounded-t-sm group-hover:bg-rose-500 transition-colors"
+                  className="w-full bg-rose-500/30 rounded-t-sm group-hover:bg-rose-500/50 transition-colors"
                   style={{ height: Math.max(2, viewH) }}
                 />
               </div>
@@ -133,8 +141,12 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
       </div>
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-2 bg-rose-500/70 rounded-sm" />
+          <div className="w-3 h-2 bg-rose-500/30 rounded-sm" />
           <span className="text-[11px] text-taupe-400">조회수</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 bg-rose-500 rounded-full" />
+          <span className="text-[11px] text-taupe-400">찜</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 bg-gold rounded-full" />
@@ -203,6 +215,37 @@ function PeakHoursChart({ hours }: { hours: number[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function FavoriteTrendChart({ data }: { data: { date: string; count: number }[] }) {
+  const displayData = data.length <= 14 ? data : data.filter((_, i) => i % Math.ceil(data.length / 14) === 0 || i === data.length - 1);
+  const maxVal = Math.max(...displayData.map((d) => d.count), 1);
+  const totalFavs = data.reduce((s, d) => s + d.count, 0);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[20px] font-semibold text-noir-800 font-cormorant">{totalFavs}</span>
+        <span className="text-[12px] text-taupe-400">건 (기간 내)</span>
+      </div>
+      <div className="flex items-end gap-[2px]" style={{ height: 50 }}>
+        {displayData.map((d, i) => {
+          const h = (d.count / maxVal) * 40;
+          return (
+            <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                {d.date.slice(5)}: {d.count}건
+              </div>
+              <div
+                className={`w-full rounded-t-sm transition-colors ${d.count > 0 ? "bg-rose-500 group-hover:bg-rose-600" : "bg-rose-500/10"}`}
+                style={{ height: Math.max(2, h) }}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -294,7 +337,10 @@ export default function VendorAnalyticsPage() {
           </div>
           <div>
             <p className="text-[12px] text-taupe-400">찜 수</p>
-            <p className="text-[20px] font-semibold text-noir-800 font-cormorant">{data.overview.favoriteCount}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[20px] font-semibold text-noir-800 font-cormorant">{data.overview.favoriteCount}</p>
+              <ChangeIndicator value={data.overview.favoriteChange} />
+            </div>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-black/[0.04] p-5 flex items-center gap-4">
@@ -382,8 +428,24 @@ export default function VendorAnalyticsPage() {
             </div>
           </motion.div>
 
-          {/* 인기 검색어 */}
+          {/* 찜 트렌드 */}
           <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.25 }}>
+            <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Heart className="w-4 h-4 text-rose-500" />
+                <h2 className="text-[15px] font-medium text-noir-800">찜 트렌드</h2>
+              </div>
+              <p className="text-[12px] text-taupe-400 font-light mb-4">기간별 즐겨찾기 추이</p>
+              {data.favoriteTrend && data.favoriteTrend.some((f) => f.count > 0) ? (
+                <FavoriteTrendChart data={data.favoriteTrend} />
+              ) : (
+                <p className="text-[13px] text-taupe-400 text-center py-4">찜 데이터가 없습니다</p>
+              )}
+            </div>
+          </motion.div>
+
+          {/* 인기 검색어 */}
+          <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.3 }}>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Search className="w-4 h-4 text-rose-500" />
