@@ -318,12 +318,25 @@ export default function VendorRegisterPage() {
 
         {/* 로그인 상태 안내 */}
         {isLoggedIn === true && (
-          <div className="bg-[#2E7D5A]/10 rounded-xl p-4 mb-6 flex items-center gap-3">
-            <Check className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
-            <div>
-              <p className="text-[13px] text-[#2E7D5A] font-medium">로그인 상태로 등록을 진행합니다</p>
-              <p className="text-[12px] text-taupe-500">{email}</p>
+          <div className="bg-[#2E7D5A]/10 rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
+              <div>
+                <p className="text-[13px] text-[#2E7D5A] font-medium">로그인 상태로 등록을 진행합니다</p>
+                <p className="text-[12px] text-taupe-500">{email}</p>
+              </div>
             </div>
+            <button
+              onClick={async () => {
+                const supabase = createClient();
+                await supabase.auth.signOut();
+                setIsLoggedIn(false);
+                setEmail("");
+              }}
+              className="text-[12px] text-taupe-400 hover:text-rose-500 transition-colors whitespace-nowrap flex-shrink-0"
+            >
+              다른 계정으로 등록
+            </button>
           </div>
         )}
 
