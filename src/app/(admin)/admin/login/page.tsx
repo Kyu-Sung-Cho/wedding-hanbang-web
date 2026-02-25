@@ -13,6 +13,32 @@ export default function AdminLoginPage() {
   const [loginError, setLoginError] = useState("");
   const [loginSuccess, setLoginSuccess] = useState("");
   const [loginMode, setLoginMode] = useState<"login" | "signup">("login");
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail) {
+      setLoginError("이메일을 입력해주세요.");
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+        redirectTo: `${window.location.origin}/admin/login`,
+      });
+      if (resetError) {
+        setLoginError(resetError.message);
+      } else {
+        setResetSent(true);
+      }
+    } catch {
+      setLoginError("오류가 발생했습니다. 다시 시도해주세요.");
+    }
+    setLoginLoading(false);
+  };
 
   const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,89 +174,152 @@ export default function AdminLoginPage() {
               : "관리자 계정으로 로그인하세요"}
           </p>
 
-          <form onSubmit={handleAdminAuth} className="space-y-3 mb-4">
-            <div>
-              <label className="block text-[12px] text-white/50 mb-1.5 px-1">이메일</label>
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
-                placeholder="admin@hanbang.ai"
-                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] text-white/50 mb-1.5 px-1">비밀번호</label>
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
-                placeholder={loginMode === "signup" ? "6자 이상" : "비밀번호"}
-                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
-              />
-            </div>
-
-            <div className="pt-2">
-              <div className="flex items-center gap-2 mb-1.5 px-1">
-                <Shield className="w-3.5 h-3.5 text-gold" />
-                <label className="text-[12px] text-gold font-medium">관리자 인증 비밀번호</label>
+          {resetMode ? (
+            resetSent ? (
+              <div className="text-center py-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/20 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-[24px]">✉️</span>
+                </div>
+                <p className="text-[14px] text-white font-medium mb-2">
+                  비밀번호 재설정 메일을 보냈습니다
+                </p>
+                <p className="text-[12px] text-white/40 mb-6">
+                  {loginEmail}로 발송된 메일을 확인해주세요.
+                  <br />메일이 오지 않으면 스팸함도 확인해보세요.
+                </p>
+                <button
+                  onClick={() => { setResetMode(false); setResetSent(false); setLoginError(""); }}
+                  className="text-[13px] text-gold font-medium hover:text-gold/80 transition-colors"
+                >
+                  로그인으로 돌아가기
+                </button>
               </div>
-              <input
-                type="password"
-                value={adminSetupPw}
-                onChange={(e) => { setAdminSetupPw(e.target.value); setLoginError(""); }}
-                placeholder="관리자 인증 비밀번호"
-                className="w-full px-5 py-3.5 rounded-xl border border-gold/30 bg-gold/[0.04] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
-              />
-              <p className="text-[11px] text-white/30 mt-1 px-1">
-                환경변수 ADMIN_PASSWORD에 설정된 비밀번호
-              </p>
-            </div>
-
-            {loginError && (
-              <p className="text-[12px] text-rose-400 px-1">{loginError}</p>
-            )}
-            {loginSuccess && (
-              <p className="text-[12px] text-[#4ADE80] px-1">{loginSuccess}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50 mt-2"
-            >
-              {loginLoading
-                ? "처리 중..."
-                : loginMode === "signup"
-                  ? "관리자 계정 생성"
-                  : "로그인"}
-            </button>
-          </form>
-
-          {/* 모드 전환 */}
-          <p className="text-[13px] text-white/40 text-center">
-            {loginMode === "signup" ? (
-              <>
-                이미 계정이 있으신가요?{" "}
-                <button
-                  onClick={() => { setLoginMode("login"); setLoginError(""); setLoginSuccess(""); }}
-                  className="text-gold font-medium hover:underline"
-                >
-                  로그인
-                </button>
-              </>
             ) : (
-              <>
-                계정이 없으신가요?{" "}
+              <form onSubmit={handleResetPassword} className="space-y-3 mb-4">
+                <p className="text-[12px] text-white/50 px-1 mb-1">
+                  가입하신 이메일을 입력하시면 비밀번호 재설정 링크를 보내드립니다.
+                </p>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
+                  placeholder="admin@hanbang.ai"
+                  className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                />
+                {loginError && <p className="text-[12px] text-rose-400 px-1">{loginError}</p>}
                 <button
-                  onClick={() => { setLoginMode("signup"); setLoginError(""); setLoginSuccess(""); }}
-                  className="text-gold font-medium hover:underline"
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50"
                 >
-                  계정 생성
+                  {loginLoading ? "발송 중..." : "재설정 메일 보내기"}
                 </button>
-              </>
-            )}
-          </p>
+                <button
+                  type="button"
+                  onClick={() => { setResetMode(false); setLoginError(""); }}
+                  className="w-full text-[13px] text-white/40 hover:text-white/70 transition-colors py-2"
+                >
+                  로그인으로 돌아가기
+                </button>
+              </form>
+            )
+          ) : (
+            <>
+              <form onSubmit={handleAdminAuth} className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-1.5 px-1">이메일</label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
+                    placeholder="admin@hanbang.ai"
+                    className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-1.5 px-1">비밀번호</label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
+                    placeholder={loginMode === "signup" ? "6자 이상" : "비밀번호"}
+                    className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-1.5 px-1">
+                    <Shield className="w-3.5 h-3.5 text-gold" />
+                    <label className="text-[12px] text-gold font-medium">관리자 인증 비밀번호</label>
+                  </div>
+                  <input
+                    type="password"
+                    value={adminSetupPw}
+                    onChange={(e) => { setAdminSetupPw(e.target.value); setLoginError(""); }}
+                    placeholder="관리자 인증 비밀번호"
+                    className="w-full px-5 py-3.5 rounded-xl border border-gold/30 bg-gold/[0.04] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                  />
+                  <p className="text-[11px] text-white/30 mt-1 px-1">
+                    환경변수 ADMIN_PASSWORD에 설정된 비밀번호
+                  </p>
+                </div>
+
+                {loginError && (
+                  <p className="text-[12px] text-rose-400 px-1">{loginError}</p>
+                )}
+                {loginSuccess && (
+                  <p className="text-[12px] text-[#4ADE80] px-1">{loginSuccess}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50 mt-2"
+                >
+                  {loginLoading
+                    ? "처리 중..."
+                    : loginMode === "signup"
+                      ? "관리자 계정 생성"
+                      : "로그인"}
+                </button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setResetMode(true); setLoginError(""); setLoginSuccess(""); }}
+                    className="text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                  >
+                    비밀번호를 잊으셨나요?
+                  </button>
+                </div>
+              </form>
+
+              {/* 모드 전환 */}
+              <p className="text-[13px] text-white/40 text-center">
+                {loginMode === "signup" ? (
+                  <>
+                    이미 계정이 있으신가요?{" "}
+                    <button
+                      onClick={() => { setLoginMode("login"); setLoginError(""); setLoginSuccess(""); }}
+                      className="text-gold font-medium hover:underline"
+                    >
+                      로그인
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    계정이 없으신가요?{" "}
+                    <button
+                      onClick={() => { setLoginMode("signup"); setLoginError(""); setLoginSuccess(""); }}
+                      className="text-gold font-medium hover:underline"
+                    >
+                      계정 생성
+                    </button>
+                  </>
+                )}
+              </p>
+            </>
+          )}
         </div>
 
         {/* 하단 링크 */}
