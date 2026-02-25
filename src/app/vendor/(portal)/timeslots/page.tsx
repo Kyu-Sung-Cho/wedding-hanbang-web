@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Save, RotateCcw, Calendar, Clock, Info, Package, Timer, ChevronDown } from "lucide-react";
+import { Save, RotateCcw, Calendar, Clock, Info, Package, Timer, ChevronDown, ChevronUp, Briefcase, Check } from "lucide-react";
 import WeeklyTimeGrid from "@/components/vendor/WeeklyTimeGrid";
 import { HOURS, DAYS, formatDuration } from "@/data/mockVendors";
 import type { TimeSlot } from "@/types/vendor.types";
 import { useVendorStore } from "@/stores/vendorStore";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
+
+// 시간 옵션 생성 (09:00 ~ 22:00)
+const TIME_OPTIONS = Array.from({ length: 14 }, (_, i) => i + 9); // 9~22
 
 export default function TimeSlotsPage() {
   const { vendor, products, saveTimeSlots, saveProductTimeSlots } = useVendorStore();
@@ -24,6 +27,38 @@ export default function TimeSlotsPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [maxPerSlot, setMaxPerSlot] = useState(1);
+
+  // 업무시간 설정
+  const [showBusinessHours, setShowBusinessHours] = useState(false);
+  const [bhStart, setBhStart] = useState(10);
+  const [bhEnd, setBhEnd] = useState(18);
+  const [bhDays, setBhDays] = useState<boolean[]>([true, true, true, true, true, true, false]); // 월~토 기본
+  const [bhApplied, setBhApplied] = useState(false);
+
+  const toggleBhDay = (idx: number) => {
+    const next = [...bhDays];
+    next[idx] = !next[idx];
+    setBhDays(next);
+  };
+
+  const applyBusinessHours = () => {
+    const newSlots: TimeSlot[] = [];
+    for (let day = 0; day < 7; day++) {
+      for (const hour of HOURS) {
+        newSlots.push({
+          day,
+          hour,
+          available: bhDays[day] && hour >= bhStart && hour < bhEnd,
+          maxBookings: maxPerSlot,
+          currentBookings: 0,
+        });
+      }
+    }
+    if (isGlobal) setGlobalSlots(newSlots);
+    else setProductSlots({ ...productSlots, [selectedView]: newSlots });
+    setBhApplied(true);
+    setTimeout(() => setBhApplied(false), 2000);
+  };
 
   const isGlobal = selectedView === "global";
   const currentSlots = isGlobal ? globalSlots : (productSlots[selectedView] || []);
@@ -166,6 +201,105 @@ export default function TimeSlotsPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* 업무시간 일괄 설정 */}
+      <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.18 }} className="mb-6">
+        <button
+          onClick={() => setShowBusinessHours(!showBusinessHours)}
+          className="w-full flex items-center justify-between bg-white rounded-2xl border border-black/[0.04] px-6 py-4 hover:border-rose-500/20 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gold/10 flex items-center justify-center">
+              <Briefcase className="w-4.5 h-4.5 text-gold" />
+            </div>
+            <div className="text-left">
+              <p className="text-[14px] font-medium text-noir-800">업무시간 일괄 설정</p>
+              <p className="text-[12px] text-taupe-400 font-light">영업 시간과 요일을 설정하면 한 번에 적용됩니다</p>
+            </div>
+          </div>
+          {showBusinessHours ? <ChevronUp className="w-4 h-4 text-taupe-400" /> : <ChevronDown className="w-4 h-4 text-taupe-400" />}
+        </button>
+
+        <AnimatePresence>
+          {showBusinessHours && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-white rounded-b-2xl border border-t-0 border-black/[0.04] px-6 pb-6 pt-2">
+                {/* 시간 설정 */}
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] text-taupe-500 font-medium">시작</label>
+                    <select
+                      value={bhStart}
+                      onChange={(e) => setBhStart(Number(e.target.value))}
+                      className="px-3 py-2 rounded-lg border border-platinum text-[13px] text-noir-800 outline-none focus:border-rose-500 bg-white"
+                    >
+                      {TIME_OPTIONS.map(h => (
+                        <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-[13px] text-taupe-400">~</span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] text-taupe-500 font-medium">종료</label>
+                    <select
+                      value={bhEnd}
+                      onChange={(e) => setBhEnd(Number(e.target.value))}
+                      className="px-3 py-2 rounded-lg border border-platinum text-[13px] text-noir-800 outline-none focus:border-rose-500 bg-white"
+                    >
+                      {TIME_OPTIONS.filter(h => h > bhStart).map(h => (
+                        <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 요일 설정 */}
+                <div className="mb-5">
+                  <label className="block text-[12px] text-taupe-500 font-medium mb-2">영업 요일</label>
+                  <div className="flex gap-2">
+                    {DAYS.map((day, idx) => (
+                      <button
+                        key={day}
+                        onClick={() => toggleBhDay(idx)}
+                        className={`w-10 h-10 rounded-xl text-[13px] font-medium transition-all border ${
+                          bhDays[idx]
+                            ? "bg-noir-800 text-white border-noir-800"
+                            : "text-taupe-400 border-platinum hover:border-rose-500/40"
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 미리보기 + 적용 */}
+                <div className="flex items-center justify-between">
+                  <p className="text-[12px] text-taupe-400">
+                    {bhDays.filter(Boolean).length}일 × {bhEnd - bhStart}시간 = <strong className="text-noir-800">{bhDays.filter(Boolean).length * (bhEnd - bhStart)}개 슬롯</strong> 활성화
+                  </p>
+                  <button
+                    onClick={applyBusinessHours}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+                      bhApplied
+                        ? "bg-[#2E7D5A] text-white"
+                        : "bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)]"
+                    }`}
+                  >
+                    {bhApplied ? <><Check className="w-3.5 h-3.5" />적용 완료!</> : "그리드에 적용"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* 그리드 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.2 }} className="bg-white rounded-2xl border border-black/[0.04] p-6">

@@ -19,6 +19,7 @@ interface VendorState {
   deleteProduct: (id: string) => Promise<boolean>;
   saveTimeSlots: (slots: TimeSlot[]) => Promise<boolean>;
   saveProductTimeSlots: (productId: string, slots: TimeSlot[]) => Promise<boolean>;
+  createBooking: (data: Partial<Booking>) => Promise<boolean>;
   updateBookingStatus: (id: string, status: "confirmed" | "cancelled") => Promise<boolean>;
   refreshBookings: () => Promise<void>;
   updateSettings: (settings: { booking: boolean; message: boolean; marketing: boolean }) => Promise<boolean>;
@@ -171,6 +172,22 @@ export const useVendorStore = create<VendorState>((set, get) => ({
           p.id === productId ? { ...p, timeSlots: slots } : p
         ),
       }));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  createBooking: async (data) => {
+    try {
+      const res = await fetch("/api/vendor/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return false;
+      const result = await res.json();
+      set((state) => ({ bookings: [result.booking, ...state.bookings] }));
       return true;
     } catch {
       return false;

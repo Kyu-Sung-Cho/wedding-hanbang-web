@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Check, X, Clock, CalendarCheck, Filter } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, X, Clock, CalendarCheck, Filter, Plus, Save, User, Phone, Package } from "lucide-react";
 import { useVendorStore } from "@/stores/vendorStore";
 import type { BookingStatus } from "@/types/vendor.types";
 
@@ -23,8 +23,205 @@ const statusStyle: Record<BookingStatus, { bg: string; text: string; label: stri
   cancelled: { bg: "bg-red-500/10", text: "text-red-500", label: "취소" },
 };
 
+const HOUR_OPTIONS = Array.from({ length: 13 }, (_, i) => i + 9); // 9~21
+
+function ManualBookingModal({ onClose }: { onClose: () => void }) {
+  const { products, createBooking } = useVendorStore();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const [form, setForm] = useState({
+    bookingDate: "",
+    bookingTime: "10",
+    productId: "",
+    brideName: "",
+    groomName: "",
+    contactPhone: "",
+    amount: "",
+    memo: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.bookingDate || !form.bookingTime) {
+      setError("예약 날짜와 시간은 필수입니다.");
+      return;
+    }
+    if (!form.brideName && !form.groomName) {
+      setError("신부 또는 신랑 이름을 입력해주세요.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+
+    const success = await createBooking({
+      bookingDate: form.bookingDate,
+      bookingTime: `${form.bookingTime.padStart(2, "0")}:00`,
+      productId: form.productId || undefined,
+      brideName: form.brideName,
+      groomName: form.groomName,
+      contactPhone: form.contactPhone,
+      amount: form.amount ? Number(form.amount) : 0,
+      memo: form.memo,
+    });
+
+    setSaving(false);
+    if (success) {
+      onClose();
+    } else {
+      setError("예약 등록에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-noir-800/60 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto py-8">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl w-full max-w-[520px] mx-4 overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.04]">
+          <h2 className="text-[17px] font-medium text-noir-800">예약 직접 등록</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-ivory-50 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-taupe-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-[12px] text-taupe-400 font-light -mt-1 mb-2">
+            시스템 이용 전 잡힌 예약이나, 전화/방문 예약을 직접 등록합니다.
+          </p>
+
+          {/* 날짜 & 시간 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-noir-800 mb-1.5">예약 날짜 *</label>
+              <input
+                type="date"
+                value={form.bookingDate}
+                onChange={(e) => setForm({ ...form, bookingDate: e.target.value })}
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-noir-800 mb-1.5">예약 시간 *</label>
+              <select
+                value={form.bookingTime}
+                onChange={(e) => setForm({ ...form, bookingTime: e.target.value })}
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors bg-white"
+              >
+                {HOUR_OPTIONS.map(h => (
+                  <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 상품 선택 */}
+          {products.length > 0 && (
+            <div>
+              <label className="flex items-center gap-1.5 text-[12px] font-medium text-noir-800 mb-1.5">
+                <Package className="w-3 h-3 text-taupe-400" />상품
+              </label>
+              <select
+                value={form.productId}
+                onChange={(e) => setForm({ ...form, productId: e.target.value })}
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors bg-white"
+              >
+                <option value="">선택 안 함</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* 고객 정보 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-1.5 text-[12px] font-medium text-noir-800 mb-1.5">
+                <User className="w-3 h-3 text-taupe-400" />신부 이름
+              </label>
+              <input
+                type="text"
+                value={form.brideName}
+                onChange={(e) => setForm({ ...form, brideName: e.target.value })}
+                placeholder="김신부"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-1.5 text-[12px] font-medium text-noir-800 mb-1.5">
+                <User className="w-3 h-3 text-taupe-400" />신랑 이름
+              </label>
+              <input
+                type="text"
+                value={form.groomName}
+                onChange={(e) => setForm({ ...form, groomName: e.target.value })}
+                placeholder="이신랑"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* 연락처 & 금액 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-1.5 text-[12px] font-medium text-noir-800 mb-1.5">
+                <Phone className="w-3 h-3 text-taupe-400" />연락처
+              </label>
+              <input
+                type="tel"
+                value={form.contactPhone}
+                onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
+                placeholder="010-1234-5678"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-noir-800 mb-1.5">금액 (원)</label>
+              <input
+                type="number"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                placeholder="2500000"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* 메모 */}
+          <div>
+            <label className="block text-[12px] font-medium text-noir-800 mb-1.5">메모</label>
+            <textarea
+              value={form.memo}
+              onChange={(e) => setForm({ ...form, memo: e.target.value })}
+              placeholder="예약 관련 참고사항"
+              rows={2}
+              className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors resize-none"
+            />
+          </div>
+
+          {error && <p className="text-[12px] text-rose-500">{error}</p>}
+
+          {/* 버튼 */}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-platinum text-[14px] font-medium text-taupe-500 hover:bg-ivory-50 transition-colors">
+              취소
+            </button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+              <Save className="w-4 h-4" />{saving ? "등록 중..." : "예약 등록"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function BookingsPage() {
   const [activeTab, setActiveTab] = useState<BookingStatus | "all">("all");
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const { bookings, updateBookingStatus } = useVendorStore();
 
   const filtered = activeTab === "all" ? bookings : bookings.filter((b) => b.status === activeTab);
@@ -40,6 +237,21 @@ export default function BookingsPage() {
 
   return (
     <div className="max-w-[1000px] mx-auto">
+      {/* 헤더 */}
+      <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-serif-kr text-[20px] text-noir-800">예약 현황</h2>
+          <p className="text-[13px] text-taupe-500 font-light mt-0.5">예약을 확인하고 관리합니다</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-gold text-white rounded-xl text-[13px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          예약 등록
+        </button>
+      </motion.div>
+
       <div className="grid grid-cols-3 gap-4 mb-6 max-md:grid-cols-1">
         {[
           { label: "전체 예약", value: bookings.length, icon: CalendarCheck, color: "text-noir-800" },
@@ -79,7 +291,12 @@ export default function BookingsPage() {
                   <p className="text-[14px] text-noir-800 font-medium">{booking.brideName || booking.groomName || "고객"}</p>
                   <p className="text-[12px] text-taupe-400 font-light truncate">{booking.memo}</p>
                 </div>
-                <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${s.bg} ${s.text}`}>{s.label}</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {booking.bookingType === "manual" && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-taupe-400/10 text-taupe-400 font-medium">직접등록</span>
+                  )}
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${s.bg} ${s.text}`}>{s.label}</span>
+                </div>
                 {booking.status === "pending" && (
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => handleConfirm(booking.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[12px] font-medium hover:bg-[#246B4C] transition-colors"><Check className="w-3 h-3" />확정</button>
@@ -92,6 +309,11 @@ export default function BookingsPage() {
           {filtered.length === 0 && <div className="py-16 text-center"><p className="text-[14px] text-taupe-400">해당 상태의 예약이 없습니다</p></div>}
         </div>
       </motion.div>
+
+      {/* 예약 등록 모달 */}
+      <AnimatePresence>
+        {showCreateModal && <ManualBookingModal onClose={() => setShowCreateModal(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
