@@ -95,9 +95,9 @@ export default function VendorServicePage() {
             <Link href="/vendor/login" className="px-4 py-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
               기존 업체 로그인
             </Link>
-            <button onClick={() => document.getElementById("register-agreement")?.scrollIntoView({ behavior: "smooth" })} className="px-4 py-2 bg-noir-800 text-white rounded-lg text-[13px] font-medium hover:bg-noir-soft transition-colors">
+            <Link href="/vendor/register" className="px-4 py-2 bg-noir-800 text-white rounded-lg text-[13px] font-medium hover:bg-noir-soft transition-colors">
               업체 등록하기
-            </button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -264,13 +264,13 @@ export default function VendorServicePage() {
 
           {/* 카드 아래 CTA */}
           <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.25 }} className="flex justify-center mt-10">
-            <button
-              onClick={() => document.getElementById("register-agreement")?.scrollIntoView({ behavior: "smooth" })}
+            <Link
+              href="/vendor/register"
               className="inline-flex items-center gap-2 px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
             >
               베타 파트너로 등록하기
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </Link>
           </motion.div>
 
           {/* 베타 종료 후 안내 */}

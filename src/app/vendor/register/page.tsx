@@ -19,6 +19,9 @@ const steps = [
 
 export default function VendorRegisterPage() {
   const router = useRouter();
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [completed, setCompleted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -286,6 +289,69 @@ export default function VendorRegisterPage() {
             </Link>
           </div>
         </motion.div>
+      </div>
+    );
+  }
+
+  if (!showForm) {
+    return (
+      <div className="min-h-screen bg-ivory-50">
+        <header className="bg-white border-b border-black/[0.04] px-8 py-5 max-md:px-5">
+          <div className="max-w-[800px] mx-auto flex items-center justify-between">
+            <Link href="/business" className="flex items-center gap-2">
+              <Logo size="sm" />
+              <span className="font-serif-kr text-[15px] font-medium text-noir-800">업체 등록</span>
+            </Link>
+            <Link href="/vendor/service" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
+              서비스 안내
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-[560px] mx-auto px-8 py-16 max-md:px-5">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <div className="text-center mb-10">
+              <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="font-serif-kr text-[24px] font-light text-noir-800 mb-2">약관 동의</h1>
+              <p className="text-[14px] text-taupe-500 font-light">업체 등록을 위해 아래 약관에 동의해주세요</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-black/[0.04] p-8">
+              <div className="space-y-3 mb-8">
+                <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
+                  <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
+                  <div>
+                    <span className="text-[14px] font-medium text-noir-800">파트너 이용약관 동의</span>
+                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
+                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">서비스 이용 조건, 수수료 정책, 정산 규정 등을 포함합니다.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
+                  <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
+                  <div>
+                    <span className="text-[14px] font-medium text-noir-800">개인정보 처리방침 동의</span>
+                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
+                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">사업자 정보 및 대표자 개인정보의 수집·이용에 동의합니다.</p>
+                  </div>
+                </label>
+              </div>
+              <button
+                onClick={() => setShowForm(true)}
+                disabled={!agreedTerms || !agreedPrivacy}
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[14px] font-medium transition-all ${
+                  agreedTerms && agreedPrivacy
+                    ? "bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)]"
+                    : "bg-taupe-400/20 text-taupe-400 cursor-not-allowed"
+                }`}
+              >
+                동의하고 등록 진행하기 <ChevronRight className="w-4 h-4" />
+              </button>
+              {(!agreedTerms || !agreedPrivacy) && (
+                <p className="text-[12px] text-taupe-400 text-center mt-3">약관에 모두 동의해야 등록을 진행할 수 있습니다.</p>
+              )}
+            </div>
+          </motion.div>
+        </div>
       </div>
     );
   }
