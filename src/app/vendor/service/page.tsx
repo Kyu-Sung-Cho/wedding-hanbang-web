@@ -79,8 +79,6 @@ const FAQ = [
 
 export default function VendorServicePage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [agreedTerms, setAgreedTerms] = useState(false);
-  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
 
   return (
     <div className="min-h-screen bg-ivory-50">
@@ -351,46 +349,6 @@ export default function VendorServicePage() {
           </div>
         </section>
 
-        {/* 약관 동의 + 등록 CTA */}
-        <section id="register-agreement" className="py-16 scroll-mt-20">
-          <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="max-w-[600px] mx-auto">
-            <div className="bg-white rounded-2xl border border-black/[0.04] p-8">
-              <h2 className="font-serif-kr text-[20px] text-noir-800 text-center mb-6">파트너 등록을 시작하세요</h2>
-              <div className="space-y-3 mb-6">
-                <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
-                  <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
-                  <div>
-                    <span className="text-[14px] font-medium text-noir-800">파트너 이용약관 동의</span>
-                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
-                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">서비스 이용 조건, 수수료 정책, 정산 규정 등을 포함합니다.</p>
-                  </div>
-                </label>
-                <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
-                  <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
-                  <div>
-                    <span className="text-[14px] font-medium text-noir-800">개인정보 처리방침 동의</span>
-                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
-                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">사업자 정보 및 대표자 개인정보의 수집·이용에 동의합니다.</p>
-                  </div>
-                </label>
-              </div>
-              <Link
-                href={agreedTerms && agreedPrivacy ? "/vendor/register" : "#"}
-                onClick={(e) => { if (!agreedTerms || !agreedPrivacy) e.preventDefault(); }}
-                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[14px] font-medium transition-all ${
-                  agreedTerms && agreedPrivacy
-                    ? "bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)]"
-                    : "bg-taupe-400/20 text-taupe-400 cursor-not-allowed"
-                }`}
-              >
-                업체 등록 신청하기 <ArrowRight className="w-4 h-4" />
-              </Link>
-              {(!agreedTerms || !agreedPrivacy) && (
-                <p className="text-[12px] text-taupe-400 text-center mt-3">약관에 모두 동의해야 등록을 진행할 수 있습니다.</p>
-              )}
-            </div>
-          </motion.div>
-        </section>
       </div>
 
       {/* 하단 문의 */}
