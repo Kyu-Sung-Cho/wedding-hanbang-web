@@ -12,137 +12,225 @@ export const maxDuration = 60;
 
 const MAX_TOOL_ROUNDS = 5;
 
+// Claude 응답에서 [suggestions] 블록 추출
+function extractSuggestions(text: string): { cleanText: string; suggestions: string[] } {
+  const regex = /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/;
+  const match = text.match(regex);
+  if (!match) return { cleanText: text, suggestions: [] };
+
+  const suggestions = match[1]
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cleanText = text.replace(regex, "").trim();
+  return { cleanText, suggestions };
+}
+
 export async function POST(request: Request) {
+  // 인증 체크 (실패 시 JSON 에러 반환)
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+
+  let body;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+  }
 
-    if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-    }
+  const { messages, coupleId, senderName, weddingContext } = body;
 
-    const { messages, coupleId, senderName, weddingContext } =
-      await request.json();
+  if (!messages || !coupleId) {
+    return NextResponse.json(
+      { error: "메시지와 커플 ID가 필요합니다." },
+      { status: 400 }
+    );
+  }
 
-    if (!messages || !coupleId) {
-      return NextResponse.json(
-        { error: "메시지와 커플 ID가 필요합니다." },
-        { status: 400 }
-      );
-    }
+  // 최신 journey 데이터로 시스템 프롬프트 생성
+  const { data: journey, error: journeyErr } = await supabase
+    .from("wedding_journeys")
+    .select("*")
+    .eq("couple_id", coupleId)
+    .single();
 
-    // 최신 journey 데이터로 시스템 프롬프트 생성
-    const { data: journey, error: journeyErr } = await supabase
-      .from("wedding_journeys")
-      .select("*")
-      .eq("couple_id", coupleId)
-      .single();
+  if (journeyErr) {
+    console.error("Journey 조회 에러:", journeyErr.message);
+  }
 
-    if (journeyErr) {
-      console.error("Journey 조회 에러:", journeyErr.message);
-    }
+  const systemPrompt = getWeddingPlannerSystemPrompt({
+    weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
+    budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
+    progress: journey?.progress ?? weddingContext?.progress ?? {},
+  });
 
-    const systemPrompt = getWeddingPlannerSystemPrompt({
+  const formattedMessages: MessageParam[] = messages.map(
+    (m: { role: string; content: string }) => ({
+      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+      content: m.content,
+    })
+  );
+
+  const executionContext = {
+    coupleId,
+    weddingContext: {
       weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
       budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
+      venue: journey?.venue ?? weddingContext?.venue ?? null,
       progress: journey?.progress ?? weddingContext?.progress ?? {},
-    });
+    },
+  };
 
-    // Claude API 호출 (tool use 루프)
-    const formattedMessages: MessageParam[] = messages.map(
-      (m: { role: string; content: string }) => ({
-        role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-        content: m.content,
-      })
-    );
+  // SSE 스트림 응답 생성
+  const encoder = new TextEncoder();
 
-    // tool executor 실행 컨텍스트
-    const executionContext = {
-      coupleId,
-      weddingContext: {
-        weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
-        budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
-        venue: journey?.venue ?? weddingContext?.venue ?? null,
-        progress: journey?.progress ?? weddingContext?.progress ?? {},
-      },
-    };
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+          );
+        } catch {
+          // 클라이언트 연결 끊김
+        }
+      };
 
-    let currentMessages = [...formattedMessages];
-    const toolResults: ToolExecutionResult[] = [];
-    const toolsUsed: string[] = [];
+      try {
+        let currentMessages = [...formattedMessages];
+        const toolResults: ToolExecutionResult[] = [];
+        const toolsUsed: string[] = [];
 
-    // Tool use 루프: 최대 MAX_TOOL_ROUNDS까지 반복
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const result = await chatWithTools({
-        systemPrompt,
-        messages: currentMessages,
-        tools: WEDDING_TOOLS,
-      });
+        // Tool use 루프: 최대 MAX_TOOL_ROUNDS까지 반복
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const result = await chatWithTools({
+            systemPrompt,
+            messages: currentMessages,
+            tools: WEDDING_TOOLS,
+          });
 
-      // tool use가 없으면 최종 응답
-      if (result.toolUseBlocks.length === 0) {
-        return NextResponse.json({
-          content: result.fullText,
-          senderName,
-          toolsUsed,
-          toolResults,
+          // tool use가 없으면 최종 응답
+          if (result.toolUseBlocks.length === 0) {
+            const { cleanText, suggestions } = extractSuggestions(
+              result.fullText
+            );
+
+            send({ type: "text_delta", content: cleanText });
+
+            if (suggestions.length > 0) {
+              send({ type: "suggestions", suggestions });
+            }
+
+            send({
+              type: "done",
+              fullContent: cleanText,
+              metadata: { toolResults, toolsUsed, senderName },
+            });
+
+            controller.close();
+            return;
+          }
+
+          // tool use 블록 실행
+          const toolResultContents: ContentBlockParam[] = [];
+
+          for (const toolUse of result.toolUseBlocks) {
+            toolsUsed.push(toolUse.name);
+
+            send({
+              type: "tool_start",
+              toolName: toolUse.name,
+              toolInput: toolUse.input,
+            });
+
+            const execResult = await executeTool(
+              toolUse.name,
+              toolUse.input,
+              executionContext
+            );
+            toolResults.push(execResult);
+
+            send({ type: "tool_result", result: execResult });
+
+            toolResultContents.push(
+              buildToolResultContent(
+                toolUse.id,
+                JSON.stringify(execResult.toolOutput)
+              )
+            );
+          }
+
+          // 대화 이어가기: assistant 응답 + tool results
+          const assistantContent: ContentBlockParam[] = [];
+          if (result.fullText) {
+            assistantContent.push({
+              type: "text",
+              text: result.fullText,
+            } as ContentBlockParam);
+          }
+          for (const toolUse of result.toolUseBlocks) {
+            assistantContent.push({
+              type: "tool_use",
+              id: toolUse.id,
+              name: toolUse.name,
+              input: toolUse.input,
+            } as ContentBlockParam);
+          }
+
+          currentMessages = [
+            ...currentMessages,
+            { role: "assistant" as const, content: assistantContent },
+            { role: "user" as const, content: toolResultContents },
+          ];
+        }
+
+        // 최대 라운드 초과 시 마지막 호출
+        const finalResult = await chatWithTools({
+          systemPrompt,
+          messages: currentMessages,
+          tools: WEDDING_TOOLS,
+        });
+
+        const { cleanText, suggestions } = extractSuggestions(
+          finalResult.fullText
+        );
+
+        send({ type: "text_delta", content: cleanText });
+
+        if (suggestions.length > 0) {
+          send({ type: "suggestions", suggestions });
+        }
+
+        send({
+          type: "done",
+          fullContent: cleanText,
+          metadata: { toolResults, toolsUsed, senderName },
+        });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error("채팅 API 에러:", errMsg);
+        send({
+          type: "error",
+          message: `AI 응답 생성에 실패했습니다: ${errMsg}`,
         });
       }
 
-      // tool use 블록 실행
-      const toolResultContents: ContentBlockParam[] = [];
+      controller.close();
+    },
+  });
 
-      for (const toolUse of result.toolUseBlocks) {
-        toolsUsed.push(toolUse.name);
-        const execResult = await executeTool(toolUse.name, toolUse.input, executionContext);
-        toolResults.push(execResult);
-        toolResultContents.push(
-          buildToolResultContent(toolUse.id, JSON.stringify(execResult.toolOutput))
-        );
-      }
-
-      // 대화 이어가기: assistant 응답 + tool results
-      const assistantContent: ContentBlockParam[] = [];
-      if (result.fullText) {
-        assistantContent.push({ type: "text", text: result.fullText } as ContentBlockParam);
-      }
-      for (const toolUse of result.toolUseBlocks) {
-        assistantContent.push({
-          type: "tool_use",
-          id: toolUse.id,
-          name: toolUse.name,
-          input: toolUse.input,
-        } as ContentBlockParam);
-      }
-
-      currentMessages = [
-        ...currentMessages,
-        { role: "assistant" as const, content: assistantContent },
-        { role: "user" as const, content: toolResultContents },
-      ];
-    }
-
-    // 최대 라운드 초과 시 마지막 호출
-    const finalResult = await chatWithTools({
-      systemPrompt,
-      messages: currentMessages,
-      tools: WEDDING_TOOLS,
-    });
-
-    return NextResponse.json({
-      content: finalResult.fullText,
-      senderName,
-      toolsUsed,
-      toolResults,
-    });
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error("채팅 API 에러:", errMsg);
-    return NextResponse.json(
-      { error: `AI 응답 생성에 실패했습니다: ${errMsg}` },
-      { status: 500 }
-    );
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
