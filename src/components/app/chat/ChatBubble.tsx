@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight } from "lucide-react";
+import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -14,6 +16,17 @@ function formatTime(dateStr: string) {
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
+// [etiquette:N] 태그 파싱
+function parseEtiquetteTags(text: string): { cleanText: string; partNumbers: number[] } {
+  const partNumbers: number[] = [];
+  const cleanText = text.replace(/\[etiquette:(\d+)\]/g, (_, num) => {
+    const n = parseInt(num, 10);
+    if (n >= 1 && n <= 25 && !partNumbers.includes(n)) partNumbers.push(n);
+    return "";
+  }).trim();
+  return { cleanText, partNumbers };
+}
+
 export default function ChatBubble({
   message,
   isCurrentUser,
@@ -23,6 +36,8 @@ export default function ChatBubble({
 
   // AI 메시지
   if (sender_role === "ai") {
+    const { cleanText, partNumbers } = parseEtiquetteTags(content);
+
     return (
       <div className="flex items-start gap-3 max-w-[85%]">
         {/* AI 아바타 */}
@@ -36,8 +51,32 @@ export default function ChatBubble({
           </span>
           <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 border border-black/[0.06] shadow-sm">
             <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
-              {content}
+              {cleanText}
             </p>
+            {partNumbers.length > 0 && (
+              <div className="mt-3 flex flex-col gap-2">
+                {partNumbers.map((num) => {
+                  const part = ETIQUETTE_PARTS.find((p) => p.number === num);
+                  if (!part) return null;
+                  return (
+                    <Link
+                      key={num}
+                      href={`/etiquette?part=${num}`}
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border border-[#E8D5CD]/40 hover:border-[#C4967E]/30 transition-colors group"
+                    >
+                      <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>
+                        <BookOpen className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
+                        <p className="text-[10px] text-[#928980]">예절 가이드 보기</p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#C4967E] transition-colors flex-shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <span className="text-[10px] text-[#B5ADA3] ml-1">
             {formatTime(created_at)}

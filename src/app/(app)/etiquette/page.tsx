@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Heart, Users, Gem, Mail, Landmark, Plane, Crown, Home,
   Banknote, CalendarDays, DoorOpen, Camera, UserCheck, Mic,
@@ -469,7 +470,23 @@ function SchedulePopover({ itemText, onClose, onSave }: {
 }
 
 export default function EtiquettePage() {
-  const [selectedPart, setSelectedPart] = useState(0);
+  return (
+    <Suspense fallback={null}>
+      <EtiquettePageInner />
+    </Suspense>
+  );
+}
+
+function EtiquettePageInner() {
+  const searchParams = useSearchParams();
+  const [selectedPart, setSelectedPart] = useState(() => {
+    const partParam = searchParams.get("part");
+    if (partParam) {
+      const idx = ETIQUETTE_PARTS.findIndex((p) => p.number === parseInt(partParam, 10));
+      return idx >= 0 ? idx : 0;
+    }
+    return 0;
+  });
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);

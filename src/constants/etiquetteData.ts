@@ -245,3 +245,26 @@ export const ETIQUETTE_CATEGORIES = [
   { label: "혼수 & 비용", parts: [8, 19, 25, 15] },
   { label: "결혼 후", parts: [6, 10, 11, 17, 18, 24] },
 ] as const;
+
+// 웨딩 카테고리 → 관련 예절 가이드 파트 번호 매핑
+export const CATEGORY_ETIQUETTE_MAP: Record<string, number[]> = {
+  meeting: [1, 2],       // 첫인사, 상견례
+  venue: [5, 22],        // 본식 당일, 종교별 결혼식
+  studio: [12],          // 웨딩 촬영 에티켓
+  dress: [5],            // 본식 당일
+  makeup: [5],           // 본식 당일
+  ring: [3],             // 예물·예단·함
+  hanbok: [7],           // 폐백
+  yedan: [3],            // 예물·예단·함
+  honeymoon: [6],        // 신혼여행 후 인사
+  houseware: [8],        // 혼수 준비
+  housing: [19],         // 신혼집 논의
+  invitation: [4],       // 청첩장 발송
+  snap: [12],            // 웨딩 촬영 에티켓
+  shoes: [5],            // 본식 당일
+  bouquet: [5],          // 본식 당일
+  gift: [15],            // 이바지·답례품
+  mc: [14],              // 축사·축가
+  ham: [3],              // 예물·예단·함
+  pyebaek: [7],          // 폐백
+};

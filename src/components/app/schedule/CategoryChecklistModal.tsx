@@ -26,8 +26,12 @@ import {
   Mic,
   Box,
   Key,
+  BookOpen,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
@@ -223,6 +227,36 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   {template.tip}
                 </p>
               </div>
+
+              {/* 관련 예절 가이드 */}
+              {(() => {
+                const partNums = CATEGORY_ETIQUETTE_MAP[categoryKey] ?? [];
+                if (partNums.length === 0) return null;
+                return (
+                  <div className="mt-3 flex flex-col gap-1.5">
+                    {partNums.map((num) => {
+                      const part = ETIQUETTE_PARTS.find((p) => p.number === num);
+                      if (!part) return null;
+                      return (
+                        <Link
+                          key={num}
+                          href={`/etiquette?part=${num}`}
+                          className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-black/[0.04] hover:border-[#C4967E]/30 transition-colors group"
+                        >
+                          <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>
+                            <BookOpen className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
+                            <p className="text-[10px] text-[#928980]">예절 가이드 보기</p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#C4967E] transition-colors flex-shrink-0" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </motion.div>
         </>
