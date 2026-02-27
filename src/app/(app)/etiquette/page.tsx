@@ -357,6 +357,7 @@ function ItemRenderer({ item, blockType }: { item: ParsedItem; blockType: string
 
 export default function EtiquettePage() {
   const [selectedPart, setSelectedPart] = useState(0);
+  const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -365,10 +366,16 @@ export default function EtiquettePage() {
   const part = ETIQUETTE_PARTS[selectedPart];
   const PartIcon = ICON_MAP[part.icon] || BookOpen;
 
-  // 파트 선택 시 콘텐츠 스크롤 맨 위로
+  // 파트 선택 시 콘텐츠 스크롤 맨 위로 + 섹션 초기화
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
+    setSelectedSection(null);
   }, [selectedPart]);
+
+  // 섹션 선택 시 스크롤 맨 위로
+  useEffect(() => {
+    contentRef.current?.scrollTo(0, 0);
+  }, [selectedSection]);
 
   // 검색 필터
   const filteredParts = useMemo(() => {
@@ -385,10 +392,14 @@ export default function EtiquettePage() {
   // 콘텐츠 파싱 (메모이제이션)
   const parsedSections = useMemo(() => parseContent(part.content), [part.content]);
 
+  // 섹션이 1개 이하면 바로 콘텐츠 표시
+  const hasSectionNav = parsedSections.length > 1;
+
   const selectPart = (partNumber: number) => {
     const idx = ETIQUETTE_PARTS.findIndex((p) => p.number === partNumber);
     if (idx >= 0) {
       setSelectedPart(idx);
+      setSelectedSection(null);
       setSidebarOpen(false);
     }
   };
@@ -592,26 +603,123 @@ export default function EtiquettePage() {
             </p>
           </div>
 
-          {/* 섹션 콘텐츠 */}
-          <div className="mt-8 space-y-8 animate-fade-in">
-            {parsedSections.map((section, sIdx) => (
-              <div key={sIdx}>
-                {section.title && (
-                  <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
-                    {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
-                    <h2 className="font-serif-kr text-[18px] max-md:text-[16px] font-light text-noir-800">
-                      {section.title}
-                    </h2>
-                  </div>
-                )}
-                <div className="space-y-4">
-                  {section.blocks.map((block, bIdx) => (
-                    <BlockRenderer key={bIdx} block={block} />
-                  ))}
-                </div>
+          {/* 섹션 네비게이션 or 콘텐츠 */}
+          {hasSectionNav && selectedSection === null ? (
+            /* 섹션 선택 카드 */
+            <div className="mt-8 animate-fade-in">
+              <p className="text-[13px] text-taupe-500 font-light mb-4">
+                항목을 선택하세요
+              </p>
+              <div className="grid gap-3">
+                {parsedSections.map((section, sIdx) => {
+                  // 블록 수 요약
+                  const checklistCount = section.blocks.filter(b => b.type === "checklist").length;
+                  const tipsCount = section.blocks.filter(b => b.type === "tips").length;
+                  const warningCount = section.blocks.filter(b => b.type === "warning").length;
+                  const dialogueCount = section.blocks.filter(b => b.type === "dialogue").length;
+
+                  return (
+                    <button
+                      key={sIdx}
+                      onClick={() => setSelectedSection(sIdx)}
+                      className="w-full flex items-center gap-4 px-5 py-4 max-md:px-4 max-md:py-3.5 rounded-xl bg-white border border-black/[0.04] hover:border-rose-500/20 hover:shadow-sm transition-all text-left group"
+                    >
+                      <div className={`w-10 h-10 max-md:w-9 max-md:h-9 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity`}>
+                        {section.emoji ? (
+                          <span className="text-[18px] max-md:text-[16px]">{section.emoji}</span>
+                        ) : (
+                          <PartIcon className="w-5 h-5 max-md:w-4 max-md:h-4 text-white" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] max-md:text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
+                          {section.title || `섹션 ${sIdx + 1}`}
+                        </p>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {checklistCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              <CheckCircle2 className="w-3 h-3" />체크리스트
+                            </span>
+                          )}
+                          {tipsCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                              <Lightbulb className="w-3 h-3" />꿀팁
+                            </span>
+                          )}
+                          {warningCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
+                              <AlertTriangle className="w-3 h-3" />주의사항
+                            </span>
+                          )}
+                          {dialogueCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">
+                              <MessageSquareQuote className="w-3 h-3" />대사
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-taupe-300 group-hover:text-rose-400 flex-shrink-0 transition-colors" />
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            /* 섹션 콘텐츠 표시 */
+            <div className="mt-6 animate-fade-in">
+              {/* 섹션 뒤로가기 + 섹션 탭 */}
+              {hasSectionNav && selectedSection !== null && (
+                <div className="mb-6">
+                  <button
+                    onClick={() => setSelectedSection(null)}
+                    className="inline-flex items-center gap-1.5 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors mb-4"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    전체 항목으로
+                  </button>
+                  {/* 섹션 탭 pills */}
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                    {parsedSections.map((sec, sIdx) => (
+                      <button
+                        key={sIdx}
+                        onClick={() => setSelectedSection(sIdx)}
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                          selectedSection === sIdx
+                            ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                            : "bg-white text-taupe-500 border border-black/[0.04] hover:border-rose-500/10"
+                        }`}
+                      >
+                        {sec.emoji && <span className="text-[14px]">{sec.emoji}</span>}
+                        {sec.title || `섹션 ${sIdx + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 선택된 섹션 또는 전체 섹션 렌더 */}
+              {(hasSectionNav && selectedSection !== null
+                ? [parsedSections[selectedSection]]
+                : parsedSections
+              ).map((section, sIdx) => (
+                <div key={sIdx} className="mb-8 last:mb-0">
+                  {section.title && (
+                    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
+                      {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
+                      <h2 className="font-serif-kr text-[18px] max-md:text-[16px] font-light text-noir-800">
+                        {section.title}
+                      </h2>
+                    </div>
+                  )}
+                  <div className="space-y-4">
+                    {section.blocks.map((block, bIdx) => (
+                      <BlockRenderer key={bIdx} block={block} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* 이전/다음 네비게이션 */}
           <div className="flex justify-between items-center mt-12 pt-6 border-t border-black/[0.04]">
