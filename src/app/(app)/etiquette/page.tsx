@@ -318,24 +318,26 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
         );
       }
       return (
-        <div className="flex items-start gap-2 pl-1 group/item">
-          <button
-            onClick={() => onToggleCheck(itemId)}
-            className="mt-0.5 flex-shrink-0 transition-colors"
-          >
+        <div
+          onClick={() => onToggleCheck(itemId)}
+          className="flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl cursor-pointer hover:bg-[#FDFCFA] transition-colors group/item"
+        >
+          <div className="flex-shrink-0">
             {isChecked ? (
-              <CheckSquare className="w-4 h-4 text-emerald-500" />
+              <div className="w-6 h-6 rounded-full bg-[#2E7D5A] flex items-center justify-center">
+                <Check className="w-3.5 h-3.5 text-white" />
+              </div>
             ) : (
-              <Square className="w-4 h-4 text-taupe-400 group-hover/item:text-taupe-500" />
+              <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover/item:border-[#C4967E] transition-colors" />
             )}
-          </button>
-          <p className={`text-[13px] font-light leading-[1.7] flex-1 transition-colors ${isChecked ? "text-taupe-400 line-through" : "text-charcoal"}`}>
+          </div>
+          <p className={`text-[13px] leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
             {formatInlineText(item.text)}
           </p>
           {(blockType === "checklist" || blockType === "steps" || blockType === "paragraph") && (
             <button
-              onClick={() => onOpenSchedule(itemId, item.text)}
-              className="mt-0.5 flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); onOpenSchedule(itemId, item.text); }}
+              className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
               title="일정에 추가"
             >
               <CalendarPlus className="w-3.5 h-3.5 text-taupe-400 hover:text-rose-500 transition-colors" />
