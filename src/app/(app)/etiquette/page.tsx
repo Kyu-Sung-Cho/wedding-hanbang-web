@@ -904,40 +904,87 @@ export default function EtiquettePage() {
             </div>
           )}
 
-          {/* 이전/다음 네비게이션 */}
+          {/* 이전/다음 네비게이션 (섹션 → 파트 순서) */}
           <div className="flex justify-between items-center mt-12 pt-6 border-t border-black/[0.04]">
-            {selectedPart > 0 ? (
-              <button
-                onClick={() => setSelectedPart(selectedPart - 1)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group"
-              >
-                <ArrowLeft className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors" />
-                <div className="text-left">
-                  <p className="text-[11px] text-taupe-400">이전</p>
-                  <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
-                    {ETIQUETTE_PARTS[selectedPart - 1].title}
-                  </p>
-                </div>
-              </button>
-            ) : (
-              <div />
-            )}
-            {selectedPart < ETIQUETTE_PARTS.length - 1 ? (
-              <button
-                onClick={() => setSelectedPart(selectedPart + 1)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group"
-              >
-                <div className="text-right">
-                  <p className="text-[11px] text-taupe-400">다음</p>
-                  <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
-                    {ETIQUETTE_PARTS[selectedPart + 1].title}
-                  </p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors" />
-              </button>
-            ) : (
-              <div />
-            )}
+            {(() => {
+              // 이전 버튼 로직
+              let prevLabel = "";
+              let prevSub = "";
+              let onPrev: (() => void) | null = null;
+
+              if (hasSectionNav && selectedSection !== null && selectedSection > 0) {
+                // 같은 파트 내 이전 섹션
+                prevLabel = parsedSections[selectedSection - 1].title || `섹션 ${selectedSection}`;
+                prevSub = part.title;
+                onPrev = () => setSelectedSection(selectedSection - 1);
+              } else if (hasSectionNav && selectedSection === 0) {
+                // 첫 섹션 → 섹션 목록으로
+                prevLabel = "전체 항목";
+                prevSub = part.title;
+                onPrev = () => setSelectedSection(null);
+              } else if (selectedPart > 0) {
+                // 이전 파트
+                prevLabel = ETIQUETTE_PARTS[selectedPart - 1].title;
+                onPrev = () => setSelectedPart(selectedPart - 1);
+              }
+
+              return onPrev ? (
+                <button
+                  onClick={onPrev}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group max-w-[45%]"
+                >
+                  <ArrowLeft className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors flex-shrink-0" />
+                  <div className="text-left min-w-0">
+                    <p className="text-[11px] text-taupe-400">이전</p>
+                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
+                      {prevLabel}
+                    </p>
+                    {prevSub && <p className="text-[11px] text-taupe-400 truncate">{prevSub}</p>}
+                  </div>
+                </button>
+              ) : <div />;
+            })()}
+            {(() => {
+              // 다음 버튼 로직
+              let nextLabel = "";
+              let nextSub = "";
+              let onNext: (() => void) | null = null;
+
+              if (hasSectionNav && selectedSection !== null && selectedSection < parsedSections.length - 1) {
+                // 같은 파트 내 다음 섹션
+                nextLabel = parsedSections[selectedSection + 1].title || `섹션 ${selectedSection + 2}`;
+                nextSub = part.title;
+                onNext = () => setSelectedSection(selectedSection + 1);
+              } else if (hasSectionNav && selectedSection !== null && selectedSection === parsedSections.length - 1 && selectedPart < ETIQUETTE_PARTS.length - 1) {
+                // 마지막 섹션 → 다음 파트
+                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                onNext = () => setSelectedPart(selectedPart + 1);
+              } else if (hasSectionNav && selectedSection === null && selectedPart < ETIQUETTE_PARTS.length - 1) {
+                // 섹션 목록 화면 → 다음 파트
+                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                onNext = () => setSelectedPart(selectedPart + 1);
+              } else if (!hasSectionNav && selectedPart < ETIQUETTE_PARTS.length - 1) {
+                // 섹션 없는 파트 → 다음 파트
+                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                onNext = () => setSelectedPart(selectedPart + 1);
+              }
+
+              return onNext ? (
+                <button
+                  onClick={onNext}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group max-w-[45%]"
+                >
+                  <div className="text-right min-w-0">
+                    <p className="text-[11px] text-taupe-400">다음</p>
+                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
+                      {nextLabel}
+                    </p>
+                    {nextSub && <p className="text-[11px] text-taupe-400 truncate">{nextSub}</p>}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors flex-shrink-0" />
+                </button>
+              ) : <div />;
+            })()}
           </div>
 
           {/* 하단 여백 */}
