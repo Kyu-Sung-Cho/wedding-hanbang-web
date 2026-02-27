@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Heart, Users, Gem, Mail, Landmark, Plane, Crown, Home,
   Banknote, CalendarDays, DoorOpen, Camera, UserCheck, Mic,
@@ -8,10 +8,12 @@ import {
   Smartphone, Clock, Sparkles, TreePine, HeartHandshake,
   PiggyBank, ChevronRight, Search, BookOpen, ArrowLeft,
   CheckCircle2, Lightbulb, AlertTriangle, MessageSquareQuote,
-  ListOrdered, ChevronDown,
+  ListOrdered, ChevronDown, Square, CheckSquare, CalendarPlus, X, Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ETIQUETTE_PARTS, ETIQUETTE_CATEGORIES } from "@/constants/etiquetteData";
+import { useAuthStore } from "@/stores/authStore";
+import { addEvent } from "@/utils/scheduleEvents";
 
 // 아이콘 맵
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -237,7 +239,13 @@ function formatInlineText(text: string) {
 }
 
 // 블록 렌더러
-function BlockRenderer({ block }: { block: ParsedBlock }) {
+function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSchedule }: {
+  block: ParsedBlock;
+  blockId: string;
+  checkedItems: Set<string>;
+  onToggleCheck: (itemId: string) => void;
+  onOpenSchedule: (itemId: string, text: string) => void;
+}) {
   const { type, title, items } = block;
 
   const blockStyles: Record<string, { bg: string; border: string; icon: LucideIcon; iconColor: string; titleColor: string }> = {
@@ -262,15 +270,33 @@ function BlockRenderer({ block }: { block: ParsedBlock }) {
         </div>
       )}
       <div className="space-y-1.5">
-        {items.map((item, idx) => (
-          <ItemRenderer key={idx} item={item} blockType={type} />
-        ))}
+        {items.map((item, idx) => {
+          const itemId = `${blockId}_${idx}`;
+          return (
+            <ItemRenderer
+              key={idx}
+              item={item}
+              blockType={type}
+              itemId={itemId}
+              isChecked={checkedItems.has(itemId)}
+              onToggleCheck={onToggleCheck}
+              onOpenSchedule={onOpenSchedule}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ItemRenderer({ item, blockType }: { item: ParsedItem; blockType: string }) {
+function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpenSchedule }: {
+  item: ParsedItem;
+  blockType: string;
+  itemId: string;
+  isChecked: boolean;
+  onToggleCheck: (itemId: string) => void;
+  onOpenSchedule: (itemId: string, text: string) => void;
+}) {
   switch (item.type) {
     case "group-title":
       return (
@@ -280,16 +306,40 @@ function ItemRenderer({ item, blockType }: { item: ParsedItem; blockType: string
       );
 
     case "list-item":
-      return (
-        <div className="flex gap-2 pl-1">
-          {blockType === "warning" ? (
+      if (blockType === "warning") {
+        return (
+          <div className="flex gap-2 pl-1">
             <span className="text-red-400 mt-0.5 text-[12px] flex-shrink-0">&#x2716;</span>
-          ) : (
-            <span className="text-emerald-400 mt-0.5 text-[12px] flex-shrink-0">&#x2714;</span>
-          )}
-          <p className="text-[13px] text-charcoal font-light leading-[1.7]">
+            <p className="text-[13px] text-charcoal font-light leading-[1.7]">
+              {formatInlineText(item.text)}
+            </p>
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-start gap-2 pl-1 group/item">
+          <button
+            onClick={() => onToggleCheck(itemId)}
+            className="mt-0.5 flex-shrink-0 transition-colors"
+          >
+            {isChecked ? (
+              <CheckSquare className="w-4 h-4 text-emerald-500" />
+            ) : (
+              <Square className="w-4 h-4 text-taupe-400 group-hover/item:text-taupe-500" />
+            )}
+          </button>
+          <p className={`text-[13px] font-light leading-[1.7] flex-1 transition-colors ${isChecked ? "text-taupe-400 line-through" : "text-charcoal"}`}>
             {formatInlineText(item.text)}
           </p>
+          {(blockType === "checklist" || blockType === "steps" || blockType === "paragraph") && (
+            <button
+              onClick={() => onOpenSchedule(itemId, item.text)}
+              className="mt-0.5 flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
+              title="일정에 추가"
+            >
+              <CalendarPlus className="w-3.5 h-3.5 text-taupe-400 hover:text-rose-500 transition-colors" />
+            </button>
+          )}
         </div>
       );
 
@@ -355,21 +405,146 @@ function ItemRenderer({ item, blockType }: { item: ParsedItem; blockType: string
   }
 }
 
+// 일정 추가 팝오버
+function SchedulePopover({ itemText, onClose, onSave }: {
+  itemText: string;
+  onClose: () => void;
+  onSave: (date: string, memo: string) => void;
+}) {
+  const [date, setDate] = useState("");
+  const [memo, setMemo] = useState(itemText);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div ref={popoverRef} className="w-[300px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[13px] font-medium text-noir-800">일정에 추가</p>
+        <button onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors">
+          <X className="w-3.5 h-3.5 text-taupe-400" />
+        </button>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[11px] text-taupe-500 mb-1">날짜</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] text-taupe-500 mb-1">메모</label>
+          <input
+            type="text"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="메모 (선택)"
+            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+          />
+        </div>
+        <button
+          onClick={() => {
+            if (!date) return;
+            onSave(date, memo);
+          }}
+          disabled={!date}
+          className="w-full py-2 rounded-lg bg-rose-500 text-white text-[13px] font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          일정에 추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function EtiquettePage() {
   const [selectedPart, setSelectedPart] = useState(0);
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [schedulePopover, setSchedulePopover] = useState<{ itemId: string; text: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
 
+  const { journey, updateJourney } = useAuthStore();
   const part = ETIQUETTE_PARTS[selectedPart];
   const PartIcon = ICON_MAP[part.icon] || BookOpen;
+
+  // localStorage에서 체크 상태 로드
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`etiquette_checks_${part.number}`);
+      if (saved) {
+        setCheckedItems(new Set(JSON.parse(saved)));
+      } else {
+        setCheckedItems(new Set());
+      }
+    } catch {
+      setCheckedItems(new Set());
+    }
+  }, [part.number]);
+
+  // 체크 상태 토글
+  const handleToggleCheck = useCallback((itemId: string) => {
+    setCheckedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      try {
+        localStorage.setItem(`etiquette_checks_${part.number}`, JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, [part.number]);
+
+  // 일정 추가 팝오버 열기
+  const handleOpenSchedule = useCallback((itemId: string, text: string) => {
+    setSchedulePopover({ itemId, text });
+  }, []);
+
+  // 일정 저장
+  const handleSaveSchedule = useCallback(async (date: string, memo: string) => {
+    if (!journey?.progress) return;
+    const progress = journey.progress as unknown as Record<string, unknown>;
+    const { newProgress } = addEvent(progress, {
+      date,
+      title: memo || schedulePopover?.text || "예절 가이드 항목",
+      memo: `예절 가이드 Part ${part.number}: ${part.title}`,
+      categoryKey: "etiquette",
+    });
+    await updateJourney({ progress: newProgress as typeof journey.progress });
+    setSchedulePopover(null);
+    setToast("일정에 추가되었습니다");
+  }, [journey, updateJourney, schedulePopover, part.number, part.title]);
+
+  // 토스트 자동 닫기
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   // 파트 선택 시 콘텐츠 스크롤 맨 위로 + 섹션 초기화
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
     setSelectedSection(null);
+    setSchedulePopover(null);
   }, [selectedPart]);
 
   // 섹션 선택 시 스크롤 맨 위로
@@ -699,9 +874,9 @@ export default function EtiquettePage() {
 
               {/* 선택된 섹션 또는 전체 섹션 렌더 */}
               {(hasSectionNav && selectedSection !== null
-                ? [parsedSections[selectedSection]]
-                : parsedSections
-              ).map((section, sIdx) => (
+                ? [{ section: parsedSections[selectedSection], sIdx: selectedSection }]
+                : parsedSections.map((section, sIdx) => ({ section, sIdx }))
+              ).map(({ section, sIdx }) => (
                 <div key={sIdx} className="mb-8 last:mb-0">
                   {section.title && (
                     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
@@ -713,7 +888,15 @@ export default function EtiquettePage() {
                   )}
                   <div className="space-y-4">
                     {section.blocks.map((block, bIdx) => (
-                      <BlockRenderer key={bIdx} block={block} />
+                      <div key={bIdx} className="relative">
+                        <BlockRenderer
+                          block={block}
+                          blockId={`${sIdx}_${bIdx}`}
+                          checkedItems={checkedItems}
+                          onToggleCheck={handleToggleCheck}
+                          onOpenSchedule={handleOpenSchedule}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -761,6 +944,29 @@ export default function EtiquettePage() {
           <div className="h-12" />
         </div>
       </div>
+
+      {/* 일정 추가 팝오버 (오버레이) */}
+      {schedulePopover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setSchedulePopover(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <SchedulePopover
+              itemText={schedulePopover.text}
+              onClose={() => setSchedulePopover(null)}
+              onSave={handleSaveSchedule}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 토스트 알림 */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-noir-800 text-white shadow-lg">
+            <Check className="w-4 h-4 text-emerald-400" />
+            <p className="text-[13px] font-medium">{toast}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
