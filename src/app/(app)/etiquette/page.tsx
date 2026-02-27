@@ -1,220 +1,657 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Heart, Banknote, Shirt, UtensilsCrossed, Gift, Users, Camera, MapPin } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import {
+  Heart, Users, Gem, Mail, Landmark, Plane, Crown, Home,
+  Banknote, CalendarDays, DoorOpen, Camera, UserCheck, Mic,
+  Gift, MessageCircle, FileText, Handshake, Building,
+  Smartphone, Clock, Sparkles, TreePine, HeartHandshake,
+  PiggyBank, ChevronRight, Search, BookOpen, ArrowLeft,
+  CheckCircle2, Lightbulb, AlertTriangle, MessageSquareQuote,
+  ListOrdered, ChevronDown,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ETIQUETTE_PARTS, ETIQUETTE_CATEGORIES } from "@/constants/etiquetteData";
 
-interface GuideItem {
-  q: string;
-  a: string;
-}
+// 아이콘 맵
+const ICON_MAP: Record<string, LucideIcon> = {
+  Heart, Users, Gem, Mail, Church: Landmark, Plane, Crown, Home,
+  Banknote, Calendar: CalendarDays, DoorOpen, Camera, UserCheck, Mic,
+  Gift, MessageCircle, FileText, Handshake, Building,
+  Smartphone, Clock, Sparkles, TreePine, HeartHandshake, PiggyBank,
+  BookOpen, Landmark,
+};
 
-interface GuideCategory {
-  icon: LucideIcon;
+// 마크다운 콘텐츠 파서
+interface ParsedSection {
   title: string;
-  color: string;
-  items: GuideItem[];
+  emoji?: string;
+  blocks: ParsedBlock[];
 }
 
-const guides: GuideCategory[] = [
-  {
-    icon: Banknote,
-    title: "축의금",
-    color: "from-rose-500 to-gold",
-    items: [
-      {
-        q: "축의금은 얼마가 적당할까요?",
-        a: "일반적으로 친구 5~7만원, 직장 동료 5~10만원, 가까운 친척 10~30만원이 평균입니다. 식사 비용(인당 약 7~10만원)을 고려하면 좋습니다. 관계의 친밀도와 본인의 경제 상황에 맞게 결정하세요.",
-      },
-      {
-        q: "축의금 봉투 작성법은?",
-        a: "겉봉에는 '축 결혼' 또는 '축 화혼'을 쓰고, 안쪽에 이름을 적습니다. 신랉측/신부측을 명시하면 더 좋습니다. 새 지폐를 준비하는 것이 예의이며, 홀수 금액(3만, 5만, 7만)을 넣는 것이 전통입니다.",
-      },
-      {
-        q: "화환 대신 축의금을 더 내도 될까요?",
-        a: "네, 최근에는 화환 대신 축의금을 추가하는 경우가 많습니다. 다만 직장이나 단체에서 보내는 경우 화환이 관례인 경우도 있으니, 주변에 확인하는 것을 추천합니다.",
-      },
-    ],
-  },
-  {
-    icon: Shirt,
-    title: "복장",
-    color: "from-gold to-[#DCC9A0]",
-    items: [
-      {
-        q: "하객 복장은 어떻게 입어야 하나요?",
-        a: "포멀한 정장 또는 세미 포멀이 기본입니다. 남성은 정장+넥타이, 여성은 원피스 또는 블라우스+스커트가 무난합니다. 흰색(신부 색상)과 검은색 전신(장례식 연상)은 피하는 것이 좋습니다.",
-      },
-      {
-        q: "하객 복장에서 피해야 할 색상은?",
-        a: "순백색은 신부의 색상이므로 피합니다. 전신 블랙도 자제하는 것이 좋지만, 포인트 색상을 더하면 괜찮습니다. 너무 화려하거나 노출이 심한 옷도 피하세요. 파스텔 톤이나 차분한 색상이 무난합니다.",
-      },
-    ],
-  },
-  {
-    icon: UtensilsCrossed,
-    title: "식사 예절",
-    color: "from-[#2E7D5A] to-[#4CAF80]",
-    items: [
-      {
-        q: "뷔페 식사 매너는?",
-        a: "한 번에 적당량만 덜어오고, 여러 번 가는 것은 괜찮습니다. 음식을 남기지 않도록 주의하세요. 식사 중 너무 시끄럽게 대화하거나 오래 자리를 차지하지 않는 것이 좋습니다. 식사 후에는 깔끔하게 정리해주세요.",
-      },
-      {
-        q: "식사만 하고 가도 되나요?",
-        a: "가능하면 예식에 참석한 후 식사하는 것이 예의입니다. 부득이한 경우 축의금을 전달하고 식사하는 것은 괜찮지만, 시간이 된다면 예식 참석을 권합니다.",
-      },
-    ],
-  },
-  {
-    icon: Gift,
-    title: "답례품 & 선물",
-    color: "from-rose-500 to-rose-600",
-    items: [
-      {
-        q: "결혼 답례품은 뭐가 좋을까요?",
-        a: "실용적인 것이 인기입니다. 고급 타올 세트, 디퓨저, 고급 차/커피, 한과 세트 등이 무난합니다. 하객 수에 맞춰 미리 준비하되, 여유분 10~15%를 더 준비하세요.",
-      },
-      {
-        q: "집들이 선물로 좋은 것은?",
-        a: "세제/섬유유연제 세트, 고급 타올, 와인, 관엽식물 등이 인기입니다. 칼이나 가위는 '관계를 끊는다'는 의미가 있어 피하는 것이 전통입니다.",
-      },
-    ],
-  },
-  {
-    icon: Users,
-    title: "양가 상견례",
-    color: "from-noir-800 to-noir-soft",
-    items: [
-      {
-        q: "상견례 장소는 어떻게 고르나요?",
-        a: "조용하고 프라이빗한 룸이 있는 한정식 또는 고급 레스토랑이 좋습니다. 양가 중간 지점이 배려있는 선택입니다. 예약 시 \"상견례\"라고 말하면 적절한 자리를 안내받을 수 있습니다.",
-      },
-      {
-        q: "상견례 복장과 준비물은?",
-        a: "단정한 포멀 복장이 기본입니다. 첫 만남이니 과하지 않은 선물(과일, 건강식품 등)을 준비하면 좋습니다. 식사비는 보통 신랑측에서 부담하는 것이 관례이지만, 양가 합의에 따릅니다.",
-      },
-    ],
-  },
-  {
-    icon: Camera,
-    title: "촬영 예절",
-    color: "from-gold to-rose-500",
-    items: [
-      {
-        q: "예식 중 사진 촬영해도 되나요?",
-        a: "공식 사진사가 있으므로 플래시 사용은 삼가세요. 입장/퇴장 시 통로에 나와서 찍지 않도록 합니다. 조용히 자리에서 촬영하는 것은 괜찮지만, 사진에 집중하느라 박수를 안 치거나 호응하지 않는 것은 피해주세요.",
-      },
-    ],
-  },
-  {
-    icon: MapPin,
-    title: "예식 당일",
-    color: "from-[#2E7D5A] to-gold",
-    items: [
-      {
-        q: "예식장에 몇 분 전에 도착해야 하나요?",
-        a: "예식 시작 20~30분 전에 도착하는 것이 좋습니다. 축의금을 전달하고, 방명록을 작성하고, 자리에 앉을 시간을 고려하세요. 늦을 경우 예식 중에 조용히 입장하세요.",
-      },
-      {
-        q: "축가를 부탁받았다면?",
-        a: "미리 충분히 연습하고, 결혼식 분위기에 맞는 곡을 선택하세요. 밝고 축하하는 느낌의 곡이 좋습니다. 반주가 필요한 경우 예식장에 미리 확인하세요.",
-      },
-    ],
-  },
-];
+interface ParsedBlock {
+  type: "checklist" | "tips" | "warning" | "dialogue" | "steps" | "paragraph" | "heading";
+  title?: string;
+  items: ParsedItem[];
+}
+
+interface ParsedItem {
+  type: "group-title" | "list-item" | "numbered" | "text" | "dialogue-speaker" | "dialogue-text" | "arrow";
+  text: string;
+  subItems?: string[];
+}
+
+function parseContent(content: string): ParsedSection[] {
+  const sections: ParsedSection[] = [];
+  // Split by ### headers (section level)
+  const sectionParts = content.split(/\n### /);
+
+  for (let i = 0; i < sectionParts.length; i++) {
+    const part = sectionParts[i].trim();
+    if (!part) continue;
+
+    let title = "";
+    let emoji = "";
+    let body = part;
+
+    if (i > 0) {
+      // Extract section title
+      const titleEnd = part.indexOf("\n");
+      const rawTitle = titleEnd > -1 ? part.substring(0, titleEnd) : part;
+      body = titleEnd > -1 ? part.substring(titleEnd + 1) : "";
+
+      // Extract emoji from title
+      const emojiMatch = rawTitle.match(/([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])/u);
+      emoji = emojiMatch ? emojiMatch[1] : "";
+      title = rawTitle.replace(/([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])/gu, "").trim();
+    } else {
+      // First section (before any ### header) - may just be description
+      const firstLine = part.split("\n")[0];
+      if (!firstLine.startsWith("####") && !firstLine.startsWith("**") && !firstLine.startsWith("-")) {
+        // Skip the description paragraph (already shown in header)
+        continue;
+      }
+    }
+
+    const blocks = parseBlocks(body);
+    if (blocks.length > 0 || title) {
+      sections.push({ title, emoji, blocks });
+    }
+  }
+
+  return sections;
+}
+
+function parseBlocks(body: string): ParsedBlock[] {
+  const blocks: ParsedBlock[] = [];
+  // Split by #### headers (subsection level)
+  const subParts = body.split(/\n#### /);
+
+  for (let i = 0; i < subParts.length; i++) {
+    const sub = subParts[i].trim();
+    if (!sub) continue;
+
+    if (i === 0 && !body.trimStart().startsWith("#### ")) {
+      // Content before any #### header - parse as generic content
+      const items = parseItems(sub);
+      if (items.length > 0) {
+        blocks.push({ type: "paragraph", items });
+      }
+      continue;
+    }
+
+    const titleEnd = sub.indexOf("\n");
+    const rawTitle = (titleEnd > -1 ? sub.substring(0, titleEnd) : sub).trim();
+    const blockBody = titleEnd > -1 ? sub.substring(titleEnd + 1).trim() : "";
+
+    // Determine block type from title
+    let type: ParsedBlock["type"] = "paragraph";
+    if (rawTitle.includes("🔥") || rawTitle.includes("꿀팁")) {
+      type = "tips";
+    } else if (rawTitle.includes("⚠️") || rawTitle.includes("주의") || rawTitle.includes("금기") || rawTitle.includes("금물") || rawTitle.includes("절대") || rawTitle.includes("피해야")) {
+      type = "warning";
+    } else if (rawTitle.includes("💬") || rawTitle.includes("대사") || rawTitle.includes("인사말")) {
+      type = "dialogue";
+    } else if (rawTitle.includes("체크리스트") || rawTitle.includes("체크")) {
+      type = "checklist";
+    } else if (rawTitle.includes("순서") || rawTitle.includes("절차") || rawTitle.includes("하는 법")) {
+      type = "steps";
+    } else if (rawTitle.includes("기본") || rawTitle.includes("원칙") || rawTitle.includes("분담") || rawTitle.includes("가이드") || rawTitle.includes("구성") || rawTitle.includes("분류")) {
+      type = "checklist";
+    }
+
+    const cleanTitle = rawTitle.replace(/[🔥⚠️💬]/g, "").trim();
+    const items = parseItems(blockBody);
+    if (items.length > 0) {
+      blocks.push({ type, title: cleanTitle, items });
+    }
+  }
+
+  return blocks;
+}
+
+function parseItems(text: string): ParsedItem[] {
+  const items: ParsedItem[] = [];
+  const lines = text.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Bold group title: **Title**
+    if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+      items.push({
+        type: "group-title",
+        text: trimmed.replace(/\*\*/g, ""),
+      });
+      continue;
+    }
+
+    // Numbered item: 1. "Title" or 1. Title
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+    if (numMatch) {
+      const mainText = numMatch[2];
+      // Collect sub-items (indented lines after this)
+      const subItems: string[] = [];
+      while (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        const nextTrimmed = nextLine.trim();
+        if (nextTrimmed && !nextTrimmed.match(/^\d+\./) && !nextTrimmed.startsWith("**") && !nextTrimmed.startsWith("- ") && (nextLine.startsWith("   ") || nextLine.startsWith("\t") || nextTrimmed.startsWith("→"))) {
+          subItems.push(nextTrimmed);
+          i++;
+        } else {
+          break;
+        }
+      }
+      items.push({ type: "numbered", text: mainText, subItems });
+      continue;
+    }
+
+    // List item: - Item text
+    if (trimmed.startsWith("- ")) {
+      items.push({ type: "list-item", text: trimmed.substring(2) });
+      continue;
+    }
+
+    // Arrow line (sub-tip)
+    if (trimmed.startsWith("→ ")) {
+      items.push({ type: "arrow", text: trimmed.substring(2) });
+      continue;
+    }
+
+    // Dialogue speaker: **Speaker:**
+    if (trimmed.startsWith("**") && trimmed.includes(":**")) {
+      const speaker = trimmed.replace(/\*\*/g, "").replace(/:$/, "");
+      // Collect dialogue text
+      const dialogueLines: string[] = [];
+      while (i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim();
+        if (nextLine && !nextLine.startsWith("**")) {
+          dialogueLines.push(nextLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+      items.push({ type: "dialogue-speaker", text: speaker });
+      if (dialogueLines.length > 0) {
+        items.push({ type: "dialogue-text", text: dialogueLines.join("\n") });
+      }
+      continue;
+    }
+
+    // Regular text/paragraph
+    items.push({ type: "text", text: trimmed });
+  }
+
+  return items;
+}
+
+// 인라인 텍스트 포맷 (볼드, 따옴표 등)
+function formatInlineText(text: string) {
+  const parts: (string | React.ReactElement)[] = [];
+  // Handle **bold** and "quoted" text
+  const regex = /(\*\*(.+?)\*\*)|("(.+?)")|("(.+?)")/g;
+  let lastIndex = 0;
+  let match;
+
+  const str = text;
+  while ((match = regex.exec(str)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(str.slice(lastIndex, match.index));
+    }
+    if (match[1]) {
+      parts.push(<strong key={match.index} className="font-medium text-noir-800">{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<span key={match.index} className="text-rose-500 font-medium">{match[4]}</span>);
+    } else if (match[5]) {
+      parts.push(<span key={match.index} className="text-rose-500 font-medium">{match[6]}</span>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < str.length) {
+    parts.push(str.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
+// 블록 렌더러
+function BlockRenderer({ block }: { block: ParsedBlock }) {
+  const { type, title, items } = block;
+
+  const blockStyles: Record<string, { bg: string; border: string; icon: LucideIcon; iconColor: string; titleColor: string }> = {
+    checklist: { bg: "bg-white", border: "border-black/[0.04]", icon: CheckCircle2, iconColor: "text-emerald-500", titleColor: "text-noir-800" },
+    tips: { bg: "bg-amber-50/60", border: "border-amber-200/50", icon: Lightbulb, iconColor: "text-amber-500", titleColor: "text-amber-700" },
+    warning: { bg: "bg-red-50/50", border: "border-red-200/50", icon: AlertTriangle, iconColor: "text-red-400", titleColor: "text-red-700" },
+    dialogue: { bg: "bg-sky-50/50", border: "border-sky-200/50", icon: MessageSquareQuote, iconColor: "text-sky-500", titleColor: "text-sky-700" },
+    steps: { bg: "bg-violet-50/50", border: "border-violet-200/50", icon: ListOrdered, iconColor: "text-violet-500", titleColor: "text-violet-700" },
+    paragraph: { bg: "bg-white", border: "border-black/[0.04]", icon: BookOpen, iconColor: "text-taupe-400", titleColor: "text-noir-800" },
+    heading: { bg: "bg-white", border: "border-black/[0.04]", icon: BookOpen, iconColor: "text-taupe-400", titleColor: "text-noir-800" },
+  };
+
+  const style = blockStyles[type] || blockStyles.paragraph;
+  const Icon = style.icon;
+
+  return (
+    <div className={`rounded-xl ${style.bg} border ${style.border} p-5 max-md:p-4`}>
+      {title && (
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className={`w-4 h-4 ${style.iconColor} flex-shrink-0`} />
+          <h4 className={`text-[14px] font-medium ${style.titleColor}`}>{title}</h4>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {items.map((item, idx) => (
+          <ItemRenderer key={idx} item={item} blockType={type} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ItemRenderer({ item, blockType }: { item: ParsedItem; blockType: string }) {
+  switch (item.type) {
+    case "group-title":
+      return (
+        <div className="pt-2 pb-1 first:pt-0">
+          <p className="text-[13px] font-semibold text-noir-800">{item.text}</p>
+        </div>
+      );
+
+    case "list-item":
+      return (
+        <div className="flex gap-2 pl-1">
+          {blockType === "warning" ? (
+            <span className="text-red-400 mt-0.5 text-[12px] flex-shrink-0">&#x2716;</span>
+          ) : (
+            <span className="text-emerald-400 mt-0.5 text-[12px] flex-shrink-0">&#x2714;</span>
+          )}
+          <p className="text-[13px] text-charcoal font-light leading-[1.7]">
+            {formatInlineText(item.text)}
+          </p>
+        </div>
+      );
+
+    case "numbered": {
+      const numMatch = item.text.match(/^"(.+?)"/);
+      return (
+        <div className="pl-1 py-1.5">
+          <div className="flex gap-2">
+            <span className={`text-[12px] font-semibold mt-0.5 flex-shrink-0 ${blockType === "tips" ? "text-amber-500" : blockType === "steps" ? "text-violet-500" : "text-rose-500"}`}>
+              {item.subItems ? "•" : "•"}
+            </span>
+            <div>
+              <p className="text-[13px] text-noir-800 font-medium leading-[1.7]">
+                {formatInlineText(item.text)}
+              </p>
+              {item.subItems && item.subItems.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {item.subItems.map((sub, i) => (
+                    <p key={i} className={`text-[12px] font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
+                      {formatInlineText(sub)}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "dialogue-speaker":
+      return (
+        <div className="pt-2 first:pt-0">
+          <p className="text-[13px] font-semibold text-sky-600">{item.text}</p>
+        </div>
+      );
+
+    case "dialogue-text":
+      return (
+        <div className="bg-white/60 rounded-lg px-3 py-2 ml-0 border-l-2 border-sky-200">
+          {item.text.split("\n").map((line, i) => (
+            <p key={i} className="text-[13px] text-charcoal font-light leading-[1.8] italic">
+              {formatInlineText(line)}
+            </p>
+          ))}
+        </div>
+      );
+
+    case "arrow":
+      return (
+        <p className="text-[12px] text-taupe-500 font-light pl-4 leading-[1.7]">
+          → {formatInlineText(item.text)}
+        </p>
+      );
+
+    case "text":
+    default:
+      return (
+        <p className="text-[13px] text-charcoal font-light leading-[1.8]">
+          {formatInlineText(item.text)}
+        </p>
+      );
+  }
+}
 
 export default function EtiquettePage() {
-  const [openCategory, setOpenCategory] = useState<number>(0);
-  const [openItem, setOpenItem] = useState<Record<string, number | null>>({});
+  const [selectedPart, setSelectedPart] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pillsRef = useRef<HTMLDivElement>(null);
 
-  const toggleItem = (catIdx: number, itemIdx: number) => {
-    const key = `${catIdx}`;
-    setOpenItem((prev) => ({
-      ...prev,
-      [key]: prev[key] === itemIdx ? null : itemIdx,
-    }));
+  const part = ETIQUETTE_PARTS[selectedPart];
+  const PartIcon = ICON_MAP[part.icon] || BookOpen;
+
+  // 파트 선택 시 콘텐츠 스크롤 맨 위로
+  useEffect(() => {
+    contentRef.current?.scrollTo(0, 0);
+  }, [selectedPart]);
+
+  // 검색 필터
+  const filteredParts = useMemo(() => {
+    if (!searchQuery.trim()) return ETIQUETTE_PARTS;
+    const q = searchQuery.toLowerCase();
+    return ETIQUETTE_PARTS.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.subtitle.toLowerCase().includes(q) ||
+        p.content.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  // 콘텐츠 파싱 (메모이제이션)
+  const parsedSections = useMemo(() => parseContent(part.content), [part.content]);
+
+  const selectPart = (partNumber: number) => {
+    const idx = ETIQUETTE_PARTS.findIndex((p) => p.number === partNumber);
+    if (idx >= 0) {
+      setSelectedPart(idx);
+      setSidebarOpen(false);
+    }
   };
 
   return (
-    <div className="max-w-[900px] mx-auto">
-      {/* 인트로 */}
-      <div className="text-center mb-10 animate-fade-in">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/10 text-rose-500 text-[12px] font-medium mb-4">
-          <Heart className="w-3.5 h-3.5" />
-          웨딩 예절 가이드
+    <div className="flex h-[calc(100vh-64px)] max-md:h-[calc(100vh-56px)] overflow-hidden">
+      {/* 사이드바 (데스크톱) */}
+      <aside className="hidden lg:flex flex-col w-[280px] border-r border-black/[0.04] bg-ivory-50/50 flex-shrink-0">
+        {/* 검색 */}
+        <div className="p-4 border-b border-black/[0.04]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-taupe-400" />
+            <input
+              type="text"
+              placeholder="검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+            />
+          </div>
         </div>
-        <h1 className="font-serif-kr text-[28px] max-md:text-[22px] font-light text-noir-800 mb-3">
-          알아두면 좋은 결혼 예절
-        </h1>
-        <p className="text-[14px] text-taupe-500 font-light">
-          결혼 준비부터 예식 당일까지, 꼭 알아야 할 예절을 정리했어요
-        </p>
-      </div>
 
-      {/* 카테고리 카드 */}
-      <div className="flex flex-col gap-4">
-        {guides.map((guide, catIdx) => (
-          <div
-            key={guide.title}
-            className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden animate-fade-in"
-          >
-            {/* 카테고리 헤더 */}
-            <button
-              onClick={() => setOpenCategory(openCategory === catIdx ? -1 : catIdx)}
-              className="w-full px-6 py-5 flex items-center justify-between hover:bg-ivory-50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${guide.color} flex items-center justify-center`}>
-                  <guide.icon className="w-5 h-5 text-white" />
-                </div>
-                <div className="text-left">
-                  <h3 className="text-[15px] font-medium text-noir-800">{guide.title}</h3>
-                  <p className="text-[12px] text-taupe-400">{guide.items.length}개 항목</p>
-                </div>
-              </div>
-              <ChevronDown
-                className={`w-5 h-5 text-taupe-400 transition-transform ${
-                  openCategory === catIdx ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {/* FAQ 아코디언 */}
-            {openCategory === catIdx && (
-              <div className="overflow-hidden animate-fade-in">
-                <div className="border-t border-black/[0.03] px-6 pb-4">
-                  {guide.items.map((item, itemIdx) => (
-                    <div key={itemIdx} className="border-b border-black/[0.02] last:border-0">
+        {/* 파트 목록 */}
+        <div className="flex-1 overflow-y-auto py-2">
+          {searchQuery ? (
+            // 검색 결과
+            <div className="px-2">
+              {filteredParts.length === 0 && (
+                <p className="text-[13px] text-taupe-400 text-center py-8">검색 결과가 없습니다</p>
+              )}
+              {filteredParts.map((p) => {
+                const Icon = ICON_MAP[p.icon] || BookOpen;
+                const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                return (
+                  <button
+                    key={p.number}
+                    onClick={() => selectPart(p.number)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors mb-0.5 ${
+                      isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                        {p.title}
+                      </p>
+                      <p className="text-[11px] text-taupe-400 truncate">{p.subtitle}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            // 카테고리별 목록
+            ETIQUETTE_CATEGORIES.map((cat) => (
+              <div key={cat.label} className="mb-2">
+                <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
+                  {cat.label}
+                </p>
+                <div className="px-2">
+                  {cat.parts.map((num) => {
+                    const p = ETIQUETTE_PARTS.find((ep) => ep.number === num);
+                    if (!p) return null;
+                    const Icon = ICON_MAP[p.icon] || BookOpen;
+                    const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                    return (
                       <button
-                        onClick={() => toggleItem(catIdx, itemIdx)}
-                        className="w-full py-4 flex items-start justify-between text-left"
+                        key={p.number}
+                        onClick={() => selectPart(p.number)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
+                          isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                        }`}
                       >
-                        <span className={`text-[14px] font-medium pr-4 ${
-                          openItem[`${catIdx}`] === itemIdx ? "text-rose-500" : "text-noir-800"
-                        }`}>
-                          {item.q}
-                        </span>
-                        <ChevronDown
-                          className={`w-4 h-4 text-taupe-400 flex-shrink-0 mt-0.5 transition-transform ${
-                            openItem[`${catIdx}`] === itemIdx ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-                      {openItem[`${catIdx}`] === itemIdx && (
-                        <div className="animate-fade-in">
-                          <p className="text-[13px] text-charcoal font-light leading-[1.8] pb-4 pl-0">
-                            {item.a}
+                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                            {p.title}
                           </p>
                         </div>
-                      )}
-                    </div>
+                        {isActive && <ChevronRight className="w-3.5 h-3.5 text-rose-400 ml-auto flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* 모바일 사이드바 오버레이 */}
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
+          <aside className="relative w-[300px] bg-ivory-50 flex flex-col h-full animate-fade-in">
+            <div className="p-4 border-b border-black/[0.04] flex items-center justify-between">
+              <p className="text-[14px] font-medium text-noir-800">전체 목록</p>
+              <button onClick={() => setSidebarOpen(false)} className="p-1">
+                <ArrowLeft className="w-5 h-5 text-taupe-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-2">
+              {ETIQUETTE_CATEGORIES.map((cat) => (
+                <div key={cat.label} className="mb-2">
+                  <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
+                    {cat.label}
+                  </p>
+                  <div className="px-2">
+                    {cat.parts.map((num) => {
+                      const p = ETIQUETTE_PARTS.find((ep) => ep.number === num);
+                      if (!p) return null;
+                      const Icon = ICON_MAP[p.icon] || BookOpen;
+                      const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                      return (
+                        <button
+                          key={p.number}
+                          onClick={() => selectPart(p.number)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors mb-0.5 ${
+                            isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
+                            <Icon className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                            {p.title}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* 콘텐츠 영역 */}
+      <div ref={contentRef} className="flex-1 overflow-y-auto">
+        {/* 모바일 헤더 + 가로 스크롤 pills */}
+        <div className="lg:hidden sticky top-0 z-10 bg-ivory-50/95 backdrop-blur-sm border-b border-black/[0.04]">
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-1.5 rounded-lg hover:bg-white border border-black/[0.06] flex-shrink-0"
+            >
+              <BookOpen className="w-4 h-4 text-taupe-500" />
+            </button>
+            <div
+              ref={pillsRef}
+              className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1"
+            >
+              {ETIQUETTE_PARTS.map((p, idx) => {
+                const isActive = selectedPart === idx;
+                return (
+                  <button
+                    key={p.number}
+                    onClick={() => setSelectedPart(idx)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-rose-500 text-white"
+                        : "bg-white text-taupe-500 border border-black/[0.06]"
+                    }`}
+                  >
+                    {p.title.replace(/ 예절| 에티켓| 총정리| & 법적 절차/g, "")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* 파트 헤더 */}
+        <div className="max-w-[800px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
+          <div className="animate-fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-12 h-12 max-md:w-10 max-md:h-10 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center`}>
+                <PartIcon className="w-6 h-6 max-md:w-5 max-md:h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-medium text-taupe-400 bg-taupe-400/10 px-2 py-0.5 rounded-full">
+                    Part {part.number}
+                  </span>
+                </div>
+                <h1 className="font-serif-kr text-[24px] max-md:text-[20px] font-light text-noir-800 leading-tight">
+                  {part.title}
+                </h1>
+              </div>
+            </div>
+            <p className="text-[14px] max-md:text-[13px] text-taupe-500 font-light mb-1">
+              {part.subtitle}
+            </p>
+            <p className="text-[13px] text-charcoal/70 font-light leading-[1.7]">
+              {part.description}
+            </p>
+          </div>
+
+          {/* 섹션 콘텐츠 */}
+          <div className="mt-8 space-y-8 animate-fade-in">
+            {parsedSections.map((section, sIdx) => (
+              <div key={sIdx}>
+                {section.title && (
+                  <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
+                    {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
+                    <h2 className="font-serif-kr text-[18px] max-md:text-[16px] font-light text-noir-800">
+                      {section.title}
+                    </h2>
+                  </div>
+                )}
+                <div className="space-y-4">
+                  {section.blocks.map((block, bIdx) => (
+                    <BlockRenderer key={bIdx} block={block} />
                   ))}
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* 이전/다음 네비게이션 */}
+          <div className="flex justify-between items-center mt-12 pt-6 border-t border-black/[0.04]">
+            {selectedPart > 0 ? (
+              <button
+                onClick={() => setSelectedPart(selectedPart - 1)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group"
+              >
+                <ArrowLeft className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors" />
+                <div className="text-left">
+                  <p className="text-[11px] text-taupe-400">이전</p>
+                  <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
+                    {ETIQUETTE_PARTS[selectedPart - 1].title}
+                  </p>
+                </div>
+              </button>
+            ) : (
+              <div />
+            )}
+            {selectedPart < ETIQUETTE_PARTS.length - 1 ? (
+              <button
+                onClick={() => setSelectedPart(selectedPart + 1)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group"
+              >
+                <div className="text-right">
+                  <p className="text-[11px] text-taupe-400">다음</p>
+                  <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
+                    {ETIQUETTE_PARTS[selectedPart + 1].title}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors" />
+              </button>
+            ) : (
+              <div />
             )}
           </div>
-        ))}
+
+          {/* 하단 여백 */}
+          <div className="h-12" />
+        </div>
       </div>
     </div>
   );
