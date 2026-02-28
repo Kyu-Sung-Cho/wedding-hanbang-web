@@ -16,10 +16,24 @@ import {
   Home,
   Mail,
   Gift,
+  CalendarDays,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
+
+interface ScheduleEvent {
+  id: string;
+  date: string;
+  title: string;
+  memo?: string;
+  categoryKey?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Building2,
@@ -95,11 +109,19 @@ function buildPhases(): Phase[] {
 interface Props {
   progress: Record<string, ProgressItem>;
   onToggleChecklistItem: (categoryKey: string, itemId: string) => Promise<void>;
+  events?: ScheduleEvent[];
+  onEditEvent?: (event: ScheduleEvent) => void;
+  onDeleteEvent?: (eventId: string) => void;
+  onAddEvent?: () => void;
 }
 
 export default function TimelineView({
   progress,
   onToggleChecklistItem,
+  events = [],
+  onEditEvent,
+  onDeleteEvent,
+  onAddEvent,
 }: Props) {
   const phases = useMemo(() => buildPhases(), []);
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
@@ -219,6 +241,35 @@ export default function TimelineView({
                     className="overflow-hidden"
                   >
                     <div className="border-t border-black/[0.03] px-4 pb-4">
+                      {/* 이 페이즈 카테고리에 연결된 커스텀 일정 */}
+                      {(() => {
+                        const phaseCatKeys = phase.categories.map(c => c.key);
+                        const phaseEvents = events.filter(e => e.categoryKey && phaseCatKeys.includes(e.categoryKey));
+                        if (phaseEvents.length === 0) return null;
+                        return (
+                          <div className="mt-3 mb-2 px-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CalendarDays className="w-3.5 h-3.5 text-gold" />
+                              <span className="text-[11px] text-taupe-400 font-medium">등록된 일정</span>
+                            </div>
+                            {phaseEvents.map(evt => (
+                              <div key={evt.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-ivory-50 group">
+                                <div className="w-7 h-7 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
+                                  <CalendarDays className="w-3.5 h-3.5 text-gold" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[12px] font-medium text-noir-800">{evt.title}</p>
+                                  <p className="text-[10px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}
+                                  {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       {phase.categories.map((cat) => {
                         const data = getCategoryData(cat.key);
                         const isCatExpanded = expandedCategory === cat.key;
@@ -337,6 +388,60 @@ export default function TimelineView({
           </motion.div>
         );
       })}
+
+      {/* 카테고리 미지정 커스텀 일정 */}
+      {(() => {
+        const allCatKeys = CATEGORY_CHECKLISTS.map(c => c.key);
+        const uncategorized = events.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
+        if (uncategorized.length === 0 && !onAddEvent) return null;
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="relative pl-12 mb-4 max-md:pl-10"
+          >
+            <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-gold bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
+            <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-gold bg-gold/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
+                  <span className="text-[14px] font-medium text-noir-800">직접 추가한 일정</span>
+                  <span className="text-[11px] text-taupe-400">{uncategorized.length}건</span>
+                </div>
+                {onAddEvent && (
+                  <button
+                    onClick={onAddEvent}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    일정 추가
+                  </button>
+                )}
+              </div>
+              {uncategorized.length > 0 && (
+                <div className="border-t border-black/[0.03] px-4 pb-4">
+                  {uncategorized.map(evt => (
+                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2 rounded-lg hover:bg-ivory-50 group">
+                      <div className="w-8 h-8 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
+                        <CalendarDays className="w-4 h-4 text-gold" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-noir-800">{evt.title}</p>
+                        <p className="text-[11px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}
+                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })()}
     </div>
   );
 }

@@ -44,6 +44,8 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonOther, setDeleteReasonOther] = useState("");
 
   useEffect(() => {
     if (couple) {
@@ -88,13 +90,30 @@ export default function SettingsPage() {
     setEditingBudget(false);
   };
 
+  const DELETE_REASONS = [
+    { value: "unsatisfied", label: "서비스 불만족" },
+    { value: "alternative", label: "다른 서비스 이용" },
+    { value: "wedding_done", label: "결혼 준비 완료" },
+    { value: "privacy", label: "개인정보 우려" },
+    { value: "low_usage", label: "사용 빈도 낮음" },
+    { value: "other", label: "기타 (직접 입력)" },
+  ];
+
   const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== "탈퇴합니다") return;
+    if (deleteConfirmText !== "탈퇴합니다" || !deleteReason) return;
     setDeleting(true);
     setDeleteError("");
 
+    const reason = deleteReason === "other"
+      ? (deleteReasonOther.trim() || "기타")
+      : DELETE_REASONS.find(r => r.value === deleteReason)?.label ?? deleteReason;
+
     try {
-      const res = await fetch("/api/auth/delete", { method: "DELETE" });
+      const res = await fetch("/api/auth/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -449,6 +468,37 @@ export default function SettingsPage() {
                 복구할 수 없습니다.
               </p>
 
+              {/* 탈퇴 사유 */}
+              <div className="mb-5">
+                <p className="text-[12px] text-taupe-500 mb-3">탈퇴 사유를 선택해주세요</p>
+                <div className="space-y-2">
+                  {DELETE_REASONS.map((r) => (
+                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      deleteReason === r.value ? "border-rose-500/30 bg-rose-500/5" : "border-black/[0.04] hover:bg-ivory-50"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="deleteReason"
+                        value={r.value}
+                        checked={deleteReason === r.value}
+                        onChange={() => setDeleteReason(r.value)}
+                        className="w-4 h-4 accent-rose-500"
+                      />
+                      <span className="text-[13px] text-noir-800">{r.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {deleteReason === "other" && (
+                  <textarea
+                    value={deleteReasonOther}
+                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                    placeholder="탈퇴 사유를 알려주세요..."
+                    rows={2}
+                    className="w-full mt-2 px-3 py-2 rounded-xl border border-black/[0.06] text-[13px] outline-none resize-none focus:border-rose-500/50"
+                  />
+                )}
+              </div>
+
               <div className="mb-5">
                 <p className="text-[12px] text-taupe-500 mb-2">
                   확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
@@ -468,7 +518,7 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || deleting}
+                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || (deleteReason === "other" && !deleteReasonOther.trim()) || deleting}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {deleting ? "삭제 중..." : "계정 영구 삭제"}
@@ -479,6 +529,8 @@ export default function SettingsPage() {
                   setShowDeleteModal(false);
                   setDeleteConfirmText("");
                   setDeleteError("");
+                  setDeleteReason("");
+                  setDeleteReasonOther("");
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >

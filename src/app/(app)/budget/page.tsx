@@ -29,6 +29,8 @@ import {
   Heart,
   Mic,
   Box,
+  ShoppingBag,
+  Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -292,11 +294,51 @@ function BudgetRow({
   );
 }
 
+interface BookingSummary {
+  id: string;
+  vendorName: string;
+  productName?: string;
+  bookingDate: string;
+  bookingTime: string;
+  amount: number;
+  status: string;
+}
+
+function getBookingStatusBadge(status: string) {
+  switch (status) {
+    case "confirmed": return { label: "확정", color: "bg-[#2E7D5A]/10 text-[#2E7D5A]" };
+    case "completed": return { label: "완료", color: "bg-taupe-400/10 text-taupe-400" };
+    case "cancelled": return { label: "취소", color: "bg-red-100 text-red-400" };
+    default: return { label: "대기중", color: "bg-gold/10 text-gold" };
+  }
+}
+
 export default function BudgetPage() {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, updateJourney, isDemo } = useAuthStore();
 
   const totalBudget = journey?.total_budget ?? 20000000;
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+
+  // 내 예약 내역
+  const [bookings, setBookings] = useState<BookingSummary[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+
+  useEffect(() => {
+    if (isDemo) { setBookingsLoading(false); return; }
+    (async () => {
+      try {
+        const res = await fetch("/api/bookings/mine");
+        if (res.ok) {
+          const data = await res.json();
+          setBookings(data.bookings ?? []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setBookingsLoading(false);
+      }
+    })();
+  }, [isDemo]);
 
   // 총 예산 편집
   const [editingTotal, setEditingTotal] = useState(false);
@@ -509,6 +551,53 @@ export default function BudgetPage() {
           )}
         </motion.div>
       </div>
+
+      {/* 내 예약 내역 */}
+      <motion.div
+        {...fadeIn}
+        transition={{ duration: 0.5, delay: 0.12 }}
+        className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
+      >
+        <div className="px-5 py-4 border-b border-black/[0.04] flex items-center gap-2.5">
+          <ShoppingBag className="w-5 h-5 text-rose-500" />
+          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">내 예약 내역</h3>
+          {!bookingsLoading && <span className="text-[11px] text-taupe-400">{bookings.length}건</span>}
+        </div>
+        {bookingsLoading ? (
+          <div className="py-8 flex justify-center">
+            <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
+          </div>
+        ) : bookings.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-[13px] text-taupe-400">아직 예약 내역이 없습니다</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-black/[0.03]">
+            {bookings.map((b) => {
+              const badge = getBookingStatusBadge(b.status);
+              return (
+                <div key={b.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-ivory-50 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-noir-800 truncate">{b.vendorName}</p>
+                    {b.productName && (
+                      <p className="text-[11px] text-taupe-400 truncate">{b.productName}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[12px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
+                    {b.amount > 0 && (
+                      <p className="text-[11px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
+                    )}
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
+                    {badge.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
 
       {/* 스드메 패키지 */}
       <motion.div

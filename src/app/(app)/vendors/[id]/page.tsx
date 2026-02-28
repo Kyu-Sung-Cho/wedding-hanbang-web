@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart } from "lucide-react";
+import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
+
+interface ReviewItem {
+  id: string;
+  rating: number;
+  content: string | null;
+  images: string[] | null;
+  reply: string | null;
+  replied_at: string | null;
+  created_at: string;
+}
 
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -126,6 +136,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [staffList, setStaffList] = useState<{ id: string; name: string; role: string | null; timeSlots: { day: number; hour: number; maxBookings: number; currentBookings: number }[] }[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
   const { trackEvent } = useEventTracker();
 
   // 체류시간 자동 추적
@@ -138,6 +150,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         if (res.ok) {
           const data = await res.json();
           setVendor(data.vendor);
+          if (data.reviews) setReviews(data.reviews);
           if (data.isFavorite) setIsFavorite(true);
           // 업체 조회 이벤트 추적
           trackEvent("vendor_view", { vendorId: id, metadata: { source: "direct" } });
@@ -147,6 +160,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         if (staffRes.ok) {
           const staffData = await staffRes.json();
           setStaffList(staffData.staff ?? []);
+        }
+        // 사진 좋아요 조회
+        const likesRes = await fetch(`/api/vendors/${id}/photos`);
+        if (likesRes.ok) {
+          const likesData = await likesRes.json();
+          setLikedPhotos(new Set(likesData.likedPhotos ?? []));
         }
       } catch (err) {
         console.error("Fetch vendor error:", err);
@@ -187,6 +206,31 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       });
     } catch {
       setIsFavorite(was);
+    }
+  };
+
+  const togglePhotoLike = async (photoUrl: string) => {
+    const was = likedPhotos.has(photoUrl);
+    setLikedPhotos((prev) => {
+      const next = new Set(prev);
+      if (was) next.delete(photoUrl);
+      else next.add(photoUrl);
+      return next;
+    });
+    try {
+      await fetch(`/api/vendors/${id}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoUrl }),
+      });
+    } catch {
+      // 실패 시 롤백
+      setLikedPhotos((prev) => {
+        const next = new Set(prev);
+        if (was) next.add(photoUrl);
+        else next.delete(photoUrl);
+        return next;
+      });
     }
   };
 
@@ -362,6 +406,114 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                       isSelected={selectedProduct === product.id}
                       onSelect={() => handleSelectProduct(product.id)}
                     />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 포트폴리오 갤러리 */}
+          {(() => {
+            const allImages = activeProducts.flatMap((p) => p.images ?? []).filter(Boolean);
+            if (allImages.length === 0) return null;
+            return (
+              <div className="animate-fade-in">
+                <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <ImageIcon className="w-5 h-5 text-rose-500" />
+                    <h2 className="text-[17px] font-medium text-noir-800">포트폴리오</h2>
+                    <span className="text-[12px] text-taupe-400 ml-1">{allImages.length}장</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {allImages.slice(0, 9).map((src, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-ivory-warm group">
+                        <img src={src} alt={`포트폴리오 ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => togglePhotoLike(src)}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${likedPhotos.has(src) ? "text-rose-500 fill-rose-500" : "text-white"}`} />
+                        </button>
+                        {likedPhotos.has(src) && (
+                          <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center group-hover:opacity-0 transition-opacity">
+                            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {allImages.length > 9 && (
+                    <p className="text-center text-[12px] text-taupe-400 mt-3">+{allImages.length - 9}장 더보기</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 고객 리뷰 */}
+          {reviews.length > 0 && (
+            <div className="animate-fade-in">
+              <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageCircle className="w-5 h-5 text-rose-500" />
+                  <h2 className="text-[17px] font-medium text-noir-800">고객 리뷰</h2>
+                  <span className="text-[12px] text-taupe-400 ml-1">{reviews.length}개</span>
+                </div>
+                {/* 평균 별점 */}
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={`w-4 h-4 ${
+                          s <= Math.round(reviews.reduce((a, r) => a + r.rating, 0) / reviews.length)
+                            ? "text-gold fill-gold"
+                            : "text-taupe-400/30"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[14px] font-medium text-noir-800">
+                    {(reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1)}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border-t border-black/[0.04] pt-4 first:border-0 first:pt-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3 h-3 ${s <= review.rating ? "text-gold fill-gold" : "text-taupe-400/30"}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[11px] text-taupe-400">
+                          {new Date(review.created_at).toLocaleDateString("ko-KR")}
+                        </span>
+                      </div>
+                      {review.content && (
+                        <p className="text-[13px] text-charcoal font-light leading-relaxed mb-2">{review.content}</p>
+                      )}
+                      {/* 리뷰 이미지 */}
+                      {review.images && review.images.length > 0 && (
+                        <div className="flex gap-1.5 mb-2">
+                          {review.images.slice(0, 4).map((img, idx) => (
+                            <div key={idx} className="w-16 h-16 rounded-lg overflow-hidden bg-ivory-warm flex-shrink-0">
+                              <img src={img} alt={`리뷰 사진 ${idx + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* 업체 답변 */}
+                      {review.reply && (
+                        <div className="ml-4 mt-2 px-3 py-2.5 bg-ivory-warm rounded-xl">
+                          <p className="text-[11px] text-rose-500 font-medium mb-1">업체 답변</p>
+                          <p className="text-[12px] text-charcoal font-light leading-relaxed">{review.reply}</p>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

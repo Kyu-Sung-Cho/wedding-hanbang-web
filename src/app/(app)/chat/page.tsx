@@ -14,7 +14,7 @@ import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 const MAX_ROOMS = 5;
 
 export default function ChatPage() {
-  const { profile, couple, journey } = useAuthStore();
+  const { profile, couple, journey, isDemo } = useAuthStore();
   const {
     messages,
     rooms,
@@ -47,25 +47,26 @@ export default function ChatPage() {
 
   // 방 목록 초기화
   useEffect(() => {
-    if (!coupleId) return;
+    if (!coupleId || isDemo) return;
     initRooms(coupleId);
-  }, [coupleId, initRooms]);
+  }, [coupleId, isDemo, initRooms]);
 
   // 방 전환 또는 처음 로드 시 메시지 로드
   useEffect(() => {
-    if (!coupleId) return;
+    if (!coupleId || isDemo) return;
     loadMessages(coupleId);
     const unsubscribe = subscribeToMessages(coupleId);
     return () => {
       unsubscribe();
     };
-  }, [coupleId, activeRoomId, loadMessages, subscribeToMessages]);
+  }, [coupleId, isDemo, activeRoomId, loadMessages, subscribeToMessages]);
 
   // 메시지 0개 + 로딩 완료 시 AI 첫 인사
   useEffect(() => {
     if (
       !coupleId ||
       !profile ||
+      isDemo ||
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
@@ -145,6 +146,30 @@ export default function ChatPage() {
     if (roomId === activeRoomId) return;
     switchRoom(roomId);
   };
+
+  // 데모 모드: AI 상담 비활성화
+  if (isDemo) {
+    return (
+      <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
+        <div className="text-center">
+          <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
+          <h3 className="text-[16px] font-medium text-[#1A1A1F] mb-2">
+            AI 상담은 로그인 후 이용할 수 있어요
+          </h3>
+          <p className="text-[13px] text-[#928980] mb-6 leading-relaxed">
+            로그인하면 맞춤 웨딩 상담, 예산 관리,<br />
+            일정 체크리스트 등을 AI가 도와드려요
+          </p>
+          <a
+            href="/login"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+          >
+            로그인하기
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   // 커플이 없는 경우
   if (!coupleId) {

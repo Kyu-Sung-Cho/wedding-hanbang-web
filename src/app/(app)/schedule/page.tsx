@@ -401,6 +401,10 @@ export default function SchedulePage() {
           <TimelineView
             progress={progress}
             onToggleChecklistItem={handleToggleChecklistItem}
+            events={events}
+            onEditEvent={handleEditEvent}
+            onDeleteEvent={handleDeleteEvent}
+            onAddEvent={handleAddEventQuick}
           />
         ) : (
           <div className="bg-white rounded-2xl p-6 border border-black/[0.04]">

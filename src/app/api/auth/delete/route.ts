@@ -9,7 +9,7 @@ function getAdminClient() {
   );
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -20,8 +20,25 @@ export async function DELETE() {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    // 탈퇴 사유 파싱
+    let reason = "unknown";
+    try {
+      const body = await request.json();
+      reason = body.reason ?? "unknown";
+    } catch {
+      // body가 없을 수 있음 (하위 호환)
+    }
+
     const admin = getAdminClient();
     const userId = user.id;
+
+    // 0. 탈퇴 사유 기록
+    await admin.from("account_deletions").insert({
+      user_id: userId,
+      email: user.email,
+      reason,
+      deleted_at: new Date().toISOString(),
+    });
 
     // 1. 프로필에서 couple_id 조회
     const { data: profile } = await admin
