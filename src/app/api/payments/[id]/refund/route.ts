@@ -1,7 +1,7 @@
-// 결제 환불 처리
+// 결제 환불 처리 (토스페이먼츠)
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { cancelPayment } from "@/lib/portone/client";
+import { cancelPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
 export async function POST(
@@ -73,17 +73,16 @@ export async function POST(
       );
     }
 
-    // 포트원 환불 요청
-    if (payment.portone_payment_id) {
+    // 토스 환불 요청
+    if (payment.toss_payment_key) {
       try {
         await cancelPayment(
-          payment.portone_payment_id,
+          payment.toss_payment_key,
           reason || "고객 요청 환불",
           refundAmount < payment.amount ? refundAmount : undefined
         );
       } catch (err) {
-        console.error("포트원 환불 실패:", err);
-        // 프로덕션에서는 환불 실패 시 중단
+        console.error("토스 환불 실패:", err);
         if (process.env.NODE_ENV !== "development") {
           return NextResponse.json({ error: "환불 처리에 실패했습니다." }, { status: 500 });
         }

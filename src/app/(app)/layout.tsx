@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Script from "next/script";
+
 import { useAuthStore } from "@/stores/authStore";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
@@ -31,7 +31,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ivory-50">
-      <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="lazyOnload" />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-[260px]">
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />

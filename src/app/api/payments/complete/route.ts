@@ -1,7 +1,7 @@
-// 결제 완료 처리 — 포트원 검증 + DB 업데이트
+// 결제 완료 처리 — 토스 confirm API + DB 업데이트
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getPayment } from "@/lib/portone/client";
+import { confirmPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
 const COMMISSION_RATE = 0.1; // 기본 수수료율 10%
@@ -16,11 +16,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { paymentId, portonePaymentId } = body;
+    const { paymentId, paymentKey, orderId, amount } = body;
 
-    if (!paymentId || !portonePaymentId) {
+    if (!paymentId || !paymentKey || !orderId || !amount) {
       return NextResponse.json(
-        { error: "결제 ID와 포트원 결제 ID는 필수입니다." },
+        { error: "paymentId, paymentKey, orderId, amount는 필수입니다." },
         { status: 400 }
       );
     }
@@ -41,61 +41,61 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "이미 결제가 완료되었습니다." }, { status: 400 });
     }
 
-    // 포트원 API로 결제 검증
-    let portonePayment;
-    try {
-      portonePayment = await getPayment(portonePaymentId);
-    } catch {
-      // 개발 모드에서만 결제 검증 스킵 허용
-      if (process.env.NODE_ENV === "development") {
-        console.warn("포트원 API 검증 스킵 (개발 모드)");
-        portonePayment = {
-          status: "PAID",
-          amount: { total: payment.amount },
-          method: { type: "CARD" },
-        };
-      } else {
-        return NextResponse.json({ error: "결제 검증에 실패했습니다." }, { status: 500 });
-      }
-    }
-
     // 금액 검증
-    if (portonePayment.status !== "PAID") {
+    if (Number(amount) !== payment.amount) {
       await supabase
         .from("payments")
         .update({
           status: "failed",
           failed_at: new Date().toISOString(),
-          fail_reason: `결제 상태: ${portonePayment.status}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", paymentId);
-
-      return NextResponse.json({ error: "결제가 완료되지 않았습니다." }, { status: 400 });
-    }
-
-    if (portonePayment.amount?.total !== payment.amount) {
-      await supabase
-        .from("payments")
-        .update({
-          status: "failed",
-          failed_at: new Date().toISOString(),
-          fail_reason: `금액 불일치: 예상 ${payment.amount} / 실제 ${portonePayment.amount?.total}`,
-          updated_at: new Date().toISOString(),
+          fail_reason: `금액 불일치: 예상 ${payment.amount} / 실제 ${amount}`,
         })
         .eq("id", paymentId);
 
       return NextResponse.json({ error: "결제 금액이 일치하지 않습니다." }, { status: 400 });
     }
 
+    // 토스 결제 승인 API 호출
+    let tossPayment;
+    try {
+      tossPayment = await confirmPayment(paymentKey, orderId, Number(amount));
+    } catch {
+      // 개발 모드에서만 검증 스킵 허용
+      if (process.env.NODE_ENV === "development") {
+        console.warn("토스 API 검증 스킵 (개발 모드)");
+        tossPayment = {
+          status: "DONE",
+          totalAmount: payment.amount,
+          method: "카드",
+          transactionKey: "dev_tx_" + paymentId.slice(0, 8),
+          receipt: { url: null },
+        };
+      } else {
+        return NextResponse.json({ error: "결제 승인에 실패했습니다." }, { status: 500 });
+      }
+    }
+
+    // 토스 결제 상태 확인
+    if (tossPayment.status !== "DONE") {
+      await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          fail_reason: `결제 상태: ${tossPayment.status}`,
+        })
+        .eq("id", paymentId);
+
+      return NextResponse.json({ error: "결제가 완료되지 않았습니다." }, { status: 400 });
+    }
+
     // 결제 방식 매핑
     const methodMap: Record<string, string> = {
-      CARD: "card",
-      NAVERPAY: "naverpay",
-      KAKAOPAY: "kakaopay",
-      TOSSPAY: "tosspay",
-      TRANSFER: "transfer",
-      VIRTUAL_ACCOUNT: "vbank",
+      "카드": "card",
+      "가상계좌": "vbank",
+      "계좌이체": "transfer",
+      "휴대폰": "phone",
+      "간편결제": "easypay",
     };
 
     // 결제 완료 처리
@@ -103,12 +103,12 @@ export async function POST(req: Request) {
       .from("payments")
       .update({
         status: "paid",
-        portone_payment_id: portonePaymentId,
-        portone_tx_id: portonePayment.txId || null,
-        method: methodMap[portonePayment.method?.type] || portonePayment.method?.type || null,
+        toss_payment_key: paymentKey,
+        toss_transaction_key: tossPayment.transactionKey || null,
+        order_id: orderId,
+        method: methodMap[tossPayment.method] || tossPayment.method?.toLowerCase() || null,
         paid_at: new Date().toISOString(),
-        receipt_url: portonePayment.receiptUrl || null,
-        updated_at: new Date().toISOString(),
+        receipt_url: tossPayment.receipt?.url || null,
       })
       .eq("id", paymentId)
       .select()

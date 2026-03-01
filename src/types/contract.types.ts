@@ -85,8 +85,9 @@ export interface PaymentRow {
   amount: number;
   method: PaymentMethod | null;
   status: PaymentStatus;
-  portone_payment_id: string | null;
-  portone_tx_id: string | null;
+  toss_payment_key: string | null;
+  toss_transaction_key: string | null;
+  order_id: string | null;
   paid_at: string | null;
   failed_at: string | null;
   fail_reason: string | null;
@@ -183,8 +184,9 @@ export interface Payment {
   amount: number;
   method: PaymentMethod | null;
   status: PaymentStatus;
-  portonePaymentId: string | null;
-  portoneTxId: string | null;
+  tossPaymentKey: string | null;
+  tossTransactionKey: string | null;
+  orderId: string | null;
   paidAt: string | null;
   failedAt: string | null;
   failReason: string | null;
@@ -286,8 +288,9 @@ export function paymentRowToModel(row: PaymentRow): Payment {
     amount: row.amount,
     method: row.method,
     status: row.status,
-    portonePaymentId: row.portone_payment_id,
-    portoneTxId: row.portone_tx_id,
+    tossPaymentKey: row.toss_payment_key,
+    tossTransactionKey: row.toss_transaction_key,
+    orderId: row.order_id,
     paidAt: row.paid_at,
     failedAt: row.failed_at,
     failReason: row.fail_reason,

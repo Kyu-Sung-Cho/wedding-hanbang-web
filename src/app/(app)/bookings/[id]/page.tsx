@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar,
@@ -17,6 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 import type { Contract, ContractClause, CancellationPolicyItem } from "@/types/contract.types";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
@@ -59,6 +61,8 @@ interface BookingDetail {
 
 export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,15 +79,64 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [paying, setPaying] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   // 환불/취소 관련
   const [refunding, setRefunding] = useState(false);
   const [refunded, setRefunded] = useState(false);
 
+  // 토스 결제 성공 리다이렉트 처리
+  const handleTossCallback = useCallback(async () => {
+    const paymentKey = searchParams.get("paymentKey");
+    const tossOrderId = searchParams.get("orderId");
+    const tossAmount = searchParams.get("amount");
+    const tossPaymentId = searchParams.get("tossPaymentId");
+
+    if (!paymentKey || !tossOrderId || !tossAmount || !tossPaymentId) return;
+
+    setConfirming(true);
+    try {
+      const res = await fetch("/api/payments/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: tossPaymentId,
+          paymentKey,
+          orderId: tossOrderId,
+          amount: Number(tossAmount),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPaymentComplete(true);
+      } else {
+        alert(data.error || "결제 확인에 실패했습니다.");
+      }
+    } catch {
+      alert("결제 확인 중 오류가 발생했습니다.");
+    } finally {
+      setConfirming(false);
+      // URL에서 결제 파라미터 제거
+      router.replace(`/bookings/${id}`);
+    }
+  }, [searchParams, id, router]);
+
+  // 결제 실패 리다이렉트 처리
+  useEffect(() => {
+    const failMessage = searchParams.get("message");
+    if (searchParams.get("payment_fail") === "true" && failMessage) {
+      alert(`결제 실패: ${failMessage}`);
+      router.replace(`/bookings/${id}`);
+    }
+  }, [searchParams, id, router]);
+
+  useEffect(() => {
+    handleTossCallback();
+  }, [handleTossCallback]);
+
   useEffect(() => {
     async function load() {
       try {
-        // 예약 정보 로드
         const bookingRes = await fetch("/api/bookings/mine");
         const bookingData = await bookingRes.json();
         const found = (bookingData.bookings ?? []).find(
@@ -91,14 +144,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         );
         if (found) {
           setBooking(found);
-          // 이미 결제 완료인 경우
           if (found.paymentStatus === "deposit_paid") {
             setPaymentComplete(true);
           }
           if (found.payment?.id) {
             setPaymentId(found.payment.id);
           }
-          // 계약이 있으면 계약 상세 로드
           if (found.contract?.id) {
             const contractRes = await fetch(`/api/contracts/${found.contract.id}`);
             const contractData = await contractRes.json();
@@ -143,7 +194,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     if (!contract) return;
     setPaying(true);
     try {
-      // 1. 결제 사전등록
+      // 1. 결제 사전등록 (orderId 발급)
       const prepareRes = await fetch("/api/payments/prepare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,46 +209,25 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      // 2. 포트원 SDK로 결제
-      if (prepareData.storeId && typeof window !== "undefined") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const PortOne = (window as any).PortOne;
-        if (!PortOne) {
-          alert("결제 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
-          return;
-        }
-
-        const response = await PortOne.requestPayment({
-          storeId: prepareData.storeId,
-          paymentId: prepareData.paymentId,
-          orderName: `${contract.vendorName ?? "웨딩한방"} 계약금`,
-          totalAmount: prepareData.amount,
-          currency: "CURRENCY_KRW",
-          channelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY || "",
-          payMethod: "CARD",
-        });
-
-        if (response?.code) {
-          alert(`결제 실패: ${response.message}`);
-          return;
-        }
+      // 2. 토스 SDK 로드 + 결제 요청 (리다이렉트)
+      const clientKey = prepareData.clientKey;
+      if (!clientKey) {
+        alert("결제 설정이 완료되지 않았습니다. 관리자에게 문의하세요.");
+        return;
       }
 
-      // 3. 결제 완료 처리
-      const completeRes = await fetch("/api/payments/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentId: prepareData.paymentId,
-          portonePaymentId: prepareData.paymentId,
-        }),
+      const tossPayments = await loadTossPayments(clientKey);
+      const payment = tossPayments.payment({ customerKey: `customer_${contract.customerId}` });
+
+      const currentUrl = `${window.location.origin}/bookings/${id}`;
+      await payment.requestPayment({
+        method: "CARD",
+        amount: { currency: "KRW", value: prepareData.amount },
+        orderId: prepareData.orderId,
+        orderName: `${contract.vendorName ?? "웨딩한방"} 계약금`,
+        successUrl: `${currentUrl}?tossPaymentId=${prepareData.paymentId}`,
+        failUrl: `${currentUrl}?payment_fail=true`,
       });
-      const completeData = await completeRes.json();
-      if (completeRes.ok) {
-        setPaymentComplete(true);
-      } else {
-        alert(completeData.error || "결제 처리에 실패했습니다.");
-      }
     } catch {
       alert("결제 중 오류가 발생했습니다.");
     } finally {
@@ -229,10 +259,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  if (loading) {
+  if (loading || confirming) {
     return (
       <div className="max-w-[700px] mx-auto flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          {confirming && <p className="text-[13px] text-taupe-500">결제 확인 중...</p>}
+        </div>
       </div>
     );
   }
@@ -611,7 +644,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     )}
                   </button>
                   <p className="text-[11px] text-taupe-400 text-center mt-2">
-                    카드 / 네이버페이 / 카카오페이 / 토스페이
+                    카드 / 계좌이체 / 간편결제 (토스페이먼츠)
                   </p>
                 </div>
               ) : refunded ? (

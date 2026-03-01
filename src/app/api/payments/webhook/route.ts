@@ -1,32 +1,24 @@
-// 포트원 웹훅 — 가상계좌 입금 등 비동기 결제 상태 처리
+// 토스페이먼츠 웹훅 — 가상계좌 입금 등 비동기 결제 상태 처리
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { getPayment } from "@/lib/portone/client";
+import { getPayment } from "@/lib/toss/client";
 
 const COMMISSION_RATE = 0.1;
 
 export async function POST(req: Request) {
   try {
-    // 웹훅 시크릿 검증
-    const webhookSecret = process.env.PORTONE_WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const signature = req.headers.get("webhook-id");
-      if (!signature) {
-        return NextResponse.json({ error: "인증 실패" }, { status: 401 });
-      }
-    }
-
     const body = await req.json();
-    const { type, data } = body;
+    const { eventType, data } = body;
 
-    // 결제 완료 웹훅만 처리
-    if (type !== "Transaction.Paid" && type !== "Transaction.VirtualAccountIssued") {
+    // 결제 상태 변경 이벤트만 처리
+    if (eventType !== "PAYMENT_STATUS_CHANGED") {
       return NextResponse.json({ ok: true });
     }
 
-    const portonePaymentId = data?.paymentId;
-    if (!portonePaymentId) {
-      return NextResponse.json({ error: "paymentId 없음" }, { status: 400 });
+    const paymentKey = data?.paymentKey;
+    const orderId = data?.orderId;
+    if (!paymentKey) {
+      return NextResponse.json({ error: "paymentKey 없음" }, { status: 400 });
     }
 
     // 서비스 클라이언트 사용 (웹훅에는 유저 세션 없음)
@@ -35,28 +27,27 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // DB에서 해당 포트원 결제 ID 또는 payment ID로 결제 레코드 찾기
+    // DB에서 결제 레코드 찾기
     let payment;
-    const { data: byPortone } = await supabase
+    const { data: byKey } = await supabase
       .from("payments")
       .select("*")
-      .eq("portone_payment_id", portonePaymentId)
+      .eq("toss_payment_key", paymentKey)
       .single();
 
-    if (byPortone) {
-      payment = byPortone;
-    } else {
-      // complete 전에 웹훅이 먼저 올 수 있음 — ID로 직접 검색
-      const { data: byId } = await supabase
+    if (byKey) {
+      payment = byKey;
+    } else if (orderId) {
+      const { data: byOrder } = await supabase
         .from("payments")
         .select("*")
-        .eq("id", portonePaymentId)
+        .eq("order_id", orderId)
         .single();
-      payment = byId;
+      payment = byOrder;
     }
 
     if (!payment) {
-      console.log("웹훅: 매칭되는 결제 레코드 없음", portonePaymentId);
+      console.log("웹훅: 매칭되는 결제 레코드 없음", paymentKey);
       return NextResponse.json({ ok: true });
     }
 
@@ -64,35 +55,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, message: "이미 처리됨" });
     }
 
-    // 포트원에서 최신 상태 확인
-    let portonePayment;
+    // 토스에서 최신 상태 확인
+    let tossPayment;
     try {
-      portonePayment = await getPayment(portonePaymentId);
+      tossPayment = await getPayment(paymentKey);
     } catch {
-      console.error("포트원 결제 조회 실패");
-      return NextResponse.json({ error: "포트원 조회 실패" }, { status: 500 });
+      console.error("토스 결제 조회 실패");
+      return NextResponse.json({ error: "토스 조회 실패" }, { status: 500 });
     }
 
     // 결제 방식 매핑
     const methodMap: Record<string, string> = {
-      CARD: "card",
-      NAVERPAY: "naverpay",
-      KAKAOPAY: "kakaopay",
-      TOSSPAY: "tosspay",
-      TRANSFER: "transfer",
-      VIRTUAL_ACCOUNT: "vbank",
+      "카드": "card",
+      "가상계좌": "vbank",
+      "계좌이체": "transfer",
+      "휴대폰": "phone",
+      "간편결제": "easypay",
     };
 
-    if (portonePayment.status === "PAID" && portonePayment.amount?.total === payment.amount) {
+    if (tossPayment.status === "DONE" && tossPayment.totalAmount === payment.amount) {
       await supabase
         .from("payments")
         .update({
           status: "paid",
-          portone_payment_id: portonePaymentId,
+          toss_payment_key: paymentKey,
+          toss_transaction_key: tossPayment.transactionKey || null,
           paid_at: new Date().toISOString(),
-          method: methodMap[portonePayment.method?.type] || portonePayment.method?.type?.toLowerCase() || null,
-          receipt_url: portonePayment.receiptUrl || null,
-          updated_at: new Date().toISOString(),
+          method: methodMap[tossPayment.method] || tossPayment.method?.toLowerCase() || null,
+          receipt_url: tossPayment.receipt?.url || null,
         })
         .eq("id", payment.id);
 

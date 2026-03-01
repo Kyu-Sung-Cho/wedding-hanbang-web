@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.74.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
+    "@tosspayments/tosspayments-sdk": "^2.5.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.563.0",
@@ -19,20 +20,23 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.9.1",
+    "sharp": "^0.34.5",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.2.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "lightningcss-win32-x64-msvc": "^1.31.1",
     "tailwindcss": "^4",
     "typescript": "5.9.3"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-win32-x64-msvc": "^4.1.18",
-    "lightningcss-win32-x64-msvc": "^1.30.2"
+    "lightningcss-win32-x64-msvc": "^1.31.1"
   }
 }
