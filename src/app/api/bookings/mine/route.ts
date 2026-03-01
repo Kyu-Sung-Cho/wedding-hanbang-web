@@ -48,8 +48,21 @@ export async function GET() {
 
     const contractMap = new Map((contracts ?? []).map((c) => [c.booking_id, c]));
 
+    // 결제 정보 조인
+    const { data: payments } = bookingIds.length > 0
+      ? await supabase
+          .from("payments")
+          .select("id, booking_id, status, amount, payment_type")
+          .in("booking_id", bookingIds)
+          .eq("payment_type", "deposit")
+          .eq("status", "paid")
+      : { data: [] };
+
+    const paymentMap = new Map((payments ?? []).map((p) => [p.booking_id, p]));
+
     const bookings = (bookingRows ?? []).map((row) => {
       const contract = contractMap.get(row.id);
+      const payment = paymentMap.get(row.id);
       return {
         ...bookingRowToBooking(row),
         vendorName: vendorMap[row.vendor_id] ?? "",
@@ -58,6 +71,10 @@ export async function GET() {
           status: contract.status,
           contractAmount: contract.contract_amount,
           depositAmount: contract.deposit_amount,
+        } : null,
+        payment: payment ? {
+          id: payment.id,
+          amount: payment.amount,
         } : null,
       };
     });

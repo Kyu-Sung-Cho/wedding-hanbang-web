@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, CalendarCheck, Filter, Plus, Save, User, Phone, Package } from "lucide-react";
+import { Check, X, Clock, CalendarCheck, Filter, Plus, Save, User, Phone, Package, Play, CheckCircle } from "lucide-react";
 import { useVendorStore } from "@/stores/vendorStore";
 import type { BookingStatus } from "@/types/vendor.types";
 
@@ -228,17 +228,39 @@ function ManualBookingModal({ onClose }: { onClose: () => void }) {
 export default function BookingsPage() {
   const [activeTab, setActiveTab] = useState<BookingStatus | "all">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { bookings, updateBookingStatus } = useVendorStore();
+  const { bookings, updateBookingStatus, refreshBookings } = useVendorStore();
 
   const filtered = activeTab === "all" ? bookings : bookings.filter((b) => b.status === activeTab);
   const pendingCount = bookings.filter((b) => b.status === "pending").length;
   const confirmedCount = bookings.filter((b) => b.status === "confirmed").length;
+
+  const [statusLoading, setStatusLoading] = useState<string | null>(null);
 
   const handleConfirm = async (id: string) => {
     await updateBookingStatus(id, "confirmed");
   };
   const handleCancel = async (id: string) => {
     await updateBookingStatus(id, "cancelled");
+  };
+  const handleStatusTransition = async (id: string, newStatus: string, confirmMsg: string) => {
+    if (!confirm(confirmMsg)) return;
+    setStatusLoading(id);
+    try {
+      const res = await fetch(`/api/vendor/bookings/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        await refreshBookings();
+      } else {
+        const data = await res.json();
+        alert(data.error || "상태 변경에 실패했습니다.");
+      }
+    } catch {
+      alert("서버 오류가 발생했습니다.");
+    }
+    setStatusLoading(null);
   };
 
   return (
@@ -307,6 +329,22 @@ export default function BookingsPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => handleConfirm(booking.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[12px] font-medium hover:bg-[#246B4C] transition-colors"><Check className="w-3 h-3" />확정</button>
                     <button onClick={() => handleCancel(booking.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-500 text-[12px] font-medium hover:bg-red-50 transition-colors"><X className="w-3 h-3" />거절</button>
+                  </div>
+                )}
+                {booking.status === "deposit_paid" && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => handleStatusTransition(booking.id, "in_service", "서비스를 시작하시겠습니까?")} disabled={statusLoading === booking.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[12px] font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                      <Play className="w-3 h-3" />서비스 시작
+                    </button>
+                  </div>
+                )}
+                {booking.status === "in_service" && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => handleStatusTransition(booking.id, "service_completed", "서비스가 완료되었습니까? 완료 후 정산이 진행됩니다.")} disabled={statusLoading === booking.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[12px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
+                      <CheckCircle className="w-3 h-3" />서비스 완료
+                    </button>
                   </div>
                 )}
               </motion.div>

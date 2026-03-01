@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import type { Contract, ContractClause, CancellationPolicyItem } from "@/types/contract.types";
@@ -73,6 +74,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   // 결제 관련
   const [paying, setPaying] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+
+  // 환불/취소 관련
+  const [refunding, setRefunding] = useState(false);
+  const [refunded, setRefunded] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -81,13 +87,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         const bookingRes = await fetch("/api/bookings/mine");
         const bookingData = await bookingRes.json();
         const found = (bookingData.bookings ?? []).find(
-          (b: BookingDetail & { contract?: { id: string } }) => b.id === id
+          (b: BookingDetail & { contract?: { id: string }; payment?: { id: string } }) => b.id === id
         );
         if (found) {
           setBooking(found);
           // 이미 결제 완료인 경우
           if (found.paymentStatus === "deposit_paid") {
             setPaymentComplete(true);
+          }
+          if (found.payment?.id) {
+            setPaymentId(found.payment.id);
           }
           // 계약이 있으면 계약 상세 로드
           if (found.contract?.id) {
@@ -193,6 +202,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       alert("결제 중 오류가 발생했습니다.");
     } finally {
       setPaying(false);
+    }
+  };
+
+  const handleRefund = async () => {
+    if (!paymentId) return;
+    if (!confirm("정말 계약금 환불을 요청하시겠습니까? 취소 정책에 따라 환불 금액이 달라질 수 있습니다.")) return;
+    setRefunding(true);
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "고객 요청 취소" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRefunded(true);
+        setPaymentComplete(false);
+      } else {
+        alert(data.error || "환불 처리에 실패했습니다.");
+      }
+    } catch {
+      alert("환불 처리 중 오류가 발생했습니다.");
+    } finally {
+      setRefunding(false);
     }
   };
 
@@ -581,13 +614,42 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     카드 / 네이버페이 / 카카오페이 / 토스페이
                   </p>
                 </div>
-              ) : (
-                <div className="mt-4 p-4 bg-[#2E7D5A]/10 rounded-xl border border-[#2E7D5A]/20 text-center">
-                  <CheckCircle className="w-8 h-8 text-[#2E7D5A] mx-auto mb-2" />
-                  <p className="text-[15px] font-medium text-[#2E7D5A]">계약금 결제 완료</p>
+              ) : refunded ? (
+                <div className="mt-4 p-4 bg-red-500/10 rounded-xl border border-red-500/20 text-center">
+                  <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                  <p className="text-[15px] font-medium text-red-500">환불 처리 완료</p>
                   <p className="text-[12px] text-taupe-500 mt-1">
-                    {formatPrice(contract?.depositAmount ?? 0)} 결제가 완료되었습니다
+                    환불이 요청되었습니다. 처리까지 1~3 영업일이 소요될 수 있습니다.
                   </p>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="p-4 bg-[#2E7D5A]/10 rounded-xl border border-[#2E7D5A]/20 text-center">
+                    <CheckCircle className="w-8 h-8 text-[#2E7D5A] mx-auto mb-2" />
+                    <p className="text-[15px] font-medium text-[#2E7D5A]">계약금 결제 완료</p>
+                    <p className="text-[12px] text-taupe-500 mt-1">
+                      {formatPrice(contract?.depositAmount ?? 0)} 결제가 완료되었습니다
+                    </p>
+                  </div>
+                  {paymentId && booking.status !== "service_completed" && booking.status !== "completed" && booking.status !== "settled" && (
+                    <button
+                      onClick={handleRefund}
+                      disabled={refunding}
+                      className="w-full py-3 rounded-xl border border-red-200 text-red-500 text-[13px] font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {refunding ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                          환불 처리 중...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          계약금 환불 요청
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

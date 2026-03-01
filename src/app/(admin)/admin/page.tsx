@@ -6,6 +6,7 @@ import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
   UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
+  Banknote,
 } from "lucide-react";
 
 interface Registration {
@@ -100,7 +101,26 @@ interface InsightsData {
   };
 }
 
-type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "admins";
+interface AdminSettlement {
+  id: string;
+  paymentId: string;
+  vendorId: string;
+  bookingId: string;
+  totalAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  settleAmount: number;
+  status: string;
+  settledAt: string | null;
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolder: string | null;
+  memo: string | null;
+  createdAt: string;
+  vendorName?: string;
+}
+
+type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "settlements" | "admins";
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -155,6 +175,12 @@ export default function AdminPage() {
   const [createAdminLoading, setCreateAdminLoading] = useState(false);
   const [createAdminError, setCreateAdminError] = useState("");
   const [createAdminSuccess, setCreateAdminSuccess] = useState("");
+
+  // 정산
+  const [settlements, setSettlements] = useState<AdminSettlement[]>([]);
+  const [settlementFilter, setSettlementFilter] = useState<string>("all");
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   // 관리자 인증
   useEffect(() => {
@@ -248,6 +274,39 @@ export default function AdminPage() {
     setInsightsLoading(false);
   }, [insightsPeriod]);
 
+  const fetchSettlements = useCallback(async () => {
+    setSettlementLoading(true);
+    try {
+      const res = await fetch("/api/admin/settlements");
+      if (res.ok) {
+        const data = await res.json();
+        setSettlements(data.settlements ?? []);
+      }
+    } catch { /* ignore */ }
+    setSettlementLoading(false);
+  }, []);
+
+  const handleProcessSettlement = async (id: string) => {
+    if (!confirm("이 정산을 실행하시겠습니까? 업체에 금액이 지급됩니다.")) return;
+    setProcessingId(id);
+    try {
+      const res = await fetch(`/api/admin/settlements/${id}/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        await fetchSettlements();
+      } else {
+        const data = await res.json();
+        alert(data.error || "정산 처리에 실패했습니다.");
+      }
+    } catch {
+      alert("서버 오류가 발생했습니다.");
+    }
+    setProcessingId(null);
+  };
+
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAdminEmail || !newAdminPassword || !adminSetupPw) {
@@ -298,8 +357,9 @@ export default function AdminPage() {
       fetchBookings();
       fetchAdminUsers();
       fetchInsights();
+      fetchSettlements();
     }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights]);
+  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, fetchSettlements]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
@@ -387,6 +447,7 @@ export default function AdminPage() {
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
     { key: "insights", label: "인사이트", icon: BarChart3 },
+    { key: "settlements", label: "정산 관리", icon: Banknote, badge: settlements.filter((s) => s.status === "pending").length || undefined },
     { key: "admins", label: "관리자 관리", icon: UserPlus, badge: adminUsers.length || undefined },
   ];
 
@@ -1159,6 +1220,124 @@ export default function AdminPage() {
                 <p className="text-[14px] text-taupe-400">인사이트 데이터를 불러올 수 없습니다.</p>
               </div>
             )}
+          </>
+        )}
+
+        {/* ===== 정산 관리 탭 ===== */}
+        {activeTab === "settlements" && (
+          <>
+            {(() => {
+              const pendingCount = settlements.filter((s) => s.status === "pending").length;
+              const completedCount = settlements.filter((s) => s.status === "completed").length;
+              const totalAmount = settlements.filter((s) => s.status === "completed").reduce((sum, s) => sum + s.settleAmount, 0);
+              const pendingAmount = settlements.filter((s) => s.status === "pending").reduce((sum, s) => sum + s.settleAmount, 0);
+              const totalCommission = settlements.filter((s) => s.status === "completed").reduce((sum, s) => sum + s.commissionAmount, 0);
+
+              const filteredSettlements = settlementFilter === "all" ? settlements : settlements.filter((s) => s.status === settlementFilter);
+
+              const SETTLEMENT_STATUS: Record<string, { text: string; cls: string }> = {
+                pending: { text: "대기", cls: "bg-gold/10 text-gold" },
+                processing: { text: "처리 중", cls: "bg-blue-500/10 text-blue-600" },
+                completed: { text: "완료", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
+                failed: { text: "실패", cls: "bg-red-500/10 text-red-500" },
+              };
+
+              return (
+                <>
+                  <div className="grid grid-cols-5 gap-4 mb-8 max-md:grid-cols-2">
+                    {[
+                      { label: "전체 정산", value: settlements.length, cls: "text-noir-800" },
+                      { label: "대기 중", value: pendingCount, cls: "text-gold" },
+                      { label: "완료", value: completedCount, cls: "text-[#2E7D5A]" },
+                      { label: "정산 대기 금액", value: `${(pendingAmount / 10000).toFixed(0)}만원`, cls: "text-rose-500" },
+                      { label: "총 수수료", value: `${(totalCommission / 10000).toFixed(0)}만원`, cls: "text-gold" },
+                    ].map((s) => (
+                      <div key={s.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                        <p className="text-sm text-taupe-500 mb-2">{s.label}</p>
+                        <p className={`font-display text-2xl font-light ${s.cls}`}>{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2 mb-6">
+                    {([
+                      { key: "all", label: "전체" },
+                      { key: "pending", label: "대기" },
+                      { key: "completed", label: "완료" },
+                    ]).map((f) => (
+                      <button key={f.key} onClick={() => setSettlementFilter(f.key)}
+                        className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                          settlementFilter === f.key ? "bg-noir-800 text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
+                        }`}>{f.label}</button>
+                    ))}
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+                    {settlementLoading ? (
+                      <div className="flex items-center justify-center py-16">
+                        <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
+                        <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="border-b border-platinum">
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">결제 금액</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">수수료</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">정산 금액</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">계좌</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">생성일</th>
+                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredSettlements.map((s) => {
+                              const st = SETTLEMENT_STATUS[s.status] ?? SETTLEMENT_STATUS.pending;
+                              return (
+                                <tr key={s.id} className="border-b border-black/[0.02] hover:bg-ivory-warm/50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-noir-800 font-medium">{s.vendorName || "-"}</td>
+                                  <td className="px-6 py-4 text-sm text-taupe-500">{s.totalAmount.toLocaleString()}원</td>
+                                  <td className="px-6 py-4 text-sm text-rose-500">{s.commissionAmount.toLocaleString()}원 ({Math.round(s.commissionRate * 100)}%)</td>
+                                  <td className="px-6 py-4 text-sm text-noir-800 font-medium">{s.settleAmount.toLocaleString()}원</td>
+                                  <td className="px-6 py-4 text-sm text-taupe-500">
+                                    {s.bankName ? `${s.bankName} ${s.accountNumber}` : <span className="text-taupe-400">미등록</span>}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-taupe-500">{new Date(s.createdAt).toLocaleDateString("ko-KR")}</td>
+                                  <td className="px-6 py-4">
+                                    {(s.status === "pending" || s.status === "processing") && (
+                                      <button
+                                        onClick={() => handleProcessSettlement(s.id)}
+                                        disabled={processingId === s.id}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[12px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50"
+                                      >
+                                        {processingId === s.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                        정산 실행
+                                      </button>
+                                    )}
+                                    {s.status === "completed" && (
+                                      <span className="text-[12px] text-[#2E7D5A]">{s.settledAt ? new Date(s.settledAt).toLocaleDateString("ko-KR") : "완료"}</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {filteredSettlements.length === 0 && !settlementLoading && (
+                              <tr><td colSpan={8} className="px-6 py-12 text-center text-taupe-400 text-sm">정산 내역이 없습니다.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </>
         )}
 
