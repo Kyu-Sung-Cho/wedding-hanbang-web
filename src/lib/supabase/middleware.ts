@@ -43,10 +43,10 @@ export async function updateSession(request: NextRequest) {
 
   // 경로별 보호 그룹 정의
   const customerPaths = [
-    "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
+    "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings", "/bookings",
   ];
   const vendorPaths = [
-    "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
+    "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/contracts", "/vendor/settlements", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
   ];
 
   const pathname = request.nextUrl.pathname;
@@ -80,7 +80,7 @@ export async function updateSession(request: NextRequest) {
 
   // 온보딩 미완료 유저가 앱 페이지 접근 시 온보딩으로 리다이렉트
   const appPaths = [
-    "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings",
+    "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings", "/bookings",
   ];
   const isAppPath = appPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)

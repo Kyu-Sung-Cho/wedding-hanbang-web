@@ -18,7 +18,7 @@ import {
 import Logo from "@/components/ui/Logo";
 import { useVendorStore } from "@/stores/vendorStore";
 
-import { Shield } from "lucide-react";
+import { Shield, FileText, Banknote } from "lucide-react";
 
 const menuItems = [
   { href: "/vendor/dashboard", icon: LayoutDashboard, label: "대시보드" },
@@ -26,6 +26,8 @@ const menuItems = [
   { href: "/vendor/products", icon: Package, label: "상품 관리" },
   { href: "/vendor/timeslots", icon: Clock, label: "타임슬롯 관리" },
   { href: "/vendor/bookings", icon: CalendarCheck, label: "예약 현황" },
+  { href: "/vendor/contracts", icon: FileText, label: "계약 관리" },
+  { href: "/vendor/settlements", icon: Banknote, label: "정산" },
   { href: "/vendor/messages", icon: MessageSquare, label: "메시지" },
   { href: "/vendor/staff", icon: Users, label: "스태프" },
   { href: "/vendor/analytics", icon: BarChart3, label: "분석" },

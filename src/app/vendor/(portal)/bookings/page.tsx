@@ -16,9 +16,15 @@ const tabs: { key: BookingStatus | "all"; label: string }[] = [
   { key: "cancelled", label: "취소" },
 ];
 
-const statusStyle: Record<BookingStatus, { bg: string; text: string; label: string }> = {
+const statusStyle: Record<string, { bg: string; text: string; label: string }> = {
   confirmed: { bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]", label: "확정" },
   pending: { bg: "bg-gold/10", text: "text-gold", label: "대기" },
+  contract_sent: { bg: "bg-blue-500/10", text: "text-blue-600", label: "계약 전송" },
+  contract_signed: { bg: "bg-purple-500/10", text: "text-purple-600", label: "계약 서명" },
+  deposit_paid: { bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]", label: "결제 완료" },
+  in_service: { bg: "bg-blue-500/10", text: "text-blue-600", label: "진행 중" },
+  service_completed: { bg: "bg-taupe-400/10", text: "text-taupe-500", label: "서비스 완료" },
+  settled: { bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]", label: "정산 완료" },
   completed: { bg: "bg-taupe-400/10", text: "text-taupe-400", label: "완료" },
   cancelled: { bg: "bg-red-500/10", text: "text-red-500", label: "취소" },
 };

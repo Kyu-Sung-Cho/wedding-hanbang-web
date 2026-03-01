@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   X,
+  FileText,
 } from "lucide-react";
 
 const menuItems = [
@@ -23,6 +24,7 @@ const menuItems = [
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
   { href: "/vendors", icon: Store, label: "업체 탐색" },
+  { href: "/bookings", icon: FileText, label: "내 예약" },
   { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/settings", icon: Settings, label: "설정" },

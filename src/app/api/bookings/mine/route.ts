@@ -36,10 +36,31 @@ export async function GET() {
 
     const vendorMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));
 
-    const bookings = (bookingRows ?? []).map((row) => ({
-      ...bookingRowToBooking(row),
-      vendorName: vendorMap[row.vendor_id] ?? "",
-    }));
+    // 계약 정보 조인
+    const bookingIds = (bookingRows ?? []).map((b) => b.id);
+    const { data: contracts } = bookingIds.length > 0
+      ? await supabase
+          .from("contracts")
+          .select("id, booking_id, status, contract_amount, deposit_amount")
+          .in("booking_id", bookingIds)
+          .not("status", "eq", "cancelled")
+      : { data: [] };
+
+    const contractMap = new Map((contracts ?? []).map((c) => [c.booking_id, c]));
+
+    const bookings = (bookingRows ?? []).map((row) => {
+      const contract = contractMap.get(row.id);
+      return {
+        ...bookingRowToBooking(row),
+        vendorName: vendorMap[row.vendor_id] ?? "",
+        contract: contract ? {
+          id: contract.id,
+          status: contract.status,
+          contractAmount: contract.contract_amount,
+          depositAmount: contract.deposit_amount,
+        } : null,
+      };
+    });
 
     return NextResponse.json({ bookings });
   } catch (err) {

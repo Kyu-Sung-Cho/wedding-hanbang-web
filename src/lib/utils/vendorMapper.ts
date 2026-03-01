@@ -237,6 +237,8 @@ export function bookingRowToBooking(row: VendorBookingRow & { product_name?: str
     groomName: row.groom_name ?? "",
     contactPhone: row.contact_phone ?? "",
     status: row.status,
+    contractStatus: row.contract_status ?? null,
+    paymentStatus: row.payment_status ?? null,
     amount: row.amount ?? 0,
     isPaid: row.is_paid ?? false,
     memo: row.memo ?? "",

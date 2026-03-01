@@ -2,7 +2,17 @@
 
 export type VendorCategory = "스튜디오" | "드레스" | "메이크업" | "예식장" | "한복" | "예물" | "신혼여행" | "기타";
 export type VendorStatus = "pending" | "approved" | "rejected";
-export type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled";
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "contract_sent"
+  | "contract_signed"
+  | "deposit_paid"
+  | "in_service"
+  | "service_completed"
+  | "settled"
+  | "completed"
+  | "cancelled";
 
 // ─── DB Row 타입 (snake_case) ───
 
@@ -35,6 +45,9 @@ export interface VendorRow {
   instagram: string | null;
   thumbnail_url: string | null;
   commission_rate: number | null;
+  bank_name: string | null;
+  account_number: string | null;
+  account_holder: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +86,8 @@ export interface VendorBookingRow {
   groom_name: string | null;
   contact_phone: string | null;
   status: BookingStatus;
+  contract_status: string | null;
+  payment_status: string | null;
   amount: number | null;
   is_paid: boolean;
   memo: string | null;
@@ -215,6 +230,8 @@ export interface Booking {
   groomName: string;
   contactPhone: string;
   status: BookingStatus;
+  contractStatus: string | null;
+  paymentStatus: string | null;
   amount: number;
   isPaid: boolean;
   memo: string;
@@ -223,6 +240,7 @@ export interface Booking {
   // 조인 필드
   productName?: string;
   productDuration?: number;
+  vendorName?: string;
 }
 
 export interface VendorMessage {
