@@ -16,6 +16,9 @@ import {
   LogOut,
   X,
   FileText,
+  Mail,
+  Banknote,
+  Mic,
 } from "lucide-react";
 
 const menuItems = [
@@ -23,6 +26,9 @@ const menuItems = [
   { href: "/chat", icon: MessageCircle, label: "AI 상담" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
+  { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
+  { href: "/money", icon: Banknote, label: "축의금 관리" },
+  { href: "/scripts", icon: Mic, label: "AI 대본" },
   { href: "/vendors", icon: Store, label: "업체 탐색" },
   { href: "/bookings", icon: FileText, label: "내 예약" },
   { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },

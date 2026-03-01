@@ -41,15 +41,21 @@ export async function updateSession(request: NextRequest) {
   // 관리자 쿠키 확인
   const isAdmin = request.cookies.get("admin_role")?.value === "true";
 
+  const pathname = request.nextUrl.pathname;
+
+  // /invite/* 경로는 게스트용 (인증 불필요) — 미들웨어 바이패스
+  if (pathname.startsWith("/invite/")) {
+    return supabaseResponse;
+  }
+
   // 경로별 보호 그룹 정의
   const customerPaths = [
     "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings", "/bookings",
+    "/invitations", "/money", "/scripts",
   ];
   const vendorPaths = [
     "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings", "/vendor/contracts", "/vendor/settlements", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
   ];
-
-  const pathname = request.nextUrl.pathname;
   const isCustomerPath = customerPaths.some((path) => pathname.startsWith(path));
   const isVendorPath = vendorPaths.some((path) => pathname.startsWith(path));
   const isAdminPath = pathname === "/admin";
@@ -81,6 +87,7 @@ export async function updateSession(request: NextRequest) {
   // 온보딩 미완료 유저가 앱 페이지 접근 시 온보딩으로 리다이렉트
   const appPaths = [
     "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/vendors", "/etiquette", "/settings", "/bookings",
+    "/invitations", "/money", "/scripts",
   ];
   const isAppPath = appPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)

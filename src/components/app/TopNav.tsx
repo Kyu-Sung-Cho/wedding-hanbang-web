@@ -18,6 +18,9 @@ const pageTitles: Record<string, string> = {
   "/fitting": "AI 드레스 피팅",
   "/etiquette": "예절 가이드",
   "/settings": "설정",
+  "/invitations": "모바일 청첩장",
+  "/money": "축의금 관리",
+  "/scripts": "AI 대본",
 };
 
 interface TopNavProps {
