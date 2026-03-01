@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
   description:
     "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
+  icons: {
+    icon: "/images/favicon.png",
+    apple: "/images/apple-touch-icon.png",
+  },
   openGraph: {
     title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
     description:
@@ -13,6 +17,14 @@ export const metadata: Metadata = {
     siteName: "웨딩한방",
     locale: "ko_KR",
     type: "website",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "웨딩한방 - AI 웨딩 플래너",
+      },
+    ],
   },
 };
 
