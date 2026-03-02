@@ -64,7 +64,10 @@ export async function GET(request: Request) {
     }
 
     if (!profile || !profile.onboarding_completed) {
-      return NextResponse.redirect(`${origin}/onboarding`);
+      const response = NextResponse.redirect(`${origin}/onboarding`);
+      // 실제 로그인 시 데모 모드 쿠키 제거
+      response.cookies.set("demo_mode", "", { path: "/", maxAge: 0 });
+      return response;
     }
 
     // 일반 고객 → 대시보드
@@ -73,6 +76,8 @@ export async function GET(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
     });
+    // 실제 로그인 시 데모 모드 쿠키 제거
+    response.cookies.set("demo_mode", "", { path: "/", maxAge: 0 });
     return response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

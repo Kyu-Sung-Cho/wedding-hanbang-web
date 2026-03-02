@@ -160,40 +160,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().isInitialized) return;
     set({ isLoading: true });
 
-    // 데모 모드 체크
-    if (isDemoMode()) {
-      set({
-        user: { id: "demo", email: "demo@hanbang.ai" },
-        profile: DEMO_PROFILE,
-        couple: DEMO_COUPLE,
-        journey: DEMO_JOURNEY,
-        partner: null,
-        isDemo: true,
-        isLoading: false,
-        isInitialized: true,
-      });
-      return;
-    }
-
     try {
+      // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
-      if (!res.ok) {
-        set({ isLoading: false, isInitialized: true });
+
+      if (res.ok) {
+        const data = await res.json();
+
+        if (data.user) {
+          // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
+          if (isDemoMode()) {
+            document.cookie = "demo_mode=; path=/; max-age=0";
+          }
+
+          set({
+            user: data.user,
+            profile: data.profile ?? null,
+            couple: data.couple ?? null,
+            partner: data.partner ?? null,
+            journey: data.journey ?? null,
+            isDemo: false,
+            isLoading: false,
+            isInitialized: true,
+          });
+          return;
+        }
+      }
+
+      // 실제 유저가 없을 때만 데모 모드 체크
+      if (isDemoMode()) {
+        set({
+          user: { id: "demo", email: "demo@hanbang.ai" },
+          profile: DEMO_PROFILE,
+          couple: DEMO_COUPLE,
+          journey: DEMO_JOURNEY,
+          partner: null,
+          isDemo: true,
+          isLoading: false,
+          isInitialized: true,
+        });
         return;
       }
 
-      const data = await res.json();
-
-      set({
-        user: data.user ?? null,
-        profile: data.profile ?? null,
-        couple: data.couple ?? null,
-        partner: data.partner ?? null,
-        journey: data.journey ?? null,
-      });
+      set({ isLoading: false, isInitialized: true });
     } catch (err) {
       console.error("Auth store init error:", err);
-    } finally {
+
+      // fetch 에러 시에도 데모 모드 폴백
+      if (isDemoMode()) {
+        set({
+          user: { id: "demo", email: "demo@hanbang.ai" },
+          profile: DEMO_PROFILE,
+          couple: DEMO_COUPLE,
+          journey: DEMO_JOURNEY,
+          partner: null,
+          isDemo: true,
+          isLoading: false,
+          isInitialized: true,
+        });
+        return;
+      }
+
       set({ isLoading: false, isInitialized: true });
     }
   },

@@ -40,6 +40,8 @@ export default function LoginPage() {
   const handleOAuth = async (provider: "kakao" | "google") => {
     setLoading(provider);
     setError("");
+    // 실제 로그인 시작 시 데모 모드 쿠키 제거
+    document.cookie = "demo_mode=; path=/; max-age=0";
     try {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -75,6 +77,8 @@ export default function LoginPage() {
     setLoading("email");
     setError("");
     setSuccess("");
+    // 실제 로그인 시작 시 데모 모드 쿠키 제거
+    document.cookie = "demo_mode=; path=/; max-age=0";
 
     try {
       const supabase = createClient();
