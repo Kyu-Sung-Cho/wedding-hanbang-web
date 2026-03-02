@@ -154,11 +154,11 @@ export default function ChatPage() {
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
           <h3 className="text-[16px] font-medium text-[#1A1A1F] mb-2">
-            AI 상담은 로그인 후 이용할 수 있어요
+            아리아는 로그인 후 이용할 수 있어요
           </h3>
           <p className="text-[13px] text-[#928980] mb-6 leading-relaxed">
             로그인하면 맞춤 웨딩 상담, 예산 관리,<br />
-            일정 체크리스트 등을 AI가 도와드려요
+            일정 체크리스트 등을 아리아가 도와드려요
           </p>
           <a
             href="/login"
@@ -178,7 +178,7 @@ export default function ChatPage() {
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
           <p className="text-[15px] text-[#928980]">
-            온보딩을 완료하면 AI 상담을 이용할 수 있어요
+            온보딩을 완료하면 아리아와 상담할 수 있어요
           </p>
         </div>
       </div>

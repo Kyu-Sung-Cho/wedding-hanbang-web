@@ -201,7 +201,7 @@ export default function DashboardPage() {
         className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1 animate-fade-in"
       >
         {[
-          { href: "/chat", icon: MessageCircle, label: "AI에게 물어보기", desc: "결혼 준비 뭐든 상담하세요", accent: "from-rose-500 to-gold" },
+          { href: "/chat", icon: MessageCircle, label: "아리아에게 물어보기", desc: "결혼 준비 뭐든 상담하세요", accent: "from-rose-500 to-gold" },
           { href: "/budget", icon: Wallet, label: "예산 현황 보기", desc: `총 예산 ${budgetStr}`, accent: "from-[#2E7D5A] to-[#4CAF80]" },
           { href: "/schedule", icon: CalendarCheck, label: "일정 관리", desc: "체크리스트를 확인하세요", accent: "from-gold to-[#DCC9A0]" },
         ].map((action) => (
@@ -297,7 +297,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col gap-1">
             {[
-              { text: "AI 상담으로 결혼 준비 계획 세우기", href: "/chat", icon: MessageCircle },
+              { text: "아리아와 결혼 준비 계획 세우기", href: "/chat", icon: MessageCircle },
               { text: "예산을 설정하고 항목별로 관리하기", href: "/budget", icon: Wallet },
               { text: "일정을 확인하고 체크리스트 진행하기", href: "/schedule", icon: CalendarCheck },
             ].map((item) => (

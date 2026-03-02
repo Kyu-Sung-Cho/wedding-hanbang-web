@@ -47,7 +47,7 @@ export default function ChatBubble({
 
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-[#928980]">
-            AI 플래너
+            아리아
           </span>
           <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 border border-black/[0.06] shadow-sm">
             <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">

@@ -23,7 +23,7 @@ import {
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
-  { href: "/chat", icon: MessageCircle, label: "AI 상담" },
+  { href: "/chat", icon: MessageCircle, label: "아리아 상담" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
   { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
