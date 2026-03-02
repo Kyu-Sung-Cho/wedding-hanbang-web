@@ -129,10 +129,14 @@ export default function InvitePage() {
           <InviteHero invitation={invitation} colors={colors} fonts={fonts} />
 
           {/* 2. 인사말 */}
-          <InviteGreeting invitation={invitation} colors={colors} fonts={fonts} />
+          {invitation.greeting_message && (
+            <InviteGreeting invitation={invitation} colors={colors} fonts={fonts} />
+          )}
 
-          {/* 3. 신랑신부 소개 */}
-          <InviteCouple invitation={invitation} colors={colors} fonts={fonts} />
+          {/* 3. 신랑신부 소개 (부모님 정보 있을 때만) */}
+          {(invitation.groom_father || invitation.bride_father) && (
+            <InviteCouple invitation={invitation} colors={colors} fonts={fonts} />
+          )}
 
           {/* 4. 갤러리 */}
           {photos.length > 0 && (

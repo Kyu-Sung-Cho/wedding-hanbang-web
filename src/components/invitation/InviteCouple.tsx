@@ -10,69 +10,51 @@ interface Props {
 }
 
 export default function InviteCouple({ invitation, colors, fonts }: Props) {
+  const renderSide = (
+    role: string,
+    name: string | null,
+    father: string | null,
+    mother: string | null,
+    relation: string,
+  ) => (
+    <div className="flex-1 text-center">
+      <p className="text-[11px] tracking-[0.1em] uppercase mb-2 opacity-40">{role}</p>
+      <p
+        className="text-[18px] font-light mb-3"
+        style={{ fontFamily: `'${fonts.heading}', serif` }}
+      >
+        {name || role}
+      </p>
+      {(father || mother) && (
+        <p className="text-[12px] opacity-50 leading-relaxed">
+          {father && <span>{father}</span>}
+          {father && mother && <span> · </span>}
+          {mother && <span>{mother}</span>}
+          <span className="block text-[11px] mt-0.5 opacity-70">의 {relation}</span>
+        </p>
+      )}
+    </div>
+  );
+
   return (
-    <section className="py-12 px-6">
+    <section className="py-10 px-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.6 }}
-        className="flex items-stretch gap-4"
+        className="flex items-start"
       >
-        {/* 신랑 측 */}
-        <div className="flex-1 text-center p-5 rounded-2xl" style={{ background: `${colors[0]}08` }}>
-          <div
-            className="w-10 h-10 rounded-full mx-auto mb-3 flex items-center justify-center text-[14px] font-medium text-white"
-            style={{ background: colors[0] }}
-          >
-            郎
-          </div>
-          <p className="text-[11px] mb-1 opacity-50">신랑</p>
-          <p
-            className="text-[16px] font-medium mb-2"
-            style={{ fontFamily: `'${fonts.heading}', serif` }}
-          >
-            {invitation.groom_name ?? ""}
-          </p>
-          {(invitation.groom_father || invitation.groom_mother) && (
-            <p className="text-[11px] opacity-50 leading-relaxed">
-              {invitation.groom_father && <span>{invitation.groom_father}</span>}
-              {invitation.groom_father && invitation.groom_mother && <span> · </span>}
-              {invitation.groom_mother && <span>{invitation.groom_mother}</span>}
-              <span className="block mt-0.5">의 아들</span>
-            </p>
-          )}
-        </div>
+        {renderSide("Groom", invitation.groom_name, invitation.groom_father, invitation.groom_mother, "아들")}
 
         {/* 구분자 */}
-        <div className="flex items-center">
-          <span className="text-[20px]" style={{ color: colors[0] }}>&</span>
+        <div className="flex flex-col items-center justify-center px-3 pt-6">
+          <div className="w-px h-6 opacity-20" style={{ background: colors[0] }} />
+          <span className="text-[14px] my-2 opacity-40" style={{ color: colors[0] }}>&</span>
+          <div className="w-px h-6 opacity-20" style={{ background: colors[0] }} />
         </div>
 
-        {/* 신부 측 */}
-        <div className="flex-1 text-center p-5 rounded-2xl" style={{ background: `${colors[0]}08` }}>
-          <div
-            className="w-10 h-10 rounded-full mx-auto mb-3 flex items-center justify-center text-[14px] font-medium text-white"
-            style={{ background: colors[0] }}
-          >
-            婦
-          </div>
-          <p className="text-[11px] mb-1 opacity-50">신부</p>
-          <p
-            className="text-[16px] font-medium mb-2"
-            style={{ fontFamily: `'${fonts.heading}', serif` }}
-          >
-            {invitation.bride_name ?? ""}
-          </p>
-          {(invitation.bride_father || invitation.bride_mother) && (
-            <p className="text-[11px] opacity-50 leading-relaxed">
-              {invitation.bride_father && <span>{invitation.bride_father}</span>}
-              {invitation.bride_father && invitation.bride_mother && <span> · </span>}
-              {invitation.bride_mother && <span>{invitation.bride_mother}</span>}
-              <span className="block mt-0.5">의 딸</span>
-            </p>
-          )}
-        </div>
+        {renderSide("Bride", invitation.bride_name, invitation.bride_father, invitation.bride_mother, "딸")}
       </motion.div>
     </section>
   );
