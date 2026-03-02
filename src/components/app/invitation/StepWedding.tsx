@@ -1,10 +1,92 @@
 "use client";
 
+import { useState } from "react";
 import { useInvitationStore } from "@/stores/invitationStore";
+import { Sparkles, Loader2 } from "lucide-react";
+
+const HOURS = Array.from({ length: 13 }, (_, i) => i + 9); // 9~21시
+const MINUTES = [0, 30];
 
 export default function StepWedding() {
   const { current, updateCurrent } = useInvitationStore();
+  const [aiLoading, setAiLoading] = useState(false);
+
   if (!current) return null;
+
+  // 날짜/시간 분리
+  const dateValue = current.wedding_date ? current.wedding_date.slice(0, 10) : "";
+  const timeObj = current.wedding_date ? new Date(current.wedding_date) : null;
+  const selectedHour = timeObj ? timeObj.getHours() : null;
+  const selectedMinute = timeObj ? timeObj.getMinutes() : null;
+
+  const handleDateChange = (date: string) => {
+    if (!date) {
+      updateCurrent({ wedding_date: null });
+      return;
+    }
+    const h = selectedHour ?? 12;
+    const m = selectedMinute ?? 0;
+    const dt = new Date(`${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+    updateCurrent({ wedding_date: dt.toISOString() });
+  };
+
+  const handleTimeChange = (hour: number, minute: number) => {
+    const d = dateValue || new Date().toISOString().slice(0, 10);
+    const dt = new Date(`${d}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`);
+    updateCurrent({ wedding_date: dt.toISOString() });
+  };
+
+  const generateGreeting = async () => {
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/scripts/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          script_type: "invitation_text",
+          tone: "warm",
+          params: {
+            groom_name: current.groom_name || "신랑",
+            bride_name: current.bride_name || "신부",
+            wedding_date: current.wedding_date,
+            wedding_venue: current.wedding_venue,
+          },
+        }),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let text = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) {
+                text += parsed.text;
+                updateCurrent({ greeting_message: text });
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+      }
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -24,15 +106,41 @@ export default function StepWedding() {
           />
         </div>
 
-        {/* 예식 날짜/시간 */}
+        {/* 예식 날짜 */}
         <div>
-          <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">예식 일시</label>
+          <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">예식 날짜</label>
           <input
-            type="datetime-local"
-            value={current.wedding_date?.slice(0, 16) ?? ""}
-            onChange={(e) => updateCurrent({ wedding_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+            type="date"
+            value={dateValue}
+            onChange={(e) => handleDateChange(e.target.value)}
             className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20"
           />
+        </div>
+
+        {/* 예식 시간 — 버튼 피커 */}
+        <div>
+          <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">예식 시간</label>
+          <div className="flex flex-wrap gap-1.5">
+            {HOURS.map((h) =>
+              MINUTES.map((m) => {
+                const label = `${h === 12 ? "낮 12" : h < 12 ? `오전 ${h}` : `오후 ${h - 12}`}:${String(m).padStart(2, "0")}`;
+                const isSelected = selectedHour === h && selectedMinute === m;
+                return (
+                  <button
+                    key={`${h}-${m}`}
+                    onClick={() => handleTimeChange(h, m)}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                      isSelected
+                        ? "bg-rose-500 text-white"
+                        : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* 예식장 */}
@@ -83,7 +191,7 @@ export default function StepWedding() {
           />
         </div>
 
-        {/* 인사말 */}
+        {/* 인사말 제목 */}
         <div>
           <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">인사말 제목</label>
           <input
@@ -95,15 +203,30 @@ export default function StepWedding() {
           />
         </div>
 
+        {/* 인사말 본문 + AI 생성 */}
         <div>
-          <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">인사말 본문</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[12px] font-medium text-taupe-500">인사말 본문</label>
+            <button
+              onClick={generateGreeting}
+              disabled={aiLoading}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-[11px] font-medium hover:from-rose-600 hover:to-rose-700 disabled:opacity-50 transition-all"
+            >
+              {aiLoading ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /> 생성 중...</>
+              ) : (
+                <><Sparkles className="w-3 h-3" /> AI 인사말 생성</>
+              )}
+            </button>
+          </div>
           <textarea
             value={current.greeting_message ?? ""}
             onChange={(e) => updateCurrent({ greeting_message: e.target.value })}
             placeholder="서로 다른 두 사람이 만나 하나의 길을 걸어가려 합니다..."
-            rows={4}
+            rows={5}
             className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20 resize-none"
           />
+          <p className="text-[11px] text-taupe-400 mt-1">AI가 생성한 인사말을 자유롭게 수정할 수 있습니다.</p>
         </div>
       </div>
     </div>

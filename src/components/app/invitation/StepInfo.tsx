@@ -31,9 +31,9 @@ export default function StepInfo() {
           신랑 측
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {field("신랑 이름", "groom_name", "홍길동")}
-          {field("신랑 아버지", "groom_father", "홍판서")}
-          {field("신랑 어머니", "groom_mother", "김씨")}
+          {field("신랑 이름", "groom_name", "이름을 입력하세요")}
+          {field("신랑 아버지", "groom_father", "아버지 성함")}
+          {field("신랑 어머니", "groom_mother", "어머니 성함")}
         </div>
       </div>
 
@@ -44,9 +44,9 @@ export default function StepInfo() {
           신부 측
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {field("신부 이름", "bride_name", "춘향이")}
-          {field("신부 아버지", "bride_father", "월매")}
-          {field("신부 어머니", "bride_mother", "김씨")}
+          {field("신부 이름", "bride_name", "이름을 입력하세요")}
+          {field("신부 아버지", "bride_father", "아버지 성함")}
+          {field("신부 어머니", "bride_mother", "어머니 성함")}
         </div>
       </div>
     </div>
