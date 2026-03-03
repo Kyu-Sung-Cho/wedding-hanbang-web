@@ -117,6 +117,12 @@ export async function executeTool(
         return await executeCheckVendorAvailability(toolInput);
       case "recommend_vendors":
         return await executeRecommendVendors(toolInput, context);
+      case "get_vendor_detail":
+        return await executeGetVendorDetail(toolInput);
+      case "get_available_slots":
+        return await executeGetAvailableSlots(toolInput);
+      case "create_booking":
+        return await executeCreateBooking(toolInput, context);
       default:
         return {
           toolName,
@@ -991,5 +997,366 @@ async function executeRecommendVendors(
     displayMessage: results.length > 0
       ? `${category} 추천 업체 ${results.length}개${filterDesc ? ` (${filterDesc})` : ""}:\n${results.map((v, i) => `${i + 1}. ${v.name} (${v.priceRange}, ${v.rating}점) - ${v.reasons.join(", ")}`).join("\n")}`
       : `${category} 카테고리에 조건에 맞는 업체가 없습니다.`,
+  };
+}
+
+// ── 업체 상세 & 예약 도구 ──
+
+async function executeGetVendorDetail(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const vendorId = input.vendor_id as string;
+
+  // 업체 기본 정보
+  const { data: vendor } = await admin
+    .from("vendors")
+    .select("id, name, category, location, price_range")
+    .eq("id", vendorId)
+    .single();
+
+  if (!vendor) {
+    return {
+      toolName: "get_vendor_detail", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "업체를 찾을 수 없습니다.",
+    };
+  }
+
+  // 상품 조회
+  const { data: products } = await admin
+    .from("vendor_products")
+    .select("id, name, description, price, discount_price, duration_minutes, is_popular, includes")
+    .eq("vendor_id", vendorId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  // 스태프 조회
+  const { data: staff } = await admin
+    .from("vendor_staff")
+    .select("id, name, role, description")
+    .eq("vendor_id", vendorId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  const productList = (products ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description?.slice(0, 80) || "",
+    price: p.price,
+    discountPrice: p.discount_price || null,
+    duration: p.duration_minutes || null,
+    isPopular: p.is_popular || false,
+    includes: p.includes || [],
+  }));
+
+  const staffList = (staff ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    role: s.role || null,
+    description: s.description?.slice(0, 60) || "",
+  }));
+
+  return {
+    toolName: "get_vendor_detail",
+    toolInput: input,
+    toolOutput: {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      category: vendor.category,
+      location: vendor.location,
+      priceRange: vendor.price_range,
+      products: productList,
+      staff: staffList,
+    },
+    success: true,
+    displayMessage: `${vendor.name}의 상품 ${productList.length}개, 스태프 ${staffList.length}명`,
+  };
+}
+
+async function executeGetAvailableSlots(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const vendorId = input.vendor_id as string;
+  const productId = input.product_id as string | undefined;
+  const staffId = input.staff_id as string | undefined;
+
+  // 업체 이름
+  const { data: vendor } = await admin
+    .from("vendors")
+    .select("name")
+    .eq("id", vendorId)
+    .single();
+
+  if (!vendor) {
+    return {
+      toolName: "get_available_slots", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "업체를 찾을 수 없습니다.",
+    };
+  }
+
+  // 타임슬롯 조회 (우선순위: staff > product > vendor)
+  let slotTable: string;
+  let slotFk: string;
+  let slotFkValue: string;
+
+  if (staffId) {
+    slotTable = "staff_timeslots";
+    slotFk = "staff_id";
+    slotFkValue = staffId;
+  } else if (productId) {
+    slotTable = "product_timeslots";
+    slotFk = "product_id";
+    slotFkValue = productId;
+  } else {
+    slotTable = "vendor_timeslots";
+    slotFk = "vendor_id";
+    slotFkValue = vendorId;
+  }
+
+  const { data: slots } = await admin
+    .from(slotTable)
+    .select("day, hour, available, max_bookings")
+    .eq(slotFk, slotFkValue)
+    .eq("available", true);
+
+  // 향후 14일 예약 수 확인
+  const today = new Date();
+  const dateStrings: string[] = [];
+  const dayToDates = new Map<number, string[]>();
+
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dateStr = d.toISOString().split("T")[0];
+    const day = (d.getDay() + 6) % 7; // 0=월 ~ 6=일
+    dateStrings.push(dateStr);
+    if (!dayToDates.has(day)) dayToDates.set(day, []);
+    dayToDates.get(day)!.push(dateStr);
+  }
+
+  // 예약 수 카운트 쿼리
+  let bookingQuery = admin
+    .from("vendor_bookings")
+    .select("booking_date, booking_time")
+    .eq("vendor_id", vendorId)
+    .in("booking_date", dateStrings)
+    .neq("status", "cancelled");
+
+  if (staffId) {
+    bookingQuery = bookingQuery.eq("staff_id", staffId);
+  } else if (productId) {
+    bookingQuery = bookingQuery.eq("product_id", productId);
+  }
+
+  const { data: bookings } = await bookingQuery;
+
+  const bookingCountMap = new Map<string, number>();
+  for (const b of bookings ?? []) {
+    const key = `${b.booking_date}:${b.booking_time}`;
+    bookingCountMap.set(key, (bookingCountMap.get(key) ?? 0) + 1);
+  }
+
+  const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+  const availableSlots: {
+    date: string;
+    dayLabel: string;
+    hour: number;
+    time: string;
+    remaining: number;
+  }[] = [];
+
+  for (const slot of slots ?? []) {
+    const dates = dayToDates.get(slot.day) ?? [];
+    for (const dateStr of dates) {
+      const timeStr = `${String(slot.hour).padStart(2, "0")}:00`;
+      const currentBookings = bookingCountMap.get(`${dateStr}:${timeStr}`) ?? 0;
+      const remaining = slot.max_bookings - currentBookings;
+      if (remaining > 0) {
+        availableSlots.push({
+          date: dateStr,
+          dayLabel: DAYS[slot.day],
+          hour: slot.hour,
+          time: timeStr,
+          remaining,
+        });
+      }
+    }
+  }
+
+  // 날짜+시간 순으로 정렬
+  availableSlots.sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour);
+
+  const firstDate = availableSlots[0]?.date;
+  const lastDate = availableSlots[availableSlots.length - 1]?.date;
+
+  return {
+    toolName: "get_available_slots",
+    toolInput: input,
+    toolOutput: {
+      vendorId,
+      vendorName: vendor.name,
+      productId: productId || null,
+      staffId: staffId || null,
+      slots: availableSlots,
+      count: availableSlots.length,
+    },
+    success: true,
+    displayMessage: availableSlots.length > 0
+      ? `${vendor.name} 예약 가능 시간 ${availableSlots.length}개 (${firstDate} ~ ${lastDate})`
+      : `${vendor.name}은(는) 향후 14일간 예약 가능한 시간이 없습니다.`,
+  };
+}
+
+async function executeCreateBooking(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const vendorId = input.vendor_id as string;
+  const productId = (input.product_id as string) || null;
+  const staffId = (input.staff_id as string) || null;
+  const date = input.date as string;
+  const time = input.time as string;
+  const memo = (input.memo as string) || "";
+
+  // 업체 이름
+  const { data: vendor } = await admin
+    .from("vendors")
+    .select("name")
+    .eq("id", vendorId)
+    .single();
+
+  if (!vendor) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "업체를 찾을 수 없습니다.",
+    };
+  }
+
+  // 커플 프로필 정보 (이름, 연락처)
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("name, role, phone")
+    .eq("couple_id", ctx.coupleId);
+
+  const brideProfile = profiles?.find((p) => p.role === "bride");
+  const groomProfile = profiles?.find((p) => p.role === "groom");
+  const brideName = brideProfile?.name || "";
+  const groomName = groomProfile?.name || "";
+  const contactPhone = brideProfile?.phone || groomProfile?.phone || "";
+
+  // 상품 가격 조회
+  let amount = 0;
+  let productName = "";
+  if (productId) {
+    const { data: product } = await admin
+      .from("vendor_products")
+      .select("name, price, discount_price")
+      .eq("id", productId)
+      .single();
+    if (product) {
+      productName = product.name;
+      amount = product.discount_price || product.price || 0;
+    }
+  }
+
+  // 스태프 이름 조회
+  let staffName = "";
+  if (staffId) {
+    const { data: staff } = await admin
+      .from("vendor_staff")
+      .select("name, role")
+      .eq("id", staffId)
+      .single();
+    if (staff) {
+      staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
+    }
+  }
+
+  // 타임슬롯 용량 확인
+  const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
+  const slotFk = productId ? "product_id" : "vendor_id";
+  const slotFkValue = productId || vendorId;
+  const bookingDay = (new Date(date).getDay() + 6) % 7;
+  const bookingHour = parseInt(time.split(":")[0], 10);
+
+  const { data: slotData } = await admin
+    .from(slotTable)
+    .select("max_bookings")
+    .eq(slotFk, slotFkValue)
+    .eq("day", bookingDay)
+    .eq("hour", bookingHour)
+    .eq("available", true)
+    .limit(1)
+    .single();
+
+  if (!slotData) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "해당 시간은 예약이 불가능합니다.",
+    };
+  }
+
+  // 기존 예약 수 확인
+  const { count: existingCount } = await admin
+    .from("vendor_bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("vendor_id", vendorId)
+    .eq("booking_date", date)
+    .eq("booking_time", time)
+    .neq("status", "cancelled");
+
+  if ((existingCount ?? 0) >= slotData.max_bookings) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "해당 시간의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.",
+    };
+  }
+
+  // 예약 생성
+  const { data: booking, error } = await admin
+    .from("vendor_bookings")
+    .insert({
+      vendor_id: vendorId,
+      couple_id: ctx.coupleId,
+      product_id: productId,
+      staff_id: staffId,
+      booking_date: date,
+      booking_time: time,
+      booking_type: "consultation",
+      bride_name: brideName,
+      groom_name: groomName,
+      contact_phone: contactPhone,
+      status: "pending",
+      amount,
+      is_paid: false,
+      memo,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+
+  return {
+    toolName: "create_booking",
+    toolInput: input,
+    toolOutput: {
+      bookingId: booking.id,
+      vendorName: vendor.name,
+      productName,
+      staffName,
+      date,
+      time,
+      amount,
+      status: "pending",
+    },
+    success: true,
+    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})`,
   };
 }

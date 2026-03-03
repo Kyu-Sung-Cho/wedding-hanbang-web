@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function CustomerHero() {
   return (
@@ -15,6 +16,23 @@ export default function CustomerHero() {
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <div className="relative z-10 text-center max-w-[900px] px-6 py-32">
+        {/* 로고 */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8 }}
+          className="flex flex-col items-center mb-10"
+        >
+          <Image
+            src="/images/logo-512.png"
+            alt="웨딩한방 로고"
+            width={280}
+            height={280}
+            className="object-contain"
+            priority
+          />
+        </motion.div>
+
         {/* 배지 */}
         <motion.button
           initial={{ opacity: 0, y: 12 }}

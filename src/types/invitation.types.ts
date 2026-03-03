@@ -69,6 +69,7 @@ export interface Invitation {
   wedding_address: string | null;
   wedding_hall: string | null;
   wedding_map_url: string | null;
+  wedding_transport: string | null;
 
   greeting_title: string;
   greeting_message: string | null;
@@ -78,6 +79,8 @@ export interface Invitation {
   rsvp_enabled: boolean;
   guestbook_enabled: boolean;
   account_enabled: boolean;
+  gallery_enabled: boolean;
+  location_enabled: boolean;
 
   custom_colors: string[] | null;
   custom_fonts: { heading: string; body: string } | null;

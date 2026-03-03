@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState, useMemo } from "react";
 import type { OpeningAnimation as AnimationType } from "@/types/invitation.types";
 
 interface Props {
@@ -15,265 +14,152 @@ interface Props {
 
 export default function OpeningAnimation({ type, colors, fonts, groomName, brideName, onComplete }: Props) {
   const [phase, setPhase] = useState(0);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase(1), 500);
     const t2 = setTimeout(() => setPhase(2), 2000);
-    const t3 = setTimeout(onComplete, 3500);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    const t3 = setTimeout(() => setExiting(true), 3000);
+    const t4 = setTimeout(onComplete, 3800);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [onComplete]);
+
+  const handleClick = () => {
+    setExiting(true);
+    setTimeout(onComplete, 800);
+  };
 
   const bg = colors[1] || "#FDFCFA";
   const accent = colors[0] || "#C4967E";
   const text = colors[2] || "#1A1A1F";
 
-  // 공통 콘텐츠
-  const content = (
-    <div className="text-center relative z-10">
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: phase >= 1 ? 1 : 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-[11px] tracking-[0.3em] uppercase mb-4"
-        style={{ color: accent }}
-      >
-        Wedding Invitation
-      </motion.p>
-      <motion.h1
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: phase >= 1 ? 1 : 0, y: phase >= 1 ? 0 : 20 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
-        className="text-[24px] font-light leading-[1.5]"
-        style={{ fontFamily: `'${fonts.heading}', serif`, color: text }}
-      >
-        {groomName} & {brideName}
-      </motion.h1>
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: phase >= 2 ? 0.5 : 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-[12px] mt-6 tracking-wide"
-        style={{ color: accent }}
-      >
-        터치하여 열기
-      </motion.p>
-    </div>
-  );
-
-  // 각 애니메이션별 래퍼 variants
-  const getVariants = () => {
+  // 퇴장 애니메이션 스타일
+  const exitStyle = useMemo((): React.CSSProperties => {
+    if (!exiting) return {};
+    const base: React.CSSProperties = { transition: "all 0.8s ease-in-out" };
     switch (type) {
-      case "fadeIn":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, transition: { duration: 0.8 } },
-        };
-      case "slideUp":
-        return {
-          initial: { opacity: 1, y: 0 },
-          exit: { opacity: 0, y: -100, transition: { duration: 0.8 } },
-        };
-      case "zoomIn":
-        return {
-          initial: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 2, transition: { duration: 0.8 } },
-        };
-      case "curtainOpen":
-      case "curtainReveal":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, transition: { duration: 0.6 } },
-        };
-      case "sparkle":
-      case "confetti":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, scale: 1.2, transition: { duration: 0.8 } },
-        };
-      case "heartBeat":
-        return {
-          initial: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 0.5, transition: { duration: 0.6 } },
-        };
-      case "typewriter":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, x: -50, transition: { duration: 0.6 } },
-        };
-      case "glitch":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, x: [0, -10, 10, -5, 5, 0], transition: { duration: 0.5 } },
-        };
-      case "morphing":
-        return {
-          initial: { opacity: 1, borderRadius: "0%" },
-          exit: { opacity: 0, borderRadius: "50%", scale: 0, transition: { duration: 0.8 } },
-        };
-      case "leafFall":
-      case "petalFall":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, y: 50, rotate: 10, transition: { duration: 1 } },
-        };
-      case "floatUp":
-        return {
-          initial: { opacity: 1, y: 0 },
-          exit: { opacity: 0, y: -200, transition: { duration: 1, ease: "easeIn" as const } },
-        };
-      case "waveSlide":
-        return {
-          initial: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -300, transition: { duration: 0.8 } },
-        };
-      case "snowFall":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, y: 100, transition: { duration: 1.2 } },
-        };
-      case "filmRoll":
-        return {
-          initial: { opacity: 1, y: 0 },
-          exit: { opacity: 0, y: -500, transition: { duration: 0.8 } },
-        };
-      case "pageFlip":
-      case "flipCard":
-        return {
-          initial: { opacity: 1, rotateY: 0 },
-          exit: { opacity: 0, rotateY: 90, transition: { duration: 0.6 } },
-        };
-      case "waterDrop":
-      case "ripple":
-        return {
-          initial: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 3, transition: { duration: 0.8 } },
-        };
-      case "letterOpen":
-        return {
-          initial: { opacity: 1, scaleY: 1 },
-          exit: { opacity: 0, scaleY: 0, transition: { duration: 0.6, ease: "easeIn" as const } },
-        };
-      case "spiralIn":
-        return {
-          initial: { opacity: 1, rotate: 0, scale: 1 },
-          exit: { opacity: 0, rotate: 180, scale: 0, transition: { duration: 0.8 } },
-        };
-      case "blindsOpen":
-        return {
-          initial: { opacity: 1, scaleX: 1 },
-          exit: { opacity: 0, scaleX: 0, transition: { duration: 0.6 } },
-        };
-      case "fadeScale":
-        return {
-          initial: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 0.8, transition: { duration: 0.6 } },
-        };
-      case "slideRotate":
-        return {
-          initial: { opacity: 1, rotate: 0, x: 0 },
-          exit: { opacity: 0, rotate: -15, x: -200, transition: { duration: 0.8 } },
-        };
-      case "bounceIn":
-        return {
-          initial: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 0, transition: { type: "spring" as const, duration: 0.6 } },
-        };
-      case "doorOpen":
-        return {
-          initial: { opacity: 1, perspective: 800 },
-          exit: { opacity: 0, rotateY: -90, transition: { duration: 0.8 } },
-        };
-      case "lightReveal":
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, filter: "brightness(3)", transition: { duration: 0.6 } },
-        };
-      case "parallaxZoom":
-        return {
-          initial: { opacity: 1, scale: 1, y: 0 },
-          exit: { opacity: 0, scale: 1.5, y: -100, transition: { duration: 1 } },
-        };
-      default:
-        return {
-          initial: { opacity: 1 },
-          exit: { opacity: 0, transition: { duration: 0.8 } },
-        };
+      case "slideUp": return { ...base, opacity: 0, transform: "translateY(-100px)" };
+      case "zoomIn": return { ...base, opacity: 0, transform: "scale(2)" };
+      case "heartBeat": return { ...base, opacity: 0, transform: "scale(0.5)", transition: "all 0.6s ease-in" };
+      case "typewriter": return { ...base, opacity: 0, transform: "translateX(-50px)", transition: "all 0.6s ease-in" };
+      case "morphing": return { ...base, opacity: 0, transform: "scale(0)", borderRadius: "50%" };
+      case "leafFall": case "petalFall": return { ...base, opacity: 0, transform: "translateY(50px) rotate(10deg)", transition: "all 1s ease-in" };
+      case "floatUp": return { ...base, opacity: 0, transform: "translateY(-200px)", transition: "all 1s ease-in" };
+      case "waveSlide": return { ...base, opacity: 0, transform: "translateX(-300px)" };
+      case "snowFall": return { ...base, opacity: 0, transform: "translateY(100px)", transition: "all 1.2s ease-in" };
+      case "filmRoll": return { ...base, opacity: 0, transform: "translateY(-500px)" };
+      case "pageFlip": case "flipCard": return { ...base, opacity: 0, transform: "perspective(800px) rotateY(90deg)", transition: "all 0.6s ease-in" };
+      case "waterDrop": case "ripple": return { ...base, opacity: 0, transform: "scale(3)" };
+      case "letterOpen": return { ...base, opacity: 0, transform: "scaleY(0)", transition: "all 0.6s ease-in" };
+      case "spiralIn": return { ...base, opacity: 0, transform: "rotate(180deg) scale(0)" };
+      case "blindsOpen": return { ...base, opacity: 0, transform: "scaleX(0)", transition: "all 0.6s ease-in" };
+      case "slideRotate": return { ...base, opacity: 0, transform: "rotate(-15deg) translateX(-200px)" };
+      case "bounceIn": return { ...base, opacity: 0, transform: "scale(0)", transition: "all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)" };
+      case "doorOpen": return { ...base, opacity: 0, transform: "perspective(800px) rotateY(-90deg)" };
+      case "sparkle": case "confetti": return { ...base, opacity: 0, transform: "scale(1.2)" };
+      case "lightReveal": return { ...base, opacity: 0, filter: "brightness(3)" };
+      case "parallaxZoom": return { ...base, opacity: 0, transform: "scale(1.5) translateY(-100px)", transition: "all 1s ease-in" };
+      default: return { ...base, opacity: 0 };
     }
-  };
+  }, [exiting, type]);
 
-  const variants = getVariants();
+  // 장식 요소 위치를 메모이즈 (렌더링마다 바뀌지 않도록)
+  const decorations = useMemo(() => {
+    const items: { left: string; top: string; delay: string; duration: string }[] = [];
+    if (type === "sparkle" || type === "confetti") {
+      for (let i = 0; i < 12; i++) {
+        items.push({
+          left: `${10 + Math.random() * 80}%`,
+          top: `${10 + Math.random() * 80}%`,
+          delay: `${Math.random() * 1.5}s`,
+          duration: `${2 + Math.random()}s`,
+        });
+      }
+    } else if (type === "snowFall") {
+      for (let i = 0; i < 15; i++) {
+        items.push({
+          left: `${Math.random() * 100}%`,
+          top: "-5%",
+          delay: `${Math.random() * 2}s`,
+          duration: `${3 + Math.random() * 2}s`,
+        });
+      }
+    } else if (type === "petalFall" || type === "leafFall") {
+      for (let i = 0; i < 8; i++) {
+        items.push({
+          left: `${10 + Math.random() * 80}%`,
+          top: "-10%",
+          delay: `${Math.random() * 2}s`,
+          duration: `${4 + Math.random() * 2}s`,
+        });
+      }
+    }
+    return items;
+  }, [type]);
 
-  // 특수 장식 요소
   const renderDecorations = () => {
     switch (type) {
-      case "sparkle":
-      case "confetti":
-        return Array.from({ length: 12 }).map((_, i) => (
-          <motion.div
+      case "sparkle": case "confetti":
+        return decorations.map((d, i) => (
+          <div
             key={i}
             className="absolute w-1.5 h-1.5 rounded-full"
-            style={{ background: accent, left: `${10 + Math.random() * 80}%`, top: `${10 + Math.random() * 80}%` }}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0, 1, 0],
-              y: [0, -20, -40],
+            style={{
+              background: accent,
+              left: d.left,
+              top: d.top,
+              animation: `inviteSparkle ${d.duration} ${d.delay} infinite`,
             }}
-            transition={{ duration: 2, delay: Math.random() * 1.5, repeat: Infinity }}
           />
         ));
       case "snowFall":
-        return Array.from({ length: 15 }).map((_, i) => (
-          <motion.div
+        return decorations.map((d, i) => (
+          <div
             key={i}
             className="absolute w-1 h-1 rounded-full bg-white"
-            style={{ left: `${Math.random() * 100}%`, top: `-5%` }}
-            animate={{ y: ["0vh", "105vh"], opacity: [0.8, 0] }}
-            transition={{ duration: 3 + Math.random() * 2, delay: Math.random() * 2, repeat: Infinity }}
+            style={{
+              left: d.left,
+              top: d.top,
+              animation: `inviteSnowFall ${d.duration} ${d.delay} infinite linear`,
+            }}
           />
         ));
       case "petalFall":
-        return Array.from({ length: 8 }).map((_, i) => (
-          <motion.div
+        return decorations.map((d, i) => (
+          <div
             key={i}
             className="absolute text-[16px]"
-            style={{ left: `${10 + Math.random() * 80}%`, top: `-10%` }}
-            animate={{
-              y: ["0vh", "110vh"],
-              x: [0, Math.random() * 40 - 20],
-              rotate: [0, 360],
-              opacity: [0.6, 0],
+            style={{
+              left: d.left,
+              top: d.top,
+              animation: `invitePetalFall ${d.duration} ${d.delay} infinite linear`,
             }}
-            transition={{ duration: 4 + Math.random() * 2, delay: Math.random() * 2, repeat: Infinity }}
           >
             🌸
-          </motion.div>
+          </div>
         ));
       case "leafFall":
-        return Array.from({ length: 8 }).map((_, i) => (
-          <motion.div
+        return decorations.map((d, i) => (
+          <div
             key={i}
             className="absolute text-[14px]"
-            style={{ left: `${10 + Math.random() * 80}%`, top: `-5%` }}
-            animate={{
-              y: ["0vh", "110vh"],
-              x: [0, Math.random() * 60 - 30],
-              rotate: [0, 360],
-              opacity: [0.5, 0],
+            style={{
+              left: d.left,
+              top: d.top,
+              animation: `invitePetalFall ${d.duration} ${d.delay} infinite linear`,
             }}
-            transition={{ duration: 5 + Math.random() * 2, delay: Math.random() * 2, repeat: Infinity }}
           >
             🍂
-          </motion.div>
+          </div>
         ));
       case "heartBeat":
         return (
-          <motion.div
+          <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
+            style={{ animation: "inviteHeartBeat 1.5s infinite" }}
           >
             <div className="text-[60px] opacity-10">❤️</div>
-          </motion.div>
+          </div>
         );
       default:
         return null;
@@ -281,14 +167,47 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
   };
 
   return (
-    <motion.div
-      {...variants}
-      onClick={onComplete}
+    <div
+      onClick={handleClick}
       className="fixed inset-0 z-50 flex items-center justify-center cursor-pointer overflow-hidden"
-      style={{ background: bg }}
+      style={{ background: bg, ...exitStyle }}
     >
       {renderDecorations()}
-      {content}
-    </motion.div>
+
+      <div className="text-center relative z-10">
+        <p
+          className="text-[11px] tracking-[0.3em] uppercase mb-4"
+          style={{
+            color: accent,
+            opacity: phase >= 1 ? 1 : 0,
+            transition: "opacity 0.6s ease",
+          }}
+        >
+          Wedding Invitation
+        </p>
+        <h1
+          className="text-[24px] font-light leading-[1.5]"
+          style={{
+            fontFamily: `'${fonts.heading}', serif`,
+            color: text,
+            opacity: phase >= 1 ? 1 : 0,
+            transform: phase >= 1 ? "translateY(0)" : "translateY(20px)",
+            transition: "opacity 0.8s ease 0.2s, transform 0.8s ease 0.2s",
+          }}
+        >
+          {groomName} & {brideName}
+        </h1>
+        <p
+          className="text-[12px] mt-6 tracking-wide"
+          style={{
+            color: accent,
+            opacity: phase >= 2 ? 0.5 : 0,
+            transition: "opacity 0.5s ease",
+          }}
+        >
+          터치하여 열기
+        </p>
+      </div>
+    </div>
   );
 }

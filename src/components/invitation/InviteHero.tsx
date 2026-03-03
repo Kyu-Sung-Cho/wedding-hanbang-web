@@ -1,15 +1,16 @@
 "use client";
 
-import { motion } from "framer-motion";
-import type { Invitation } from "@/types/invitation.types";
+import type { Invitation, InvitationPhoto } from "@/types/invitation.types";
 
 interface Props {
   invitation: Invitation;
   colors: string[];
   fonts: { heading: string; body: string };
+  photos?: InvitationPhoto[];
 }
 
-export default function InviteHero({ invitation, colors, fonts }: Props) {
+export default function InviteHero({ invitation, colors, fonts, photos }: Props) {
+  const mainPhoto = photos?.[0];
   const weddingDate = invitation.wedding_date
     ? new Date(invitation.wedding_date)
     : null;
@@ -19,24 +20,32 @@ export default function InviteHero({ invitation, colors, fonts }: Props) {
   const hasNames = groomName || brideName;
 
   return (
-    <section className="relative py-20 px-6 text-center overflow-hidden">
-      {/* 배경 장식 */}
-      <div
-        className="absolute inset-0 opacity-[0.06]"
-        style={{
-          background: `radial-gradient(circle at 30% 20%, ${colors[0]}, transparent 50%), radial-gradient(circle at 70% 80%, ${colors[0]}, transparent 50%)`,
-        }}
-      />
+    <section className="relative text-center overflow-hidden">
+      {/* 메인 사진 */}
+      {mainPhoto && (
+        <div className="w-full aspect-[3/4] max-h-[520px] overflow-hidden">
+          <img
+            src={mainPhoto.url}
+            alt={mainPhoto.caption ?? ""}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
-        className="relative z-10"
+      <div
+        className="relative py-20 px-6"
       >
-        <p className="text-[10px] tracking-[0.3em] uppercase mb-8 opacity-60" style={{ color: colors[0] }}>
-          Wedding Invitation
-        </p>
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            background: `radial-gradient(circle at 30% 20%, ${colors[0]}, transparent 50%), radial-gradient(circle at 70% 80%, ${colors[0]}, transparent 50%)`,
+          }}
+        />
+
+        <div className="relative z-10 animate-fade-in" style={{ animationDuration: "0.8s" }}>
+          <p className="text-[10px] tracking-[0.3em] uppercase mb-8 opacity-60" style={{ color: colors[0] }}>
+            Wedding Invitation
+          </p>
 
         {hasNames ? (
           <h1
@@ -54,7 +63,6 @@ export default function InviteHero({ invitation, colors, fonts }: Props) {
           </h1>
         )}
 
-        {/* 구분선 */}
         <div className="w-8 h-px mx-auto mb-5 opacity-30" style={{ background: colors[0] }} />
 
         {weddingDate && (
@@ -78,7 +86,8 @@ export default function InviteHero({ invitation, colors, fonts }: Props) {
             {invitation.wedding_hall ? ` ${invitation.wedding_hall}` : ""}
           </p>
         )}
-      </motion.div>
+        </div>
+      </div>
     </section>
   );
 }

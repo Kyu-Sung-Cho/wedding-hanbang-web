@@ -27,11 +27,17 @@ export default function B2BNav() {
         </Link>
         <div className="flex items-center gap-3">
           <Link
-            href="#partner-types"
+            href="/"
+            className="hidden sm:block px-4 py-2 text-[13px] text-white/60 hover:text-white transition-colors"
+          >
+            고객 페이지
+          </Link>
+          <button
+            onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
             className="hidden sm:block px-4 py-2 text-[13px] text-white/60 hover:text-white transition-colors"
           >
             파트너 설문
-          </Link>
+          </button>
           <Link
             href="/vendor/login"
             className="hidden sm:block px-4 py-2 text-[13px] text-white/60 hover:text-white transition-colors"

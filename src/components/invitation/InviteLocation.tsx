@@ -1,8 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { Invitation } from "@/types/invitation.types";
-import { MapPin, Navigation, Phone, Copy, Check } from "lucide-react";
+import { MapPin, Navigation, Copy, Check } from "lucide-react";
 import { useState } from "react";
 
 interface Props {
@@ -23,12 +22,7 @@ export default function InviteLocation({ invitation, colors }: Props) {
 
   return (
     <section className="py-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-      >
+      <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Location
         </h3>
@@ -57,7 +51,17 @@ export default function InviteLocation({ invitation, colors }: Props) {
             </div>
           )}
 
-          {/* 지도 링크 */}
+          {invitation.wedding_transport && (
+            <div className="mb-4 pl-8">
+              <p className="text-[12px] font-medium mb-2 opacity-70" style={{ color: colors[0] }}>
+                오시는 길
+              </p>
+              <div className="text-[12px] opacity-60 leading-[1.8] whitespace-pre-line">
+                {invitation.wedding_transport}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 pl-8">
             {invitation.wedding_map_url && (
               <a
@@ -84,7 +88,7 @@ export default function InviteLocation({ invitation, colors }: Props) {
             )}
           </div>
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

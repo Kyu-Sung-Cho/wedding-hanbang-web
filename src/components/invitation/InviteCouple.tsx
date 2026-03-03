@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { Invitation } from "@/types/invitation.types";
 
 interface Props {
@@ -38,16 +37,9 @@ export default function InviteCouple({ invitation, colors, fonts }: Props) {
 
   return (
     <section className="py-10 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="flex items-start"
-      >
+      <div className="flex items-start animate-fade-in" style={{ animationDuration: "0.6s" }}>
         {renderSide("Groom", invitation.groom_name, invitation.groom_father, invitation.groom_mother, "아들")}
 
-        {/* 구분자 */}
         <div className="flex flex-col items-center justify-center px-3 pt-6">
           <div className="w-px h-6 opacity-20" style={{ background: colors[0] }} />
           <span className="text-[14px] my-2 opacity-40" style={{ color: colors[0] }}>&</span>
@@ -55,7 +47,7 @@ export default function InviteCouple({ invitation, colors, fonts }: Props) {
         </div>
 
         {renderSide("Bride", invitation.bride_name, invitation.bride_father, invitation.bride_mother, "딸")}
-      </motion.div>
+      </div>
     </section>
   );
 }

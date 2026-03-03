@@ -305,7 +305,7 @@ export const studioConfig: ShopConfig = {
           id: 'contact',
           type: 'contact_form',
           required: false,
-          question: '관심 있으시면 연락처 남겨주세요 (선택)',
+          question: '연락처 남겨주신 분께 우선 안내드립니다 (선택)',
           fields: [
             { id: 'shop_name', label: '업체명', placeholder: '스튜디오명을 입력해주세요' },
             { id: 'contact_name', label: '담당자명', placeholder: '성함을 입력해주세요' },

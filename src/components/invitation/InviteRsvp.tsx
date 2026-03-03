@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 
 interface Props {
@@ -35,11 +34,9 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
   if (submitted) {
     return (
       <section className="py-12 px-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center p-8 rounded-2xl"
-          style={{ background: `${colors[0]}08` }}
+        <div
+          className="text-center p-8 rounded-2xl animate-fade-in"
+          style={{ background: `${colors[0]}08`, animationDuration: "0.4s" }}
         >
           <div
             className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
@@ -49,19 +46,14 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
           </div>
           <p className="text-[15px] font-medium">감사합니다!</p>
           <p className="text-[13px] opacity-60 mt-1">참석 여부가 전달되었습니다.</p>
-        </motion.div>
+        </div>
       </section>
     );
   }
 
   return (
     <section className="py-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-      >
+      <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           RSVP
         </h3>
@@ -83,7 +75,6 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/[0.06] text-[14px] placeholder:opacity-40 focus:outline-none"
           />
 
-          {/* 참석 여부 */}
           <div className="flex gap-2">
             {[
               { value: true, label: "참석합니다" },
@@ -104,7 +95,6 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             ))}
           </div>
 
-          {/* 참석 인원 */}
           {attending === true && (
             <div className="flex items-center gap-3">
               <span className="text-[13px] opacity-60">참석 인원</span>
@@ -126,7 +116,6 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             </div>
           )}
 
-          {/* 측 선택 */}
           <div className="flex gap-2">
             {[
               { value: "groom", label: "신랑측" },
@@ -156,7 +145,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             {submitting ? "전송 중..." : "참석 여부 전달하기"}
           </button>
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

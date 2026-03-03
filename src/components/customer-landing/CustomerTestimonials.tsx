@@ -11,11 +11,11 @@ const scenarios = [
     feature: "AI 상담",
   },
   {
-    text: "집에서 편하게 드레스를 입어보고 마음에 드는 것만 직접 가서 확인하세요. 드레스 투어 시간을 크게 줄여드립니다.",
-    avatar: "👗",
-    label: "가상 피팅",
-    situation: "퇴근 후 집에서 드레스 고르기",
-    feature: "가상 피팅",
+    text: "추가금이 얼마나 붙을지, 다른 커플들은 평균 얼마를 쓰는지. AI가 미리 계산해서 예산 걱정을 덜어드려요.",
+    avatar: "💰",
+    label: "예산 관리",
+    situation: "예산 고민, AI가 대신 계산해줘요",
+    feature: "예산 관리",
   },
   {
     text: "커플이 함께 사용하면 따로 카톡으로 공유할 필요 없이 예산 관리가 한눈에 됩니다. 의견 조율도 쉬워져요.",
@@ -49,7 +49,7 @@ const scenarios = [
 
 export default function CustomerTestimonials() {
   return (
-    <section id="reviews" className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section id="reviews" className="bg-ivory-100 py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div

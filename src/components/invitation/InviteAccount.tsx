@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import type { InvitationAccount } from "@/types/invitation.types";
 import { Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -43,12 +42,7 @@ export default function InviteAccount({ accounts, colors }: Props) {
         </button>
 
         {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-1 flex flex-col gap-1"
-          >
+          <div className="mt-1 flex flex-col gap-1 invite-expand">
             {list.map((acc) => (
               <div key={acc.id} className="flex items-center justify-between p-3 rounded-xl bg-white border border-black/[0.04]">
                 <div>
@@ -74,7 +68,7 @@ export default function InviteAccount({ accounts, colors }: Props) {
                 </button>
               </div>
             ))}
-          </motion.div>
+          </div>
         )}
       </div>
     );
@@ -82,19 +76,14 @@ export default function InviteAccount({ accounts, colors }: Props) {
 
   return (
     <section className="py-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-      >
+      <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           축의금 계좌
         </h3>
 
         {renderGroup("신랑 측 계좌", "groom", groomAccounts)}
         {renderGroup("신부 측 계좌", "bride", brideAccounts)}
-      </motion.div>
+      </div>
     </section>
   );
 }

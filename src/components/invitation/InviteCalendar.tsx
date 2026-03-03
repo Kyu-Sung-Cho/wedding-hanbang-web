@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { Invitation } from "@/types/invitation.types";
 
 interface Props {
@@ -18,7 +17,6 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
   const month = date.getMonth();
   const day = date.getDate();
 
-  // 해당 월 달력 계산
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const weeks: (number | null)[][] = [];
@@ -36,19 +34,12 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
     weeks.push(week);
   }
 
-  // D-day 계산
   const now = new Date();
   const diff = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
   return (
     <section className="py-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="text-center"
-      >
+      <div className="text-center animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <h3 className="text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Calendar
         </h3>
@@ -60,7 +51,6 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
           {year}년 {month + 1}월
         </p>
 
-        {/* 요일 헤더 */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {DAYS.map((d) => (
             <div key={d} className="text-[11px] font-medium opacity-40 py-1">
@@ -69,7 +59,6 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
           ))}
         </div>
 
-        {/* 날짜 그리드 */}
         <div className="grid grid-cols-7 gap-1">
           {weeks.flat().map((d, i) => (
             <div
@@ -84,13 +73,12 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
           ))}
         </div>
 
-        {/* D-day */}
         {diff > 0 && (
           <p className="mt-4 text-[13px]" style={{ color: colors[0] }}>
             결혼식까지 <span className="font-semibold">{diff}</span>일
           </p>
         )}
-      </motion.div>
+      </div>
     </section>
   );
 }

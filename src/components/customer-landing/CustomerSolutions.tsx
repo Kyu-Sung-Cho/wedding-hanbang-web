@@ -5,8 +5,43 @@ import { motion } from "framer-motion";
 const solutions = [
   {
     num: "01",
+    title: "AI D-day 플래닝",
+    desc: "결혼일만 입력하면 끝. AI가 D-day 기준으로 뭘 먼저 해야 하는지 자동으로 플랜을 짜줍니다. 20개 카테고리 체크리스트로 빠짐없이 관리하고, 적절한 시점에 알림까지 보내드려요. 따라가기만 하면 됩니다.",
+    tags: ["D-day 맞춤 자동 플래닝", "20개 카테고리"],
+    visual: (
+      <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
+        <div className="flex items-center justify-between mb-5">
+          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">D-120 · 웨딩 타임라인</span>
+          <span className="text-[11px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">2/4 완료</span>
+        </div>
+        <div className="flex flex-col relative pl-6">
+          <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
+          {[
+            { dday: "D-150", title: "스튜디오 계약 완료", desc: "OO스튜디오 · 280만원", done: true },
+            { dday: "D-120", title: "드레스 투어 시작", desc: "AI 추천 3곳 · 가상 피팅 완료", done: true },
+            { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", done: false },
+            { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", done: false },
+          ].map((item) => (
+            <div key={item.dday} className="flex items-start gap-4 py-2.5 relative">
+              <div className={`absolute -left-[21px] top-3.5 w-2.5 h-2.5 rounded-full border-2 ${item.done ? "border-rose-500 bg-rose-500 shadow-[0_0_0_4px_rgba(196,150,126,0.2)]" : "border-taupe-400 bg-white"}`} />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
+                  {item.done && <span className="text-[10px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-1.5 py-0.5 rounded">완료</span>}
+                </div>
+                <h5 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
+                <p className="text-[11px] text-taupe-500">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: "02",
     title: "AI 맞춤 업체 추천",
-    desc: "예산, 지역, 스타일 선호도를 분석해서 나에게 딱 맞는 업체를 AI가 추천합니다. 발품 팔 필요 없이 최적의 업체를 만나보세요.",
+    desc: "예산, 지역, 스타일 선호도를 AI가 분석해서 나에게 딱 맞는 업체를 추천합니다. 발품 팔 필요 없이 최적의 업체를 만나보세요. 업체 탐색하면서 취향이 바뀌면 AI가 바로 반영해서 추천을 업데이트합니다.",
     tags: ["AI 매칭", "예산·스타일 분석"],
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
@@ -40,9 +75,41 @@ const solutions = [
     ),
   },
   {
-    num: "02",
+    num: "03",
+    title: "커플 공유 예산 관리",
+    desc: "카테고리별 예산 배분부터 실시간 지출 추적까지. AI가 추가금이 얼마나 붙을지 미리 계산해서 알려드리고, 예산 초과 전에 경고합니다. 커플이 함께 실시간으로 확인할 수 있어요.",
+    tags: ["추가비용 사전 알림", "커플 실시간 공유"],
+    visual: (
+      <div className="bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] rounded-2xl p-6 h-full flex flex-col justify-center">
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">커플 예산 현황</span>
+          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">실시간</span>
+        </div>
+        <div className="font-display text-[28px] font-light text-noir-800 mb-1">₩12,500,000</div>
+        <div className="text-[12px] text-taupe-500 mb-5">예산 대비 68% 사용 · 잔여 ₩4,000,000</div>
+        <div className="flex flex-col gap-3">
+          {[
+            { label: "스튜디오", width: "75%", color: "bg-rose-500", amt: "280만" },
+            { label: "드레스", width: "50%", color: "bg-gold", amt: "200만" },
+            { label: "메이크업", width: "35%", color: "bg-taupe-500", amt: "120만" },
+            { label: "예비비", width: "20%", color: "bg-noir-soft", amt: "60만" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-3">
+              <span className="text-[11px] font-medium w-[55px] text-right text-noir-soft">{item.label}</span>
+              <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${item.color}`} style={{ width: item.width }} />
+              </div>
+              <span className="text-[11px] text-taupe-500 w-9 font-medium">{item.amt}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: "04",
     title: "24시간 AI 웨딩 플래너",
-    desc: "단순한 챗봇이 아닙니다. 결혼일, 예산, 선호도를 기억하고 실제 웨딩 플래너처럼 맞춤 조언을 제공합니다. 커플이 함께 같은 채팅방에서 AI와 상담할 수 있어, 따로 공유할 필요가 없습니다.",
+    desc: "단순한 챗봇이 아닙니다. 결혼일, 예산, 선호도를 기억하고 실제 웨딩 플래너처럼 맞춤 조언을 제공합니다. 커플이 같은 채팅방에서 AI와 함께 상담하니 따로 공유할 필요 없이, 시간날 때 언제든 상담하세요.",
     tags: ["AI 웨딩 플래너", "커플 동시 상담"],
     visual: (
       <div className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-2xl p-6 h-full flex flex-col justify-center">
@@ -76,97 +143,6 @@ const solutions = [
       </div>
     ),
   },
-  {
-    num: "03",
-    title: "커플 공유 예산 관리",
-    desc: "카테고리별 예산 배분부터 실시간 지출 추적까지. AI가 숨겨진 추가 비용을 미리 경고해드리고, 커플이 함께 확인할 수 있습니다.",
-    tags: ["숨겨진 비용 알림", "커플 실시간 공유"],
-    visual: (
-      <div className="bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] rounded-2xl p-6 h-full flex flex-col justify-center">
-        <div className="flex items-center justify-between mb-4">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">커플 예산 현황</span>
-          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">실시간</span>
-        </div>
-        <div className="font-display text-[28px] font-light text-noir-800 mb-1">₩12,500,000</div>
-        <div className="text-[12px] text-taupe-500 mb-5">예산 대비 68% 사용 · 잔여 ₩4,000,000</div>
-        <div className="flex flex-col gap-3">
-          {[
-            { label: "스튜디오", width: "75%", color: "bg-rose-500", amt: "280만" },
-            { label: "드레스", width: "50%", color: "bg-gold", amt: "200만" },
-            { label: "메이크업", width: "35%", color: "bg-taupe-500", amt: "120만" },
-            { label: "예비비", width: "20%", color: "bg-noir-soft", amt: "60만" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-3">
-              <span className="text-[11px] font-medium w-[55px] text-right text-noir-soft">{item.label}</span>
-              <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${item.color}`} style={{ width: item.width }} />
-              </div>
-              <span className="text-[11px] text-taupe-500 w-9 font-medium">{item.amt}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    num: "04",
-    title: "AI D-day 플래닝",
-    desc: "결혼일 기준으로 해야 할 일을 자동으로 제안하고, 적절한 시점에 알림을 보내드립니다. 20개 카테고리별 체크리스트를 체계적으로 관리하세요.",
-    tags: ["D-day 맞춤 자동 플래닝", "20개 카테고리"],
-    visual: (
-      <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
-        <div className="flex items-center justify-between mb-5">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">D-120 · 웨딩 타임라인</span>
-          <span className="text-[11px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">2/4 완료</span>
-        </div>
-        <div className="flex flex-col relative pl-6">
-          <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
-          {[
-            { dday: "D-150", title: "스튜디오 계약 완료", desc: "OO스튜디오 · 280만원", done: true },
-            { dday: "D-120", title: "드레스 투어 시작", desc: "AI 추천 3곳 · 가상 피팅 완료", done: true },
-            { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", done: false },
-            { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", done: false },
-          ].map((item) => (
-            <div key={item.dday} className="flex items-start gap-4 py-2.5 relative">
-              <div className={`absolute -left-[21px] top-3.5 w-2.5 h-2.5 rounded-full border-2 ${item.done ? "border-rose-500 bg-rose-500 shadow-[0_0_0_4px_rgba(196,150,126,0.2)]" : "border-taupe-400 bg-white"}`} />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
-                  {item.done && <span className="text-[10px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-1.5 py-0.5 rounded">완료</span>}
-                </div>
-                <h5 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
-                <p className="text-[11px] text-taupe-500">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    num: "05",
-    title: "AI 가상 드레스 피팅",
-    desc: "집에서 편하게 다양한 드레스를 가상으로 입어보세요. AI가 체형을 분석하고 드레스를 합성합니다. 마음에 드는 것만 직접 방문해서 확인하세요.",
-    tags: ["AI 가상 피팅", "집에서 간편하게"],
-    visual: (
-      <div className="bg-gradient-to-br from-ivory-deep to-[#EDE5DA] rounded-2xl h-full flex items-center justify-center relative py-10">
-        <div className="relative w-[160px] h-[220px]">
-          <div className="w-full h-full bg-gradient-to-b from-rose-pale via-rose-light to-ivory-deep rounded-[40%_40%_50%_50%/30%_30%_45%_45%] shadow-[0_20px_60px_rgba(196,150,126,0.2)]" />
-          <div className="absolute top-0 -left-5 -right-5 h-[3px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-[scanLine_3s_ease-in-out_infinite] rounded shadow-[0_0_20px_rgba(196,150,126,0.4)]" />
-          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full text-[12px] font-medium text-rose-500 shadow-[0_4px_20px_rgba(0,0,0,0.08)] whitespace-nowrap flex items-center gap-1.5">
-            ✦ AI 가상 피팅 중...
-          </div>
-        </div>
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
-          {["A", "B", "C"].map((label) => (
-            <div key={label} className="w-10 h-12 rounded-lg bg-white/80 border border-rose-pale/30 shadow-sm flex items-center justify-center text-[10px] text-rose-500">
-              {label}
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
 ];
 
 export default function CustomerSolutions() {
@@ -181,12 +157,15 @@ export default function CustomerSolutions() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-3">
           <span className="w-5 h-px bg-rose-500" />
           Solution
         </div>
+        <p className="text-[14px] text-taupe-500 font-light mb-4">
+          위의 고민들, 이렇게 해결합니다
+        </p>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
-          웨딩한방이 모든 걸
+          <em className="not-italic font-medium bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">웨딩한방</em>이 모든 걸
           <br />
           바꿔드립니다
         </h2>

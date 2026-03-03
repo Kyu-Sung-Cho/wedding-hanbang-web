@@ -50,7 +50,7 @@ const partnerTypes = [
 
 export default function B2BPartnerTypes() {
   return (
-    <section id="partner-types" className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section id="partner-types" className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5 scroll-mt-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
@@ -62,10 +62,10 @@ export default function B2BPartnerTypes() {
       >
         <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
-          Partnership
+          Partner Survey
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
-          업종별 맞춤 파트너십
+          업종별 설문 조사
         </h2>
         <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           대표님들의 현장 목소리를 직접 듣고 서비스에 반영합니다.

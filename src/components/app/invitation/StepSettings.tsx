@@ -91,6 +91,8 @@ export default function StepSettings() {
       <div className="mb-6 flex flex-col gap-3">
         <label className="block text-[12px] font-medium text-taupe-500 mb-1">기능 설정</label>
         {[
+          { key: "gallery_enabled", label: "갤러리" },
+          { key: "location_enabled", label: "오시는 길 (위치)" },
           { key: "rsvp_enabled", label: "참석 여부 (RSVP)" },
           { key: "guestbook_enabled", label: "방명록" },
           { key: "account_enabled", label: "축의금 계좌 표시" },

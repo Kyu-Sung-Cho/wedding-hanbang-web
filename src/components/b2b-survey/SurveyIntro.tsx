@@ -32,13 +32,11 @@ export default function SurveyIntro({ config, hasDraft, onStart, onResume }: Pro
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.15em] uppercase text-rose-500 font-medium mb-4">
             <span className="w-4 h-px bg-rose-500" />
-            B2B Partnership
+            Partner Survey
             <span className="w-4 h-px bg-rose-500" />
           </div>
           <h1 className="font-serif-kr text-[clamp(24px,4vw,36px)] font-light leading-[1.4] tracking-tight mb-4">
-            웨딩 {config.shopTypeName}
-            <br />
-            파트너십 설문
+            설문조사 - {config.shopTypeName}
           </h1>
           <p className="text-[14px] text-charcoal font-light leading-relaxed">
             AI 웨딩 플랫폼 &lsquo;웨딩한방&rsquo;이

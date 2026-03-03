@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export async function POST(
@@ -24,14 +25,24 @@ export async function POST(
     return NextResponse.json({ error: "이미지 파일만 업로드 가능합니다" }, { status: 400 });
   }
 
+  // Service role 클라이언트 (스토리지 RLS 우회)
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   // 고유 파일명 생성
   const ext = file.name.split(".").pop() || "jpg";
   const fileName = `${id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
+  // File → ArrayBuffer → Buffer 변환
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
   // Supabase Storage에 업로드
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await admin.storage
     .from("invitation-photos")
-    .upload(fileName, file, {
+    .upload(fileName, buffer, {
       contentType: file.type,
       upsert: false,
     });
@@ -41,14 +52,14 @@ export async function POST(
   }
 
   // 공개 URL 가져오기
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = admin.storage
     .from("invitation-photos")
     .getPublicUrl(fileName);
 
   const publicUrl = urlData.publicUrl;
 
   // DB에 사진 레코드 추가
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("invitation_photos")
     .select("sort_order")
     .eq("invitation_id", id)
@@ -57,7 +68,7 @@ export async function POST(
 
   const nextOrder = (existing?.[0]?.sort_order ?? -1) + 1;
 
-  const { data: photo, error: dbError } = await supabase
+  const { data: photo, error: dbError } = await admin
     .from("invitation_photos")
     .insert({ invitation_id: id, url: publicUrl, sort_order: nextOrder })
     .select()

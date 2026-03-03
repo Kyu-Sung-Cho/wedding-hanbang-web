@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Logo from "@/components/ui/Logo";
 
 const infoLinks = [
-  { label: "웨딩한방 소개", href: "/customer" },
+  { label: "웨딩한방 소개", href: "/" },
   { label: "자주 묻는 질문", href: null },
   { label: "이용약관", href: null },
   { label: "개인정보처리방침", href: null },
@@ -30,7 +30,7 @@ export default function Footer() {
       <div className="grid grid-cols-[2fr_1fr] gap-[60px] max-w-[1200px] mx-auto mb-[60px] max-md:grid-cols-1 max-md:gap-8">
         {/* 브랜드 */}
         <div>
-          <a href="/customer" className="no-underline">
+          <a href="/" className="no-underline">
             <Logo size="sm" variant="white" />
           </a>
           <p className="text-[14px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">

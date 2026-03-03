@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { Invitation } from "@/types/invitation.types";
 
 interface Props {
@@ -14,13 +13,7 @@ export default function InviteGreeting({ invitation, colors, fonts }: Props) {
 
   return (
     <section className="py-12 px-8 text-center">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-      >
-        {/* 장식선 */}
+      <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <div className="flex items-center justify-center gap-3 mb-6">
           <div className="w-8 h-px" style={{ background: colors[0] }} />
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: colors[0] }} />
@@ -41,13 +34,12 @@ export default function InviteGreeting({ invitation, colors, fonts }: Props) {
           {invitation.greeting_message}
         </p>
 
-        {/* 장식선 */}
         <div className="flex items-center justify-center gap-3 mt-6">
           <div className="w-8 h-px" style={{ background: colors[0] }} />
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: colors[0] }} />
           <div className="w-8 h-px" style={{ background: colors[0] }} />
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

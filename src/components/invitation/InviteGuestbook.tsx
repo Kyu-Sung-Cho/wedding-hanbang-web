@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import type { InvitationGuestbook as GuestbookEntry } from "@/types/invitation.types";
 import { Send } from "lucide-react";
 
@@ -29,12 +28,7 @@ export default function InviteGuestbook({ entries, colors, onSubmit }: Props) {
 
   return (
     <section className="py-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-      >
+      <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
         <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Guestbook
         </h3>
@@ -79,11 +73,10 @@ export default function InviteGuestbook({ entries, colors, onSubmit }: Props) {
         {/* 기존 방명록 */}
         <div className="flex flex-col gap-2">
           {entries.map((entry) => (
-            <motion.div
+            <div
               key={entry.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-3 rounded-xl bg-white border border-black/[0.04]"
+              className="p-3 rounded-xl bg-white border border-black/[0.04] animate-fade-in"
+              style={{ animationDuration: "0.3s" }}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[12px] font-medium">{entry.guest_name}</span>
@@ -92,10 +85,10 @@ export default function InviteGuestbook({ entries, colors, onSubmit }: Props) {
                 </span>
               </div>
               <p className="text-[13px] opacity-70 leading-relaxed">{entry.message}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 }

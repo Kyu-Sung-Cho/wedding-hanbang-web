@@ -3,22 +3,29 @@
 import { Sparkles, Loader2 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import ActionCard from "./ActionCard";
+import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 
 interface StreamingBubbleProps {
   content: string;
   toolResults: ToolExecutionResult[];
+  onSend?: (text: string) => void;
 }
 
 export default function StreamingBubble({
   content,
   toolResults,
+  onSend,
 }: StreamingBubbleProps) {
   return (
     <div>
       {/* 도구 실행 결과 카드 */}
-      {toolResults.map((result, i) => (
-        <ActionCard key={i} result={result} />
-      ))}
+      {toolResults.map((result, i) =>
+        VENDOR_TOOL_NAMES.has(result.toolName) ? (
+          <VendorToolCard key={i} result={result} onSend={onSend} disabled />
+        ) : (
+          <ActionCard key={i} result={result} />
+        )
+      )}
 
       {/* 스트리밍 텍스트 또는 타이핑 인디케이터 */}
       <div className="flex items-start gap-3 max-w-[85%]">

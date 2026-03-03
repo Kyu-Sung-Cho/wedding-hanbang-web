@@ -21,12 +21,17 @@ export function useB2BSurvey(config: ShopConfig) {
   const [errors, setErrors] = useState<Errors>({});
   const [hasDraft, setHasDraft] = useState(false);
 
-  // localStorage에서 임시 저장 확인
+  // localStorage에서 임시 저장 확인 (실제 답변이 있는 경우만 draft로 인정)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
-        setHasDraft(true);
+        const data = JSON.parse(saved);
+        const hasAnswers = data.answers && Object.keys(data.answers).length > 0;
+        setHasDraft(hasAnswers);
+        if (!hasAnswers) {
+          localStorage.removeItem(storageKey);
+        }
       }
     } catch {
       // localStorage 접근 불가

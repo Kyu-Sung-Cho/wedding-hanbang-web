@@ -7,6 +7,7 @@ import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
 import ActionCard from "@/components/app/chat/ActionCard";
+import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorToolCard";
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
@@ -326,9 +327,13 @@ export default function ChatPage() {
                   currentUserRole={profile?.role}
                 />
                 {hasToolResults &&
-                  msg.metadata!.toolResults!.map((result, i) => (
-                    <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
-                  ))}
+                  msg.metadata!.toolResults!.map((result, i) =>
+                    VENDOR_TOOL_NAMES.has(result.toolName) ? (
+                      <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
+                    ) : (
+                      <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
+                    )
+                  )}
               </motion.div>
             );
           })}
@@ -336,7 +341,7 @@ export default function ChatPage() {
 
         {isStreaming && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} />
+            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} />
           </motion.div>
         )}
 

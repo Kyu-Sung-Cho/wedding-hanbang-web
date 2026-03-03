@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import type { Invitation, InvitationPhoto, InvitationAccount, InvitationGuestbook as GuestbookEntry } from "@/types/invitation.types";
 import OpeningAnimation from "@/components/invitation/OpeningAnimation";
 import InviteHero from "@/components/invitation/InviteHero";
@@ -110,67 +109,55 @@ export default function InvitePage() {
       }}
     >
       {/* 오프닝 애니메이션 */}
-      <AnimatePresence>
-        {showOpening && (
-          <OpeningAnimation
-            type={invitation.opening_animation}
-            colors={colors}
-            fonts={fonts}
-            groomName={invitation.groom_name ?? ""}
-            brideName={invitation.bride_name ?? ""}
-            onComplete={() => setShowOpening(false)}
-          />
-        )}
-      </AnimatePresence>
+      {showOpening && (
+        <OpeningAnimation
+          type={invitation.opening_animation}
+          colors={colors}
+          fonts={fonts}
+          groomName={invitation.groom_name ?? ""}
+          brideName={invitation.bride_name ?? ""}
+          onComplete={() => setShowOpening(false)}
+        />
+      )}
 
       {!showOpening && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }}>
-          {/* 1. 히어로 */}
-          <InviteHero invitation={invitation} colors={colors} fonts={fonts} />
+        <div className="animate-fade-in" style={{ animationDuration: "0.8s" }}>
+          <InviteHero invitation={invitation} colors={colors} fonts={fonts} photos={photos} />
 
-          {/* 2. 인사말 */}
           {invitation.greeting_message && (
             <InviteGreeting invitation={invitation} colors={colors} fonts={fonts} />
           )}
 
-          {/* 3. 신랑신부 소개 (부모님 정보 있을 때만) */}
           {(invitation.groom_father || invitation.bride_father) && (
             <InviteCouple invitation={invitation} colors={colors} fonts={fonts} />
           )}
 
-          {/* 4. 갤러리 */}
-          {photos.length > 0 && (
-            <InviteGallery photos={photos} colors={colors} />
+          {(invitation.gallery_enabled !== false) && photos.length > 1 && (
+            <InviteGallery photos={photos} colors={colors} skipFirst />
           )}
 
-          {/* 5. 예식 일정 (달력) */}
           {invitation.wedding_date && (
             <InviteCalendar invitation={invitation} colors={colors} fonts={fonts} />
           )}
 
-          {/* 6. 오시는 길 */}
-          {invitation.wedding_venue && (
+          {(invitation.location_enabled !== false) && invitation.wedding_venue && (
             <InviteLocation invitation={invitation} colors={colors} />
           )}
 
-          {/* 7. 참석 여부 */}
           {invitation.rsvp_enabled && (
             <InviteRsvp colors={colors} onSubmit={handleRsvpSubmit} />
           )}
 
-          {/* 8. 축의금 계좌 */}
           {invitation.account_enabled && accounts.length > 0 && (
             <InviteAccount accounts={accounts} colors={colors} />
           )}
 
-          {/* 9. 방명록 */}
           {invitation.guestbook_enabled && (
             <InviteGuestbook entries={guestbook} colors={colors} onSubmit={handleGuestbookSubmit} />
           )}
 
-          {/* 10. 푸터 */}
           <InviteFooter invitation={invitation} colors={colors} />
-        </motion.div>
+        </div>
       )}
     </div>
   );

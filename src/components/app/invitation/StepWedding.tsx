@@ -191,6 +191,19 @@ export default function StepWedding() {
           />
         </div>
 
+        {/* 교통편 안내 */}
+        <div>
+          <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">교통편 안내 (선택)</label>
+          <textarea
+            value={current.wedding_transport ?? ""}
+            onChange={(e) => updateCurrent({ wedding_transport: e.target.value || null })}
+            placeholder={"지하철: 2호선 삼성역 5번 출구 도보 5분\n버스: 143, 240번 삼성동 정류장\n자가용: 지하 주차장 이용 가능 (2시간 무료)"}
+            rows={4}
+            className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20 resize-none"
+          />
+          <p className="text-[11px] text-taupe-400 mt-1">줄바꿈으로 교통수단별 안내를 구분할 수 있습니다.</p>
+        </div>
+
         {/* 인사말 제목 */}
         <div>
           <label className="block text-[12px] font-medium text-taupe-500 mb-1.5">인사말 제목</label>

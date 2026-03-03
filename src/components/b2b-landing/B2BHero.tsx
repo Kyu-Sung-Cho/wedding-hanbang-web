@@ -21,7 +21,7 @@ export default function B2BHero() {
         >
           <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.2em] uppercase text-rose-light font-medium mb-8">
             <span className="w-6 h-px bg-rose-light" />
-            Wedding Business Partner
+            Business Partner
             <span className="w-6 h-px bg-rose-light" />
           </div>
         </motion.div>
@@ -63,12 +63,12 @@ export default function B2BHero() {
           >
             서비스 안내 & 업체 등록
           </Link>
-          <Link
-            href="#partner-types"
+          <button
+            onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
             className="px-8 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all"
           >
             파트너 설문 참여하기
-          </Link>
+          </button>
         </motion.div>
 
         {/* 하단 통계 미니 */}

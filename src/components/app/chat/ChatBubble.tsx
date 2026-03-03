@@ -27,6 +27,11 @@ function parseEtiquetteTags(text: string): { cleanText: string; partNumbers: num
   return { cleanText, partNumbers };
 }
 
+// 사용자 메시지에서 선택 태그 제거 [vendor:...], [product:...], [staff:...], [date:...], [time:...]
+function stripSelectionTags(text: string): string {
+  return text.replace(/\[(?:vendor|product|staff|date|time):[^\]]*\]/g, "").trim();
+}
+
 export default function ChatBubble({
   message,
   isCurrentUser,
@@ -103,6 +108,9 @@ export default function ChatBubble({
     : "bg-gradient-to-br from-[#3B5998] to-[#6B8CCE]";
   const badgeBg = isBride ? "bg-[#C4967E]/20 text-[#9A6B62]" : "bg-[#3B5998]/20 text-[#3B5998]";
 
+  // 사용자 메시지에서 선택 태그 숨김
+  const displayContent = stripSelectionTags(content);
+
   if (isCurrentUser) {
     // 내 메시지: 오른쪽 정렬
     return (
@@ -112,7 +120,7 @@ export default function ChatBubble({
             className={`${myBubbleBg} rounded-2xl rounded-tr-md px-4 py-3 shadow-sm`}
           >
             <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
-              {content}
+              {displayContent}
             </p>
           </div>
           <span className="text-[10px] text-[#B5ADA3] mr-1">
@@ -150,7 +158,7 @@ export default function ChatBubble({
           className={`${partnerBubbleBg} border ${partnerBubbleBorder} rounded-2xl rounded-tl-md px-4 py-3 shadow-sm`}
         >
           <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
-            {content}
+            {displayContent}
           </p>
         </div>
         <span className="text-[10px] text-[#B5ADA3] ml-1">

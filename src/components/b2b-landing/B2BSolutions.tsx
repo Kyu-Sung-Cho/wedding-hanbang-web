@@ -5,8 +5,41 @@ import { motion } from "framer-motion";
 const solutions = [
   {
     num: "01",
+    title: "업계 최저 수수료 10%",
+    problem: "높은 수수료 부담",
+    desc: "기존 플랫폼·플래너 수수료에 지치셨죠? 웨딩한방은 업계 최저 수준인 10% 수수료만 적용합니다. 가입비도, 월 이용료도 없습니다. 계약이 성사될 때만 비용이 발생하니 부담 없이 시작하세요.",
+    highlight: "계약 성사 시에만 10%",
+    visual: (
+      <div className="bg-white/[0.06] rounded-xl p-4">
+        <div className="text-[11px] text-white/40 mb-3">수수료 비교</div>
+        <div className="flex flex-col gap-3">
+          {[
+            { label: "기존 플래너 수수료", pct: 30, color: "bg-taupe-500", value: "20~30%" },
+            { label: "타 플랫폼 수수료", pct: 20, color: "bg-taupe-500", value: "15~20%" },
+            { label: "웨딩한방 수수료", pct: 10, color: "bg-rose-500", value: "10%" },
+          ].map((item) => (
+            <div key={item.label}>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-white/60">{item.label}</span>
+                <span className={`font-medium ${item.color === "bg-rose-500" ? "text-rose-500" : "text-white/80"}`}>{item.value}</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.pct}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 pt-3 border-t border-white/[0.06] text-center">
+          <span className="text-[11px] text-white/40">가입비 0원 · 월 이용료 0원 · 해지 자유</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: "02",
     title: "AI 고객 매칭",
-    desc: "고객이 예산과 취향을 입력하면, 조건에 맞는 업체로 자동 추천됩니다. 관심 있는 고객이 자연스럽게 찾아옵니다.",
+    problem: "낮은 계약 전환율",
+    desc: "고객이 예산과 취향을 입력하면, 조건에 맞는 업체로 자동 추천됩니다. 예산·취향이 맞는 고객만 연결되니 상담 후 계약 전환율이 크게 높아집니다.",
     highlight: "자연스러운 고객 유입",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
@@ -30,9 +63,10 @@ const solutions = [
     ),
   },
   {
-    num: "02",
+    num: "03",
     title: "사전 고객 인사이트",
-    desc: "상담 전에 고객의 예산, 선호 스타일, 구매 의향까지 미리 파악해서 알려드립니다. 불필요한 질문 없이 바로 핵심 제안이 가능해집니다.",
+    problem: "비효율적인 상담 시간",
+    desc: "상담 전에 고객의 예산, 선호 스타일, 구매 의향까지 미리 파악해서 알려드립니다. 취향 파악에 시간 쓸 필요 없이, 바로 핵심 제안이 가능해집니다.",
     highlight: "상담 효율 극대화",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
@@ -56,9 +90,10 @@ const solutions = [
     ),
   },
   {
-    num: "03",
+    num: "04",
     title: "데이터 분석 리포트",
-    desc: "업종 평균 대비 선호도, 인기 컨셉 트렌드, 고객 유입 채널 분석까지. 데이터 기반으로 사업 의사결정을 하세요.",
+    problem: "데이터 부재",
+    desc: "업종 평균 대비 선호도, 인기 컨셉 트렌드, 고객 유입 채널 분석까지. 더 이상 감에 의존하지 마세요. 데이터 기반으로 사업 의사결정을 할 수 있습니다.",
     highlight: "데이터 기반 의사결정",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
@@ -123,8 +158,13 @@ export default function B2BSolutions() {
             className="grid grid-cols-2 gap-10 items-center bg-white/[0.03] border border-white/[0.06] rounded-3xl p-10 max-lg:grid-cols-1 max-md:p-6"
           >
             <div>
-              <span className="font-display text-[14px] text-rose-500 font-semibold">{sol.num}</span>
-              <h3 className="font-serif-kr text-[24px] font-normal text-white mt-3 mb-3 tracking-tight leading-snug max-md:text-[20px]">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="font-display text-[14px] text-rose-500 font-semibold">{sol.num}</span>
+                <span className="text-[11px] text-white/30 bg-white/[0.06] px-2.5 py-1 rounded-full">
+                  &ldquo;{sol.problem}&rdquo; 해결
+                </span>
+              </div>
+              <h3 className="font-serif-kr text-[24px] font-normal text-white mb-3 tracking-tight leading-snug max-md:text-[20px]">
                 {sol.title}
               </h3>
               <p className="text-[14px] text-white/60 font-light leading-relaxed mb-4">

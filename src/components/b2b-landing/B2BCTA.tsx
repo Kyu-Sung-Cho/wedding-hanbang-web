@@ -71,12 +71,12 @@ export default function B2BCTA() {
             >
               서비스 안내 & 업체 등록
             </Link>
-            <Link
-              href="#partner-types"
+            <button
+              onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
               className="px-10 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all max-md:w-full max-md:text-center"
             >
               파트너 설문 참여하기
-            </Link>
+            </button>
           </div>
 
           {/* 이메일 구독 */}

@@ -351,4 +351,78 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["category"],
     },
   },
+  // ── 업체 상세 & 예약 도구 ──
+  {
+    name: "get_vendor_detail",
+    description:
+      "특정 업체의 상품(패키지)과 스태프 목록을 조회합니다. 고객이 업체 추천 결과에서 특정 업체의 상세 정보를 요청할 때 사용합니다. 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        vendor_id: {
+          type: "string",
+          description: "업체 ID. 고객 메시지의 [vendor:ID] 태그에서 추출",
+        },
+      },
+      required: ["vendor_id"],
+    },
+  },
+  {
+    name: "get_available_slots",
+    description:
+      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        vendor_id: {
+          type: "string",
+          description: "업체 ID",
+        },
+        product_id: {
+          type: "string",
+          description: "상품 ID (선택). 상품별 타임슬롯 확인",
+        },
+        staff_id: {
+          type: "string",
+          description: "스태프 ID (선택). 스태프별 타임슬롯 확인",
+        },
+      },
+      required: ["vendor_id"],
+    },
+  },
+  {
+    name: "create_booking",
+    description:
+      "업체에 예약을 생성합니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        vendor_id: {
+          type: "string",
+          description: "업체 ID",
+        },
+        product_id: {
+          type: "string",
+          description: "상품 ID (선택)",
+        },
+        staff_id: {
+          type: "string",
+          description: "스태프 ID (선택)",
+        },
+        date: {
+          type: "string",
+          description: "예약 날짜 (YYYY-MM-DD 형식)",
+        },
+        time: {
+          type: "string",
+          description: "예약 시간 (HH:00 형식)",
+        },
+        memo: {
+          type: "string",
+          description: "예약 메모 (선택)",
+        },
+      },
+      required: ["vendor_id", "date", "time"],
+    },
+  },
 ];

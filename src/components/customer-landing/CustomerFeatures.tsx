@@ -67,7 +67,7 @@ const features = [
 
 export default function CustomerFeatures() {
   return (
-    <section className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section className="bg-ivory-100 py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div

@@ -8,6 +8,7 @@ export default function StepGallery() {
   const { current, photos, loadPhotos, removePhoto } = useInvitationStore();
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!current) return null;
@@ -17,17 +18,29 @@ export default function StepGallery() {
     if (imageFiles.length === 0) return;
 
     setUploading(true);
+    setError(null);
+    let failCount = 0;
+    let lastError = "";
     for (const file of imageFiles) {
       const formData = new FormData();
       formData.append("file", file);
       try {
-        await fetch(`/api/invitations/${current.id}/photos/upload`, {
+        const res = await fetch(`/api/invitations/${current.id}/photos/upload`, {
           method: "POST",
           body: formData,
         });
+        if (!res.ok) {
+          failCount++;
+          const body = await res.json().catch(() => ({ error: "업로드 실패" }));
+          lastError = body.error || `HTTP ${res.status}`;
+        }
       } catch {
-        // 개별 실패 무시, 나머지 계속 업로드
+        failCount++;
+        lastError = "네트워크 오류";
       }
+    }
+    if (failCount > 0) {
+      setError(`${failCount}장 업로드 실패: ${lastError}`);
     }
     await loadPhotos(current.id);
     setUploading(false);
@@ -81,6 +94,13 @@ export default function StepGallery() {
           </div>
         )}
       </div>
+
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* 사진 목록 */}
       {photos.length === 0 ? (
