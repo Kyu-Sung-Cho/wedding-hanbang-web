@@ -19,7 +19,7 @@ export default function CustomerLogoShowcase() {
         <div className="w-[120px] h-[120px] md:w-[160px] md:h-[160px] mb-6 relative">
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-rose-500/20 to-gold/20 blur-2xl" />
           <Image
-            src="/images/logo-512.png"
+            src="/images/logo-main.png"
             alt="웨딩한방 로고"
             width={160}
             height={160}

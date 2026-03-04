@@ -19,7 +19,7 @@ export default function Logo({ size = "md", variant = "default", showText = true
   return (
     <div className="flex items-center" style={{ gap: s.gap }}>
       <Image
-        src="/images/logo-512.png"
+        src="/images/logo-main.png"
         alt="웨딩한방 로고"
         width={s.icon}
         height={s.icon}

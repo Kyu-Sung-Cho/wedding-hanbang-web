@@ -24,7 +24,7 @@ export default function CustomerHero() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/logo-512.png"
+            src="/images/logo-main.png"
             alt="웨딩한방 로고"
             width={280}
             height={280}
