@@ -425,4 +425,25 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["vendor_id", "date", "time"],
     },
   },
+  {
+    name: "get_market_price",
+    description:
+      "한국소비자원 웨딩 시세 데이터를 조회합니다. 고객이 '스드메 시세가 어떻게 돼?', '서울 예식장 평균 비용', '드레스 얼마가 적정해?' 같은 질문을 할 때 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["total", "venue", "sdm", "studio", "dress", "makeup", "options", "seasonal"],
+          description: "조회할 카테고리. total=전체비용, venue=예식장, sdm=스드메패키지, studio=스튜디오, dress=드레스, makeup=메이크업, options=옵션별상세, seasonal=성수기/비수기",
+        },
+        scope: {
+          type: "string",
+          enum: ["national", "seoul"],
+          description: "전국/서울 구분 (기본: national)",
+        },
+      },
+      required: ["category"],
+    },
+  },
 ];

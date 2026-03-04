@@ -2,6 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
+import {
+  getNationalTotal, getSeoulTotal, getLatestPeriodId,
+  VENUE_NECESSARY, SDM_PACKAGES, DRESS_PRICES, MAKEUP_PRICES,
+  OPTION_PRICES, SEASONAL_DATA, PRICE_PERIODS,
+  getVenueOptionalItems, getRegionalCosts, REGION_LABELS,
+} from "@/constants/marketPrices";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -123,6 +129,8 @@ export async function executeTool(
         return await executeGetAvailableSlots(toolInput);
       case "create_booking":
         return await executeCreateBooking(toolInput, context);
+      case "get_market_price":
+        return executeGetMarketPrice(toolInput);
       default:
         return {
           toolName,
@@ -1358,5 +1366,101 @@ async function executeCreateBooking(
     },
     success: true,
     displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})`,
+  };
+}
+
+// ===== 시세 정보 조회 =====
+function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
+  const category = input.category as string;
+  const scope = (input.scope as "national" | "seoul") ?? "national";
+  const pid = getLatestPeriodId();
+  const period = PRICE_PERIODS.find(p => p.id === pid)!;
+  const scopeLabel = scope === "seoul" ? "서울" : "전국";
+
+  let displayMessage = "";
+  let toolOutput: Record<string, unknown> = {};
+
+  switch (category) {
+    case "total": {
+      const nat = getNationalTotal(pid);
+      const seoul = getSeoulTotal(pid);
+      displayMessage = `[${period.label} 기준 총 비용]\n전국 평균: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 꽃장식 ${nat.decoration})\n서울 평균: ${seoul.total}만원 (식대 ${seoul.meal} + 스드메 ${seoul.sdm} + 대관료 ${seoul.rental} + 꽃장식 ${seoul.decoration})`;
+      toolOutput = { national: nat, seoul };
+      break;
+    }
+    case "venue": {
+      const nec = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === scope);
+      const opt = getVenueOptionalItems(pid, scope);
+      if (nec) {
+        displayMessage = `[${scopeLabel} 예식장 시세 - ${period.label}]\n대관료: ${nec.rental}만원\n1인당 식대: ${nec.perPersonMeal}만원\n최소보증인원: ${nec.minGuests}명\n식대총액: ${nec.totalFood}만원\n\n주요 선택항목:\n- 생화꽃장식: ${opt.items["생화꽃장식"]}만원\n- 축가: ${opt.items["축가/축하공연"]}만원\n- 사회자: ${opt.items["본식 사회자"]}만원\n- 웨딩케이크: ${opt.items["웨딩케이크"]}만원\n- 폐백음식: ${opt.items["폐백 음식"]}만원\n- 부케: ${opt.items["부케"]}만원`;
+        toolOutput = { necessary: nec, optional: opt.items };
+      }
+      break;
+    }
+    case "sdm": {
+      const pkgs = SDM_PACKAGES.filter(s => s.periodId === pid);
+      displayMessage = `[스드메 패키지 시세 - ${period.label}]\n` +
+        pkgs.map(p => `${p.region}: 패키지 ${p.packageMedian}만원 / 드메 ${p.dmPackageMedian}만원 / 스튜디오 ${p.studioBasic}만원`).join("\n");
+      toolOutput = { packages: pkgs };
+      break;
+    }
+    case "studio": {
+      const studioOpts = OPTION_PRICES.filter(o => o.category === "studio");
+      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
+      displayMessage = `[${scopeLabel} 스튜디오 옵션 시세]\n` +
+        studioOpts.filter(o => o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n");
+      toolOutput = { options: studioOpts };
+      break;
+    }
+    case "dress": {
+      const d = DRESS_PRICES.find(p => p.periodId === pid && p.scope === scope);
+      const dressOpts = OPTION_PRICES.filter(o => o.category === "dress");
+      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
+      if (d) {
+        displayMessage = `[${scopeLabel} 드레스 시세 - ${period.label}]\n촬영용: ${d.photoShoot}만원\n본식용: ${d.ceremony}만원\n2부 드레스: ${d.secondDress}만원\n\n주요 옵션:\n` +
+          dressOpts.filter(o => o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n");
+        toolOutput = { prices: d, options: dressOpts };
+      }
+      break;
+    }
+    case "makeup": {
+      const m = MAKEUP_PRICES.find(p => p.periodId === pid && p.scope === scope);
+      const makeupOpts = OPTION_PRICES.filter(o => o.category === "makeup");
+      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
+      if (m) {
+        displayMessage = `[${scopeLabel} 메이크업 시세 - ${period.label}]\n촬영: ${m.photoShoot}만원\n본식: ${m.ceremony}만원\n리허설: ${m.rehearsal}만원\n\n주요 옵션:\n` +
+          makeupOpts.filter(o => o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n");
+        toolOutput = { prices: m, options: makeupOpts };
+      }
+      break;
+    }
+    case "options": {
+      const allOpts = OPTION_PRICES;
+      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
+      displayMessage = `[${scopeLabel} 옵션별 시세 - 최신 기준]\n\n스튜디오 (${allOpts.filter(o => o.category === "studio").length}개):\n` +
+        allOpts.filter(o => o.category === "studio" && o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n") +
+        `\n\n드레스 (${allOpts.filter(o => o.category === "dress").length}개):\n` +
+        allOpts.filter(o => o.category === "dress" && o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n") +
+        `\n\n메이크업 (${allOpts.filter(o => o.category === "makeup").length}개):\n` +
+        allOpts.filter(o => o.category === "makeup" && o[priceKey] > 0).map(o => `- ${o.name}: ${o[priceKey]}만원`).join("\n");
+      toolOutput = { options: allOpts };
+      break;
+    }
+    case "seasonal": {
+      const latest = SEASONAL_DATA[SEASONAL_DATA.length - 1];
+      displayMessage = `[성수기 vs 비수기 - ${period.label}]\n성수기 (4~6월, 9~11월): ${latest.peak}만원\n비수기 (1~3월, 7~8월, 12월): ${latest.offPeak}만원\n비수기 절약: 약 ${latest.savings}만원`;
+      toolOutput = { seasonal: latest };
+      break;
+    }
+    default:
+      displayMessage = "지원하지 않는 카테고리입니다.";
+  }
+
+  return {
+    toolName: "get_market_price",
+    toolInput: input,
+    toolOutput,
+    success: true,
+    displayMessage: displayMessage || "시세 정보를 조회했습니다.",
   };
 }

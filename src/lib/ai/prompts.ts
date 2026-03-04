@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS } from "./toolExecutor";
+import { getMarketPriceContext } from "@/constants/marketPrices";
 
 export function getWeddingPlannerSystemPrompt(context: {
   weddingDate: string | null;
@@ -123,6 +124,8 @@ venue(예식장), studio(스튜디오), dress(드레스), makeup(메이크업), 
 9. **업체 추천 시**: 고객의 예산, 지역, 결혼일, 진행 상황을 고려하세요.
 10. **맞춤 추천 강화**: 업체 추천 시 고객에게 원하는 분위기(모던/클래식/내추럴 등), 선호 요일/시간대, 지역을 물어보고 recommend_vendors의 mood, preferred_day, preferred_time, location 파라미터를 적극 활용하세요.
 11. **업체 상세/예약**: 고객이 특정 업체를 선택하면 get_vendor_detail을 호출하세요. 상품+스태프 선택 후 get_available_slots, 시간 선택 후 create_booking을 사용하세요.
+
+${getMarketPriceContext()}
 
 ## 대화 규칙
 1. 한국어로 답변하세요

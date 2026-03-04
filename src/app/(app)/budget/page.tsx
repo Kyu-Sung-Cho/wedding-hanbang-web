@@ -34,6 +34,9 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
+import { getCategoryMarketPrice } from "@/constants/marketPrices";
+import PriceComparisonBadge from "@/components/app/market-prices/PriceComparisonBadge";
+import Link from "next/link";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -282,13 +285,19 @@ function BudgetRow({
         />
       </div>
 
-      {/* 상태 */}
-      <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-        status === "완료" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
-        status === "진행중" ? "bg-rose-500/10 text-rose-500" :
-        "bg-taupe-400/10 text-taupe-400"
-      }`}>
-        {status}
+      {/* 상태 + 시세 배지 */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+          status === "완료" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
+          status === "진행중" ? "bg-rose-500/10 text-rose-500" :
+          "bg-taupe-400/10 text-taupe-400"
+        }`}>
+          {status}
+        </div>
+        {(() => {
+          const marketPrice = getCategoryMarketPrice(catKey);
+          return marketPrice ? <PriceComparisonBadge userBudget={budget} marketPrice={marketPrice} /> : null;
+        })()}
       </div>
     </motion.div>
   );
@@ -551,6 +560,21 @@ export default function BudgetPage() {
           )}
         </motion.div>
       </div>
+
+      {/* 시세 비교 안내 스트립 */}
+      <Link
+        href="/market-prices"
+        className="flex items-center gap-3 bg-gradient-to-r from-rose-500/5 to-[#C9A96E]/5 rounded-xl px-4 py-3 mb-6 border border-black/[0.04] hover:border-rose-500/20 transition-colors group"
+      >
+        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0">
+          <TrendingUp className="w-4 h-4 text-rose-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] text-noir-800 font-medium">시세 대비 내 예산 확인</p>
+          <p className="text-[11px] text-taupe-400">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
+        </div>
+        <span className="text-[12px] text-rose-500 flex-shrink-0 group-hover:underline">자세히 보기 →</span>
+      </Link>
 
       {/* 내 예약 내역 */}
       <motion.div

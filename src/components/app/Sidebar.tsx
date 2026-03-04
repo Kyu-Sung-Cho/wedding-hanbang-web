@@ -19,12 +19,14 @@ import {
   Mail,
   Banknote,
   Mic,
+  BarChart3,
 } from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
   { href: "/chat", icon: MessageCircle, label: "아리아 상담" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
+  { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
   { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
   { href: "/money", icon: Banknote, label: "축의금 관리" },
