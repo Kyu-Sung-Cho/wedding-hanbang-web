@@ -234,7 +234,7 @@ function TrendTab() {
             <TrendingUp size={16} className="text-rose-500" />
             18개월 비용 추이
           </h3>
-          <p className="text-[11px] text-taupe-400 mt-0.5">2024년 8월 ~ 2026년 1월 중위값 기준</p>
+          <p className="text-[11px] text-taupe-400 mt-0.5">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
         </div>
         <div className="p-5">
           <TrendChart />

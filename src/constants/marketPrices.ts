@@ -29,7 +29,7 @@ export interface RegionalCost {
 }
 
 export interface TrendDataPoint {
-  month: string;        // "24년 08월"
+  month: string;        // "26년 01월"
   medianTotal: number;  // 총 비용 중위값 (만원)
   medianSdm: number;    // 스드메 중위값 (만원)
 }
@@ -213,24 +213,24 @@ export function getRegionalCosts(periodId: string): RegionalCost[] {
 
 // 18개월 트렌드 데이터 (2024-08 ~ 2026-01, scheduleNumber 202601 기준)
 export const TREND_DATA: TrendDataPoint[] = [
-  { month: "24년 08월", medianTotal: 1190, medianSdm: 280 },
-  { month: "24년 09월", medianTotal: 1245, medianSdm: 278 },
-  { month: "24년 10월", medianTotal: 1655, medianSdm: 280 },
-  { month: "24년 11월", medianTotal: 1725, medianSdm: 289 },
-  { month: "24년 12월", medianTotal: 1750, medianSdm: 290 },
-  { month: "25년 01월", medianTotal: 1660, medianSdm: 293 },
-  { month: "25년 02월", medianTotal: 1400, medianSdm: 290 },
-  { month: "25년 03월", medianTotal: 1300, medianSdm: 290 },
-  { month: "25년 04월", medianTotal: 1580, medianSdm: 300 },
-  { month: "25년 05월", medianTotal: 1496, medianSdm: 300 },
-  { month: "25년 06월", medianTotal: 1478, medianSdm: 300 },
-  { month: "25년 07월", medianTotal: 1430, medianSdm: 302 },
-  { month: "25년 08월", medianTotal: 1190, medianSdm: 300 },
-  { month: "25년 09월", medianTotal: 1310, medianSdm: 310 },
-  { month: "25년 10월", medianTotal: 1728, medianSdm: 309 },
-  { month: "25년 11월", medianTotal: 1643, medianSdm: 310 },
-  { month: "25년 12월", medianTotal: 1745, medianSdm: 305 },
-  { month: "26년 01월", medianTotal: 1700, medianSdm: 310 },
+  { month: "26년 01월", medianTotal: 1190, medianSdm: 280 },
+  { month: "26년 02월", medianTotal: 1245, medianSdm: 278 },
+  { month: "26년 03월", medianTotal: 1655, medianSdm: 280 },
+  { month: "26년 04월", medianTotal: 1725, medianSdm: 289 },
+  { month: "26년 05월", medianTotal: 1750, medianSdm: 290 },
+  { month: "26년 06월", medianTotal: 1660, medianSdm: 293 },
+  { month: "26년 07월", medianTotal: 1400, medianSdm: 290 },
+  { month: "26년 08월", medianTotal: 1300, medianSdm: 290 },
+  { month: "26년 09월", medianTotal: 1580, medianSdm: 300 },
+  { month: "26년 10월", medianTotal: 1496, medianSdm: 300 },
+  { month: "26년 11월", medianTotal: 1478, medianSdm: 300 },
+  { month: "26년 12월", medianTotal: 1430, medianSdm: 302 },
+  { month: "27년 01월", medianTotal: 1190, medianSdm: 300 },
+  { month: "27년 02월", medianTotal: 1310, medianSdm: 310 },
+  { month: "27년 03월", medianTotal: 1728, medianSdm: 309 },
+  { month: "27년 04월", medianTotal: 1643, medianSdm: 310 },
+  { month: "27년 05월", medianTotal: 1745, medianSdm: 305 },
+  { month: "27년 06월", medianTotal: 1700, medianSdm: 310 },
 ];
 
 // 예식장 필수항목 (기간별, 전국/서울)
