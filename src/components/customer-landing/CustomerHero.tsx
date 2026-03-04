@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Image from "next/image";
 
 export default function CustomerHero() {
   return (
@@ -23,13 +22,13 @@ export default function CustomerHero() {
           transition={{ duration: 0.8 }}
           className="flex flex-col items-center mb-10"
         >
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src="/images/logo-512.png"
             alt="웨딩한방 로고"
             width={280}
             height={280}
             className="object-contain"
-            priority
           />
         </motion.div>
 
