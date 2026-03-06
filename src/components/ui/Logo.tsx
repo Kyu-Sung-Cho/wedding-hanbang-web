@@ -18,14 +18,16 @@ export default function Logo({ size = "md", variant = "default", showText = true
 
   return (
     <div className="flex items-center" style={{ gap: s.gap }}>
-      <Image
-        src="/images/logo-main.png"
-        alt="웨딩한방 로고"
-        width={s.icon}
-        height={s.icon}
-        className="object-contain"
-        priority
-      />
+      <div className={variant === "white" ? "bg-white rounded-lg p-0.5" : ""}>
+        <Image
+          src="/images/logo-main.png"
+          alt="웨딩한방 로고"
+          width={s.icon}
+          height={s.icon}
+          className="object-contain"
+          priority
+        />
+      </div>
       {showText && (
         <span
           className="font-serif-kr font-medium leading-none"

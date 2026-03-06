@@ -46,13 +46,13 @@ const stats = [
 
 export default function CustomerStats() {
   return (
-    <section className="bg-noir-800 py-[120px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
+    <section className="bg-noir-800 py-[clamp(80px,10vw,120px)] px-[clamp(20px,5vw,60px)] relative overflow-hidden">
       <div className="absolute inset-0">
-        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
+        <div className="absolute top-[-20%] right-[-10%] w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
       </div>
 
-      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-10 relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2 max-md:gap-8">
+      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,40px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -65,8 +65,8 @@ export default function CustomerStats() {
             <div className="font-display text-[clamp(36px,5vw,56px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent leading-none mb-3">
               <AnimatedNumber value={stat.value} suffix={stat.suffix} />
             </div>
-            <div className="text-[14px] text-white font-medium mb-1">{stat.label}</div>
-            <div className="text-[12px] text-white/40 font-light">{stat.desc}</div>
+            <div className="text-[clamp(13px,1.5vw,14px)] text-white font-medium mb-1">{stat.label}</div>
+            <div className="text-[clamp(11px,1.2vw,12px)] text-white/40 font-light">{stat.desc}</div>
           </motion.div>
         ))}
       </div>

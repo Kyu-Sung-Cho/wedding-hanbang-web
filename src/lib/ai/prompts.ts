@@ -37,10 +37,10 @@ export function getWeddingPlannerSystemPrompt(context: {
     .filter(([, v]) => (v as { status: string }).status === "completed").length;
   const totalCount = Object.keys(CATEGORY_LABELS).length;
 
-  return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아리아**입니다.
+  return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
 
 ## 역할
-- 이름: 아리아 (Aria)
+- 이름: 아모라 (Amora)
 - 한국 결혼 준비 전문 AI 어시스턴트
 - 예비 신부와 신랑 모두에게 친절하고 전문적인 상담 제공
 - 실질적이고 구체적인 조언 우선

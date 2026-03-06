@@ -51,7 +51,7 @@ const steps = [
 
 export default function CustomerHowItWorks() {
   return (
-    <section className="bg-ivory-50 py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section className="bg-ivory-50 py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
@@ -68,7 +68,7 @@ export default function CustomerHowItWorks() {
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           시작은 간단합니다
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           4단계만 거치면 AI가 당신의 결혼 준비를
           <br className="hidden md:block" />
           처음부터 끝까지 함께합니다.
@@ -79,7 +79,7 @@ export default function CustomerHowItWorks() {
         {/* 연결 라인 (데스크톱) */}
         <div className="absolute top-[52px] left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-[1.5px] bg-gradient-to-r from-rose-500 via-gold to-rose-500 hidden md:block" />
 
-        <div className="grid grid-cols-4 gap-8 max-md:grid-cols-1 max-md:gap-0">
+        <div className="grid grid-cols-4 gap-[clamp(16px,2vw,32px)] max-md:grid-cols-1 max-md:gap-0">
           {steps.map((step, i) => (
             <motion.div
               key={step.num}

@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 export default function CustomerHero() {
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-ivory-50">
@@ -14,7 +16,7 @@ export default function CustomerHero() {
       {/* 상단·하단 라인 */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
-      <div className="relative z-10 text-center max-w-[900px] px-6 py-32">
+      <div className="relative z-10 text-center max-w-[900px] px-[clamp(20px,5vw,60px)] py-[clamp(80px,10vw,128px)] pb-[clamp(60px,8vw,128px)]">
         {/* 로고 */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -28,26 +30,23 @@ export default function CustomerHero() {
             alt="웨딩한방 로고"
             width={280}
             height={280}
-            className="object-contain"
+            className="object-contain w-[clamp(160px,25vw,280px)] h-auto"
           />
         </motion.div>
 
         {/* 배지 */}
-        <motion.button
+        <motion.a
+          href="/login"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
-          onClick={() => document.getElementById("cta")?.scrollIntoView({ behavior: "smooth" })}
           className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/80 backdrop-blur-sm border border-platinum rounded-full mb-12 cursor-pointer hover:bg-white hover:border-rose-500/30 transition-all"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+          <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? "bg-gold" : "bg-emerald-500"} animate-pulse`} />
           <span className="text-[13px] text-charcoal tracking-wide font-light">
-            사전등록 진행 중
+            {isComingSoon ? "오픈 준비중 · 미리 체험 가능" : "지금 무료로 이용 가능"}
           </span>
-          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">
-            무료
-          </span>
-        </motion.button>
+        </motion.a>
 
         {/* 메인 헤드라인 */}
         <motion.h1
@@ -87,7 +86,7 @@ export default function CustomerHero() {
             href="/login"
             className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
           >
-            무료로 시작하기
+            {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
@@ -105,7 +104,7 @@ export default function CustomerHero() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 1.1 }}
-          className="flex justify-center gap-12 max-md:gap-8"
+          className="flex justify-center gap-[clamp(24px,4vw,48px)]"
         >
           {[
             { num: "24시간", label: "AI 상담" },
@@ -127,7 +126,7 @@ export default function CustomerHero() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1, delay: 1.4 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 max-md:hidden"
       >
         <span className="text-[10px] tracking-[0.2em] uppercase text-taupe-400">
           Scroll

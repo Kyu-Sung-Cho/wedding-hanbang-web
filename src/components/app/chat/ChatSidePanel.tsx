@@ -201,7 +201,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-[14px] font-medium text-noir-800">아리아 AI</h3>
+              <h3 className="text-[14px] font-medium text-noir-800">아모라 AI</h3>
               <p className="text-[10px] text-taupe-400">웨딩 플래너</p>
             </div>
           </div>

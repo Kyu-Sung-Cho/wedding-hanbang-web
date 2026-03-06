@@ -471,6 +471,9 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   );
 }
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const FREE_PART_LIMIT = 2;
+
 export default function EtiquettePage() {
   return (
     <Suspense fallback={null}>
@@ -627,12 +630,13 @@ function EtiquettePageInner() {
               {filteredParts.map((p) => {
                 const Icon = ICON_MAP[p.icon] || BookOpen;
                 const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                const isLocked = isComingSoon && p.number > FREE_PART_LIMIT;
                 return (
                   <button
                     key={p.number}
-                    onClick={() => selectPart(p.number)}
+                    onClick={() => !isLocked && selectPart(p.number)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors mb-0.5 ${
-                      isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                      isLocked ? "opacity-40 cursor-not-allowed" : isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
                     }`}
                   >
                     <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
@@ -661,12 +665,13 @@ function EtiquettePageInner() {
                     if (!p) return null;
                     const Icon = ICON_MAP[p.icon] || BookOpen;
                     const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                    const isLocked = isComingSoon && p.number > FREE_PART_LIMIT;
                     return (
                       <button
                         key={p.number}
-                        onClick={() => selectPart(p.number)}
+                        onClick={() => !isLocked && selectPart(p.number)}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
-                          isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                          isLocked ? "opacity-40 cursor-not-allowed" : isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
                         }`}
                       >
                         <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
@@ -677,7 +682,8 @@ function EtiquettePageInner() {
                             {p.title}
                           </p>
                         </div>
-                        {isActive && <ChevronRight className="w-3.5 h-3.5 text-rose-400 ml-auto flex-shrink-0" />}
+                        {isLocked && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto flex-shrink-0 text-taupe-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+                        {!isLocked && isActive && <ChevronRight className="w-3.5 h-3.5 text-rose-400 ml-auto flex-shrink-0" />}
                       </button>
                     );
                   })}
@@ -711,12 +717,13 @@ function EtiquettePageInner() {
                       if (!p) return null;
                       const Icon = ICON_MAP[p.icon] || BookOpen;
                       const isActive = ETIQUETTE_PARTS[selectedPart].number === p.number;
+                      const isLocked = isComingSoon && p.number > FREE_PART_LIMIT;
                       return (
                         <button
                           key={p.number}
-                          onClick={() => selectPart(p.number)}
+                          onClick={() => !isLocked && selectPart(p.number)}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors mb-0.5 ${
-                            isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
+                            isLocked ? "opacity-40 cursor-not-allowed" : isActive ? "bg-rose-500/10 text-rose-600" : "hover:bg-white text-noir-800"
                           }`}
                         >
                           <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
@@ -753,17 +760,20 @@ function EtiquettePageInner() {
             >
               {ETIQUETTE_PARTS.map((p, idx) => {
                 const isActive = selectedPart === idx;
+                const isLocked = isComingSoon && p.number > FREE_PART_LIMIT;
                 return (
                   <button
                     key={p.number}
-                    onClick={() => setSelectedPart(idx)}
+                    onClick={() => !isLocked && setSelectedPart(idx)}
                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
-                      isActive
-                        ? "bg-rose-500 text-white"
-                        : "bg-white text-taupe-500 border border-black/[0.06]"
+                      isLocked
+                        ? "bg-white/60 text-taupe-400/50 border border-black/[0.03] cursor-not-allowed"
+                        : isActive
+                          ? "bg-rose-500 text-white"
+                          : "bg-white text-taupe-500 border border-black/[0.06]"
                     }`}
                   >
-                    {p.title.replace(/ 예절| 에티켓| 총정리| & 법적 절차/g, "")}
+                    {isLocked ? "🔒 " : ""}{p.title.replace(/ 예절| 에티켓| 총정리| & 법적 절차/g, "")}
                   </button>
                 );
               })}
@@ -942,9 +952,13 @@ function EtiquettePageInner() {
                 prevSub = part.title;
                 onPrev = () => setSelectedSection(null);
               } else if (selectedPart > 0) {
-                // 이전 파트
-                prevLabel = ETIQUETTE_PARTS[selectedPart - 1].title;
-                onPrev = () => setSelectedPart(selectedPart - 1);
+                // 이전 파트 (잠금 체크)
+                const prevPartNumber = ETIQUETTE_PARTS[selectedPart - 1].number;
+                const prevLocked = isComingSoon && prevPartNumber > FREE_PART_LIMIT;
+                if (!prevLocked) {
+                  prevLabel = ETIQUETTE_PARTS[selectedPart - 1].title;
+                  onPrev = () => setSelectedPart(selectedPart - 1);
+                }
               }
 
               return onPrev ? (
@@ -975,17 +989,29 @@ function EtiquettePageInner() {
                 nextSub = part.title;
                 onNext = () => setSelectedSection(selectedSection + 1);
               } else if (hasSectionNav && selectedSection !== null && selectedSection === parsedSections.length - 1 && selectedPart < ETIQUETTE_PARTS.length - 1) {
-                // 마지막 섹션 → 다음 파트
-                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
-                onNext = () => setSelectedPart(selectedPart + 1);
+                // 마지막 섹션 → 다음 파트 (잠금 체크)
+                const nextPartNumber = ETIQUETTE_PARTS[selectedPart + 1].number;
+                const nextLocked = isComingSoon && nextPartNumber > FREE_PART_LIMIT;
+                if (!nextLocked) {
+                  nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                  onNext = () => setSelectedPart(selectedPart + 1);
+                }
               } else if (hasSectionNav && selectedSection === null && selectedPart < ETIQUETTE_PARTS.length - 1) {
-                // 섹션 목록 화면 → 다음 파트
-                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
-                onNext = () => setSelectedPart(selectedPart + 1);
+                // 섹션 목록 화면 → 다음 파트 (잠금 체크)
+                const nextPartNumber = ETIQUETTE_PARTS[selectedPart + 1].number;
+                const nextLocked = isComingSoon && nextPartNumber > FREE_PART_LIMIT;
+                if (!nextLocked) {
+                  nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                  onNext = () => setSelectedPart(selectedPart + 1);
+                }
               } else if (!hasSectionNav && selectedPart < ETIQUETTE_PARTS.length - 1) {
-                // 섹션 없는 파트 → 다음 파트
-                nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
-                onNext = () => setSelectedPart(selectedPart + 1);
+                // 섹션 없는 파트 → 다음 파트 (잠금 체크)
+                const nextPartNumber = ETIQUETTE_PARTS[selectedPart + 1].number;
+                const nextLocked = isComingSoon && nextPartNumber > FREE_PART_LIMIT;
+                if (!nextLocked) {
+                  nextLabel = ETIQUETTE_PARTS[selectedPart + 1].title;
+                  onNext = () => setSelectedPart(selectedPart + 1);
+                }
               }
 
               return onNext ? (

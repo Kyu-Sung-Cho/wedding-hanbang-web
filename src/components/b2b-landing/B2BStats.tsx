@@ -41,15 +41,15 @@ const stats = [
   { value: 3, suffix: "종", label: "파트너 업종", sub: "스튜디오·드레스·메이크업" },
   { value: 20, suffix: "개", label: "웨딩 카테고리", sub: "스튜디오·드레스·메이크업 등" },
   { value: 24, suffix: "h", label: "AI 고객 응대", sub: "연중무휴 자동 응답" },
-  { value: 1, suffix: ":1", label: "전담 매니저", sub: "입점부터 운영까지 지원" },
+  { value: 100, suffix: "%", label: "성과 기반", sub: "계약 성사 시에만 수수료" },
 ];
 
 export default function B2BStats() {
   return (
-    <section className="bg-noir-800 py-[120px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
+    <section className="bg-noir-800 py-[clamp(80px,10vw,120px)] px-[clamp(20px,5vw,60px)] relative overflow-hidden">
       <div className="absolute inset-0">
-        <div className="absolute top-[-30%] right-[-15%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
-        <div className="absolute bottom-[-30%] left-[-15%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
+        <div className="absolute top-[-30%] right-[-15%] w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
+        <div className="absolute bottom-[-30%] left-[-15%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
       </div>
 
       <motion.div
@@ -68,7 +68,7 @@ export default function B2BStats() {
         </h2>
       </motion.div>
 
-      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-8 relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2 max-md:gap-6">
+      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,32px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -81,8 +81,8 @@ export default function B2BStats() {
             <div className="font-display text-[clamp(36px,5vw,56px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent leading-none mb-3">
               <AnimatedNumber value={stat.value} suffix={stat.suffix} />
             </div>
-            <div className="text-[14px] text-white font-medium mb-1">{stat.label}</div>
-            <div className="text-[12px] text-white/40 font-light">{stat.sub}</div>
+            <div className="text-[clamp(13px,1.5vw,14px)] text-white font-medium mb-1">{stat.label}</div>
+            <div className="text-[clamp(11px,1.2vw,12px)] text-white/40 font-light">{stat.sub}</div>
           </motion.div>
         ))}
       </div>

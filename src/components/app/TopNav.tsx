@@ -11,7 +11,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "대시보드",
-  "/chat": "아리아 AI 플래너",
+  "/chat": "아모라 AI 플래너",
   "/budget": "예산 관리",
   "/market-prices": "시세 정보",
   "/schedule": "일정 관리",

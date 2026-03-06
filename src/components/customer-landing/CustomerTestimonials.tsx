@@ -20,7 +20,7 @@ const scenarios = [
   {
     text: "커플이 함께 사용하면 따로 카톡으로 공유할 필요 없이 예산 관리가 한눈에 됩니다. 의견 조율도 쉬워져요.",
     avatar: "💑",
-    label: "예산 관리",
+    label: "함께 예산 관리",
     situation: "커플이 함께 보는 예산 현황",
     feature: "예산 관리",
   },
@@ -49,7 +49,7 @@ const scenarios = [
 
 export default function CustomerTestimonials() {
   return (
-    <section id="reviews" className="bg-ivory-100 py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section id="reviews" className="bg-ivory-100 py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
@@ -66,14 +66,14 @@ export default function CustomerTestimonials() {
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           이런 경험을 드립니다
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           웨딩한방과 함께라면 결혼 준비의
           <br className="hidden md:block" />
           모든 순간이 달라집니다.
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-6 max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[480px]">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[480px]">
         {scenarios.map((s, i) => (
           <motion.div
             key={s.label}
@@ -89,7 +89,7 @@ export default function CustomerTestimonials() {
                 {s.feature}
               </span>
             </div>
-            <p className="text-[14px] leading-[1.8] text-charcoal font-light mb-6 min-h-[80px]">
+            <p className="text-[clamp(13px,1.5vw,14px)] leading-[1.8] text-charcoal font-light mb-6 min-h-[80px]">
               {s.text}
             </p>
             <div className="flex items-center gap-3 pt-5 border-t border-black/[0.04]">

@@ -4,11 +4,11 @@ import Image from "next/image";
 
 export default function CustomerLogoShowcase() {
   return (
-    <section className="relative bg-noir-800 py-24 md:py-32 overflow-hidden">
+    <section className="relative bg-noir-800 py-[clamp(80px,10vw,128px)] overflow-hidden">
       {/* 배경 그라데이션 */}
       <div className="absolute inset-0">
-        <div className="absolute top-[-30%] left-[50%] -translate-x-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent_60%)] rounded-full" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
+        <div className="absolute top-[-30%] left-[50%] -translate-x-1/2 w-[min(600px,80vw)] h-[min(600px,80vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent_60%)] rounded-full" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
       </div>
 
       {/* 상단 그라데이션 라인 */}
@@ -16,7 +16,7 @@ export default function CustomerLogoShowcase() {
 
       <div className="relative z-10 flex flex-col items-center">
         {/* 로고 이미지 */}
-        <div className="w-[120px] h-[120px] md:w-[160px] md:h-[160px] mb-6 relative">
+        <div className="w-[clamp(120px,15vw,160px)] h-[clamp(120px,15vw,160px)] mb-6 relative">
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-rose-500/20 to-gold/20 blur-2xl" />
           <Image
             src="/images/logo-main.png"
@@ -34,7 +34,7 @@ export default function CustomerLogoShowcase() {
         </h2>
 
         {/* 태그라인 */}
-        <p className="text-[14px] md:text-[15px] text-white/40 font-light tracking-wide">
+        <p className="text-[clamp(13px,1.5vw,15px)] text-white/40 font-light tracking-wide">
           AI가 이끄는 새로운 결혼 준비
         </p>
       </div>

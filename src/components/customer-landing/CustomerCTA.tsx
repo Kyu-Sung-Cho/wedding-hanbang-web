@@ -1,50 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 export default function CustomerCTA() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email || !email.includes("@")) return;
-
-    setStatus("loading");
-    try {
-      const res = await fetch("/api/preregister", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setStatus("success");
-        setMessage("등록 완료! 출시 소식을 보내드릴게요.");
-        setEmail("");
-        setTimeout(() => setStatus("idle"), 3000);
-      } else {
-        setStatus("error");
-        setMessage(data.error || "등록 중 오류가 발생했습니다.");
-        setTimeout(() => setStatus("idle"), 3000);
-      }
-    } catch {
-      setStatus("error");
-      setMessage("네트워크 오류가 발생했습니다.");
-      setTimeout(() => setStatus("idle"), 3000);
-    }
-  }
-
   return (
-    <section id="cta" className="relative py-[140px] px-[60px] overflow-hidden max-md:py-20 max-md:px-5">
+    <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}
       <div className="absolute inset-0 bg-gradient-to-br from-ivory-deep via-ivory-warm to-[#F0E8DD]" />
-      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
-      <div className="absolute bottom-[-200px] right-[-100px] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
+      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[min(900px,90vw)] h-[min(900px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
+      <div className="absolute bottom-[-200px] right-[-100px] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
 
       <div className="relative z-10 max-w-[640px] mx-auto text-center">
         <motion.div
@@ -67,40 +33,48 @@ export default function CustomerCTA() {
             과 함께
           </h2>
 
-          <p className="text-[16px] text-charcoal leading-relaxed font-light mb-10">
-            사전 등록하시면 정식 출시 시 우선 초대와 함께
-            <br className="hidden md:block" />
-            특별 할인 혜택을 드립니다.
+          <p className="text-[clamp(14px,1.8vw,16px)] text-charcoal leading-relaxed font-light mb-10">
+            {isComingSoon ? (
+              <>
+                정식 오픈 전, 로그인 없이
+                <br className="hidden md:block" />
+                웨딩한방의 주요 기능을 미리 체험해보세요.
+              </>
+            ) : (
+              <>
+                지금 바로 시작하세요. 카카오 또는 구글 계정으로
+                <br className="hidden md:block" />
+                간편하게 가입하고 모든 기능을 무료로 이용할 수 있습니다.
+              </>
+            )}
           </p>
 
-          <form onSubmit={handleSubmit} className="flex gap-3 max-w-[480px] mx-auto mb-5 max-md:flex-col">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="이메일을 입력하세요"
-              className="flex-1 px-6 py-4 bg-white border-[1.5px] border-platinum rounded-full text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-            />
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className={`px-8 py-4 rounded-full text-[14px] font-medium whitespace-nowrap transition-all hover:-translate-y-0.5 max-md:w-full ${
-                status === "success"
-                  ? "bg-[#2E7D5A] text-white"
-                  : "bg-noir-800 text-white hover:bg-noir-soft hover:shadow-[0_8px_24px_rgba(26,26,31,0.15)]"
-              }`}
+          <div className="flex gap-4 justify-center flex-wrap mb-8">
+            <a
+              href="/login"
+              className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
             >
-              {status === "loading" ? "등록 중..." : status === "success" ? "등록 완료!" : "무료 사전등록"}
-            </button>
-          </form>
-
-          {status === "error" && (
-            <p className="text-[12px] text-rose-600 mb-2">{message}</p>
-          )}
+              {isComingSoon ? "미리 둘러보기" : "무료로 시작하기"}
+              <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </a>
+          </div>
 
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-taupe-500">
-            <span>✦ 정식 출시 시 우선 초대</span>
-            <span>✦ 스팸 없이 출시 소식만 전달</span>
+            {isComingSoon ? (
+              <>
+                <span>✦ 로그인 없이 체험</span>
+                <span>✦ 주요 기능 미리보기</span>
+                <span>✦ 완전 무료</span>
+              </>
+            ) : (
+              <>
+                <span>✦ 가입 즉시 모든 기능 이용</span>
+                <span>✦ 카카오 · 구글 간편 로그인</span>
+                <span>✦ 완전 무료</span>
+              </>
+            )}
           </div>
         </motion.div>
       </div>

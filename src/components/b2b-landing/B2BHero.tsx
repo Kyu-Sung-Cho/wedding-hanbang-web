@@ -8,12 +8,12 @@ export default function B2BHero() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-noir-800">
       {/* 배경 그라데이션 */}
       <div className="absolute inset-0">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
-        <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(196,150,126,0.05),transparent)] rounded-full" />
+        <div className="absolute top-[-20%] right-[-10%] w-[min(600px,80vw)] h-[min(600px,80vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[min(500px,70vw)] h-[min(500px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
+        <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(800px,90vw)] h-[min(800px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.05),transparent)] rounded-full" />
       </div>
 
-      <div className="relative z-10 max-w-[800px] mx-auto px-5 text-center py-32">
+      <div className="relative z-10 max-w-[800px] mx-auto px-[clamp(20px,5vw,60px)] text-center py-[clamp(80px,10vw,128px)]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -76,7 +76,7 @@ export default function B2BHero() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.7 }}
-          className="flex justify-center gap-12 mt-20 max-md:gap-8 max-md:mt-14"
+          className="flex justify-center gap-[clamp(24px,4vw,48px)] mt-[clamp(48px,6vw,80px)]"
         >
           {[
             { num: "LOW", label: "합리적 수수료" },

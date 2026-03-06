@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <button
           onClick={() => setChatPanelOpen(true)}
           className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white shadow-[0_4px_20px_rgba(196,150,126,0.4)] hover:shadow-[0_6px_28px_rgba(196,150,126,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
-          title="아리아 AI 상담"
+          title="아모라 AI 상담"
         >
           <Sparkles className="w-6 h-6" />
         </button>

@@ -217,11 +217,20 @@ export default function OnboardingPage() {
             )}
             {store.currentStep < 4 ? (
               <button
-                onClick={store.nextStep}
-                disabled={!canProceed()}
+                onClick={() => {
+                  // 파트너 코드로 참여 시, step 2 다음에 바로 제출 (3,4 스킵)
+                  if (store.currentStep === 2 && store.coupleAction === "join") {
+                    handleSubmit();
+                    return;
+                  }
+                  store.nextStep();
+                }}
+                disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
                 className="flex-1 py-3 rounded-2xl text-[14px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                다음
+                {store.currentStep === 2 && store.coupleAction === "join"
+                  ? loading ? "연결 중..." : "파트너와 연결하기"
+                  : "다음"}
               </button>
             ) : (
               <div className="flex-1 flex flex-col gap-2">

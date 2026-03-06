@@ -21,7 +21,7 @@ export default function Hero() {
           className="inline-flex items-center gap-2 px-5 py-2 bg-white/70 backdrop-blur-[10px] border border-rose-pale/20 rounded-full mb-10 text-[13px] text-charcoal tracking-wide"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-          AI 웨딩 플래너 — 지금 사전등록 중
+          AI 웨딩 플래너 — 지금 무료로 이용 가능
         </motion.div>
 
         <motion.h1
@@ -56,7 +56,7 @@ export default function Hero() {
           className="flex gap-4 justify-center flex-wrap"
         >
           <a
-            href="#cta"
+            href="/login"
             className="group inline-flex items-center gap-2.5 px-9 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)] transition-all duration-400"
           >
             무료로 시작하기

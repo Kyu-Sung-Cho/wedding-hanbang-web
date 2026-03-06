@@ -13,7 +13,7 @@ const rows = [
 
 export default function B2BComparison() {
   return (
-    <section className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section className="bg-white py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
@@ -30,7 +30,7 @@ export default function B2BComparison() {
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           기존 플랫폼 vs 웨딩한방
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           같은 비용으로 더 높은 가치를 제공합니다.
         </p>
       </motion.div>

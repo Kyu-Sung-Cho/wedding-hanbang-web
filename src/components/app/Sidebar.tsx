@@ -22,9 +22,13 @@ import {
   BarChart3,
 } from "lucide-react";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
+const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
+
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
-  { href: "/chat", icon: MessageCircle, label: "아리아 상담" },
+  { href: "/chat", icon: MessageCircle, label: "아모라 상담" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
@@ -36,7 +40,7 @@ const menuItems = [
   { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/settings", icon: Settings, label: "설정" },
-];
+].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href));
 
 interface SidebarProps {
   isOpen: boolean;

@@ -285,7 +285,7 @@ export default function VendorRegisterPage() {
               href="/business"
               className="flex items-center justify-center px-8 py-3 rounded-full text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
             >
-              파트너 랜딩으로 돌아가기
+              메인페이지로 돌아가기
             </Link>
           </div>
         </motion.div>
@@ -321,17 +321,23 @@ export default function VendorRegisterPage() {
                 <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
                   <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
                   <div>
-                    <span className="text-[14px] font-medium text-noir-800">파트너 이용약관 동의</span>
-                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[14px] font-medium text-noir-800">파트너 이용약관 동의</span>
+                      <span className="text-[11px] text-rose-500">(필수)</span>
+                    </div>
                     <p className="text-[12px] text-taupe-400 font-light mt-0.5">서비스 이용 조건, 수수료 정책, 정산 규정 등을 포함합니다.</p>
+                    <a href="/vendor/terms" target="_blank" className="text-[12px] text-rose-500 hover:underline mt-1 inline-block">약관 전문 보기 &rarr;</a>
                   </div>
                 </label>
                 <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
                   <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
                   <div>
-                    <span className="text-[14px] font-medium text-noir-800">개인정보 처리방침 동의</span>
-                    <span className="text-[11px] text-rose-500 ml-1">(필수)</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[14px] font-medium text-noir-800">개인정보 처리방침 동의</span>
+                      <span className="text-[11px] text-rose-500">(필수)</span>
+                    </div>
                     <p className="text-[12px] text-taupe-400 font-light mt-0.5">사업자 정보 및 대표자 개인정보의 수집·이용에 동의합니다.</p>
+                    <a href="/vendor/privacy" target="_blank" className="text-[12px] text-rose-500 hover:underline mt-1 inline-block">개인정보 처리방침 전문 보기 &rarr;</a>
                   </div>
                 </label>
               </div>

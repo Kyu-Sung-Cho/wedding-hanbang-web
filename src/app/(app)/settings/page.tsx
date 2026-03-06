@@ -31,6 +31,8 @@ export default function SettingsPage() {
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
+  const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   // 수정 모드
   const [editingName, setEditingName] = useState(false);
@@ -51,7 +53,10 @@ export default function SettingsPage() {
     if (couple) {
       fetch("/api/couple/code")
         .then((r) => r.json())
-        .then((d) => { if (d.inviteCode) setCoupleCode(d.inviteCode); })
+        .then((d) => {
+          if (d.inviteCode) setCoupleCode(d.inviteCode);
+          if (d.isFullyLinked) setIsFullyLinked(true);
+        })
         .catch(() => {});
     }
   }, [couple]);
@@ -61,6 +66,21 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(coupleCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRegenerateCode = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/couple/code", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.inviteCode) {
+        setCoupleCode(data.inviteCode);
+      }
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   // 이름 저장
@@ -292,27 +312,38 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-ivory-50 rounded-xl p-4 border border-black/[0.02]">
-          {coupleCode && (
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[12px] text-taupe-400 mb-1">나의 커플 코드</p>
-                <p className="text-[16px] font-display font-medium text-noir-800 tracking-wider">{coupleCode}</p>
+          {coupleCode && !isFullyLinked && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[12px] text-taupe-400 mb-1">나의 커플 코드</p>
+                  <p className="text-[16px] font-display font-medium text-noir-800 tracking-wider">{coupleCode}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[12px] text-charcoal hover:border-rose-500 hover:text-rose-500 transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-[#2E7D5A]" />
+                        <span className="text-[#2E7D5A]">복사됨</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        복사
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
               <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[12px] text-charcoal hover:border-rose-500 hover:text-rose-500 transition-colors"
+                onClick={handleRegenerateCode}
+                disabled={regenerating}
+                className="mt-2 text-[11px] text-taupe-400 hover:text-rose-500 transition-colors disabled:opacity-50"
               >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-[#2E7D5A]" />
-                    <span className="text-[#2E7D5A]">복사됨</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    코드 복사
-                  </>
-                )}
+                {regenerating ? "재발급 중..." : "코드 재발급"}
               </button>
             </div>
           )}

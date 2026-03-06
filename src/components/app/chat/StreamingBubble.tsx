@@ -35,7 +35,7 @@ export default function StreamingBubble({
 
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-[#928980]">
-            아리아
+            아모라
           </span>
           <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 border border-black/[0.06] shadow-sm min-w-[60px]">
             {content ? (

@@ -27,12 +27,12 @@ export default function B2BCTA() {
   };
 
   return (
-    <section className="relative py-[140px] px-[60px] overflow-hidden bg-noir-800 max-md:py-20 max-md:px-5">
+    <section className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden bg-noir-800">
       {/* 배경 그라데이션 */}
       <div className="absolute inset-0">
-        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent_60%)] rounded-full" />
-        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(196,150,126,0.06),transparent)] rounded-full" />
+        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(900px,90vw)] h-[min(900px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent_60%)] rounded-full" />
+        <div className="absolute top-[-20%] right-[-10%] w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.06),transparent)] rounded-full" />
       </div>
 
       <div className="relative z-10 max-w-[700px] mx-auto text-center">
@@ -54,7 +54,7 @@ export default function B2BCTA() {
             참여해주세요
           </h2>
 
-          <p className="text-[16px] leading-relaxed text-white/50 font-light mx-auto max-w-[480px] mb-4">
+          <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[480px] mb-4">
             약 5분이면 충분합니다.
             <br className="hidden md:block" />
             설문을 기반으로 맞춤 파트너십 제안을 드립니다.
@@ -124,7 +124,7 @@ export default function B2BCTA() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="flex flex-wrap justify-center gap-x-10 gap-y-4 text-[13px] text-white/30"
+          className="flex flex-wrap justify-center gap-x-[clamp(20px,3vw,40px)] gap-y-4 text-[13px] text-white/30"
         >
           {[
             "✦ 개인정보 안전하게 보호",

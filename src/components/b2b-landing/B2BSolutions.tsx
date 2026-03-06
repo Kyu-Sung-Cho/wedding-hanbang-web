@@ -5,32 +5,28 @@ import { motion } from "framer-motion";
 const solutions = [
   {
     num: "01",
-    title: "업계 최저 수수료 10%",
+    title: "합리적인 수수료 구조",
     problem: "높은 수수료 부담",
-    desc: "기존 플랫폼·플래너 수수료에 지치셨죠? 웨딩한방은 업계 최저 수준인 10% 수수료만 적용합니다. 가입비도, 월 이용료도 없습니다. 계약이 성사될 때만 비용이 발생하니 부담 없이 시작하세요.",
-    highlight: "계약 성사 시에만 10%",
+    desc: "기존 플랫폼·플래너 수수료에 지치셨죠? 웨딩한방은 계약이 성사될 때만 수수료가 발생합니다. 가입비·월 이용료 없이, 성과 기반으로만 운영됩니다.",
+    highlight: "계약 성사 시에만 수수료 발생",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
-        <div className="text-[11px] text-white/40 mb-3">수수료 비교</div>
+        <div className="text-[11px] text-white/40 mb-3">웨딩한방 수수료 구조</div>
         <div className="flex flex-col gap-3">
           {[
-            { label: "기존 플래너 수수료", pct: 30, color: "bg-taupe-500", value: "20~30%" },
-            { label: "타 플랫폼 수수료", pct: 20, color: "bg-taupe-500", value: "15~20%" },
-            { label: "웨딩한방 수수료", pct: 10, color: "bg-rose-500", value: "10%" },
+            { label: "가입비", value: "무료", accent: true },
+            { label: "월 이용료", value: "무료", accent: true },
+            { label: "수수료 발생 시점", value: "계약 성사 시에만", accent: false },
+            { label: "해지", value: "언제든 자유롭게", accent: false },
           ].map((item) => (
-            <div key={item.label}>
-              <div className="flex justify-between text-[11px] mb-1">
-                <span className="text-white/60">{item.label}</span>
-                <span className={`font-medium ${item.color === "bg-rose-500" ? "text-rose-500" : "text-white/80"}`}>{item.value}</span>
-              </div>
-              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.pct}%` }} />
-              </div>
+            <div key={item.label} className="flex items-center justify-between text-[12px]">
+              <span className="text-white/50">{item.label}</span>
+              <span className={`font-medium ${item.accent ? "text-rose-500" : "text-white/80"}`}>{item.value}</span>
             </div>
           ))}
         </div>
         <div className="mt-3 pt-3 border-t border-white/[0.06] text-center">
-          <span className="text-[11px] text-white/40">가입비 0원 · 월 이용료 0원 · 해지 자유</span>
+          <span className="text-[11px] text-white/40">숨겨진 비용 없이 투명하게 운영됩니다</span>
         </div>
       </div>
     ),
@@ -125,7 +121,7 @@ const solutions = [
 
 export default function B2BSolutions() {
   return (
-    <section className="bg-noir-800 py-[140px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
+    <section className="bg-noir-800 py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
       <motion.div
@@ -142,12 +138,12 @@ export default function B2BSolutions() {
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight text-white mb-5">
           웨딩한방이 바꿔드립니다
         </h2>
-        <p className="text-[16px] leading-relaxed text-white/50 font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[520px]">
           AI 기술로 고객 유치부터 계약까지 전 과정을 최적화합니다.
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto flex flex-col gap-8">
+      <div className="max-w-[1100px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.num}
@@ -155,7 +151,7 @@ export default function B2BSolutions() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
             transition={{ duration: 0.8, delay: i * 0.1 }}
-            className="grid grid-cols-2 gap-10 items-center bg-white/[0.03] border border-white/[0.06] rounded-3xl p-10 max-lg:grid-cols-1 max-md:p-6"
+            className="grid grid-cols-2 gap-[clamp(20px,3vw,40px)] items-center bg-white/[0.03] border border-white/[0.06] rounded-3xl p-[clamp(24px,4vw,40px)] max-lg:grid-cols-1"
           >
             <div>
               <div className="flex items-center gap-3 mb-3">
@@ -164,10 +160,10 @@ export default function B2BSolutions() {
                   &ldquo;{sol.problem}&rdquo; 해결
                 </span>
               </div>
-              <h3 className="font-serif-kr text-[24px] font-normal text-white mb-3 tracking-tight leading-snug max-md:text-[20px]">
+              <h3 className="font-serif-kr text-[clamp(18px,2.5vw,24px)] font-normal text-white mb-3 tracking-tight leading-snug">
                 {sol.title}
               </h3>
-              <p className="text-[14px] text-white/60 font-light leading-relaxed mb-4">
+              <p className="text-[clamp(13px,1.5vw,14px)] text-white/60 font-light leading-relaxed mb-4">
                 {sol.desc}
               </p>
               <div className="inline-flex items-center gap-[5px] px-3.5 py-1.5 bg-rose-500/15 rounded-full text-[12px] text-rose-500 font-medium">

@@ -50,7 +50,7 @@ const partnerTypes = [
 
 export default function B2BPartnerTypes() {
   return (
-    <section id="partner-types" className="bg-white py-[140px] px-[60px] relative max-md:py-20 max-md:px-5 scroll-mt-16">
+    <section id="partner-types" className="bg-white py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative scroll-mt-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
       <motion.div
@@ -67,14 +67,14 @@ export default function B2BPartnerTypes() {
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           업종별 설문 조사
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           대표님들의 현장 목소리를 직접 듣고 서비스에 반영합니다.
           <br className="hidden md:block" />
           해당하는 업종을 선택해 소중한 의견을 들려주세요.
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-7 max-lg:grid-cols-1 max-lg:max-w-[520px]">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(20px,2.5vw,28px)] max-lg:grid-cols-1 max-lg:max-w-[520px]">
         {partnerTypes.map((partner, i) => (
           <motion.div
             key={partner.type}
@@ -86,15 +86,15 @@ export default function B2BPartnerTypes() {
           >
             <div className={`absolute inset-0 bg-gradient-to-br ${partner.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
-            <div className="relative p-8 max-md:p-6">
+            <div className="relative p-8 max-md:p-6 flex flex-col h-full">
               <div className="w-14 h-14 rounded-2xl bg-noir-800 flex items-center justify-center text-[24px] mb-6">
                 {partner.icon}
               </div>
 
-              <h3 className="font-serif-kr text-[22px] font-normal text-noir-800 mb-2 tracking-tight">
+              <h3 className="font-serif-kr text-[clamp(18px,2.5vw,22px)] font-normal text-noir-800 mb-2 tracking-tight">
                 {partner.type}
               </h3>
-              <p className="text-[14px] text-taupe-500 font-light mb-6">{partner.desc}</p>
+              <p className="text-[clamp(13px,1.5vw,14px)] text-taupe-500 font-light mb-6 flex-1">{partner.desc}</p>
 
               <div className="flex flex-col gap-3 mb-8">
                 {partner.benefits.map((benefit) => (

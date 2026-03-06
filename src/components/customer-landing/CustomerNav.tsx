@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 export default function CustomerNav() {
   const [scrolled, setScrolled] = useState(false);
 
@@ -24,7 +26,7 @@ export default function CustomerNav() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[1000] px-[60px] h-[72px] flex items-center justify-between transition-all duration-500 max-md:px-5 ${
+      className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(20px,5vw,60px)] h-[72px] flex items-center justify-between transition-all duration-500 ${
         scrolled
           ? "bg-ivory-50/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
           : ""
@@ -38,7 +40,7 @@ export default function CustomerNav() {
         {[
           { href: "#features", label: "기능" },
           { href: "#reviews", label: "이용 사례" },
-          { href: "#cta", label: "사전등록" },
+          { href: "#cta", label: "시작하기" },
         ].map((link) => (
           <a
             key={link.href}
@@ -53,7 +55,7 @@ export default function CustomerNav() {
           href="/login"
           className="px-6 py-2.5 bg-noir-800 text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:bg-noir-soft hover:-translate-y-0.5 transition-all"
         >
-          무료 시작하기
+          {isComingSoon ? "미리 체험하기" : "무료 시작하기"}
         </a>
       </div>
     </nav>

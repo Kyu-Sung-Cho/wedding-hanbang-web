@@ -34,7 +34,7 @@ const fadeInUp = {
 
 export default function B2BPainPoints() {
   return (
-    <section className="bg-ivory-50 py-[140px] px-[60px] relative max-md:py-20 max-md:px-5">
+    <section className="bg-ivory-50 py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative">
       <motion.div {...fadeInUp} className="text-center max-w-[640px] mx-auto mb-20">
         <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
@@ -45,13 +45,14 @@ export default function B2BPainPoints() {
           <br />
           공통된 고민
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           열심히 일하지만, 구조적인 문제 때문에 성장이 어려웠습니다.
+          <br />
           이제 그 구조를 바꿀 때입니다.
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-4 gap-5 max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-4 gap-[clamp(16px,2vw,20px)] max-lg:grid-cols-2 max-md:grid-cols-1">
         {painCards.map((card, i) => (
           <motion.div
             key={card.title}
@@ -64,7 +65,7 @@ export default function B2BPainPoints() {
             <div className="w-11 h-11 rounded-xl bg-noir-800 flex items-center justify-center mb-5 text-[18px]">
               {card.icon}
             </div>
-            <h4 className="text-[16px] font-medium mb-2 text-noir-800">{card.title}</h4>
+            <h4 className="text-[clamp(14px,1.8vw,16px)] font-medium mb-2 text-noir-800">{card.title}</h4>
             <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{card.desc}</p>
           </motion.div>
         ))}
