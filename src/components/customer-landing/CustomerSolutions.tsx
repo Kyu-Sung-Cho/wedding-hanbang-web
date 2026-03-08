@@ -51,9 +51,9 @@ const solutions = [
         </div>
         <div className="flex flex-col gap-3">
           {[
-            { name: "로즈가든 스튜디오", match: "98%", tags: ["야외촬영", "자연광"], price: "280만원~" },
-            { name: "르블랑 드레스", match: "95%", tags: ["머메이드", "프리미엄"], price: "200만원~" },
-            { name: "블룸 메이크업", match: "92%", tags: ["내추럴", "본식전문"], price: "80만원~" },
+            { name: "A 스튜디오", match: "98%", tags: ["야외촬영", "자연광"], price: "280만원~" },
+            { name: "B 드레스", match: "95%", tags: ["머메이드", "프리미엄"], price: "200만원~" },
+            { name: "C 메이크업", match: "92%", tags: ["내추럴", "본식전문"], price: "80만원~" },
           ].map((vendor) => (
             <div key={vendor.name} className="bg-white rounded-xl p-3.5 border border-black/[0.04] flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-gold/20 flex items-center justify-center text-[11px] font-medium text-rose-500 shrink-0">
@@ -87,7 +87,7 @@ const solutions = [
         <div className="flex flex-col relative pl-6">
           <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
           {[
-            { dday: "D-150", title: "스튜디오 계약 완료", desc: "OO스튜디오 · 280만원", done: true },
+            { dday: "D-150", title: "스튜디오 계약 완료", desc: "A 스튜디오 · 280만원", done: true },
             { dday: "D-120", title: "드레스 투어 시작", desc: "AI 추천 3곳 · 가상 피팅 완료", done: true },
             { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", done: false },
             { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", done: false },

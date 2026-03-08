@@ -139,7 +139,7 @@ export default function Solutions() {
             <div className="flex flex-col relative pl-6">
               <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
               {[
-                { dday: "D-150", title: "스튜디오 계약 완료 ✓", desc: "OO스튜디오 · 280만원", active: true },
+                { dday: "D-150", title: "스튜디오 계약 완료 ✓", desc: "A 스튜디오 · 280만원", active: true },
                 { dday: "D-120", title: "드레스 투어 시작", desc: "AI 추천 3곳 · 가상 피팅 완료", active: true },
                 { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", active: false },
                 { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", active: false },
