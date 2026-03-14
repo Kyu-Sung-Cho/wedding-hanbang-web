@@ -28,7 +28,7 @@ export async function chatWithTools(options: {
   const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048 } = options;
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: maxTokens,
     system: systemPrompt,
     messages,
