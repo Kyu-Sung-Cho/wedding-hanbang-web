@@ -126,6 +126,8 @@ export function getWeddingPlannerSystemPrompt(context: {
     }
   }
 
+  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
 
 ## 역할
@@ -135,6 +137,7 @@ export function getWeddingPlannerSystemPrompt(context: {
 - 실질적이고 구체적인 조언 우선
 - **대화 안에서 직접 데이터를 수정하고 조회하는 것이 핵심 역할입니다**
 - 지금 대화 중인 사용자: **${context.senderName}**
+- 오늘 날짜: ${today}
 
 ## 현재 커플 상황
 - ${coupleInfo ? coupleInfo : "커플 이름: 미등록"}
