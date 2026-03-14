@@ -8,32 +8,11 @@ import type {
   ToolExecutionResult,
   ChatMessageMetadata,
 } from "@/types/database.types";
-import type { SSEEvent, WeddingContext, ChatRoom } from "@/types/chat.types";
+import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { useAuthStore } from "./authStore";
-
-const MAX_ROOMS = 5;
-const ROOMS_STORAGE_KEY = "hanbang_chat_rooms";
-
-// localStorage에서 방 목록 불러오기
-function loadRoomsFromStorage(coupleId: string): ChatRoom[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(`${ROOMS_STORAGE_KEY}_${coupleId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRoomsToStorage(coupleId: string, rooms: ChatRoom[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(`${ROOMS_STORAGE_KEY}_${coupleId}`, JSON.stringify(rooms));
-}
 
 interface ChatStoreState {
   messages: ChatMessage[];
-  rooms: ChatRoom[];
-  activeRoomId: string;
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
@@ -41,13 +20,7 @@ interface ChatStoreState {
   suggestions: string[];
   error: string | null;
   initialLoadDone: boolean;
-  defaultRoomTitle: string;
 
-  initRooms: (coupleId: string) => void;
-  createRoom: (coupleId: string) => string | null;
-  switchRoom: (roomId: string) => void;
-  deleteRoom: (coupleId: string, roomId: string) => Promise<void>;
-  clearRoom: (coupleId: string, roomId: string) => Promise<void>;
   loadMessages: (coupleId: string) => Promise<void>;
   sendMessage: (params: {
     content: string;
@@ -63,7 +36,7 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
   }) => Promise<void>;
-  updateRoomTitle: (coupleId: string, roomId: string, title: string) => void;
+  clearMessages: (coupleId: string) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
 }
@@ -225,16 +198,11 @@ async function parseSSEStream(
             callbacks.onError(event.message);
             break;
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn("SSE 파싱 실패:", e);
+      }
     }
   }
-}
-
-// 메시지가 현재 방에 속하는지 확인
-function messageMatchesRoom(msg: ChatMessage, roomId: string): boolean {
-  const meta = msg.metadata as { roomId?: string } | null;
-  const msgRoom = meta?.roomId ?? "default";
-  return msgRoom === roomId;
 }
 
 // DB row → 내부 ChatMessage 변환 (sender_type → sender_role)
@@ -308,8 +276,6 @@ async function saveAiMessage(
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
   messages: [],
-  rooms: [],
-  activeRoomId: "default",
   isLoading: false,
   isStreaming: false,
   streamingContent: "",
@@ -317,82 +283,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   suggestions: [],
   error: null,
   initialLoadDone: false,
-  defaultRoomTitle: "",
 
-  // 방 목록 초기화
-  initRooms: (coupleId: string) => {
-    const rooms = loadRoomsFromStorage(coupleId);
-    let defaultRoomTitle = "";
-    if (typeof window !== "undefined") {
-      defaultRoomTitle = localStorage.getItem(`hanbang_default_title_${coupleId}`) ?? "";
-    }
-    set({ rooms, activeRoomId: "default", defaultRoomTitle });
-  },
-
-  // 새 채팅방 생성 (최대 5개)
-  createRoom: (coupleId: string) => {
-    const { rooms } = get();
-    // default + 추가 방 합쳐서 MAX_ROOMS
-    if (rooms.length >= MAX_ROOMS - 1) return null;
-
-    const now = new Date();
-    const newRoom: ChatRoom = {
-      id: `room-${Date.now()}`,
-      title: `${now.getMonth() + 1}/${now.getDate()} 상담`,
-      createdAt: now.toISOString(),
-    };
-
-    const updated = [...rooms, newRoom];
-    saveRoomsToStorage(coupleId, updated);
-    set({ rooms: updated, activeRoomId: newRoom.id, messages: [], suggestions: [] });
-    return newRoom.id;
-  },
-
-  // 방 전환
-  switchRoom: (roomId: string) => {
-    set({ activeRoomId: roomId, messages: [], suggestions: [], error: null, initialLoadDone: false });
-  },
-
-  // 방 삭제 (메시지도 삭제)
-  deleteRoom: async (coupleId: string, roomId: string) => {
-    if (roomId === "default") return; // 기본방은 삭제 불가
-
-    const isDemo = document.cookie.includes("demo_mode=true");
-    if (!isDemo) {
-      await fetch("/api/chat/messages", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupleId, roomId }),
-      });
-    }
-
-    const { rooms, activeRoomId } = get();
-    const updated = rooms.filter((r) => r.id !== roomId);
-    saveRoomsToStorage(coupleId, updated);
-    set({
-      rooms: updated,
-      activeRoomId: activeRoomId === roomId ? "default" : activeRoomId,
-      messages: activeRoomId === roomId ? [] : get().messages,
-      suggestions: activeRoomId === roomId ? [] : get().suggestions,
-    });
-  },
-
-  // 현재 방 대화 초기화
-  clearRoom: async (coupleId: string, roomId: string) => {
-    const isDemo = document.cookie.includes("demo_mode=true");
-    if (!isDemo) {
-      await fetch("/api/chat/messages", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupleId, roomId }),
-      });
-    }
-    set({ messages: [], suggestions: [] });
-  },
-
-  // 메시지 로드 (현재 방 필터) — 스트리밍 중이면 스킵
+  // 메시지 로드 — 스트리밍 중이면 스킵
   loadMessages: async (coupleId: string) => {
-    // 스트리밍 중에는 메시지 로드하지 않음 (로컬 메시지 덮어쓰기 방지)
     if (get().isStreaming) return;
 
     set({ isLoading: true, error: null, initialLoadDone: false });
@@ -410,15 +303,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       // 스트리밍이 시작되었으면 결과 무시 (race condition 방지)
       if (get().isStreaming) return;
 
-      const { activeRoomId } = get();
       const allMessages = (data ?? []).map((m) => dbRowToMessage(m as Record<string, unknown>));
-
-      // 현재 방 메시지만 필터
-      const roomMessages = allMessages.filter((m) =>
-        messageMatchesRoom(m, activeRoomId)
-      );
-
-      set({ messages: roomMessages });
+      set({ messages: allMessages });
     } catch (err) {
       console.error("채팅 로드 에러:", err);
       set({ error: "채팅을 불러오지 못했습니다." });
@@ -432,13 +318,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   }) => {
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
-    const { activeRoomId } = get();
-
-    // 첫 사용자 메시지인지 확인 (방 제목 자동 설정용)
-    const isFirstUserMessage = !get().messages.some((m) => m.sender_role !== "ai");
-
-    // roomId를 포함한 metadata
-    const msgMetadata: ChatMessageMetadata | null = activeRoomId !== "default" ? { roomId: activeRoomId } : null;
 
     if (!isDemo) {
       const { data: inserted, error: insertErr } = await supabase
@@ -449,7 +328,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           sender_type: senderRole,
           role: "user",
           content,
-          metadata: msgMetadata,
+          metadata: null,
         })
         .select()
         .single();
@@ -470,28 +349,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         sender_id: senderId,
         sender_role: senderRole,
         content,
-        metadata: msgMetadata,
+        metadata: null,
         created_at: new Date().toISOString(),
       };
       set((s) => ({ messages: [...s.messages, demoMsg] }));
-    }
-
-    // 첫 사용자 메시지면 방 제목 자동 설정
-    if (isFirstUserMessage) {
-      const shortTitle = content.length > 20 ? content.slice(0, 20) + "…" : content;
-      if (activeRoomId === "default") {
-        if (typeof window !== "undefined") {
-          localStorage.setItem(`hanbang_default_title_${coupleId}`, shortTitle);
-        }
-        set({ defaultRoomTitle: shortTitle });
-      } else {
-        const currentRooms = get().rooms;
-        const updatedRooms = currentRooms.map((r) =>
-          r.id === activeRoomId ? { ...r, title: shortTitle } : r
-        );
-        saveRoomsToStorage(coupleId, updatedRooms);
-        set({ rooms: updatedRooms });
-      }
     }
 
     // AI 응답
@@ -542,12 +403,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
 
       if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = {
-          ...(finalMetadata ?? {}),
-          ...(activeRoomId !== "default" ? { roomId: activeRoomId } : {}),
-        };
-
-        // 로컬에 먼저 추가 → DB 저장 시도 (실패해도 보임)
+        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
@@ -563,12 +419,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
-  // 첫 진입 시 AI 인사 (호출자인 useEffect가 이미 isLoading/messages 가드 처리)
+  // 첫 진입 시 AI 인사 (타임아웃 + gotDone 체크 추가)
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
     if (get().isStreaming) return;
 
-    const { activeRoomId } = get();
     set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
+
+    // 180초 타임아웃
+    const abortController = new AbortController();
+    const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
     try {
       const roleLabel = senderRole === "bride" ? "신부" : "신랑";
@@ -579,12 +438,16 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
           coupleId, senderName, senderRole, weddingContext,
         }),
+        signal: abortController.signal,
       });
+
+      clearTimeout(fetchTimeout);
 
       if (!res.ok) throw new Error("AI 초기 인사 실패");
 
       let fullContent = "";
       let finalMetadata: ChatMessageMetadata | null = null;
+      let gotDone = false;
 
       await parseSSEStream(res, {
         onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
@@ -594,40 +457,45 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => set({ suggestions: sug }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; },
+        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
         onError: (msg) => set({ error: msg }),
       });
 
-      if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = {
-          ...(finalMetadata ?? {}),
-          ...(activeRoomId !== "default" ? { roomId: activeRoomId } : {}),
-        };
-        const isDemo = document.cookie.includes("demo_mode=true");
+      // 스트림이 done 없이 끊긴 경우 에러 표시
+      if (!gotDone && !fullContent && !get().error) {
+        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+      }
 
-        // 로컬에 먼저 추가 → DB 저장 시도 (실패해도 보임)
+      if (fullContent) {
+        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
+        const isDemo = document.cookie.includes("demo_mode=true");
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
       console.error("초기 인사 에러:", err);
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      set({
+        error: isAbort
+          ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
+          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
+      });
     } finally {
+      clearTimeout(fetchTimeout);
       set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
     }
   },
 
-  // 방 제목 업데이트
-  updateRoomTitle: (coupleId: string, roomId: string, title: string) => {
-    if (roomId === "default") {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`hanbang_default_title_${coupleId}`, title);
-      }
-      set({ defaultRoomTitle: title });
-    } else {
-      const { rooms } = get();
-      const updated = rooms.map((r) => r.id === roomId ? { ...r, title } : r);
-      saveRoomsToStorage(coupleId, updated);
-      set({ rooms: updated });
+  // 대화 초기화
+  clearMessages: async (coupleId: string) => {
+    const isDemo = document.cookie.includes("demo_mode=true");
+    if (!isDemo) {
+      await fetch("/api/chat/messages", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupleId }),
+      });
     }
+    set({ messages: [], suggestions: [] });
   },
 
   subscribeToMessages: (coupleId: string) => {
@@ -644,10 +512,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
         (payload) => {
           const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
-          const { activeRoomId } = get();
-          // 현재 방 메시지만 추가
-          if (!messageMatchesRoom(newMsg, activeRoomId)) return;
-
           set((s) => {
             const exists = s.messages.some((m) => m.id === newMsg.id);
             if (exists) return s;
@@ -665,8 +529,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   reset: () => {
     set({
       messages: [],
-      rooms: [],
-      activeRoomId: "default",
       isLoading: false,
       isStreaming: false,
       streamingContent: "",
@@ -674,7 +536,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       suggestions: [],
       error: null,
       initialLoadDone: false,
-      defaultRoomTitle: "",
     });
   },
 }));

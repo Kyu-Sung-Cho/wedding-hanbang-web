@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, X, Maximize2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Send, Sparkles, X, Maximize2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -21,31 +21,22 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const { profile, couple, journey, isDemo } = useAuthStore();
   const {
     messages,
-    rooms,
-    activeRoomId,
     isStreaming,
     streamingContent,
     streamingToolResults,
     suggestions,
     initialLoadDone,
-    defaultRoomTitle,
-    initRooms,
-    createRoom,
-    switchRoom,
-    deleteRoom,
-    clearRoom,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    clearMessages,
     subscribeToMessages,
   } = useChatStore();
 
-  const MAX_ROOMS = 5;
   const [input, setInput] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const greetingRequestedForRoom = useRef<Set<string>>(new Set());
+  const greetingRequested = useRef(false);
   const subscribed = useRef(false);
   const coupleId = couple?.id;
 
@@ -53,7 +44,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   useEffect(() => {
     if (!isOpen || !coupleId || isDemo) return;
 
-    initRooms(coupleId);
     loadMessages(coupleId);
 
     if (!subscribed.current) {
@@ -64,13 +54,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         subscribed.current = false;
       };
     }
-  }, [isOpen, coupleId, isDemo, initRooms, loadMessages, subscribeToMessages]);
-
-  // 방 전환 시 메시지 리로드
-  useEffect(() => {
-    if (!isOpen || !coupleId || isDemo) return;
-    loadMessages(coupleId);
-  }, [activeRoomId, isOpen, coupleId, isDemo, loadMessages]);
+  }, [isOpen, coupleId, isDemo, loadMessages, subscribeToMessages]);
 
   // 메시지 0개일 때 AI 첫 인사
   useEffect(() => {
@@ -82,11 +66,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
-      greetingRequestedForRoom.current.has(activeRoomId)
+      greetingRequested.current
     )
       return;
 
-    greetingRequestedForRoom.current.add(activeRoomId);
+    greetingRequested.current = true;
     requestInitialGreeting({
       coupleId,
       senderRole: profile.role ?? "bride",
@@ -98,7 +82,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         progress: journey?.progress ?? {},
       },
     });
-  }, [isOpen, coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, activeRoomId, requestInitialGreeting, isDemo]);
+  }, [isOpen, coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -135,39 +119,15 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     router.push("/chat");
   };
 
-  const handleCreateRoom = () => {
+  const handleClearChat = async () => {
     if (!coupleId) return;
-    const newRoomId = createRoom(coupleId);
-    if (!newRoomId) alert(`최대 ${MAX_ROOMS}개까지만 만들 수 있어요.`);
-  };
-
-  const handleSwitchRoom = (roomId: string) => {
-    if (roomId === activeRoomId) return;
-    switchRoom(roomId);
-  };
-
-  const handleClearRoom = async () => {
-    if (!coupleId) return;
-    greetingRequestedForRoom.current.delete(activeRoomId);
-    await clearRoom(coupleId, activeRoomId);
+    greetingRequested.current = false;
+    await clearMessages(coupleId);
     setShowClearConfirm(false);
-  };
-
-  const handleDeleteRoom = async (roomId: string) => {
-    if (!coupleId) return;
-    await deleteRoom(coupleId, roomId);
-    greetingRequestedForRoom.current.delete(roomId);
-    setShowDeleteConfirm(null);
   };
 
   // 로그인 안 됨 / 커플 없음
   const showEmpty = isDemo || !coupleId;
-
-  const allRoomTabs = [
-    { id: "default", title: defaultRoomTitle || "새 상담" },
-    ...rooms.map((r) => ({ id: r.id, title: r.title || "새 상담" })),
-  ];
-  const totalRooms = allRoomTabs.length;
 
   return (
     <>
@@ -206,6 +166,15 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
+                title="대화 초기화"
+              >
+                <Trash2 className="w-4 h-4 text-taupe-500 hover:text-red-400" />
+              </button>
+            )}
             <button
               onClick={handleExpand}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
@@ -238,69 +207,13 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           </div>
         ) : (
           <>
-            {/* 방 탭 바 */}
-            <div className="flex items-center gap-1 px-3 py-2 border-b border-black/[0.04] overflow-x-auto scrollbar-hide">
-              {allRoomTabs.map((tab) => (
-                <div key={tab.id} className="relative group flex-shrink-0">
-                  <button
-                    onClick={() => handleSwitchRoom(tab.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                      activeRoomId === tab.id
-                        ? "bg-noir-800 text-white shadow-sm"
-                        : "bg-white text-taupe-500 border border-black/[0.06] hover:border-rose-500 hover:text-rose-500"
-                    }`}
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    <span className="max-w-[80px] truncate">{tab.title}</span>
-                  </button>
-                  {tab.id !== "default" && activeRoomId !== tab.id && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(tab.id); }}
-                      className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-2 h-2" />
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {totalRooms < MAX_ROOMS && (
-                <button
-                  onClick={handleCreateRoom}
-                  className="flex-shrink-0 w-6 h-6 rounded-lg border border-dashed border-taupe-400 text-taupe-400 flex items-center justify-center hover:border-rose-500 hover:text-rose-500 transition-colors"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              )}
-
-              {messages.length > 0 && (
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  className="flex-shrink-0 ml-auto w-6 h-6 rounded-lg flex items-center justify-center text-taupe-400 hover:text-red-400 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
                 <p className="text-[11px] text-red-600">대화를 모두 삭제할까요?</p>
                 <div className="flex gap-1.5">
                   <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={handleClearRoom} className="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
-                </div>
-              </div>
-            )}
-
-            {/* 방 삭제 확인 */}
-            {showDeleteConfirm && (
-              <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-[11px] text-red-600">이 채팅방을 삭제할까요?</p>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setShowDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={() => handleDeleteRoom(showDeleteConfirm)} className="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
                 </div>
               </div>
             )}

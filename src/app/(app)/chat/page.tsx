@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Plus, Trash2, X, MessageSquare, PanelRightOpen } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
@@ -12,14 +12,10 @@ import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 
-const MAX_ROOMS = 5;
-
 export default function ChatPage() {
   const { profile, couple, journey, isDemo } = useAuthStore();
   const {
     messages,
-    rooms,
-    activeRoomId,
     isLoading,
     isStreaming,
     streamingContent,
@@ -27,35 +23,21 @@ export default function ChatPage() {
     suggestions,
     error,
     initialLoadDone,
-    defaultRoomTitle,
-    initRooms,
-    createRoom,
-    switchRoom,
-    deleteRoom,
-    clearRoom,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    clearMessages,
     subscribeToMessages,
-    reset,
   } = useChatStore();
   const [input, setInput] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
-  const [roomLimitToast, setRoomLimitToast] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const greetingRequestedForRoom = useRef<Set<string>>(new Set());
+  const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
-  // 방 목록 초기화
-  useEffect(() => {
-    if (!coupleId || isDemo) return;
-    initRooms(coupleId);
-  }, [coupleId, isDemo, initRooms]);
-
-  // 방 전환 또는 처음 로드 시 메시지 로드
+  // 메시지 로드 + 구독
   useEffect(() => {
     if (!coupleId || isDemo) return;
     loadMessages(coupleId);
@@ -63,7 +45,7 @@ export default function ChatPage() {
     return () => {
       unsubscribe();
     };
-  }, [coupleId, isDemo, activeRoomId, loadMessages, subscribeToMessages]);
+  }, [coupleId, isDemo, loadMessages, subscribeToMessages]);
 
   // 메시지 0개 + 로딩 완료 시 AI 첫 인사
   useEffect(() => {
@@ -74,11 +56,11 @@ export default function ChatPage() {
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
-      greetingRequestedForRoom.current.has(activeRoomId)
+      greetingRequested.current
     )
       return;
 
-    greetingRequestedForRoom.current.add(activeRoomId);
+    greetingRequested.current = true;
 
     requestInitialGreeting({
       coupleId,
@@ -91,7 +73,7 @@ export default function ChatPage() {
         progress: journey?.progress ?? {},
       },
     });
-  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, activeRoomId, requestInitialGreeting]);
+  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 스크롤 자동 이동
   useEffect(() => {
@@ -122,34 +104,11 @@ export default function ChatPage() {
     [input, coupleId, profile, journey, sendMessage]
   );
 
-  const handleCreateRoom = () => {
+  const handleClearChat = async () => {
     if (!coupleId) return;
-    const newRoomId = createRoom(coupleId);
-    if (!newRoomId) {
-      setRoomLimitToast(true);
-      setTimeout(() => setRoomLimitToast(false), 3000);
-    }
-  };
-
-  const handleClearRoom = async () => {
-    if (!coupleId) return;
-    // tracker를 먼저 삭제해야 clearRoom의 set({messages:[]}) 후
-    // 재렌더링에서 greeting effect가 바로 트리거됨
-    greetingRequestedForRoom.current.delete(activeRoomId);
-    await clearRoom(coupleId, activeRoomId);
+    greetingRequested.current = false;
+    await clearMessages(coupleId);
     setShowClearConfirm(false);
-  };
-
-  const handleDeleteRoom = async (roomId: string) => {
-    if (!coupleId) return;
-    await deleteRoom(coupleId, roomId);
-    greetingRequestedForRoom.current.delete(roomId);
-    setShowDeleteConfirm(null);
-  };
-
-  const handleSwitchRoom = (roomId: string) => {
-    if (roomId === activeRoomId) return;
-    switchRoom(roomId);
   };
 
   // 데모 모드: AI 상담 비활성화
@@ -190,61 +149,17 @@ export default function ChatPage() {
     );
   }
 
-  const allRoomTabs = [
-    { id: "default", title: defaultRoomTitle || "새 상담" },
-    ...rooms.map((r) => ({ id: r.id, title: r.title || "새 상담" })),
-  ];
-  const totalRooms = allRoomTabs.length;
-
   return (
     <div className={`h-[calc(100vh-144px)] transition-all duration-300 ${
       infoPanelOpen ? "md:pr-[390px]" : ""
     }`}>
     <div className="max-w-[800px] mx-auto h-full flex flex-col">
-      {/* 방 탭 바 */}
-      <div className="flex items-center gap-1.5 px-2 pb-2 pt-1 overflow-x-auto scrollbar-hide">
-        {allRoomTabs.map((tab) => (
-          <div key={tab.id} className="relative group flex-shrink-0">
-            <button
-              onClick={() => handleSwitchRoom(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeRoomId === tab.id
-                  ? "bg-[#1A1A1F] text-white shadow-sm"
-                  : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
-              }`}
-            >
-              <MessageSquare className="w-3 h-3" />
-              {tab.title}
-            </button>
-            {/* 삭제 버튼 (기본방 제외, 호버 시) */}
-            {tab.id !== "default" && activeRoomId !== tab.id && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowDeleteConfirm(tab.id);
-                }}
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-400 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-          </div>
-        ))}
-
-        {/* 새 방 버튼 */}
-        {totalRooms < MAX_ROOMS && (
-          <button
-            onClick={handleCreateRoom}
-            className="flex-shrink-0 w-7 h-7 rounded-lg border border-dashed border-[#B5ADA3] text-[#B5ADA3] flex items-center justify-center hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        )}
-
+      {/* 상단 바 */}
+      <div className="flex items-center justify-end gap-1.5 px-2 pb-2 pt-1">
         {/* 정보 패널 토글 */}
         <button
           onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-          className={`flex-shrink-0 ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
             infoPanelOpen
               ? "text-[#C4967E] bg-[#C4967E]/10"
               : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
@@ -254,11 +169,11 @@ export default function ChatPage() {
           정보
         </button>
 
-        {/* 현재 방 초기화 버튼 */}
+        {/* 대화 초기화 버튼 */}
         {messages.length > 0 && (
           <button
             onClick={() => setShowClearConfirm(true)}
-            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           >
             <Trash2 className="w-3 h-3" />
             초기화
@@ -266,20 +181,7 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* 방 개수 제한 토스트 */}
-      {roomLimitToast && (
-        <div className="mx-2 mb-2 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between animate-fade-in">
-          <p className="text-xs text-amber-700">최대 {MAX_ROOMS}개까지만 만들 수 있어요.</p>
-          <button
-            onClick={() => setRoomLimitToast(false)}
-            className="ml-2 text-amber-400 hover:text-amber-600 flex-shrink-0"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* 초기화 확인 모달 */}
+      {/* 초기화 확인 */}
       {showClearConfirm && (
         <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
           <p className="text-xs text-red-600">이 대화를 모두 삭제할까요?</p>
@@ -291,28 +193,7 @@ export default function ChatPage() {
               취소
             </button>
             <button
-              onClick={handleClearRoom}
-              className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600"
-            >
-              삭제
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 방 삭제 확인 모달 */}
-      {showDeleteConfirm && (
-        <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-          <p className="text-xs text-red-600">이 채팅방을 삭제할까요?</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowDeleteConfirm(null)}
-              className="px-3 py-1 text-xs rounded-lg bg-white border border-black/[0.06] text-[#928980] hover:bg-gray-50"
-            >
-              취소
-            </button>
-            <button
-              onClick={() => handleDeleteRoom(showDeleteConfirm)}
+              onClick={handleClearChat}
               className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600"
             >
               삭제
