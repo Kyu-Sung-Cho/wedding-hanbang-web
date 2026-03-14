@@ -12,18 +12,28 @@ export const maxDuration = 60;
 
 const MAX_TOOL_ROUNDS = 5;
 
-// Claude 응답에서 [suggestions] 블록 추출
+// Claude 응답에서 [suggestions] 블록 추출 (백틱 있든 없든 모두 처리)
 function extractSuggestions(text: string): { cleanText: string; suggestions: string[] } {
-  const regex = /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/;
-  const match = text.match(regex);
-  if (!match) return { cleanText: text, suggestions: [] };
+  // 패턴 1: ```[suggestions]...[/suggestions]``` (백틱 감싸기)
+  // 패턴 2: [suggestions]...[/suggestions] (백틱 없음)
+  const patterns = [
+    /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/,
+    /\[suggestions\]\n([\s\S]*?)\[\/suggestions\]/,
+  ];
 
-  const suggestions = match[1]
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const cleanText = text.replace(regex, "").trim();
-  return { cleanText, suggestions };
+  for (const regex of patterns) {
+    const match = text.match(regex);
+    if (match) {
+      const suggestions = match[1]
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const cleanText = text.replace(regex, "").trim();
+      return { cleanText, suggestions };
+    }
+  }
+
+  return { cleanText: text, suggestions: [] };
 }
 
 export async function POST(request: Request) {
