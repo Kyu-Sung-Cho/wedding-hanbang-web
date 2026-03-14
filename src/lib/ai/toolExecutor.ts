@@ -1481,6 +1481,47 @@ function parseCategory(raw: string): { main: string; sub: string | null; full: s
   return { main: parts[0], sub: null, full: raw };
 }
 
+// 블로그 텍스트에서 인당 가격대 추출
+function extractPriceRange(texts: string[]): string | null {
+  const combined = texts.join(" ");
+  // "인당 3만원", "1인 5만원", "인당 30,000원" 등
+  const perPersonPatterns = [
+    /인당\s*(\d[\d,]*)\s*원/,
+    /1인\s*(\d[\d,]*)\s*원/,
+    /인당\s*(\d+)\s*만\s*원?/,
+    /1인\s*(\d+)\s*만\s*원?/,
+    /인당\s*약?\s*(\d+)\s*만/,
+  ];
+  for (const pattern of perPersonPatterns) {
+    const match = combined.match(pattern);
+    if (match) {
+      const raw = match[1].replace(/,/g, "");
+      const num = parseInt(raw, 10);
+      if (num >= 10000) return `인당 약 ${(num / 10000).toFixed(0)}만원`;
+      if (num > 0 && num <= 100) return `인당 약 ${num}만원`;
+      if (num > 100) return `인당 약 ${num.toLocaleString()}원`;
+    }
+  }
+  // "가격대 3~5만원", "3만원~5만원대"
+  const rangeMatch = combined.match(/(\d+)\s*[~\-]\s*(\d+)\s*만\s*원/);
+  if (rangeMatch) {
+    return `인당 ${rangeMatch[1]}~${rangeMatch[2]}만원`;
+  }
+  // "코스 5만원", "코스요리 7만원"
+  const courseMatch = combined.match(/코스[요리]?\s*(\d+)\s*만\s*원?/);
+  if (courseMatch) {
+    return `코스 ${courseMatch[1]}만원`;
+  }
+  return null;
+}
+
+// 블로그 텍스트에서 룸/개인실 여부 확인
+function detectPrivateRoom(texts: string[]): boolean {
+  const combined = texts.join(" ").toLowerCase();
+  const roomKeywords = ["룸", "개별룸", "프라이빗", "private", "개인실", "독립공간", "단체석", "별실", "개인공간", "단독룸"];
+  return roomKeywords.some((kw) => combined.includes(kw));
+}
+
 async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
@@ -1542,25 +1583,40 @@ async function executeSearchNearbyPlaces(
           // 네이버 블로그 리뷰 검색 링크
           const blogSearchUrl = `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(name + " " + (category.sub || category.main) + " 후기")}`;
 
-          // 블로그 검색으로 리뷰 수/대표 후기 가져오기
+          // 블로그 검색으로 리뷰 수/대표 후기/가격/룸 정보 추출
           let blogReviewCount = 0;
           let blogSnippet: string | null = null;
+          let priceRange: string | null = null;
+          let hasPrivateRoom = false;
+          const cuisineType = category.main; // 한식, 양식, 일식, 중식 등
+
           try {
+            // 블로그 검색: 가격, 메뉴, 룸 관련 정보 포함한 쿼리
             const blogResponse = await fetch(
-              `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(name + " " + roadAddr + " 후기")}&display=1&sort=sim`,
+              `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(name + " " + roadAddr + " 가격 메뉴 후기")}&display=3&sort=sim`,
               {
                 headers: {
-                  "X-Naver-Client-Id": clientId,
-                  "X-Naver-Client-Secret": clientSecret,
+                  "X-Naver-Client-Id": clientId!,
+                  "X-Naver-Client-Secret": clientSecret!,
                 },
               }
             );
             if (blogResponse.ok) {
               const blogData = await blogResponse.json();
               blogReviewCount = blogData.total || 0;
-              if (blogData.items && blogData.items.length > 0) {
-                blogSnippet = stripHtmlTags(blogData.items[0].description || "").slice(0, 80);
+              const blogItems = blogData.items || [];
+              // 모든 블로그 스니펫 수집
+              const allSnippets: string[] = blogItems.map(
+                (b: { description: string }) => stripHtmlTags(b.description || "")
+              );
+              // 대표 후기
+              if (allSnippets.length > 0) {
+                blogSnippet = allSnippets[0].slice(0, 100);
               }
+              // 가격대 추출
+              priceRange = extractPriceRange(allSnippets);
+              // 룸 여부 확인
+              hasPrivateRoom = detectPrivateRoom(allSnippets);
             }
           } catch {
             // 블로그 검색 실패해도 진행
@@ -1572,8 +1628,11 @@ async function executeSearchNearbyPlaces(
             address: roadAddr,
             category: category.sub || category.main,
             categoryFull: category.full,
+            cuisineType,
             description: description || null,
             telephone: item.telephone || null,
+            priceRange,
+            hasPrivateRoom,
             mapsUrl,
             blogSearchUrl,
             blogReviewCount,

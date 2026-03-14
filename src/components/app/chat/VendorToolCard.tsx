@@ -584,8 +584,11 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       address: string;
       category: string;
       categoryFull: string;
+      cuisineType: string;
       description: string | null;
       telephone: string | null;
+      priceRange: string | null;
+      hasPrivateRoom: boolean;
       mapsUrl: string;
       blogSearchUrl: string;
       blogReviewCount: number;
@@ -598,11 +601,17 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
   const places = output.places ?? [];
   if (places.length === 0) return null;
 
-  // 블로그 리뷰 수 포맷 (1234 → "1.2K")
+  // 블로그 리뷰 수 포맷
   const formatCount = (n: number) => {
     if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
     if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
     return n.toLocaleString();
+  };
+
+  // 음식 종류별 이모지
+  const cuisineEmoji: Record<string, string> = {
+    "한식": "🍚", "양식": "🍝", "일식": "🍣", "중식": "🥟",
+    "분식": "🍜", "뷔페": "🍽", "카페": "☕", "베이커리": "🍞",
   };
 
   return (
@@ -634,20 +643,41 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  {/* 이름 + 카테고리 */}
-                  <div className="flex items-center gap-2">
-                    <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
-                      {p.name}
-                    </p>
-                  </div>
-                  {p.category && (
-                    <div className="flex items-center gap-1.5 mt-1">
+                  {/* 이름 */}
+                  <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
+                    {p.name}
+                  </p>
+
+                  {/* 태그 줄: 음식종류 + 세부카테고리 + 후기 수 */}
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {p.cuisineType && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[#1A1A1F] font-medium">
+                        {cuisineEmoji[p.cuisineType] || "🍴"} {p.cuisineType}
+                      </span>
+                    )}
+                    {p.category && p.category !== p.cuisineType && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C4967E]/10 text-[#C4967E] font-medium">
                         {p.category}
                       </span>
-                      {p.blogReviewCount > 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
-                          블로그 후기 {formatCount(p.blogReviewCount)}건
+                    )}
+                    {p.blogReviewCount > 0 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
+                        후기 {formatCount(p.blogReviewCount)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 가격대 + 룸 정보 */}
+                  {(p.priceRange || p.hasPrivateRoom) && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      {p.priceRange && (
+                        <span className="text-[10px] text-[#C9A96E] font-semibold">
+                          💰 {p.priceRange}
+                        </span>
+                      )}
+                      {p.hasPrivateRoom && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EDE7F6] text-[#5E35B1] font-medium">
+                          🚪 룸 있음
                         </span>
                       )}
                     </div>
