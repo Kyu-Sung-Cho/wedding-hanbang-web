@@ -1522,6 +1522,13 @@ function detectPrivateRoom(texts: string[]): boolean {
   return roomKeywords.some((kw) => combined.includes(kw));
 }
 
+// fetch with timeout (기본 4초)
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
@@ -1539,16 +1546,17 @@ async function executeSearchNearbyPlaces(
     };
   }
 
+  const naverHeaders = {
+    "X-Naver-Client-Id": clientId,
+    "X-Naver-Client-Secret": clientSecret,
+  };
+
   try {
-    // 네이버 지역 검색 (리뷰 많은 순)
-    const localResponse = await fetch(
+    // 1단계: 네이버 지역 검색 (리뷰 많은 순, 5초 타임아웃)
+    const localResponse = await fetchWithTimeout(
       `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=5&sort=comment`,
-      {
-        headers: {
-          "X-Naver-Client-Id": clientId,
-          "X-Naver-Client-Secret": clientSecret,
-        },
-      }
+      { headers: naverHeaders },
+      5000
     );
 
     if (!localResponse.ok) {
@@ -1559,89 +1567,88 @@ async function executeSearchNearbyPlaces(
     const localData = await localResponse.json();
     const items = localData.items || [];
 
-    // 블로그 검색으로 각 장소의 리뷰 정보 보강
-    const places = await Promise.all(
-      items.map(
-        async (item: {
-          title: string;
-          link: string;
-          category: string;
-          description: string;
-          telephone: string;
-          address: string;
-          roadAddress: string;
-          mapx: string;
-          mapy: string;
-        }, idx: number) => {
-          const name = stripHtmlTags(item.title);
-          const roadAddr = item.roadAddress || item.address;
-          const category = parseCategory(item.category);
-          const description = stripHtmlTags(item.description || "");
+    if (items.length === 0) {
+      return {
+        toolName: "search_nearby_places",
+        toolInput: input,
+        toolOutput: { places: [], query },
+        success: true,
+        displayMessage: `'${query}' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.`,
+      };
+    }
 
-          // 네이버 지도 링크
-          const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name + " " + roadAddr)}`;
-          // 네이버 블로그 리뷰 검색 링크
-          const blogSearchUrl = `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(name + " " + (category.sub || category.main) + " 후기")}`;
+    // 2단계: 기본 장소 데이터 먼저 구성 (블로그 없이도 동작)
+    const basePlaces = items.map(
+      (item: {
+        title: string;
+        link: string;
+        category: string;
+        description: string;
+        telephone: string;
+        address: string;
+        roadAddress: string;
+        mapx: string;
+        mapy: string;
+      }, idx: number) => {
+        const name = stripHtmlTags(item.title);
+        const roadAddr = item.roadAddress || item.address;
+        const category = parseCategory(item.category);
+        const description = stripHtmlTags(item.description || "");
+        const cuisineType = category.main;
+        const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name + " " + roadAddr)}`;
+        const blogSearchUrl = `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(name + " " + (category.sub || category.main) + " 후기")}`;
 
-          // 블로그 검색으로 리뷰 수/대표 후기/가격/룸 정보 추출
-          let blogReviewCount = 0;
-          let blogSnippet: string | null = null;
-          let priceRange: string | null = null;
-          let hasPrivateRoom = false;
-          const cuisineType = category.main; // 한식, 양식, 일식, 중식 등
-
-          try {
-            // 블로그 검색: 가격, 메뉴, 룸 관련 정보 포함한 쿼리
-            const blogResponse = await fetch(
-              `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(name + " " + roadAddr + " 가격 메뉴 후기")}&display=3&sort=sim`,
-              {
-                headers: {
-                  "X-Naver-Client-Id": clientId!,
-                  "X-Naver-Client-Secret": clientSecret!,
-                },
-              }
-            );
-            if (blogResponse.ok) {
-              const blogData = await blogResponse.json();
-              blogReviewCount = blogData.total || 0;
-              const blogItems = blogData.items || [];
-              // 모든 블로그 스니펫 수집
-              const allSnippets: string[] = blogItems.map(
-                (b: { description: string }) => stripHtmlTags(b.description || "")
-              );
-              // 대표 후기
-              if (allSnippets.length > 0) {
-                blogSnippet = allSnippets[0].slice(0, 100);
-              }
-              // 가격대 추출
-              priceRange = extractPriceRange(allSnippets);
-              // 룸 여부 확인
-              hasPrivateRoom = detectPrivateRoom(allSnippets);
-            }
-          } catch {
-            // 블로그 검색 실패해도 진행
-          }
-
-          return {
-            id: `naver-${idx}`,
-            name,
-            address: roadAddr,
-            category: category.sub || category.main,
-            categoryFull: category.full,
-            cuisineType,
-            description: description || null,
-            telephone: item.telephone || null,
-            priceRange,
-            hasPrivateRoom,
-            mapsUrl,
-            blogSearchUrl,
-            blogReviewCount,
-            blogSnippet,
-            link: item.link || null,
-          };
-        }
-      )
+        return {
+          id: `naver-${idx}`,
+          name,
+          address: roadAddr,
+          category: category.sub || category.main,
+          categoryFull: category.full,
+          cuisineType,
+          description: description || null,
+          telephone: item.telephone || null,
+          priceRange: null as string | null,
+          hasPrivateRoom: false,
+          mapsUrl,
+          blogSearchUrl,
+          blogReviewCount: 0,
+          blogSnippet: null as string | null,
+          link: item.link || null,
+        };
+      }
     );
+
+    // 3단계: 블로그 검색으로 보강 (병렬, 개별 타임아웃 3초, 실패해도 무시)
+    const blogResults = await Promise.allSettled(
+      basePlaces.map(async (place: { name: string; address: string }) => {
+        const blogResponse = await fetchWithTimeout(
+          `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(place.name + " " + place.address + " 가격 후기")}&display=3&sort=sim`,
+          { headers: naverHeaders },
+          3000
+        );
+        if (!blogResponse.ok) return null;
+        return await blogResponse.json();
+      })
+    );
+
+    // 4단계: 블로그 데이터 병합
+    const places = basePlaces.map((place: typeof basePlaces[number], idx: number) => {
+      const blogResult = blogResults[idx];
+      if (blogResult.status === "fulfilled" && blogResult.value) {
+        const blogData = blogResult.value;
+        place.blogReviewCount = blogData.total || 0;
+        const blogItems = blogData.items || [];
+        const allSnippets: string[] = blogItems.map(
+          (b: { description: string }) => stripHtmlTags(b.description || "")
+        );
+        if (allSnippets.length > 0) {
+          place.blogSnippet = allSnippets[0].slice(0, 100);
+        }
+        place.priceRange = extractPriceRange(allSnippets);
+        place.hasPrivateRoom = detectPrivateRoom(allSnippets);
+      }
+      return place;
+    });
 
     return {
       toolName: "search_nearby_places",
@@ -1651,12 +1658,14 @@ async function executeSearchNearbyPlaces(
       displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.`,
     };
   } catch (err) {
+    const errMsg = String(err);
+    console.error("search_nearby_places 에러:", errMsg);
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: { error: String(err) },
+      toolOutput: { error: errMsg },
       success: false,
-      displayMessage: "장소 검색 중 오류가 발생했습니다.",
+      displayMessage: "장소 검색 중 오류가 발생했습니다. 다시 시도해주세요.",
     };
   }
 }
