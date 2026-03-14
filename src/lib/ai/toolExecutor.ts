@@ -1602,7 +1602,8 @@ async function executeSearchNearbyPlaces(
         const category = parseCategory(item.category);
         const description = stripHtmlTags(item.description || "");
         const cuisineType = category.main;
-        const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name + " " + roadAddr)}`;
+        // 네이버 지도: 이름만 사용 (이름+주소 전체 넣으면 검색 실패율 높음)
+        const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name)}`;
         const blogSearchUrl = `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(name + " " + (category.sub || category.main) + " 후기")}`;
 
         return {
