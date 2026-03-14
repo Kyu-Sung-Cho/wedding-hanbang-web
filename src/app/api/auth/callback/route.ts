@@ -5,10 +5,13 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const from = searchParams.get("from");
+  // 데모 로그인에서 온 경우 에러 리다이렉트를 /demo/login으로
+  const loginPath = from === "demo" ? "/demo/login" : "/login";
 
   if (!code) {
     console.error("콜백: code 파라미터 없음");
-    return NextResponse.redirect(`${origin}/login?error=no_code`);
+    return NextResponse.redirect(`${origin}${loginPath}?error=no_code`);
   }
 
   try {
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
     if (sessionError) {
       console.error("콜백: 세션 교환 에러:", sessionError.message);
       return NextResponse.redirect(
-        `${origin}/login?error=${encodeURIComponent(sessionError.message)}`
+        `${origin}${loginPath}?error=${encodeURIComponent(sessionError.message)}`
       );
     }
 
@@ -49,7 +52,7 @@ export async function GET(request: Request) {
 
     if (!user) {
       console.error("콜백: 세션 교환 후 user가 null");
-      return NextResponse.redirect(`${origin}/login?error=no_user`);
+      return NextResponse.redirect(`${origin}${loginPath}?error=no_user`);
     }
 
     // 고객 전용: 프로필/온보딩 체크
@@ -83,7 +86,7 @@ export async function GET(request: Request) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("콜백: 예외 발생:", msg);
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(msg)}`
+      `${origin}${loginPath}?error=${encodeURIComponent(msg)}`
     );
   }
 }
