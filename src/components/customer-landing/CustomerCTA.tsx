@@ -2,9 +2,11 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-export default function CustomerCTA() {
+export default function CustomerCTA({ demoMode = false }: { demoMode?: boolean }) {
+  const isComingSoon = demoMode ? false : isComingSoonEnv;
+  const loginHref = demoMode ? "/demo/login" : "/login";
   return (
     <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}
@@ -51,7 +53,7 @@ export default function CustomerCTA() {
 
           <div className="flex gap-4 justify-center flex-wrap mb-8">
             <a
-              href="/login"
+              href={loginHref}
               className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
             >
               {isComingSoon ? "미리 둘러보기" : "무료로 시작하기"}

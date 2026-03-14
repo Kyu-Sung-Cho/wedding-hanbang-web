@@ -2,9 +2,11 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-export default function CustomerHero() {
+export default function CustomerHero({ demoMode = false }: { demoMode?: boolean }) {
+  const isComingSoon = demoMode ? false : isComingSoonEnv;
+  const loginHref = demoMode ? "/demo/login" : "/login";
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-ivory-50">
       {/* 배경 */}
@@ -36,7 +38,7 @@ export default function CustomerHero() {
 
         {/* 배지 */}
         <motion.a
-          href="/login"
+          href={loginHref}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
@@ -83,7 +85,7 @@ export default function CustomerHero() {
           className="flex gap-4 justify-center flex-wrap mb-20"
         >
           <a
-            href="/login"
+            href={loginHref}
             className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
           >
             {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}

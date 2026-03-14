@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-export default function CustomerNav() {
+export default function CustomerNav({ demoMode = false }: { demoMode?: boolean }) {
+  const isComingSoon = demoMode ? false : isComingSoonEnv;
+  const loginHref = demoMode ? "/demo/login" : "/login";
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function CustomerNav() {
           </a>
         ))}
         <a
-          href="/login"
+          href={loginHref}
           className="px-6 py-2.5 bg-noir-800 text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:bg-noir-soft hover:-translate-y-0.5 transition-all"
         >
           {isComingSoon ? "미리 체험하기" : "무료 시작하기"}
