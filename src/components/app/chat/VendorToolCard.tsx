@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   MapPin,
   Sparkles,
+  Phone,
+  ExternalLink,
+  MessageSquareText,
 } from "lucide-react";
 
 // 업체 관련 tool 이름 집합
@@ -580,57 +583,127 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       name: string;
       address: string;
       category: string;
+      categoryFull: string;
+      description: string | null;
       telephone: string | null;
       mapsUrl: string;
+      blogSearchUrl: string;
+      blogReviewCount: number;
+      blogSnippet: string | null;
       link: string | null;
     }[];
+    query?: string;
   };
 
   const places = output.places ?? [];
   if (places.length === 0) return null;
 
+  // 블로그 리뷰 수 포맷 (1234 → "1.2K")
+  const formatCount = (n: number) => {
+    if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    return n.toLocaleString();
+  };
+
   return (
     <div className="flex justify-start ml-12 my-2">
-      <div className="flex flex-col gap-2 w-full max-w-[400px]">
-        {places.map((p) => (
-          <a
+      <div className="flex flex-col gap-2.5 w-full max-w-[420px]">
+        {/* 검색 결과 헤더 */}
+        {output.query && (
+          <div className="flex items-center gap-2 px-1">
+            <MapPin className="w-3.5 h-3.5 text-[#C4967E]" />
+            <span className="text-[11px] text-[#928980] font-medium">
+              &apos;{output.query}&apos; 검색 결과
+            </span>
+          </div>
+        )}
+
+        {places.map((p, idx) => (
+          <div
             key={p.id}
-            href={p.mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm hover:border-[#C4967E]/30 transition-colors block"
+            className="rounded-xl border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-all overflow-hidden"
           >
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
-                {p.name}
-              </p>
-              {p.category && (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#928980] border border-black/[0.04]">
-                    {p.category}
+            {/* 메인 컨텐츠 */}
+            <div className="px-4 pt-3.5 pb-3">
+              <div className="flex items-start gap-3">
+                {/* 순위 번호 */}
+                <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-[#FAF7F2] to-[#F5F0E8] flex items-center justify-center border border-black/[0.04]">
+                  <span className="text-[12px] font-semibold text-[#C4967E]">
+                    {idx + 1}
                   </span>
                 </div>
-              )}
-              <div className="flex items-center gap-1 mt-1.5">
-                <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
-                <span className="text-[10px] text-[#928980] truncate">
-                  {p.address}
-                </span>
-              </div>
-              {p.telephone && (
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-[#928980]">
-                    📞 {p.telephone}
-                  </span>
+
+                <div className="flex-1 min-w-0">
+                  {/* 이름 + 카테고리 */}
+                  <div className="flex items-center gap-2">
+                    <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
+                      {p.name}
+                    </p>
+                  </div>
+                  {p.category && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C4967E]/10 text-[#C4967E] font-medium">
+                        {p.category}
+                      </span>
+                      {p.blogReviewCount > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
+                          블로그 후기 {formatCount(p.blogReviewCount)}건
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 설명 또는 블로그 스니펫 */}
+                  {(p.description || p.blogSnippet) && (
+                    <p className="text-[11px] text-[#6B6560] mt-1.5 leading-[1.5] line-clamp-2">
+                      {p.description || p.blogSnippet}
+                    </p>
+                  )}
+
+                  {/* 주소 + 전화 */}
+                  <div className="flex items-center gap-3 mt-2">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
+                      <span className="text-[10px] text-[#928980] truncate max-w-[200px]">
+                        {p.address}
+                      </span>
+                    </div>
+                    {p.telephone && (
+                      <div className="flex items-center gap-1">
+                        <Phone className="w-2.5 h-2.5 text-[#B5ADA3] shrink-0" />
+                        <span className="text-[10px] text-[#928980]">
+                          {p.telephone}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div className="flex items-center gap-1 mt-1.5">
-                <span className="text-[10px] text-[#C4967E] font-medium">
-                  네이버 지도에서 보기 →
-                </span>
               </div>
             </div>
-          </a>
+
+            {/* 하단 액션 버튼 */}
+            <div className="flex border-t border-black/[0.04]">
+              <a
+                href={p.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[#1A1A1F] hover:bg-[#FAF7F2] transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                네이버 지도
+              </a>
+              <div className="w-px bg-black/[0.04]" />
+              <a
+                href={p.blogSearchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[#C4967E] hover:bg-[#FDF8F5] transition-colors"
+              >
+                <MessageSquareText className="w-3 h-3" />
+                블로그 후기
+              </a>
+            </div>
+          </div>
         ))}
       </div>
     </div>
