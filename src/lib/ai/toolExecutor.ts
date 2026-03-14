@@ -131,6 +131,8 @@ export async function executeTool(
         return await executeCreateBooking(toolInput, context);
       case "get_market_price":
         return executeGetMarketPrice(toolInput);
+      case "search_nearby_places":
+        return await executeSearchNearbyPlaces(toolInput);
       default:
         return {
           toolName,
@@ -1463,4 +1465,93 @@ function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionRes
     success: true,
     displayMessage: displayMessage || "시세 정보를 조회했습니다.",
   };
+}
+
+// ========== Google Places API 장소 검색 ==========
+
+async function executeSearchNearbyPlaces(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const query = input.query as string;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+
+  if (!apiKey) {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: input,
+      toolOutput: {},
+      success: false,
+      displayMessage: "Google Places API 키가 설정되지 않았습니다.",
+    };
+  }
+
+  try {
+    const response = await fetch(
+      "https://places.googleapis.com/v1/places:searchText",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask":
+            "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.googleMapsUri,places.types",
+        },
+        body: JSON.stringify({
+          textQuery: query,
+          languageCode: "ko",
+          maxResultCount: 5,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Google Places API error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    const rawPlaces = data.places || [];
+
+    const places = rawPlaces.map(
+      (p: {
+        id: string;
+        displayName?: { text: string };
+        formattedAddress?: string;
+        rating?: number;
+        userRatingCount?: number;
+        priceLevel?: string;
+        photos?: { name: string }[];
+        googleMapsUri?: string;
+        types?: string[];
+      }) => ({
+        id: p.id,
+        name: p.displayName?.text || "",
+        address: p.formattedAddress || "",
+        rating: p.rating || 0,
+        reviewCount: p.userRatingCount || 0,
+        priceLevel: p.priceLevel || null,
+        photoUrl: p.photos?.[0]
+          ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?maxHeightPx=200&key=${apiKey}`
+          : null,
+        mapsUrl: p.googleMapsUri || "",
+        types: p.types || [],
+      })
+    );
+
+    return {
+      toolName: "search_nearby_places",
+      toolInput: input,
+      toolOutput: { places },
+      success: true,
+      displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.`,
+    };
+  } catch (err) {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: input,
+      toolOutput: { error: String(err) },
+      success: false,
+      displayMessage: "장소 검색 중 오류가 발생했습니다.",
+    };
+  }
 }

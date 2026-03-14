@@ -22,6 +22,7 @@ export const VENDOR_TOOL_NAMES = new Set([
   "get_vendor_detail",
   "get_available_slots",
   "create_booking",
+  "search_nearby_places",
 ]);
 
 interface VendorToolCardProps {
@@ -47,6 +48,8 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <TimeslotPicker result={result} onSend={onSend} disabled={disabled} />;
     case "create_booking":
       return <BookingConfirmCard result={result} />;
+    case "search_nearby_places":
+      return <PlaceCards result={result} />;
     default:
       return null;
   }
@@ -563,6 +566,98 @@ function BookingConfirmCard({ result }: { result: ToolExecutionResult }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── E. Google Places 장소 검색 결과 카드 ──
+
+function priceLevelLabel(level: string | null): string {
+  switch (level) {
+    case "PRICE_LEVEL_INEXPENSIVE": return "₩";
+    case "PRICE_LEVEL_MODERATE": return "₩₩";
+    case "PRICE_LEVEL_EXPENSIVE": return "₩₩₩";
+    case "PRICE_LEVEL_VERY_EXPENSIVE": return "₩₩₩₩";
+    default: return "";
+  }
+}
+
+function PlaceCards({ result }: { result: ToolExecutionResult }) {
+  const output = result.toolOutput as {
+    places?: {
+      id: string;
+      name: string;
+      address: string;
+      rating: number;
+      reviewCount: number;
+      priceLevel: string | null;
+      photoUrl: string | null;
+      mapsUrl: string;
+      types: string[];
+    }[];
+  };
+
+  const places = output.places ?? [];
+  if (places.length === 0) return null;
+
+  return (
+    <div className="flex justify-start ml-12 my-2">
+      <div className="flex flex-col gap-2 w-full max-w-[400px]">
+        {places.map((p) => (
+          <a
+            key={p.id}
+            href={p.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm hover:border-[#C4967E]/30 transition-colors block"
+          >
+            <div className="flex gap-3">
+              {/* 사진 */}
+              {p.photoUrl && (
+                <div className="w-[72px] h-[72px] rounded-lg overflow-hidden shrink-0 bg-[#FAF7F2]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.photoUrl}
+                    alt={p.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              {/* 정보 */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
+                  {p.name}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Star className="w-3 h-3 text-[#C9A96E] fill-[#C9A96E]" />
+                  <span className="text-[11px] text-[#928980]">
+                    {p.rating} ({p.reviewCount})
+                  </span>
+                  {p.priceLevel && (
+                    <>
+                      <span className="text-[11px] text-[#B5ADA3]">·</span>
+                      <span className="text-[11px] text-[#928980]">
+                        {priceLevelLabel(p.priceLevel)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
+                  <span className="text-[10px] text-[#928980] truncate">
+                    {p.address}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="text-[10px] text-[#C4967E] font-medium">
+                    Google Maps에서 보기 →
+                  </span>
+                </div>
+              </div>
+            </div>
+          </a>
+        ))}
       </div>
     </div>
   );
