@@ -45,6 +45,7 @@ export default function ChatPage() {
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [roomLimitToast, setRoomLimitToast] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const greetingRequestedForRoom = useRef<Set<string>>(new Set());
   const coupleId = couple?.id;
 
@@ -102,6 +103,7 @@ export default function ChatPage() {
       const content = text ?? input.trim();
       if (!content || !coupleId || !profile) return;
       setInput("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
 
       await sendMessage({
         content,
@@ -385,15 +387,26 @@ export default function ChatPage() {
 
       {/* 입력창 */}
       <div className="px-2 pb-2">
-        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-3 p-2">
-          <input
-            type="text"
+        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-end gap-3 p-2">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="예산, 일정, 준비 현황 등 무엇이든 물어보세요..."
             disabled={isStreaming}
-            className="flex-1 px-4 py-3 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
+            rows={1}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+            }}
+            className="flex-1 px-4 py-3 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none max-h-[120px] leading-relaxed"
           />
           <button
             onClick={() => handleSend()}
