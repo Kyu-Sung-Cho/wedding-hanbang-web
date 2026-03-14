@@ -501,16 +501,24 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           : `[${m.sender_role === "bride" ? "신부" : "신랑"}] ${m.content}`,
       }));
 
+      // 50초 타임아웃 (Vercel 60초 제한보다 짧게)
+      const abortController = new AbortController();
+      const fetchTimeout = setTimeout(() => abortController.abort(), 50000);
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: recentMessages, coupleId, senderName, senderRole, weddingContext }),
+        signal: abortController.signal,
       });
+
+      clearTimeout(fetchTimeout);
 
       if (!res.ok) throw new Error("AI 응답 실패");
 
       let fullContent = "";
       let finalMetadata: ChatMessageMetadata | null = null;
+      let gotDone = false;
 
       await parseSSEStream(res, {
         onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
@@ -519,9 +527,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => set({ suggestions: sug }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; },
+        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
         onError: (msg) => set({ error: msg }),
       });
+
+      // 스트림이 done 없이 끊긴 경우 에러 표시
+      if (!gotDone && !fullContent && !get().error) {
+        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+      }
 
       if (fullContent) {
         const aiMetadata: ChatMessageMetadata = {
@@ -534,7 +547,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
     } catch (err) {
       console.error("AI 응답 에러:", err);
-      set({ error: "AI 응답을 받지 못했습니다." });
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      set({
+        error: isAbort
+          ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
+          : "AI 응답을 받지 못했습니다.",
+      });
     } finally {
       set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
     }

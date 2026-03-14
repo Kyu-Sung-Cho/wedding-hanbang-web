@@ -24,16 +24,20 @@ export async function chatWithTools(options: {
   tools: Tool[];
   onTextDelta?: (text: string) => void;
   maxTokens?: number;
+  timeoutMs?: number;
 }): Promise<ChatWithToolsResult> {
-  const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048 } = options;
+  const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048, timeoutMs = 25000 } = options;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: maxTokens,
-    system: systemPrompt,
-    messages,
-    tools,
-  });
+  const response = await anthropic.messages.create(
+    {
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages,
+      tools,
+    },
+    { timeout: timeoutMs }
+  );
 
   let fullText = "";
   const toolUseBlocks: ToolUseBlock[] = [];

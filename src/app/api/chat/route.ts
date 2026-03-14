@@ -102,6 +102,15 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // SSE 킵얼라이브: 8초마다 comment 전송 (연결 유지)
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": heartbeat\n\n"));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 8000);
+
       const send = (event: Record<string, unknown>) => {
         try {
           controller.enqueue(
@@ -143,6 +152,7 @@ export async function POST(request: Request) {
               metadata: { toolResults, toolsUsed, senderName },
             });
 
+            clearInterval(heartbeat);
             controller.close();
             return;
           }
@@ -227,10 +237,13 @@ export async function POST(request: Request) {
         console.error("채팅 API 에러:", errMsg);
         send({
           type: "error",
-          message: `AI 응답 생성에 실패했습니다: ${errMsg}`,
+          message: errMsg.includes("timeout") || errMsg.includes("abort")
+            ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
+            : `AI 응답 생성에 실패했습니다: ${errMsg}`,
         });
       }
 
+      clearInterval(heartbeat);
       controller.close();
     },
   });
