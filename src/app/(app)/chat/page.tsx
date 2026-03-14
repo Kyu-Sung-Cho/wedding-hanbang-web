@@ -25,6 +25,7 @@ export default function ChatPage() {
     streamingContent,
     streamingToolResults,
     suggestions,
+    error,
     initialLoadDone,
     defaultRoomTitle,
     initRooms,
@@ -42,6 +43,7 @@ export default function ChatPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
+  const [roomLimitToast, setRoomLimitToast] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const greetingRequestedForRoom = useRef<Set<string>>(new Set());
   const coupleId = couple?.id;
@@ -122,9 +124,9 @@ export default function ChatPage() {
     if (!coupleId) return;
     const newRoomId = createRoom(coupleId);
     if (!newRoomId) {
-      alert(`최대 ${MAX_ROOMS}개까지만 만들 수 있어요.`);
+      setRoomLimitToast(true);
+      setTimeout(() => setRoomLimitToast(false), 3000);
     }
-    // 새 방은 greeting tracker에 없으므로 자동으로 AI 인사가 트리거됨
   };
 
   const handleClearRoom = async () => {
@@ -262,6 +264,19 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* 방 개수 제한 토스트 */}
+      {roomLimitToast && (
+        <div className="mx-2 mb-2 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between animate-fade-in">
+          <p className="text-xs text-amber-700">최대 {MAX_ROOMS}개까지만 만들 수 있어요.</p>
+          <button
+            onClick={() => setRoomLimitToast(false)}
+            className="ml-2 text-amber-400 hover:text-amber-600 flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 초기화 확인 모달 */}
       {showClearConfirm && (
         <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
@@ -347,6 +362,19 @@ export default function ChatPage() {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 에러 메시지 */}
+      {error && !isStreaming && (
+        <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
+          <p className="text-xs text-red-600">{error}</p>
+          <button
+            onClick={() => useChatStore.setState({ error: null })}
+            className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* 제안 버튼 */}
       {suggestions.length > 0 && !isStreaming && (

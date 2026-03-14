@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Camera, Cpu, Sparkles, ShirtIcon, Bell, ArrowRight } from "lucide-react";
 
 const steps = [
@@ -30,6 +31,8 @@ const steps = [
 ];
 
 export default function FittingPage() {
+  const [notifyRequested, setNotifyRequested] = useState(false);
+
   return (
     <div className="max-w-[900px] mx-auto">
       {/* Coming Soon 히어로 */}
@@ -61,10 +64,20 @@ export default function FittingPage() {
             </div>
           </div>
 
-          <button className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-rose-500 text-white text-[14px] font-medium hover:bg-rose-600 transition-colors">
-            <Bell className="w-4 h-4" />
-            출시 알림 받기
-          </button>
+          {notifyRequested ? (
+            <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#2E7D5A] text-white text-[14px] font-medium">
+              <Bell className="w-4 h-4" />
+              알림 신청 완료!
+            </div>
+          ) : (
+            <button
+              onClick={() => setNotifyRequested(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-rose-500 text-white text-[14px] font-medium hover:bg-rose-600 transition-colors"
+            >
+              <Bell className="w-4 h-4" />
+              출시 알림 받기
+            </button>
+          )}
         </div>
       </div>
 

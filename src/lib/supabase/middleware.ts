@@ -38,9 +38,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 관리자 쿠키 확인
-  const isAdmin = request.cookies.get("admin_role")?.value === "true";
-
   const pathname = request.nextUrl.pathname;
 
   // /invite/* 경로는 게스트용 (인증 불필요) — 미들웨어 바이패스
@@ -79,8 +76,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 관리자는 모든 페이지 접근 가능 (온보딩 체크 건너뜀)
-  if (isAdmin) {
+  // 관리자 경로는 로그인만 확인 (실제 권한은 admin 페이지/API에서 verifyAdmin으로 체크)
+  if (pathname.startsWith("/admin") && user) {
     return supabaseResponse;
   }
 

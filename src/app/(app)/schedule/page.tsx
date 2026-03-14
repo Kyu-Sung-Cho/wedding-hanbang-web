@@ -44,6 +44,7 @@ export default function SchedulePage() {
   const [eventFormMode, setEventFormMode] = useState<"add" | "edit" | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
@@ -245,9 +246,9 @@ export default function SchedulePage() {
             <div className="flex items-center gap-3 mb-2 max-md:justify-between">
               <span className="text-[12px] text-taupe-400">결혼 예정일</span>
               <span className="text-[14px] font-medium text-noir-800">{dateStr}</span>
-              {dday !== null && dday > 0 && (
+              {dday !== null && (
                 <span className="text-[12px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
-                  D-{dday}
+                  {dday > 0 ? `D-${dday}` : dday === 0 ? "D-Day" : `D+${Math.abs(dday)}`}
                 </span>
               )}
             </div>
@@ -334,18 +335,37 @@ export default function SchedulePage() {
                 </span>
                 {/* 편집/삭제 (hover) */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <button
-                    onClick={() => handleEditEvent(evt)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-100 hover:text-rose-500 transition-colors"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteEvent(evt.id)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-red-50 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+                  {pendingDeleteId === evt.id ? (
+                    <>
+                      <button
+                        onClick={() => { handleDeleteEvent(evt.id); setPendingDeleteId(null); }}
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                      >
+                        삭제
+                      </button>
+                      <button
+                        onClick={() => setPendingDeleteId(null)}
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-taupe-400/20 text-taupe-500 hover:bg-taupe-400/30 transition-colors"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEditEvent(evt)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-100 hover:text-rose-500 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => setPendingDeleteId(evt.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-red-50 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

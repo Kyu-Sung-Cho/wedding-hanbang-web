@@ -14,6 +14,7 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [filterToast, setFilterToast] = useState(false);
   const { trackEvent } = useEventTracker();
   const lastTrackedSearch = useRef("");
 
@@ -110,11 +111,21 @@ export default function VendorsPage() {
           placeholder="업체명, 스타일, 지역으로 검색..."
           className="flex-1 text-[14px] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none"
         />
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ivory-warm text-[12px] text-charcoal hover:bg-ivory-deep transition-colors">
+        <button
+          onClick={() => { setFilterToast(true); setTimeout(() => setFilterToast(false), 3000); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ivory-warm text-[12px] text-charcoal hover:bg-ivory-deep transition-colors"
+        >
           <Filter className="w-3.5 h-3.5" />
           필터
         </button>
       </div>
+
+      {/* 필터 준비 중 토스트 */}
+      {filterToast && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 animate-fade-in">
+          <p className="text-[12px] text-amber-700">상세 필터 기능은 준비 중입니다.</p>
+        </div>
+      )}
 
       {/* 카테고리 탭 */}
       <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-6 animate-fade-in">

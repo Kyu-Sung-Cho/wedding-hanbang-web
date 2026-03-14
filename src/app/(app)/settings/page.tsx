@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonOther, setDeleteReasonOther] = useState("");
+  const [comingSoonToast, setComingSoonToast] = useState("");
 
   useEffect(() => {
     if (couple) {
@@ -433,6 +434,12 @@ export default function SettingsPage() {
         ].map((item, i) => (
           <button
             key={item.label}
+            onClick={() => {
+              if (!item.value) {
+                setComingSoonToast(item.label);
+                setTimeout(() => setComingSoonToast(""), 3000);
+              }
+            }}
             className={`w-full flex items-center justify-between px-6 py-4 hover:bg-ivory-50 transition-colors ${
               i > 0 ? "border-t border-black/[0.03]" : ""
             }`}
@@ -445,6 +452,11 @@ export default function SettingsPage() {
             )}
           </button>
         ))}
+        {comingSoonToast && (
+          <div className="px-6 py-3 bg-amber-50 border-t border-amber-200">
+            <p className="text-[12px] text-amber-700">{comingSoonToast} 페이지는 준비 중입니다.</p>
+          </div>
+        )}
       </motion.div>
 
       {/* 로그아웃 & 탈퇴 */}

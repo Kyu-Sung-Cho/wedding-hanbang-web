@@ -162,7 +162,13 @@ export default function DashboardPage() {
             </p>
             <div className="flex items-baseline gap-3 max-md:justify-center">
               <span className="font-display text-[72px] max-md:text-[56px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent leading-none">
-                {dday !== null && dday > 0 ? `D-${dday}` : "미정"}
+                {dday !== null && dday > 0
+                  ? `D-${dday}`
+                  : dday === 0
+                    ? "D-Day"
+                    : dday !== null && dday < 0
+                      ? `D+${Math.abs(dday)}`
+                      : "미정"}
               </span>
             </div>
             <p className="text-white/40 text-[14px] font-light mt-3">

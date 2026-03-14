@@ -24,6 +24,7 @@ export const VENDOR_TOOL_NAMES = new Set([
   "search_vendors",
   "get_vendor_detail",
   "get_available_slots",
+  "check_vendor_availability",
   "create_booking",
   "search_nearby_places",
 ]);
@@ -48,6 +49,7 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
     case "get_vendor_detail":
       return <VendorDetailCard result={result} onSend={onSend} disabled={disabled} />;
     case "get_available_slots":
+    case "check_vendor_availability":
       return <TimeslotPicker result={result} onSend={onSend} disabled={disabled} />;
     case "create_booking":
       return <BookingConfirmCard result={result} />;
