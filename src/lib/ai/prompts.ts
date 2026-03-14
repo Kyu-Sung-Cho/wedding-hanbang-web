@@ -23,6 +23,7 @@ export function getWeddingPlannerSystemPrompt(context: {
     memo?: string;
     categoryKey?: string;
   }>;
+  chatSummaries: string[];
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
@@ -70,13 +71,19 @@ export function getWeddingPlannerSystemPrompt(context: {
     })
     .join("\n");
 
-  // 총 지출 계산
+  // 총 지출 + 배정 예산 계산
   let totalSpent = 0;
+  let totalAllocated = 0;
   for (const [key] of Object.entries(CATEGORY_LABELS)) {
     const p = (context.progress[key] ?? {}) as Record<string, unknown>;
     totalSpent += ((p.spent ?? p.cost ?? 0) as number);
+    totalAllocated += ((p.budget ?? 0) as number);
   }
   const spentInfo = totalSpent > 0 ? `총 지출: ${(totalSpent / 10000).toLocaleString()}만원` : "";
+  const unallocated = context.budget - totalAllocated;
+  const unallocatedInfo = context.budget > 0 && unallocated > 0
+    ? `미배정 예산: ${(unallocated / 10000).toLocaleString()}만원`
+    : "";
 
   const completedCount = progressEntries
     .filter(([, v]) => (v as { status: string }).status === "completed").length;
@@ -126,6 +133,13 @@ export function getWeddingPlannerSystemPrompt(context: {
     }
   }
 
+  // 대화 요약 (이전 대화 기억)
+  let summarySection = "";
+  if (context.chatSummaries.length > 0) {
+    const summaryLines = context.chatSummaries.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
+    summarySection = `\n### 이전 대화 요약\n${summaryLines}`;
+  }
+
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
@@ -142,12 +156,12 @@ export function getWeddingPlannerSystemPrompt(context: {
 ## 현재 커플 상황
 - ${coupleInfo ? coupleInfo : "커플 이름: 미등록"}
 - ${dateInfo} ${dDayInfo}
-- ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}
+- ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""}
 - ${venueInfo}
 - 진행률: ${completedCount}/${totalCount} 완료
 
 ### 카테고리별 현황
-${categoryStatus}${bookingsSection}${scheduleSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}
 
 ## 🔧 도구 사용 가이드
 

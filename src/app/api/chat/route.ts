@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   }
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -73,6 +73,12 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
+    // 4. 대화 요약 (최근 3개)
+    supabase.from("chat_summaries")
+      .select("summary, created_at")
+      .eq("couple_id", coupleId)
+      .order("created_at", { ascending: false })
+      .limit(3),
   ]);
 
   const journey = journeyResult.data;
@@ -107,6 +113,9 @@ export async function POST(request: Request) {
     categoryKey?: string;
   }>) ?? [];
 
+  // 대화 요약
+  const chatSummaries = (summariesResult.data ?? []).map((s) => s.summary as string);
+
   const systemPrompt = getWeddingPlannerSystemPrompt({
     weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
     budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
@@ -117,6 +126,7 @@ export async function POST(request: Request) {
     senderName,
     bookings,
     scheduleEvents,
+    chatSummaries,
   });
 
   const formattedMessages: MessageParam[] = messages.map(
