@@ -4,18 +4,51 @@ import { getMarketPriceContext } from "@/constants/marketPrices";
 export function getWeddingPlannerSystemPrompt(context: {
   weddingDate: string | null;
   budget: number;
+  venue: string | null;
   progress: Record<string, unknown>;
+  brideName: string | null;
+  groomName: string | null;
+  senderName: string;
+  bookings: Array<{
+    vendorName: string;
+    category: string;
+    date: string;
+    time: string;
+    status: string;
+    amount: number;
+  }>;
+  scheduleEvents: Array<{
+    date: string;
+    title: string;
+    memo?: string;
+    categoryKey?: string;
+  }>;
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
     : "결혼 날짜: 아직 미정";
+
+  // D-day 계산
+  let dDayInfo = "";
+  if (context.weddingDate) {
+    const diff = Math.ceil((new Date(context.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    dDayInfo = diff > 0 ? `(D-${diff})` : diff === 0 ? "(D-Day!)" : `(D+${Math.abs(diff)})`;
+  }
 
   const budgetInfo =
     context.budget > 0
       ? `총 예산: ${(context.budget / 10000).toLocaleString()}만원`
       : "예산: 미설정";
 
-  const progressEntries = Object.entries(context.progress);
+  const venueInfo = context.venue ? `예식장: ${context.venue}` : "예식장: 미정";
+
+  // 커플 이름
+  const coupleInfo = [
+    context.brideName ? `신부: ${context.brideName}` : null,
+    context.groomName ? `신랑: ${context.groomName}` : null,
+  ].filter(Boolean).join(", ");
+
+  const progressEntries = Object.entries(context.progress).filter(([k]) => k !== "__events");
 
   // 카테고리별 상세 현황 생성
   const categoryStatus = Object.entries(CATEGORY_LABELS)
@@ -23,19 +56,75 @@ export function getWeddingPlannerSystemPrompt(context: {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const status = p.status === "completed" ? "✅완료" : p.status === "in_progress" ? "🔄진행중" : "⬜예정";
       const budget = typeof p.budget === "number" ? `${(p.budget as number / 10000).toLocaleString()}만원` : "미설정";
+      const spent = typeof p.spent === "number" || typeof p.cost === "number"
+        ? `지출: ${(((p.spent ?? p.cost) as number) / 10000).toLocaleString()}만원`
+        : "";
       const vendor = p.vendor ? `업체: ${p.vendor}` : "";
-      const checklist = Array.isArray(p.checklist) ? p.checklist as { done: boolean }[] : [];
+      const notes = p.notes ? `메모: ${p.notes}` : "";
+      const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
       const checklistInfo = checklist.length > 0
         ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
         : "";
-      const parts = [`${label}(${key}): ${status}, 예산: ${budget}`, vendor, checklistInfo].filter(Boolean);
+      const parts = [`${label}(${key}): ${status}, 예산: ${budget}`, spent, vendor, notes, checklistInfo].filter(Boolean);
       return `  - ${parts.join(" | ")}`;
     })
     .join("\n");
 
+  // 총 지출 계산
+  let totalSpent = 0;
+  for (const [key] of Object.entries(CATEGORY_LABELS)) {
+    const p = (context.progress[key] ?? {}) as Record<string, unknown>;
+    totalSpent += ((p.spent ?? p.cost ?? 0) as number);
+  }
+  const spentInfo = totalSpent > 0 ? `총 지출: ${(totalSpent / 10000).toLocaleString()}만원` : "";
+
   const completedCount = progressEntries
     .filter(([, v]) => (v as { status: string }).status === "completed").length;
   const totalCount = Object.keys(CATEGORY_LABELS).length;
+
+  // 예약 내역 포맷
+  let bookingsSection = "";
+  if (context.bookings.length > 0) {
+    const bookingLines = context.bookings.map((b) => {
+      const statusLabel = b.status === "confirmed" ? "✅확정" : b.status === "pending" ? "⏳대기" : b.status;
+      const amountStr = b.amount > 0 ? `${(b.amount / 10000).toLocaleString()}만원` : "";
+      return `  - ${b.date} ${b.time} | ${b.vendorName} (${CATEGORY_LABELS[b.category] ?? b.category}) | ${statusLabel}${amountStr ? ` | ${amountStr}` : ""}`;
+    }).join("\n");
+    bookingsSection = `\n### 예약 내역\n${bookingLines}`;
+  }
+
+  // 일정 이벤트 포맷 (다가오는 일정만, 최대 10개)
+  let scheduleSection = "";
+  if (context.scheduleEvents.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const upcoming = context.scheduleEvents
+      .filter((e) => e.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 10);
+    const past = context.scheduleEvents
+      .filter((e) => e.date < today)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+
+    const lines: string[] = [];
+    if (upcoming.length > 0) {
+      lines.push("  **다가오는 일정:**");
+      for (const e of upcoming) {
+        const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? e.categoryKey})` : "";
+        const memo = e.memo ? ` - ${e.memo}` : "";
+        lines.push(`  - ${e.date} | ${e.title}${cat}${memo}`);
+      }
+    }
+    if (past.length > 0) {
+      lines.push("  **지난 일정:**");
+      for (const e of past) {
+        lines.push(`  - ${e.date} | ${e.title}`);
+      }
+    }
+    if (lines.length > 0) {
+      scheduleSection = `\n### 등록된 일정\n${lines.join("\n")}`;
+    }
+  }
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
 
@@ -45,14 +134,17 @@ export function getWeddingPlannerSystemPrompt(context: {
 - 예비 신부와 신랑 모두에게 친절하고 전문적인 상담 제공
 - 실질적이고 구체적인 조언 우선
 - **대화 안에서 직접 데이터를 수정하고 조회하는 것이 핵심 역할입니다**
+- 지금 대화 중인 사용자: **${context.senderName}**
 
 ## 현재 커플 상황
-- ${dateInfo}
-- ${budgetInfo}
+- ${coupleInfo ? coupleInfo : "커플 이름: 미등록"}
+- ${dateInfo} ${dDayInfo}
+- ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}
+- ${venueInfo}
 - 진행률: ${completedCount}/${totalCount} 완료
 
 ### 카테고리별 현황
-${categoryStatus}
+${categoryStatus}${bookingsSection}${scheduleSection}
 
 ## 🔧 도구 사용 가이드
 

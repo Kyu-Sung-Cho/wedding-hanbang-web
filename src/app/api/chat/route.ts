@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { chatWithTools, buildToolResultContent } from "@/lib/ai/claude";
+import { chatWithToolsStream, buildToolResultContent } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
@@ -7,15 +7,13 @@ import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
 
-// Vercel 함수 타임아웃 60초 (tool use 루프 때문에 시간 필요)
-export const maxDuration = 60;
+// Vercel Pro: 최대 300초 (5분)
+export const maxDuration = 300;
 
 const MAX_TOOL_ROUNDS = 5;
 
 // Claude 응답에서 [suggestions] 블록 추출 (백틱 있든 없든 모두 처리)
 function extractSuggestions(text: string): { cleanText: string; suggestions: string[] } {
-  // 패턴 1: ```[suggestions]...[/suggestions]``` (백틱 감싸기)
-  // 패턴 2: [suggestions]...[/suggestions] (백틱 없음)
   const patterns = [
     /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/,
     /\[suggestions\]\n([\s\S]*?)\[\/suggestions\]/,
@@ -37,7 +35,7 @@ function extractSuggestions(text: string): { cleanText: string; suggestions: str
 }
 
 export async function POST(request: Request) {
-  // 인증 체크 (실패 시 JSON 에러 반환)
+  // 인증 체크
   const supabase = await createClient();
   const {
     data: { user },
@@ -63,21 +61,62 @@ export async function POST(request: Request) {
     );
   }
 
-  // 최신 journey 데이터로 시스템 프롬프트 생성
-  const { data: journey, error: journeyErr } = await supabase
-    .from("wedding_journeys")
-    .select("*")
-    .eq("couple_id", coupleId)
-    .single();
+  // 병렬로 커플 관련 데이터 전체 조회
+  const [journeyResult, profilesResult, bookingsResult] = await Promise.all([
+    // 1. 웨딩 저니
+    supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
+    // 2. 커플 프로필 (신부/신랑 이름, 역할)
+    supabase.from("profiles").select("name, role").eq("couple_id", coupleId),
+    // 3. 예약 내역 (취소 제외)
+    supabase.from("vendor_bookings")
+      .select("id, vendor_id, booking_date, booking_time, status, amount, memo, vendors(name, category)")
+      .eq("couple_id", coupleId)
+      .neq("status", "cancelled")
+      .order("booking_date", { ascending: true }),
+  ]);
 
-  if (journeyErr) {
-    console.error("Journey 조회 에러:", journeyErr.message);
+  const journey = journeyResult.data;
+  if (journeyResult.error) {
+    console.error("Journey 조회 에러:", journeyResult.error.message);
   }
+
+  // 프로필에서 신부/신랑 이름 추출
+  const profiles = profilesResult.data ?? [];
+  const brideName = profiles.find((p) => p.role === "bride")?.name ?? null;
+  const groomName = profiles.find((p) => p.role === "groom")?.name ?? null;
+
+  // 예약 내역 정리
+  const bookings = (bookingsResult.data ?? []).map((b) => {
+    const vendor = b.vendors as unknown as { name: string; category: string } | null;
+    return {
+      vendorName: vendor?.name ?? "알 수 없는 업체",
+      category: vendor?.category ?? "",
+      date: b.booking_date as string,
+      time: b.booking_time as string,
+      status: b.status as string,
+      amount: b.amount as number,
+    };
+  });
+
+  // progress에서 일정 이벤트 추출
+  const progress = journey?.progress ?? weddingContext?.progress ?? {};
+  const scheduleEvents = ((progress as Record<string, unknown>).__events as Array<{
+    date: string;
+    title: string;
+    memo?: string;
+    categoryKey?: string;
+  }>) ?? [];
 
   const systemPrompt = getWeddingPlannerSystemPrompt({
     weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
     budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
-    progress: journey?.progress ?? weddingContext?.progress ?? {},
+    venue: journey?.venue ?? weddingContext?.venue ?? null,
+    progress,
+    brideName,
+    groomName,
+    senderName,
+    bookings,
+    scheduleEvents,
   });
 
   const formattedMessages: MessageParam[] = messages.map(
@@ -102,7 +141,7 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      // SSE 킵얼라이브: 8초마다 comment 전송 (연결 유지)
+      // SSE 킵얼라이브: 8초마다 comment 전송
       const heartbeat = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": heartbeat\n\n"));
@@ -128,19 +167,22 @@ export async function POST(request: Request) {
 
         // Tool use 루프: 최대 MAX_TOOL_ROUNDS까지 반복
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-          const result = await chatWithTools({
+          // 실시간 스트리밍: 모든 라운드에서 텍스트 토큰을 즉시 클라이언트로 전송
+          // tool_use가 발견되면 text_clear로 리셋 후 도구 실행
+          const result = await chatWithToolsStream({
             systemPrompt,
             messages: currentMessages,
             tools: WEDDING_TOOLS,
+            onTextDelta: (token) => {
+              send({ type: "text_delta", content: token });
+            },
           });
 
-          // tool use가 없으면 최종 응답
+          // tool use가 없으면 최종 응답 (이미 토큰별로 스트리밍됨)
           if (result.toolUseBlocks.length === 0) {
             const { cleanText, suggestions } = extractSuggestions(
               result.fullText
             );
-
-            send({ type: "text_delta", content: cleanText });
 
             if (suggestions.length > 0) {
               send({ type: "suggestions", suggestions });
@@ -157,7 +199,9 @@ export async function POST(request: Request) {
             return;
           }
 
-          // tool use 블록 실행
+          // tool use 감지 → 스트리밍된 텍스트 클리어 후 도구 실행
+          send({ type: "text_clear" });
+
           const toolResultContents: ContentBlockParam[] = [];
 
           for (const toolUse of result.toolUseBlocks) {
@@ -210,18 +254,19 @@ export async function POST(request: Request) {
           ];
         }
 
-        // 최대 라운드 초과 시 마지막 호출
-        const finalResult = await chatWithTools({
+        // 최대 라운드 초과 시 마지막 호출 (역시 실시간 스트리밍)
+        const finalResult = await chatWithToolsStream({
           systemPrompt,
           messages: currentMessages,
           tools: WEDDING_TOOLS,
+          onTextDelta: (token) => {
+            send({ type: "text_delta", content: token });
+          },
         });
 
         const { cleanText, suggestions } = extractSuggestions(
           finalResult.fullText
         );
-
-        send({ type: "text_delta", content: cleanText });
 
         if (suggestions.length > 0) {
           send({ type: "suggestions", suggestions });

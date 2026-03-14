@@ -44,6 +44,7 @@ export interface ChatAPIRequest {
 // SSE 이벤트 타입
 export type SSEEvent =
   | { type: "text_delta"; content: string }
+  | { type: "text_clear" }
   | { type: "tool_start"; toolName: string; toolInput: Record<string, unknown> }
   | { type: "tool_result"; result: ToolExecutionResult }
   | { type: "suggestions"; suggestions: string[] }

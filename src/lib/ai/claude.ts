@@ -17,36 +17,39 @@ export interface ChatWithToolsResult {
   stopReason: string;
 }
 
-// 스트리밍 + 도구 사용 지원 Chat
-export async function chatWithTools(options: {
+// 실시간 스트리밍 + 도구 사용 지원 Chat
+// messages.stream()을 사용하여 토큰이 생성되는 즉시 onTextDelta로 전달
+export async function chatWithToolsStream(options: {
   systemPrompt: string;
   messages: MessageParam[];
   tools: Tool[];
   onTextDelta?: (text: string) => void;
   maxTokens?: number;
-  timeoutMs?: number;
 }): Promise<ChatWithToolsResult> {
-  const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048, timeoutMs = 25000 } = options;
+  const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048 } = options;
 
-  const response = await anthropic.messages.create(
-    {
-      model: "claude-sonnet-4-6",
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
-      tools,
-    },
-    { timeout: timeoutMs }
-  );
+  const stream = anthropic.messages.stream({
+    model: "claude-sonnet-4-6",
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages,
+    tools,
+  });
 
   let fullText = "";
   const toolUseBlocks: ToolUseBlock[] = [];
 
-  for (const block of response.content) {
-    if (block.type === "text") {
-      fullText += block.text;
-      onTextDelta?.(block.text);
-    } else if (block.type === "tool_use") {
+  // 텍스트 토큰이 생성될 때마다 실시간 콜백
+  stream.on("text", (text) => {
+    fullText += text;
+    onTextDelta?.(text);
+  });
+
+  // 스트림 완료 대기 → 최종 메시지에서 tool_use 블록 추출
+  const finalMessage = await stream.finalMessage();
+
+  for (const block of finalMessage.content) {
+    if (block.type === "tool_use") {
       toolUseBlocks.push({
         id: block.id,
         name: block.name,
@@ -58,7 +61,7 @@ export async function chatWithTools(options: {
   return {
     fullText,
     toolUseBlocks,
-    stopReason: response.stop_reason || "end_turn",
+    stopReason: finalMessage.stop_reason || "end_turn",
   };
 }
 

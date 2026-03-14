@@ -180,6 +180,7 @@ async function parseSSEStream(
   res: Response,
   callbacks: {
     onTextDelta: (content: string) => void;
+    onTextClear?: () => void;
     onToolResult: (result: ToolExecutionResult) => void;
     onSuggestions: (suggestions: string[]) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
@@ -207,6 +208,9 @@ async function parseSSEStream(
         switch (event.type) {
           case "text_delta":
             callbacks.onTextDelta(event.content);
+            break;
+          case "text_clear":
+            callbacks.onTextClear?.();
             break;
           case "tool_result":
             callbacks.onToolResult(event.result);
@@ -501,9 +505,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           : `[${m.sender_role === "bride" ? "신부" : "신랑"}] ${m.content}`,
       }));
 
-      // 50초 타임아웃 (Vercel 60초 제한보다 짧게)
+      // 180초 타임아웃 (Vercel Pro maxDuration=300초)
       const abortController = new AbortController();
-      const fetchTimeout = setTimeout(() => abortController.abort(), 50000);
+      const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -522,6 +526,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       await parseSSEStream(res, {
         onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
+        onTextClear: () => set({ streamingContent: "" }),
         onToolResult: (result) => {
           syncToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
@@ -583,6 +588,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       await parseSSEStream(res, {
         onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
+        onTextClear: () => set({ streamingContent: "" }),
         onToolResult: (result) => {
           syncToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
