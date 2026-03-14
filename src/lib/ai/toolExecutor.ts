@@ -1470,7 +1470,14 @@ function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionRes
 // ========== 네이버 지역 검색 API 장소 검색 ==========
 
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]*>/g, "");
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
 // "음식점>한식>한정식" → { main: "한식", sub: "한정식", full: "음식점>한식>한정식" }
