@@ -446,22 +446,17 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["category"],
     },
   },
-  // Google Places API 장소 검색
+  // 네이버 지역 검색 API 장소 검색
   {
     name: "search_nearby_places",
     description:
-      "구글 플레이스를 사용해 특정 위치 근처의 레스토랑/카페/장소를 검색합니다. 고객이 '강남역 근처 상견례 레스토랑', '홍대 카페 추천', '식사동 한식 맛집' 등 외부 장소를 찾을 때 사용합니다. 웨딩 업체(스튜디오/드레스/메이크업)가 아닌 일반 장소 검색에만 사용하세요.",
+      "네이버 지역 검색을 사용해 특정 위치 근처의 레스토랑/카페/장소를 검색합니다. 고객이 '강남역 근처 상견례 레스토랑', '홍대 카페 추천', '식사동 한식 맛집' 등 외부 장소를 찾을 때 사용합니다. 웨딩 업체(스튜디오/드레스/메이크업)가 아닌 일반 장소 검색에만 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
         query: {
           type: "string",
           description: "검색어. 위치+종류를 포함하세요. 예: '강남역 근처 한식 레스토랑', '식사동 상견례 맛집', '서울 강남구 고급 한정식'",
-        },
-        type: {
-          type: "string",
-          enum: ["restaurant", "cafe", "bar"],
-          description: "장소 유형 (기본: restaurant)",
         },
       },
       required: ["query"],

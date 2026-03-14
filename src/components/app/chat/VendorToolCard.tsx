@@ -571,17 +571,7 @@ function BookingConfirmCard({ result }: { result: ToolExecutionResult }) {
   );
 }
 
-// ── E. Google Places 장소 검색 결과 카드 ──
-
-function priceLevelLabel(level: string | null): string {
-  switch (level) {
-    case "PRICE_LEVEL_INEXPENSIVE": return "₩";
-    case "PRICE_LEVEL_MODERATE": return "₩₩";
-    case "PRICE_LEVEL_EXPENSIVE": return "₩₩₩";
-    case "PRICE_LEVEL_VERY_EXPENSIVE": return "₩₩₩₩";
-    default: return "";
-  }
-}
+// ── E. 네이버 지역 검색 장소 카드 ──
 
 function PlaceCards({ result }: { result: ToolExecutionResult }) {
   const output = result.toolOutput as {
@@ -589,12 +579,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       id: string;
       name: string;
       address: string;
-      rating: number;
-      reviewCount: number;
-      priceLevel: string | null;
-      photoUrl: string | null;
+      category: string;
+      telephone: string | null;
       mapsUrl: string;
-      types: string[];
+      link: string | null;
     }[];
   };
 
@@ -612,48 +600,34 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
             rel="noopener noreferrer"
             className="rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm hover:border-[#C4967E]/30 transition-colors block"
           >
-            <div className="flex gap-3">
-              {/* 사진 */}
-              {p.photoUrl && (
-                <div className="w-[72px] h-[72px] rounded-lg overflow-hidden shrink-0 bg-[#FAF7F2]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.photoUrl}
-                    alt={p.name}
-                    className="w-full h-full object-cover"
-                  />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
+                {p.name}
+              </p>
+              {p.category && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#928980] border border-black/[0.04]">
+                    {p.category}
+                  </span>
                 </div>
               )}
-              {/* 정보 */}
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
-                  {p.name}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Star className="w-3 h-3 text-[#C9A96E] fill-[#C9A96E]" />
-                  <span className="text-[11px] text-[#928980]">
-                    {p.rating} ({p.reviewCount})
-                  </span>
-                  {p.priceLevel && (
-                    <>
-                      <span className="text-[11px] text-[#B5ADA3]">·</span>
-                      <span className="text-[11px] text-[#928980]">
-                        {priceLevelLabel(p.priceLevel)}
-                      </span>
-                    </>
-                  )}
-                </div>
+              <div className="flex items-center gap-1 mt-1.5">
+                <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
+                <span className="text-[10px] text-[#928980] truncate">
+                  {p.address}
+                </span>
+              </div>
+              {p.telephone && (
                 <div className="flex items-center gap-1 mt-1">
-                  <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
-                  <span className="text-[10px] text-[#928980] truncate">
-                    {p.address}
+                  <span className="text-[10px] text-[#928980]">
+                    📞 {p.telephone}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 mt-1.5">
-                  <span className="text-[10px] text-[#C4967E] font-medium">
-                    Google Maps에서 보기 →
-                  </span>
-                </div>
+              )}
+              <div className="flex items-center gap-1 mt-1.5">
+                <span className="text-[10px] text-[#C4967E] font-medium">
+                  네이버 지도에서 보기 →
+                </span>
               </div>
             </div>
           </a>

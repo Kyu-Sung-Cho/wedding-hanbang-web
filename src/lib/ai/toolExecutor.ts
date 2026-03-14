@@ -1467,75 +1467,74 @@ function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionRes
   };
 }
 
-// ========== Google Places API 장소 검색 ==========
+// ========== 네이버 지역 검색 API 장소 검색 ==========
+
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, "");
+}
 
 async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   const query = input.query as string;
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
-  if (!apiKey) {
+  if (!clientId || !clientSecret) {
     return {
       toolName: "search_nearby_places",
       toolInput: input,
       toolOutput: {},
       success: false,
-      displayMessage: "Google Places API 키가 설정되지 않았습니다.",
+      displayMessage: "네이버 API 키가 설정되지 않았습니다.",
     };
   }
 
   try {
     const response = await fetch(
-      "https://places.googleapis.com/v1/places:searchText",
+      `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=5&sort=comment`,
       {
-        method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask":
-            "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.googleMapsUri,places.types",
+          "X-Naver-Client-Id": clientId,
+          "X-Naver-Client-Secret": clientSecret,
         },
-        body: JSON.stringify({
-          textQuery: query,
-          languageCode: "ko",
-          maxResultCount: 5,
-        }),
       }
     );
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Google Places API error: ${response.status} ${errText}`);
+      throw new Error(`Naver API error: ${response.status} ${errText}`);
     }
 
     const data = await response.json();
-    const rawPlaces = data.places || [];
+    const items = data.items || [];
 
-    const places = rawPlaces.map(
-      (p: {
-        id: string;
-        displayName?: { text: string };
-        formattedAddress?: string;
-        rating?: number;
-        userRatingCount?: number;
-        priceLevel?: string;
-        photos?: { name: string }[];
-        googleMapsUri?: string;
-        types?: string[];
-      }) => ({
-        id: p.id,
-        name: p.displayName?.text || "",
-        address: p.formattedAddress || "",
-        rating: p.rating || 0,
-        reviewCount: p.userRatingCount || 0,
-        priceLevel: p.priceLevel || null,
-        photoUrl: p.photos?.[0]
-          ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?maxHeightPx=200&key=${apiKey}`
-          : null,
-        mapsUrl: p.googleMapsUri || "",
-        types: p.types || [],
-      })
+    const places = items.map(
+      (item: {
+        title: string;
+        link: string;
+        category: string;
+        telephone: string;
+        address: string;
+        roadAddress: string;
+        mapx: string;
+        mapy: string;
+      }, idx: number) => {
+        const name = stripHtmlTags(item.title);
+        const roadAddr = item.roadAddress || item.address;
+        // 네이버 지도 검색 링크
+        const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name + " " + roadAddr)}`;
+
+        return {
+          id: `naver-${idx}`,
+          name,
+          address: roadAddr,
+          category: item.category,
+          telephone: item.telephone || null,
+          mapsUrl,
+          link: item.link || null,
+        };
+      }
     );
 
     return {
