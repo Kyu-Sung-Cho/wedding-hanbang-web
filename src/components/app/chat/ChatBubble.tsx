@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText } from "lucide-react";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 
 interface ChatBubbleProps {
@@ -111,11 +111,40 @@ export default function ChatBubble({
   // 사용자 메시지에서 선택 태그 숨김
   const displayContent = stripSelectionTags(content);
 
+  // 이미지 URL 목록
+  const imageUrls = message.metadata?.imageUrls ?? [];
+
   if (isCurrentUser) {
     // 내 메시지: 오른쪽 정렬
     return (
       <div className="flex justify-end">
         <div className="flex flex-col items-end gap-1 max-w-[75%]">
+          {/* 첨부 파일 (이미지 + PDF) */}
+          {imageUrls.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap justify-end mb-1">
+              {imageUrls.map((url, i) =>
+                url.endsWith(".pdf") ? (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+                  >
+                    <FileText className="w-5 h-5 text-white/80" />
+                    <span className="text-xs text-white/80">PDF 문서</span>
+                  </a>
+                ) : (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`첨부 이미지 ${i + 1}`}
+                    className="max-w-[200px] max-h-[200px] rounded-xl object-cover border border-white/20 shadow-sm"
+                  />
+                )
+              )}
+            </div>
+          )}
           <div
             className={`${myBubbleBg} rounded-2xl rounded-tr-md px-4 py-3 shadow-sm`}
           >

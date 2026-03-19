@@ -100,6 +100,7 @@ export const dressConfig: ShopConfig = {
             { value: 3, label: '인스타그램/SNS' },
             { value: 4, label: '자사 홈페이지/블로그' },
             { value: 5, label: '지인 소개' },
+            { value: 6, label: '기타', hasTextInput: true },
           ],
         },
         {
@@ -213,6 +214,7 @@ export const dressConfig: ShopConfig = {
             { value: 5, label: '고객 응대 지원이 부족해요' },
             { value: 6, label: '특별히 불만 없어요' },
             { value: 7, label: '안 써봤어요' },
+            { value: 8, label: '기타', hasTextInput: true },
           ],
         },
         {

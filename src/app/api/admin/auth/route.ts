@@ -49,7 +49,10 @@ export async function GET(req: Request) {
 
 // 관리자 로그인 (이메일/비밀번호 + ADMIN_PASSWORD)
 export async function POST(req: Request) {
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  if (!ADMIN_PASSWORD) {
+    return NextResponse.json({ error: "서버 설정 오류" }, { status: 500 });
+  }
 
   try {
     const body = await req.json();

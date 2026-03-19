@@ -175,6 +175,9 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}
 - **set_category_budget**: 카테고리별 예산 설정 (원 단위 숫자)
 - **set_category_vendor**: 카테고리 업체 설정
 - **add_category_note**: 카테고리에 메모 추가 (계약 조건, 담당자 등)
+- **add_custom_category**: 기존 20개에 없는 새 예산 카테고리 추가
+- **delete_category**: 예산 카테고리 삭제 (⚠️ 반드시 사용자 확인 후 호출)
+- **reset_category**: 카테고리 데이터 초기화 (예산/지출만 리셋, 카테고리 유지)
 - **add_checklist_item**: 카테고리에 할 일 추가
 - **toggle_checklist_item**: 체크리스트 항목 완료/미완료 토글
 

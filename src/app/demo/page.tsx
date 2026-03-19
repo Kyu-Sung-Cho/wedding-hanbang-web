@@ -16,6 +16,7 @@ export const metadata = {
     "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
 };
 
+
 export default function DemoPage() {
   return (
     <>

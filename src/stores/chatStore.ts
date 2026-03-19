@@ -29,6 +29,7 @@ interface ChatStoreState {
     coupleId: string;
     senderName: string;
     weddingContext: WeddingContext;
+    images?: Array<{ base64: string; mediaType: string; previewUrl: string }>;
   }) => Promise<void>;
   requestInitialGreeting: (params: {
     coupleId: string;
@@ -91,6 +92,50 @@ function syncToolResult(result: ToolExecutionResult) {
           },
         },
       });
+      break;
+    }
+    case "add_custom_category": {
+      const customKey = result.toolOutput.key as string;
+      const customLabel = result.toolInput.label as string;
+      const curProgressCustom = authStore.journey?.progress ?? {};
+      const customCatItem: { category: string; label: string; status: "in_progress"; budget?: number; spent?: number } = {
+        category: customKey,
+        label: customLabel,
+        status: "in_progress",
+      };
+      if (result.toolInput.budget !== undefined) customCatItem.budget = result.toolInput.budget as number;
+      if (result.toolInput.spent !== undefined) customCatItem.spent = result.toolInput.spent as number;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...curProgressCustom,
+          [customKey]: customCatItem,
+        },
+      });
+      break;
+    }
+    case "delete_category": {
+      if (!result.success) break;
+      const delKey = result.toolOutput.key as string;
+      const curProgressDel = authStore.journey?.progress ?? {};
+      const isKnownDel = delKey in (curProgressDel as Record<string, unknown>) || ["meeting","venue","studio","dress","makeup","ring","hanbok","yedan","honeymoon","houseware","housing","invitation","snap","shoes","bouquet","gift","mc","ham","pyebaek","reserve"].includes(delKey);
+      if (isKnownDel) {
+        const hiddenDel: string[] = ((curProgressDel as Record<string, unknown>).__hidden as string[]) ?? [];
+        const { [delKey]: _r, ...restDel } = curProgressDel as Record<string, unknown>;
+        authStore.updateJourneyLocal({
+          progress: { ...restDel, __hidden: [...hiddenDel, delKey] } as unknown as typeof curProgressDel,
+        });
+      } else {
+        const { [delKey]: _r, ...restDel } = curProgressDel as Record<string, unknown>;
+        authStore.updateJourneyLocal({ progress: restDel as typeof curProgressDel });
+      }
+      break;
+    }
+    case "reset_category": {
+      if (!result.success) break;
+      const resetKey = result.toolOutput.key as string;
+      const curProgressReset = authStore.journey?.progress ?? {};
+      const { [resetKey]: _rr, ...restReset } = curProgressReset as Record<string, unknown>;
+      authStore.updateJourneyLocal({ progress: restReset as typeof curProgressReset });
       break;
     }
     case "add_schedule_event": {
@@ -314,10 +359,38 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   sendMessage: async ({
-    content, senderId, senderRole, coupleId, senderName, weddingContext,
+    content, senderId, senderRole, coupleId, senderName, weddingContext, images,
   }) => {
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
+
+    // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
+    const imageUrls: string[] = [];
+    if (images && images.length > 0 && !isDemo) {
+      for (const img of images) {
+        try {
+          const ext = img.mediaType.split("/")[1] || "jpg";
+          const fileName = `${coupleId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+          const byteChars = atob(img.base64);
+          const byteArray = new Uint8Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) {
+            byteArray[i] = byteChars.charCodeAt(i);
+          }
+          const blob = new Blob([byteArray], { type: img.mediaType });
+          const { error: uploadErr } = await supabase.storage
+            .from("chat-image")
+            .upload(fileName, blob, { contentType: img.mediaType });
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from("chat-image").getPublicUrl(fileName);
+            imageUrls.push(urlData.publicUrl);
+          } else {
+            console.warn("Storage 업로드 실패 (무시):", uploadErr.message);
+          }
+        } catch (err) {
+          console.warn("Storage 업로드 에러 (무시):", err);
+        }
+      }
+    }
 
     if (!isDemo) {
       const { data: inserted, error: insertErr } = await supabase
@@ -370,16 +443,41 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const abortController = new AbortController();
       const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
+      // 첨부파일: base64로 직접 전송 (Storage URL 불안정하므로)
+      // 단, 총 크기 3MB 이하만 전송 (Vercel 4.5MB body 제한)
+      const MAX_PAYLOAD_SIZE = 3 * 1024 * 1024; // 3MB
+      let totalSize = 0;
+      const attachmentPayload = images?.map((img) => {
+        const size = img.base64.length;
+        if (totalSize + size > MAX_PAYLOAD_SIZE) {
+          console.warn("첨부파일 크기 초과, 건너뜀:", img.mediaType);
+          return null;
+        }
+        totalSize += size;
+        return { base64: img.base64, mediaType: img.mediaType, fileName: (img as Record<string, unknown>).fileName || "file" };
+      }).filter(Boolean);
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: recentMessages, coupleId, senderName, senderRole, weddingContext }),
+        body: JSON.stringify({
+          messages: recentMessages,
+          coupleId,
+          senderName,
+          senderRole,
+          weddingContext,
+          ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
+        }),
         signal: abortController.signal,
       });
 
       clearTimeout(fetchTimeout);
 
-      if (!res.ok) throw new Error("AI 응답 실패");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error("AI API 에러:", res.status, errText);
+        throw new Error(`AI 응답 실패 (${res.status})`);
+      }
 
       let fullContent = "";
       let finalMetadata: ChatMessageMetadata | null = null;

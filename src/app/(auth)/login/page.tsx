@@ -1,22 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
+// 비밀번호 강도 체크
+interface PasswordCheck {
+  minLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+}
+
+function checkPasswordStrength(pw: string): PasswordCheck {
+  return {
+    minLength: pw.length >= 8,
+    hasUppercase: /[A-Z]/.test(pw),
+    hasLowercase: /[a-z]/.test(pw),
+    hasNumber: /[0-9]/.test(pw),
+    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw),
+  };
+}
+
+function isPasswordValid(checks: PasswordCheck): boolean {
+  return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
+}
 
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
+
+  const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
   // 콜백에서 전달된 에러 표시 (query params + hash fragment)
   useEffect(() => {
@@ -67,13 +96,26 @@ export default function LoginPage() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (mode === "forgot") {
+      if (!email) { setError("이메일을 입력해주세요."); return; }
+    } else if (!email || !password) {
       setError("이메일과 비밀번호를 입력해주세요.");
       return;
     }
-    if (mode === "signup" && password.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.");
-      return;
+
+    if (mode === "signup") {
+      if (!name.trim()) {
+        setError("이름을 입력해주세요.");
+        return;
+      }
+      if (!isPasswordValid(passwordChecks)) {
+        setError("비밀번호 조건을 모두 충족해주세요.");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setError("비밀번호가 일치하지 않습니다.");
+        return;
+      }
     }
 
     setLoading("email");
@@ -86,20 +128,29 @@ export default function LoginPage() {
       const supabase = createClient();
 
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name },
-            emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-          },
+        // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
         });
-        if (signUpError) {
-          setError(signUpError.message === "User already registered"
-            ? "이미 가입된 이메일입니다. 로그인해주세요."
-            : signUpError.message);
+        const result = await res.json();
+        if (!res.ok) {
+          setError(result.error || "회원가입에 실패했습니다.");
         } else {
-          setSuccess("확인 이메일을 보냈습니다. 메일함을 확인해주세요!");
+          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
+        }
+      } else if (mode === "forgot") {
+        // 서버 API로 비밀번호 재설정 이메일 발송
+        const res = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) {
+          setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
+        } else {
+          setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -107,11 +158,14 @@ export default function LoginPage() {
           password,
         });
         if (signInError) {
-          setError(signInError.message === "Invalid login credentials"
-            ? "이메일 또는 비밀번호가 올바르지 않습니다."
-            : signInError.message);
+          if (signInError.message === "Invalid login credentials") {
+            setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+          } else if (signInError.message === "Email not confirmed") {
+            setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
+          } else {
+            setError(signInError.message);
+          }
         } else {
-          // 고객 전용: 온보딩 완료 여부만 확인
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
             const { data: profile } = await supabase
@@ -216,84 +270,223 @@ export default function LoginPage() {
             <>
               {/* 정상 로그인 모드 */}
               <h1 className="font-serif-kr text-[24px] font-light text-noir-800 text-center mb-2">
-                {mode === "login" ? "로그인" : "회원가입"}
+                {mode === "login" ? "로그인" : mode === "signup" ? "회원가입" : "비밀번호 찾기"}
               </h1>
               <p className="text-[13px] text-taupe-400 text-center mb-8">
                 {mode === "login"
                   ? "계정에 로그인하세요"
-                  : "이메일로 간편하게 가입하세요"}
+                  : mode === "signup"
+                    ? "이메일로 간편하게 가입하세요"
+                    : "가입한 이메일을 입력해주세요"}
               </p>
 
               {/* 이메일 폼 */}
               <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
                 {mode === "signup" && (
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="이름"
-                    className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-                  />
+                  <div>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => { setName(e.target.value); setError(""); }}
+                      onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                      placeholder="이름 *"
+                      className={`w-full px-5 py-3.5 rounded-2xl border bg-white text-[14px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
+                        touched.name && !name.trim() ? "border-rose-500/50" : "border-black/[0.06] focus:border-rose-500"
+                      }`}
+                    />
+                    {touched.name && !name.trim() && (
+                      <p className="text-[11px] text-rose-500 mt-1 px-2">이름을 입력해주세요</p>
+                    )}
+                  </div>
                 )}
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                  placeholder="이메일"
+                  onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                  placeholder={mode === "signup" ? "이메일 *" : "이메일"}
                   className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
                 />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                  placeholder="비밀번호"
-                  className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-                />
+
+                {/* 비밀번호 (forgot 모드에서는 숨김) */}
+                {mode !== "forgot" && <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                    onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+                    placeholder={mode === "signup" ? "비밀번호 *" : "비밀번호"}
+                    className="w-full px-5 py-3.5 pr-12 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>}
+
+                {/* 비밀번호 강도 표시 (회원가입 모드) */}
+                {mode === "signup" && password.length > 0 && (
+                  <div className="px-2 space-y-1.5">
+                    <div className="flex gap-1.5">
+                      {[passwordChecks.minLength, passwordChecks.hasLowercase, passwordChecks.hasUppercase, passwordChecks.hasNumber, passwordChecks.hasSpecial].map((ok, i) => (
+                        <div key={i} className={`flex-1 h-1 rounded-full transition-colors ${ok ? "bg-[#2E7D5A]" : "bg-taupe-300/40"}`} />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                      {[
+                        { label: "8자 이상", ok: passwordChecks.minLength },
+                        { label: "대문자 포함", ok: passwordChecks.hasUppercase },
+                        { label: "소문자 포함", ok: passwordChecks.hasLowercase },
+                        { label: "숫자 포함", ok: passwordChecks.hasNumber },
+                        { label: "특수문자 포함", ok: passwordChecks.hasSpecial },
+                      ].map((item) => (
+                        <p key={item.label} className={`text-[11px] flex items-center gap-1 ${item.ok ? "text-[#2E7D5A]" : "text-taupe-400"}`}>
+                          {item.ok ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                          )}
+                          {item.label}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 비밀번호 확인 (회원가입 모드) */}
+                {mode === "signup" && (
+                  <div>
+                    <div className="relative">
+                      <input
+                        type={showPasswordConfirm ? "text" : "password"}
+                        value={passwordConfirm}
+                        onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
+                        onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
+                        placeholder="비밀번호 확인 *"
+                        className={`w-full px-5 py-3.5 pr-12 rounded-2xl border bg-white text-[14px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
+                          touched.passwordConfirm && passwordConfirm && password !== passwordConfirm
+                            ? "border-rose-500/50"
+                            : "border-black/[0.06] focus:border-rose-500"
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPasswordConfirm ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
+                      <p className="text-[11px] text-rose-500 mt-1 px-2">비밀번호가 일치하지 않습니다</p>
+                    )}
+                    {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
+                      <p className="text-[11px] text-[#2E7D5A] mt-1 px-2 flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        비밀번호 일치
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {error && (
                   <p className="text-[12px] text-rose-600 px-1">{error}</p>
                 )}
                 {success && (
-                  <p className="text-[12px] text-[#2E7D5A] px-1">{success}</p>
+                  <div className="bg-[#2E7D5A]/5 border border-[#2E7D5A]/20 rounded-xl px-4 py-3">
+                    <p className="text-[13px] text-[#2E7D5A] font-medium flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                      {success}
+                    </p>
+                    <p className="text-[11px] text-[#2E7D5A]/70 mt-1">스팸 메일함도 확인해주세요</p>
+                  </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={loading !== null}
-                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-noir-800 text-white hover:bg-noir-soft hover:shadow-[0_4px_16px_rgba(26,26,31,0.15)]"
+                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim())) || (mode === "forgot" && !email)}
+                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-noir-800 text-white hover:bg-noir-soft hover:shadow-[0_4px_16px_rgba(26,26,31,0.15)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
                     ? "처리 중..."
                     : mode === "login"
                       ? "로그인"
-                      : "회원가입"}
+                      : mode === "signup"
+                        ? "회원가입"
+                        : "비밀번호 재설정 링크 보내기"}
                 </button>
               </form>
 
               {/* 모드 전환 */}
-              <p className="text-[13px] text-taupe-400 text-center mb-6">
-                {mode === "login" ? (
+              <div className="text-[13px] text-taupe-400 text-center mb-6 space-y-1.5">
+                {mode === "login" && (
                   <>
-                    아직 계정이 없으신가요?{" "}
-                    <button
-                      onClick={() => { setMode("signup"); setError(""); setSuccess(""); }}
-                      className="text-rose-500 font-medium hover:underline"
-                    >
-                      회원가입
-                    </button>
+                    <p>
+                      아직 계정이 없으신가요?{" "}
+                      <button
+                        onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
+                        className="text-rose-500 font-medium hover:underline"
+                      >
+                        회원가입
+                      </button>
+                    </p>
+                    <p>
+                      <button
+                        onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); }}
+                        className="text-taupe-400 hover:text-rose-500 hover:underline transition-colors"
+                      >
+                        비밀번호를 잊으셨나요?
+                      </button>
+                    </p>
                   </>
-                ) : (
-                  <>
+                )}
+                {mode === "signup" && (
+                  <p>
                     이미 계정이 있으신가요?{" "}
                     <button
-                      onClick={() => { setMode("login"); setError(""); setSuccess(""); }}
+                      onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
                       className="text-rose-500 font-medium hover:underline"
                     >
                       로그인
                     </button>
-                  </>
+                  </p>
                 )}
-              </p>
+                {mode === "forgot" && (
+                  <p>
+                    <button
+                      onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); }}
+                      className="text-rose-500 font-medium hover:underline"
+                    >
+                      ← 로그인으로 돌아가기
+                    </button>
+                  </p>
+                )}
+              </div>
 
               {/* 구분선 */}
               <div className="flex items-center gap-4 mb-5">

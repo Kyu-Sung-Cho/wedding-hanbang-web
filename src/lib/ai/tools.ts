@@ -85,7 +85,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "update_category_budget",
     description:
-      "특정 카테고리의 예산 또는 지출 금액을 변경합니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다.",
+      "특정 카테고리의 예산 또는 지출 금액을 변경합니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다. 기존 20개 카테고리에 없는 새 항목은 add_custom_category를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -106,6 +106,61 @@ export const WEDDING_TOOLS: Tool[] = [
         spent: {
           type: "number",
           description: "새 지출 금액 (원 단위). 예: 2500000 = 250만원. 지출 변경 불필요 시 생략",
+        },
+      },
+      required: ["category"],
+    },
+  },
+  {
+    name: "add_custom_category",
+    description:
+      "기존 20개 카테고리에 없는 새로운 예산 항목을 추가합니다. '웨딩카 50만원 썼어', '포토부스 예산 30만원으로 해줘' 등 기존 카테고리에 없는 항목에 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        label: {
+          type: "string",
+          description: "카테고리 이름 (예: '웨딩카', '포토부스', '축의금')",
+        },
+        budget: {
+          type: "number",
+          description: "예산 금액 (원 단위). 예: 500000 = 50만원. 예산 불필요 시 생략",
+        },
+        spent: {
+          type: "number",
+          description: "지출 금액 (원 단위). 예: 300000 = 30만원. 지출 불필요 시 생략",
+        },
+      },
+      required: ["label"],
+    },
+  },
+  {
+    name: "delete_category",
+    description:
+      "예산 카테고리를 삭제합니다. 기존 20개 카테고리(예식장, 스튜디오 등)와 커스텀 카테고리 모두 삭제 가능합니다. ⚠️ 중요: 반드시 삭제 전에 사용자에게 '정말 삭제하시겠어요?' 라고 확인을 받은 후에만 이 도구를 호출하세요. 사용자가 확인하기 전에는 절대 호출하지 마세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description:
+            "삭제할 카테고리 키. 기존 카테고리: meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve. 커스텀 카테고리: custom_로 시작하는 키. 먼저 get_budget_summary로 현재 카테고리 목록을 확인하세요.",
+        },
+      },
+      required: ["category"],
+    },
+  },
+  {
+    name: "reset_category",
+    description:
+      "특정 카테고리의 예산/지출 데이터만 초기화합니다(카테고리 자체는 유지). '예식장 데이터 리셋해줘', '스튜디오 금액 초기화' 같은 요청에 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description:
+            "초기화할 카테고리 키. meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve 또는 custom_으로 시작하는 커스텀 키",
         },
       },
       required: ["category"],

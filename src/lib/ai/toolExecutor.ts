@@ -101,6 +101,12 @@ export async function executeTool(
         return await executeUpdateVenue(toolInput, context);
       case "update_category_budget":
         return await executeUpdateCategoryBudget(toolInput, context);
+      case "add_custom_category":
+        return await executeAddCustomCategory(toolInput, context);
+      case "delete_category":
+        return await executeDeleteCategory(toolInput, context);
+      case "reset_category":
+        return await executeResetCategory(toolInput, context);
       case "get_budget_summary":
         return executeGetBudgetSummary(context);
       case "get_schedule_summary":
@@ -285,6 +291,150 @@ async function executeUpdateCategoryBudget(
     toolOutput: { category, label, ...updates },
     success: true,
     displayMessage: `${label} ${changes.join(", ")}(으)로 설정되었습니다.`,
+  };
+}
+
+// 커스텀 카테고리 추가
+async function executeAddCustomCategory(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const label = input.label as string;
+  const key = `custom_${Date.now()}`;
+  const updates: Record<string, unknown> = {
+    category: key,
+    label,
+    status: "in_progress",
+  };
+  const changes: string[] = [];
+
+  if (input.budget !== undefined) {
+    updates.budget = input.budget as number;
+    changes.push(`예산 ${formatWon(input.budget as number)}`);
+  }
+  if (input.spent !== undefined) {
+    updates.spent = input.spent as number;
+    changes.push(`지출 ${formatWon(input.spent as number)}`);
+  }
+
+  const newProgress = {
+    ...ctx.weddingContext.progress,
+    [key]: updates,
+  };
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+
+  const desc = changes.length > 0 ? ` (${changes.join(", ")})` : "";
+  return {
+    toolName: "add_custom_category",
+    toolInput: input,
+    toolOutput: { key, label, ...updates },
+    success: true,
+    displayMessage: `새 카테고리 "${label}"이(가) 추가되었습니다${desc}.`,
+  };
+}
+
+async function executeDeleteCategory(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const key = input.category as string;
+  const isKnown = key in CATEGORY_LABELS;
+  const progress = ctx.weddingContext.progress as Record<string, unknown>;
+  const label = isKnown
+    ? CATEGORY_LABELS[key]
+    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+
+  if (isKnown) {
+    // 고정 카테고리: __hidden 리스트에 추가 + progress에서 데이터 제거
+    const hiddenList: string[] = (progress.__hidden as string[]) ?? [];
+    if (hiddenList.includes(key)) {
+      return {
+        toolName: "delete_category",
+        toolInput: input,
+        toolOutput: { deleted: false },
+        success: false,
+        displayMessage: `"${label}"은(는) 이미 삭제되어 있습니다.`,
+      };
+    }
+    const { [key]: _removed, ...rest } = progress;
+    const newProgress = { ...rest, __hidden: [...hiddenList, key] };
+
+    const admin = getAdminClient();
+    const { error } = await admin
+      .from("wedding_journeys")
+      .update({ progress: newProgress })
+      .eq("couple_id", ctx.coupleId);
+    if (error) throw error;
+
+    ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  } else {
+    // 커스텀 카테고리: progress에서 완전히 제거
+    if (!progress[key]) {
+      return {
+        toolName: "delete_category",
+        toolInput: input,
+        toolOutput: { deleted: false },
+        success: false,
+        displayMessage: `"${key}" 카테고리를 찾을 수 없습니다.`,
+      };
+    }
+    const { [key]: _removed, ...rest } = progress;
+
+    const admin = getAdminClient();
+    const { error } = await admin
+      .from("wedding_journeys")
+      .update({ progress: rest })
+      .eq("couple_id", ctx.coupleId);
+    if (error) throw error;
+
+    ctx.weddingContext.progress = rest as unknown as ExecutionContext["weddingContext"]["progress"];
+  }
+
+  return {
+    toolName: "delete_category",
+    toolInput: input,
+    toolOutput: { key, label, deleted: true },
+    success: true,
+    displayMessage: `"${label}" 카테고리가 삭제되었습니다.`,
+  };
+}
+
+async function executeResetCategory(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const key = input.category as string;
+  const progress = ctx.weddingContext.progress as Record<string, unknown>;
+  const isKnown = key in CATEGORY_LABELS;
+  const label = isKnown
+    ? CATEGORY_LABELS[key]
+    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+
+  const { [key]: _removed, ...rest } = progress;
+
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress: rest })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+
+  ctx.weddingContext.progress = rest as unknown as ExecutionContext["weddingContext"]["progress"];
+
+  return {
+    toolName: "reset_category",
+    toolInput: input,
+    toolOutput: { key, label, reset: true },
+    success: true,
+    displayMessage: `"${label}" 카테고리의 데이터가 초기화되었습니다.`,
   };
 }
 

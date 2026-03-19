@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 
 import { QuestionOption } from "../data/types";
 
@@ -9,6 +10,8 @@ interface Props {
   value: number[];
   onChange: (value: number[]) => void;
   maxSelect?: number;
+  otherText?: string;
+  onOtherTextChange?: (text: string) => void;
   error?: string;
 }
 
@@ -17,14 +20,24 @@ export default function MultipleChoice({
   value,
   onChange,
   maxSelect,
+  otherText,
+  onOtherTextChange,
   error,
 }: Props) {
+  const [showOtherInput, setShowOtherInput] = useState(
+    options.some((o) => o.hasTextInput && value.includes(o.value))
+  );
+
   function handleToggle(optionValue: number) {
+    const opt = options.find((o) => o.value === optionValue);
+
     if (value.includes(optionValue)) {
       onChange(value.filter((v) => v !== optionValue));
+      if (opt?.hasTextInput) setShowOtherInput(false);
     } else {
       if (maxSelect && value.length >= maxSelect) return;
       onChange([...value, optionValue]);
+      if (opt?.hasTextInput) setShowOtherInput(true);
     }
   }
 
@@ -73,6 +86,21 @@ export default function MultipleChoice({
           </motion.button>
         );
       })}
+      {showOtherInput && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="mt-1"
+        >
+          <input
+            type="text"
+            value={otherText || ""}
+            onChange={(e) => onOtherTextChange?.(e.target.value)}
+            placeholder="직접 입력해주세요"
+            className="w-full px-5 py-3 rounded-xl border border-platinum bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+          />
+        </motion.div>
+      )}
       {error && (
         <p className="text-[13px] text-rose-600 mt-1">{error}</p>
       )}

@@ -17,6 +17,54 @@ export interface ChatWithToolsResult {
   stopReason: string;
 }
 
+// 첨부파일 정보 (이미지 + PDF)
+export type AttachmentMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "application/pdf";
+
+export interface ImageAttachment {
+  base64: string;
+  mediaType: AttachmentMediaType;
+}
+
+// 텍스트 + 이미지를 멀티모달 content로 변환
+export function buildMultimodalContent(
+  text: string,
+  images?: ImageAttachment[]
+): string | ContentBlockParam[] {
+  if (!images || images.length === 0) return text;
+
+  const contentBlocks: ContentBlockParam[] = [];
+
+  // 이미지/PDF 블록
+  for (const img of images) {
+    if (img.mediaType === "application/pdf") {
+      contentBlocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: img.base64,
+        },
+      } as ContentBlockParam);
+    } else {
+      contentBlocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: img.mediaType,
+          data: img.base64,
+        },
+      } as ContentBlockParam);
+    }
+  }
+
+  // 텍스트 블록
+  if (text) {
+    contentBlocks.push({ type: "text", text } as ContentBlockParam);
+  }
+
+  return contentBlocks;
+}
+
 // 실시간 스트리밍 + 도구 사용 지원 Chat
 // messages.stream()을 사용하여 토큰이 생성되는 즉시 onTextDelta로 전달
 export async function chatWithToolsStream(options: {

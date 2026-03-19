@@ -1,16 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
-import { chatWithToolsStream, buildToolResultContent } from "@/lib/ai/claude";
+import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
+import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
+// mammoth, xlsx는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
 export const maxDuration = 300;
 
 const MAX_TOOL_ROUNDS = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Claude 응답에서 [suggestions] 블록 추출 (백틱 있든 없든 모두 처리)
 function extractSuggestions(text: string): { cleanText: string; suggestions: string[] } {
@@ -34,6 +37,100 @@ function extractSuggestions(text: string): { cleanText: string; suggestions: str
   return { cleanText: text, suggestions: [] };
 }
 
+// DOCX에서 텍스트 추출 (동적 import)
+async function extractDocxText(base64: string): Promise<string> {
+  const mammoth = await import("mammoth");
+  const buffer = Buffer.from(base64, "base64");
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value.trim();
+}
+
+// XLSX에서 텍스트 추출 (동적 import)
+async function extractXlsxText(base64: string): Promise<string> {
+  const XLSX = await import("xlsx");
+  const buffer = Buffer.from(base64, "base64");
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheets: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    if (csv.trim()) {
+      sheets.push(`[시트: ${sheetName}]\n${csv}`);
+    }
+  }
+
+  return sheets.join("\n\n");
+}
+
+// 첨부파일 처리: Claude에 보낼 형태로 변환
+interface ProcessedAttachment {
+  visionAttachments: ImageAttachment[]; // 이미지/PDF → Claude vision/document
+  textAttachments: string[]; // DOCX/XLSX → 추출된 텍스트
+}
+
+const VISION_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
+const DOC_TYPES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+  "application/msword", // doc
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+  "application/vnd.ms-excel", // xls
+];
+
+async function processAttachments(attachments: unknown[]): Promise<ProcessedAttachment> {
+  const visionAttachments: ImageAttachment[] = [];
+  const textAttachments: string[] = [];
+
+  for (const att of (attachments || []).slice(0, 5)) {
+    const item = att as { base64?: string; url?: string; mediaType?: string; fileName?: string };
+    if (!item.mediaType) continue;
+
+    if (VISION_TYPES.includes(item.mediaType)) {
+      if (item.url) {
+        // URL 기반: 서버에서 fetch → base64 변환
+        try {
+          const imgRes = await fetch(item.url);
+          if (imgRes.ok) {
+            const buffer = Buffer.from(await imgRes.arrayBuffer());
+            visionAttachments.push({
+              base64: buffer.toString("base64"),
+              mediaType: item.mediaType as ImageAttachment["mediaType"],
+            });
+          }
+        } catch (err) {
+          console.error("이미지 다운로드 에러:", err);
+        }
+      } else if (item.base64) {
+        // base64 직접 전달 (호환)
+        visionAttachments.push({
+          base64: item.base64,
+          mediaType: item.mediaType as ImageAttachment["mediaType"],
+        });
+      }
+    } else if (item.base64 && (item.mediaType.includes("wordprocessingml") || item.mediaType === "application/msword")) {
+      try {
+        const text = await extractDocxText(item.base64);
+        if (text) {
+          textAttachments.push(`[첨부문서: ${item.fileName || "document.docx"}]\n${text}`);
+        }
+      } catch (err) {
+        console.error("DOCX 파싱 에러:", err);
+      }
+    } else if (item.base64 && (item.mediaType.includes("spreadsheetml") || item.mediaType.includes("ms-excel"))) {
+      try {
+        const text = await extractXlsxText(item.base64);
+        if (text) {
+          textAttachments.push(`[첨부스프레드시트: ${item.fileName || "spreadsheet.xlsx"}]\n${text}`);
+        }
+      } catch (err) {
+        console.error("XLSX 파싱 에러:", err);
+      }
+    }
+  }
+
+  return { visionAttachments, textAttachments };
+}
+
 export async function POST(request: Request) {
   // 인증 체크
   const supabase = await createClient();
@@ -52,7 +149,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const { messages, coupleId, senderName, weddingContext } = body;
+  const { messages, coupleId, senderName, weddingContext, attachments } = body;
 
   if (!messages || !coupleId) {
     return NextResponse.json(
@@ -60,6 +157,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  // 첨부파일 처리
+  const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
   const [journeyResult, profilesResult, bookingsResult, summariesResult] = await Promise.all([
@@ -129,11 +229,32 @@ export async function POST(request: Request) {
     chatSummaries,
   });
 
+  // 메시지 포맷팅
   const formattedMessages: MessageParam[] = messages.map(
-    (m: { role: string; content: string }) => ({
-      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: m.content,
-    })
+    (m: { role: string; content: string }, index: number) => {
+      const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
+      const isLastUserMessage = role === "user" && index === messages.length - 1;
+
+      if (isLastUserMessage) {
+        // 문서 텍스트가 있으면 메시지에 포함
+        let enrichedText = m.content;
+        if (textAttachments.length > 0) {
+          enrichedText = `${textAttachments.join("\n\n")}\n\n${m.content}`;
+        }
+
+        // 이미지/PDF 첨부가 있으면 멀티모달로
+        if (visionAttachments.length > 0) {
+          return {
+            role,
+            content: buildMultimodalContent(enrichedText, visionAttachments),
+          };
+        }
+
+        return { role, content: enrichedText };
+      }
+
+      return { role, content: m.content };
+    }
   );
 
   const executionContext = {
@@ -175,7 +296,6 @@ export async function POST(request: Request) {
         const toolResults: ToolExecutionResult[] = [];
         const toolsUsed: string[] = [];
 
-        // Tool use 루프: 최대 MAX_TOOL_ROUNDS까지 반복
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           // 실시간 스트리밍: 모든 라운드에서 텍스트 토큰을 즉시 클라이언트로 전송
           // tool_use가 발견되면 text_clear로 리셋 후 도구 실행
@@ -213,48 +333,21 @@ export async function POST(request: Request) {
           send({ type: "text_clear" });
 
           const toolResultContents: ContentBlockParam[] = [];
-
           for (const toolUse of result.toolUseBlocks) {
             toolsUsed.push(toolUse.name);
-
-            send({
-              type: "tool_start",
-              toolName: toolUse.name,
-              toolInput: toolUse.input,
-            });
-
-            const execResult = await executeTool(
-              toolUse.name,
-              toolUse.input,
-              executionContext
-            );
+            send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
+            const execResult = await executeTool(toolUse.name, toolUse.input, executionContext);
             toolResults.push(execResult);
-
             send({ type: "tool_result", result: execResult });
-
-            toolResultContents.push(
-              buildToolResultContent(
-                toolUse.id,
-                JSON.stringify(execResult.toolOutput)
-              )
-            );
+            toolResultContents.push(buildToolResultContent(toolUse.id, JSON.stringify(execResult.toolOutput)));
           }
 
-          // 대화 이어가기: assistant 응답 + tool results
           const assistantContent: ContentBlockParam[] = [];
           if (result.fullText) {
-            assistantContent.push({
-              type: "text",
-              text: result.fullText,
-            } as ContentBlockParam);
+            assistantContent.push({ type: "text", text: result.fullText } as ContentBlockParam);
           }
           for (const toolUse of result.toolUseBlocks) {
-            assistantContent.push({
-              type: "tool_use",
-              id: toolUse.id,
-              name: toolUse.name,
-              input: toolUse.input,
-            } as ContentBlockParam);
+            assistantContent.push({ type: "tool_use", id: toolUse.id, name: toolUse.name, input: toolUse.input } as ContentBlockParam);
           }
 
           currentMessages = [

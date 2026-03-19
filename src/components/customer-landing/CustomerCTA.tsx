@@ -4,7 +4,11 @@ import { motion } from "framer-motion";
 
 const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-export default function CustomerCTA({ demoMode = false }: { demoMode?: boolean }) {
+interface CustomerCTAProps {
+  demoMode?: boolean;
+}
+
+export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
   const loginHref = demoMode ? "/demo/login" : "/login";
   return (

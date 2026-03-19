@@ -5,7 +5,11 @@ import Logo from "@/components/ui/Logo";
 
 const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-export default function CustomerNav({ demoMode = false }: { demoMode?: boolean }) {
+interface CustomerNavProps {
+  demoMode?: boolean;
+}
+
+export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
   const loginHref = demoMode ? "/demo/login" : "/login";
   const [scrolled, setScrolled] = useState(false);
@@ -34,7 +38,7 @@ export default function CustomerNav({ demoMode = false }: { demoMode?: boolean }
           : ""
       }`}
     >
-      <a href="/" className="no-underline">
+      <a href={demoMode ? "/demo" : "/"} className="no-underline">
         <Logo size="sm" />
       </a>
 

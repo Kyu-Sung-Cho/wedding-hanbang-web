@@ -46,6 +46,7 @@ export interface ChecklistItem {
 
 export interface ProgressItem {
   category?: string;
+  label?: string;
   status: "not_started" | "in_progress" | "completed";
   budget?: number;
   spent?: number;
@@ -77,6 +78,7 @@ export interface ChatMessageMetadata {
   roomId?: string;
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
+  imageUrls?: string[];
 }
 
 export interface ChatMessage {

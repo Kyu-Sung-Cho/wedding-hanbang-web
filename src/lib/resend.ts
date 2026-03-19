@@ -14,7 +14,7 @@ export async function sendPreregistrationEmail(email: string) {
       html: `
         <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #C4967E, #C9A96E); border-radius: 12px; line-height: 48px; color: white; font-size: 20px; font-weight: bold;">한</div>
+            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
           <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
             사전등록이 완료되었습니다!
@@ -48,7 +48,7 @@ export async function sendVendorApprovalEmail(email: string, vendorName: string)
       html: `
         <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #C4967E, #C9A96E); border-radius: 12px; line-height: 48px; color: white; font-size: 20px; font-weight: bold;">한</div>
+            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
           <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
             업체 등록이 승인되었습니다!
@@ -99,7 +99,7 @@ export async function sendVendorRejectionEmail(email: string, vendorName: string
       html: `
         <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
-            <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #C4967E, #C9A96E); border-radius: 12px; line-height: 48px; color: white; font-size: 20px; font-weight: bold;">한</div>
+            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
           <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
             업체 등록 심사 결과 안내

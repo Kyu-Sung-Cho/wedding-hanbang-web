@@ -17,7 +17,10 @@ export async function GET(request: Request) {
     .eq("couple_id", coupleId)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("Invitations error:", error);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  }
 
   const invitations = (data ?? []).map((inv) => ({
     ...inv,
@@ -50,7 +53,10 @@ export async function POST(request: Request) {
     .select("*, invitation_templates(*)")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("Invitations error:", error);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  }
 
   const invitation = {
     ...data,
@@ -62,10 +68,6 @@ export async function POST(request: Request) {
 }
 
 function generateSlug(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let slug = "";
-  for (let i = 0; i < 8; i++) {
-    slug += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return slug;
+  const { randomBytes } = require("crypto");
+  return randomBytes(8).toString("hex"); // 16자 hex (암호학적 안전)
 }

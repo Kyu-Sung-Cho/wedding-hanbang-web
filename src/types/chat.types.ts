@@ -16,6 +16,12 @@ export interface ChatStoreState {
   reset: () => void;
 }
 
+export interface ImageAttachmentData {
+  base64: string;
+  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  previewUrl: string; // 로컬 미리보기용 object URL
+}
+
 export interface SendMessageParams {
   content: string;
   senderId: string;
@@ -23,6 +29,7 @@ export interface SendMessageParams {
   coupleId: string;
   senderName: string;
   weddingContext: WeddingContext;
+  images?: ImageAttachmentData[];
 }
 
 export interface WeddingContext {

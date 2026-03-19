@@ -45,6 +45,8 @@ export default function QuestionRenderer({
           value={(answer as number[]) ?? []}
           onChange={(v) => onChange(question.id, v)}
           maxSelect={question.maxSelect}
+          otherText={otherText}
+          onOtherTextChange={(t) => onOtherTextChange?.(question.id, t)}
           error={error}
         />
       );

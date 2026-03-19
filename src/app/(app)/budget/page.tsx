@@ -31,11 +31,11 @@ import {
   Box,
   ShoppingBag,
   Loader2,
+  Tag,
+  Plus,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
-import { getCategoryMarketPrice } from "@/constants/marketPrices";
-import PriceComparisonBadge from "@/components/app/market-prices/PriceComparisonBadge";
 import Link from "next/link";
 
 const fadeIn = {
@@ -46,7 +46,7 @@ const fadeIn = {
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift, Wallet,
-  Sparkles, Flower, Heart, Mic, Box,
+  Sparkles, Flower, Heart, Mic, Box, Tag,
 };
 
 // 카테고리별 예산 비율 (기본값)
@@ -76,6 +76,9 @@ const CATEGORY_RATIOS: { key: string; label: string; icon: string; ratio: number
 // 스드메 키
 const SDM_KEYS = ["studio", "dress", "makeup"];
 const OTHER_KEYS = CATEGORY_RATIOS.filter((c) => !SDM_KEYS.includes(c.key)).map((c) => c.key);
+
+// 고정 카테고리 키 세트 (커스텀 카테고리 식별용)
+const KNOWN_KEYS = new Set(CATEGORY_RATIOS.map((c) => c.key));
 
 function formatWon(n: number): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
@@ -204,6 +207,7 @@ function BudgetRow({
   onBudgetChange,
   onSpentChange,
   onSpentReset,
+  onDelete,
   delay,
 }: {
   catKey: string;
@@ -215,6 +219,7 @@ function BudgetRow({
   onBudgetChange: (key: string, val: number) => void;
   onSpentChange: (key: string, val: number) => void;
   onSpentReset: (key: string) => void;
+  onDelete?: (key: string) => void;
   delay: number;
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
@@ -226,7 +231,7 @@ function BudgetRow({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay }}
-      className="flex items-center gap-3 px-5 py-3.5 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
+      className="group flex items-center gap-3 px-5 py-3.5 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
     >
       {/* 아이콘 + 이름 */}
       <div className="flex items-center gap-2.5 w-[120px] flex-shrink-0 max-md:w-full">
@@ -285,7 +290,7 @@ function BudgetRow({
         />
       </div>
 
-      {/* 상태 + 시세 배지 */}
+      {/* 상태 + 삭제 */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
           status === "완료" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
@@ -294,10 +299,15 @@ function BudgetRow({
         }`}>
           {status}
         </div>
-        {(() => {
-          const marketPrice = getCategoryMarketPrice(catKey);
-          return marketPrice ? <PriceComparisonBadge userBudget={budget} marketPrice={marketPrice} /> : null;
-        })()}
+        {onDelete && (
+          <button
+            onClick={() => onDelete(catKey)}
+            className="w-5 h-5 rounded flex items-center justify-center text-taupe-400/40 hover:text-red-400 hover:bg-red-50 transition-colors max-md:opacity-100 opacity-0 group-hover:opacity-100"
+            title={`${label} 삭제`}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
       </div>
     </motion.div>
   );
@@ -327,6 +337,24 @@ export default function BudgetPage() {
 
   const totalBudget = journey?.total_budget ?? 20000000;
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+  const hiddenKeys = new Set(((progress as Record<string, unknown>).__hidden as string[]) ?? []);
+
+  // 커스텀 카테고리 추가 폼
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [newCatBudget, setNewCatBudget] = useState("");
+  const [newCatSpent, setNewCatSpent] = useState("");
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+
+
+  // progress에서 커스텀 카테고리 추출 (KNOWN_KEYS에 없고 __로 시작하지 않는 키)
+  const customCategories = Object.entries(progress)
+    .filter(([key]) => !KNOWN_KEYS.has(key) && !key.startsWith("__"))
+    .map(([key, item]) => ({
+      key,
+      label: item.label ?? key,
+      icon: "Tag",
+    }));
 
   // 내 예약 내역
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
@@ -400,16 +428,21 @@ export default function BudgetPage() {
     [progress]
   );
 
-  // 총합 계산
+  // 총합 계산 (고정 + 커스텀 카테고리 모두 포함)
   const allCats = CATEGORY_RATIOS;
-  const totalSpent = allCats.reduce((s, c) => s + getCategorySpent(c.key), 0);
-  const totalAllocated = allCats.reduce((s, c) => s + getCategoryBudget(c.key), 0);
+  const visibleFixed = allCats.filter((c) => !hiddenKeys.has(c.key));
+  const fixedSpent = visibleFixed.reduce((s, c) => s + getCategorySpent(c.key), 0);
+  const fixedAllocated = visibleFixed.reduce((s, c) => s + getCategoryBudget(c.key), 0);
+  const customSpent = customCategories.reduce((s, c) => s + getCategorySpent(c.key), 0);
+  const customAllocated = customCategories.reduce((s, c) => s + getCategoryBudget(c.key), 0);
+  const totalSpent = fixedSpent + customSpent;
+  const totalAllocated = fixedAllocated + customAllocated;
   const remaining = totalBudget - totalSpent;
   const spentPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   // 스드메 합계
-  const sdmBudget = SDM_KEYS.reduce((s, k) => s + getCategoryBudget(k), 0);
-  const sdmSpent = SDM_KEYS.reduce((s, k) => s + getCategorySpent(k), 0);
+  const sdmBudget = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategoryBudget(k), 0);
+  const sdmSpent = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategorySpent(k), 0);
 
   // 예산/지출 수정 핸들러
   const handleBudgetChange = useCallback(
@@ -455,6 +488,60 @@ export default function BudgetPage() {
         [key]: { ...rest, category: key },
       };
       await updateJourney({ progress: newProgress });
+    },
+    [progress, updateJourney]
+  );
+
+  // 커스텀 카테고리 추가 핸들러
+  // 카테고리 추가 (모달에서 호출)
+  const handleAddCategory = useCallback(
+    async () => {
+      const trimmed = newCatLabel.trim();
+      if (!trimmed) return;
+      const key = `custom_${Date.now()}`;
+      const budgetVal = newCatBudget ? Math.round(parseFloat(newCatBudget) * 10000) : 0;
+      const spentVal = newCatSpent ? Math.round(parseFloat(newCatSpent) * 10000) : 0;
+      const newProgress = {
+        ...progress,
+        [key]: {
+          category: key,
+          label: trimmed,
+          status: spentVal > 0 ? "in_progress" as const : "not_started" as const,
+          ...(budgetVal > 0 ? { budget: budgetVal } : {}),
+          ...(spentVal > 0 ? { spent: spentVal } : {}),
+        },
+      };
+      await updateJourney({ progress: newProgress });
+      setNewCatLabel("");
+      setNewCatBudget("");
+      setNewCatSpent("");
+      setShowAddModal(false);
+    },
+    [newCatLabel, newCatBudget, newCatSpent, progress, updateJourney]
+  );
+
+  // 카테고리 데이터 초기화 (고정 카테고리: progress에서 제거하여 기본값으로 복원)
+  const handleResetCategory = useCallback(
+    async (key: string) => {
+      const { [key]: _removed, ...rest } = progress;
+      await updateJourney({ progress: rest });
+      setDeletingKey(null);
+    },
+    [progress, updateJourney]
+  );
+
+  // 카테고리 삭제 (커스텀: progress에서 제거, 고정: __hidden 리스트에 추가하여 목록에서 숨김)
+  const handleDeleteCategory = useCallback(
+    async (key: string) => {
+      if (KNOWN_KEYS.has(key)) {
+        const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
+        const { [key]: _removed, ...rest } = progress;
+        await updateJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> });
+      } else {
+        const { [key]: _removed, ...rest } = progress;
+        await updateJourney({ progress: rest });
+      }
+      setDeletingKey(null);
     },
     [progress, updateJourney]
   );
@@ -659,7 +746,7 @@ export default function BudgetPage() {
           </div>
         </div>
         <div className="divide-y divide-black/[0.03]">
-          {SDM_KEYS.map((key, i) => {
+          {SDM_KEYS.filter((k) => !hiddenKeys.has(k)).map((key, i) => {
             const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
             return (
               <BudgetRow
@@ -673,6 +760,7 @@ export default function BudgetPage() {
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
+                onDelete={(k) => setDeletingKey(k)}
                 delay={0.2 + i * 0.03}
               />
             );
@@ -694,7 +782,7 @@ export default function BudgetPage() {
           </div>
         </div>
         <div className="divide-y divide-black/[0.03]">
-          {OTHER_KEYS.map((key, i) => {
+          {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key, i) => {
             const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
             return (
               <BudgetRow
@@ -708,10 +796,40 @@ export default function BudgetPage() {
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
+                onDelete={(k) => setDeletingKey(k)}
                 delay={0.3 + i * 0.03}
               />
             );
           })}
+
+          {/* 커스텀 카테고리 렌더링 */}
+          {customCategories.map((cat, i) => (
+              <BudgetRow
+                key={cat.key}
+                catKey={cat.key}
+                label={cat.label}
+                icon={cat.icon}
+                budget={getCategoryBudget(cat.key)}
+                spent={getCategorySpent(cat.key)}
+                status={getStatusLabel(cat.key)}
+                onBudgetChange={handleBudgetChange}
+                onSpentChange={handleSpentChange}
+                onSpentReset={handleSpentReset}
+                onDelete={(k) => setDeletingKey(k)}
+                delay={0.3 + (OTHER_KEYS.length + i) * 0.03}
+              />
+          ))}
+
+          {/* 카테고리 추가 버튼 */}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2.5 w-full px-5 py-3.5 text-taupe-400 hover:text-rose-500 hover:bg-ivory-50 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-dashed border-taupe-300 group-hover:border-rose-500/40 transition-colors">
+              <Plus className="w-4 h-4" />
+            </div>
+            <span className="text-[13px]">새 항목 추가</span>
+          </button>
         </div>
       </motion.div>
 
@@ -732,6 +850,152 @@ export default function BudgetPage() {
           )}
         </p>
       </motion.div>
+
+      {/* 새 항목 추가 모달 */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-noir-900/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="relative bg-white rounded-2xl w-[90%] max-w-[400px] p-6 border border-black/[0.04] shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-serif-kr text-[17px] text-noir-800">새 항목 추가</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[12px] text-taupe-500 mb-1.5 block">카테고리 이름 <span className="text-rose-500">*</span></label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newCatLabel}
+                  onChange={(e) => setNewCatLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
+                  placeholder="예: 웨딩카, 답례떡"
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[12px] text-taupe-500 mb-1.5 block">예산 (만원)</label>
+                  <input
+                    type="number"
+                    value={newCatBudget}
+                    onChange={(e) => setNewCatBudget(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-gold/40 focus:ring-1 focus:ring-gold/20 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-[12px] text-taupe-500 mb-1.5 block">지출 (만원)</label>
+                  <input
+                    type="number"
+                    value={newCatSpent}
+                    onChange={(e) => setNewCatSpent(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAddCategory}
+                disabled={!newCatLabel.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-gold text-white text-[13px] font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
+              >
+                추가
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {deletingKey && (() => {
+        const isFixed = KNOWN_KEYS.has(deletingKey);
+        const catLabel = (() => {
+          const cat = CATEGORY_RATIOS.find((c) => c.key === deletingKey);
+          return cat ? cat.label : (progress[deletingKey]?.label ?? deletingKey);
+        })();
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-noir-900/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
+            <div className="relative bg-white rounded-2xl w-[90%] max-w-[360px] p-6 border border-black/[0.04] shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-medium text-noir-800">
+                    {isFixed ? "항목 관리" : "항목 삭제"}
+                  </h3>
+                  <p className="text-[12px] text-taupe-400 mt-0.5">
+                    <span className="font-medium text-noir-800">{catLabel}</span>
+                    {isFixed
+                      ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
+                      : " 항목이 완전히 삭제됩니다."}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
+                {isFixed ? (
+                  <>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleResetCategory(deletingKey)}
+                        className="flex-1 py-2.5 rounded-xl border border-gold/30 text-[13px] text-gold font-medium hover:bg-gold/5 transition-colors"
+                      >
+                        데이터 초기화
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(deletingKey)}
+                        className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                      >
+                        항목 삭제
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setDeletingKey(null)}
+                      className="py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                    >
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setDeletingKey(null)}
+                      className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(deletingKey)}
+                      className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                    >
+                      삭제
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

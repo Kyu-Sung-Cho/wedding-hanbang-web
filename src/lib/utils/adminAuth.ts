@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234";
-
 export function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,15 +8,8 @@ export function getServiceClient() {
   );
 }
 
-// 관리자 인증 확인 (Supabase Auth + is_admin 또는 비밀번호 헤더)
+// 관리자 인증: Supabase Auth + is_admin 플래그만 허용
 export async function verifyAdmin(request: Request): Promise<{ authorized: boolean; userId?: string }> {
-  // 1. 비밀번호 헤더 확인 (하위 호환)
-  const password = request.headers.get("x-admin-password");
-  if (password === ADMIN_PASSWORD) {
-    return { authorized: true };
-  }
-
-  // 2. Supabase Auth + is_admin 확인
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
