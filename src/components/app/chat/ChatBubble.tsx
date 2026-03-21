@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart } from "lucide-react";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 
 interface ChatBubbleProps {
@@ -114,11 +114,21 @@ export default function ChatBubble({
   // 이미지 URL 목록
   const imageUrls = message.metadata?.imageUrls ?? [];
 
+  // 상대방에게 보낸 직접 메시지 여부
+  const isPartnerMsg = message.metadata?.target === "partner";
+
   if (isCurrentUser) {
     // 내 메시지: 오른쪽 정렬
     return (
       <div className="flex justify-end">
         <div className="flex flex-col items-end gap-1 max-w-[75%]">
+          {/* 상대방에게 보낸 메시지 표시 */}
+          {isPartnerMsg && (
+            <div className="flex items-center gap-1 mr-1">
+              <Heart className="w-3 h-3 text-pink-400" />
+              <span className="text-[10px] text-pink-400 font-medium">상대방에게</span>
+            </div>
+          )}
           {/* 첨부 파일 (이미지 + PDF) */}
           {imageUrls.length > 0 && (
             <div className="flex gap-1.5 flex-wrap justify-end mb-1">
@@ -146,7 +156,7 @@ export default function ChatBubble({
             </div>
           )}
           <div
-            className={`${myBubbleBg} rounded-2xl rounded-tr-md px-4 py-3 shadow-sm`}
+            className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-4 py-3 shadow-sm`}
           >
             <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
               {displayContent}
@@ -165,11 +175,15 @@ export default function ChatBubble({
     <div className="flex items-start gap-3 max-w-[85%]">
       {/* 아바타 */}
       <div
-        className={`flex-shrink-0 w-9 h-9 rounded-full ${avatarBg} flex items-center justify-center shadow-sm`}
+        className={`flex-shrink-0 w-9 h-9 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}
       >
-        <span className="text-white text-xs font-bold">
-          {roleLabel.charAt(0)}
-        </span>
+        {isPartnerMsg ? (
+          <Heart className="w-4 h-4 text-white" />
+        ) : (
+          <span className="text-white text-xs font-bold">
+            {roleLabel.charAt(0)}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -178,13 +192,13 @@ export default function ChatBubble({
             {message.sender_id ? "" : roleLabel}
           </span>
           <span
-            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badgeBg}`}
+            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-pink-500" : badgeBg}`}
           >
-            {roleLabel}
+            {isPartnerMsg ? `${roleLabel} → 나에게` : roleLabel}
           </span>
         </div>
         <div
-          className={`${partnerBubbleBg} border ${partnerBubbleBorder} rounded-2xl rounded-tl-md px-4 py-3 shadow-sm`}
+          className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm`}
         >
           <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
             {displayContent}

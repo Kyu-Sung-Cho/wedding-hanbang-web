@@ -1,25 +1,16 @@
-import { createClient } from "@/lib/supabase/server";
+import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-    }
-
-    // 관리자 확인
-    const { data: adminCheck } = await supabase
-      .from("admin_users")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!adminCheck) {
+    // verifyAdmin으로 통일 (profiles.is_admin 체크)
+    const { authorized } = await verifyAdmin(req);
+    if (!authorized) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
+
+    // service client 사용 (RLS 우회)
+    const supabase = getServiceClient();
 
     const url = new URL(req.url);
     const period = url.searchParams.get("period") || "30d";

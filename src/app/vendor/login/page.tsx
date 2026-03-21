@@ -24,7 +24,7 @@ export default function VendorLoginPage() {
     try {
       const supabase = createClient();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/vendor/login`,
+        redirectTo: `${window.location.origin}/reset-password?redirect=/vendor/login`,
       });
       if (resetError) {
         setError(resetError.message);

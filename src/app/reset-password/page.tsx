@@ -71,8 +71,13 @@ export default function ResetPasswordPage() {
         setError("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
       } else {
         setSuccess(true);
+        // redirect 쿼리 파라미터가 있으면 해당 경로로, 없으면 /login으로
+        const params = new URLSearchParams(window.location.search);
+        const redirectTo = params.get("redirect") || "/login";
+        // 외부 URL 방지 (상대 경로만 허용)
+        const safePath = redirectTo.startsWith("/") ? redirectTo : "/login";
         setTimeout(() => {
-          window.location.href = "/login";
+          window.location.href = safePath;
         }, 2000);
       }
     } catch (err) {

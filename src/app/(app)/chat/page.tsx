@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, Plus, Trash2, X, MessageSquare, PanelRightOpen, Paperclip, FileText, FileSpreadsheet } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
+import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
@@ -11,7 +12,6 @@ import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 
-const MAX_ROOMS = 5;
 const MAX_ATTACHMENTS = 5;
 
 // 허용 파일 타입
@@ -45,13 +45,6 @@ export default function ChatPage() {
     suggestions,
     error,
     initialLoadDone,
-    defaultRoomTitle,
-    error: _err,
-    initRooms,
-    createRoom,
-    switchRoom,
-    deleteRoom,
-    clearRoom,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
@@ -63,10 +56,13 @@ export default function ChatPage() {
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  const [showMediationBanner, setShowMediationBanner] = useState(false);
+  const [mediationDismissed, setMediationDismissed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
-  const greetingRequestedForRoom = useRef<Set<string>>(new Set());
+  const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
   // 메시지 로드 + 구독
@@ -88,11 +84,11 @@ export default function ChatPage() {
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
-      greetingRequestedForRoom.current.has("default")
+      greetingRequested.current
     )
       return;
 
-    greetingRequestedForRoom.current.add("default");
+    greetingRequested.current = true;
 
     requestInitialGreeting({
       coupleId,
@@ -111,6 +107,73 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming, streamingContent]);
+
+  // 갈등 감지: 점수 기반 + 패턴 분석 (단순 키워드 매칭 X)
+  useEffect(() => {
+    if (mediationDismissed) return;
+
+    // 가중치 기반 키워드 (높을수록 갈등 확률 높음)
+    const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
+      // 5점: 직접적 커플 갈등 표현 (거의 확실)
+      { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
+      // 4점: 강한 감정 + 상대방 향한 불만
+      { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
+      // 3점: 결혼 준비 관련 의견 충돌
+      { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
+      // 2점: 감정 표현 (혼자 스트레스일 수도 있음)
+      { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
+      // 1점: 약한 부정 (일상 대화에서도 흔함 → 단독으로는 갈등 아님)
+      { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
+    ];
+
+    // 최근 partner 메시지만 (최근 6개)
+    const recentPartnerMsgs = messages
+      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
+      .slice(-6);
+
+    // 조건 1: 최소 partner 메시지 3개 이상 (대화가 오가야 갈등)
+    if (recentPartnerMsgs.length < 3) {
+      setShowMediationBanner(false);
+      return;
+    }
+
+    // 조건 2: 양쪽 다 메시지가 있어야 함 (한 명만 말하면 일방적 대화)
+    const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
+    const bothSides = senders.size >= 2;
+
+    // 점수 계산
+    let totalScore = 0;
+    let messagesWithConflict = 0;
+
+    for (const msg of recentPartnerMsgs) {
+      let msgScore = 0;
+      for (const signal of CONFLICT_SIGNALS) {
+        for (const kw of signal.keywords) {
+          if (msg.content.includes(kw)) {
+            msgScore += signal.weight;
+            break; // 같은 가중치 그룹에서 한 번만 카운트
+          }
+        }
+      }
+      if (msgScore > 0) {
+        messagesWithConflict++;
+        totalScore += msgScore;
+      }
+    }
+
+    // 양쪽이 대화 중이면 점수 1.5배 (진짜 갈등일 확률 높음)
+    if (bothSides) totalScore = Math.round(totalScore * 1.5);
+
+    // 판정 기준:
+    // - 5점짜리 키워드 1개만 있어도 → 바로 (5 × 1.5 = 7.5)
+    // - 3점짜리 2개 + 양쪽 대화 → 바로 (6 × 1.5 = 9)
+    // - 2점짜리만 여러 개 → 4개 이상이어야 (8 × 1.5 = 12, 보수적)
+    // - 1점짜리만 → 절대 안 뜸 (1 × 6 × 1.5 = 9 안 됨, messagesWithConflict 조건)
+    const THRESHOLD = 7;
+    const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
+
+    setShowMediationBanner(isConflict);
+  }, [messages, mediationDismissed]);
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
@@ -194,7 +257,7 @@ export default function ChatPage() {
     }
 
     if (files.length > 0) {
-      e.preventDefault(); // 이미지 붙여넣기 시 텍스트 입력 방지
+      e.preventDefault();
       addFiles(files);
     }
   }, [addFiles]);
@@ -262,36 +325,35 @@ export default function ChatPage() {
           progress: journey?.progress ?? {},
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
+        target: messageTarget,
       });
     },
-    [input, attachments, coupleId, profile, journey, sendMessage]
+    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
   );
 
-  const handleCreateRoom = async () => {
-    if (!coupleId) return;
-    const newRoomId = createRoom(coupleId);
-    if (!newRoomId) {
-      alert(`최대 ${MAX_ROOMS}개까지만 만들 수 있어요.`);
-    }
-  };
+  // 아모라에게 중재 요청
+  const requestMediation = useCallback(() => {
+    setShowMediationBanner(false);
+    setMediationDismissed(true);
+    setMessageTarget("ai");
 
-  const handleClearRoom = async () => {
+    // 최근 partner 대화 주제를 간단히 추출
+    const recentPartnerMsgs = messages
+      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
+      .slice(-3);
+    const lastTopic = recentPartnerMsgs.length > 0
+      ? recentPartnerMsgs[recentPartnerMsgs.length - 1].content.slice(0, 30)
+      : "결혼 준비";
+
+    // 자동 메시지 전송
+    handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
+  }, [messages, handleSend]);
+
+  const handleClear = async () => {
     if (!coupleId) return;
-    greetingRequestedForRoom.current.delete(activeRoomId);
-    await clearRoom(coupleId, activeRoomId);
+    greetingRequested.current = false;
+    await clearMessages(coupleId);
     setShowClearConfirm(false);
-  };
-
-  const handleDeleteRoom = async (roomId: string) => {
-    if (!coupleId) return;
-    await deleteRoom(coupleId, roomId);
-    greetingRequestedForRoom.current.delete(roomId);
-    setShowDeleteConfirm(null);
-  };
-
-  const handleSwitchRoom = (roomId: string) => {
-    if (roomId === activeRoomId) return;
-    switchRoom(roomId);
   };
 
   // 데모 모드
@@ -332,12 +394,6 @@ export default function ChatPage() {
     );
   }
 
-  const allRoomTabs = [
-    { id: "default", title: defaultRoomTitle || "새 상담" },
-    ...rooms.map((r) => ({ id: r.id, title: r.title || "새 상담" })),
-  ];
-  const totalRooms = allRoomTabs.length;
-
   // 첨부 파일 아이콘 결정
   const getFileIcon = (mediaType: string) => {
     if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-6 h-6 text-[#4285F4]" />;
@@ -365,44 +421,8 @@ export default function ChatPage() {
       )}
 
     <div className="max-w-[800px] mx-auto h-full flex flex-col">
-      {/* 방 탭 바 */}
-      <div className="flex items-center gap-1.5 px-2 pb-2 pt-1 overflow-x-auto scrollbar-hide">
-        {allRoomTabs.map((tab) => (
-          <div key={tab.id} className="relative group flex-shrink-0">
-            <button
-              onClick={() => handleSwitchRoom(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeRoomId === tab.id
-                  ? "bg-[#1A1A1F] text-white shadow-sm"
-                  : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
-              }`}
-            >
-              <MessageSquare className="w-3 h-3" />
-              {tab.title}
-            </button>
-            {tab.id !== "default" && activeRoomId !== tab.id && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowDeleteConfirm(tab.id);
-                }}
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-400 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            )}
-          </div>
-        ))}
-
-        {totalRooms < MAX_ROOMS && (
-          <button
-            onClick={handleCreateRoom}
-            className="flex-shrink-0 w-7 h-7 rounded-lg border border-dashed border-[#B5ADA3] text-[#B5ADA3] flex items-center justify-center hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        )}
-
+      {/* 상단 바 */}
+      <div className="flex items-center justify-end gap-1.5 px-2 pb-2 pt-1">
         <button
           onClick={() => setInfoPanelOpen(!infoPanelOpen)}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
@@ -432,18 +452,7 @@ export default function ChatPage() {
           <p className="text-xs text-red-600">이 대화를 모두 삭제할까요?</p>
           <div className="flex gap-2">
             <button onClick={() => setShowClearConfirm(false)} className="px-3 py-1 text-xs rounded-lg bg-white border border-black/[0.06] text-[#928980] hover:bg-gray-50">취소</button>
-            <button onClick={handleClearRoom} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
-          </div>
-        </div>
-      )}
-
-      {/* 방 삭제 확인 모달 */}
-      {showDeleteConfirm && (
-        <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-          <p className="text-xs text-red-600">이 채팅방을 삭제할까요?</p>
-          <div className="flex gap-2">
-            <button onClick={() => setShowDeleteConfirm(null)} className="px-3 py-1 text-xs rounded-lg bg-white border border-black/[0.06] text-[#928980] hover:bg-gray-50">취소</button>
-            <button onClick={() => handleDeleteRoom(showDeleteConfirm)} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+            <button onClick={handleClear} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
           </div>
         </div>
       )}
@@ -485,12 +494,6 @@ export default function ChatPage() {
           </div>
         )}
 
-        {error && !isStreaming && (
-          <div className="mx-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -504,6 +507,37 @@ export default function ChatPage() {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* 갈등 중재 제안 배너 */}
+      {showMediationBanner && !isStreaming && (
+        <div className="px-2 pb-2">
+          <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-4 py-3.5 shadow-sm">
+            <button
+              onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
+              className="absolute top-2 right-2 w-5 h-5 rounded-full text-[#B5ADA3] hover:text-[#928980] flex items-center justify-center"
+            >
+              <X className="w-3 h-3" />
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] text-[#1A1A1F] leading-relaxed">
+                  혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
+                </p>
+                <button
+                  onClick={requestMediation}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  아모라에게 상담 요청하기
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -546,7 +580,35 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-2 p-2">
+        {/* 대상 토글 */}
+        <div className="flex items-center gap-1.5 mb-1.5 px-1">
+          <button
+            onClick={() => setMessageTarget("ai")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+              messageTarget === "ai"
+                ? "bg-[#1A1A1F] text-white shadow-sm"
+                : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            아모라에게
+          </button>
+          <button
+            onClick={() => setMessageTarget("partner")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+              messageTarget === "partner"
+                ? "bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-sm"
+                : "bg-white text-[#928980] border border-black/[0.06] hover:border-pink-400 hover:text-pink-400"
+            }`}
+          >
+            <Heart className="w-3 h-3" />
+            상대방에게
+          </button>
+        </div>
+
+        <div className={`bg-white rounded-2xl border shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-2 p-2 transition-colors ${
+          messageTarget === "partner" ? "border-pink-200" : "border-black/[0.06]"
+        }`}>
           {/* 파일 첨부 버튼 */}
           <input
             ref={fileInputRef}
@@ -575,16 +637,21 @@ export default function ChatPage() {
                 handleSend();
               }
             }}
-            placeholder="예산, 일정, 준비 현황 등 무엇이든 물어보세요..."
+            onPaste={handlePaste}
+            placeholder={messageTarget === "partner" ? "상대방에게 메시지를 보내세요..." : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."}
             disabled={isStreaming}
             className="flex-1 px-2 py-3 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className="w-11 h-11 rounded-xl bg-[#1A1A1F] flex items-center justify-center text-white hover:bg-[#2A2A2F] transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            className={`w-11 h-11 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+              messageTarget === "partner"
+                ? "bg-gradient-to-r from-pink-400 to-rose-400 hover:from-pink-500 hover:to-rose-500"
+                : "bg-[#1A1A1F] hover:bg-[#2A2A2F]"
+            }`}
           >
-            <Send className="w-[18px] h-[18px]" />
+            {messageTarget === "partner" ? <Heart className="w-[18px] h-[18px]" /> : <Send className="w-[18px] h-[18px]" />}
           </button>
         </div>
       </div>

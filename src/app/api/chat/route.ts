@@ -158,6 +158,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("couple_id")
+    .eq("id", user.id)
+    .single();
+
+  if (userProfile?.couple_id !== coupleId) {
+    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
   // 첨부파일 처리
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 

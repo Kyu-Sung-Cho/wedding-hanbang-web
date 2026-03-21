@@ -74,11 +74,14 @@ export interface ToolExecutionResult {
   displayMessage: string;
 }
 
+export type ChatMessageTarget = "ai" | "partner";
+
 export interface ChatMessageMetadata {
   roomId?: string;
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
   imageUrls?: string[];
+  target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게
 }
 
 export interface ChatMessage {

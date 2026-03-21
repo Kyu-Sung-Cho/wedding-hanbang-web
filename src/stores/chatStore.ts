@@ -7,6 +7,7 @@ import type {
   MessageSenderRole,
   ToolExecutionResult,
   ChatMessageMetadata,
+  ChatMessageTarget,
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { useAuthStore } from "./authStore";
@@ -30,6 +31,7 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
     images?: Array<{ base64: string; mediaType: string; previewUrl: string }>;
+    target?: ChatMessageTarget;
   }) => Promise<void>;
   requestInitialGreeting: (params: {
     coupleId: string;
@@ -359,10 +361,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   sendMessage: async ({
-    content, senderId, senderRole, coupleId, senderName, weddingContext, images,
+    content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai",
   }) => {
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
+
+    // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
+    const msgMetadata = target === "partner" ? { target: "partner" as const } : null;
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
     const imageUrls: string[] = [];
@@ -392,6 +397,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
     }
 
+    // 이미지 URL이 있으면 메타데이터에 추가
+    const finalMetadata = imageUrls.length > 0
+      ? { ...msgMetadata, imageUrls }
+      : msgMetadata;
+
     if (!isDemo) {
       const { data: inserted, error: insertErr } = await supabase
         .from("chat_messages")
@@ -401,7 +411,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           sender_type: senderRole,
           role: "user",
           content,
-          metadata: null,
+          metadata: finalMetadata,
         })
         .select()
         .single();
@@ -422,22 +432,28 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         sender_id: senderId,
         sender_role: senderRole,
         content,
-        metadata: null,
+        metadata: finalMetadata,
         created_at: new Date().toISOString(),
       };
       set((s) => ({ messages: [...s.messages, demoMsg] }));
     }
 
+    // 상대방에게 보내는 메시지는 AI 호출 안 함
+    if (target === "partner") return;
+
     // AI 응답
     set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
 
     try {
-      const recentMessages = get().messages.slice(-20).map((m) => ({
-        role: m.sender_role === "ai" ? "assistant" : "user",
-        content: m.sender_role === "ai"
-          ? m.content
-          : `[${m.sender_role === "bride" ? "신부" : "신랑"}] ${m.content}`,
-      }));
+      const recentMessages = get().messages.slice(-20).map((m) => {
+        if (m.sender_role === "ai") {
+          return { role: "assistant" as const, content: m.content };
+        }
+        const roleLabel = m.sender_role === "bride" ? "신부" : "신랑";
+        const isPartner = m.metadata?.target === "partner";
+        const prefix = isPartner ? `[${roleLabel}→상대방]` : `[${roleLabel}]`;
+        return { role: "user" as const, content: `${prefix} ${m.content}` };
+      });
 
       // 180초 타임아웃 (Vercel Pro maxDuration=300초)
       const abortController = new AbortController();

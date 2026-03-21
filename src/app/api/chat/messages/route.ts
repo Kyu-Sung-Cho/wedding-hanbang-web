@@ -2,6 +2,22 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+// 사용자가 해당 커플에 속하는지 검증
+async function verifyCoupleOwnership(userId: string, coupleId: string): Promise<boolean> {
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("couple_id")
+    .eq("id", userId)
+    .single();
+
+  return profile?.couple_id === coupleId;
+}
+
 // 커플의 전체 채팅 메시지 삭제
 export async function DELETE(request: Request) {
   try {
@@ -25,6 +41,12 @@ export async function DELETE(request: Request) {
 
     if (!coupleId) {
       return NextResponse.json({ error: "coupleId가 필요합니다." }, { status: 400 });
+    }
+
+    // 해당 커플에 속하는지 검증
+    const isOwner = await verifyCoupleOwnership(user!.id, coupleId);
+    if (!isOwner) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
     const admin = createAdminClient(

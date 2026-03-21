@@ -471,8 +471,8 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   );
 }
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-const FREE_PART_LIMIT = 2;
+const isComingSoon = false;
+const FREE_PART_LIMIT = 25;
 
 export default function EtiquettePage() {
   return (
