@@ -481,6 +481,21 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
   {
+    name: "cancel_booking",
+    description:
+      "예약을 취소합니다. 고객이 예약 취소를 요청하면 사용합니다. 메시지에 [booking:ID] 태그가 있으면 해당 값을 사용하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        booking_id: {
+          type: "string",
+          description: "예약 ID",
+        },
+      },
+      required: ["booking_id"],
+    },
+  },
+  {
     name: "get_market_price",
     description:
       "한국소비자원 웨딩 시세 데이터를 조회합니다. 고객이 '스드메 시세가 어떻게 돼?', '서울 예식장 평균 비용', '드레스 얼마가 적정해?' 같은 질문을 할 때 사용합니다.",

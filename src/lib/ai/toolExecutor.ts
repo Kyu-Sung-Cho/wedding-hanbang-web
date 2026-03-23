@@ -135,6 +135,8 @@ export async function executeTool(
         return await executeGetAvailableSlots(toolInput);
       case "create_booking":
         return await executeCreateBooking(toolInput, context);
+      case "cancel_booking":
+        return await executeCancelBooking(toolInput, context);
       case "get_market_price":
         return executeGetMarketPrice(toolInput);
       case "search_nearby_places":
@@ -1518,6 +1520,81 @@ async function executeCreateBooking(
     },
     success: true,
     displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})`,
+  };
+}
+
+// ===== 예약 취소 =====
+async function executeCancelBooking(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const bookingId = input.booking_id as string;
+
+  // 예약 조회 (본인 커플의 예약인지 확인)
+  const { data: booking, error: fetchError } = await admin
+    .from("vendor_bookings")
+    .select("id, vendor_id, product_id, booking_date, booking_time, status")
+    .eq("id", bookingId)
+    .eq("couple_id", ctx.coupleId)
+    .single();
+
+  if (fetchError || !booking) {
+    return {
+      toolName: "cancel_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "예약을 찾을 수 없거나 권한이 없습니다.",
+    };
+  }
+
+  if (booking.status === "cancelled") {
+    return {
+      toolName: "cancel_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "이미 취소된 예약입니다.",
+    };
+  }
+
+  // 취소 불가 상태 체크
+  const nonCancellable = ["in_service", "service_completed", "settled", "completed"];
+  if (nonCancellable.includes(booking.status)) {
+    return {
+      toolName: "cancel_booking", toolInput: input,
+      toolOutput: {}, success: false,
+      displayMessage: "진행 중이거나 완료된 예약은 취소할 수 없습니다. 업체에 직접 문의해주세요.",
+    };
+  }
+
+  // 예약 취소
+  const { error: updateError } = await admin
+    .from("vendor_bookings")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", bookingId);
+
+  if (updateError) throw updateError;
+
+  // 업체/상품 이름 조회
+  const { data: vendor } = await admin.from("vendors").select("name").eq("id", booking.vendor_id).single();
+  const vendorName = vendor?.name ?? "업체";
+  let productName = "";
+  if (booking.product_id) {
+    const { data: product } = await admin.from("vendor_products").select("name").eq("id", booking.product_id).single();
+    productName = product?.name ?? "";
+  }
+
+  return {
+    toolName: "cancel_booking",
+    toolInput: input,
+    toolOutput: {
+      bookingId,
+      vendorName,
+      productName,
+      date: booking.booking_date,
+      time: booking.booking_time,
+      status: "cancelled",
+    },
+    success: true,
+    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})`,
   };
 }
 

@@ -16,6 +16,7 @@ import {
   Phone,
   ExternalLink,
   MessageSquareText,
+  X,
 } from "lucide-react";
 
 // 업체 관련 tool 이름 집합
@@ -26,6 +27,7 @@ export const VENDOR_TOOL_NAMES = new Set([
   "get_available_slots",
   "check_vendor_availability",
   "create_booking",
+  "cancel_booking",
   "search_nearby_places",
 ]);
 
@@ -52,7 +54,9 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
     case "check_vendor_availability":
       return <TimeslotPicker result={result} onSend={onSend} disabled={disabled} />;
     case "create_booking":
-      return <BookingConfirmCard result={result} />;
+      return <BookingConfirmCard result={result} onSend={onSend} disabled={disabled} />;
+    case "cancel_booking":
+      return <BookingCancelCard result={result} />;
     case "search_nearby_places":
       return <PlaceCards result={result} />;
     default:
@@ -512,7 +516,9 @@ function TimeslotPicker({
 
 // ── D. 예약 확인 카드 ──
 
-function BookingConfirmCard({ result }: { result: ToolExecutionResult }) {
+function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutionResult; onSend?: (text: string) => void; disabled?: boolean }) {
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
   const output = result.toolOutput as {
     bookingId: string;
     vendorName: string;
@@ -538,17 +544,31 @@ function BookingConfirmCard({ result }: { result: ToolExecutionResult }) {
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
   const dateLabel = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]})`;
 
+  const handleCancel = () => {
+    setCancelled(true);
+    setShowCancelConfirm(false);
+    onSend?.(`예약 취소해줘 [booking:${output.bookingId}]`);
+  };
+
   return (
     <div className="flex justify-start ml-12 my-2">
-      <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white shadow-sm w-full max-w-[400px] overflow-hidden">
+      <div className={`rounded-xl border shadow-sm w-full max-w-[400px] overflow-hidden ${
+        cancelled ? "border-gray-200 bg-gray-50" : "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white"
+      }`}>
         {/* 헤더 */}
         <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+            cancelled ? "bg-gray-400" : "bg-emerald-500"
+          }`}>
             <CheckCircle2 className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-[#1A1A1F]">예약이 접수되었습니다!</p>
-            <p className="text-[10px] text-[#928980]">업체 확인 후 최종 확정됩니다</p>
+            <p className="text-[13px] font-semibold text-[#1A1A1F]">
+              {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다!"}
+            </p>
+            <p className="text-[10px] text-[#928980]">
+              {cancelled ? "취소 처리 중입니다" : "업체 확인 후 최종 확정됩니다"}
+            </p>
           </div>
         </div>
 
@@ -583,6 +603,103 @@ function BookingConfirmCard({ result }: { result: ToolExecutionResult }) {
               <span className="text-[11px] font-medium text-[#1A1A1F] ml-auto">
                 {dateLabel} {output.time}
               </span>
+            </div>
+          </div>
+
+          {/* 취소 버튼 */}
+          {!cancelled && (
+            <div className="mt-2">
+              {showCancelConfirm ? (
+                <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                  <p className="text-[11px] text-red-600">예약을 취소할까요?</p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setShowCancelConfirm(false)}
+                      className="px-2.5 py-1 text-[10px] rounded-md bg-white border border-black/[0.06] text-[#928980]"
+                    >
+                      아니요
+                    </button>
+                    <button
+                      onClick={handleCancel}
+                      disabled={disabled}
+                      className="px-2.5 py-1 text-[10px] rounded-md bg-red-500 text-white disabled:opacity-40"
+                    >
+                      취소하기
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={disabled}
+                  className="text-[10px] text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
+                >
+                  예약 취소
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── D-2. 예약 취소 확인 카드 ──
+
+function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
+  const output = result.toolOutput as {
+    bookingId: string;
+    vendorName: string;
+    productName: string;
+    date: string;
+    time: string;
+    status: string;
+  };
+
+  if (!result.success) {
+    return (
+      <div className="flex justify-start ml-12 my-2">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm max-w-[400px]">
+          <p className="text-[12px] text-red-600">{result.displayMessage}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const d = new Date(output.date);
+  const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+  const dateLabel = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]})`;
+
+  return (
+    <div className="flex justify-start ml-12 my-2">
+      <div className="rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-white shadow-sm w-full max-w-[400px] overflow-hidden">
+        <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-gray-400 flex items-center justify-center">
+            <X className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold text-[#1A1A1F]">예약이 취소되었습니다</p>
+          </div>
+        </div>
+        <div className="px-4 pb-3">
+          <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3 h-3 text-[#928980]" />
+              <span className="text-[11px] text-[#928980]">업체</span>
+              <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{output.vendorName}</span>
+            </div>
+            {output.productName && (
+              <div className="flex items-center gap-2">
+                <Package className="w-3 h-3 text-[#928980]" />
+                <span className="text-[11px] text-[#928980]">상품</span>
+                <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{output.productName}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Clock className="w-3 h-3 text-[#928980]" />
+              <span className="text-[11px] text-[#928980]">일시</span>
+              <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
         </div>

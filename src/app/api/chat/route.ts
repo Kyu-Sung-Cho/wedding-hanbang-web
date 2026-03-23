@@ -346,7 +346,7 @@ export async function POST(request: Request) {
           // UI 카드로 자동 렌더링되는 도구 목록
           const UI_RENDERED_TOOLS = new Set([
             "search_vendors", "recommend_vendors", "get_vendor_detail",
-            "get_available_slots", "create_booking", "search_nearby_places",
+            "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
           ]);
 
           const toolResultContents: ContentBlockParam[] = [];
