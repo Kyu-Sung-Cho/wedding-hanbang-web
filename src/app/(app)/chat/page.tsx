@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw } from "lucide-react";
 import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -13,6 +13,8 @@ import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 
 const MAX_ATTACHMENTS = 5;
+// 메시지 수가 이 이상이면 새 채팅 시작 안내
+const NEW_CHAT_THRESHOLD = 50;
 
 // 허용 파일 타입
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
@@ -53,6 +55,7 @@ export default function ChatPage() {
   } = useChatStore();
   const [input, setInput] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showNewChatBanner, setShowNewChatBanner] = useState(false);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +77,13 @@ export default function ChatPage() {
       unsubscribe();
     };
   }, [coupleId, isDemo, loadMessages, subscribeToMessages]);
+
+  // 메시지가 threshold 넘으면 새 채팅 안내
+  useEffect(() => {
+    if (messages.length >= NEW_CHAT_THRESHOLD && !showNewChatBanner) {
+      setShowNewChatBanner(true);
+    }
+  }, [messages.length, showNewChatBanner]);
 
   // 메시지 0개 + 로딩 완료 시 AI 첫 인사
   useEffect(() => {
@@ -349,11 +359,12 @@ export default function ChatPage() {
     handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
   }, [messages, handleSend]);
 
-  const handleClear = async () => {
+  const handleNewChat = async () => {
     if (!coupleId) return;
     greetingRequested.current = false;
     await clearMessages(coupleId);
     setShowClearConfirm(false);
+    setShowNewChatBanner(false);
   };
 
   // 데모 모드
@@ -421,38 +432,58 @@ export default function ChatPage() {
       )}
 
     <div className="max-w-[800px] mx-auto h-full flex flex-col">
-      {/* 상단 바 */}
-      <div className="flex items-center justify-end gap-1.5 px-2 pb-2 pt-1">
-        <button
-          onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
-            infoPanelOpen
-              ? "text-[#C4967E] bg-[#C4967E]/10"
-              : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
-          }`}
-        >
-          <PanelRightOpen className="w-3 h-3" />
-          정보
-        </button>
-
-        {messages.length > 0 && (
+      {/* 상단 툴바 */}
+      <div className="flex items-center justify-between px-2 pb-2 pt-1">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-[#C4967E]" />
+          <span className="text-[13px] font-medium text-[#1A1A1F]">아모라 상담</span>
+          {messages.length > 0 && (
+            <span className="text-[10px] text-[#B5ADA3]">({messages.length})</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
           <button
-            onClick={() => setShowClearConfirm(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+            onClick={() => setInfoPanelOpen(!infoPanelOpen)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+              infoPanelOpen
+                ? "text-[#C4967E] bg-[#C4967E]/10"
+                : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
+            }`}
           >
-            <Trash2 className="w-3 h-3" />
-            초기화
+            <PanelRightOpen className="w-3 h-3" />
+            정보
           </button>
-        )}
+
+          {messages.length > 0 && (
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              새 채팅
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
+      {showNewChatBanner && !isStreaming && (
+        <div className="mx-2 mb-2 p-3 rounded-xl bg-[#C4967E]/5 border border-[#C4967E]/20 flex items-center justify-between">
+          <p className="text-xs text-[#9A6B62]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
+          <div className="flex gap-2 flex-shrink-0 ml-3">
+            <button onClick={() => setShowNewChatBanner(false)} className="px-3 py-1 text-xs rounded-lg bg-white border border-black/[0.06] text-[#928980] hover:bg-gray-50">괜찮아요</button>
+            <button onClick={handleNewChat} className="px-3 py-1 text-xs rounded-lg bg-[#C4967E] text-white hover:bg-[#9A6B62]">새 채팅</button>
+          </div>
+        </div>
+      )}
 
       {/* 초기화 확인 */}
       {showClearConfirm && (
         <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-          <p className="text-xs text-red-600">이 대화를 모두 삭제할까요?</p>
+          <p className="text-xs text-red-600">대화를 모두 지우고 새로 시작할까요?</p>
           <div className="flex gap-2">
             <button onClick={() => setShowClearConfirm(false)} className="px-3 py-1 text-xs rounded-lg bg-white border border-black/[0.06] text-[#928980] hover:bg-gray-50">취소</button>
-            <button onClick={handleClear} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+            <button onClick={handleNewChat} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">새 채팅</button>
           </div>
         </div>
       )}

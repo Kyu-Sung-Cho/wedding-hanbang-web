@@ -471,8 +471,7 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   );
 }
 
-const isComingSoon = false;
-const FREE_PART_LIMIT = 25;
+const FREE_PART_LIMIT = 2;
 
 export default function EtiquettePage() {
   return (
@@ -483,6 +482,10 @@ export default function EtiquettePage() {
 }
 
 function EtiquettePageInner() {
+  const { isDemo, user } = useAuthStore();
+  // 로그인 유저 또는 데모 → 잠금 해제, 비로그인 방문자(coming_soon) → 잠금
+  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon" && !isDemo && !user;
+
   const searchParams = useSearchParams();
   const [selectedPart, setSelectedPart] = useState(() => {
     const partParam = searchParams.get("part");
