@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
@@ -198,26 +198,37 @@ function VendorDetailCard({
 
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   const products = output.products ?? [];
   const staff = output.staff ?? [];
+  const hasStaff = staff.length > 0;
 
-  const handleConfirm = () => {
-    if (!selectedProduct) return;
-    const product = products.find((p) => p.id === selectedProduct);
-    const staffMember = staff.find((s) => s.id === selectedStaff);
+  const handleConfirm = useCallback((productId: string, staffId: string | null) => {
+    if (confirmed) return;
+    setConfirmed(true);
+    const product = products.find((p) => p.id === productId);
+    const staffMember = staffId ? staff.find((s) => s.id === staffId) : null;
 
     const tags = [
       `[vendor:${output.vendorId}]`,
-      `[product:${selectedProduct}]`,
-      selectedStaff ? `[staff:${selectedStaff}]` : "",
+      `[product:${productId}]`,
+      staffId ? `[staff:${staffId}]` : "",
     ].filter(Boolean).join("");
 
     const productLabel = product?.name ?? "상품";
     const staffLabel = staffMember ? staffMember.name : "스태프 미지정";
 
     onSend?.(`${productLabel}, ${staffLabel} 선택했어요 ${tags}`);
-  };
+  }, [confirmed, products, staff, output.vendorId, onSend]);
+
+  // 스태프 없으면 상품 선택 시 바로 진행
+  const handleProductSelect = useCallback((productId: string) => {
+    setSelectedProduct(productId);
+    if (!hasStaff) {
+      handleConfirm(productId, null);
+    }
+  }, [hasStaff, handleConfirm]);
 
   return (
     <div className="flex justify-start ml-12 my-2">
@@ -225,7 +236,7 @@ function VendorDetailCard({
         {/* 헤더 */}
         <div className="px-4 py-3 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <p className="text-[13px] font-semibold text-[#1A1A1F]">{output.vendorName}</p>
-          <p className="text-[10px] text-[#928980] mt-0.5">상품과 스태프를 선택해 주세요</p>
+          <p className="text-[10px] text-[#928980] mt-0.5">{hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}</p>
         </div>
 
         {/* 상품 선택 */}
@@ -244,8 +255,8 @@ function VendorDetailCard({
                 return (
                   <button
                     key={p.id}
-                    onClick={() => setSelectedProduct(p.id)}
-                    disabled={disabled}
+                    onClick={() => handleProductSelect(p.id)}
+                    disabled={disabled || confirmed}
                     className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5"
@@ -314,60 +325,64 @@ function VendorDetailCard({
           )}
         </div>
 
-        {/* 스태프 선택 */}
-        <div className="px-4 pt-2 pb-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Users className="w-3.5 h-3.5 text-[#C4967E]" />
-            <span className="text-[11px] font-semibold text-[#1A1A1F]">스태프 선택</span>
-          </div>
+        {/* 스태프 선택 (스태프가 있을 때만 표시) */}
+        {hasStaff && (
+          <div className="px-4 pt-2 pb-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Users className="w-3.5 h-3.5 text-[#C4967E]" />
+              <span className="text-[11px] font-semibold text-[#1A1A1F]">스태프 선택</span>
+            </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {staff.map((s) => {
-              const isSelected = selectedStaff === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedStaff(isSelected ? null : s.id)}
-                  disabled={disabled}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
-                    ${isSelected
-                      ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
-                      : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
-                    } disabled:opacity-40`}
-                >
-                  {s.name}
-                  {s.role && <span className="text-[10px] opacity-70 ml-1">{s.role}</span>}
-                </button>
-              );
-            })}
+            <div className="flex flex-wrap gap-1.5">
+              {staff.map((s) => {
+                const isSelected = selectedStaff === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStaff(isSelected ? null : s.id)}
+                    disabled={disabled || confirmed}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
+                      ${isSelected
+                        ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
+                        : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
+                      } disabled:opacity-40`}
+                  >
+                    {s.name}
+                    {s.role && <span className="text-[10px] opacity-70 ml-1">{s.role}</span>}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setSelectedStaff(null)}
+                disabled={disabled || confirmed}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
+                  ${selectedStaff === null
+                    ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
+                    : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
+                  } disabled:opacity-40`}
+              >
+                상관없음
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 확인 버튼 (스태프 있을 때만, 스태프 선택 후 진행) */}
+        {hasStaff && (
+          <div className="px-4 pb-3">
             <button
-              onClick={() => setSelectedStaff(null)}
-              disabled={disabled}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
-                ${selectedStaff === null
-                  ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
-                  : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
-                } disabled:opacity-40`}
+              onClick={() => handleConfirm(selectedProduct!, selectedStaff)}
+              disabled={disabled || !selectedProduct || confirmed}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                bg-[#1A1A1F] text-white text-[12px] font-medium
+                hover:bg-[#2A2A2F] active:scale-[0.98]
+                disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
-              상관없음
+              <Calendar className="w-3.5 h-3.5" />
+              예약 가능 시간 확인
             </button>
           </div>
-        </div>
-
-        {/* 확인 버튼 */}
-        <div className="px-4 pb-3">
-          <button
-            onClick={handleConfirm}
-            disabled={disabled || !selectedProduct}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-              bg-[#1A1A1F] text-white text-[12px] font-medium
-              hover:bg-[#2A2A2F] active:scale-[0.98]
-              disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            예약 가능 시간 확인
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

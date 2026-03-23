@@ -77,7 +77,7 @@ export async function chatWithToolsStream(options: {
   const { systemPrompt, messages, tools, onTextDelta, maxTokens = 2048 } = options;
 
   const stream = anthropic.messages.stream({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: maxTokens,
     system: systemPrompt,
     messages,
