@@ -122,65 +122,114 @@ export default function ChatPage() {
   useEffect(() => {
     if (mediationDismissed) return;
 
-    // 가중치 기반 키워드 (높을수록 갈등 확률 높음)
-    const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
-      // 5점: 직접적 커플 갈등 표현 (거의 확실)
-      { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
-      // 4점: 강한 감정 + 상대방 향한 불만
-      { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
-      // 3점: 결혼 준비 관련 의견 충돌
-      { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
-      // 2점: 감정 표현 (혼자 스트레스일 수도 있음)
-      { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
-      // 1점: 약한 부정 (일상 대화에서도 흔함 → 단독으로는 갈등 아님)
-      { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
+    // ── 갈등 시그널 정의 ──
+    // 카테고리별로 분리 → 복수 카테고리에서 감지되어야 판정
+    const CONFLICT_CATEGORIES: { id: string; patterns: string[]; weight: number }[] = [
+      // A. 직접적 싸움/단절 표현 (거의 확실)
+      {
+        id: "fight",
+        weight: 5,
+        patterns: [
+          "싸우자", "싸웠어", "싸운 거", "크게 싸", "다퉜어", "다투고",
+          "말 안 해", "말 안해", "말을 안 해", "연락 끊",
+          "무시하지 마", "무시하는 거", "무시당하",
+          "대화가 안 돼", "대화가 안돼", "말이 안 통해", "소통이 안",
+          "이해를 못 해", "이해를 안 해",
+        ],
+      },
+      // B. 상대방 향한 직접 비난/불만 (2인칭 + 부정)
+      {
+        id: "blame",
+        weight: 4,
+        patterns: [
+          "왜 맨날 너만", "나만 양보", "너는 맨날", "너만 맨날",
+          "맨날 나한테", "내 말은 안 듣", "내 말을 안 듣",
+          "관심이 없는 거", "관심도 없", "신경도 안 써",
+          "니가 알아서 해", "너 혼자 해", "나 몰라",
+          "왜 항상 나만", "너는 왜 그래",
+        ],
+      },
+      // C. 결혼 준비 강한 의견 대립 (구문 단위, 단독 단어 X)
+      {
+        id: "disagree",
+        weight: 3,
+        patterns: [
+          "난 절대 반대", "나는 반대야", "절대 안 돼", "절대 안돼",
+          "그건 절대 싫", "왜 꼭 그걸", "왜 그걸 해야",
+          "말도 안 되는", "말이 되냐", "말이 돼?",
+          "돈이 어디서 나", "돈이 어디 있", "그 돈으로 뭘",
+          "내가 언제 그랬", "그렇게 정한 적 없",
+        ],
+      },
+      // D. 관계 향한 감정 표현 (상대방 언급 + 감정)
+      {
+        id: "emotion",
+        weight: 2,
+        patterns: [
+          "너 때문에 속상", "너한테 서운", "서운한 게", "서운했어",
+          "답답해 진짜", "진짜 답답", "너무 답답",
+          "화가 나", "화나는", "너 때문에 화",
+          "짜증나 진짜", "진짜 짜증", "너무 짜증",
+          "지쳤어 이제", "진짜 지쳤", "너무 힘들어",
+        ],
+      },
     ];
 
-    // 최근 partner 메시지만 (최근 6개)
+    // 최근 partner 메시지만 (최근 8개)
     const recentPartnerMsgs = messages
       .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-6);
+      .slice(-8);
 
-    // 조건 1: 최소 partner 메시지 3개 이상 (대화가 오가야 갈등)
-    if (recentPartnerMsgs.length < 3) {
+    // 조건 1: 최소 partner 메시지 4개 이상 (충분히 대화가 오가야)
+    if (recentPartnerMsgs.length < 4) {
       setShowMediationBanner(false);
       return;
     }
 
-    // 조건 2: 양쪽 다 메시지가 있어야 함 (한 명만 말하면 일방적 대화)
+    // 조건 2: 양쪽 다 메시지가 있어야 함
     const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
-    const bothSides = senders.size >= 2;
+    if (senders.size < 2) {
+      setShowMediationBanner(false);
+      return;
+    }
 
-    // 점수 계산
+    // 점수 계산 + 카테고리 추적
     let totalScore = 0;
     let messagesWithConflict = 0;
+    const hitCategories = new Set<string>();
+    const senderHits: Record<string, number> = {}; // 양쪽 다 부정적인지
 
     for (const msg of recentPartnerMsgs) {
       let msgScore = 0;
-      for (const signal of CONFLICT_SIGNALS) {
-        for (const kw of signal.keywords) {
-          if (msg.content.includes(kw)) {
-            msgScore += signal.weight;
-            break; // 같은 가중치 그룹에서 한 번만 카운트
+      for (const cat of CONFLICT_CATEGORIES) {
+        for (const pattern of cat.patterns) {
+          if (msg.content.includes(pattern)) {
+            msgScore += cat.weight;
+            hitCategories.add(cat.id);
+            break;
           }
         }
       }
       if (msgScore > 0) {
         messagesWithConflict++;
         totalScore += msgScore;
+        const role = msg.sender_role ?? "unknown";
+        senderHits[role] = (senderHits[role] || 0) + 1;
       }
     }
 
-    // 양쪽이 대화 중이면 점수 1.5배 (진짜 갈등일 확률 높음)
-    if (bothSides) totalScore = Math.round(totalScore * 1.5);
+    // 양쪽 다 부정적 메시지가 있으면 가산 (진짜 갈등)
+    const bothNegative = Object.keys(senderHits).length >= 2;
+    if (bothNegative) totalScore = Math.round(totalScore * 1.5);
 
-    // 판정 기준:
-    // - 5점짜리 키워드 1개만 있어도 → 바로 (5 × 1.5 = 7.5)
-    // - 3점짜리 2개 + 양쪽 대화 → 바로 (6 × 1.5 = 9)
-    // - 2점짜리만 여러 개 → 4개 이상이어야 (8 × 1.5 = 12, 보수적)
-    // - 1점짜리만 → 절대 안 뜸 (1 × 6 × 1.5 = 9 안 됨, messagesWithConflict 조건)
-    const THRESHOLD = 7;
-    const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
+    // ── 최종 판정 (3중 조건) ──
+    // 1) 총점 10점 이상 (기존 7→10 상향)
+    // 2) 갈등 메시지 2개 이상
+    // 3) 2개 이상 카테고리에서 감지 (한 종류만으론 부족)
+    //    단, fight(A) 카테고리는 단독으로도 허용 (명백한 싸움)
+    const THRESHOLD = 10;
+    const multiCategory = hitCategories.size >= 2 || hitCategories.has("fight");
+    const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2 && multiCategory;
 
     setShowMediationBanner(isConflict);
   }, [messages, mediationDismissed]);
