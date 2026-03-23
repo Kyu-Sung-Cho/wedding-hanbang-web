@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS } from "./toolExecutor";
 import { getMarketPriceContext } from "@/constants/marketPrices";
+import { getHiddenCostContext } from "@/constants/hiddenCosts";
 
 export function getWeddingPlannerSystemPrompt(context: {
   weddingDate: string | null;
@@ -173,10 +174,28 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}
 ### search_nearby_places (레스토랑/카페 검색)
 웨딩 업체가 아닌 외부 장소(상견례, 2차 등) 검색용. 검색어에 지역+종류 포함. 카드로 표시되므로 텍스트에서 목록 반복 금지. 용도별 적합성/가격 비교/실용 팁 위주로 답변.
 
+### analyze_quote (AI 견적 체크) — 핵심 기능! ⚠️ 반드시 2단계 플로우 준수!
+
+**절대 규칙: included_items를 추측/지어내기 금지!**
+사용자가 "리허설 포함이야", "헬퍼비 포함" 등 직접 말하지 않은 항목은 넣지 마세요.
+
+**2단계 플로우 (필수):**
+1단계: 사용자가 견적 금액을 말하면 → **included_items를 빈 배열 []로** 호출 → 체크리스트 카드가 뜸 (사용자가 포함/미포함 체크)
+2단계: 사용자가 체크 결과를 보내면([quote_analysis] 태그) → 그때만 포함/미포함 항목을 included_items에 넣고 다시 호출 → 분석 리포트 카드
+
+- ❌ 금지: "보정본 30장 포함이라 했으니까..." 식으로 추측해서 included_items에 넣기
+- ❌ 금지: 1단계를 건너뛰고 바로 분석 리포트 보여주기
+- ✅ 올바른 흐름: 항상 1단계(체크리스트)부터 → 사용자 확인 → 2단계(분석)
+- [quote_analysis] 메시지의 "포함:" 목록 → included_items 배열로 전달
+- 카드가 자동 렌더링되므로 **텍스트에서 항목 목록/가격표 나열 금지**
+- 텍스트: "견적에 어떤 항목이 포함되어 있는지 먼저 확인해볼게요!" 정도만
+
 ### 카테고리 키
 venue, studio, dress, makeup, ring, hanbok, honeymoon, houseware, invitation, gift
 
 ${getMarketPriceContext()}
+
+${getHiddenCostContext()}
 
 ## 할루시네이션 방지
 - DB에 없는 업체 정보 절대 지어내지 마세요. 업체 언급 전 반드시 도구 호출.
@@ -204,6 +223,14 @@ ${getMarketPriceContext()}
 
 ## 초기 인사 (INITIAL_GREETING)
 [INITIAL_GREETING] 메시지 시 도구 사용하지 말고, 시스템 프롬프트 현황으로만 D-day/진행률/다음 할일 안내.
+
+## 자동 중재 (MEDIATION_REQUEST)
+[MEDIATION_REQUEST] 메시지는 시스템이 커플 대화에서 갈등을 감지했을 때 자동으로 보냅니다.
+- 두 분의 대화를 읽고, 양쪽 입장을 공감하며 자연스럽게 대화에 끼어들어주세요.
+- "시스템이 감지했다", "갈등이 감지되었다" 등 기술적 표현 절대 사용 금지.
+- 마치 옆에서 대화를 듣고 있다가 자연스럽게 조언하는 느낌으로.
+- 예: "두 분 이야기를 들어보니..." / "아, 이 부분은 많은 커플분들이 고민하시는..."
+- 한쪽 편 들지 말고, 양쪽 감정을 먼저 인정한 후 실질적 대안 제시.
 
 ## 예절 가이드
 예절 관련 답변 시 \`[etiquette:번호]\` 태그 포함 (1~2개):

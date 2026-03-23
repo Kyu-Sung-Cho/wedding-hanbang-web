@@ -547,4 +547,39 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["query"],
     },
   },
+  // 견적 분석 (AI 견적 체크)
+  {
+    name: "analyze_quote",
+    description:
+      "스드메 견적을 분석합니다. **중요: 2단계 플로우!** 1단계: 사용자가 견적 금액을 말하면 included_items를 반드시 빈 배열([])로 호출 → 체크리스트 카드가 표시됨. 2단계: 사용자가 [quote_analysis] 태그로 체크 결과를 보내면 그때 included_items에 항목을 넣어 재호출. 절대 included_items를 추측해서 넣지 마세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        quote_price: {
+          type: "number",
+          description: "견적 금액 (만원 단위). 예: 290 = 290만원",
+        },
+        category: {
+          type: "string",
+          enum: ["sdm_package", "studio", "dress", "makeup"],
+          description: "견적 카테고리. sdm_package=스드메 패키지, studio=스튜디오만, dress=드레스만, makeup=메이크업만",
+        },
+        region: {
+          type: "string",
+          enum: ["seoul", "gyeonggi", "busan", "daegu", "other"],
+          description: "지역. 기본값: seoul",
+        },
+        included_items: {
+          type: "array",
+          items: { type: "string" },
+          description: "견적 포함 항목. **1단계에서는 반드시 빈 배열 []로 호출하세요.** 2단계([quote_analysis] 태그 메시지)에서만 사용자가 체크한 항목을 넣으세요. 추측 금지.",
+        },
+        vendor_name: {
+          type: "string",
+          description: "업체명 (선택). 비교 분석에 사용.",
+        },
+      },
+      required: ["quote_price", "category"],
+    },
+  },
 ];

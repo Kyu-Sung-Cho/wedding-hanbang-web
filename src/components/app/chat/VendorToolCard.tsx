@@ -18,6 +18,7 @@ import {
   MessageSquareText,
   X,
 } from "lucide-react";
+import QuoteAnalysisCard from "./QuoteAnalysisCard";
 
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
@@ -29,6 +30,7 @@ export const VENDOR_TOOL_NAMES = new Set([
   "create_booking",
   "cancel_booking",
   "search_nearby_places",
+  "analyze_quote",
 ]);
 
 interface VendorToolCardProps {
@@ -59,6 +61,8 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <BookingCancelCard result={result} />;
     case "search_nearby_places":
       return <PlaceCards result={result} />;
+    case "analyze_quote":
+      return <QuoteAnalysisCard result={result} onSend={onSend} disabled={disabled} />;
     default:
       return null;
   }

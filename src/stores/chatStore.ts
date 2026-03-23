@@ -39,6 +39,13 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
   }) => Promise<void>;
+  requestMediation: (params: {
+    coupleId: string;
+    senderRole: MessageSenderRole;
+    senderName: string;
+    weddingContext: WeddingContext;
+    conflictContext: string;
+  }) => Promise<void>;
   clearMessages: (coupleId: string) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
@@ -587,6 +594,87 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
     } catch (err) {
       console.error("초기 인사 에러:", err);
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      set({
+        error: isAbort
+          ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
+          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
+      });
+    } finally {
+      clearTimeout(fetchTimeout);
+      set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
+    }
+  },
+
+  // 갈등 중재: 커플 대화 중 아모라가 자동 개입
+  requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
+    if (get().isStreaming) return;
+
+    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
+
+    const abortController = new AbortController();
+    const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
+
+    try {
+      // 최근 메시지를 포함해서 AI가 맥락을 이해할 수 있도록
+      const recentMessages = get().messages.slice(-20).map((m) => {
+        if (m.sender_role === "ai") {
+          return { role: "assistant" as const, content: m.content };
+        }
+        const roleLabel = m.sender_role === "bride" ? "신부" : "신랑";
+        const isPartner = m.metadata?.target === "partner";
+        const prefix = isPartner ? `[${roleLabel}→상대방]` : `[${roleLabel}]`;
+        return { role: "user" as const, content: `${prefix} ${m.content}` };
+      });
+
+      // 중재 요청 메시지 추가
+      const roleLabel = senderRole === "bride" ? "신부" : "신랑";
+      recentMessages.push({
+        role: "user" as const,
+        content: `[${roleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등/의견 차이가 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${conflictContext}`,
+      });
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: recentMessages,
+          coupleId, senderName, senderRole, weddingContext,
+        }),
+        signal: abortController.signal,
+      });
+
+      clearTimeout(fetchTimeout);
+
+      if (!res.ok) throw new Error("AI 중재 요청 실패");
+
+      let fullContent = "";
+      let finalMetadata: ChatMessageMetadata | null = null;
+      let gotDone = false;
+
+      await parseSSEStream(res, {
+        onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
+        onTextClear: () => set({ streamingContent: "" }),
+        onToolResult: (result) => {
+          syncToolResult(result);
+          set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
+        },
+        onSuggestions: (sug) => set({ suggestions: sug }),
+        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
+        onError: (msg) => set({ error: msg }),
+      });
+
+      if (!gotDone && !fullContent && !get().error) {
+        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+      }
+
+      if (fullContent) {
+        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
+        const isDemo = document.cookie.includes("demo_mode=true");
+        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
+      }
+    } catch (err) {
+      console.error("중재 요청 에러:", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       set({
         error: isAbort

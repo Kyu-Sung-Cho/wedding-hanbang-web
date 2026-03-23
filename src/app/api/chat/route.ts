@@ -347,13 +347,32 @@ export async function POST(request: Request) {
           const UI_RENDERED_TOOLS = new Set([
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
+            "analyze_quote",
           ]);
 
           const toolResultContents: ContentBlockParam[] = [];
           let hasUIRenderedTool = false;
+          // 유저 메시지에 [quote_analysis] 태그가 있는지 확인
+          const lastUserMsg = currentMessages.filter((m) => m.role === "user").pop();
+          const lastUserText = typeof lastUserMsg?.content === "string"
+            ? lastUserMsg.content
+            : Array.isArray(lastUserMsg?.content)
+              ? (lastUserMsg.content as ContentBlockParam[]).filter((b) => (b as { type: string }).type === "text").map((b) => (b as { text: string }).text).join("")
+              : "";
+          const hasQuoteAnalysisTag = lastUserText.includes("[quote_analysis]");
+
           for (const toolUse of result.toolUseBlocks) {
             toolsUsed.push(toolUse.name);
             if (UI_RENDERED_TOOLS.has(toolUse.name)) hasUIRenderedTool = true;
+
+            // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움
+            if (toolUse.name === "analyze_quote" && !hasQuoteAnalysisTag) {
+              const inp = toolUse.input as Record<string, unknown>;
+              if (Array.isArray(inp.included_items) && (inp.included_items as string[]).length > 0) {
+                inp.included_items = [];
+              }
+            }
+
             send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
             const execResult = await executeTool(toolUse.name, toolUse.input, executionContext);
             toolResults.push(execResult);

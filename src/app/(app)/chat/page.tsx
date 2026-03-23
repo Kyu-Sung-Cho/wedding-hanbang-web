@@ -50,6 +50,7 @@ export default function ChatPage() {
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    requestMediation,
     clearMessages,
     subscribeToMessages,
   } = useChatStore();
@@ -66,6 +67,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const greetingRequested = useRef(false);
+  const mediationTriggeredAt = useRef<number>(0);
   const coupleId = couple?.id;
 
   // 메시지 로드 + 구독
@@ -118,38 +120,43 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming, streamingContent]);
 
-  // 갈등 감지: 점수 기반 + 패턴 분석 (단순 키워드 매칭 X)
+  // 갈등 감지: partner 메시지 + AI 향 불만 메시지 모두 분석
   useEffect(() => {
     if (mediationDismissed) return;
 
-    // ── 갈등 시그널 정의 ──
-    // 카테고리별로 분리 → 복수 카테고리에서 감지되어야 판정
     const CONFLICT_CATEGORIES: { id: string; patterns: string[]; weight: number }[] = [
-      // A. 직접적 싸움/단절 표현 (거의 확실)
+      // A. 직접적 싸움/단절 표현
       {
         id: "fight",
         weight: 5,
         patterns: [
-          "싸우자", "싸웠어", "싸운 거", "크게 싸", "다퉜어", "다투고",
-          "말 안 해", "말 안해", "말을 안 해", "연락 끊",
-          "무시하지 마", "무시하는 거", "무시당하",
+          "싸우자", "싸웠어", "싸운 거", "크게 싸", "다퉜어", "다투고", "다투었",
+          "말 안 해", "말 안해", "말을 안 해", "연락 끊", "연락도 안",
+          "무시하지 마", "무시하는 거", "무시당하", "무시해",
           "대화가 안 돼", "대화가 안돼", "말이 안 통해", "소통이 안",
-          "이해를 못 해", "이해를 안 해",
+          "이해를 못 해", "이해를 안 해", "이해가 안 돼",
+          "헤어지자", "결혼 안 해", "결혼 취소", "파혼",
         ],
       },
-      // B. 상대방 향한 직접 비난/불만 (2인칭 + 부정)
+      // B. 상대방 비난/불만
       {
         id: "blame",
         weight: 4,
         patterns: [
           "왜 맨날 너만", "나만 양보", "너는 맨날", "너만 맨날",
           "맨날 나한테", "내 말은 안 듣", "내 말을 안 듣",
-          "관심이 없는 거", "관심도 없", "신경도 안 써",
+          "관심이 없는 거", "관심도 없", "신경도 안 써", "신경을 안 써",
           "니가 알아서 해", "너 혼자 해", "나 몰라",
           "왜 항상 나만", "너는 왜 그래",
+          "맨날 이래", "또 이러네", "또 시작이야",
+          "말을 안 해줘", "얘기를 안 해",
+          // AI에게 상대방 불만 표현
+          "걔가 맨날", "쟤가 맨날", "남편이 맨날", "와이프가 맨날",
+          "신랑이 맨날", "신부가 맨날", "그 사람이 맨날",
+          "안 들어줘", "안들어줘", "말을 안 들어",
         ],
       },
-      // C. 결혼 준비 강한 의견 대립 (구문 단위, 단독 단어 X)
+      // C. 강한 의견 대립
       {
         id: "disagree",
         weight: 3,
@@ -159,47 +166,44 @@ export default function ChatPage() {
           "말도 안 되는", "말이 되냐", "말이 돼?",
           "돈이 어디서 나", "돈이 어디 있", "그 돈으로 뭘",
           "내가 언제 그랬", "그렇게 정한 적 없",
+          "의견이 달라", "의견이 안 맞", "생각이 달라", "생각이 안 맞",
+          "동의 못 해", "동의 안 해", "합의가 안",
+          "안 된다니까", "싫다니까", "하기 싫",
         ],
       },
-      // D. 관계 향한 감정 표현 (상대방 언급 + 감정)
+      // D. 감정 표현
       {
         id: "emotion",
         weight: 2,
         patterns: [
-          "너 때문에 속상", "너한테 서운", "서운한 게", "서운했어",
-          "답답해 진짜", "진짜 답답", "너무 답답",
-          "화가 나", "화나는", "너 때문에 화",
-          "짜증나 진짜", "진짜 짜증", "너무 짜증",
-          "지쳤어 이제", "진짜 지쳤", "너무 힘들어",
+          "너 때문에 속상", "너한테 서운", "서운한 게", "서운했어", "서운해",
+          "답답해 진짜", "진짜 답답", "너무 답답", "답답해서",
+          "화가 나", "화나는", "너 때문에 화", "화났어", "화가 많이",
+          "짜증나 진짜", "진짜 짜증", "너무 짜증", "짜증이 나",
+          "지쳤어 이제", "진짜 지쳤", "너무 힘들어", "힘들다",
+          "스트레스", "속상해", "속상하다", "울었어", "울고 싶",
+          "불안해", "걱정돼", "걱정이 돼",
         ],
       },
     ];
 
-    // 최근 partner 메시지만 (최근 8개)
-    const recentPartnerMsgs = messages
-      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-8);
+    // partner 메시지 + AI 향 메시지(상대방 언급) 모두 분석
+    const recentUserMsgs = messages
+      .filter((m) => m.sender_role !== "ai")
+      .slice(-10);
 
-    // 조건 1: 최소 partner 메시지 4개 이상 (충분히 대화가 오가야)
-    if (recentPartnerMsgs.length < 4) {
+    if (recentUserMsgs.length < 2) {
       setShowMediationBanner(false);
       return;
     }
 
-    // 조건 2: 양쪽 다 메시지가 있어야 함
-    const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
-    if (senders.size < 2) {
-      setShowMediationBanner(false);
-      return;
-    }
-
-    // 점수 계산 + 카테고리 추적
+    // 점수 계산
     let totalScore = 0;
     let messagesWithConflict = 0;
     const hitCategories = new Set<string>();
-    const senderHits: Record<string, number> = {}; // 양쪽 다 부정적인지
+    const senderHits: Record<string, number> = {};
 
-    for (const msg of recentPartnerMsgs) {
+    for (const msg of recentUserMsgs) {
       let msgScore = 0;
       for (const cat of CONFLICT_CATEGORIES) {
         for (const pattern of cat.patterns) {
@@ -218,21 +222,57 @@ export default function ChatPage() {
       }
     }
 
-    // 양쪽 다 부정적 메시지가 있으면 가산 (진짜 갈등)
-    const bothNegative = Object.keys(senderHits).length >= 2;
-    if (bothNegative) totalScore = Math.round(totalScore * 1.5);
+    // 양쪽 다 부정적 → 1.5배 (진짜 갈등)
+    if (Object.keys(senderHits).length >= 2) {
+      totalScore = Math.round(totalScore * 1.5);
+    }
 
-    // ── 최종 판정 (3중 조건) ──
-    // 1) 총점 10점 이상 (기존 7→10 상향)
-    // 2) 갈등 메시지 2개 이상
-    // 3) 2개 이상 카테고리에서 감지 (한 종류만으론 부족)
-    //    단, fight(A) 카테고리는 단독으로도 허용 (명백한 싸움)
-    const THRESHOLD = 10;
+    // ── 최종 판정 ──
+    // 총점 6점 이상 + 갈등 메시지 2개 이상
+    // fight 카테고리는 단독 허용, 나머지는 2개 이상 카테고리 필요
+    const THRESHOLD = 6;
     const multiCategory = hitCategories.size >= 2 || hitCategories.has("fight");
     const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2 && multiCategory;
 
-    setShowMediationBanner(isConflict);
-  }, [messages, mediationDismissed]);
+    if (isConflict) {
+      // 3분 쿨다운 (연속 트리거 방지)
+      const now = Date.now();
+      if (now - mediationTriggeredAt.current < 3 * 60 * 1000) return;
+      if (isStreaming) return;
+
+      mediationTriggeredAt.current = now;
+      setMediationDismissed(true);
+
+      // 갈등 맥락 추출
+      const conflictMsgs = recentUserMsgs
+        .filter((m) => {
+          for (const cat of CONFLICT_CATEGORIES) {
+            for (const pattern of cat.patterns) {
+              if (m.content.includes(pattern)) return true;
+            }
+          }
+          return false;
+        })
+        .map((m) => m.content.slice(0, 50))
+        .join(" / ");
+
+      // 아모라 자동 중재
+      if (coupleId && profile && journey) {
+        requestMediation({
+          coupleId,
+          senderRole: profile.role ?? "bride",
+          senderName: profile.name ?? "사용자",
+          weddingContext: {
+            weddingDate: journey?.wedding_date ?? null,
+            budget: journey?.total_budget ?? 0,
+            venue: journey?.venue ?? null,
+            progress: journey?.progress ?? {},
+          },
+          conflictContext: conflictMsgs || "커플 간 의견 차이",
+        });
+      }
+    }
+  }, [messages, mediationDismissed, isStreaming, coupleId, profile, journey, requestMediation]);
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
@@ -390,21 +430,20 @@ export default function ChatPage() {
     [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
   );
 
-  // 아모라에게 중재 요청
-  const requestMediation = useCallback(() => {
+  // 배너에서 수동 중재 요청
+  const handleManualMediation = useCallback(() => {
     setShowMediationBanner(false);
     setMediationDismissed(true);
     setMessageTarget("ai");
 
-    // 최근 partner 대화 주제를 간단히 추출
-    const recentPartnerMsgs = messages
-      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-3);
-    const lastTopic = recentPartnerMsgs.length > 0
-      ? recentPartnerMsgs[recentPartnerMsgs.length - 1].content.slice(0, 30)
+    // 최근 대화에서 갈등 주제 추출
+    const recentConflictMsgs = messages
+      .filter((m) => m.sender_role !== "ai")
+      .slice(-5);
+    const lastTopic = recentConflictMsgs.length > 0
+      ? recentConflictMsgs[recentConflictMsgs.length - 1].content.slice(0, 50)
       : "결혼 준비";
 
-    // 자동 메시지 전송
     handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
   }, [messages, handleSend]);
 
@@ -605,15 +644,18 @@ export default function ChatPage() {
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] text-[#1A1A1F] leading-relaxed">
-                  혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
+                <p className="text-[13px] text-[#1A1A1F] leading-relaxed font-medium">
+                  두 분 사이에 의견 차이가 있는 것 같아요
+                </p>
+                <p className="text-[12px] text-[#928980] leading-relaxed mt-0.5">
+                  아모라가 중립적으로 의견 조율을 도와드릴게요
                 </p>
                 <button
-                  onClick={requestMediation}
-                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+                  onClick={handleManualMediation}
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
                 >
                   <Sparkles className="w-3 h-3" />
-                  아모라에게 상담 요청하기
+                  아모라에게 도움 요청하기
                 </button>
               </div>
             </div>
