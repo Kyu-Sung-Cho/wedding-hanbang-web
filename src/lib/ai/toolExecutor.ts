@@ -135,6 +135,8 @@ export async function executeTool(
         return await executeGetAvailableSlots(toolInput);
       case "create_booking":
         return await executeCreateBooking(toolInput, context);
+      case "get_my_bookings":
+        return await executeGetMyBookings(toolInput, context);
       case "cancel_booking":
         return await executeCancelBooking(toolInput, context);
       case "get_market_price":
@@ -1520,6 +1522,69 @@ async function executeCreateBooking(
     },
     success: true,
     displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})`,
+  };
+}
+
+// ===== 내 예약 목록 조회 =====
+async function executeGetMyBookings(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const admin = getAdminClient();
+  const statusFilter = (input.status as string) || null;
+
+  let query = admin
+    .from("vendor_bookings")
+    .select("id, vendor_id, product_id, staff_id, booking_date, booking_time, status, amount, memo, created_at")
+    .eq("couple_id", ctx.coupleId)
+    .order("booking_date", { ascending: true });
+
+  if (statusFilter) {
+    query = query.eq("status", statusFilter);
+  } else {
+    query = query.neq("status", "cancelled");
+  }
+
+  const { data: bookings, error } = await query.limit(20);
+
+  if (error) throw error;
+
+  if (!bookings || bookings.length === 0) {
+    return {
+      toolName: "get_my_bookings", toolInput: input,
+      toolOutput: { bookings: [] }, success: true,
+      displayMessage: statusFilter ? `${statusFilter} 상태의 예약이 없습니다.` : "현재 예약이 없습니다.",
+    };
+  }
+
+  // 업체/상품 이름 매핑
+  const vendorIds = [...new Set(bookings.map(b => b.vendor_id))];
+  const productIds = [...new Set(bookings.filter(b => b.product_id).map(b => b.product_id!))];
+
+  const { data: vendors } = await admin.from("vendors").select("id, name").in("id", vendorIds);
+  const vendorMap = new Map((vendors ?? []).map(v => [v.id, v.name]));
+
+  let productMap = new Map<string, string>();
+  if (productIds.length > 0) {
+    const { data: products } = await admin.from("vendor_products").select("id, name").in("id", productIds);
+    productMap = new Map((products ?? []).map(p => [p.id, p.name]));
+  }
+
+  const enriched = bookings.map(b => ({
+    bookingId: b.id,
+    vendorName: vendorMap.get(b.vendor_id) ?? "알 수 없음",
+    productName: b.product_id ? (productMap.get(b.product_id) ?? "") : "",
+    date: b.booking_date,
+    time: b.booking_time,
+    status: b.status,
+    amount: b.amount ?? 0,
+  }));
+
+  return {
+    toolName: "get_my_bookings", toolInput: input,
+    toolOutput: { bookings: enriched },
+    success: true,
+    displayMessage: `${enriched.length}건의 예약이 있습니다.`,
   };
 }
 

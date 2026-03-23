@@ -481,6 +481,21 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
   {
+    name: "get_my_bookings",
+    description:
+      "현재 커플의 예약 목록을 조회합니다. 예약 취소, 예약 현황 확인 시 먼저 호출하여 booking_id를 확인하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string",
+          description: "필터할 예약 상태 (선택). pending, confirmed, cancelled 등. 미지정 시 취소 제외 전체.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "cancel_booking",
     description:
       "예약을 취소합니다. 고객이 예약 취소를 요청하면 사용합니다. 메시지에 [booking:ID] 태그가 있으면 해당 값을 사용하세요.",

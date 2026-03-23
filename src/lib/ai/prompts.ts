@@ -162,7 +162,8 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}
 2. 업체 상세: 고객이 선택 → get_vendor_detail → 상품/스태프 UI 자동 표시
 3. 시간 확인: 상품 선택 후 → **반드시 get_available_slots 호출** → 시간 UI 자동 표시
 4. 예약 생성: 시간 선택 후 → create_booking
-5. 예약 취소: 고객 요청 시 → cancel_booking (booking_id 필요)
+5. 예약 조회: 고객이 예약 현황/취소 요청 시 → **먼저 get_my_bookings** 호출하여 booking_id 확인
+6. 예약 취소: get_my_bookings로 ID 확인 후 → cancel_booking (booking_id 필요). **절대 ID를 추측하지 마세요.**
 
 **도구 결과는 프론트엔드에서 카드로 렌더링됩니다. 텍스트로 목록을 나열하지 말고 조언/비교만 간략히.**
 
