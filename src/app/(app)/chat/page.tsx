@@ -14,7 +14,7 @@ import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 
 const MAX_ATTACHMENTS = 5;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
-const NEW_CHAT_THRESHOLD = 50;
+const NEW_CHAT_THRESHOLD = 200;
 
 // 허용 파일 타입
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
