@@ -343,14 +343,27 @@ export async function POST(request: Request) {
           // tool use 감지 → 스트리밍된 텍스트 클리어 후 도구 실행
           send({ type: "text_clear" });
 
+          // UI 카드로 자동 렌더링되는 도구 목록
+          const UI_RENDERED_TOOLS = new Set([
+            "search_vendors", "recommend_vendors", "get_vendor_detail",
+            "get_available_slots", "create_booking", "search_nearby_places",
+          ]);
+
           const toolResultContents: ContentBlockParam[] = [];
+          let hasUIRenderedTool = false;
           for (const toolUse of result.toolUseBlocks) {
             toolsUsed.push(toolUse.name);
+            if (UI_RENDERED_TOOLS.has(toolUse.name)) hasUIRenderedTool = true;
             send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
             const execResult = await executeTool(toolUse.name, toolUse.input, executionContext);
             toolResults.push(execResult);
             send({ type: "tool_result", result: execResult });
-            toolResultContents.push(buildToolResultContent(toolUse.id, JSON.stringify(execResult.toolOutput)));
+            // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
+            const outputJson = JSON.stringify(execResult.toolOutput);
+            const reminder = UI_RENDERED_TOOLS.has(toolUse.name)
+              ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
+              : "";
+            toolResultContents.push(buildToolResultContent(toolUse.id, outputJson + reminder));
           }
 
           const assistantContent: ContentBlockParam[] = [];
