@@ -41,7 +41,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Supabase가 hash fragment로 세션을 전달하므로 클라이언트에서 처리
     const supabase = createClient();
-    supabase.auth.onAuthStateChange((event) => {
+    supabase.auth.onAuthStateChange((event: string) => {
       if (event === "PASSWORD_RECOVERY") {
         setReady(true);
       }

@@ -626,6 +626,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
         (payload) => {
           const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
+          // 스트리밍 중이면 무시 (AI 응답은 로컬에서 직접 추가)
+          if (get().isStreaming && newMsg.sender_role === "ai") return;
           set((s) => {
             const exists = s.messages.some((m) => m.id === newMsg.id);
             if (exists) return s;
@@ -633,7 +635,16 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.error("Realtime 구독 에러 - 재연결 시도");
+          // 5초 후 재연결
+          setTimeout(() => {
+            supabase.removeChannel(channel);
+            get().subscribeToMessages(coupleId);
+          }, 5000);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
