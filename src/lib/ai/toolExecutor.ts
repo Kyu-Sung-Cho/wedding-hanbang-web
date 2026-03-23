@@ -1987,10 +1987,12 @@ function executeAnalyzeQuote(input: Record<string, unknown>): ToolExecutionResul
   const scope = region === "seoul" || region === "gyeonggi" ? "seoul" : "national";
   const pid = getLatestPeriodId();
 
-  // 1. 카테고리에 해당하는 숨겨진 비용 항목 필터
+  // 1. 카테고리에 해당하는 숨겨진 비용 항목만 필터
+  // - 개별 카테고리(dress/studio/makeup) → 해당 카테고리만
+  // - 전체 패키지(sdm_package) → 스드메 + 공통(본식 스냅, 부케 등)
   const relevantCategories = category === "sdm_package"
     ? ["studio", "dress", "makeup", "common"]
-    : [category, "common"];
+    : [category];
 
   const allRelevantCosts = HIDDEN_COSTS.filter((item) =>
     relevantCategories.includes(item.category)
