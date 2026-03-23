@@ -62,12 +62,12 @@ export default function ChatPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
   const [showMediationBanner, setShowMediationBanner] = useState(false);
-  const [mediationDismissed, setMediationDismissed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const greetingRequested = useRef(false);
   const mediationTriggeredAt = useRef<number>(0);
+  const lastCheckedMsgCount = useRef<number>(0);
   const coupleId = couple?.id;
 
   // 메시지 로드 + 구독
@@ -120,15 +120,27 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming, streamingContent]);
 
-  // 갈등 감지: partner 메시지 + AI 향 불만 메시지 모두 분석
+  // 갈등 감지: 새 메시지가 추가될 때만 + 최근 5분 이내 메시지만 분석
   useEffect(() => {
-    if (mediationDismissed) return;
+    // 새 메시지가 없으면 스킵 (AI 응답, 스크롤 등으로 re-render 방지)
+    const currentCount = messages.length;
+    if (currentCount <= lastCheckedMsgCount.current) return;
+    lastCheckedMsgCount.current = currentCount;
+
+    // 스트리밍 중이면 스킵
+    if (isStreaming) return;
+
+    // 마지막 메시지가 AI면 스킵 (유저 메시지가 올 때만 감지)
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.sender_role === "ai") return;
+
+    // 5분 쿨다운 (한 번 중재 후 최소 5분 대기)
+    const now = Date.now();
+    if (now - mediationTriggeredAt.current < 5 * 60 * 1000) return;
 
     const CONFLICT_CATEGORIES: { id: string; patterns: string[]; weight: number }[] = [
-      // A. 직접적 싸움/단절 표현
       {
-        id: "fight",
-        weight: 5,
+        id: "fight", weight: 5,
         patterns: [
           "싸우자", "싸웠어", "싸운 거", "크게 싸", "다퉜어", "다투고", "다투었",
           "말 안 해", "말 안해", "말을 안 해", "연락 끊", "연락도 안",
@@ -138,10 +150,8 @@ export default function ChatPage() {
           "헤어지자", "결혼 안 해", "결혼 취소", "파혼",
         ],
       },
-      // B. 상대방 비난/불만
       {
-        id: "blame",
-        weight: 4,
+        id: "blame", weight: 4,
         patterns: [
           "왜 맨날 너만", "나만 양보", "너는 맨날", "너만 맨날",
           "맨날 나한테", "내 말은 안 듣", "내 말을 안 듣",
@@ -150,16 +160,13 @@ export default function ChatPage() {
           "왜 항상 나만", "너는 왜 그래",
           "맨날 이래", "또 이러네", "또 시작이야",
           "말을 안 해줘", "얘기를 안 해",
-          // AI에게 상대방 불만 표현
           "걔가 맨날", "쟤가 맨날", "남편이 맨날", "와이프가 맨날",
           "신랑이 맨날", "신부가 맨날", "그 사람이 맨날",
           "안 들어줘", "안들어줘", "말을 안 들어",
         ],
       },
-      // C. 강한 의견 대립
       {
-        id: "disagree",
-        weight: 3,
+        id: "disagree", weight: 3,
         patterns: [
           "난 절대 반대", "나는 반대야", "절대 안 돼", "절대 안돼",
           "그건 절대 싫", "왜 꼭 그걸", "왜 그걸 해야",
@@ -171,10 +178,8 @@ export default function ChatPage() {
           "안 된다니까", "싫다니까", "하기 싫",
         ],
       },
-      // D. 감정 표현
       {
-        id: "emotion",
-        weight: 2,
+        id: "emotion", weight: 2,
         patterns: [
           "너 때문에 속상", "너한테 서운", "서운한 게", "서운했어", "서운해",
           "답답해 진짜", "진짜 답답", "너무 답답", "답답해서",
@@ -187,15 +192,14 @@ export default function ChatPage() {
       },
     ];
 
-    // partner 메시지 + AI 향 메시지(상대방 언급) 모두 분석
+    // 최근 5분 이내 유저 메시지만 필터 (오래된 싸움 무시)
+    const WINDOW_MS = 5 * 60 * 1000;
+    const cutoff = new Date(now - WINDOW_MS).toISOString();
     const recentUserMsgs = messages
-      .filter((m) => m.sender_role !== "ai")
+      .filter((m) => m.sender_role !== "ai" && m.created_at && m.created_at >= cutoff)
       .slice(-10);
 
-    if (recentUserMsgs.length < 2) {
-      setShowMediationBanner(false);
-      return;
-    }
+    if (recentUserMsgs.length < 2) return;
 
     // 점수 계산
     let totalScore = 0;
@@ -222,26 +226,18 @@ export default function ChatPage() {
       }
     }
 
-    // 양쪽 다 부정적 → 1.5배 (진짜 갈등)
+    // 양쪽 다 부정적 → 1.5배
     if (Object.keys(senderHits).length >= 2) {
       totalScore = Math.round(totalScore * 1.5);
     }
 
-    // ── 최종 판정 ──
-    // 총점 6점 이상 + 갈등 메시지 2개 이상
-    // fight 카테고리는 단독 허용, 나머지는 2개 이상 카테고리 필요
+    // 총점 6+ / 갈등 메시지 2+ / 카테고리 조건
     const THRESHOLD = 6;
     const multiCategory = hitCategories.size >= 2 || hitCategories.has("fight");
     const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2 && multiCategory;
 
-    if (isConflict) {
-      // 3분 쿨다운 (연속 트리거 방지)
-      const now = Date.now();
-      if (now - mediationTriggeredAt.current < 3 * 60 * 1000) return;
-      if (isStreaming) return;
-
+    if (isConflict && coupleId && profile && journey) {
       mediationTriggeredAt.current = now;
-      setMediationDismissed(true);
 
       // 갈등 맥락 추출
       const conflictMsgs = recentUserMsgs
@@ -256,23 +252,20 @@ export default function ChatPage() {
         .map((m) => m.content.slice(0, 50))
         .join(" / ");
 
-      // 아모라 자동 중재
-      if (coupleId && profile && journey) {
-        requestMediation({
-          coupleId,
-          senderRole: profile.role ?? "bride",
-          senderName: profile.name ?? "사용자",
-          weddingContext: {
-            weddingDate: journey?.wedding_date ?? null,
-            budget: journey?.total_budget ?? 0,
-            venue: journey?.venue ?? null,
-            progress: journey?.progress ?? {},
-          },
-          conflictContext: conflictMsgs || "커플 간 의견 차이",
-        });
-      }
+      requestMediation({
+        coupleId,
+        senderRole: profile.role ?? "bride",
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        conflictContext: conflictMsgs || "커플 간 의견 차이",
+      });
     }
-  }, [messages, mediationDismissed, isStreaming, coupleId, profile, journey, requestMediation]);
+  }, [messages.length, isStreaming, coupleId, profile, journey, requestMediation]);
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
@@ -433,7 +426,6 @@ export default function ChatPage() {
   // 배너에서 수동 중재 요청
   const handleManualMediation = useCallback(() => {
     setShowMediationBanner(false);
-    setMediationDismissed(true);
     setMessageTarget("ai");
 
     // 최근 대화에서 갈등 주제 추출
@@ -634,7 +626,7 @@ export default function ChatPage() {
         <div className="px-2 pb-2">
           <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-4 py-3.5 shadow-sm">
             <button
-              onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
+              onClick={() => { setShowMediationBanner(false); }}
               className="absolute top-2 right-2 w-5 h-5 rounded-full text-[#B5ADA3] hover:text-[#928980] flex items-center justify-center"
             >
               <X className="w-3 h-3" />
