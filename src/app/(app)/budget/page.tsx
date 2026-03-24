@@ -332,6 +332,78 @@ function getBookingStatusBadge(status: string) {
   }
 }
 
+function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; loading: boolean }) {
+  const [showCancelled, setShowCancelled] = useState(false);
+
+  const activeBookings = bookings.filter((b) => b.status !== "cancelled");
+  const cancelledBookings = bookings.filter((b) => b.status === "cancelled");
+  const displayBookings = showCancelled ? cancelledBookings : activeBookings;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.12 }}
+      className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
+    >
+      <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <ShoppingBag className="w-5 h-5 text-rose-500" />
+          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">내 예약 내역</h3>
+          {!loading && <span className="text-[11px] text-taupe-400">{activeBookings.length}건</span>}
+        </div>
+        {cancelledBookings.length > 0 && (
+          <button
+            onClick={() => setShowCancelled(!showCancelled)}
+            className={`text-[11px] px-2.5 py-1 rounded-lg transition-colors ${
+              showCancelled
+                ? "bg-red-50 text-red-400 font-medium"
+                : "text-taupe-400 hover:bg-ivory-100"
+            }`}
+          >
+            {showCancelled ? "예약 중 보기" : `취소 내역 ${cancelledBookings.length}`}
+          </button>
+        )}
+      </div>
+      {loading ? (
+        <div className="py-8 flex justify-center">
+          <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
+        </div>
+      ) : displayBookings.length === 0 ? (
+        <div className="py-8 text-center">
+          <p className="text-[13px] text-taupe-400">
+            {showCancelled ? "취소된 예약이 없습니다" : "예약 내역이 없습니다"}
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-black/[0.03]">
+          {displayBookings.map((b) => {
+            const badge = getBookingStatusBadge(b.status);
+            return (
+              <div key={b.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-ivory-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-noir-800 truncate">{b.vendorName}</p>
+                  {b.productName && (
+                    <p className="text-[11px] text-taupe-400 truncate">{b.productName}</p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[12px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
+                  {b.amount > 0 && (
+                    <p className="text-[11px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
+                  )}
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
+                  {badge.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function BudgetPage() {
   const { journey, updateJourney, isDemo } = useAuthStore();
 
@@ -664,51 +736,7 @@ export default function BudgetPage() {
       </Link>
 
       {/* 내 예약 내역 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.5, delay: 0.12 }}
-        className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
-      >
-        <div className="px-5 py-4 border-b border-black/[0.04] flex items-center gap-2.5">
-          <ShoppingBag className="w-5 h-5 text-rose-500" />
-          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">내 예약 내역</h3>
-          {!bookingsLoading && <span className="text-[11px] text-taupe-400">{bookings.length}건</span>}
-        </div>
-        {bookingsLoading ? (
-          <div className="py-8 flex justify-center">
-            <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
-          </div>
-        ) : bookings.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-[13px] text-taupe-400">아직 예약 내역이 없습니다</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-black/[0.03]">
-            {bookings.map((b) => {
-              const badge = getBookingStatusBadge(b.status);
-              return (
-                <div key={b.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-ivory-50 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-noir-800 truncate">{b.vendorName}</p>
-                    {b.productName && (
-                      <p className="text-[11px] text-taupe-400 truncate">{b.productName}</p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-[12px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
-                    {b.amount > 0 && (
-                      <p className="text-[11px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
-                    )}
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
-                    {badge.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </motion.div>
+      <BookingsSection bookings={bookings} loading={bookingsLoading} />
 
       {/* 스드메 패키지 */}
       <motion.div
