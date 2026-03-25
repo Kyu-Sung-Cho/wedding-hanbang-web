@@ -1,0 +1,290 @@
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import type {
+  CommunityCategory,
+  PostSort,
+  TimePeriod,
+  PostVisibility,
+  CostShareData,
+} from "@/types/community.types";
+
+function getServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+// 게시글 목록 조회
+export async function GET(req: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { searchParams } = new URL(req.url);
+
+    const category = searchParams.get("category") as CommunityCategory | null;
+    const sort = (searchParams.get("sort") ?? "hot") as PostSort;
+    const period = (searchParams.get("period") ?? "week") as TimePeriod;
+    const page = parseInt(searchParams.get("page") ?? "1");
+    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const tag = searchParams.get("tag");
+    const authorId = searchParams.get("author_id");
+    const offset = (page - 1) * limit;
+
+    // 현재 사용자 확인 (선택적)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 기본 쿼리
+    let query = supabase
+      .from("community_posts")
+      .select(
+        "*, author:community_profiles!community_posts_author_id_fkey(*)",
+        { count: "exact" }
+      );
+
+    // 카테고리 필터
+    if (category) {
+      query = query.eq("category", category);
+    }
+
+    // 태그 필터
+    if (tag) {
+      query = query.contains("tags", [tag]);
+    }
+
+    // 작성자 필터
+    if (authorId) {
+      query = query.eq("author_id", authorId);
+    }
+
+    // visibility 필터: public은 항상, members는 인증 시, draft는 본인만
+    if (user) {
+      query = query.or(
+        `visibility.eq.public,visibility.eq.members,and(visibility.eq.draft,author_id.eq.${user.id})`
+      );
+    } else {
+      query = query.eq("visibility", "public");
+    }
+
+    // 정렬
+    if (sort === "new") {
+      query = query.order("created_at", { ascending: false });
+    } else if (sort === "top") {
+      // 기간 필터
+      if (period !== "all") {
+        const now = new Date();
+        if (period === "week") {
+          now.setDate(now.getDate() - 7);
+        } else if (period === "month") {
+          now.setMonth(now.getMonth() - 1);
+        }
+        query = query.gte("created_at", now.toISOString());
+      }
+      query = query.order("upvote_count", { ascending: false });
+    } else {
+      // hot: 인기 정렬 - Supabase에서 복합 정렬이 어려우므로 클라이언트 정렬 or RPC 사용
+      // 기본적으로 upvote_count로 정렬 후 클라이언트에서 재정렬
+      query = query.order("upvote_count", { ascending: false });
+    }
+
+    // 페이지네이션
+    query = query.range(offset, offset + limit - 1);
+
+    const { data: posts, count, error } = await query;
+
+    if (error) {
+      console.error("Community posts list error:", error);
+      return NextResponse.json(
+        { error: "게시글을 불러올 수 없습니다." },
+        { status: 500 }
+      );
+    }
+
+    // hot 정렬의 경우 스코어 기반 재정렬
+    let sortedPosts = posts ?? [];
+    if (sort === "hot") {
+      const now = Date.now();
+      sortedPosts = [...sortedPosts].sort((a, b) => {
+        const ageA =
+          (now - new Date(a.created_at).getTime()) / (1000 * 60 * 60);
+        const ageB =
+          (now - new Date(b.created_at).getTime()) / (1000 * 60 * 60);
+        const scoreA =
+          a.upvote_count * 2 + a.comment_count * 3 - ageA * 0.5;
+        const scoreB =
+          b.upvote_count * 2 + b.comment_count * 3 - ageB * 0.5;
+        return scoreB - scoreA;
+      });
+    }
+
+    // 인증 사용자의 투표 상태 조회
+    let userVotesMap: Record<string, number> = {};
+    if (user && sortedPosts.length > 0) {
+      const postIds = sortedPosts.map((p) => p.id);
+      const { data: votes } = await supabase
+        .from("community_votes")
+        .select("target_id, vote_type")
+        .eq("user_id", user.id)
+        .eq("target_type", "post")
+        .in("target_id", postIds);
+
+      if (votes) {
+        userVotesMap = Object.fromEntries(
+          votes.map((v) => [v.target_id, v.vote_type])
+        );
+      }
+    }
+
+    // 응답 데이터 조합
+    const postsWithVotes = sortedPosts.map((post) => ({
+      ...post,
+      user_vote: userVotesMap[post.id] ?? null,
+    }));
+
+    const total = count ?? 0;
+    const hasMore = offset + limit < total;
+
+    return NextResponse.json({ posts: postsWithVotes, total, hasMore });
+  } catch (err) {
+    console.error("Community posts error:", err);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
+
+// 게시글 생성
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "인증이 필요합니다." },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const {
+      category,
+      title,
+      content,
+      images,
+      visibility,
+      vendor_tags,
+      tags,
+      cost_data,
+    } = body as {
+      category: CommunityCategory;
+      title: string;
+      content: string;
+      images?: string[];
+      visibility: PostVisibility;
+      vendor_tags?: string[];
+      tags?: string[];
+      cost_data?: CostShareData;
+    };
+
+    if (!category || !title || !content || !visibility) {
+      return NextResponse.json(
+        { error: "필수 항목을 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    const serviceClient = getServiceClient();
+
+    // 커뮤니티 프로필 자동 생성 (없으면)
+    const { data: existingProfile } = await serviceClient
+      .from("community_profiles")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!existingProfile) {
+      // profiles 테이블에서 이름 가져오기
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", user.id)
+        .single();
+
+      const nickname = userProfile?.name ?? "익명";
+
+      await serviceClient.from("community_profiles").insert({
+        user_id: user.id,
+        nickname,
+        badge: "member",
+        post_count: 0,
+        comment_count: 0,
+        total_upvotes_received: 0,
+      });
+    }
+
+    // 게시글 생성
+    const { data: post, error } = await serviceClient
+      .from("community_posts")
+      .insert({
+        author_id: user.id,
+        category,
+        title,
+        content,
+        images: images ?? [],
+        visibility,
+        vendor_tags: vendor_tags ?? [],
+        tags: tags ?? [],
+        cost_data: cost_data ?? null,
+        upvote_count: 0,
+        downvote_count: 0,
+        comment_count: 0,
+        view_count: 0,
+        bookmark_count: 0,
+        is_pinned: false,
+        is_weekly_best: false,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Create post error:", error);
+      return NextResponse.json(
+        { error: "게시글 작성에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    // post_count 증가
+    await serviceClient.rpc("community_increment_profile_count", {
+      p_user_id: user.id,
+      p_field: "post_count",
+    }).then(({ error: rpcError }) => {
+      // RPC 없으면 직접 업데이트
+      if (rpcError) {
+        return serviceClient
+          .from("community_profiles")
+          .update({
+            post_count: (existingProfile as Record<string, number>)
+              ?.post_count
+              ? (existingProfile as Record<string, number>).post_count + 1
+              : 1,
+          })
+          .eq("user_id", user.id);
+      }
+    });
+
+    return NextResponse.json({ post }, { status: 201 });
+  } catch (err) {
+    console.error("Create post error:", err);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
