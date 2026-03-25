@@ -88,7 +88,7 @@ export default function CategoryFeedPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F8]">
-      <div className="mx-auto max-w-[960px] px-4 py-6">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-6">
         {/* 카테고리 헤더 */}
         <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4 mb-3">
           <h1 className="text-lg font-bold text-[#1c1c1e]">
@@ -152,7 +152,7 @@ export default function CategoryFeedPage() {
           </div>
 
           {/* 데스크탑 사이드바 */}
-          <aside className="hidden lg:block w-[312px] shrink-0 space-y-3">
+          <aside className="hidden lg:block w-[280px] xl:w-[312px] shrink-0 space-y-3">
             {/* 게이미피케이션 위젯 */}
             <GamificationWidget />
 
