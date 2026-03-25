@@ -45,21 +45,16 @@ export default function CategoryFeedPage() {
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
 
-  // 카테고리 유효성 검사 및 설정
+  // 카테고리 유효성 검사 + 글 목록 가져오기
   useEffect(() => {
     if (!VALID_KEYS.includes(categoryParam as CommunityCategory)) {
       router.replace("/community");
       return;
     }
     setCategory(categoryParam as CommunityCategory);
-  }, [categoryParam, setCategory, router]);
-
-  // 글 목록 가져오기
-  useEffect(() => {
-    if (VALID_KEYS.includes(categoryParam as CommunityCategory)) {
-      fetchPosts(true);
-    }
-  }, [fetchPosts, categoryParam, currentSort, currentPeriod]);
+    fetchPosts(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryParam, currentSort, currentPeriod]);
 
   // 인기 태그 가져오기
   useEffect(() => {

@@ -61,7 +61,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   currentPeriod: "week",
   currentPage: 1,
   hasMore: true,
-  isLoading: false,
+  isLoading: true,
   total: 0,
   currentPost: null,
   comments: [],
@@ -84,7 +84,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      set({ posts: data.posts, total: data.total, hasMore: data.hasMore, currentPage: 1, isLoading: false });
+      set({ posts: data.posts ?? [], total: data.total ?? 0, hasMore: data.hasMore ?? false, currentPage: 1, isLoading: false });
     } catch {
       set({ isLoading: false });
     }
@@ -309,7 +309,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   reset: () => {
     set({
       posts: [], currentCategory: null, currentSort: "hot", currentPeriod: "week",
-      currentPage: 1, hasMore: true, isLoading: false, total: 0,
+      currentPage: 1, hasMore: true, isLoading: true, total: 0,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
     });
   },
