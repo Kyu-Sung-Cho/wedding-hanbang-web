@@ -72,122 +72,139 @@ export default function CommunityFeedPage() {
   }, [handleObserver]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      {/* 카테고리 탭 + 정렬 */}
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex-1 min-w-0">
-          <CategoryTabs />
-        </div>
-        <div className="shrink-0">
-          <SortSelector
-            sort={currentSort}
-            period={currentPeriod}
-            onSortChange={setSort}
-            onPeriodChange={setPeriod}
-          />
-        </div>
-      </div>
-
-      <div className="flex gap-6">
-        {/* 메인 피드 */}
-        <div className="flex-1 min-w-0">
-          {/* 초기 로딩 */}
-          {isLoading && posts.length === 0 ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <PostSkeleton key={i} />
-              ))}
+    <div className="min-h-screen bg-[#DAE0E6]">
+      <div className="mx-auto max-w-[960px] px-4 py-4">
+        {/* 정렬 바 */}
+        <div className="bg-white border border-[#ccc]/40 rounded p-2 mb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <CategoryTabs />
             </div>
-          ) : posts.length === 0 ? (
-            <EmptyState
-              message="아직 작성된 글이 없습니다"
-              description="첫 번째 글을 작성해 보세요!"
-              ctaLabel="글쓰기"
-              ctaHref="/community/write"
-            />
-          ) : (
-            <div className="space-y-3">
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
-
-              {/* 추가 로딩 */}
-              {isLoading && (
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <PostSkeleton key={`more-${i}`} />
-                  ))}
-                </div>
-              )}
+            <div className="shrink-0">
+              <SortSelector
+                sort={currentSort}
+                period={currentPeriod}
+                onSortChange={setSort}
+                onPeriodChange={setPeriod}
+              />
             </div>
-          )}
-
-          {/* 무한스크롤 감지 요소 */}
-          <div ref={observerRef} className="h-1" />
+          </div>
         </div>
 
-        {/* 데스크탑 사이드바 */}
-        <aside className="hidden lg:block w-72 shrink-0 space-y-4">
-          {/* 글쓰기 버튼 */}
-          <Link
-            href="/community/write"
-            className="flex items-center justify-center gap-2 w-full px-5 py-3 text-sm font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-2xl transition-colors"
-          >
-            <PenSquare className="w-4 h-4" />
-            글쓰기
-          </Link>
-
-          {/* 인기 태그 */}
-          {popularTags.length > 0 && (
-            <div className="bg-white border border-black/[0.04] rounded-2xl p-4">
-              <h3 className="flex items-center gap-1.5 text-sm font-medium text-[#1A1A1F] mb-3">
-                <Hash className="w-4 h-4 text-[#C4967E]" />
-                인기 태그
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {popularTags.slice(0, 12).map((t) => (
-                  <Link
-                    key={t.tag}
-                    href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                    className="px-3 py-1 text-xs font-medium text-[#928980] bg-[#FAF8F5] rounded-full hover:text-[#C4967E] hover:bg-[#C4967E]/10 transition-colors"
-                  >
-                    #{t.tag}
-                    <span className="ml-1 text-[#B5ADA3]">{t.count}</span>
-                  </Link>
+        <div className="flex gap-6">
+          {/* 메인 피드 */}
+          <div className="flex-1 min-w-0">
+            {/* 초기 로딩 */}
+            {isLoading && posts.length === 0 ? (
+              <div className="space-y-2.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <PostSkeleton key={i} />
                 ))}
               </div>
-            </div>
-          )}
+            ) : posts.length === 0 ? (
+              <EmptyState
+                message="아직 작성된 글이 없습니다"
+                description="첫 번째 글을 작성해 보세요!"
+                ctaLabel="글쓰기"
+                ctaHref="/community/write"
+              />
+            ) : (
+              <div className="space-y-2.5">
+                {posts.map((post) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
 
-          {/* 웨딩한방 서비스 프로모션 */}
-          <div className="bg-white border border-black/[0.04] rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-4 h-4 text-[#C9A96E]" />
-              <h3 className="text-sm font-medium text-[#1A1A1F]">
-                웨딩한방 서비스
-              </h3>
-            </div>
-            <p className="text-xs text-[#928980] leading-relaxed mb-3">
-              AI 웨딩 플래너가 예산 관리, 일정 관리, 업체 추천까지 한 번에 도와드려요.
-            </p>
-            <Link
-              href="/login"
-              className="inline-flex items-center px-4 py-2 text-xs font-medium text-[#C9A96E] border border-[#C9A96E]/30 rounded-xl hover:bg-[#C9A96E]/10 transition-colors"
-            >
-              무료로 시작하기
-            </Link>
+                {/* 추가 로딩 */}
+                {isLoading && (
+                  <div className="space-y-2.5">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <PostSkeleton key={`more-${i}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 무한스크롤 감지 요소 */}
+            <div ref={observerRef} className="h-1" />
           </div>
-        </aside>
-      </div>
 
-      {/* 모바일 플로팅 글쓰기 버튼 */}
-      <Link
-        href="/community/write"
-        className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-full shadow-lg transition-colors"
-        aria-label="글쓰기"
-      >
-        <PenSquare className="w-5 h-5" />
-      </Link>
+          {/* 데스크탑 사이드바 */}
+          <aside className="hidden lg:block w-[312px] shrink-0 space-y-3">
+            {/* 커뮤니티 정보 카드 */}
+            <div className="bg-white border border-[#ccc]/40 rounded overflow-hidden">
+              <div className="bg-[#1A1A1F] h-8" />
+              <div className="p-3">
+                <h2 className="text-sm font-bold text-[#1A1A1F] mb-1">
+                  웨딩한방 커뮤니티
+                </h2>
+                <p className="text-xs text-[#878A8C] leading-relaxed mb-3">
+                  예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티입니다. 후기, 비용,
+                  팁을 자유롭게 나눠보세요.
+                </p>
+                <Link
+                  href="/community/write"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-bold text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors"
+                >
+                  <PenSquare className="w-4 h-4" />
+                  글쓰기
+                </Link>
+              </div>
+            </div>
+
+            {/* 인기 태그 */}
+            {popularTags.length > 0 && (
+              <div className="bg-white border border-[#ccc]/40 rounded p-3">
+                <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#1A1A1F] uppercase mb-2">
+                  <Hash className="w-3.5 h-3.5 text-[#878A8C]" />
+                  인기 태그
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {popularTags.slice(0, 12).map((t) => (
+                    <Link
+                      key={t.tag}
+                      href={`/community?tag=${encodeURIComponent(t.tag)}`}
+                      className="px-2.5 py-1 text-xs text-[#878A8C] bg-[#F6F7F8] rounded-full hover:bg-[#e8e8e8] transition-colors"
+                    >
+                      #{t.tag}
+                      <span className="ml-1 text-[#878A8C]/60">{t.count}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 웨딩한방 서비스 프로모션 */}
+            <div className="bg-white border border-[#ccc]/40 rounded p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-[#878A8C]" />
+                <h3 className="text-xs font-bold text-[#1A1A1F]">
+                  웨딩한방 서비스
+                </h3>
+              </div>
+              <p className="text-xs text-[#878A8C] leading-relaxed mb-3">
+                AI 웨딩 플래너가 예산 관리, 일정 관리, 업체 추천까지 한 번에
+                도와드려요.
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-[#1A1A1F] border border-[#1A1A1F] rounded hover:bg-[#1A1A1F] hover:text-white transition-colors"
+              >
+                무료로 시작하기
+              </Link>
+            </div>
+          </aside>
+        </div>
+
+        {/* 모바일 플로팅 글쓰기 버튼 */}
+        <Link
+          href="/community/write"
+          className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#1A1A1F] hover:bg-[#333] rounded-full shadow-lg transition-colors"
+          aria-label="글쓰기"
+        >
+          <PenSquare className="w-5 h-5" />
+        </Link>
+      </div>
     </div>
   );
 }

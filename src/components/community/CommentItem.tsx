@@ -68,8 +68,12 @@ export default function CommentItem({
   // 삭제된 댓글
   if (comment.is_deleted) {
     return (
-      <div className={`${isReply ? "ml-10" : ""} py-3`}>
-        <p className="text-sm text-[#B5ADA3] italic">삭제된 댓글입니다</p>
+      <div
+        className={`${
+          isReply ? "pl-5 border-l-2 border-[#edeff1]" : ""
+        } py-2`}
+      >
+        <p className="text-xs text-[#878A8C] italic">삭제된 댓글입니다</p>
 
         {/* 삭제된 댓글이라도 답글은 표시 */}
         {!isReply && comment.replies && comment.replies.length > 0 && (
@@ -93,21 +97,21 @@ export default function CommentItem({
   }
 
   return (
-    <div className={`${isReply ? "ml-10" : ""}`}>
-      <div className="py-3 border-b border-[#F5F2ED] last:border-b-0">
-        <div className="flex gap-3">
+    <div className={`${isReply ? "pl-5 border-l-2 border-[#edeff1]" : ""}`}>
+      <div className="py-2">
+        <div className="flex gap-2">
           {/* 아바타 */}
-          <div className="w-8 h-8 rounded-full bg-[#F5F2ED] overflow-hidden flex items-center justify-center text-[#928980] shrink-0">
+          <div className="w-6 h-6 rounded-full bg-[#F6F7F8] overflow-hidden flex items-center justify-center text-[#878A8C] shrink-0">
             {comment.author.avatar_url ? (
               <Image
                 src={comment.author.avatar_url}
                 alt=""
-                width={32}
-                height={32}
+                width={24}
+                height={24}
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-xs font-medium">
+              <span className="text-[10px] font-bold">
                 {comment.author.nickname.charAt(0)}
               </span>
             )}
@@ -115,17 +119,21 @@ export default function CommentItem({
 
           {/* 내용 */}
           <div className="flex-1 min-w-0">
-            {/* 작성자 정보 */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-[#1A1A1F]">
+            {/* 작성자 정보 - 한 줄 */}
+            <div className="flex items-center gap-1 text-xs">
+              <span className="font-bold text-[#1A1A1F]">
                 {comment.author.nickname}
               </span>
               {badgeLabel(comment.author.badge) && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#C4967E]/10 text-[#C4967E] rounded">
-                  {badgeLabel(comment.author.badge)}
-                </span>
+                <>
+                  <span className="text-[#878A8C]">·</span>
+                  <span className="text-[#FF4500] font-medium">
+                    {badgeLabel(comment.author.badge)}
+                  </span>
+                </>
               )}
-              <span className="text-xs text-[#B5ADA3]">
+              <span className="text-[#878A8C]">·</span>
+              <span className="text-[#878A8C]">
                 {timeAgo(comment.created_at)}
               </span>
             </div>
@@ -136,7 +144,7 @@ export default function CommentItem({
             </p>
 
             {/* 액션 행: 투표, 답글, 삭제 */}
-            <div className="mt-2 flex items-center gap-3">
+            <div className="mt-1.5 flex items-center gap-2 text-xs font-bold text-[#878A8C]">
               <VoteButtons
                 count={comment.upvote_count}
                 userVote={comment.user_vote ?? null}
@@ -152,9 +160,9 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowReplyInput(!showReplyInput)}
-                  className="flex items-center gap-1 text-xs text-[#928980] hover:text-[#C4967E] transition-colors"
+                  className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-[#F6F7F8] transition-colors"
                 >
-                  <Reply className="w-3.5 h-3.5" />
+                  <Reply className="w-3 h-3" />
                   답글
                 </button>
               )}
@@ -165,13 +173,11 @@ export default function CommentItem({
                   type="button"
                   onClick={handleDelete}
                   onBlur={() => setConfirmDelete(false)}
-                  className={`flex items-center gap-1 text-xs transition-colors ${
-                    confirmDelete
-                      ? "text-red-500 font-medium"
-                      : "text-[#B5ADA3] hover:text-red-500"
+                  className={`flex items-center gap-1 px-1.5 py-1 rounded hover:bg-[#F6F7F8] transition-colors ${
+                    confirmDelete ? "text-red-500" : ""
                   }`}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3 h-3" />
                   {confirmDelete ? "삭제 확인" : "삭제"}
                 </button>
               )}
@@ -179,17 +185,17 @@ export default function CommentItem({
 
             {/* 답글 입력 */}
             {showReplyInput && (
-              <div className="mt-3">
+              <div className="mt-2">
                 <textarea
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                   placeholder="답글을 작성해 주세요..."
                   rows={2}
                   maxLength={2000}
-                  className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] transition-colors placeholder:text-[#B5ADA3]"
+                  className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#F6F7F8] border border-[#edeff1] rounded resize-none focus:outline-none focus:border-[#1A1A1F] transition-colors placeholder:text-[#878A8C]"
                 />
                 <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-xs text-[#B5ADA3]">
+                  <span className="text-xs text-[#878A8C]">
                     {replyContent.length}/2000
                   </span>
                   <div className="flex items-center gap-2">
@@ -199,7 +205,7 @@ export default function CommentItem({
                         setShowReplyInput(false);
                         setReplyContent("");
                       }}
-                      className="px-3 py-1.5 text-xs text-[#928980] hover:text-[#1A1A1F] transition-colors"
+                      className="px-3 py-1 text-xs font-bold text-[#878A8C] hover:text-[#1A1A1F] transition-colors"
                     >
                       취소
                     </button>
@@ -207,7 +213,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReplySubmit}
                       disabled={!replyContent.trim() || submittingReply}
-                      className="px-4 py-1.5 text-xs font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1 text-xs font-bold text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {submittingReply ? "등록 중..." : "등록"}
                     </button>

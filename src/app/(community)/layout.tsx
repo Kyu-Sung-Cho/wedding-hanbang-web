@@ -7,23 +7,23 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
+    <div className="min-h-screen flex flex-col bg-[#DAE0E6]">
       <CommunityNav />
 
       {/* 메인 콘텐츠 */}
       <main className="flex-1">{children}</main>
 
       {/* 푸터 */}
-      <footer className="border-t border-[#F5F2ED] bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-8">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+      <footer className="border-t border-[#EDEFF1] bg-[#F6F7F8]">
+        <div className="mx-auto max-w-5xl px-4 py-4">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-lg font-medium text-[#1A1A1F]"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-sm font-medium text-[#1A1A1F]"
             >
               웨딩한방
             </Link>
-            <div className="flex items-center gap-6 text-sm text-[#928980]">
+            <div className="flex items-center gap-4 text-xs text-[#878A8C]">
               <Link href="/community" className="hover:text-[#1A1A1F] transition-colors">
                 커뮤니티
               </Link>
@@ -35,7 +35,7 @@ export default function CommunityLayout({
               </Link>
             </div>
           </div>
-          <p className="mt-6 text-center text-xs text-[#B5ADA3]">
+          <p className="mt-3 text-center text-xs text-[#878A8C]">
             &copy; {new Date().getFullYear()} 웨딩한방. All rights reserved.
           </p>
         </div>

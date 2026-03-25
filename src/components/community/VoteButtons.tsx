@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowBigUp, ArrowBigDown } from "lucide-react";
 
 interface VoteButtonsProps {
   count: number;
@@ -19,7 +19,6 @@ export default function VoteButtons({
 }: VoteButtonsProps) {
   function handleVote(vote: 1 | -1) {
     if (!isLoggedIn) {
-      // 간단한 토스트 대체
       alert("로그인이 필요합니다.");
       return;
     }
@@ -29,26 +28,29 @@ export default function VoteButtons({
   if (compact) {
     // 가로형 (댓글용)
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           type="button"
           onClick={() => handleVote(1)}
-          className={`p-0.5 rounded transition-colors ${
+          className={`p-0.5 transition-colors ${
             userVote === 1
-              ? "text-[#C4967E]"
-              : "text-[#B5ADA3] hover:text-[#C4967E]"
+              ? "text-[#FF4500]"
+              : "text-[#878A8C] hover:text-[#FF4500]"
           }`}
           aria-label="추천"
         >
-          <ChevronUp className="w-4 h-4" />
+          <ArrowBigUp
+            className="w-5 h-5"
+            fill={userVote === 1 ? "#FF4500" : "none"}
+          />
         </button>
         <span
-          className={`text-xs font-medium min-w-[1.25rem] text-center ${
+          className={`text-xs font-bold min-w-[1.25rem] text-center ${
             userVote === 1
-              ? "text-[#C4967E]"
+              ? "text-[#FF4500]"
               : userVote === -1
-              ? "text-slate-400"
-              : "text-[#928980]"
+              ? "text-[#7193FF]"
+              : "text-[#878A8C]"
           }`}
         >
           {count}
@@ -56,41 +58,47 @@ export default function VoteButtons({
         <button
           type="button"
           onClick={() => handleVote(-1)}
-          className={`p-0.5 rounded transition-colors ${
+          className={`p-0.5 transition-colors ${
             userVote === -1
-              ? "text-slate-400"
-              : "text-[#B5ADA3] hover:text-slate-400"
+              ? "text-[#7193FF]"
+              : "text-[#878A8C] hover:text-[#7193FF]"
           }`}
           aria-label="비추천"
         >
-          <ChevronDown className="w-4 h-4" />
+          <ArrowBigDown
+            className="w-5 h-5"
+            fill={userVote === -1 ? "#7193FF" : "none"}
+          />
         </button>
       </div>
     );
   }
 
-  // 세로형 (기본)
+  // 세로형 (기본 - Reddit 스타일)
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <div className="flex flex-col items-center py-2 gap-0.5">
       <button
         type="button"
         onClick={() => handleVote(1)}
-        className={`p-1 rounded-lg transition-colors ${
+        className={`p-0.5 rounded-sm transition-colors ${
           userVote === 1
-            ? "text-[#C4967E] bg-[#C4967E]/10"
-            : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
+            ? "text-[#FF4500]"
+            : "text-[#878A8C] hover:text-[#FF4500] hover:bg-[#FF4500]/10"
         }`}
         aria-label="추천"
       >
-        <ChevronUp className="w-5 h-5" />
+        <ArrowBigUp
+          className="w-6 h-6"
+          fill={userVote === 1 ? "#FF4500" : "none"}
+        />
       </button>
       <span
-        className={`text-sm font-medium min-w-[1.5rem] text-center ${
+        className={`text-xs font-bold min-w-[1.5rem] text-center ${
           userVote === 1
-            ? "text-[#C4967E]"
+            ? "text-[#FF4500]"
             : userVote === -1
-            ? "text-slate-400"
-            : "text-[#928980]"
+            ? "text-[#7193FF]"
+            : "text-[#878A8C]"
         }`}
       >
         {count}
@@ -98,14 +106,17 @@ export default function VoteButtons({
       <button
         type="button"
         onClick={() => handleVote(-1)}
-        className={`p-1 rounded-lg transition-colors ${
+        className={`p-0.5 rounded-sm transition-colors ${
           userVote === -1
-            ? "text-slate-400 bg-slate-100"
-            : "text-[#B5ADA3] hover:text-slate-400 hover:bg-slate-50"
+            ? "text-[#7193FF]"
+            : "text-[#878A8C] hover:text-[#7193FF] hover:bg-[#7193FF]/10"
         }`}
         aria-label="비추천"
       >
-        <ChevronDown className="w-5 h-5" />
+        <ArrowBigDown
+          className="w-6 h-6"
+          fill={userVote === -1 ? "#7193FF" : "none"}
+        />
       </button>
     </div>
   );

@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Search, PenSquare, Menu, X, User } from "lucide-react";
-import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 
 export default function CommunityNav() {
-  const pathname = usePathname();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -31,66 +29,37 @@ export default function CommunityNav() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 카테고리 탭 데이터: "전체" + 각 카테고리
-  const tabs = [
-    { key: "all", label: "전체", href: "/community" },
-    ...COMMUNITY_CATEGORIES.map((cat) => ({
-      key: cat.key,
-      label: cat.shortLabel,
-      href: `/community/${cat.key}`,
-    })),
-  ];
-
-  function isTabActive(tabHref: string) {
-    if (tabHref === "/community") {
-      return pathname === "/community";
-    }
-    return pathname.startsWith(tabHref);
-  }
-
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-[#F5F2ED]">
+    <header className="sticky top-0 z-50 bg-white border-b border-[#EDEFF1]">
       <div className="mx-auto max-w-5xl px-4">
-        {/* 상단 행: 로고, 검색, 글쓰기, 유저 */}
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center gap-4 h-12">
           {/* 왼쪽: 로고 */}
           <Link
             href="/"
-            className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl font-medium text-[#1A1A1F] shrink-0"
+            className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-lg font-medium text-[#1A1A1F] shrink-0"
           >
             웨딩한방
           </Link>
 
-          {/* 가운데: 데스크탑 카테고리 탭 */}
-          <nav className="hidden lg:flex items-center gap-1 overflow-x-auto">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.key}
-                href={tab.href}
-                className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
-                  isTabActive(tab.href)
-                    ? "text-[#C4967E] bg-[#C4967E]/10"
-                    : "text-[#928980] hover:text-[#1A1A1F] hover:bg-[#FAF8F5]"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
+          {/* 가운데: 검색바 */}
+          <div className="hidden sm:flex flex-1 max-w-xl mx-auto">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#878A8C]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="커뮤니티 검색"
+                className="w-full pl-9 pr-4 py-1.5 text-sm bg-[#F6F7F8] border border-[#EDEFF1] rounded-full placeholder-[#878A8C] text-[#1A1A1F] focus:outline-none focus:border-[#0079D3] focus:bg-white transition-colors"
+              />
+            </div>
+          </div>
 
-          {/* 오른쪽: 검색, 글쓰기, 유저/로그인 */}
+          {/* 오른쪽: 글쓰기, 유저/로그인 */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              className="p-2 text-[#928980] hover:text-[#1A1A1F] transition-colors rounded-lg hover:bg-[#FAF8F5]"
-              aria-label="검색"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-
             <Link
               href="/community/write"
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-xl transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#1A1A1F] border border-[#878A8C] rounded hover:bg-[#F6F7F8] transition-colors"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
@@ -99,14 +68,14 @@ export default function CommunityNav() {
             {user ? (
               <Link
                 href="/settings"
-                className="w-8 h-8 rounded-full bg-[#F5F2ED] flex items-center justify-center text-[#928980] hover:bg-[#C4967E]/10 hover:text-[#C4967E] transition-colors"
+                className="w-8 h-8 rounded flex items-center justify-center text-[#878A8C] hover:bg-[#F6F7F8] transition-colors"
               >
-                <User className="w-4 h-4" />
+                <User className="w-5 h-5" />
               </Link>
             ) : (
               <Link
                 href="/login"
-                className="px-3 py-1.5 text-sm font-medium text-[#C4967E] border border-[#C4967E] rounded-xl hover:bg-[#C4967E]/10 transition-colors"
+                className="px-4 py-1.5 text-sm font-semibold text-white bg-[#0079D3] rounded-full hover:bg-[#006CBD] transition-colors"
               >
                 로그인
               </Link>
@@ -115,7 +84,7 @@ export default function CommunityNav() {
             {/* 모바일 햄버거 */}
             <button
               type="button"
-              className="lg:hidden p-2 text-[#928980] hover:text-[#1A1A1F] transition-colors rounded-lg hover:bg-[#FAF8F5]"
+              className="sm:hidden p-2 text-[#878A8C] hover:text-[#1A1A1F] transition-colors rounded hover:bg-[#F6F7F8]"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="메뉴"
             >
@@ -127,32 +96,30 @@ export default function CommunityNav() {
 
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-[#F5F2ED] bg-white">
-          <nav className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-1">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.key}
-                href={tab.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                  isTabActive(tab.href)
-                    ? "text-[#C4967E] bg-[#C4967E]/10"
-                    : "text-[#928980] hover:text-[#1A1A1F] hover:bg-[#FAF8F5]"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            ))}
+        <div className="sm:hidden border-t border-[#EDEFF1] bg-white">
+          <div className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-2">
+            {/* 모바일 검색바 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#878A8C]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="커뮤니티 검색"
+                className="w-full pl-9 pr-4 py-2 text-sm bg-[#F6F7F8] border border-[#EDEFF1] rounded-full placeholder-[#878A8C] text-[#1A1A1F] focus:outline-none focus:border-[#0079D3] focus:bg-white transition-colors"
+              />
+            </div>
+
             {/* 모바일 글쓰기 버튼 */}
             <Link
               href="/community/write"
               onClick={() => setMobileMenuOpen(false)}
-              className="mt-2 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-xl transition-colors"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium text-[#1A1A1F] border border-[#878A8C] rounded hover:bg-[#F6F7F8] transition-colors"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
             </Link>
-          </nav>
+          </div>
         </div>
       )}
     </header>
