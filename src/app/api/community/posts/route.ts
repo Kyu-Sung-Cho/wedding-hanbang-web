@@ -319,6 +319,55 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    // 게이미피케이션: XP 지급 및 업적 확인 (비차단)
+    try {
+      void serviceClient
+        .rpc("community_award_xp", {
+          p_user_id: user.id,
+          p_action: "post_create",
+          p_xp: 50,
+          p_reference_id: post.id,
+        })
+        .then(() => {}, () => {});
+
+      // 업적 확인
+      const { data: profileData } = await serviceClient
+        .from("community_profiles")
+        .select("post_count")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profileData) {
+        const count = profileData.post_count;
+        if (count === 1)
+          void serviceClient
+            .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "first_post" })
+            .then(() => {}, () => {});
+        if (count === 5)
+          void serviceClient
+            .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "posts_5" })
+            .then(() => {}, () => {});
+        if (count === 20)
+          void serviceClient
+            .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "posts_20" })
+            .then(() => {}, () => {});
+        if (count === 50)
+          void serviceClient
+            .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "posts_50" })
+            .then(() => {}, () => {});
+      }
+
+      // 새벽 3시 비밀 업적
+      const hour = new Date().getHours();
+      if (hour >= 3 && hour < 4) {
+        void serviceClient
+          .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "night_owl" })
+          .then(() => {}, () => {});
+      }
+    } catch {
+      // 게이미피케이션 오류는 무시
+    }
+
     return NextResponse.json({ post }, { status: 201 });
   } catch (err) {
     console.error("Create post error:", err);

@@ -15,6 +15,7 @@ import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyState from "@/components/community/EmptyState";
+import GamificationWidget from "@/components/community/GamificationWidget";
 
 interface PopularTag {
   tag: string;
@@ -152,6 +153,9 @@ export default function CategoryFeedPage() {
 
           {/* 데스크탑 사이드바 */}
           <aside className="hidden lg:block w-[312px] shrink-0 space-y-3">
+            {/* 게이미피케이션 위젯 */}
+            <GamificationWidget />
+
             {/* 커뮤니티 정보 카드 */}
             <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden">
               <div className="bg-gradient-to-r from-[#2563EB] to-[#3B82F6] h-12 relative">
