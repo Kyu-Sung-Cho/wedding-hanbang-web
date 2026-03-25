@@ -58,7 +58,7 @@ export default function CommunityNav() {
           {/* 오른쪽: 글쓰기, 유저/로그인 */}
           <div className="flex items-center gap-2.5 shrink-0">
             <Link
-              href="/community/write"
+              href="/community/post/write"
               className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] hover:border-[#D1D5DB] transition-all"
             >
               <PenSquare className="w-4 h-4" />
@@ -112,7 +112,7 @@ export default function CommunityNav() {
 
             {/* 모바일 글쓰기 버튼 */}
             <Link
-              href="/community/write"
+              href="/community/post/write"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] transition-all"
             >

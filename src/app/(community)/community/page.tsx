@@ -16,31 +16,20 @@ interface PopularTag {
 }
 
 export default function CommunityFeedPage() {
-  const {
-    posts,
-    isLoading,
-    hasMore,
-    currentSort,
-    currentPeriod,
-    fetchPosts,
-    fetchMorePosts,
-    setSort,
-    setPeriod,
-    setCategory,
-  } = useCommunityStore();
+  const posts = useCommunityStore((s) => s.posts);
+  const isLoading = useCommunityStore((s) => s.isLoading);
+  const hasMore = useCommunityStore((s) => s.hasMore);
+  const currentSort = useCommunityStore((s) => s.currentSort);
+  const currentPeriod = useCommunityStore((s) => s.currentPeriod);
 
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
 
   // 카테고리 초기화 + 글 목록 가져오기
-  const initialized = useRef(false);
   useEffect(() => {
-    setCategory(null);
-    if (!initialized.current) {
-      initialized.current = true;
-    }
-    fetchPosts(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const store = useCommunityStore.getState();
+    store.setCategory(null);
+    store.fetchPosts(true);
   }, [currentSort, currentPeriod]);
 
   // 인기 태그 가져오기
@@ -55,11 +44,12 @@ export default function CommunityFeedPage() {
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries;
-      if (entry.isIntersecting && hasMore && !isLoading) {
-        fetchMorePosts();
+      const s = useCommunityStore.getState();
+      if (entry.isIntersecting && s.hasMore && !s.isLoading) {
+        s.fetchMorePosts();
       }
     },
-    [hasMore, isLoading, fetchMorePosts]
+    []
   );
 
   useEffect(() => {
@@ -85,8 +75,8 @@ export default function CommunityFeedPage() {
               <SortSelector
                 sort={currentSort}
                 period={currentPeriod}
-                onSortChange={setSort}
-                onPeriodChange={setPeriod}
+                onSortChange={(s) => useCommunityStore.getState().setSort(s)}
+                onPeriodChange={(p) => useCommunityStore.getState().setPeriod(p)}
               />
             </div>
           </div>
@@ -107,7 +97,7 @@ export default function CommunityFeedPage() {
                 message="아직 작성된 글이 없습니다"
                 description="첫 번째 글을 작성해 보세요!"
                 ctaLabel="글쓰기"
-                ctaHref="/community/write"
+                ctaHref="/community/post/write"
               />
             ) : (
               <div className="space-y-3">
@@ -144,7 +134,7 @@ export default function CommunityFeedPage() {
                   팁을 자유롭게 나눠보세요.
                 </p>
                 <Link
-                  href="/community/write"
+                  href="/community/post/write"
                   className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
                 >
                   <PenSquare className="w-4 h-4" />
@@ -199,7 +189,7 @@ export default function CommunityFeedPage() {
 
         {/* 모바일 플로팅 글쓰기 버튼 */}
         <Link
-          href="/community/write"
+          href="/community/post/write"
           className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-2xl shadow-lg hover:shadow-xl transition-all"
           aria-label="글쓰기"
         >
