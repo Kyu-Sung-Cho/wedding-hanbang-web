@@ -10,10 +10,33 @@ interface SortSelectorProps {
   onPeriodChange: (period: TimePeriod) => void;
 }
 
-const SORT_OPTIONS: { key: PostSort; label: string; icon: typeof Flame }[] = [
-  { key: "hot", label: "인기", icon: Flame },
-  { key: "new", label: "최신", icon: Sparkles },
-  { key: "top", label: "추천", icon: TrendingUp },
+const SORT_OPTIONS: {
+  key: PostSort;
+  label: string;
+  icon: typeof Flame;
+  activeClass: string;
+}[] = [
+  {
+    key: "hot",
+    label: "인기",
+    icon: Flame,
+    activeClass:
+      "bg-orange-50 text-[#FF4500] border border-orange-200 font-semibold",
+  },
+  {
+    key: "new",
+    label: "최신",
+    icon: Sparkles,
+    activeClass:
+      "bg-blue-50 text-[#2563EB] border border-blue-200 font-semibold",
+  },
+  {
+    key: "top",
+    label: "추천",
+    icon: TrendingUp,
+    activeClass:
+      "bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold",
+  },
 ];
 
 const PERIOD_OPTIONS: { key: TimePeriod; label: string }[] = [
@@ -40,9 +63,7 @@ export default function SortSelector({
             type="button"
             onClick={() => onSortChange(option.key)}
             className={`flex items-center gap-1 px-3 py-1 text-sm rounded-lg transition-all duration-200 ${
-              isActive
-                ? "bg-[#F4F6F8] font-semibold text-[#1c1c1e]"
-                : "text-[#6B7280] hover:bg-[#F4F6F8]"
+              isActive ? option.activeClass : "text-[#6B7280] hover:bg-[#F4F6F8]"
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -62,7 +83,7 @@ export default function SortSelector({
               onClick={() => onPeriodChange(p.key)}
               className={`px-2 py-0.5 text-sm rounded-full transition-all duration-200 ${
                 period === p.key
-                  ? "bg-[#F4F6F8] font-semibold text-[#1c1c1e]"
+                  ? "bg-[#1c1c1e] text-white font-semibold"
                   : "text-[#6B7280] hover:bg-[#F4F6F8]"
               }`}
             >

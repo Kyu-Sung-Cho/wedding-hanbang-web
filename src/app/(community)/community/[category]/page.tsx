@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { PenSquare, Hash, Sparkles } from "lucide-react";
+import { PenSquare, Hash, Shield } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import {
   COMMUNITY_CATEGORIES,
@@ -34,6 +34,7 @@ export default function CategoryFeedPage() {
   const hasMore = useCommunityStore((s) => s.hasMore);
   const currentSort = useCommunityStore((s) => s.currentSort);
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
+  const total = useCommunityStore((s) => s.total);
 
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -153,15 +154,38 @@ export default function CategoryFeedPage() {
           <aside className="hidden lg:block w-[312px] shrink-0 space-y-3">
             {/* 커뮤니티 정보 카드 */}
             <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden">
-              <div className="bg-gradient-to-r from-[#1c1c1e] to-[#374151] h-10" />
+              <div className="bg-gradient-to-r from-[#2563EB] to-[#3B82F6] h-12 relative">
+                <div className="absolute inset-0 bg-[url('/images/pattern.svg')] opacity-10" />
+              </div>
               <div className="p-4">
-                <h2 className="text-sm font-bold text-[#1c1c1e] mb-2">
+                <h2 className="text-sm font-bold text-[#1c1c1e] mb-1">
                   웨딩한방 커뮤니티
                 </h2>
-                <p className="text-xs text-[#6B7280] leading-relaxed mb-4">
-                  예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티입니다. 후기, 비용,
-                  팁을 자유롭게 나눠보세요.
+                <p className="text-xs text-[#6B7280] leading-relaxed mb-3">
+                  예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티
                 </p>
+
+                {/* 커뮤니티 통계 */}
+                <div className="flex items-center gap-4 py-3 mb-3 border-y border-[#F4F6F8]">
+                  <div className="text-center flex-1">
+                    <div className="text-sm font-bold text-[#1c1c1e]">{total || '—'}</div>
+                    <div className="text-[11px] text-[#6B7280]">게시글</div>
+                  </div>
+                  <div className="w-px h-8 bg-[#E5E7EB]" />
+                  <div className="text-center flex-1">
+                    <div className="text-sm font-bold text-[#1c1c1e]">—</div>
+                    <div className="text-[11px] text-[#6B7280]">멤버</div>
+                  </div>
+                  <div className="w-px h-8 bg-[#E5E7EB]" />
+                  <div className="text-center flex-1">
+                    <div className="flex items-center justify-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <div className="text-sm font-bold text-[#1c1c1e]">—</div>
+                    </div>
+                    <div className="text-[11px] text-[#6B7280]">온라인</div>
+                  </div>
+                </div>
+
                 <Link
                   href="/community/post/write"
                   className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
@@ -170,6 +194,21 @@ export default function CategoryFeedPage() {
                   글쓰기
                 </Link>
               </div>
+            </div>
+
+            {/* 커뮤니티 규칙 */}
+            <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-[#1c1c1e] mb-3">
+                <Shield className="w-3.5 h-3.5 text-[#6B7280]" />
+                커뮤니티 규칙
+              </h3>
+              <ol className="space-y-2 text-xs text-[#6B7280]">
+                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">1.</span>서로 존중하는 대화를 해주세요</li>
+                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">2.</span>광고/스팸 글은 삭제됩니다</li>
+                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">3.</span>개인정보를 공유하지 마세요</li>
+                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">4.</span>후기는 솔직하게 작성해주세요</li>
+                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">5.</span>비용 정보는 정확하게 공유해주세요</li>
+              </ol>
             </div>
 
             {/* 인기 태그 */}
@@ -184,33 +223,20 @@ export default function CategoryFeedPage() {
                     <Link
                       key={t.tag}
                       href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                      className="px-3 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-all duration-200"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs text-[#2563EB] bg-[#EFF6FF] border border-[#DBEAFE] rounded-lg hover:bg-[#DBEAFE] transition-all duration-200"
                     >
                       #{t.tag}
-                      <span className="ml-1 text-[#6B7280]/60">{t.count}</span>
+                      <span className="text-[10px] text-[#2563EB]/60 bg-white px-1.5 py-0.5 rounded-full">{t.count}</span>
                     </Link>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* 웨딩한방 서비스 프로모션 */}
-            <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-[#6B7280]" />
-                <h3 className="text-xs font-bold text-[#1c1c1e]">
-                  웨딩한방 서비스
-                </h3>
-              </div>
-              <p className="text-xs text-[#6B7280] leading-relaxed mb-3">
-                AI 웨딩 플래너가 예산 관리, 일정 관리, 업체 추천까지 한 번에
-                도와드려요.
-              </p>
-              <Link
-                href="/login"
-                className="inline-flex items-center px-4 py-2 text-xs font-medium text-[#2563EB] border border-[#2563EB] rounded-lg hover:bg-[#2563EB] hover:text-white transition-all duration-200"
-              >
-                무료로 시작하기
+            {/* 웨딩한방 서비스 링크 */}
+            <div className="text-center py-3">
+              <Link href="/login" className="text-xs text-[#6B7280] hover:text-[#2563EB] transition-all duration-200">
+                웨딩한방 서비스 둘러보기 →
               </Link>
             </div>
           </aside>
