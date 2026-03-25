@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { MessageCircle } from "lucide-react";
+import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import CommentItem from "@/components/community/CommentItem";
@@ -58,6 +59,14 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     setSubmitting(false);
   }
 
+  // 엔터키 제출 (Ctrl+Enter 또는 Cmd+Enter)
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }
+
   // 댓글 트리 빌드 (1-depth only)
   const treeComments = useMemo(() => {
     const topLevel: CommentWithAuthor[] = [];
@@ -86,7 +95,10 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       <div className="flex items-center gap-2 mb-4">
         <MessageCircle className="w-4 h-4 text-[#6B7280]" />
         <h3 className="text-sm font-bold text-[#1c1c1e]">
-          댓글 {commentCount > 0 && commentCount}
+          댓글{" "}
+          {commentCount > 0 && (
+            <span className="text-[#2563EB]">{commentCount}</span>
+          )}
         </h3>
       </div>
 
@@ -96,6 +108,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           <textarea
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="댓글을 작성해 주세요..."
             rows={3}
             maxLength={2000}
@@ -116,14 +129,19 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           </div>
         </div>
       ) : (
-        <div className="mb-5 px-4 py-3.5 text-center text-sm text-[#6B7280] bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
-          <a
-            href="/login"
-            className="text-[#2563EB] font-semibold hover:underline"
-          >
-            로그인
-          </a>
-          하면 댓글을 작성할 수 있습니다.
+        <div className="mb-5 relative">
+          <div className="px-4 py-5 text-center bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
+            <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#D1D5DB]" />
+            <p className="text-sm text-[#6B7280]">
+              <Link
+                href="/login"
+                className="text-[#2563EB] font-semibold hover:underline"
+              >
+                로그인
+              </Link>
+              하고 댓글을 작성해 보세요
+            </p>
+          </div>
         </div>
       )}
 
@@ -141,11 +159,14 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           ))}
         </div>
       ) : treeComments.length === 0 ? (
-        <p className="text-center text-sm text-[#6B7280] py-6">
-          아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
-        </p>
+        <div className="text-center py-8">
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB]" />
+          <p className="text-sm text-[#6B7280]">
+            아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
+          </p>
+        </div>
       ) : (
-        <div className="space-y-0">
+        <div className="divide-y divide-[#F4F6F8]">
           {treeComments.map((comment) => (
             <CommentItem
               key={comment.id}

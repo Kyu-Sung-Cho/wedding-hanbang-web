@@ -1,4 +1,4 @@
-import { Inbox } from "lucide-react";
+import { MessageSquare, PenLine } from "lucide-react";
 import Link from "next/link";
 
 interface EmptyStateProps {
@@ -17,19 +17,38 @@ export default function EmptyState({
   ctaHref,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 px-4 text-center bg-white rounded-lg shadow-sm border border-[#E5E7EB]">
-      <div className="text-[#6B7280] mb-3">
-        {icon ?? <Inbox className="w-8 h-8" />}
+    <div className="relative flex flex-col items-center justify-center py-16 px-6 text-center bg-white rounded-lg shadow-sm border border-[#E5E7EB] overflow-hidden">
+      {/* 배경 장식 */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[#2563EB]/[0.03]" />
+        <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-[#2563EB]/[0.03]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-[#F4F6F8]/50" />
       </div>
-      <p className="text-sm font-medium text-[#1c1c1e]">{message}</p>
+
+      {/* 아이콘 */}
+      <div className="relative z-10 w-14 h-14 rounded-2xl bg-[#F4F6F8] border border-[#E5E7EB] flex items-center justify-center mb-4">
+        <div className="text-[#6B7280]">
+          {icon ?? <MessageSquare className="w-6 h-6" />}
+        </div>
+      </div>
+
+      {/* 텍스트 */}
+      <h3 className="relative z-10 text-base font-bold text-[#1c1c1e] mb-1">
+        {message}
+      </h3>
       {description && (
-        <p className="mt-1 text-xs text-[#6B7280]">{description}</p>
+        <p className="relative z-10 text-sm text-[#6B7280] max-w-xs leading-relaxed">
+          {description}
+        </p>
       )}
+
+      {/* CTA 버튼 */}
       {ctaLabel && ctaHref && (
         <Link
           href={ctaHref}
-          className="mt-4 inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
+          className="relative z-10 mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors shadow-sm"
         >
+          <PenLine className="w-4 h-4" />
           {ctaLabel}
         </Link>
       )}

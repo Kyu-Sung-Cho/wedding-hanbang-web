@@ -2,13 +2,33 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Search, PenSquare, Menu, X, User } from "lucide-react";
 
 export default function CommunityNav() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") ?? "");
+
+  // URL의 search 파라미터가 바뀌면 입력값도 동기화
+  useEffect(() => {
+    setSearchQuery(searchParams.get("search") ?? "");
+  }, [searchParams]);
+
+  const handleSearch = () => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    router.push(`/community?search=${encodeURIComponent(trimmed)}`);
+    setMobileMenuOpen(false);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    router.push("/community");
+  };
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -42,18 +62,34 @@ export default function CommunityNav() {
           </Link>
 
           {/* 가운데: 검색바 */}
-          <div className="hidden sm:flex flex-1 max-w-xl mx-auto">
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
+            className="hidden sm:flex flex-1 max-w-xl mx-auto"
+          >
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] cursor-pointer"
+                onClick={handleSearch}
+              />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-4 py-2 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
+                className="w-full pl-9 pr-9 py-2 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1c1c1e] transition-colors"
+                  aria-label="검색 초기화"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-          </div>
+          </form>
 
           {/* 오른쪽: 글쓰기, 유저/로그인 */}
           <div className="flex items-center gap-2.5 shrink-0">
@@ -99,16 +135,29 @@ export default function CommunityNav() {
         <div className="sm:hidden border-t border-[#E5E7EB] bg-white">
           <div className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-2.5">
             {/* 모바일 검색바 */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+            <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] cursor-pointer"
+                onClick={handleSearch}
+              />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
+                className="w-full pl-9 pr-9 py-2.5 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
               />
-            </div>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1c1c1e] transition-colors"
+                  aria-label="검색 초기화"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </form>
 
             {/* 모바일 글쓰기 버튼 */}
             <Link

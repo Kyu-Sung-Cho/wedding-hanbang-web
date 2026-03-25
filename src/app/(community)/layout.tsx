@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import CommunityNav from "@/components/community/CommunityNav";
+import { ToastContainer } from "@/components/community/Toast";
 import Link from "next/link";
 
 export default function CommunityLayout({
@@ -8,7 +10,10 @@ export default function CommunityLayout({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F6F8]">
-      <CommunityNav />
+      <Suspense fallback={<div className="h-14 border-b border-[#E5E7EB] bg-white" />}>
+        <CommunityNav />
+      </Suspense>
+      <ToastContainer />
 
       {/* 메인 콘텐츠 */}
       <main className="flex-1">{children}</main>

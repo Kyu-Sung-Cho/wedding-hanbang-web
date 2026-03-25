@@ -12,6 +12,8 @@ import {
   Globe,
   Users,
   Save,
+  Pencil,
+  Check,
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
@@ -20,6 +22,7 @@ import ImageUploader from "@/components/community/ImageUploader";
 import TagInput from "@/components/community/TagInput";
 import VendorTagPicker from "@/components/community/VendorTagPicker";
 import CostShareEditor from "@/components/community/CostShareEditor";
+import { sanitizeHtml } from "@/utils/sanitize";
 import type {
   CommunityCategory,
   PostVisibility,
@@ -29,6 +32,10 @@ import type {
 
 // 로컬스토리지 키
 const DRAFT_KEY = "community_post_draft";
+
+// 글자수 제한
+const TITLE_MAX_LENGTH = 200;
+const CONTENT_MAX_LENGTH = 50000;
 
 interface DraftData {
   category: CommunityCategory | null;
@@ -92,13 +99,18 @@ function PostWriteContent() {
   const [costData, setCostData] = useState<CostShareData>(emptyCostData());
 
   // UI 상태
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingPost, setLoadingPost] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
+  const [autoSaveFlash, setAutoSaveFlash] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 초기 폼 상태 (변경 감지용)
+  const initialFormRef = useRef<string>("");
 
   // 인증 체크
   useEffect(() => {
@@ -146,6 +158,17 @@ function PostWriteContent() {
         setTags(post.tags || []);
         setVendorTags(post.vendor_tags || []);
         if (post.cost_data) setCostData(post.cost_data);
+
+        // 초기 상태 저장
+        initialFormRef.current = JSON.stringify({
+          category: post.category,
+          title: post.title,
+          content: post.content,
+          visibility: post.visibility,
+          images: post.images || [],
+          tags: post.tags || [],
+          vendorTags: post.vendor_tags || [],
+        });
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "글을 불러올 수 없습니다."
@@ -185,6 +208,39 @@ function PostWriteContent() {
     }
   }, [isEditMode, authChecked]);
 
+  // 변경 감지 (unsaved changes)
+  useEffect(() => {
+    const currentForm = JSON.stringify({
+      category,
+      title,
+      content,
+      visibility,
+      images,
+      tags,
+      vendorTags,
+    });
+    // 아무것도 입력하지 않은 빈 상태는 변경으로 취급하지 않음
+    const isEmpty = !category && !title && !content && images.length === 0 && tags.length === 0 && vendorTags.length === 0;
+    if (isEmpty) {
+      setHasUnsavedChanges(false);
+    } else if (isEditMode) {
+      setHasUnsavedChanges(currentForm !== initialFormRef.current);
+    } else {
+      setHasUnsavedChanges(true);
+    }
+  }, [category, title, content, visibility, images, tags, vendorTags, isEditMode]);
+
+  // beforeunload 경고
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   // 자동 저장 (30초마다)
   useEffect(() => {
     if (isEditMode) return;
@@ -201,8 +257,13 @@ function PostWriteContent() {
         costData,
         savedAt: Date.now(),
       };
+      // 비어있으면 저장하지 않음
+      if (!title && !content && !category) return;
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        // 자동 저장 표시
+        setAutoSaveFlash(true);
+        setTimeout(() => setAutoSaveFlash(false), 2000);
       } catch {
         // 스토리지 가득 찬 경우 무시
       }
@@ -231,15 +292,27 @@ function PostWriteContent() {
   // 유효성 검사
   const isValid = category && title.trim().length > 0 && content.trim().length > 0;
 
+  // 콘텐츠를 간이 HTML로 변환 (미리보기용, 줄바꿈 처리)
+  const renderPreviewHtml = useCallback(() => {
+    const escaped = content
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br />");
+    return sanitizeHtml(`<p>${escaped}</p>`);
+  }, [content]);
+
   // 제출
   const handleSubmit = async (asDraft = false) => {
+    if (isSubmitting) return;
     if (!category || !title.trim() || !content.trim()) {
       setError("카테고리, 제목, 내용을 모두 입력해 주세요.");
       return;
     }
 
     setError(null);
-    setSubmitting(true);
+    setIsSubmitting(true);
 
     const input: CreatePostInput = {
       category,
@@ -258,12 +331,14 @@ function PostWriteContent() {
         if (!success) throw new Error("수정에 실패했습니다.");
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
+        setHasUnsavedChanges(false);
         router.push(`/community/post/${editId}`);
       } else {
         const postId = await createPost(input);
         if (!postId) throw new Error("작성에 실패했습니다.");
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
+        setHasUnsavedChanges(false);
         if (asDraft) {
           router.push("/community");
         } else {
@@ -275,8 +350,18 @@ function PostWriteContent() {
         err instanceof Error ? err.message : "오류가 발생했습니다."
       );
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
+  };
+
+  // 취소 핸들러
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("작성 중인 내용이 있습니다. 정말 나가시겠습니까?");
+      if (!confirmed) return;
+    }
+    setHasUnsavedChanges(false);
+    router.back();
   };
 
   // 인증 확인 전 로딩
@@ -297,13 +382,26 @@ function PostWriteContent() {
     );
   }
 
+  // 글자수 경고 색상
+  const titleCountColor = title.length >= TITLE_MAX_LENGTH
+    ? "text-red-500"
+    : title.length >= TITLE_MAX_LENGTH * 0.9
+      ? "text-amber-500"
+      : "text-[#B5ADA3]";
+
+  const contentCountColor = content.length >= CONTENT_MAX_LENGTH
+    ? "text-red-500"
+    : content.length >= CONTENT_MAX_LENGTH * 0.9
+      ? "text-amber-500"
+      : "text-[#B5ADA3]";
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 pb-32 sm:pb-10">
+    <div className="mx-auto max-w-4xl px-4 py-6 pb-32 sm:pb-10">
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={handleCancel}
           className="p-2 text-[#928980] hover:text-[#1A1A1F] hover:bg-[#FAF8F5] rounded-xl transition-colors"
           aria-label="뒤로 가기"
         >
@@ -312,11 +410,20 @@ function PostWriteContent() {
         <h1 className="text-lg font-medium text-[#1A1A1F]">
           {isEditMode ? "글 수정" : "글쓰기"}
         </h1>
-        {draftRestored && !isEditMode && (
-          <span className="ml-auto text-xs text-[#C4967E]">
-            임시저장 복원됨
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {draftRestored && !isEditMode && (
+            <span className="text-xs text-[#C4967E]">
+              임시저장 복원됨
+            </span>
+          )}
+          {/* 자동 저장 표시 */}
+          {autoSaveFlash && (
+            <span className="flex items-center gap-1 text-xs text-emerald-500 animate-pulse">
+              <Check className="w-3 h-3" />
+              자동 저장됨
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 에러 메시지 */}
@@ -326,177 +433,232 @@ function PostWriteContent() {
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* 1. 카테고리 선택 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-3">
-            카테고리 <span className="text-[#C4967E]">*</span>
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {COMMUNITY_CATEGORIES.map((cat) => {
-              const Icon = getIcon(cat.icon);
-              const isSelected = category === cat.key;
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setCategory(cat.key)}
-                  className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl border transition-colors ${
-                    isSelected
-                      ? "border-[#C4967E] bg-[#C4967E]/10 text-[#C4967E]"
-                      : "border-[#F5F2ED] bg-white text-[#928980] hover:border-[#B5ADA3] hover:text-[#1A1A1F]"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{cat.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 2. 제목 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            제목 <span className="text-[#C4967E]">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, 100))}
-            placeholder="제목을 입력하세요"
-            maxLength={100}
-            className="w-full px-4 py-3 text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-2xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
-          />
-          <p className="mt-1.5 text-xs text-[#B5ADA3] text-right">
-            {title.length}/100
-          </p>
-        </section>
-
-        {/* 3. 공개 범위 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            공개 범위
-          </label>
-          <div className="flex gap-2">
-            {[
-              { key: "public" as PostVisibility, label: "전체 공개", icon: Globe },
-              { key: "members" as PostVisibility, label: "회원 공개", icon: Users },
-              { key: "draft" as PostVisibility, label: "임시저장", icon: FileText },
-            ].map((opt) => {
-              const isSelected = visibility === opt.key;
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setVisibility(opt.key)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-xl border transition-colors ${
-                    isSelected
-                      ? "border-[#C4967E] bg-[#C4967E]/10 text-[#C4967E]"
-                      : "border-[#F5F2ED] bg-white text-[#928980] hover:border-[#B5ADA3]"
-                  }`}
-                >
-                  <opt.icon className="w-4 h-4" />
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 4. 본문 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            내용 <span className="text-[#C4967E]">*</span>
-          </label>
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              autoResize();
-            }}
-            placeholder="내용을 입력하세요..."
-            className="w-full px-4 py-3 text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-2xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none leading-relaxed"
-            style={{ minHeight: "200px" }}
-          />
-        </section>
-
-        {/* 5. 이미지 업로드 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            이미지
-          </label>
-          <ImageUploader images={images} onChange={setImages} max={5} />
-        </section>
-
-        {/* 6. 태그 */}
-        <section>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            태그
-          </label>
-          <TagInput tags={tags} onChange={setTags} max={10} />
-        </section>
-
-        {/* 7. 업체 태그 (카테고리가 허용하는 경우) */}
-        {categoryInfo?.allowVendorTags && (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 메인 영역: 제목 + 본문 */}
+        <div className="flex-1 space-y-5">
+          {/* 제목 */}
           <section>
             <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-              업체 태그
+              제목 <span className="text-[#C4967E]">*</span>
             </label>
-            <VendorTagPicker vendorIds={vendorTags} onChange={setVendorTags} />
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+              placeholder="제목을 입력하세요"
+              maxLength={TITLE_MAX_LENGTH}
+              className="w-full px-4 py-3 text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-2xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+            />
+            <p className={`mt-1.5 text-xs text-right ${titleCountColor}`}>
+              {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
+            </p>
           </section>
-        )}
 
-        {/* 8. 비용 공유 에디터 (cost_share 카테고리) */}
-        {category === "cost_share" && (
+          {/* 작성/미리보기 탭 */}
           <section>
-            <label className="block text-sm font-medium text-[#1A1A1F] mb-3">
-              비용 내역
-            </label>
-            <CostShareEditor data={costData} onChange={setCostData} />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-[#1A1A1F]">
+                내용 <span className="text-[#C4967E]">*</span>
+              </label>
+              <div className="flex bg-[#F5F2ED] rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("write")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    activeTab === "write"
+                      ? "bg-white text-[#1A1A1F] shadow-sm"
+                      : "text-[#928980] hover:text-[#1A1A1F]"
+                  }`}
+                >
+                  <Pencil className="w-3 h-3" />
+                  작성
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("preview")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    activeTab === "preview"
+                      ? "bg-white text-[#1A1A1F] shadow-sm"
+                      : "text-[#928980] hover:text-[#1A1A1F]"
+                  }`}
+                >
+                  <Eye className="w-3 h-3" />
+                  미리보기
+                </button>
+              </div>
+            </div>
+
+            {activeTab === "write" ? (
+              <>
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={(e) => {
+                    setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
+                    autoResize();
+                  }}
+                  placeholder="내용을 입력하세요..."
+                  maxLength={CONTENT_MAX_LENGTH}
+                  className="w-full px-4 py-3 text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-2xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
+                />
+                <p className={`mt-1.5 text-xs text-right ${contentCountColor}`}>
+                  {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
+                </p>
+              </>
+            ) : (
+              <div className="w-full px-4 py-3 bg-[#FAF8F5] border border-[#F5F2ED] rounded-2xl min-h-[200px]">
+                {content.trim() ? (
+                  <div
+                    className="prose prose-sm max-w-none text-[#1A1A1F] leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: renderPreviewHtml() }}
+                  />
+                ) : (
+                  <p className="text-[#B5ADA3] text-sm">미리볼 내용이 없습니다.</p>
+                )}
+              </div>
+            )}
           </section>
-        )}
+
+          {/* 이미지 업로드 */}
+          <section>
+            <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+              이미지
+            </label>
+            <ImageUploader images={images} onChange={setImages} max={5} />
+          </section>
+        </div>
+
+        {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
+        <div className="lg:w-72 shrink-0 space-y-5">
+          {/* 카테고리 선택 */}
+          <section className="bg-white border border-[#F5F2ED] rounded-2xl p-4">
+            <label className="block text-sm font-medium text-[#1A1A1F] mb-3">
+              카테고리 <span className="text-[#C4967E]">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {COMMUNITY_CATEGORIES.map((cat) => {
+                const Icon = getIcon(cat.icon);
+                const isSelected = category === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setCategory(cat.key)}
+                    className={`flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-xl border transition-all ${
+                      isSelected
+                        ? "border-[#C4967E] bg-[#C4967E] text-white shadow-sm"
+                        : "border-[#F5F2ED] bg-white text-[#928980] hover:border-[#B5ADA3] hover:text-[#1A1A1F]"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{cat.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 공개 범위 */}
+          <section className="bg-white border border-[#F5F2ED] rounded-2xl p-4">
+            <label className="block text-sm font-medium text-[#1A1A1F] mb-3">
+              공개 범위
+            </label>
+            <div className="space-y-2">
+              {[
+                { key: "public" as PostVisibility, label: "전체 공개", icon: Globe },
+                { key: "members" as PostVisibility, label: "회원 공개", icon: Users },
+                { key: "draft" as PostVisibility, label: "임시저장", icon: FileText },
+              ].map((opt) => {
+                const isSelected = visibility === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setVisibility(opt.key)}
+                    className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium rounded-xl border transition-all ${
+                      isSelected
+                        ? "border-[#C4967E] bg-[#C4967E] text-white shadow-sm"
+                        : "border-[#F5F2ED] bg-white text-[#928980] hover:border-[#B5ADA3]"
+                    }`}
+                  >
+                    <opt.icon className="w-4 h-4" />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 태그 */}
+          <section className="bg-white border border-[#F5F2ED] rounded-2xl p-4">
+            <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+              태그
+            </label>
+            <TagInput tags={tags} onChange={setTags} max={10} />
+          </section>
+
+          {/* 업체 태그 (카테고리가 허용하는 경우) */}
+          {categoryInfo?.allowVendorTags && (
+            <section className="bg-white border border-[#F5F2ED] rounded-2xl p-4">
+              <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+                업체 태그
+              </label>
+              <VendorTagPicker vendorIds={vendorTags} onChange={setVendorTags} />
+            </section>
+          )}
+
+          {/* 비용 공유 에디터 (cost_share 카테고리) */}
+          {category === "cost_share" && (
+            <section className="bg-white border border-[#F5F2ED] rounded-2xl p-4">
+              <label className="block text-sm font-medium text-[#1A1A1F] mb-3">
+                비용 내역
+              </label>
+              <CostShareEditor data={costData} onChange={setCostData} />
+            </section>
+          )}
+        </div>
       </div>
 
       {/* 하단 버튼 - 데스크탑 */}
-      <div className="hidden sm:flex items-center justify-end gap-3 mt-8 pt-6 border-t border-[#F5F2ED]">
+      <div className="hidden sm:flex items-center justify-between gap-3 mt-8 pt-6 border-t border-[#F5F2ED]">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={handleCancel}
           className="px-6 py-2.5 text-sm font-medium text-[#928980] bg-white border border-[#F5F2ED] rounded-xl hover:bg-[#FAF8F5] transition-colors"
         >
           취소
         </button>
-        {!isEditMode && (
+        <div className="flex items-center gap-3">
+          {!isEditMode && (
+            <button
+              type="button"
+              onClick={() => handleSubmit(true)}
+              disabled={isSubmitting || !category || !title.trim()}
+              className="flex items-center gap-1.5 px-6 py-2.5 text-sm font-medium text-[#928980] bg-white border border-[#F5F2ED] rounded-xl hover:bg-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Save className="w-4 h-4" />
+              임시저장
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => handleSubmit(true)}
-            disabled={submitting || !category || !title.trim()}
-            className="flex items-center gap-1.5 px-6 py-2.5 text-sm font-medium text-[#928980] bg-white border border-[#F5F2ED] rounded-xl hover:bg-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            onClick={() => handleSubmit(false)}
+            disabled={isSubmitting || !isValid}
+            className="flex items-center justify-center gap-2 px-10 py-3 text-base font-semibold text-white bg-[#C4967E] rounded-xl hover:bg-[#9A6B62] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
-            <Save className="w-4 h-4" />
-            임시저장
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : null}
+            {isEditMode ? "수정하기" : "발행하기"}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => handleSubmit(false)}
-          disabled={submitting || !isValid}
-          className="flex items-center gap-1.5 px-8 py-2.5 text-sm font-medium text-white bg-[#C4967E] rounded-xl hover:bg-[#9A6B62] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {submitting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : null}
-          {isEditMode ? "수정하기" : "발행하기"}
-        </button>
+        </div>
       </div>
 
       {/* 하단 버튼 - 모바일 고정 */}
       <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#F5F2ED] px-4 py-3 flex items-center gap-2">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={handleCancel}
           className="px-4 py-2.5 text-sm font-medium text-[#928980] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl transition-colors"
         >
           취소
@@ -505,7 +667,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={() => handleSubmit(true)}
-            disabled={submitting || !category || !title.trim()}
+            disabled={isSubmitting || !category || !title.trim()}
             className="px-4 py-2.5 text-sm font-medium text-[#928980] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Save className="w-4 h-4" />
@@ -514,10 +676,10 @@ function PostWriteContent() {
         <button
           type="button"
           onClick={() => handleSubmit(false)}
-          disabled={submitting || !isValid}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white bg-[#C4967E] rounded-xl hover:bg-[#9A6B62] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          disabled={isSubmitting || !isValid}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold text-white bg-[#C4967E] rounded-xl hover:bg-[#9A6B62] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {submitting ? (
+          {isSubmitting ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : null}
           {isEditMode ? "수정하기" : "발행하기"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { MessageCircle, Share2, Bookmark, Eye } from "lucide-react";
@@ -10,6 +11,9 @@ import type { PostWithAuthor, BadgeType } from "@/types/community.types";
 
 interface PostCardProps {
   post: PostWithAuthor;
+  isLoggedIn?: boolean;
+  onVote?: (postId: string, vote: 1 | -1) => void;
+  onBookmark?: (postId: string) => void;
 }
 
 // 배지 라벨
@@ -34,8 +38,9 @@ function formatCost(costInManwon: number): string {
   return `${costInManwon.toLocaleString()}만원`;
 }
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark }: PostCardProps) {
   const categoryInfo = CATEGORY_MAP[post.category];
+  const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
 
   // 본문 미리보기: HTML 태그 제거 후 150자
   const contentPreview = post.content
@@ -48,22 +53,44 @@ export default function PostCard({ post }: PostCardProps) {
   const totalCost = post.cost_data?.totalCost;
   const voteCount = post.upvote_count - post.downvote_count;
 
+  // 아바타 첫 글자
+  const avatarLetter = post.author.nickname?.charAt(0) || "?";
+
+  function handleBookmark() {
+    setBookmarked((prev) => !prev);
+    onBookmark?.(post.id);
+  }
+
   return (
-    <article className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] hover:shadow-md transition-shadow">
+    <article className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] hover:shadow-md transition-shadow relative">
+      {/* 북마크 버튼 (우상단) */}
+      <button
+        type="button"
+        onClick={handleBookmark}
+        className="absolute top-2.5 right-2.5 z-10 p-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
+        aria-label="북마크"
+      >
+        <Bookmark
+          className={`w-4 h-4 transition-colors ${
+            bookmarked ? "text-[#2563EB] fill-[#2563EB]" : "text-[#B0B0B0] hover:text-[#6B7280]"
+          }`}
+        />
+      </button>
+
       <div className="flex">
         {/* 왼쪽 투표 스트립 */}
         <div className="flex-shrink-0 w-11 bg-[#FAFAFA] rounded-l-lg flex justify-center">
           <VoteButtons
             count={voteCount}
-            userVote={null}
-            onVote={() => {}}
-            isLoggedIn={false}
+            userVote={post.user_vote ?? null}
+            onVote={(vote) => onVote?.(post.id, vote)}
+            isLoggedIn={isLoggedIn}
           />
         </div>
 
         {/* 오른쪽 콘텐츠 */}
-        <div className="flex-1 min-w-0 p-2.5 sm:p-3">
-          {/* 메타 라인: 카테고리 · 작성자 · 시간 */}
+        <div className="flex-1 min-w-0 p-2.5 sm:p-3 pr-8">
+          {/* 메타 라인: 아바타 + 카테고리 + 작성자 + 시간 */}
           <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-1.5">
             {categoryInfo && (
               <>
@@ -73,11 +100,27 @@ export default function PostCard({ post }: PostCardProps) {
                 <span>&middot;</span>
               </>
             )}
-            <span>
-              작성자{" "}
-              <span className="font-medium text-[#1c1c1e]">
-                {post.author.nickname}
+            {/* 작성자 아바타 */}
+            {post.author.avatar_url ? (
+              <Image
+                src={post.author.avatar_url}
+                alt={post.author.nickname}
+                width={18}
+                height={18}
+                className="w-[18px] h-[18px] rounded-full object-cover"
+              />
+            ) : (
+              <span className="w-[18px] h-[18px] rounded-full bg-[#E5E7EB] text-[10px] font-bold text-[#6B7280] flex items-center justify-center shrink-0">
+                {avatarLetter}
               </span>
+            )}
+            <span>
+              <Link
+                href={`/community?author_id=${post.author_id}`}
+                className="font-medium text-[#1c1c1e] hover:text-[#2563EB] hover:underline transition-colors"
+              >
+                {post.author.nickname}
+              </Link>
             </span>
             {badgeLabel(post.author.badge) && (
               <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#FF4500]/10 text-[#FF4500] rounded-md">
@@ -88,7 +131,7 @@ export default function PostCard({ post }: PostCardProps) {
             <span>{timeAgo(post.created_at)}</span>
           </div>
 
-          {/* 제목 행: BEST 배지 + 비용 배지 + 제목 */}
+          {/* 제목 행: BEST 배지 + 비용 배지 + 제목 + 썸네일 */}
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
               <Link
@@ -149,13 +192,13 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* 하단 액션 행 */}
           <div className="mt-2 flex items-center gap-0.5 text-xs font-medium text-[#6B7280]">
-            <button
-              type="button"
+            <Link
+              href={`/community/post/${post.id}#comments`}
               className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
             >
               <MessageCircle className="w-4 h-4" />
               <span>{post.comment_count}개 댓글</span>
-            </button>
+            </Link>
             <button
               type="button"
               className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
@@ -165,9 +208,12 @@ export default function PostCard({ post }: PostCardProps) {
             </button>
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
+              onClick={handleBookmark}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors ${
+                bookmarked ? "text-[#2563EB]" : ""
+              }`}
             >
-              <Bookmark className="w-4 h-4" />
+              <Bookmark className="w-4 h-4" fill={bookmarked ? "#2563EB" : "none"} />
               <span>저장</span>
             </button>
             <span className="flex items-center gap-1 px-2 py-1">

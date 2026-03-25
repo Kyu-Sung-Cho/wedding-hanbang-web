@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowBigUp, ArrowBigDown } from "lucide-react";
 
 interface VoteButtonsProps {
@@ -17,13 +19,58 @@ export default function VoteButtons({
   compact = false,
   isLoggedIn = false,
 }: VoteButtonsProps) {
-  function handleVote(vote: 1 | -1) {
-    if (!isLoggedIn) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-    onVote(vote);
-  }
+  const router = useRouter();
+  const [isVoting, setIsVoting] = useState(false);
+  // 낙관적 UI 상태
+  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticDelta, setOptimisticDelta] = useState(0);
+
+  const displayVote = optimisticVote !== undefined ? optimisticVote : userVote;
+  const displayCount = count + optimisticDelta;
+
+  const handleVote = useCallback(
+    async (vote: 1 | -1) => {
+      if (!isLoggedIn) {
+        router.push("/login");
+        return;
+      }
+      if (isVoting) return;
+
+      // 낙관적 업데이트 계산
+      const prevVote = userVote;
+      let newVote: 1 | -1 | null;
+      let delta = 0;
+
+      if (prevVote === vote) {
+        // 같은 버튼 다시 누르면 취소
+        newVote = null;
+        delta = -vote;
+      } else if (prevVote === null) {
+        // 투표 없는 상태에서 새 투표
+        newVote = vote;
+        delta = vote;
+      } else {
+        // 반대 투표로 변경
+        newVote = vote;
+        delta = vote * 2;
+      }
+
+      setOptimisticVote(newVote);
+      setOptimisticDelta(delta);
+      setIsVoting(true);
+
+      try {
+        await onVote(vote);
+      } catch {
+        // 실패 시 원복
+        setOptimisticVote(undefined);
+        setOptimisticDelta(0);
+      } finally {
+        setIsVoting(false);
+      }
+    },
+    [isLoggedIn, isVoting, userVote, onVote, router]
+  );
 
   if (compact) {
     // 가로형 (댓글용)
@@ -32,42 +79,44 @@ export default function VoteButtons({
         <button
           type="button"
           onClick={() => handleVote(1)}
-          className={`p-1 rounded-md transition-all ${
-            userVote === 1
+          disabled={isVoting}
+          className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+            displayVote === 1
               ? "text-[#FF4500] bg-[#FFF1EE]"
               : "text-[#6B7280] hover:text-[#FF4500] hover:bg-[#FFF1EE]"
-          }`}
+          } disabled:opacity-50`}
           aria-label="추천"
         >
           <ArrowBigUp
             className="w-5 h-5"
-            fill={userVote === 1 ? "#FF4500" : "none"}
+            fill={displayVote === 1 ? "#FF4500" : "none"}
           />
         </button>
         <span
           className={`text-xs min-w-[1.25rem] text-center ${
-            userVote === 1
+            displayVote === 1
               ? "text-[#FF4500] font-semibold"
-              : userVote === -1
+              : displayVote === -1
               ? "text-[#7193FF] font-semibold"
               : "text-[#6B7280] font-bold"
           }`}
         >
-          {count}
+          {displayCount}
         </span>
         <button
           type="button"
           onClick={() => handleVote(-1)}
-          className={`p-1 rounded-md transition-all ${
-            userVote === -1
+          disabled={isVoting}
+          className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+            displayVote === -1
               ? "text-[#7193FF] bg-[#EEF1FF]"
               : "text-[#6B7280] hover:text-[#7193FF] hover:bg-[#EEF1FF]"
-          }`}
+          } disabled:opacity-50`}
           aria-label="비추천"
         >
           <ArrowBigDown
             className="w-5 h-5"
-            fill={userVote === -1 ? "#7193FF" : "none"}
+            fill={displayVote === -1 ? "#7193FF" : "none"}
           />
         </button>
       </div>
@@ -80,42 +129,44 @@ export default function VoteButtons({
       <button
         type="button"
         onClick={() => handleVote(1)}
-        className={`p-1 rounded-md transition-all ${
-          userVote === 1
+        disabled={isVoting}
+        className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+          displayVote === 1
             ? "text-[#FF4500] bg-[#FFF1EE]"
             : "text-[#6B7280] hover:text-[#FF4500] hover:bg-[#FFF1EE]"
-        }`}
+        } disabled:opacity-50`}
         aria-label="추천"
       >
         <ArrowBigUp
           className="w-6 h-6"
-          fill={userVote === 1 ? "#FF4500" : "none"}
+          fill={displayVote === 1 ? "#FF4500" : "none"}
         />
       </button>
       <span
         className={`text-xs min-w-[1.5rem] text-center ${
-          userVote === 1
+          displayVote === 1
             ? "text-[#FF4500] font-semibold"
-            : userVote === -1
+            : displayVote === -1
             ? "text-[#7193FF] font-semibold"
             : "text-[#6B7280] font-bold"
         }`}
       >
-        {count}
+        {displayCount}
       </span>
       <button
         type="button"
         onClick={() => handleVote(-1)}
-        className={`p-1 rounded-md transition-all ${
-          userVote === -1
+        disabled={isVoting}
+        className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+          displayVote === -1
             ? "text-[#7193FF] bg-[#EEF1FF]"
             : "text-[#6B7280] hover:text-[#7193FF] hover:bg-[#EEF1FF]"
-        }`}
+        } disabled:opacity-50`}
         aria-label="비추천"
       >
         <ArrowBigDown
           className="w-6 h-6"
-          fill={userVote === -1 ? "#7193FF" : "none"}
+          fill={displayVote === -1 ? "#7193FF" : "none"}
         />
       </button>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Reply, Trash2 } from "lucide-react";
+import { Reply, Trash2, X } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import VoteButtons from "@/components/community/VoteButtons";
 import type { CommentWithAuthor, BadgeType } from "@/types/community.types";
@@ -42,7 +42,7 @@ export default function CommentItem({
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isAuthor = currentUserId === comment.author_id;
   const isLoggedIn = !!currentUserId;
@@ -57,12 +57,8 @@ export default function CommentItem({
   }
 
   async function handleDelete() {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
     await onDelete(comment.id);
-    setConfirmDelete(false);
+    setShowDeleteConfirm(false);
   }
 
   // 삭제된 댓글
@@ -70,7 +66,7 @@ export default function CommentItem({
     return (
       <div
         className={`${
-          isReply ? "pl-4 border-l-2 border-[#E5E7EB] ml-3" : ""
+          isReply ? "ml-5 pl-4 border-l-2 border-[#E5E7EB]" : ""
         } py-2`}
       >
         <p className="text-xs text-[#6B7280] italic">삭제된 댓글입니다</p>
@@ -97,21 +93,35 @@ export default function CommentItem({
   }
 
   return (
-    <div className={`${isReply ? "pl-4 border-l-2 border-[#E5E7EB] ml-3" : ""}`}>
+    <div
+      className={`${
+        isReply
+          ? "ml-5 pl-4 border-l-2 border-[#E5E7EB] hover:border-[#2563EB]/30"
+          : ""
+      } transition-colors`}
+    >
       <div className="py-2.5">
         <div className="flex gap-2.5">
           {/* 아바타 */}
-          <div className="w-7 h-7 rounded-full bg-[#F4F6F8] ring-1 ring-[#E5E7EB] overflow-hidden flex items-center justify-center text-[#6B7280] shrink-0">
+          <div
+            className={`rounded-full bg-[#F4F6F8] ring-1 ring-[#E5E7EB] overflow-hidden flex items-center justify-center text-[#6B7280] shrink-0 ${
+              isReply ? "w-6 h-6" : "w-7 h-7"
+            }`}
+          >
             {comment.author.avatar_url ? (
               <Image
                 src={comment.author.avatar_url}
                 alt=""
-                width={28}
-                height={28}
+                width={isReply ? 24 : 28}
+                height={isReply ? 24 : 28}
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-[10px] font-bold">
+              <span
+                className={`font-bold ${
+                  isReply ? "text-[9px]" : "text-[10px]"
+                }`}
+              >
                 {comment.author.nickname.charAt(0)}
               </span>
             )}
@@ -119,7 +129,7 @@ export default function CommentItem({
 
           {/* 내용 */}
           <div className="flex-1 min-w-0">
-            {/* 작성자 정보 - 한 줄 */}
+            {/* 작성자 정보 */}
             <div className="flex items-center gap-1 text-xs">
               <span className="font-bold text-[#1c1c1e]">
                 {comment.author.nickname}
@@ -133,9 +143,9 @@ export default function CommentItem({
                 </>
               )}
               <span className="text-[#6B7280]">&middot;</span>
-              <span className="text-[#6B7280]">
+              <time className="text-[#6B7280]" title={comment.created_at}>
                 {timeAgo(comment.created_at)}
-              </span>
+              </time>
             </div>
 
             {/* 댓글 본문 */}
@@ -159,11 +169,25 @@ export default function CommentItem({
               {!isReply && isLoggedIn && (
                 <button
                   type="button"
-                  onClick={() => setShowReplyInput(!showReplyInput)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
+                  onClick={() => {
+                    setShowReplyInput(!showReplyInput);
+                    if (showReplyInput) setReplyContent("");
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors ${
+                    showReplyInput ? "text-[#2563EB]" : ""
+                  }`}
                 >
-                  <Reply className="w-3 h-3" />
-                  답글
+                  {showReplyInput ? (
+                    <>
+                      <X className="w-3 h-3" />
+                      답글 취소
+                    </>
+                  ) : (
+                    <>
+                      <Reply className="w-3 h-3" />
+                      답글
+                    </>
+                  )}
                 </button>
               )}
 
@@ -171,14 +195,11 @@ export default function CommentItem({
               {isAuthor && (
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  onBlur={() => setConfirmDelete(false)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors ${
-                    confirmDelete ? "text-red-500" : ""
-                  }`}
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
-                  {confirmDelete ? "삭제 확인" : "삭제"}
+                  삭제
                 </button>
               )}
             </div>
@@ -224,6 +245,48 @@ export default function CommentItem({
           </div>
         </div>
       </div>
+
+      {/* 삭제 확인 모달 */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-xs overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 text-center">
+              <div className="w-10 h-10 mx-auto mb-2.5 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </div>
+              <p className="text-sm font-bold text-[#1c1c1e]">
+                댓글을 삭제하시겠습니까?
+              </p>
+              <p className="mt-1 text-xs text-[#6B7280]">
+                삭제된 댓글은 복구할 수 없습니다.
+              </p>
+            </div>
+            <div className="flex border-t border-[#E5E7EB]">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-3 text-sm font-medium text-[#6B7280] hover:bg-[#F4F6F8] transition-colors"
+              >
+                취소
+              </button>
+              <div className="w-px bg-[#E5E7EB]" />
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex-1 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 답글 목록 */}
       {!isReply && comment.replies && comment.replies.length > 0 && (
