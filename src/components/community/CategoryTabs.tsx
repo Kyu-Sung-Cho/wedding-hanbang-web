@@ -25,15 +25,15 @@ export default function CategoryTabs() {
 
   return (
     <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
-      <div className="flex items-center gap-0 min-w-max border-b border-[#EDEFF1]">
+      <div className="flex items-center gap-1 min-w-max py-1">
         {tabs.map((tab) => (
           <Link
             key={tab.key}
             href={tab.href}
-            className={`px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 text-sm whitespace-nowrap rounded-lg transition-all ${
               isActive(tab.href)
-                ? "font-semibold text-[#1A1A1F] border-b-2 border-[#1A1A1F]"
-                : "text-[#878A8C] hover:text-[#1A1A1F]"
+                ? "bg-[#1c1c1e] text-white font-medium"
+                : "text-[#6B7280] hover:bg-[#F4F6F8]"
             }`}
           >
             {tab.label}

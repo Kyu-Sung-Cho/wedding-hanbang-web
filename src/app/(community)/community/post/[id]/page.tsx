@@ -99,20 +99,20 @@ export default function PostDetailPage() {
   // 로딩
   if (postLoading) {
     return (
-      <div className="min-h-screen bg-[#DAE0E6]">
-        <div className="mx-auto max-w-[740px] px-4 py-4">
-          <div className="bg-white border border-[#ccc]/40 rounded p-4">
+      <div className="min-h-screen bg-[#F4F6F8]">
+        <div className="mx-auto max-w-[740px] px-4 py-5">
+          <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-5">
             <div className="animate-pulse space-y-4">
-              <div className="h-4 w-24 bg-[#F6F7F8] rounded" />
-              <div className="h-7 w-3/4 bg-[#F6F7F8] rounded" />
+              <div className="h-4 w-24 bg-[#F4F6F8] rounded-md" />
+              <div className="h-7 w-3/4 bg-[#F4F6F8] rounded-md" />
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-[#F6F7F8] rounded-full" />
-                <div className="h-3 w-32 bg-[#F6F7F8] rounded" />
+                <div className="w-7 h-7 bg-[#F4F6F8] rounded-full" />
+                <div className="h-3 w-32 bg-[#F4F6F8] rounded-md" />
               </div>
               <div className="space-y-2">
-                <div className="h-4 w-full bg-[#F6F7F8] rounded" />
-                <div className="h-4 w-full bg-[#F6F7F8] rounded" />
-                <div className="h-4 w-2/3 bg-[#F6F7F8] rounded" />
+                <div className="h-4 w-full bg-[#F4F6F8] rounded-md" />
+                <div className="h-4 w-full bg-[#F4F6F8] rounded-md" />
+                <div className="h-4 w-2/3 bg-[#F4F6F8] rounded-md" />
               </div>
             </div>
           </div>
@@ -124,19 +124,19 @@ export default function PostDetailPage() {
   // 글 없음
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#DAE0E6]">
+      <div className="min-h-screen bg-[#F4F6F8]">
         <div className="mx-auto max-w-[740px] px-4 py-16 text-center">
-          <div className="bg-white border border-[#ccc]/40 rounded p-8">
-            <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#878A8C]" />
-            <p className="text-[#1A1A1F] font-medium">
+          <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-8">
+            <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#6B7280]" />
+            <p className="text-[#1c1c1e] font-medium">
               게시글을 찾을 수 없습니다
             </p>
-            <p className="mt-1 text-sm text-[#878A8C]">
+            <p className="mt-1 text-sm text-[#6B7280]">
               삭제되었거나 존재하지 않는 글입니다.
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors"
+              className="mt-4 inline-flex items-center px-4 py-2.5 text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -152,23 +152,23 @@ export default function PostDetailPage() {
   const voteCount = post.upvote_count - post.downvote_count;
 
   return (
-    <div className="min-h-screen bg-[#DAE0E6]">
-      <div className="mx-auto max-w-[740px] px-4 py-4">
+    <div className="min-h-screen bg-[#F4F6F8]">
+      <div className="mx-auto max-w-[740px] px-4 py-5">
         {/* 뒤로가기 */}
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-xs font-bold text-[#878A8C] hover:text-[#1A1A1F] transition-colors mb-3"
+          className="flex items-center gap-1.5 text-xs font-medium text-[#6B7280] hover:text-[#1c1c1e] transition-colors mb-3"
         >
           <ArrowLeft className="w-4 h-4" />
           커뮤니티
         </button>
 
         {/* 메인 포스트 카드 */}
-        <div className="bg-white border border-[#ccc]/40 rounded overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] overflow-hidden">
           <div className="flex">
             {/* 좌측 투표 스트립 (데스크탑) */}
-            <div className="hidden md:flex flex-col items-center w-10 bg-[#F8F9FA] pt-3 shrink-0">
+            <div className="hidden md:flex flex-col items-center w-11 bg-[#FAFAFA] rounded-l-lg pt-3 shrink-0">
               <VoteButtons
                 count={voteCount}
                 userVote={post.user_vote ?? null}
@@ -180,40 +180,54 @@ export default function PostDetailPage() {
             </div>
 
             {/* 콘텐츠 영역 */}
-            <div className="flex-1 min-w-0 p-3">
+            <div className="flex-1 min-w-0 p-4">
               {/* 메타: 카테고리 · 작성자 · 시간 */}
-              <div className="flex items-center gap-1.5 text-xs text-[#878A8C] mb-2">
+              <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-3">
                 {categoryInfo && (
                   <>
                     <Link
                       href={`/community/${post.category}`}
-                      className="font-bold text-[#1A1A1F] hover:underline"
+                      className="font-semibold text-[#1c1c1e] hover:text-[#2563EB] transition-colors"
                     >
                       {categoryInfo.label}
                     </Link>
-                    <span>·</span>
+                    <span>&middot;</span>
                   </>
                 )}
-                <span>
-                  Posted by{" "}
-                  <span className="hover:underline cursor-pointer">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-[#F4F6F8] ring-1 ring-[#E5E7EB] flex items-center justify-center overflow-hidden">
+                    {post.author.avatar_url ? (
+                      <Image
+                        src={post.author.avatar_url}
+                        alt=""
+                        width={20}
+                        height={20}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[9px] font-bold text-[#6B7280]">
+                        {post.author.nickname.charAt(0)}
+                      </span>
+                    )}
+                  </div>
+                  <span className="hover:underline cursor-pointer font-medium text-[#1c1c1e]">
                     {post.author.nickname}
                   </span>
-                </span>
+                </div>
                 {badgeLabel(post.author.badge) && (
                   <>
-                    <span>·</span>
+                    <span>&middot;</span>
                     <span className="text-[#FF4500] font-medium">
                       {badgeLabel(post.author.badge)}
                     </span>
                   </>
                 )}
-                <span>·</span>
+                <span>&middot;</span>
                 <span>{timeAgo(post.created_at)}</span>
               </div>
 
               {/* 제목 */}
-              <h1 className="text-lg sm:text-xl font-bold text-[#1A1A1F] leading-snug mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-[#1c1c1e] leading-snug mb-3">
                 {post.title}
               </h1>
 
@@ -223,23 +237,23 @@ export default function PostDetailPage() {
                   <>
                     {/* 블러 처리된 미리보기 */}
                     <div
-                      className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
+                      className="text-sm text-[#1c1c1e] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
                       dangerouslySetInnerHTML={{
                         __html: sanitizeHtml(post.content.slice(0, 300)),
                       }}
                     />
                     {/* 로그인 유도 오버레이 */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-white via-white/90 to-transparent">
-                      <Lock className="w-8 h-8 text-[#878A8C] mb-2" />
-                      <p className="text-sm font-bold text-[#1A1A1F] mb-1">
+                      <Lock className="w-8 h-8 text-[#6B7280] mb-2" />
+                      <p className="text-sm font-bold text-[#1c1c1e] mb-1">
                         회원 전용 게시글입니다
                       </p>
-                      <p className="text-xs text-[#878A8C] mb-3">
+                      <p className="text-xs text-[#6B7280] mb-3">
                         로그인하면 전체 내용을 볼 수 있어요
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors"
+                        className="inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
                       >
                         로그인하기
                       </Link>
@@ -247,7 +261,7 @@ export default function PostDetailPage() {
                   </>
                 ) : (
                   <div
-                    className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words"
+                    className="text-sm text-[#1c1c1e] leading-relaxed whitespace-pre-wrap break-words"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtml(post.content),
                     }}
@@ -259,7 +273,7 @@ export default function PostDetailPage() {
               {!isMembersOnly && post.images && post.images.length > 0 && (
                 <div className="mt-4">
                   <div
-                    className={`grid gap-1.5 ${
+                    className={`grid gap-2 ${
                       post.images.length === 1
                         ? "grid-cols-1"
                         : post.images.length === 2
@@ -272,7 +286,7 @@ export default function PostDetailPage() {
                         key={idx}
                         type="button"
                         onClick={() => setLightboxIndex(idx)}
-                        className="relative aspect-square rounded overflow-hidden bg-[#F6F7F8] hover:opacity-90 transition-opacity"
+                        className="relative aspect-square rounded-lg overflow-hidden bg-[#F4F6F8] hover:opacity-90 transition-opacity"
                       >
                         <Image
                           src={src}
@@ -297,7 +311,7 @@ export default function PostDetailPage() {
                     alt=""
                     width={1200}
                     height={900}
-                    className="max-w-full max-h-[90vh] object-contain rounded"
+                    className="max-w-full max-h-[90vh] object-contain rounded-lg"
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
@@ -319,7 +333,7 @@ export default function PostDetailPage() {
                     <Link
                       key={tag}
                       href={`/community?tag=${encodeURIComponent(tag)}`}
-                      className="px-2.5 py-1 text-xs text-[#878A8C] bg-[#F6F7F8] rounded-full hover:bg-[#e8e8e8] transition-colors"
+                      className="px-2.5 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-colors"
                     >
                       #{tag}
                     </Link>
@@ -336,7 +350,7 @@ export default function PostDetailPage() {
                       <Link
                         key={vendor.id}
                         href={`/vendors/${vendor.id}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#1A1A1F] bg-[#F6F7F8] border border-[#edeff1] rounded hover:border-[#878A8C] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg hover:border-[#6B7280] transition-colors"
                       >
                         {vendor.thumbnail_url && (
                           <Image
@@ -349,7 +363,7 @@ export default function PostDetailPage() {
                         )}
                         {vendor.business_name}
                         {vendor.rating != null && (
-                          <span className="text-[#878A8C]">
+                          <span className="text-[#6B7280]">
                             {vendor.rating.toFixed(1)}
                           </span>
                         )}
@@ -359,7 +373,7 @@ export default function PostDetailPage() {
                 )}
 
               {/* 액션바 */}
-              <div className="mt-4 pt-2 border-t border-[#edeff1] flex items-center gap-1 text-xs font-bold text-[#878A8C]">
+              <div className="mt-4 pt-3 border-t border-[#E5E7EB] flex items-center gap-0.5 text-xs font-medium text-[#6B7280]">
                 {/* 모바일 투표 */}
                 <div className="md:hidden mr-1">
                   <VoteButtons
@@ -374,7 +388,7 @@ export default function PostDetailPage() {
                 </div>
 
                 {/* 댓글 수 */}
-                <span className="px-2 py-1.5 rounded hover:bg-[#F6F7F8] cursor-default">
+                <span className="px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] cursor-default transition-colors">
                   {post.comment_count ?? 0} 댓글
                 </span>
 
@@ -382,7 +396,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-[#F6F7F8] transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   공유
@@ -398,8 +412,8 @@ export default function PostDetailPage() {
                     }
                     toggleBookmark(post.id);
                   }}
-                  className={`flex items-center gap-1 px-2 py-1.5 rounded hover:bg-[#F6F7F8] transition-colors ${
-                    post.user_bookmarked ? "text-[#FF4500]" : ""
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors ${
+                    post.user_bookmarked ? "text-[#2563EB]" : ""
                   }`}
                 >
                   <Bookmark
@@ -415,7 +429,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleReport}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-[#F6F7F8] transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors"
                 >
                   <Flag className="w-3.5 h-3.5" />
                   신고
@@ -427,14 +441,14 @@ export default function PostDetailPage() {
 
         {/* 공유 토스트 */}
         {shareToast && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded shadow-lg">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#1c1c1e] text-white text-sm rounded-lg shadow-lg">
             링크가 복사되었습니다
           </div>
         )}
 
         {/* 댓글 섹션 */}
         {!isMembersOnly && (
-          <div className="mt-3 bg-white border border-[#ccc]/40 rounded p-4">
+          <div className="mt-3 bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-5">
             <CommentSection postId={post.id} />
           </div>
         )}

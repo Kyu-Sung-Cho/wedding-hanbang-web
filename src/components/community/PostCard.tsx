@@ -49,10 +49,10 @@ export default function PostCard({ post }: PostCardProps) {
   const voteCount = post.upvote_count - post.downvote_count;
 
   return (
-    <article className="bg-white border border-[#ccc]/40 rounded hover:border-[#898989] transition-colors">
+    <article className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] hover:shadow-md transition-shadow">
       <div className="flex">
         {/* 왼쪽 투표 스트립 */}
-        <div className="flex-shrink-0 w-10 bg-[#F8F9FA] rounded-l flex justify-center">
+        <div className="flex-shrink-0 w-11 bg-[#FAFAFA] rounded-l-lg flex justify-center">
           <VoteButtons
             count={voteCount}
             userVote={null}
@@ -62,12 +62,12 @@ export default function PostCard({ post }: PostCardProps) {
         </div>
 
         {/* 오른쪽 콘텐츠 */}
-        <div className="flex-1 min-w-0 p-2 sm:p-3">
+        <div className="flex-1 min-w-0 p-2.5 sm:p-3">
           {/* 메타 라인: 카테고리 · 작성자 · 시간 */}
-          <div className="flex items-center gap-1 text-xs text-[#878A8C] mb-1">
+          <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-1.5">
             {categoryInfo && (
               <>
-                <span className={`font-bold ${categoryInfo.color}`}>
+                <span className={`font-semibold px-1.5 py-0.5 rounded-md text-[11px] ${categoryInfo.color} bg-current/5`}>
                   {categoryInfo.shortLabel}
                 </span>
                 <span>&middot;</span>
@@ -75,12 +75,12 @@ export default function PostCard({ post }: PostCardProps) {
             )}
             <span>
               작성자{" "}
-              <span className="font-medium text-[#1c1c1c]">
+              <span className="font-medium text-[#1c1c1e]">
                 {post.author.nickname}
               </span>
             </span>
             {badgeLabel(post.author.badge) && (
-              <span className="px-1 py-0.5 text-[10px] font-semibold bg-[#FF4500]/10 text-[#FF4500] rounded-sm">
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#FF4500]/10 text-[#FF4500] rounded-md">
                 {badgeLabel(post.author.badge)}
               </span>
             )}
@@ -93,7 +93,7 @@ export default function PostCard({ post }: PostCardProps) {
             <div className="flex-1 min-w-0">
               <Link
                 href={`/community/post/${post.id}`}
-                className="text-lg font-medium text-[#222] hover:underline leading-snug line-clamp-2"
+                className="text-[15px] font-semibold text-[#1c1c1e] hover:text-[#2563EB] leading-snug line-clamp-2 transition-colors"
               >
                 {post.is_weekly_best && (
                   <span className="text-xs font-bold text-[#FF4500] mr-1.5">
@@ -101,7 +101,7 @@ export default function PostCard({ post }: PostCardProps) {
                   </span>
                 )}
                 {post.category === "cost_share" && totalCost != null && (
-                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm mr-1.5">
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mr-1.5">
                     총 {formatCost(totalCost)}
                   </span>
                 )}
@@ -113,7 +113,7 @@ export default function PostCard({ post }: PostCardProps) {
             {hasThumbnail && (
               <Link
                 href={`/community/post/${post.id}`}
-                className="shrink-0 w-[96px] h-[72px] rounded overflow-hidden bg-[#F8F9FA]"
+                className="shrink-0 w-[96px] h-[72px] rounded-lg overflow-hidden bg-[#F4F6F8]"
               >
                 <Image
                   src={post.images[0]}
@@ -128,18 +128,18 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* 본문 미리보기 */}
           {contentPreview && (
-            <p className="mt-1 text-sm text-[#878A8C] leading-snug line-clamp-2">
+            <p className="mt-1 text-[13px] text-[#6B7280] leading-snug line-clamp-2">
               {contentPreview}
             </p>
           )}
 
           {/* 태그 */}
           {post.tags && post.tags.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+            <div className="mt-2 flex flex-wrap gap-x-1.5 gap-y-1">
               {post.tags.slice(0, 5).map((tag) => (
                 <span
                   key={tag}
-                  className="text-xs text-[#878A8C]"
+                  className="bg-[#F4F6F8] text-[#6B7280] rounded-md px-2 py-0.5 text-xs"
                 >
                   #{tag}
                 </span>
@@ -148,24 +148,24 @@ export default function PostCard({ post }: PostCardProps) {
           )}
 
           {/* 하단 액션 행 */}
-          <div className="mt-2 flex items-center gap-1 text-xs font-bold text-[#878A8C]">
+          <div className="mt-2 flex items-center gap-0.5 text-xs font-medium text-[#6B7280]">
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[#F8F9FA] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
             >
               <MessageCircle className="w-4 h-4" />
               <span>{post.comment_count}개 댓글</span>
             </button>
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[#F8F9FA] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
             >
               <Share2 className="w-4 h-4" />
               <span>공유</span>
             </button>
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-[#F8F9FA] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
             >
               <Bookmark className="w-4 h-4" />
               <span>저장</span>

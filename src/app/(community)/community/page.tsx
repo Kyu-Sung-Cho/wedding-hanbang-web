@@ -32,15 +32,16 @@ export default function CommunityFeedPage() {
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
 
-  // 카테고리 초기화 (전체)
+  // 카테고리 초기화 + 글 목록 가져오기
+  const initialized = useRef(false);
   useEffect(() => {
     setCategory(null);
-  }, [setCategory]);
-
-  // 글 목록 가져오기
-  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+    }
     fetchPosts(true);
-  }, [fetchPosts, currentSort, currentPeriod]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSort, currentPeriod]);
 
   // 인기 태그 가져오기
   useEffect(() => {
@@ -72,10 +73,10 @@ export default function CommunityFeedPage() {
   }, [handleObserver]);
 
   return (
-    <div className="min-h-screen bg-[#DAE0E6]">
-      <div className="mx-auto max-w-[960px] px-4 py-4">
+    <div className="min-h-screen bg-[#F4F6F8]">
+      <div className="mx-auto max-w-[960px] px-4 py-5">
         {/* 정렬 바 */}
-        <div className="bg-white border border-[#ccc]/40 rounded p-2 mb-3">
+        <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-2.5 mb-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <CategoryTabs />
@@ -96,7 +97,7 @@ export default function CommunityFeedPage() {
           <div className="flex-1 min-w-0">
             {/* 초기 로딩 */}
             {isLoading && posts.length === 0 ? (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <PostSkeleton key={i} />
                 ))}
@@ -109,14 +110,14 @@ export default function CommunityFeedPage() {
                 ctaHref="/community/write"
               />
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {posts.map((post) => (
                   <PostCard key={post.id} post={post} />
                 ))}
 
                 {/* 추가 로딩 */}
                 {isLoading && (
-                  <div className="space-y-2.5">
+                  <div className="space-y-3">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <PostSkeleton key={`more-${i}`} />
                     ))}
@@ -132,19 +133,19 @@ export default function CommunityFeedPage() {
           {/* 데스크탑 사이드바 */}
           <aside className="hidden lg:block w-[312px] shrink-0 space-y-3">
             {/* 커뮤니티 정보 카드 */}
-            <div className="bg-white border border-[#ccc]/40 rounded overflow-hidden">
-              <div className="bg-[#1A1A1F] h-8" />
-              <div className="p-3">
-                <h2 className="text-sm font-bold text-[#1A1A1F] mb-1">
+            <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] overflow-hidden">
+              <div className="bg-gradient-to-r from-[#1c1c1e] to-[#374151] h-10" />
+              <div className="p-4">
+                <h2 className="text-sm font-bold text-[#1c1c1e] mb-1.5">
                   웨딩한방 커뮤니티
                 </h2>
-                <p className="text-xs text-[#878A8C] leading-relaxed mb-3">
+                <p className="text-xs text-[#6B7280] leading-relaxed mb-4">
                   예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티입니다. 후기, 비용,
                   팁을 자유롭게 나눠보세요.
                 </p>
                 <Link
                   href="/community/write"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-bold text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
                 >
                   <PenSquare className="w-4 h-4" />
                   글쓰기
@@ -154,9 +155,9 @@ export default function CommunityFeedPage() {
 
             {/* 인기 태그 */}
             {popularTags.length > 0 && (
-              <div className="bg-white border border-[#ccc]/40 rounded p-3">
-                <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#1A1A1F] uppercase mb-2">
-                  <Hash className="w-3.5 h-3.5 text-[#878A8C]" />
+              <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-4">
+                <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#1c1c1e] uppercase mb-3">
+                  <Hash className="w-3.5 h-3.5 text-[#6B7280]" />
                   인기 태그
                 </h3>
                 <div className="flex flex-wrap gap-1.5">
@@ -164,10 +165,10 @@ export default function CommunityFeedPage() {
                     <Link
                       key={t.tag}
                       href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                      className="px-2.5 py-1 text-xs text-[#878A8C] bg-[#F6F7F8] rounded-full hover:bg-[#e8e8e8] transition-colors"
+                      className="px-2.5 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-colors"
                     >
                       #{t.tag}
-                      <span className="ml-1 text-[#878A8C]/60">{t.count}</span>
+                      <span className="ml-1 text-[#6B7280]/60">{t.count}</span>
                     </Link>
                   ))}
                 </div>
@@ -175,20 +176,20 @@ export default function CommunityFeedPage() {
             )}
 
             {/* 웨딩한방 서비스 프로모션 */}
-            <div className="bg-white border border-[#ccc]/40 rounded p-3">
+            <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-[#878A8C]" />
-                <h3 className="text-xs font-bold text-[#1A1A1F]">
+                <Sparkles className="w-4 h-4 text-[#6B7280]" />
+                <h3 className="text-xs font-bold text-[#1c1c1e]">
                   웨딩한방 서비스
                 </h3>
               </div>
-              <p className="text-xs text-[#878A8C] leading-relaxed mb-3">
+              <p className="text-xs text-[#6B7280] leading-relaxed mb-3">
                 AI 웨딩 플래너가 예산 관리, 일정 관리, 업체 추천까지 한 번에
                 도와드려요.
               </p>
               <Link
                 href="/login"
-                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-[#1A1A1F] border border-[#1A1A1F] rounded hover:bg-[#1A1A1F] hover:text-white transition-colors"
+                className="inline-flex items-center px-3.5 py-2 text-xs font-medium text-[#2563EB] border border-[#2563EB] rounded-lg hover:bg-[#2563EB] hover:text-white transition-all"
               >
                 무료로 시작하기
               </Link>
@@ -199,7 +200,7 @@ export default function CommunityFeedPage() {
         {/* 모바일 플로팅 글쓰기 버튼 */}
         <Link
           href="/community/write"
-          className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#1A1A1F] hover:bg-[#333] rounded-full shadow-lg transition-colors"
+          className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-2xl shadow-lg hover:shadow-xl transition-all"
           aria-label="글쓰기"
         >
           <PenSquare className="w-5 h-5" />

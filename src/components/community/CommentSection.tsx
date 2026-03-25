@@ -84,8 +84,8 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     <div>
       {/* 댓글 수 헤더 */}
       <div className="flex items-center gap-2 mb-4">
-        <MessageCircle className="w-4 h-4 text-[#878A8C]" />
-        <h3 className="text-sm font-bold text-[#1A1A1F]">
+        <MessageCircle className="w-4 h-4 text-[#6B7280]" />
+        <h3 className="text-sm font-bold text-[#1c1c1e]">
           댓글 {commentCount > 0 && commentCount}
         </h3>
       </div>
@@ -99,27 +99,27 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             placeholder="댓글을 작성해 주세요..."
             rows={3}
             maxLength={2000}
-            className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#edeff1] rounded resize-none focus:outline-none focus:border-[#1A1A1F] transition-colors placeholder:text-[#878A8C]"
+            className="w-full px-3 py-2.5 text-sm text-[#1c1c1e] bg-white border border-[#E5E7EB] rounded-lg resize-none focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] transition-all placeholder:text-[#6B7280]"
           />
           <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-[#878A8C]">
+            <span className="text-xs text-[#6B7280]">
               {newComment.length}/2000
             </span>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-1.5 text-sm font-bold text-white bg-[#1A1A1F] hover:bg-[#333] rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "등록"}
             </button>
           </div>
         </div>
       ) : (
-        <div className="mb-5 px-3 py-3 text-center text-sm text-[#878A8C] bg-[#F6F7F8] border border-[#edeff1] rounded">
+        <div className="mb-5 px-4 py-3.5 text-center text-sm text-[#6B7280] bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
           <a
             href="/login"
-            className="text-[#1A1A1F] font-bold hover:underline"
+            className="text-[#2563EB] font-semibold hover:underline"
           >
             로그인
           </a>
@@ -131,17 +131,17 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       {commentsLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="animate-pulse flex gap-2">
-              <div className="w-6 h-6 bg-[#F6F7F8] rounded-full shrink-0" />
+            <div key={i} className="animate-pulse flex gap-2.5">
+              <div className="w-7 h-7 bg-[#F4F6F8] rounded-full shrink-0" />
               <div className="flex-1 space-y-1.5">
-                <div className="h-3 w-24 bg-[#F6F7F8] rounded" />
-                <div className="h-4 w-3/4 bg-[#F6F7F8] rounded" />
+                <div className="h-3 w-24 bg-[#F4F6F8] rounded-md" />
+                <div className="h-4 w-3/4 bg-[#F4F6F8] rounded-md" />
               </div>
             </div>
           ))}
         </div>
       ) : treeComments.length === 0 ? (
-        <p className="text-center text-sm text-[#878A8C] py-6">
+        <p className="text-center text-sm text-[#6B7280] py-6">
           아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
         </p>
       ) : (

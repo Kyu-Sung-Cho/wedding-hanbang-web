@@ -294,6 +294,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   setCategory: (category) => {
+    if (get().currentCategory === category) return;
     set({ currentCategory: category, posts: [], hasMore: true, currentPage: 1 });
   },
 

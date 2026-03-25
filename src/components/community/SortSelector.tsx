@@ -29,7 +29,7 @@ export default function SortSelector({
   onPeriodChange,
 }: SortSelectorProps) {
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="flex items-center gap-1 flex-wrap">
       {SORT_OPTIONS.map((option) => {
         const Icon = option.icon;
         const isActive = sort === option.key;
@@ -39,10 +39,10 @@ export default function SortSelector({
             key={option.key}
             type="button"
             onClick={() => onSortChange(option.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${
               isActive
-                ? "bg-[#EDEFF1] font-medium text-[#1A1A1F]"
-                : "text-[#878A8C] hover:bg-[#F6F7F8]"
+                ? "bg-[#F4F6F8] font-medium text-[#1c1c1e]"
+                : "text-[#6B7280] hover:bg-[#F4F6F8]"
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -54,16 +54,16 @@ export default function SortSelector({
       {/* 추천순 선택 시 기간 서브버튼 */}
       {sort === "top" && (
         <>
-          <span className="text-[#EDEFF1] mx-0.5">|</span>
+          <span className="text-[#E5E7EB] mx-0.5">|</span>
           {PERIOD_OPTIONS.map((p) => (
             <button
               key={p.key}
               type="button"
               onClick={() => onPeriodChange(p.key)}
-              className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+              className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                 period === p.key
-                  ? "bg-[#EDEFF1] font-medium text-[#1A1A1F]"
-                  : "text-[#878A8C] hover:bg-[#F6F7F8]"
+                  ? "bg-[#F4F6F8] font-medium text-[#1c1c1e]"
+                  : "text-[#6B7280] hover:bg-[#F4F6F8]"
               }`}
             >
               {p.label}
