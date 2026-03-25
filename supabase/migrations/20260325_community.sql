@@ -40,9 +40,7 @@ CREATE TABLE IF NOT EXISTS community_posts (
   tags TEXT[] DEFAULT '{}',
   -- 비용공유 구조화 데이터
   cost_data JSONB,  -- { totalCost, region, guestCount, weddingDate, categories: [{key, label, cost, vendor, notes}] }
-  search_vector tsvector GENERATED ALWAYS AS (
-    to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, '') || ' ' || array_to_string(coalesce(tags, '{}'), ' '))
-  ) STORED,
+  search_vector tsvector,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -251,3 +249,15 @@ FOR EACH ROW EXECUTE FUNCTION community_update_timestamp();
 
 CREATE TRIGGER trg_comments_updated_at BEFORE UPDATE ON community_comments
 FOR EACH ROW EXECUTE FUNCTION community_update_timestamp();
+
+-- 15. search_vector 자동 갱신 트리거
+CREATE OR REPLACE FUNCTION community_posts_search_vector_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.search_vector := to_tsvector('simple', coalesce(NEW.title, '') || ' ' || coalesce(NEW.content, '') || ' ' || array_to_string(coalesce(NEW.tags, '{}'), ' '));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_posts_search_vector BEFORE INSERT OR UPDATE ON community_posts
+FOR EACH ROW EXECUTE FUNCTION community_posts_search_vector_update();
