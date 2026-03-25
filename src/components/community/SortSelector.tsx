@@ -39,9 +39,9 @@ export default function SortSelector({
             key={option.key}
             type="button"
             onClick={() => onSortChange(option.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${
+            className={`flex items-center gap-1 px-3 py-1 text-sm rounded-lg transition-all duration-200 ${
               isActive
-                ? "bg-[#F4F6F8] font-medium text-[#1c1c1e]"
+                ? "bg-[#F4F6F8] font-semibold text-[#1c1c1e]"
                 : "text-[#6B7280] hover:bg-[#F4F6F8]"
             }`}
           >
@@ -54,15 +54,15 @@ export default function SortSelector({
       {/* 추천순 선택 시 기간 서브버튼 */}
       {sort === "top" && (
         <>
-          <span className="text-[#E5E7EB] mx-0.5">|</span>
+          <span className="text-[#E5E7EB] mx-1">|</span>
           {PERIOD_OPTIONS.map((p) => (
             <button
               key={p.key}
               type="button"
               onClick={() => onPeriodChange(p.key)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+              className={`px-2 py-0.5 text-sm rounded-full transition-all duration-200 ${
                 period === p.key
-                  ? "bg-[#F4F6F8] font-medium text-[#1c1c1e]"
+                  ? "bg-[#F4F6F8] font-semibold text-[#1c1c1e]"
                   : "text-[#6B7280] hover:bg-[#F4F6F8]"
               }`}
             >

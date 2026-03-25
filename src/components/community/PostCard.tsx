@@ -62,24 +62,10 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] hover:shadow-md transition-shadow relative">
-      {/* 북마크 버튼 (우상단) */}
-      <button
-        type="button"
-        onClick={handleBookmark}
-        className="absolute top-2.5 right-2.5 z-10 p-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
-        aria-label="북마크"
-      >
-        <Bookmark
-          className={`w-4 h-4 transition-colors ${
-            bookmarked ? "text-[#2563EB] fill-[#2563EB]" : "text-[#B0B0B0] hover:text-[#6B7280]"
-          }`}
-        />
-      </button>
-
+    <article className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all duration-200">
       <div className="flex">
         {/* 왼쪽 투표 스트립 */}
-        <div className="flex-shrink-0 w-11 bg-[#FAFAFA] rounded-l-lg flex justify-center">
+        <div className="flex-shrink-0 w-10 bg-[#FAFAFA] rounded-l-xl flex justify-center">
           <VoteButtons
             count={voteCount}
             userVote={post.user_vote ?? null}
@@ -89,46 +75,44 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         </div>
 
         {/* 오른쪽 콘텐츠 */}
-        <div className="flex-1 min-w-0 p-2.5 sm:p-3 pr-8">
-          {/* 메타 라인: 아바타 + 카테고리 + 작성자 + 시간 */}
-          <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-1.5">
-            {categoryInfo && (
-              <>
-                <span className={`font-semibold px-1.5 py-0.5 rounded-md text-[11px] ${categoryInfo.color} bg-current/5`}>
-                  {categoryInfo.shortLabel}
-                </span>
-                <span>&middot;</span>
-              </>
-            )}
+        <div className="flex-1 min-w-0 p-4">
+          {/* 메타 라인: 아바타 + 닉네임 + 배지 + 시간 + 카테고리 */}
+          <div className="flex items-center gap-2 text-xs text-[#6B7280] mb-2">
             {/* 작성자 아바타 */}
             {post.author.avatar_url ? (
               <Image
                 src={post.author.avatar_url}
                 alt={post.author.nickname}
-                width={18}
-                height={18}
-                className="w-[18px] h-[18px] rounded-full object-cover"
+                width={24}
+                height={24}
+                className="w-6 h-6 rounded-full object-cover"
               />
             ) : (
-              <span className="w-[18px] h-[18px] rounded-full bg-[#E5E7EB] text-[10px] font-bold text-[#6B7280] flex items-center justify-center shrink-0">
+              <span className="w-6 h-6 rounded-full bg-[#E5E7EB] text-[11px] font-bold text-[#6B7280] flex items-center justify-center shrink-0">
                 {avatarLetter}
               </span>
             )}
-            <span>
-              <Link
-                href={`/community?author_id=${post.author_id}`}
-                className="font-medium text-[#1c1c1e] hover:text-[#2563EB] hover:underline transition-colors"
-              >
-                {post.author.nickname}
-              </Link>
-            </span>
+            <Link
+              href={`/community?author_id=${post.author_id}`}
+              className="font-medium text-[#1c1c1e] hover:text-[#2563EB] hover:underline transition-all duration-200"
+            >
+              {post.author.nickname}
+            </Link>
             {badgeLabel(post.author.badge) && (
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#FF4500]/10 text-[#FF4500] rounded-md">
+              <span className="px-2 py-0.5 text-[11px] font-semibold bg-[#FF4500]/10 text-[#FF4500] rounded-full">
                 {badgeLabel(post.author.badge)}
               </span>
             )}
             <span>&middot;</span>
             <span>{timeAgo(post.created_at)}</span>
+            {categoryInfo && (
+              <>
+                <span>&middot;</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full bg-[#F4F6F8] text-[#6B7280]`}>
+                  {categoryInfo.shortLabel}
+                </span>
+              </>
+            )}
           </div>
 
           {/* 제목 행: BEST 배지 + 비용 배지 + 제목 + 썸네일 */}
@@ -136,15 +120,15 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             <div className="flex-1 min-w-0">
               <Link
                 href={`/community/post/${post.id}`}
-                className="text-[15px] font-semibold text-[#1c1c1e] hover:text-[#2563EB] leading-snug line-clamp-2 transition-colors"
+                className="text-sm font-semibold text-[#1c1c1e] hover:text-[#2563EB] leading-snug line-clamp-2 transition-colors duration-200"
               >
                 {post.is_weekly_best && (
-                  <span className="text-xs font-bold text-[#FF4500] mr-1.5">
+                  <span className="text-xs font-bold text-[#FF4500] mr-2">
                     BEST
                   </span>
                 )}
                 {post.category === "cost_share" && totalCost != null && (
-                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mr-1.5">
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg mr-2">
                     총 {formatCost(totalCost)}
                   </span>
                 )}
@@ -156,7 +140,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             {hasThumbnail && (
               <Link
                 href={`/community/post/${post.id}`}
-                className="shrink-0 w-[96px] h-[72px] rounded-lg overflow-hidden bg-[#F4F6F8]"
+                className="shrink-0 w-20 h-16 sm:w-24 sm:h-[72px] rounded-lg overflow-hidden bg-[#F4F6F8]"
               >
                 <Image
                   src={post.images[0]}
@@ -171,18 +155,18 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
           {/* 본문 미리보기 */}
           {contentPreview && (
-            <p className="mt-1 text-[13px] text-[#6B7280] leading-snug line-clamp-2">
+            <p className="mt-2 text-xs text-[#6B7280] leading-snug line-clamp-2">
               {contentPreview}
             </p>
           )}
 
           {/* 태그 */}
           {post.tags && post.tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-x-1.5 gap-y-1">
+            <div className="mt-2 flex flex-wrap gap-2">
               {post.tags.slice(0, 5).map((tag) => (
                 <span
                   key={tag}
-                  className="bg-[#F4F6F8] text-[#6B7280] rounded-md px-2 py-0.5 text-xs"
+                  className="bg-[#F4F6F8] text-[#6B7280] rounded-lg px-2 py-0.5 text-xs"
                 >
                   #{tag}
                 </span>
@@ -191,30 +175,30 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           )}
 
           {/* 하단 액션 행 */}
-          <div className="mt-2 flex items-center gap-0.5 text-xs font-medium text-[#6B7280]">
+          <div className="mt-2 flex items-center gap-4 text-xs font-medium text-[#6B7280]">
             <Link
               href={`/community/post/${post.id}#comments`}
-              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
             >
               <MessageCircle className="w-4 h-4" />
               <span>{post.comment_count}개 댓글</span>
             </Link>
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-              <span>공유</span>
-            </button>
-            <button
-              type="button"
               onClick={handleBookmark}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[#F4F6F8] transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
                 bookmarked ? "text-[#2563EB]" : ""
               }`}
             >
               <Bookmark className="w-4 h-4" fill={bookmarked ? "#2563EB" : "none"} />
               <span>저장</span>
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>공유</span>
             </button>
             <span className="flex items-center gap-1 px-2 py-1">
               <Eye className="w-4 h-4" />

@@ -92,10 +92,10 @@ export default function CommunityNav() {
           </form>
 
           {/* 오른쪽: 글쓰기, 유저/로그인 */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/community/post/write"
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] hover:border-[#D1D5DB] transition-all"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] hover:border-[#D1D5DB] transition-all"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
@@ -133,7 +133,7 @@ export default function CommunityNav() {
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
         <div className="sm:hidden border-t border-[#E5E7EB] bg-white">
-          <div className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-2.5">
+          <div className="mx-auto max-w-5xl p-4 flex flex-col gap-3">
             {/* 모바일 검색바 */}
             <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
               <Search
@@ -145,7 +145,7 @@ export default function CommunityNav() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-9 py-2.5 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
+                className="w-full pl-9 pr-9 py-2 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
@@ -163,7 +163,7 @@ export default function CommunityNav() {
             <Link
               href="/community/post/write"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] transition-all"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기

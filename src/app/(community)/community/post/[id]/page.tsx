@@ -174,18 +174,18 @@ export default function PostDetailPage() {
     return (
       <div className="min-h-screen bg-[#F4F6F8]">
         <div className="mx-auto max-w-[740px] px-4 py-5">
-          <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-5">
+          <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
             <div className="animate-pulse space-y-4">
-              <div className="h-4 w-24 bg-[#F4F6F8] rounded-md" />
-              <div className="h-7 w-3/4 bg-[#F4F6F8] rounded-md" />
+              <div className="h-4 w-24 bg-[#F4F6F8] rounded-lg" />
+              <div className="h-7 w-3/4 bg-[#F4F6F8] rounded-lg" />
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 bg-[#F4F6F8] rounded-full" />
-                <div className="h-3 w-32 bg-[#F4F6F8] rounded-md" />
+                <div className="h-3 w-32 bg-[#F4F6F8] rounded-lg" />
               </div>
               <div className="space-y-2">
-                <div className="h-4 w-full bg-[#F4F6F8] rounded-md" />
-                <div className="h-4 w-full bg-[#F4F6F8] rounded-md" />
-                <div className="h-4 w-2/3 bg-[#F4F6F8] rounded-md" />
+                <div className="h-4 w-full bg-[#F4F6F8] rounded-lg" />
+                <div className="h-4 w-full bg-[#F4F6F8] rounded-lg" />
+                <div className="h-4 w-2/3 bg-[#F4F6F8] rounded-lg" />
               </div>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function PostDetailPage() {
     return (
       <div className="min-h-screen bg-[#F4F6F8]">
         <div className="mx-auto max-w-[740px] px-4 py-16 text-center">
-          <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-8">
+          <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-8">
             <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#6B7280]" />
             <p className="text-[#1c1c1e] font-medium">
               게시글을 찾을 수 없습니다
@@ -209,7 +209,7 @@ export default function PostDetailPage() {
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2.5 text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -252,10 +252,10 @@ export default function PostDetailPage() {
         </nav>
 
         {/* 메인 포스트 카드 */}
-        <div className="bg-white rounded-lg shadow-sm border border-[#E5E7EB] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden">
           <div className="flex">
             {/* 좌측 투표 스트립 (데스크탑) */}
-            <div className="hidden md:flex flex-col items-center w-11 bg-[#FAFAFA] rounded-l-lg pt-3 shrink-0">
+            <div className="hidden md:flex flex-col items-center w-11 bg-[#FAFAFA] rounded-l-xl pt-3 shrink-0">
               <VoteButtons
                 count={voteCount}
                 userVote={post.user_vote ?? null}
@@ -269,19 +269,19 @@ export default function PostDetailPage() {
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4">
               {/* 메타: 카테고리 · 작성자 · 시간 */}
-              <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-3">
+              <div className="flex items-center gap-2 text-xs text-[#6B7280] mb-3">
                 {categoryInfo && (
                   <>
                     <Link
                       href={`/community/${post.category}`}
-                      className="font-semibold text-[#1c1c1e] hover:text-[#2563EB] transition-colors"
+                      className="font-semibold text-[#1c1c1e] hover:text-[#2563EB] transition-all duration-200"
                     >
                       {categoryInfo.label}
                     </Link>
                     <span>&middot;</span>
                   </>
                 )}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-[#F4F6F8] ring-1 ring-[#E5E7EB] flex items-center justify-center overflow-hidden">
                     {post.author.avatar_url ? (
                       <Image
@@ -340,7 +340,7 @@ export default function PostDetailPage() {
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -375,7 +375,7 @@ export default function PostDetailPage() {
                         key={idx}
                         type="button"
                         onClick={() => setLightboxIndex(idx)}
-                        className={`relative overflow-hidden rounded-lg bg-[#F4F6F8] hover:opacity-90 transition-opacity ${
+                        className={`relative overflow-hidden rounded-xl bg-[#F4F6F8] hover:opacity-90 transition-all duration-200 ${
                           post.images!.length === 1
                             ? "aspect-video"
                             : "aspect-square"
@@ -433,7 +433,7 @@ export default function PostDetailPage() {
                     alt=""
                     width={1200}
                     height={900}
-                    className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    className="max-w-full max-h-[90vh] object-contain rounded-xl"
                     onClick={(e) => e.stopPropagation()}
                   />
 
@@ -450,7 +450,7 @@ export default function PostDetailPage() {
 
                   {/* 인디케이터 */}
                   {post.images.length > 1 && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
                       {post.images.map((_, idx) => (
                         <button
                           key={idx}
@@ -482,12 +482,12 @@ export default function PostDetailPage() {
 
               {/* 태그 */}
               {!isMembersOnly && post.tags && post.tags.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {post.tags.map((tag) => (
                     <Link
                       key={tag}
                       href={`/community?tag=${encodeURIComponent(tag)}`}
-                      className="px-2.5 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-colors"
+                      className="px-3 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-all duration-200"
                     >
                       #{tag}
                     </Link>
@@ -499,12 +499,12 @@ export default function PostDetailPage() {
               {!isMembersOnly &&
                 post.vendor_details &&
                 post.vendor_details.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {post.vendor_details.map((vendor) => (
                       <Link
                         key={vendor.id}
                         href={`/vendors/${vendor.id}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg hover:border-[#6B7280] transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-1 text-xs text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg hover:border-[#6B7280] transition-all duration-200"
                       >
                         {vendor.thumbnail_url && (
                           <Image
@@ -527,7 +527,7 @@ export default function PostDetailPage() {
                 )}
 
               {/* 액션바 */}
-              <div className="mt-4 pt-3 border-t border-[#E5E7EB] flex items-center gap-0.5 text-xs font-medium text-[#6B7280]">
+              <div className="mt-4 pt-3 border-t border-[#E5E7EB] flex items-center gap-4 text-xs font-medium text-[#6B7280]">
                 {/* 모바일 투표 */}
                 <div className="md:hidden mr-1">
                   <VoteButtons
@@ -542,7 +542,7 @@ export default function PostDetailPage() {
                 </div>
 
                 {/* 댓글 수 */}
-                <span className="px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] cursor-default transition-colors">
+                <span className="px-2 py-1 rounded-lg hover:bg-[#F4F6F8] cursor-default transition-all duration-200">
                   {post.comment_count ?? 0} 댓글
                 </span>
 
@@ -550,7 +550,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   공유
@@ -567,7 +567,7 @@ export default function PostDetailPage() {
                     }
                     toggleBookmark(post.id);
                   }}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
                     post.user_bookmarked ? "text-[#2563EB]" : ""
                   }`}
                 >
@@ -584,7 +584,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleReportClick}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-[#F4F6F8] transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                 >
                   <Flag className="w-3.5 h-3.5" />
                   신고
@@ -595,7 +595,7 @@ export default function PostDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-md hover:bg-red-50 text-red-500 transition-colors ml-auto"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto"
                   >
                     삭제
                   </button>
@@ -613,7 +613,7 @@ export default function PostDetailPage() {
                 ? `/community/${post.category}`
                 : "/community"
             }
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-[#6B7280] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F9FAFB] transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#6B7280] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F9FAFB] transition-all duration-200 shadow-sm"
           >
             <List className="w-4 h-4" />
             목록으로
@@ -622,14 +622,14 @@ export default function PostDetailPage() {
 
         {/* 토스트: 링크 복사 */}
         {shareToast && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#1c1c1e] text-white text-sm rounded-lg shadow-lg animate-fade-in">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1c1c1e] text-white text-sm rounded-lg shadow-lg animate-fade-in">
             링크가 복사되었습니다
           </div>
         )}
 
         {/* 토스트: 로그인 필요 */}
         {loginToast && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#1c1c1e] text-white text-sm rounded-lg shadow-lg animate-fade-in">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1c1c1e] text-white text-sm rounded-lg shadow-lg animate-fade-in">
             로그인이 필요합니다
           </div>
         )}
@@ -734,7 +734,7 @@ export default function PostDetailPage() {
                       placeholder="추가 설명 (선택)"
                       rows={3}
                       maxLength={500}
-                      className="mt-4 w-full px-3 py-2.5 text-sm text-[#1c1c1e] bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg resize-none focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] transition-all placeholder:text-[#6B7280]"
+                      className="mt-4 w-full px-3 py-2 text-sm text-[#1c1c1e] bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg resize-none focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] transition-all duration-200 placeholder:text-[#6B7280]"
                     />
                   </div>
 
@@ -743,7 +743,7 @@ export default function PostDetailPage() {
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="px-4 py-2.5 text-sm font-medium text-[#6B7280] hover:text-[#1c1c1e] rounded-lg hover:bg-[#E5E7EB] transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-[#6B7280] hover:text-[#1c1c1e] rounded-lg hover:bg-[#E5E7EB] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -751,7 +751,7 @@ export default function PostDetailPage() {
                       type="button"
                       onClick={handleReportSubmit}
                       disabled={!reportReason}
-                      className="px-4 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       신고하기
                     </button>
@@ -787,7 +787,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-3.5 text-sm font-medium text-[#6B7280] hover:bg-[#F4F6F8] transition-colors"
+                  className="flex-1 px-4 py-3 text-sm font-medium text-[#6B7280] hover:bg-[#F4F6F8] transition-all duration-200"
                 >
                   취소
                 </button>
@@ -796,7 +796,7 @@ export default function PostDetailPage() {
                   type="button"
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="flex-1 px-4 py-3.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                  className="flex-1 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-40"
                 >
                   {deleting ? "삭제 중..." : "삭제"}
                 </button>
@@ -807,7 +807,7 @@ export default function PostDetailPage() {
 
         {/* 댓글 섹션 */}
         {!isMembersOnly && (
-          <div className="mt-3 bg-white rounded-lg shadow-sm border border-[#E5E7EB] p-5">
+          <div className="mt-3 bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
             <CommentSection postId={post.id} />
           </div>
         )}

@@ -75,12 +75,12 @@ export default function VoteButtons({
   if (compact) {
     // 가로형 (댓글용)
     return (
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => handleVote(1)}
           disabled={isVoting}
-          className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+          className={`p-1 rounded-lg transition-all duration-200 active:scale-110 ${
             displayVote === 1
               ? "text-[#FF4500] bg-[#FFF1EE]"
               : "text-[#6B7280] hover:text-[#FF4500] hover:bg-[#FFF1EE]"
@@ -107,7 +107,7 @@ export default function VoteButtons({
           type="button"
           onClick={() => handleVote(-1)}
           disabled={isVoting}
-          className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+          className={`p-1 rounded-lg transition-all duration-200 active:scale-110 ${
             displayVote === -1
               ? "text-[#7193FF] bg-[#EEF1FF]"
               : "text-[#6B7280] hover:text-[#7193FF] hover:bg-[#EEF1FF]"
@@ -125,12 +125,12 @@ export default function VoteButtons({
 
   // 세로형 (기본 - Reddit 스타일)
   return (
-    <div className="flex flex-col items-center py-2.5 gap-0.5">
+    <div className="flex flex-col items-center py-2 gap-1">
       <button
         type="button"
         onClick={() => handleVote(1)}
         disabled={isVoting}
-        className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+        className={`p-1 rounded-lg transition-all duration-200 active:scale-110 ${
           displayVote === 1
             ? "text-[#FF4500] bg-[#FFF1EE]"
             : "text-[#6B7280] hover:text-[#FF4500] hover:bg-[#FFF1EE]"
@@ -157,7 +157,7 @@ export default function VoteButtons({
         type="button"
         onClick={() => handleVote(-1)}
         disabled={isVoting}
-        className={`p-1 rounded-md transition-all active:scale-110 transition-transform ${
+        className={`p-1 rounded-lg transition-all duration-200 active:scale-110 ${
           displayVote === -1
             ? "text-[#7193FF] bg-[#EEF1FF]"
             : "text-[#6B7280] hover:text-[#7193FF] hover:bg-[#EEF1FF]"
