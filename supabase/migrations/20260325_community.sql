@@ -200,3 +200,54 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 10. Storage 버킷
 INSERT INTO storage.buckets (id, name, public) VALUES ('community-images', 'community-images', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- 11. RPC: 북마크 카운트 업데이트
+CREATE OR REPLACE FUNCTION community_update_bookmark_count(p_post_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE community_posts
+  SET bookmark_count = (
+    SELECT COUNT(*) FROM community_bookmarks WHERE post_id = p_post_id
+  )
+  WHERE id = p_post_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 12. RPC: 프로필 카운트 증가
+CREATE OR REPLACE FUNCTION community_increment_profile_count(p_user_id UUID, p_field TEXT)
+RETURNS void AS $$
+BEGIN
+  IF p_field = 'post_count' THEN
+    UPDATE community_profiles SET post_count = post_count + 1 WHERE user_id = p_user_id;
+  ELSIF p_field = 'comment_count' THEN
+    UPDATE community_profiles SET comment_count = comment_count + 1 WHERE user_id = p_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 13. RPC: 프로필 카운트 감소 (최소 0)
+CREATE OR REPLACE FUNCTION community_decrement_profile_count(p_user_id UUID, p_field TEXT)
+RETURNS void AS $$
+BEGIN
+  IF p_field = 'post_count' THEN
+    UPDATE community_profiles SET post_count = GREATEST(0, post_count - 1) WHERE user_id = p_user_id;
+  ELSIF p_field = 'comment_count' THEN
+    UPDATE community_profiles SET comment_count = GREATEST(0, comment_count - 1) WHERE user_id = p_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 14. Trigger: updated_at 자동 갱신
+CREATE OR REPLACE FUNCTION community_update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_posts_updated_at BEFORE UPDATE ON community_posts
+FOR EACH ROW EXECUTE FUNCTION community_update_timestamp();
+
+CREATE TRIGGER trg_comments_updated_at BEFORE UPDATE ON community_comments
+FOR EACH ROW EXECUTE FUNCTION community_update_timestamp();

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeText } from "@/utils/sanitize";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { ReportReason } from "@/types/community.types";
 
 function getServiceClient() {
@@ -29,10 +31,22 @@ export async function POST(
       );
     }
 
-    const { reason, description } = (await req.json()) as {
+    // Rate limit: 10 reports per hour per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:report", req, user.id),
+      { maxRequests: 10, windowMs: 60 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
+
+    const { reason, description: rawDescription } = (await req.json()) as {
       reason: ReportReason;
       description?: string;
     };
+
+    // description 정화
+    const description = rawDescription
+      ? sanitizeText(rawDescription).slice(0, 1000)
+      : undefined;
 
     if (!reason) {
       return NextResponse.json(

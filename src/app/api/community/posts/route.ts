@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
   CommunityCategory,
   PostSort,
@@ -171,15 +173,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Rate limit: 10 posts per 10 minutes per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:post:create", req, user.id),
+      { maxRequests: 10, windowMs: 10 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
+
     const body = await req.json();
     const {
       category,
-      title,
-      content,
-      images,
+      title: rawTitle,
+      content: rawContent,
+      images: rawImages,
       visibility,
-      vendor_tags,
-      tags,
+      vendor_tags: rawVendorTags,
+      tags: rawTags,
       cost_data,
     } = body as {
       category: CommunityCategory;
@@ -192,7 +201,38 @@ export async function POST(req: NextRequest) {
       cost_data?: CostShareData;
     };
 
-    if (!category || !title || !content || !visibility) {
+    // 입력 검증 및 정화
+    const title = rawTitle?.trim().slice(0, 200);
+    if (!title || title.length === 0) {
+      return NextResponse.json(
+        { error: "제목을 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    const content = sanitizeHtml(rawContent ?? "").slice(0, 50000);
+    if (!content || content.trim().length === 0) {
+      return NextResponse.json(
+        { error: "내용을 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    // 태그 검증: 최대 10개, 각 최대 30자
+    const tags = (rawTags ?? [])
+      .slice(0, 10)
+      .map((t: string) => sanitizeText(t).slice(0, 30))
+      .filter((t: string) => t.length > 0);
+
+    // vendor_tags 검증: 최대 5개
+    const vendor_tags = (rawVendorTags ?? []).slice(0, 5);
+
+    // 이미지 검증: 최대 10개, 각 URL은 https://로 시작
+    const images = (rawImages ?? [])
+      .slice(0, 10)
+      .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
+
+    if (!category || !visibility) {
       return NextResponse.json(
         { error: "필수 항목을 입력해주세요." },
         { status: 400 }

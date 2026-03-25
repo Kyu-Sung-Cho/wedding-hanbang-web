@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 // 게시글 투표
 export async function POST(
@@ -19,6 +20,13 @@ export async function POST(
         { status: 401 }
       );
     }
+
+    // Rate limit: 60 votes per minute per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:post:vote", req, user.id),
+      { maxRequests: 60, windowMs: 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     const { voteType } = (await req.json()) as { voteType: 1 | -1 | 0 };
 

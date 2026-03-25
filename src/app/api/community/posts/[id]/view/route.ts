@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 // 조회수 증가
 export async function POST(
@@ -8,6 +9,14 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+
+    // Rate limit: 10 views per post per IP per minute (prevent view count inflation)
+    const rlResult = checkRateLimit(
+      rateLimitKey(`community:view:${id}`, req),
+      { maxRequests: 10, windowMs: 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
+
     const supabase = await createClient();
 
     // RPC로 원자적 조회수 증가

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -28,6 +29,13 @@ export async function POST(
         { status: 401 }
       );
     }
+
+    // Rate limit: 30 bookmarks per minute per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:bookmark", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     // 기존 북마크 확인
     const { data: existing } = await supabase

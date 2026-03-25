@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeText } from "@/utils/sanitize";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -96,11 +98,29 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { nickname } = (await req.json()) as { nickname: string };
+    // Rate limit: 5 profile updates per hour per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:profile:update", req, user.id),
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
+
+    const { nickname: rawNickname } = (await req.json()) as { nickname: string };
+
+    // 닉네임 정화 및 검증
+    const nickname = sanitizeText(rawNickname ?? "").slice(0, 20);
 
     if (!nickname || nickname.trim().length === 0) {
       return NextResponse.json(
         { error: "닉네임을 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    // 공백만 포함되거나 제어 문자가 있는 닉네임 거부
+    if (/^\s+$/.test(nickname) || /[\x00-\x1F\x7F]/.test(nickname)) {
+      return NextResponse.json(
+        { error: "사용할 수 없는 닉네임입니다." },
         { status: 400 }
       );
     }

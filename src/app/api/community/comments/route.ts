@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeHtml } from "@/utils/sanitize";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommentWithAuthor, CreateCommentInput } from "@/types/community.types";
 
 function getServiceClient() {
@@ -114,10 +116,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { post_id, parent_id, content } =
+    // Rate limit: 30 comments per 10 minutes per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:comment:create", req, user.id),
+      { maxRequests: 30, windowMs: 10 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
+
+    const { post_id, parent_id, content: rawContent } =
       (await req.json()) as CreateCommentInput;
 
-    if (!post_id || !content) {
+    // 댓글 내용 검증 및 정화
+    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
+
+    if (!post_id || !content || content.trim().length === 0) {
       return NextResponse.json(
         { error: "필수 항목을 입력해주세요." },
         { status: 400 }

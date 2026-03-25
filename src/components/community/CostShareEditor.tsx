@@ -116,8 +116,9 @@ export default function CostShareEditor({
     <input
       type="number"
       min={0}
+      max={999999}
       value={value || ""}
-      onChange={(e) => onChangeVal(Number(e.target.value) || 0)}
+      onChange={(e) => onChangeVal(Math.min(Number(e.target.value) || 0, 999999))}
       placeholder={placeholder}
       className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />

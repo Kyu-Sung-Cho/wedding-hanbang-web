@@ -16,6 +16,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
+import { sanitizeHtml } from "@/utils/sanitize";
 import VoteButtons from "@/components/community/VoteButtons";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
@@ -231,7 +232,7 @@ export default function PostDetailPage() {
                 <div
                   className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
                   dangerouslySetInnerHTML={{
-                    __html: post.content.slice(0, 300),
+                    __html: sanitizeHtml(post.content.slice(0, 300)),
                   }}
                 />
                 {/* 로그인 유도 오버레이 */}
@@ -256,7 +257,7 @@ export default function PostDetailPage() {
             ) : (
               <div
                 className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words prose-sm"
-                dangerouslySetInnerHTML={{ __html: post.content }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
               />
             )}
           </div>

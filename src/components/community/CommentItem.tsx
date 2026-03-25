@@ -185,27 +185,33 @@ export default function CommentItem({
                   onChange={(e) => setReplyContent(e.target.value)}
                   placeholder="답글을 작성해 주세요..."
                   rows={2}
+                  maxLength={2000}
                   className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] transition-colors placeholder:text-[#B5ADA3]"
                 />
-                <div className="flex items-center justify-end gap-2 mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowReplyInput(false);
-                      setReplyContent("");
-                    }}
-                    className="px-3 py-1.5 text-xs text-[#928980] hover:text-[#1A1A1F] transition-colors"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReplySubmit}
-                    disabled={!replyContent.trim() || submittingReply}
-                    className="px-4 py-1.5 text-xs font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {submittingReply ? "등록 중..." : "등록"}
-                  </button>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs text-[#B5ADA3]">
+                    {replyContent.length}/2000
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReplyInput(false);
+                        setReplyContent("");
+                      }}
+                      className="px-3 py-1.5 text-xs text-[#928980] hover:text-[#1A1A1F] transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReplySubmit}
+                      disabled={!replyContent.trim() || submittingReply}
+                      className="px-4 py-1.5 text-xs font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {submittingReply ? "등록 중..." : "등록"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

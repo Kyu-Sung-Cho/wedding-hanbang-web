@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { MessageCircle } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -59,23 +59,24 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   }
 
   // 댓글 트리 빌드 (1-depth only)
-  const topLevelComments: CommentWithAuthor[] = [];
-  const repliesMap: Record<string, CommentWithAuthor[]> = {};
+  const treeComments = useMemo(() => {
+    const topLevel: CommentWithAuthor[] = [];
+    const repliesMap: Record<string, CommentWithAuthor[]> = {};
 
-  comments.forEach((c) => {
-    if (!c.parent_id) {
-      topLevelComments.push(c);
-    } else {
-      if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
-      repliesMap[c.parent_id].push(c);
-    }
-  });
+    comments.forEach((c) => {
+      if (!c.parent_id) {
+        topLevel.push(c);
+      } else {
+        if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
+        repliesMap[c.parent_id].push(c);
+      }
+    });
 
-  // 각 최상위 댓글에 replies 연결
-  const treeComments: CommentWithAuthor[] = topLevelComments.map((c) => ({
-    ...c,
-    replies: repliesMap[c.id] ?? [],
-  }));
+    return topLevel.map((c) => ({
+      ...c,
+      replies: repliesMap[c.id] ?? [],
+    }));
+  }, [comments]);
 
   const commentCount = currentPost?.comment_count ?? comments.length;
 
@@ -97,9 +98,13 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="댓글을 작성해 주세요..."
             rows={3}
+            maxLength={2000}
             className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-white border border-[#F5F2ED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] transition-colors placeholder:text-[#B5ADA3]"
           />
-          <div className="flex justify-end mt-2">
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-[#B5ADA3]">
+              {newComment.length}/2000
+            </span>
             <button
               type="button"
               onClick={handleSubmit}

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommunityCategory } from "@/types/community.types";
 
 // 전문 검색
@@ -20,6 +21,21 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 검색어 최대 길이 제한
+    if (q.length > 100) {
+      return NextResponse.json(
+        { error: "검색어는 100자 이내로 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    // Rate limit: 30 searches per minute per IP
+    const rlResult = checkRateLimit(
+      rateLimitKey("community:search", req),
+      { maxRequests: 30, windowMs: 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     const {
       data: { user },
@@ -50,13 +66,15 @@ export async function GET(req: NextRequest) {
       console.error("Community search error:", error);
 
       // search_vector 칼럼이 없는 경우 ilike 폴백
+      // SQL 특수 문자 이스케이프 (SQL injection 방지)
+      const escaped = q.replace(/[%_\\]/g, (c) => `\\${c}`);
       let fallbackQuery = supabase
         .from("community_posts")
         .select(
           "*, author:community_profiles!community_posts_author_id_fkey(*)",
           { count: "exact" }
         )
-        .or(`title.ilike.%${q}%,content.ilike.%${q}%`)
+        .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
         .eq("visibility", "public")
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);

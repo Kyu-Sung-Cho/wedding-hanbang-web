@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeHtml } from "@/utils/sanitize";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -56,9 +57,12 @@ export async function PATCH(
       );
     }
 
-    const { content } = (await req.json()) as { content: string };
+    const { content: rawContent } = (await req.json()) as { content: string };
 
-    if (!content) {
+    // 댓글 내용 검증 및 정화
+    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
+
+    if (!content || content.trim().length === 0) {
       return NextResponse.json(
         { error: "댓글 내용을 입력해주세요." },
         { status: 400 }

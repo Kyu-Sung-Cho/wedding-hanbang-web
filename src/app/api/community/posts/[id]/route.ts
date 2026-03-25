@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import type { UpdatePostInput } from "@/types/community.types";
 
 function getServiceClient() {
@@ -159,12 +160,39 @@ export async function PATCH(
     const body: UpdatePostInput = await req.json();
     const updateData: Record<string, unknown> = {};
 
-    if (body.title !== undefined) updateData.title = body.title;
-    if (body.content !== undefined) updateData.content = body.content;
-    if (body.images !== undefined) updateData.images = body.images;
+    if (body.title !== undefined) {
+      const title = sanitizeText(body.title).trim().slice(0, 200);
+      if (title.length === 0) {
+        return NextResponse.json(
+          { error: "제목을 입력해주세요." },
+          { status: 400 }
+        );
+      }
+      updateData.title = title;
+    }
+    if (body.content !== undefined) {
+      const content = sanitizeHtml(body.content).slice(0, 50000);
+      if (content.trim().length === 0) {
+        return NextResponse.json(
+          { error: "내용을 입력해주세요." },
+          { status: 400 }
+        );
+      }
+      updateData.content = content;
+    }
+    if (body.images !== undefined) {
+      updateData.images = (body.images ?? [])
+        .slice(0, 10)
+        .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
+    }
     if (body.visibility !== undefined) updateData.visibility = body.visibility;
-    if (body.vendor_tags !== undefined) updateData.vendor_tags = body.vendor_tags;
-    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.vendor_tags !== undefined) updateData.vendor_tags = (body.vendor_tags ?? []).slice(0, 5);
+    if (body.tags !== undefined) {
+      updateData.tags = (body.tags ?? [])
+        .slice(0, 10)
+        .map((t: string) => sanitizeText(t).slice(0, 30))
+        .filter((t: string) => t.length > 0);
+    }
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
     updateData.updated_at = new Date().toISOString();
 
