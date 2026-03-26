@@ -93,7 +93,7 @@ export default function VoteButtons({
           />
         </button>
         <span
-          className={`text-xs min-w-[1.25rem] text-center ${
+          className={`text-sm min-w-[1.25rem] text-center ${
             displayVote === 1
               ? "text-[#FF4500] font-semibold"
               : displayVote === -1
@@ -143,7 +143,7 @@ export default function VoteButtons({
         />
       </button>
       <span
-        className={`text-xs min-w-[1.5rem] text-center ${
+        className={`text-sm font-semibold min-w-[1.5rem] text-center ${
           displayVote === 1
             ? "text-[#FF4500] font-semibold"
             : displayVote === -1

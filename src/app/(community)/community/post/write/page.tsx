@@ -447,7 +447,7 @@ function PostWriteContent() {
               onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
               placeholder="제목을 입력하세요"
               maxLength={TITLE_MAX_LENGTH}
-              className="w-full px-4 py-3 text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors"
+              className="w-full px-4 py-3 text-lg text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors"
             />
             <p className={`mt-2 text-xs text-right ${titleCountColor}`}>
               {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
@@ -499,7 +499,7 @@ function PostWriteContent() {
                   }}
                   placeholder="내용을 입력하세요..."
                   maxLength={CONTENT_MAX_LENGTH}
-                  className="w-full px-4 py-3 text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
+                  className="w-full px-4 py-3 text-base text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
                 />
                 <p className={`mt-2 text-xs text-right ${contentCountColor}`}>
                   {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
@@ -544,13 +544,13 @@ function PostWriteContent() {
                     key={cat.key}
                     type="button"
                     onClick={() => setCategory(cat.key)}
-                    className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                       isSelected
                         ? "border-[#2563EB] bg-[#2563EB] text-white shadow-sm"
                         : "border-[#E5E7EB] bg-white text-[#6B7280] hover:border-[#D1D5DB] hover:text-[#1c1c1e]"
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <Icon className="w-4 h-4 shrink-0" />
                     <span className="truncate">{cat.shortLabel}</span>
                   </button>
                 );

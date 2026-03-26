@@ -94,7 +94,7 @@ export default function CategoryFeedPage() {
           <h1 className="text-lg font-bold text-[#1c1c1e]">
             {categoryInfo.label}
           </h1>
-          <p className="mt-1 text-xs text-[#6B7280]">
+          <p className="mt-1 text-sm text-[#6B7280]">
             {categoryInfo.description}
           </p>
         </div>
@@ -165,7 +165,7 @@ export default function CategoryFeedPage() {
                 <h2 className="text-sm font-bold text-[#1c1c1e] mb-1">
                   웨딩한방 커뮤니티
                 </h2>
-                <p className="text-xs text-[#6B7280] leading-relaxed mb-3">
+                <p className="text-sm text-[#6B7280] leading-relaxed mb-3">
                   예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티
                 </p>
 
@@ -173,12 +173,12 @@ export default function CategoryFeedPage() {
                 <div className="flex items-center gap-4 py-3 mb-3 border-y border-[#F4F6F8]">
                   <div className="text-center flex-1">
                     <div className="text-sm font-bold text-[#1c1c1e]">{total || '—'}</div>
-                    <div className="text-[11px] text-[#6B7280]">게시글</div>
+                    <div className="text-xs text-[#6B7280]">게시글</div>
                   </div>
                   <div className="w-px h-8 bg-[#E5E7EB]" />
                   <div className="text-center flex-1">
                     <div className="text-sm font-bold text-[#1c1c1e]">—</div>
-                    <div className="text-[11px] text-[#6B7280]">멤버</div>
+                    <div className="text-xs text-[#6B7280]">멤버</div>
                   </div>
                   <div className="w-px h-8 bg-[#E5E7EB]" />
                   <div className="text-center flex-1">
@@ -186,13 +186,13 @@ export default function CategoryFeedPage() {
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <div className="text-sm font-bold text-[#1c1c1e]">—</div>
                     </div>
-                    <div className="text-[11px] text-[#6B7280]">온라인</div>
+                    <div className="text-xs text-[#6B7280]">온라인</div>
                   </div>
                 </div>
 
                 <Link
                   href="/community/post/write"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 text-base font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
                 >
                   <PenSquare className="w-4 h-4" />
                   글쓰기
@@ -202,11 +202,11 @@ export default function CategoryFeedPage() {
 
             {/* 커뮤니티 규칙 */}
             <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
-              <h3 className="flex items-center gap-2 text-xs font-semibold text-[#1c1c1e] mb-3">
-                <Shield className="w-3.5 h-3.5 text-[#6B7280]" />
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1c1c1e] mb-3">
+                <Shield className="w-4 h-4 text-[#6B7280]" />
                 커뮤니티 규칙
               </h3>
-              <ol className="space-y-2 text-xs text-[#6B7280]">
+              <ol className="space-y-2 text-sm text-[#6B7280]">
                 <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">1.</span>서로 존중하는 대화를 해주세요</li>
                 <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">2.</span>광고/스팸 글은 삭제됩니다</li>
                 <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">3.</span>개인정보를 공유하지 마세요</li>
@@ -218,8 +218,8 @@ export default function CategoryFeedPage() {
             {/* 인기 태그 */}
             {popularTags.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
-                <h3 className="flex items-center gap-2 text-xs font-bold text-[#1c1c1e] uppercase mb-3">
-                  <Hash className="w-3.5 h-3.5 text-[#6B7280]" />
+                <h3 className="flex items-center gap-2 text-sm font-bold text-[#1c1c1e] uppercase mb-3">
+                  <Hash className="w-4 h-4 text-[#6B7280]" />
                   인기 태그
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -227,10 +227,10 @@ export default function CategoryFeedPage() {
                     <Link
                       key={t.tag}
                       href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs text-[#2563EB] bg-[#EFF6FF] border border-[#DBEAFE] rounded-lg hover:bg-[#DBEAFE] transition-all duration-200"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-[#2563EB] bg-[#EFF6FF] border border-[#DBEAFE] rounded-lg hover:bg-[#DBEAFE] transition-all duration-200"
                     >
                       #{t.tag}
-                      <span className="text-[10px] text-[#2563EB]/60 bg-white px-1.5 py-0.5 rounded-full">{t.count}</span>
+                      <span className="text-xs text-[#2563EB]/60 bg-white px-2 py-0.5 rounded-full">{t.count}</span>
                     </Link>
                   ))}
                 </div>

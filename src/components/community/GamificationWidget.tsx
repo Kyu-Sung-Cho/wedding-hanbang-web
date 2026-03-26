@@ -236,18 +236,18 @@ export default function GamificationWidget() {
               </span>
             </div>
             {levelInfo.next ? (
-              <p className="text-xs text-[#9CA3AF] mt-0.5">
+              <p className="text-sm text-[#9CA3AF] mt-0.5">
                 다음 레벨까지 <span className="font-semibold text-[#6B7280]">{remainingXP} XP</span>
               </p>
             ) : (
-              <p className="text-xs text-[#9CA3AF] mt-0.5">최고 레벨 달성!</p>
+              <p className="text-sm text-[#9CA3AF] mt-0.5">최고 레벨 달성!</p>
             )}
           </div>
         </div>
 
         {/* XP 프로그레스 바 */}
         <div className="mb-4">
-          <div className="flex items-center justify-between text-[11px] text-[#9CA3AF] mb-1.5">
+          <div className="flex items-center justify-between text-xs text-[#9CA3AF] mb-1.5">
             <span className="font-medium">{profile.total_xp} XP</span>
             {levelInfo.next && <span>{levelInfo.next.minXP} XP</span>}
           </div>
@@ -319,7 +319,7 @@ export default function GamificationWidget() {
                 >
                   {isFilled || isToday ? "✓" : ""}
                 </div>
-                <span className={`text-[10px] ${isToday ? "font-bold text-[#1c1c1e]" : "text-[#9CA3AF]"}`}>
+                <span className={`text-xs ${isToday ? "font-bold text-[#1c1c1e]" : "text-[#9CA3AF]"}`}>
                   {day}
                 </span>
               </div>
@@ -366,10 +366,10 @@ export default function GamificationWidget() {
                   {isSecret ? "🦉" : ach.icon}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-xs font-semibold truncate ${isUnlocked ? "text-[#1c1c1e]" : "text-[#9CA3AF]"}`}>
+                  <div className={`text-sm font-semibold truncate ${isUnlocked ? "text-[#1c1c1e]" : "text-[#9CA3AF]"}`}>
                     {isSecret ? "???" : ach.label}
                   </div>
-                  <div className={`text-[10px] truncate ${isUnlocked ? "text-green-600" : "text-[#D1D5DB]"}`}>
+                  <div className={`text-xs truncate ${isUnlocked ? "text-green-600" : "text-[#D1D5DB]"}`}>
                     {isSecret ? "시크릿 업적" : ach.description}
                   </div>
                 </div>
@@ -449,7 +449,7 @@ export default function GamificationWidget() {
                       className="w-7 h-7 rounded-full object-cover shrink-0 ring-2 ring-white"
                     />
                   ) : (
-                    <span className="flex w-7 h-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E5E7EB] to-[#D1D5DB] text-[11px] font-bold text-[#6B7280] shrink-0 ring-2 ring-white">
+                    <span className="flex w-7 h-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E5E7EB] to-[#D1D5DB] text-xs font-bold text-[#6B7280] shrink-0 ring-2 ring-white">
                       {avatarLetter}
                     </span>
                   )}
@@ -457,11 +457,11 @@ export default function GamificationWidget() {
                   {/* 이름 + XP 바 */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`text-xs truncate ${isCurrentUser ? "font-bold text-[#4F46E5]" : "font-medium text-[#1c1c1e]"}`}>
+                      <span className={`text-sm truncate ${isCurrentUser ? "font-bold text-[#4F46E5]" : "font-medium text-[#1c1c1e]"}`}>
                         {entry.nickname}
-                        {isCurrentUser && <span className="ml-1 text-[10px]">(나)</span>}
+                        {isCurrentUser && <span className="ml-1 text-xs">(나)</span>}
                       </span>
-                      <span className="text-[11px] font-bold text-[#6B7280] tabular-nums shrink-0 ml-2">
+                      <span className="text-sm font-bold text-[#6B7280] tabular-nums shrink-0 ml-2">
                         {displayXP.toLocaleString()} XP
                       </span>
                     </div>

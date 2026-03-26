@@ -94,7 +94,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       {/* 댓글 수 헤더 */}
       <div className="flex items-center gap-2 mb-4">
         <MessageCircle className="w-4 h-4 text-[#6B7280]" />
-        <h3 className="text-sm font-semibold text-[#1c1c1e]">
+        <h3 className="text-base font-semibold text-[#1c1c1e]">
           댓글{" "}
           {commentCount > 0 && (
             <span className="text-[#2563EB]">{commentCount}</span>
@@ -122,7 +122,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-base font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "등록"}
             </button>
@@ -132,7 +132,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         <div className="mb-4 relative">
           <div className="px-4 py-4 text-center bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
             <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#D1D5DB]" />
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-base text-[#6B7280]">
               <Link
                 href="/login"
                 className="text-[#2563EB] font-semibold hover:underline"
@@ -161,7 +161,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       ) : treeComments.length === 0 ? (
         <div className="text-center py-8">
           <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB]" />
-          <p className="text-sm text-[#6B7280]">
+          <p className="text-base text-[#6B7280]">
             아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
           </p>
         </div>

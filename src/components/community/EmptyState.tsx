@@ -33,11 +33,11 @@ export default function EmptyState({
       </div>
 
       {/* 텍스트 */}
-      <h3 className="relative z-10 text-sm font-bold text-[#1c1c1e] mb-1">
+      <h3 className="relative z-10 text-base font-bold text-[#1c1c1e] mb-1">
         {message}
       </h3>
       {description && (
-        <p className="relative z-10 text-sm text-[#6B7280] max-w-xs leading-relaxed">
+        <p className="relative z-10 text-base text-[#6B7280] max-w-xs leading-relaxed">
           {description}
         </p>
       )}
@@ -46,7 +46,7 @@ export default function EmptyState({
       {ctaLabel && ctaHref && (
         <Link
           href={ctaHref}
-          className="relative z-10 mt-6 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 shadow-sm"
+          className="relative z-10 mt-6 inline-flex items-center gap-2 px-4 py-2 text-base font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 shadow-sm"
         >
           <PenLine className="w-4 h-4" />
           {ctaLabel}

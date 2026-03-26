@@ -11,30 +11,30 @@ export default function PostSkeleton() {
 
         {/* 오른쪽 콘텐츠 */}
         <div className="flex-1 min-w-0 p-4">
-          {/* 메타 라인 */}
+          {/* 메타 라인 (text-sm = 20px line height) */}
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-3 w-12 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-1 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-16 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-1 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-10 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-3.5 w-12 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-3.5 w-1 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-3.5 w-16 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-3.5 w-1 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-3.5 w-10 bg-[#E5E7EB] rounded-lg" />
           </div>
 
-          {/* 제목 */}
-          <div className="h-5 w-3/4 bg-[#E5E7EB] rounded-lg" />
+          {/* 제목 (text-base) */}
+          <div className="h-6 w-3/4 bg-[#E5E7EB] rounded-lg" />
 
-          {/* 본문 미리보기 */}
+          {/* 본문 미리보기 (text-sm) */}
           <div className="mt-2 space-y-2">
-            <div className="h-3.5 w-full bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3.5 w-2/3 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-full bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-2/3 bg-[#E5E7EB] rounded-lg" />
           </div>
 
-          {/* 하단 액션 행 */}
+          {/* 하단 액션 행 (text-sm) */}
           <div className="mt-3 flex items-center gap-3">
-            <div className="h-3 w-16 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-10 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-10 bg-[#E5E7EB] rounded-lg" />
-            <div className="h-3 w-8 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-16 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-10 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-10 bg-[#E5E7EB] rounded-lg" />
+            <div className="h-4 w-8 bg-[#E5E7EB] rounded-lg" />
           </div>
         </div>
       </div>

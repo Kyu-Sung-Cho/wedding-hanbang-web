@@ -28,7 +28,7 @@ export default function CommunityLayout({
             >
               웨딩한방
             </Link>
-            <div className="flex items-center gap-6 text-xs text-[#6B7280]">
+            <div className="flex items-center gap-6 text-sm text-[#6B7280]">
               <Link href="/community" className="hover:text-[#1c1c1e] transition-colors">
                 커뮤니티
               </Link>
@@ -40,7 +40,7 @@ export default function CommunityLayout({
               </Link>
             </div>
           </div>
-          <p className="mt-4 text-center text-xs text-[#6B7280]">
+          <p className="mt-4 text-center text-sm text-[#6B7280]">
             &copy; {new Date().getFullYear()} 웨딩한방. All rights reserved.
           </p>
         </div>

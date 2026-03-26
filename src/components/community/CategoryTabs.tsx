@@ -82,13 +82,13 @@ export default function CategoryTabs() {
             <Link
               key={tab.key}
               href={tab.href}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs whitespace-nowrap rounded-full transition-all duration-200 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-sm whitespace-nowrap rounded-full transition-all duration-200 ${
                 active
                   ? `${activeStyle} font-medium`
                   : "text-[#6B7280] hover:bg-[#F4F6F8]"
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-4 h-4" />
               {tab.label}
             </Link>
           );

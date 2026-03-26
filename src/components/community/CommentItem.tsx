@@ -69,7 +69,7 @@ export default function CommentItem({
           isReply ? "ml-6 pl-4 border-l-2 border-[#E5E7EB]" : ""
         } py-3`}
       >
-        <p className="text-xs text-[#6B7280] italic">삭제된 댓글입니다</p>
+        <p className="text-sm text-[#6B7280] italic">삭제된 댓글입니다</p>
 
         {/* 삭제된 댓글이라도 답글은 표시 */}
         {!isReply && comment.replies && comment.replies.length > 0 && (
@@ -105,22 +105,20 @@ export default function CommentItem({
           {/* 아바타 */}
           <div
             className={`rounded-full bg-[#F4F6F8] ring-1 ring-[#E5E7EB] overflow-hidden flex items-center justify-center text-[#6B7280] shrink-0 ${
-              isReply ? "w-6 h-6" : "w-7 h-7"
+              isReply ? "w-7 h-7" : "w-8 h-8"
             }`}
           >
             {comment.author.avatar_url ? (
               <Image
                 src={comment.author.avatar_url}
                 alt=""
-                width={isReply ? 24 : 28}
-                height={isReply ? 24 : 28}
+                width={isReply ? 28 : 32}
+                height={isReply ? 28 : 32}
                 className="w-full h-full object-cover"
               />
             ) : (
               <span
-                className={`font-bold ${
-                  isReply ? "text-[9px]" : "text-[10px]"
-                }`}
+                className="text-xs font-bold"
               >
                 {comment.author.nickname.charAt(0)}
               </span>
@@ -130,7 +128,7 @@ export default function CommentItem({
           {/* 내용 */}
           <div className="flex-1 min-w-0">
             {/* 작성자 정보 */}
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex items-center gap-1 text-sm">
               <span className="font-bold text-[#1c1c1e]">
                 {comment.author.nickname}
               </span>
@@ -154,7 +152,7 @@ export default function CommentItem({
             </p>
 
             {/* 액션 행: 투표, 답글, 삭제 */}
-            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-[#6B7280]">
+            <div className="mt-2 flex items-center gap-2 text-sm font-medium text-[#6B7280]">
               <VoteButtons
                 count={comment.upvote_count}
                 userVote={comment.user_vote ?? null}
@@ -173,18 +171,18 @@ export default function CommentItem({
                     setShowReplyInput(!showReplyInput);
                     if (showReplyInput) setReplyContent("");
                   }}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
                     showReplyInput ? "text-[#2563EB]" : ""
                   }`}
                 >
                   {showReplyInput ? (
                     <>
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                       답글 취소
                     </>
                   ) : (
                     <>
-                      <Reply className="w-3 h-3" />
+                      <Reply className="w-4 h-4" />
                       답글
                     </>
                   )}
@@ -196,9 +194,9 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-4 h-4" />
                   삭제
                 </button>
               )}
@@ -226,7 +224,7 @@ export default function CommentItem({
                         setShowReplyInput(false);
                         setReplyContent("");
                       }}
-                      className="px-3 py-1 text-xs font-medium text-[#6B7280] hover:text-[#1c1c1e] rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm font-medium text-[#6B7280] hover:text-[#1c1c1e] rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -234,7 +232,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReplySubmit}
                       disabled={!replyContent.trim() || submittingReply}
-                      className="px-3 py-1 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {submittingReply ? "등록 중..." : "등록"}
                     </button>
@@ -260,10 +258,10 @@ export default function CommentItem({
               <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
                 <Trash2 className="w-4 h-4 text-red-500" />
               </div>
-              <p className="text-sm font-bold text-[#1c1c1e]">
+              <p className="text-base font-bold text-[#1c1c1e]">
                 댓글을 삭제하시겠습니까?
               </p>
-              <p className="mt-1 text-xs text-[#6B7280]">
+              <p className="mt-1 text-sm text-[#6B7280]">
                 삭제된 댓글은 복구할 수 없습니다.
               </p>
             </div>

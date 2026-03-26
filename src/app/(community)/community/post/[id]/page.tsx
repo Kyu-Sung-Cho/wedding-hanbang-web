@@ -229,7 +229,7 @@ export default function PostDetailPage() {
     <div className="min-h-screen bg-[#F4F6F8]">
       <div className="mx-auto max-w-[900px] px-4 sm:px-6 lg:px-8 py-5">
         {/* 브레드크럼 네비게이션 */}
-        <nav className="flex items-center gap-1 text-xs text-[#6B7280] mb-3 overflow-hidden">
+        <nav className="flex items-center gap-1 text-sm text-[#6B7280] mb-3 overflow-hidden">
           <Link
             href="/community"
             className="shrink-0 hover:text-[#2563EB] transition-colors"
@@ -269,7 +269,7 @@ export default function PostDetailPage() {
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4">
               {/* 메타: 카테고리 · 작성자 · 시간 */}
-              <div className="flex items-center gap-2 text-xs text-[#6B7280] mb-3">
+              <div className="flex items-center gap-2 text-sm text-[#6B7280] mb-3">
                 {categoryInfo && (
                   <>
                     <Link
@@ -292,7 +292,7 @@ export default function PostDetailPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-[9px] font-bold text-[#6B7280]">
+                      <span className="text-xs font-bold text-[#6B7280]">
                         {post.author.nickname.charAt(0)}
                       </span>
                     )}
@@ -324,7 +324,7 @@ export default function PostDetailPage() {
                   <>
                     {/* 블러 처리된 미리보기 */}
                     <div
-                      className="text-sm text-[#1c1c1e] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
+                      className="text-base text-[#1c1c1e] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
                       dangerouslySetInnerHTML={{
                         __html: sanitizeHtml(post.content.slice(0, 300)),
                       }}
@@ -332,10 +332,10 @@ export default function PostDetailPage() {
                     {/* 로그인 유도 오버레이 */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-white via-white/90 to-transparent">
                       <Lock className="w-8 h-8 text-[#6B7280] mb-2" />
-                      <p className="text-sm font-bold text-[#1c1c1e] mb-1">
+                      <p className="text-base font-bold text-[#1c1c1e] mb-1">
                         회원 전용 게시글입니다
                       </p>
-                      <p className="text-xs text-[#6B7280] mb-3">
+                      <p className="text-sm text-[#6B7280] mb-3">
                         로그인하면 전체 내용을 볼 수 있어요
                       </p>
                       <Link
@@ -348,7 +348,7 @@ export default function PostDetailPage() {
                   </>
                 ) : (
                   <div
-                    className="text-sm text-[#1c1c1e] leading-relaxed whitespace-pre-wrap break-words"
+                    className="text-base text-[#1c1c1e] leading-relaxed whitespace-pre-wrap break-words"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtml(post.content),
                     }}
@@ -487,7 +487,7 @@ export default function PostDetailPage() {
                     <Link
                       key={tag}
                       href={`/community?tag=${encodeURIComponent(tag)}`}
-                      className="px-3 py-1 text-xs text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm text-[#6B7280] bg-[#F4F6F8] rounded-lg hover:bg-[#E5E7EB] transition-all duration-200"
                     >
                       #{tag}
                     </Link>
@@ -504,7 +504,7 @@ export default function PostDetailPage() {
                       <Link
                         key={vendor.id}
                         href={`/vendors/${vendor.id}`}
-                        className="inline-flex items-center gap-2 px-3 py-1 text-xs text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg hover:border-[#6B7280] transition-all duration-200"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg hover:border-[#6B7280] transition-all duration-200"
                       >
                         {vendor.thumbnail_url && (
                           <Image
@@ -527,7 +527,7 @@ export default function PostDetailPage() {
                 )}
 
               {/* 액션바 */}
-              <div className="mt-4 pt-3 border-t border-[#E5E7EB] flex items-center gap-4 text-xs font-medium text-[#6B7280]">
+              <div className="mt-4 pt-3 border-t border-[#E5E7EB] flex items-center gap-4 text-sm font-medium text-[#6B7280]">
                 {/* 모바일 투표 */}
                 <div className="md:hidden mr-1">
                   <VoteButtons
@@ -542,7 +542,7 @@ export default function PostDetailPage() {
                 </div>
 
                 {/* 댓글 수 */}
-                <span className="px-2 py-1 rounded-lg hover:bg-[#F4F6F8] cursor-default transition-all duration-200">
+                <span className="px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] cursor-default transition-all duration-200">
                   {post.comment_count ?? 0} 댓글
                 </span>
 
@@ -550,9 +550,9 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                 >
-                  <Share2 className="w-3.5 h-3.5" />
+                  <Share2 className="w-4 h-4" />
                   공유
                 </button>
 
@@ -567,12 +567,12 @@ export default function PostDetailPage() {
                     }
                     toggleBookmark(post.id);
                   }}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200 ${
                     post.user_bookmarked ? "text-[#2563EB]" : ""
                   }`}
                 >
                   <Bookmark
-                    className={`w-3.5 h-3.5 ${
+                    className={`w-4 h-4 ${
                       post.user_bookmarked ? "fill-current" : ""
                     }`}
                   />
@@ -584,9 +584,9 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleReportClick}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#F4F6F8] transition-all duration-200"
                 >
-                  <Flag className="w-3.5 h-3.5" />
+                  <Flag className="w-4 h-4" />
                   신고
                 </button>
 
@@ -595,7 +595,7 @@ export default function PostDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto"
                   >
                     삭제
                   </button>
@@ -661,10 +661,10 @@ export default function PostDetailPage() {
                       />
                     </svg>
                   </div>
-                  <p className="text-sm font-bold text-[#1c1c1e]">
+                  <p className="text-base font-bold text-[#1c1c1e]">
                     신고가 접수되었습니다
                   </p>
-                  <p className="mt-1 text-xs text-[#6B7280]">
+                  <p className="mt-1 text-sm text-[#6B7280]">
                     검토 후 조치하겠습니다. 감사합니다.
                   </p>
                 </div>

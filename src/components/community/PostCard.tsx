@@ -129,7 +129,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {/* 오른쪽 콘텐츠 */}
         <div className="flex-1 min-w-0 p-4">
           {/* 메타 라인: 아바타 + 닉네임 + 배지 + 시간 + 카테고리 */}
-          <div className="flex items-center gap-2 text-xs text-[#6B7280] mb-2 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-[#9CA3AF] mb-2 flex-wrap">
             {/* 작성자 아바타 */}
             {post.author.avatar_url ? (
               <Image
@@ -140,7 +140,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
                 className="w-6 h-6 rounded-full object-cover"
               />
             ) : (
-              <span className="w-6 h-6 rounded-full bg-[#E5E7EB] text-[11px] font-bold text-[#6B7280] flex items-center justify-center shrink-0">
+              <span className="w-6 h-6 rounded-full bg-[#E5E7EB] text-xs font-bold text-[#6B7280] flex items-center justify-center shrink-0">
                 {avatarLetter}
               </span>
             )}
@@ -154,9 +154,9 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             {/* 사용자 배지 (member 제외) */}
             {userBadge && (
               <span
-                className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${userBadge.style}`}
+                className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${userBadge.style}`}
               >
-                <span className="text-[10px] leading-none">{userBadge.icon}</span>
+                <span className="text-xs leading-none">{userBadge.icon}</span>
                 {userBadge.label}
               </span>
             )}
@@ -168,8 +168,8 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             {post.is_pinned && (
               <>
                 <span>&middot;</span>
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#2563EB]">
-                  <span className="text-[10px] leading-none">{"\uD83D\uDCCC"}</span>
+                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#2563EB]">
+                  <span className="text-xs leading-none">{"\uD83D\uDCCC"}</span>
                   고정됨
                 </span>
               </>
@@ -180,7 +180,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               <>
                 <span>&middot;</span>
                 <span
-                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${catBadgeStyle}`}
+                  className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${catBadgeStyle}`}
                 >
                   {categoryInfo.shortLabel}
                 </span>
@@ -193,7 +193,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             <div className="flex-1 min-w-0">
               <Link
                 href={`/community/post/${post.id}`}
-                className="text-sm font-semibold text-[#1c1c1e] hover:text-[#2563EB] leading-snug line-clamp-2 transition-colors duration-200"
+                className="text-base font-semibold text-[#1c1c1e] hover:text-[#2563EB] leading-snug line-clamp-2 transition-colors duration-200"
               >
                 {/* 고정 게시글 아이콘 */}
                 {post.is_pinned && (
@@ -202,7 +202,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
                 {/* 주간 베스트 배지 */}
                 {post.is_weekly_best && (
-                  <span className="inline-flex items-center text-[11px] font-bold text-white bg-gradient-to-r from-[#FF4500] to-[#FF6B35] px-2 py-0.5 rounded mr-2 align-middle">
+                  <span className="inline-flex items-center text-xs font-bold text-white bg-gradient-to-r from-[#FF4500] to-[#FF6B35] px-2 py-0.5 rounded mr-2 align-middle">
                     <span className="mr-0.5">{"\uD83D\uDD25"}</span>BEST
                   </span>
                 )}
@@ -231,7 +231,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
                 />
                 {/* 이미지 카운트 배지 */}
                 {imageCount > 1 && (
-                  <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                  <span className="absolute bottom-1 right-1 bg-black/60 text-white text-xs font-medium px-2 py-0.5 rounded flex items-center gap-0.5">
                     <span>{"\uD83D\uDCF7"}</span>
                     {imageCount}
                   </span>
@@ -242,7 +242,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
           {/* 본문 미리보기 */}
           {contentPreview && (
-            <p className="mt-2 text-xs text-[#6B7280] leading-snug line-clamp-2">
+            <p className="mt-2 text-sm text-[#6B7280] leading-snug line-clamp-2">
               {contentPreview}
             </p>
           )}
@@ -253,7 +253,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               {post.tags.slice(0, 5).map((tag) => (
                 <span
                   key={tag}
-                  className="bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE] rounded-lg px-2 py-0.5 text-xs"
+                  className="bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE] rounded-lg px-2 py-0.5 text-sm"
                 >
                   #{tag}
                 </span>
@@ -262,7 +262,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           )}
 
           {/* 하단 액션 행 */}
-          <div className="mt-2 flex items-center gap-4 text-xs font-medium text-[#6B7280]">
+          <div className="mt-2 flex items-center gap-4 text-sm font-medium text-[#6B7280]">
             {/* 투표 수 표시 (인기글은 강조) */}
             <span
               className={`flex items-center gap-1 px-2 py-1 ${
@@ -271,7 +271,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
                   : ""
               }`}
             >
-              {isHot && <span className="text-[10px]">{"\u25B2"}</span>}
+              {isHot && <span className="text-xs">{"\u25B2"}</span>}
               {voteCount > 0 ? `+${voteCount}` : voteCount}
             </span>
 
