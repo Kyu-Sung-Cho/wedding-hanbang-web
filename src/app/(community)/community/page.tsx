@@ -144,7 +144,7 @@ function CommunityFeedContent() {
 
       <div className="flex max-w-[1600px] mx-auto">
         {/* 왼쪽 사이드바: 레딧 스타일 고정 네비 */}
-        <aside className="hidden lg:flex flex-col w-[270px] shrink-0 sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+        <aside className="hidden lg:flex flex-col w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
           <CategoryTabs />
 
           {/* 하단 글쓰기 */}
@@ -259,27 +259,27 @@ function CommunityFeedContent() {
         </main>
 
         {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[340px] shrink-0 sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto py-5 pr-8 pl-2 space-y-4">
+        <aside className="hidden xl:flex flex-col w-[360px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-5 pr-8 pl-2 space-y-4">
           {/* 게이미피케이션 */}
           <GamificationWidget />
 
           {/* 인기 카테고리 (레딧의 인기 커뮤니티 스타일) */}
           <div className="bg-white rounded-2xl border border-[#F0EFED] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#F0EFED]">
-              <h3 className="text-base font-medium text-[#1A1A1F]">인기 카테고리</h3>
+            <div className="px-6 py-4 border-b border-[#F0EFED]">
+              <h3 className="text-lg font-medium text-[#1A1A1F]">인기 카테고리</h3>
             </div>
             <div className="divide-y divide-[#F0EFED]">
               {COMMUNITY_CATEGORIES.map((cat, i) => (
                 <Link
                   key={cat.key}
                   href={`/community/${cat.key}`}
-                  className="flex items-center gap-3.5 px-5 py-3 hover:bg-[#FAFAF8] transition-colors duration-150"
+                  className="flex items-center gap-4 px-6 py-3.5 hover:bg-[#FAFAF8] transition-colors duration-150"
                 >
-                  <span className="text-sm font-medium text-[#B5ADA3] w-5 tabular-nums">
+                  <span className="text-base font-medium text-[#B5ADA3] w-5 tabular-nums">
                     {i + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[15px] text-[#1A1A1F] font-medium">
+                    <div className="text-base text-[#1A1A1F] font-medium">
                       {cat.label}
                     </div>
                     <div className="text-sm text-[#B5ADA3] truncate">
@@ -293,16 +293,16 @@ function CommunityFeedContent() {
 
           {/* 인기 태그 */}
           {popularTags.length > 0 && (
-            <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
-              <h3 className="text-base font-medium text-[#1A1A1F] mb-4">
+            <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
+              <h3 className="text-lg font-medium text-[#1A1A1F] mb-4">
                 인기 태그
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {popularTags.slice(0, 15).map((t) => (
                   <Link
                     key={t.tag}
                     href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-full hover:bg-[#F0EFED] transition-colors duration-200"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-[#878680] bg-[#FAFAF8] rounded-full hover:bg-[#F0EFED] transition-colors duration-200"
                   >
                     #{t.tag}
                     <span className="text-xs text-[#B5ADA3]">{t.count}</span>
@@ -313,14 +313,14 @@ function CommunityFeedContent() {
           )}
 
           {/* 커뮤니티 정보 */}
-          <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
-            <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1">
+          <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
+            <h2 className="font-serif text-xl font-medium text-[#1A1A1F] mb-1.5">
               웨딩한방 커뮤니티
             </h2>
-            <p className="text-sm text-[#878680] leading-relaxed mb-3">
+            <p className="text-base text-[#878680] leading-relaxed mb-3">
               예비 신랑신부를 위한 웨딩 정보 공유 공간
             </p>
-            <div className="text-sm text-[#B5ADA3]">글 {total || 0}개</div>
+            <div className="text-base text-[#B5ADA3]">글 {total || 0}개</div>
           </div>
 
           <div className="text-center py-2">
