@@ -112,9 +112,9 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-2xl border border-[#F0EFED] p-6 hover:shadow-sm transition-all duration-300">
+    <article className="bg-white rounded-2xl border border-[#F0EFED] px-7 py-5 hover:shadow-sm transition-all duration-300">
       {/* 메타 라인 */}
-      <div className="flex items-center gap-2 text-sm mb-3">
+      <div className="flex items-center gap-2 text-[15px] mb-3">
         {categoryInfo && (
           <>
             <span className="font-medium text-[#C4967E]">
@@ -148,7 +148,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             href={`/community/post/${post.id}`}
             className="group"
           >
-            <h3 className="text-lg font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
+            <h3 className="text-xl font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
               {post.is_pinned && (
                 <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
                   <Pin className="w-4 h-4" />
@@ -173,7 +173,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           </Link>
 
           {contentPreview && (
-            <p className="mt-2 text-base text-[#878680] leading-relaxed line-clamp-2">
+            <p className="mt-2 text-[15px] text-[#878680] leading-relaxed line-clamp-2">
               {contentPreview}
             </p>
           )}
@@ -195,7 +195,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {hasThumbnail && (
           <Link
             href={`/community/post/${post.id}`}
-            className="shrink-0 w-28 h-20 rounded-xl overflow-hidden bg-[#F5F2ED]"
+            className="shrink-0 w-32 h-24 rounded-xl overflow-hidden bg-[#F5F2ED]"
           >
             <Image
               src={post.images[0]}
@@ -209,7 +209,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
       </div>
 
       {/* 액션 바 */}
-      <div className="mt-5 flex items-center gap-6 text-sm text-[#B5ADA3]">
+      <div className="mt-5 flex items-center gap-7 text-[15px] text-[#B5ADA3]">
         {/* 투표 그룹 */}
         <div className="flex items-center gap-1">
           <button
@@ -226,7 +226,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             <ChevronUp className="w-5 h-5" />
           </button>
           <span
-            className={`text-base font-medium min-w-[1.5rem] text-center ${
+            className={`text-[15px] font-medium min-w-[1.5rem] text-center ${
               displayVote === 1
                 ? "text-[#C4967E]"
                 : displayVote === -1
@@ -257,13 +257,13 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           className="flex items-center gap-2 hover:text-[#C4967E] transition-colors duration-200"
         >
           <MessageCircle className="w-5 h-5" />
-          <span className="text-base">{post.comment_count}</span>
+          <span>{post.comment_count}</span>
         </Link>
 
         {/* 조회수 */}
         <span className="flex items-center gap-2">
           <Eye className="w-5 h-5" />
-          <span className="text-base">{post.view_count}</span>
+          <span>{post.view_count}</span>
         </span>
 
         {/* 오른쪽: 북마크 + 공유 */}

@@ -142,16 +142,15 @@ function CommunityFeedContent() {
         <CategoryTabs />
       </div>
 
-      <div className="flex max-w-[1600px] mx-auto">
-        {/* 왼쪽 사이드바: 레딧 스타일 고정 네비 */}
-        <aside className="hidden lg:flex flex-col w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+      <div className="flex w-full">
+        {/* 왼쪽 사이드바: 화면 왼쪽 끝에 붙임 */}
+        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
           <CategoryTabs />
 
-          {/* 하단 글쓰기 */}
-          <div className="mt-auto pt-4 px-1">
+          <div className="mt-auto pt-4 px-2">
             <Link
               href="/community/post/write"
-              className="flex items-center justify-center gap-2.5 w-full px-5 py-3 text-[15px] font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full transition-all duration-200"
+              className="flex items-center justify-center gap-2.5 w-full px-5 py-3.5 text-base font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full transition-all duration-200"
             >
               <PenSquare className="w-5 h-5" />
               글쓰기
@@ -160,8 +159,8 @@ function CommunityFeedContent() {
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-5">
-          <div className="max-w-[700px] mx-auto lg:mx-0 lg:max-w-none xl:max-w-[750px]">
+        <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
+          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-5">
@@ -258,8 +257,8 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[360px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-5 pr-8 pl-2 space-y-4">
+        {/* 오른쪽 사이드바: 화면 오른쪽 끝에 붙임 */}
+        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-5 border-l border-[#F0EFED]">
           {/* 게이미피케이션 */}
           <GamificationWidget />
 

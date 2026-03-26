@@ -20,7 +20,7 @@ export default function CommunityLayout({
 
       {/* 푸터 */}
       <footer className="border-t border-[#F0EFED] bg-white">
-        <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
             <Link
               href="/"
