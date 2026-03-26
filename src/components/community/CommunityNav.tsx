@@ -51,8 +51,8 @@ export default function CommunityNav() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#F0EFED]">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-4 h-14">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16">
+        <div className="flex items-center gap-4 h-16">
           {/* 왼쪽: 로고 + 커뮤니티 */}
           <div className="flex items-center gap-2 shrink-0">
             <Link
@@ -137,7 +137,7 @@ export default function CommunityNav() {
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
         <div className="sm:hidden border-t border-[#F0EFED] bg-white">
-          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3">
+          <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-4 flex flex-col gap-3">
             {/* 모바일 검색바 */}
             <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
               <Search

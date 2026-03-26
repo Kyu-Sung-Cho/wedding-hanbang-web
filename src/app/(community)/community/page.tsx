@@ -137,15 +137,15 @@ function CommunityFeedContent() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-6 lg:py-8">
         {/* 모바일 카테고리 (가로 스크롤) */}
         <div className="lg:hidden mb-4">
           <CategoryTabs />
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex gap-5 lg:gap-6 xl:gap-8">
           {/* 왼쪽 사이드바: 카테고리 (데스크탑) */}
-          <aside className="hidden lg:block w-[200px] shrink-0 space-y-4">
+          <aside className="hidden lg:block w-[220px] xl:w-[240px] shrink-0 space-y-4">
             <CategoryTabs />
 
             {/* 글쓰기 버튼 */}
@@ -256,7 +256,7 @@ function CommunityFeedContent() {
           </div>
 
           {/* 오른쪽 사이드바 (데스크탑) */}
-          <aside className="hidden lg:block w-[280px] xl:w-[300px] shrink-0 space-y-4">
+          <aside className="hidden lg:block w-[280px] xl:w-[320px] 2xl:w-[340px] shrink-0 space-y-4">
             {/* 게이미피케이션 위젯 */}
             <GamificationWidget />
 
