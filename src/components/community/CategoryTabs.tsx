@@ -24,29 +24,59 @@ export default function CategoryTabs() {
   }
 
   return (
-    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
-      <div className="flex items-center gap-6 min-w-max border-b border-[#F0EFED]">
-        {tabs.map((tab) => {
-          const active = isActive(tab.href);
+    <>
+      {/* 데스크탑: 세로 사이드바 */}
+      <nav className="hidden lg:block bg-white rounded-2xl border border-[#F0EFED] p-3">
+        <h3 className="px-3 pb-2 text-xs font-medium text-[#B5ADA3] uppercase tracking-wider">
+          카테고리
+        </h3>
+        <ul className="space-y-0.5">
+          {tabs.map((tab) => {
+            const active = isActive(tab.href);
+            return (
+              <li key={tab.key}>
+                <Link
+                  href={tab.href}
+                  className={`block px-3 py-2 text-sm rounded-xl transition-all duration-200 ${
+                    active
+                      ? "bg-[#FAFAF8] text-[#1A1A1F] font-medium"
+                      : "text-[#878680] hover:bg-[#FAFAF8] hover:text-[#1A1A1F]"
+                  }`}
+                >
+                  <span className="flex items-center justify-between">
+                    {tab.label}
+                    {active && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C4967E]" />
+                    )}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-          return (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              className={`relative pb-3 text-sm whitespace-nowrap transition-colors duration-200 ${
-                active
-                  ? "text-[#1A1A1F] font-medium"
-                  : "text-[#B5ADA3] hover:text-[#878680]"
-              }`}
-            >
-              {tab.label}
-              {active && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C4967E] rounded-full" />
-              )}
-            </Link>
-          );
-        })}
+      {/* 모바일/태블릿: 가로 스크롤 */}
+      <div className="lg:hidden overflow-x-auto scrollbar-hide -mx-4 px-4">
+        <div className="flex items-center gap-1 min-w-max py-1">
+          {tabs.map((tab) => {
+            const active = isActive(tab.href);
+            return (
+              <Link
+                key={tab.key}
+                href={tab.href}
+                className={`px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-all duration-200 ${
+                  active
+                    ? "bg-[#1A1A1F] text-white font-medium"
+                    : "text-[#878680] hover:bg-[#F0EFED]"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

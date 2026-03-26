@@ -22,7 +22,6 @@ interface PopularTag {
   count: number;
 }
 
-// 유효한 카테고리 키 목록
 const VALID_KEYS = COMMUNITY_CATEGORIES.map((c) => c.key);
 
 export default function CategoryFeedPage() {
@@ -32,7 +31,6 @@ export default function CategoryFeedPage() {
 
   const posts = useCommunityStore((s) => s.posts);
   const isLoading = useCommunityStore((s) => s.isLoading);
-  const hasMore = useCommunityStore((s) => s.hasMore);
   const currentSort = useCommunityStore((s) => s.currentSort);
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
   const total = useCommunityStore((s) => s.total);
@@ -59,7 +57,7 @@ export default function CategoryFeedPage() {
       .catch(() => {});
   }, []);
 
-  // 무한스크롤 IntersectionObserver
+  // 무한스크롤
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries;
@@ -82,31 +80,44 @@ export default function CategoryFeedPage() {
   }, [handleObserver]);
 
   const categoryInfo = CATEGORY_MAP[categoryParam as CommunityCategory];
-
-  // 유효하지 않은 카테고리면 리다이렉트 전까지 빈 화면
   if (!categoryInfo) return null;
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-8">
-        {/* 카테고리 헤더 */}
-        <div className="bg-white rounded-2xl border border-[#F0EFED] p-6 mb-4">
-          <h1 className="font-serif text-lg font-medium text-[#1A1A1F]">
-            {categoryInfo.label}
-          </h1>
-          <p className="mt-1 text-sm text-[#878680]">
-            {categoryInfo.description}
-          </p>
+        {/* 모바일 카테고리 (가로 스크롤) */}
+        <div className="lg:hidden mb-4">
+          <CategoryTabs />
         </div>
 
-        {/* 정렬 바 */}
-        <div className="bg-white rounded-2xl border border-[#F0EFED] p-4 mb-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <CategoryTabs />
+        <div className="flex gap-6">
+          {/* 왼쪽 사이드바: 카테고리 (데스크탑) */}
+          <aside className="hidden lg:block w-[200px] shrink-0 space-y-4">
+            <CategoryTabs />
+
+            <Link
+              href="/community/post/write"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-xl transition-all duration-200"
+            >
+              <PenSquare className="w-4 h-4" />
+              글쓰기
+            </Link>
+          </aside>
+
+          {/* 가운데: 메인 피드 */}
+          <div className="flex-1 min-w-0">
+            {/* 카테고리 헤더 */}
+            <div className="bg-white rounded-2xl border border-[#F0EFED] p-5 mb-4">
+              <h1 className="font-serif text-lg font-medium text-[#1A1A1F]">
+                {categoryInfo.label}
+              </h1>
+              <p className="mt-1 text-sm text-[#878680]">
+                {categoryInfo.description}
+              </p>
             </div>
-            <div className="w-px h-6 bg-[#F0EFED]" />
-            <div className="shrink-0">
+
+            {/* 정렬 바 */}
+            <div className="bg-white rounded-2xl border border-[#F0EFED] px-4 py-3 mb-4">
               <SortSelector
                 sort={currentSort}
                 period={currentPeriod}
@@ -114,12 +125,8 @@ export default function CategoryFeedPage() {
                 onPeriodChange={(p) => useCommunityStore.getState().setPeriod(p)}
               />
             </div>
-          </div>
-        </div>
 
-        <div className="flex gap-6">
-          {/* 메인 피드 */}
-          <div className="flex-1 min-w-0">
+            {/* 피드 */}
             {isLoading && posts.length === 0 ? (
               <div className="space-y-4">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -138,7 +145,6 @@ export default function CategoryFeedPage() {
                 {posts.map((post) => (
                   <PostCard key={post.id} post={post} />
                 ))}
-
                 {isLoading && (
                   <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
@@ -152,13 +158,11 @@ export default function CategoryFeedPage() {
             <div ref={observerRef} className="h-1" />
           </div>
 
-          {/* 데스크탑 사이드바 */}
-          <aside className="hidden lg:block w-[300px] xl:w-[320px] shrink-0 space-y-4">
-            {/* 게이미피케이션 위젯 */}
+          {/* 오른쪽 사이드바 (데스크탑) */}
+          <aside className="hidden lg:block w-[280px] xl:w-[300px] shrink-0 space-y-4">
             <GamificationWidget />
 
-            {/* 커뮤니티 정보 카드 */}
-            <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
+            <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
               <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1">
                 웨딩한방 커뮤니티
               </h2>
@@ -166,21 +170,11 @@ export default function CategoryFeedPage() {
                 예비 신랑신부를 위한<br />
                 웨딩 정보 공유 공간
               </p>
-
-              <div className="border-t border-[#F0EFED] py-3 mb-4">
+              <div className="border-t border-[#F0EFED] py-3">
                 <span className="text-sm text-[#878680]">글 {total || 0}개</span>
               </div>
-
-              <Link
-                href="/community/post/write"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-xl transition-all duration-200"
-              >
-                <PenSquare className="w-4 h-4" />
-                글쓰기
-              </Link>
             </div>
 
-            {/* 인기 태그 */}
             {popularTags.length > 0 && (
               <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
                 <h3 className="text-sm font-medium text-[#1A1A1F] mb-3">
@@ -201,7 +195,6 @@ export default function CategoryFeedPage() {
               </div>
             )}
 
-            {/* 웨딩한방 서비스 링크 */}
             <div className="text-center py-3">
               <Link href="/login" className="text-xs text-[#878680] hover:text-[#C4967E] transition-colors duration-200">
                 웨딩한방 서비스 둘러보기 →
@@ -210,7 +203,6 @@ export default function CategoryFeedPage() {
           </aside>
         </div>
 
-        {/* 모바일 플로팅 글쓰기 버튼 */}
         <Link
           href="/community/post/write"
           className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"

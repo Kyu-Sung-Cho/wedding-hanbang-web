@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Search, X } from "lucide-react";
+import { PenSquare } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
 import CategoryTabs from "@/components/community/CategoryTabs";
@@ -38,7 +38,6 @@ function CommunityFeedContent() {
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
   const total = useCommunityStore((s) => s.total);
 
-  // 검색 결과 상태
   const [searchResults, setSearchResults] = useState<PostWithAuthor[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchHasMore, setSearchHasMore] = useState(false);
@@ -139,34 +138,50 @@ function CommunityFeedContent() {
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-8">
-        {/* 검색 결과 헤더 */}
-        {isSearching && (
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-base text-[#1A1A1F]">
-              <span className="font-medium">검색 결과</span>
-              <span className="text-[#1A1A1F]">&ldquo;{searchQuery}&rdquo;</span>
-              {!searchLoading && (
-                <span className="text-[#B5ADA3]">{searchTotal}건</span>
-              )}
-            </div>
-            <button
-              onClick={() => router.push("/community")}
-              className="text-sm text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
-            >
-              초기화
-            </button>
-          </div>
-        )}
+        {/* 모바일 카테고리 (가로 스크롤) */}
+        <div className="lg:hidden mb-4">
+          <CategoryTabs />
+        </div>
 
-        {/* 정렬 바 (검색 중이 아닐 때만 표시) */}
-        {!isSearching && (
-          <div className="bg-white rounded-2xl border border-[#F0EFED] p-4 mb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <CategoryTabs />
+        <div className="flex gap-6">
+          {/* 왼쪽 사이드바: 카테고리 (데스크탑) */}
+          <aside className="hidden lg:block w-[200px] shrink-0 space-y-4">
+            <CategoryTabs />
+
+            {/* 글쓰기 버튼 */}
+            <Link
+              href="/community/post/write"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-xl transition-all duration-200"
+            >
+              <PenSquare className="w-4 h-4" />
+              글쓰기
+            </Link>
+          </aside>
+
+          {/* 가운데: 메인 피드 */}
+          <div className="flex-1 min-w-0">
+            {/* 검색 결과 헤더 */}
+            {isSearching && (
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-base text-[#1A1A1F]">
+                  <span className="font-medium">검색 결과</span>
+                  <span className="text-[#1A1A1F]">&ldquo;{searchQuery}&rdquo;</span>
+                  {!searchLoading && (
+                    <span className="text-[#B5ADA3]">{searchTotal}건</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => router.push("/community")}
+                  className="text-sm text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
+                >
+                  초기화
+                </button>
               </div>
-              <div className="w-px h-6 bg-[#F0EFED]" />
-              <div className="shrink-0">
+            )}
+
+            {/* 정렬 바 (검색 중이 아닐 때만) */}
+            {!isSearching && (
+              <div className="bg-white rounded-2xl border border-[#F0EFED] px-4 py-3 mb-4">
                 <SortSelector
                   sort={currentSort}
                   period={currentPeriod}
@@ -174,16 +189,11 @@ function CommunityFeedContent() {
                   onPeriodChange={(p) => useCommunityStore.getState().setPeriod(p)}
                 />
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        <div className="flex gap-6">
-          {/* 메인 피드 */}
-          <div className="flex-1 min-w-0">
+            {/* 피드 */}
             {isSearching ? (
               <>
-                {/* 검색 로딩 */}
                 {searchLoading && searchResults.length === 0 ? (
                   <div className="space-y-4">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -200,8 +210,6 @@ function CommunityFeedContent() {
                     {searchResults.map((post) => (
                       <PostCard key={post.id} post={post} />
                     ))}
-
-                    {/* 추가 로딩 */}
                     {searchLoading && (
                       <div className="space-y-4">
                         {Array.from({ length: 3 }).map((_, i) => (
@@ -214,7 +222,6 @@ function CommunityFeedContent() {
               </>
             ) : (
               <>
-                {/* 초기 로딩 */}
                 {isLoading && posts.length === 0 ? (
                   <div className="space-y-4">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -233,8 +240,6 @@ function CommunityFeedContent() {
                     {posts.map((post) => (
                       <PostCard key={post.id} post={post} />
                     ))}
-
-                    {/* 추가 로딩 */}
                     {isLoading && (
                       <div className="space-y-4">
                         {Array.from({ length: 3 }).map((_, i) => (
@@ -247,17 +252,16 @@ function CommunityFeedContent() {
               </>
             )}
 
-            {/* 무한스크롤 감지 요소 */}
             <div ref={observerRef} className="h-1" />
           </div>
 
-          {/* 데스크탑 사이드바 */}
-          <aside className="hidden lg:block w-[300px] xl:w-[320px] shrink-0 space-y-4">
+          {/* 오른쪽 사이드바 (데스크탑) */}
+          <aside className="hidden lg:block w-[280px] xl:w-[300px] shrink-0 space-y-4">
             {/* 게이미피케이션 위젯 */}
             <GamificationWidget />
 
             {/* 커뮤니티 정보 카드 */}
-            <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
+            <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
               <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1">
                 웨딩한방 커뮤니티
               </h2>
@@ -265,18 +269,9 @@ function CommunityFeedContent() {
                 예비 신랑신부를 위한<br />
                 웨딩 정보 공유 공간
               </p>
-
-              <div className="border-t border-[#F0EFED] py-3 mb-4">
+              <div className="border-t border-[#F0EFED] py-3">
                 <span className="text-sm text-[#878680]">글 {total || 0}개</span>
               </div>
-
-              <Link
-                href="/community/post/write"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-xl transition-all duration-200"
-              >
-                <PenSquare className="w-4 h-4" />
-                글쓰기
-              </Link>
             </div>
 
             {/* 인기 태그 */}
@@ -300,7 +295,6 @@ function CommunityFeedContent() {
               </div>
             )}
 
-            {/* 웨딩한방 서비스 링크 */}
             <div className="text-center py-3">
               <Link href="/login" className="text-xs text-[#878680] hover:text-[#C4967E] transition-colors duration-200">
                 웨딩한방 서비스 둘러보기 →
