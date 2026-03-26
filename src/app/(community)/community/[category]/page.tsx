@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { PenSquare, Hash, Shield } from "lucide-react";
+import { PenSquare } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import {
   COMMUNITY_CATEGORIES,
@@ -87,24 +87,25 @@ export default function CategoryFeedPage() {
   if (!categoryInfo) return null;
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-[#FAFAF8]">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-8">
         {/* 카테고리 헤더 */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4 mb-3">
-          <h1 className="text-lg font-bold text-[#1c1c1e]">
+        <div className="bg-white rounded-2xl border border-[#F0EFED] p-6 mb-4">
+          <h1 className="font-serif text-lg font-medium text-[#1A1A1F]">
             {categoryInfo.label}
           </h1>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <p className="mt-1 text-sm text-[#878680]">
             {categoryInfo.description}
           </p>
         </div>
 
         {/* 정렬 바 */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-3 mb-3">
+        <div className="bg-white rounded-2xl border border-[#F0EFED] p-4 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <CategoryTabs />
             </div>
+            <div className="w-px h-6 bg-[#F0EFED]" />
             <div className="shrink-0">
               <SortSelector
                 sort={currentSort}
@@ -120,7 +121,7 @@ export default function CategoryFeedPage() {
           {/* 메인 피드 */}
           <div className="flex-1 min-w-0">
             {isLoading && posts.length === 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <PostSkeleton key={i} />
                 ))}
@@ -133,13 +134,13 @@ export default function CategoryFeedPage() {
                 ctaHref="/community/post/write"
               />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {posts.map((post) => (
                   <PostCard key={post.id} post={post} />
                 ))}
 
                 {isLoading && (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <PostSkeleton key={`more-${i}`} />
                     ))}
@@ -152,85 +153,48 @@ export default function CategoryFeedPage() {
           </div>
 
           {/* 데스크탑 사이드바 */}
-          <aside className="hidden lg:block w-[280px] xl:w-[312px] shrink-0 space-y-3">
+          <aside className="hidden lg:block w-[300px] xl:w-[320px] shrink-0 space-y-4">
             {/* 게이미피케이션 위젯 */}
             <GamificationWidget />
 
             {/* 커뮤니티 정보 카드 */}
-            <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden">
-              <div className="bg-gradient-to-r from-[#2563EB] to-[#3B82F6] h-12 relative">
-                <div className="absolute inset-0 bg-[url('/images/pattern.svg')] opacity-10" />
+            <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
+              <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1">
+                웨딩한방 커뮤니티
+              </h2>
+              <p className="text-sm text-[#878680] leading-relaxed mb-4">
+                예비 신랑신부를 위한<br />
+                웨딩 정보 공유 공간
+              </p>
+
+              <div className="border-t border-[#F0EFED] py-3 mb-4">
+                <span className="text-sm text-[#878680]">글 {total || 0}개</span>
               </div>
-              <div className="p-4">
-                <h2 className="text-sm font-bold text-[#1c1c1e] mb-1">
-                  웨딩한방 커뮤니티
-                </h2>
-                <p className="text-sm text-[#6B7280] leading-relaxed mb-3">
-                  예비 신랑신부를 위한 웨딩 정보 공유 커뮤니티
-                </p>
 
-                {/* 커뮤니티 통계 */}
-                <div className="flex items-center gap-4 py-3 mb-3 border-y border-[#F4F6F8]">
-                  <div className="text-center flex-1">
-                    <div className="text-sm font-bold text-[#1c1c1e]">{total || '—'}</div>
-                    <div className="text-xs text-[#6B7280]">게시글</div>
-                  </div>
-                  <div className="w-px h-8 bg-[#E5E7EB]" />
-                  <div className="text-center flex-1">
-                    <div className="text-sm font-bold text-[#1c1c1e]">—</div>
-                    <div className="text-xs text-[#6B7280]">멤버</div>
-                  </div>
-                  <div className="w-px h-8 bg-[#E5E7EB]" />
-                  <div className="text-center flex-1">
-                    <div className="flex items-center justify-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <div className="text-sm font-bold text-[#1c1c1e]">—</div>
-                    </div>
-                    <div className="text-xs text-[#6B7280]">온라인</div>
-                  </div>
-                </div>
-
-                <Link
-                  href="/community/post/write"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-3 text-base font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-all duration-200"
-                >
-                  <PenSquare className="w-4 h-4" />
-                  글쓰기
-                </Link>
-              </div>
-            </div>
-
-            {/* 커뮤니티 규칙 */}
-            <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1c1c1e] mb-3">
-                <Shield className="w-4 h-4 text-[#6B7280]" />
-                커뮤니티 규칙
-              </h3>
-              <ol className="space-y-2 text-sm text-[#6B7280]">
-                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">1.</span>서로 존중하는 대화를 해주세요</li>
-                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">2.</span>광고/스팸 글은 삭제됩니다</li>
-                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">3.</span>개인정보를 공유하지 마세요</li>
-                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">4.</span>후기는 솔직하게 작성해주세요</li>
-                <li className="flex gap-2"><span className="font-semibold text-[#1c1c1e] shrink-0">5.</span>비용 정보는 정확하게 공유해주세요</li>
-              </ol>
+              <Link
+                href="/community/post/write"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-xl transition-all duration-200"
+              >
+                <PenSquare className="w-4 h-4" />
+                글쓰기
+              </Link>
             </div>
 
             {/* 인기 태그 */}
             {popularTags.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-4">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-[#1c1c1e] uppercase mb-3">
-                  <Hash className="w-4 h-4 text-[#6B7280]" />
+              <div className="bg-white rounded-2xl border border-[#F0EFED] p-5">
+                <h3 className="text-sm font-medium text-[#1A1A1F] mb-3">
                   인기 태그
                 </h3>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-x-3 gap-y-2">
                   {popularTags.slice(0, 12).map((t) => (
                     <Link
                       key={t.tag}
                       href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-[#2563EB] bg-[#EFF6FF] border border-[#DBEAFE] rounded-lg hover:bg-[#DBEAFE] transition-all duration-200"
+                      className="inline-flex items-center gap-1 text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200"
                     >
                       #{t.tag}
-                      <span className="text-xs text-[#2563EB]/60 bg-white px-2 py-0.5 rounded-full">{t.count}</span>
+                      <span className="text-xs text-[#B5ADA3]">{t.count}</span>
                     </Link>
                   ))}
                 </div>
@@ -239,7 +203,7 @@ export default function CategoryFeedPage() {
 
             {/* 웨딩한방 서비스 링크 */}
             <div className="text-center py-3">
-              <Link href="/login" className="text-xs text-[#6B7280] hover:text-[#2563EB] transition-all duration-200">
+              <Link href="/login" className="text-xs text-[#878680] hover:text-[#C4967E] transition-colors duration-200">
                 웨딩한방 서비스 둘러보기 →
               </Link>
             </div>
@@ -249,7 +213,7 @@ export default function CategoryFeedPage() {
         {/* 모바일 플로팅 글쓰기 버튼 */}
         <Link
           href="/community/post/write"
-          className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
+          className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
           aria-label="글쓰기"
         >
           <PenSquare className="w-5 h-5" />

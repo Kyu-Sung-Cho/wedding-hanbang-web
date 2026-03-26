@@ -49,12 +49,12 @@ export interface LevelConfig {
 }
 
 export const LEVEL_CONFIG: LevelConfig[] = [
-  { level: 1, title: "웨딩 새싹", minXP: 0, color: "text-green-600", bg: "bg-green-50" },
-  { level: 2, title: "예비 신부/신랑", minXP: 100, color: "text-blue-600", bg: "bg-blue-50" },
-  { level: 3, title: "웨딩 탐험가", minXP: 400, color: "text-violet-600", bg: "bg-violet-50" },
-  { level: 4, title: "웨딩 고수", minXP: 900, color: "text-amber-600", bg: "bg-amber-50" },
-  { level: 5, title: "웨딩 마스터", minXP: 1600, color: "text-orange-600", bg: "bg-orange-50" },
-  { level: 6, title: "웨딩 레전드", minXP: 2500, color: "text-red-600", bg: "bg-red-50" },
+  { level: 1, title: "웨딩 새싹", minXP: 0, color: "text-[#878680]", bg: "bg-[#FAFAF8]" },
+  { level: 2, title: "예비 신부/신랑", minXP: 100, color: "text-[#C4967E]", bg: "bg-[#FAF8F5]" },
+  { level: 3, title: "웨딩 탐험가", minXP: 400, color: "text-[#9A6B62]", bg: "bg-[#F5F2ED]" },
+  { level: 4, title: "웨딩 고수", minXP: 900, color: "text-[#C9A96E]", bg: "bg-[#FAF8F0]" },
+  { level: 5, title: "웨딩 마스터", minXP: 1600, color: "text-[#1A1A1F]", bg: "bg-[#F0EFED]" },
+  { level: 6, title: "웨딩 레전드", minXP: 2500, color: "text-[#C9A96E]", bg: "bg-[#C9A96E]/10" },
 ];
 
 export function getLevelInfo(xp: number) {

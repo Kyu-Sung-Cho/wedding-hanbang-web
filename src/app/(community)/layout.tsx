@@ -9,8 +9,8 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F8]">
-      <Suspense fallback={<div className="h-14 border-b border-[#E5E7EB] bg-white" />}>
+    <div className="min-h-screen flex flex-col bg-[#FAFAF8]">
+      <Suspense fallback={<div className="h-14 border-b border-[#F0EFED] bg-white" />}>
         <CommunityNav />
       </Suspense>
       <ToastContainer />
@@ -19,28 +19,28 @@ export default function CommunityLayout({
       <main className="flex-1">{children}</main>
 
       {/* 푸터 */}
-      <footer className="border-t border-[#E5E7EB] bg-white">
+      <footer className="border-t border-[#F0EFED] bg-white">
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-sm font-medium text-[#1c1c1e]"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-sm text-[#1A1A1F]"
             >
               웨딩한방
             </Link>
-            <div className="flex items-center gap-6 text-sm text-[#6B7280]">
-              <Link href="/community" className="hover:text-[#1c1c1e] transition-colors">
+            <div className="flex items-center gap-6 text-sm text-[#B5ADA3]">
+              <Link href="/community" className="hover:text-[#1A1A1F] transition-colors">
                 커뮤니티
               </Link>
-              <Link href="/" className="hover:text-[#1c1c1e] transition-colors">
+              <Link href="/" className="hover:text-[#1A1A1F] transition-colors">
                 서비스 소개
               </Link>
-              <Link href="/login" className="hover:text-[#1c1c1e] transition-colors">
+              <Link href="/login" className="hover:text-[#1A1A1F] transition-colors">
                 로그인
               </Link>
             </div>
           </div>
-          <p className="mt-4 text-center text-sm text-[#6B7280]">
+          <p className="mt-4 text-center text-sm text-[#B5ADA3]">
             &copy; {new Date().getFullYear()} 웨딩한방. All rights reserved.
           </p>
         </div>

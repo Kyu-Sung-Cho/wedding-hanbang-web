@@ -50,16 +50,20 @@ export default function CommunityNav() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB]">
+    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#F0EFED]">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 h-14">
-          {/* 왼쪽: 로고 */}
-          <Link
-            href="/"
-            className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-lg font-semibold text-[#1c1c1e] shrink-0 tracking-tight"
-          >
-            웨딩한방
-          </Link>
+          {/* 왼쪽: 로고 + 커뮤니티 */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-lg text-[#1A1A1F] tracking-tight"
+            >
+              웨딩한방
+            </Link>
+            <span className="text-[#B5ADA3] text-sm">/</span>
+            <span className="text-sm text-[#B5ADA3]">커뮤니티</span>
+          </div>
 
           {/* 가운데: 검색바 */}
           <form
@@ -68,7 +72,7 @@ export default function CommunityNav() {
           >
             <div className="relative w-full">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] cursor-pointer"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3] cursor-pointer"
                 onClick={handleSearch}
               />
               <input
@@ -76,13 +80,13 @@ export default function CommunityNav() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-9 py-2 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
+                className="w-full pl-9 pr-9 py-2 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-xl placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1c1c1e] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
                   aria-label="검색 초기화"
                 >
                   <X className="w-4 h-4" />
@@ -95,7 +99,7 @@ export default function CommunityNav() {
           <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/community/post/write"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] hover:border-[#D1D5DB] transition-all"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
@@ -104,14 +108,14 @@ export default function CommunityNav() {
             {user ? (
               <Link
                 href="/settings"
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F4F6F8] hover:text-[#1c1c1e] transition-all"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAFAF8] hover:text-[#1A1A1F] transition-all"
               >
                 <User className="w-5 h-5" />
               </Link>
             ) : (
               <Link
                 href="/login"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1A1A1F] rounded-xl hover:bg-[#2d2d30] transition-colors"
               >
                 로그인
               </Link>
@@ -120,7 +124,7 @@ export default function CommunityNav() {
             {/* 모바일 햄버거 */}
             <button
               type="button"
-              className="sm:hidden p-2 text-[#6B7280] hover:text-[#1c1c1e] transition-colors rounded-lg hover:bg-[#F4F6F8]"
+              className="sm:hidden p-2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors rounded-xl hover:bg-[#FAFAF8]"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="메뉴"
             >
@@ -132,12 +136,12 @@ export default function CommunityNav() {
 
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
-        <div className="sm:hidden border-t border-[#E5E7EB] bg-white">
+        <div className="sm:hidden border-t border-[#F0EFED] bg-white">
           <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3">
             {/* 모바일 검색바 */}
             <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] cursor-pointer"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3] cursor-pointer"
                 onClick={handleSearch}
               />
               <input
@@ -145,13 +149,13 @@ export default function CommunityNav() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-9 py-2 text-sm bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder-[#6B7280] text-[#1c1c1e] focus:outline-none focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.1)] focus:bg-white transition-all"
+                className="w-full pl-9 pr-9 py-2 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-xl placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1c1c1e] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
                   aria-label="검색 초기화"
                 >
                   <X className="w-4 h-4" />
@@ -163,7 +167,7 @@ export default function CommunityNav() {
             <Link
               href="/community/post/write"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-[#1c1c1e] border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
