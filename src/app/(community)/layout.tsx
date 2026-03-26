@@ -20,15 +20,15 @@ export default function CommunityLayout({
 
       {/* 푸터 */}
       <footer className="border-t border-[#F0EFED] bg-white">
-        <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-5">
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+        <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-6">
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-sm text-[#1A1A1F]"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-base text-[#1A1A1F]"
             >
               웨딩한방
             </Link>
-            <div className="flex items-center gap-6 text-sm text-[#B5ADA3]">
+            <div className="flex items-center gap-8 text-base text-[#B5ADA3]">
               <Link href="/community" className="hover:text-[#1A1A1F] transition-colors">
                 커뮤니티
               </Link>
@@ -40,7 +40,7 @@ export default function CommunityLayout({
               </Link>
             </div>
           </div>
-          <p className="mt-4 text-center text-sm text-[#B5ADA3]">
+          <p className="mt-5 text-center text-sm text-[#B5ADA3]">
             &copy; {new Date().getFullYear()} 웨딩한방. All rights reserved.
           </p>
         </div>

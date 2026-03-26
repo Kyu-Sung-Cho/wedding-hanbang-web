@@ -112,16 +112,16 @@ export default function GamificationWidget() {
   if (!loggedIn) {
     return (
       <div className="rounded-2xl border border-[#F0EFED] bg-white p-6">
-        <p className="mb-1 text-center text-sm font-medium text-[#1A1A1F]">
+        <p className="mb-1 text-center text-base font-medium text-[#1A1A1F]">
           커뮤니티에 참여하세요
         </p>
-        <p className="mb-5 text-center text-sm text-[#B5ADA3] leading-relaxed">
+        <p className="mb-5 text-center text-base text-[#B5ADA3] leading-relaxed">
           글을 쓰고 댓글을 달면<br />
           활동 기록이 쌓여요
         </p>
         <Link
           href="/login"
-          className="block w-full rounded-xl bg-[#1A1A1F] px-4 py-3 text-center text-sm font-medium text-white transition-opacity duration-200 hover:opacity-90"
+          className="block w-full rounded-xl bg-[#1A1A1F] px-5 py-3.5 text-center text-base font-medium text-white transition-opacity duration-200 hover:opacity-90"
         >
           로그인
         </Link>
@@ -178,9 +178,9 @@ export default function GamificationWidget() {
       {/* 내 활동 + 업적 (하나의 카드) */}
       <div className="rounded-2xl border border-[#F0EFED] bg-white">
         {/* Section 1: 내 활동 */}
-        <div className="p-5">
+        <div className="p-6">
           <div className="relative">
-            <h3 className="text-sm font-medium text-[#1A1A1F] mb-4">내 활동</h3>
+            <h3 className="text-base font-medium text-[#1A1A1F] mb-4">내 활동</h3>
             {xpGain > 0 && (
               <div className="absolute top-0 right-0">
                 <XPGain amount={xpGain} onComplete={() => setXpGain(0)} />
@@ -189,46 +189,46 @@ export default function GamificationWidget() {
           </div>
 
           {/* 레벨 + 프로그레스 */}
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-[#C4967E]">
+          <div className="mb-5">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <span className="text-base font-medium text-[#C4967E]">
                 Lv. {levelInfo.current.level}
               </span>
-              <span className="text-sm text-[#1A1A1F]">
+              <span className="text-base text-[#1A1A1F]">
                 {levelInfo.current.title}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-1.5 bg-[#F0EFED] rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-[#F0EFED] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[#C4967E] rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${levelInfo.progress}%` }}
                 />
               </div>
-              <span className="text-sm text-[#B5ADA3] shrink-0 tabular-nums">
+              <span className="text-base text-[#B5ADA3] shrink-0 tabular-nums">
                 {profile.total_xp} XP
               </span>
             </div>
           </div>
 
           {/* 활동 통계 3열 */}
-          <div className="flex items-center mb-4">
+          <div className="flex items-center mb-5">
             <div className="flex-1 text-center">
-              <div className="text-base font-medium text-[#1A1A1F] tabular-nums">
+              <div className="text-lg font-medium text-[#1A1A1F] tabular-nums">
                 {profile.post_count}
               </div>
               <div className="text-sm text-[#B5ADA3]">글</div>
             </div>
-            <div className="w-px h-8 bg-[#F0EFED]" />
+            <div className="w-px h-10 bg-[#F0EFED]" />
             <div className="flex-1 text-center">
-              <div className="text-base font-medium text-[#1A1A1F] tabular-nums">
+              <div className="text-lg font-medium text-[#1A1A1F] tabular-nums">
                 {profile.comment_count}
               </div>
               <div className="text-sm text-[#B5ADA3]">댓글</div>
             </div>
-            <div className="w-px h-8 bg-[#F0EFED]" />
+            <div className="w-px h-10 bg-[#F0EFED]" />
             <div className="flex-1 text-center">
-              <div className="text-base font-medium text-[#1A1A1F] tabular-nums">
+              <div className="text-lg font-medium text-[#1A1A1F] tabular-nums">
                 {profile.total_upvotes_received}
               </div>
               <div className="text-sm text-[#B5ADA3]">추천</div>
@@ -236,7 +236,7 @@ export default function GamificationWidget() {
           </div>
 
           {/* 연속 출석 */}
-          <div className="text-sm">
+          <div className="text-base">
             <span className="text-[#B5ADA3]">연속 출석 </span>
             <span className="font-medium text-[#1A1A1F] tabular-nums">
               {streak.current_streak}일
@@ -248,15 +248,15 @@ export default function GamificationWidget() {
         <div className="border-t border-[#F0EFED]" />
 
         {/* Section 2: 업적 */}
-        <div className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-[#1A1A1F]">업적</h3>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-medium text-[#1A1A1F]">업적</h3>
             <span className="text-sm text-[#B5ADA3]">
               {achievements.length}/{ACHIEVEMENTS.length}
             </span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {displayAchievements.map((ach) => {
               const isUnlocked = unlockedSet.has(ach.key);
               const isSecret = ach.isSecret && !isUnlocked;
@@ -264,18 +264,16 @@ export default function GamificationWidget() {
               return (
                 <div
                   key={ach.key}
-                  className="flex items-center gap-2.5"
+                  className="flex items-center gap-3"
                 >
-                  {/* 체크/빈 아이콘 */}
                   <div className="shrink-0">
                     {isUnlocked ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#C4967E]" />
+                      <CheckCircle2 className="w-5 h-5 text-[#C4967E]" />
                     ) : (
-                      <Circle className="w-4 h-4 text-[#B5ADA3]" />
+                      <Circle className="w-5 h-5 text-[#B5ADA3]" />
                     )}
                   </div>
 
-                  {/* 이름 */}
                   <span
                     className={`text-sm shrink-0 ${
                       isUnlocked ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
@@ -284,7 +282,6 @@ export default function GamificationWidget() {
                     {isSecret ? "???" : ach.label}
                   </span>
 
-                  {/* 설명 */}
                   <span className="text-sm text-[#B5ADA3] truncate">
                     {isSecret ? "시크릿 업적" : ach.description}
                   </span>
@@ -306,13 +303,13 @@ export default function GamificationWidget() {
       </div>
 
       {/* Section 3: 리더보드 (별도 카드) */}
-      <div className="rounded-2xl border border-[#F0EFED] bg-white p-5">
-        <h3 className="text-sm font-medium text-[#1A1A1F] mb-3">
+      <div className="rounded-2xl border border-[#F0EFED] bg-white p-6">
+        <h3 className="text-base font-medium text-[#1A1A1F] mb-4">
           이번 주 활동 랭킹
         </h3>
 
         {leaderboard.length === 0 ? (
-          <p className="text-sm text-[#B5ADA3] py-4 text-center">
+          <p className="text-base text-[#B5ADA3] py-4 text-center">
             이번 주 첫 기여자가 되어보세요
           </p>
         ) : (
@@ -327,36 +324,32 @@ export default function GamificationWidget() {
               return (
                 <div
                   key={entry.user_id}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl ${
                     isCurrentUser ? "bg-[#FAFAF8]" : ""
                   }`}
                 >
-                  {/* 순위 번호 */}
-                  <span className={`w-4 text-sm font-medium shrink-0 ${rankColor} tabular-nums`}>
+                  <span className={`w-5 text-base font-medium shrink-0 ${rankColor} tabular-nums`}>
                     {rank}
                   </span>
 
-                  {/* 아바타 */}
                   {entry.avatar_url ? (
                     <Image
                       src={entry.avatar_url}
                       alt={entry.nickname}
-                      width={24}
-                      height={24}
-                      className="w-6 h-6 rounded-full object-cover shrink-0"
+                      width={32}
+                      height={32}
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
                     />
                   ) : (
-                    <span className="flex w-6 h-6 items-center justify-center rounded-full bg-[#F0EFED] text-xs font-medium text-[#878680] shrink-0">
+                    <span className="flex w-8 h-8 items-center justify-center rounded-full bg-[#F0EFED] text-sm font-medium text-[#878680] shrink-0">
                       {avatarLetter}
                     </span>
                   )}
 
-                  {/* 닉네임 */}
-                  <span className="flex-1 text-sm text-[#1A1A1F] truncate min-w-0">
+                  <span className="flex-1 text-base text-[#1A1A1F] truncate min-w-0">
                     {entry.nickname}
                   </span>
 
-                  {/* XP */}
                   <span className="text-sm text-[#B5ADA3] shrink-0 tabular-nums">
                     {displayXP.toLocaleString()} XP
                   </span>

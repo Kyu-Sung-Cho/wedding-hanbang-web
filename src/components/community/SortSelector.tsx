@@ -34,11 +34,11 @@ export default function SortSelector({
 
         return (
           <span key={option.key} className="flex items-center">
-            {idx > 0 && <span className="text-[#B5ADA3] mx-2 text-xs select-none">&middot;</span>}
+            {idx > 0 && <span className="text-[#B5ADA3] mx-2.5 select-none">&middot;</span>}
             <button
               type="button"
               onClick={() => onSortChange(option.key)}
-              className={`text-sm transition-colors duration-200 ${
+              className={`text-base transition-colors duration-200 ${
                 isActive
                   ? "text-[#1A1A1F] font-medium"
                   : "text-[#B5ADA3] hover:text-[#878680]"
@@ -50,17 +50,16 @@ export default function SortSelector({
         );
       })}
 
-      {/* 추천순 선택 시 기간 서브버튼 */}
       {sort === "top" && (
         <>
-          <span className="text-[#B5ADA3] mx-3 text-xs select-none">|</span>
+          <span className="text-[#B5ADA3] mx-3 select-none">|</span>
           {PERIOD_OPTIONS.map((p, idx) => (
             <span key={p.key} className="flex items-center">
-              {idx > 0 && <span className="text-[#B5ADA3] mx-2 text-xs select-none">&middot;</span>}
+              {idx > 0 && <span className="text-[#B5ADA3] mx-2.5 select-none">&middot;</span>}
               <button
                 type="button"
                 onClick={() => onPeriodChange(p.key)}
-                className={`text-sm transition-colors duration-200 ${
+                className={`text-base transition-colors duration-200 ${
                   period === p.key
                     ? "text-[#1A1A1F] font-medium"
                     : "text-[#B5ADA3] hover:text-[#878680]"

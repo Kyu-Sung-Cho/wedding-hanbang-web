@@ -13,7 +13,6 @@ export default function CommunityNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") ?? "");
 
-  // URL의 search 파라미터가 바뀌면 입력값도 동기화
   useEffect(() => {
     setSearchQuery(searchParams.get("search") ?? "");
   }, [searchParams]);
@@ -52,27 +51,29 @@ export default function CommunityNav() {
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#F0EFED]">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16">
-        <div className="flex items-center gap-4 h-16">
+        <div className="flex items-center gap-5 h-[56px] sm:h-[64px]">
           {/* 왼쪽: 로고 + 커뮤니티 */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-lg text-[#1A1A1F] tracking-tight"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl text-[#1A1A1F] tracking-tight"
             >
               웨딩한방
             </Link>
-            <span className="text-[#B5ADA3] text-sm">/</span>
-            <span className="text-sm text-[#B5ADA3]">커뮤니티</span>
+            <span className="text-[#B5ADA3]">/</span>
+            <Link href="/community" className="text-base text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors">
+              커뮤니티
+            </Link>
           </div>
 
           {/* 가운데: 검색바 */}
           <form
             onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
-            className="hidden sm:flex flex-1 max-w-xl mx-auto"
+            className="hidden sm:flex flex-1 max-w-2xl mx-auto"
           >
             <div className="relative w-full">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3] cursor-pointer"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#B5ADA3] cursor-pointer"
                 onClick={handleSearch}
               />
               <input
@@ -80,16 +81,16 @@ export default function CommunityNav() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-9 py-2 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-xl placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
+                className="w-full pl-11 pr-11 py-2.5 text-base bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
                   aria-label="검색 초기화"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -99,23 +100,23 @@ export default function CommunityNav() {
           <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/community/post/write"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
+              className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
             >
-              <PenSquare className="w-4 h-4" />
+              <PenSquare className="w-5 h-5" />
               글쓰기
             </Link>
 
             {user ? (
               <Link
                 href="/settings"
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAFAF8] hover:text-[#1A1A1F] transition-all"
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAFAF8] hover:text-[#1A1A1F] transition-all"
               >
-                <User className="w-5 h-5" />
+                <User className="w-6 h-6" />
               </Link>
             ) : (
               <Link
                 href="/login"
-                className="px-4 py-2 text-sm font-medium text-white bg-[#1A1A1F] rounded-xl hover:bg-[#2d2d30] transition-colors"
+                className="px-5 py-2.5 text-base font-medium text-white bg-[#1A1A1F] rounded-full hover:bg-[#2d2d30] transition-colors"
               >
                 로그인
               </Link>
@@ -124,11 +125,11 @@ export default function CommunityNav() {
             {/* 모바일 햄버거 */}
             <button
               type="button"
-              className="sm:hidden p-2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors rounded-xl hover:bg-[#FAFAF8]"
+              className="sm:hidden p-2.5 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors rounded-full hover:bg-[#FAFAF8]"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="메뉴"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
@@ -137,11 +138,10 @@ export default function CommunityNav() {
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
         <div className="sm:hidden border-t border-[#F0EFED] bg-white">
-          <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 py-4 flex flex-col gap-3">
-            {/* 모바일 검색바 */}
+          <div className="mx-auto max-w-[1600px] px-4 py-4 flex flex-col gap-3">
             <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3] cursor-pointer"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#B5ADA3] cursor-pointer"
                 onClick={handleSearch}
               />
               <input
@@ -149,27 +149,26 @@ export default function CommunityNav() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="커뮤니티 검색"
-                className="w-full pl-9 pr-9 py-2 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-xl placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
+                className="w-full pl-11 pr-11 py-3 text-base bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
                   aria-label="검색 초기화"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               )}
             </form>
 
-            {/* 모바일 글쓰기 버튼 */}
             <Link
               href="/community/post/write"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
+              className="flex items-center justify-center gap-2 px-5 py-3 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
             >
-              <PenSquare className="w-4 h-4" />
+              <PenSquare className="w-5 h-5" />
               글쓰기
             </Link>
           </div>

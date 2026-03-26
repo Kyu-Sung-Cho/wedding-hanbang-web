@@ -24,7 +24,6 @@ interface PostCardProps {
   onBookmark?: (postId: string) => void;
 }
 
-// 배지 텍스트 (member 제외)
 function badgeText(badge: BadgeType): string | null {
   switch (badge) {
     case "verified_couple":
@@ -38,7 +37,6 @@ function badgeText(badge: BadgeType): string | null {
   }
 }
 
-// 가격 포맷 (만원 단위)
 function formatCost(costInManwon: number): string {
   if (costInManwon >= 10000) {
     const billions = costInManwon / 10000;
@@ -52,7 +50,6 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   const categoryInfo = CATEGORY_MAP[post.category];
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
 
-  // 투표 낙관적 UI
   const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
   const [optimisticDelta, setOptimisticDelta] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
@@ -60,12 +57,11 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote ?? null);
   const voteCount = post.upvote_count - post.downvote_count + optimisticDelta;
 
-  // 본문 미리보기: HTML 태그 제거 후 150자
   const contentPreview = post.content
     .replace(/<[^>]*>/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 150);
+    .slice(0, 180);
 
   const hasThumbnail = post.images && post.images.length > 0;
   const totalCost = post.cost_data?.totalCost;
@@ -116,9 +112,9 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-2xl border border-[#F0EFED] p-5 hover:shadow-sm transition-all duration-300">
+    <article className="bg-white rounded-2xl border border-[#F0EFED] p-6 hover:shadow-sm transition-all duration-300">
       {/* 메타 라인 */}
-      <div className="flex items-center gap-1.5 text-sm mb-3">
+      <div className="flex items-center gap-2 text-sm mb-3">
         {categoryInfo && (
           <>
             <span className="font-medium text-[#C4967E]">
@@ -136,7 +132,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {badge && (
           <>
             <span className="text-[#B5ADA3]">&middot;</span>
-            <span className="text-[#C9A96E] font-medium text-xs">
+            <span className="text-[#C9A96E] font-medium">
               {badge}
             </span>
           </>
@@ -146,31 +142,28 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
       </div>
 
       {/* 제목 + 썸네일 */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-5">
         <div className="flex-1 min-w-0">
           <Link
             href={`/community/post/${post.id}`}
             className="group"
           >
-            <h3 className="text-base font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
-              {/* 고정 표시 */}
+            <h3 className="text-lg font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
               {post.is_pinned && (
-                <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-xs font-medium align-middle">
-                  <Pin className="w-3.5 h-3.5" />
+                <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                  <Pin className="w-4 h-4" />
                   PIN
                 </span>
               )}
 
-              {/* 주간 베스트 */}
               {post.is_weekly_best && (
-                <span className="text-[#C9A96E] text-xs font-medium mr-2 align-middle">
+                <span className="text-[#C9A96E] text-sm font-medium mr-2 align-middle">
                   BEST
                 </span>
               )}
 
-              {/* 비용 */}
               {post.category === "cost_share" && totalCost != null && (
-                <span className="text-sm text-[#C9A96E] font-medium mr-2 align-middle">
+                <span className="text-[#C9A96E] font-medium mr-2 align-middle">
                   &#8361; {formatCost(totalCost)}
                 </span>
               )}
@@ -179,16 +172,14 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             </h3>
           </Link>
 
-          {/* 본문 미리보기 */}
           {contentPreview && (
-            <p className="mt-1.5 text-sm text-[#878680] leading-relaxed line-clamp-2">
+            <p className="mt-2 text-base text-[#878680] leading-relaxed line-clamp-2">
               {contentPreview}
             </p>
           )}
 
-          {/* 태그 */}
           {post.tags && post.tags.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
+            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
               {post.tags.slice(0, 5).map((tag) => (
                 <span
                   key={tag}
@@ -201,17 +192,16 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           )}
         </div>
 
-        {/* 썸네일 */}
         {hasThumbnail && (
           <Link
             href={`/community/post/${post.id}`}
-            className="shrink-0 w-24 h-[72px] rounded-xl overflow-hidden bg-[#F5F2ED]"
+            className="shrink-0 w-28 h-20 rounded-xl overflow-hidden bg-[#F5F2ED]"
           >
             <Image
               src={post.images[0]}
               alt=""
-              width={96}
-              height={72}
+              width={112}
+              height={80}
               className="w-full h-full object-cover"
             />
           </Link>
@@ -219,24 +209,24 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
       </div>
 
       {/* 액션 바 */}
-      <div className="mt-4 flex items-center gap-6 text-sm text-[#B5ADA3]">
+      <div className="mt-5 flex items-center gap-6 text-sm text-[#B5ADA3]">
         {/* 투표 그룹 */}
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => handleVote(1)}
             disabled={isVoting}
-            className={`p-0.5 rounded transition-colors duration-200 ${
+            className={`p-1 rounded transition-colors duration-200 ${
               displayVote === 1
                 ? "text-[#C4967E]"
                 : "hover:text-[#C4967E]"
             } disabled:opacity-50`}
             aria-label="추천"
           >
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="w-5 h-5" />
           </button>
           <span
-            className={`text-sm font-medium min-w-[1rem] text-center ${
+            className={`text-base font-medium min-w-[1.5rem] text-center ${
               displayVote === 1
                 ? "text-[#C4967E]"
                 : displayVote === -1
@@ -250,53 +240,53 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             type="button"
             onClick={() => handleVote(-1)}
             disabled={isVoting}
-            className={`p-0.5 rounded transition-colors duration-200 ${
+            className={`p-1 rounded transition-colors duration-200 ${
               displayVote === -1
                 ? "text-[#C4967E]"
                 : "hover:text-[#C4967E]"
             } disabled:opacity-50`}
             aria-label="비추천"
           >
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-5 h-5" />
           </button>
         </div>
 
         {/* 댓글 */}
         <Link
           href={`/community/post/${post.id}#comments`}
-          className="flex items-center gap-1.5 hover:text-[#C4967E] transition-colors duration-200"
+          className="flex items-center gap-2 hover:text-[#C4967E] transition-colors duration-200"
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>{post.comment_count}</span>
+          <MessageCircle className="w-5 h-5" />
+          <span className="text-base">{post.comment_count}</span>
         </Link>
 
         {/* 조회수 */}
-        <span className="flex items-center gap-1.5">
-          <Eye className="w-4 h-4" />
-          <span>{post.view_count}</span>
+        <span className="flex items-center gap-2">
+          <Eye className="w-5 h-5" />
+          <span className="text-base">{post.view_count}</span>
         </span>
 
-        {/* 오른쪽 정렬: 북마크 + 공유 */}
+        {/* 오른쪽: 북마크 + 공유 */}
         <div className="ml-auto flex items-center gap-4">
           <button
             type="button"
             onClick={handleBookmark}
-            className={`p-0.5 rounded transition-colors duration-200 ${
+            className={`p-1 rounded transition-colors duration-200 ${
               bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
             }`}
             aria-label="저장"
           >
             <Bookmark
-              className="w-4 h-4"
+              className="w-5 h-5"
               fill={bookmarked ? "#C4967E" : "none"}
             />
           </button>
           <button
             type="button"
-            className="p-0.5 rounded hover:text-[#C4967E] transition-colors duration-200"
+            className="p-1 rounded hover:text-[#C4967E] transition-colors duration-200"
             aria-label="공유"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-5 h-5" />
           </button>
         </div>
       </div>
