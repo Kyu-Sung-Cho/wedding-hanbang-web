@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 import { Plus, QrCode, BookOpen, Eye, MessageSquare } from "lucide-react";
 import GuestbookQRModal from "@/components/community/GuestbookQRModal";
 import type { Guestbook } from "@/types/community.types";
 
 export default function MyGuestbooksPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Guestbook[]>([]);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
@@ -15,11 +18,21 @@ export default function MyGuestbooksPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      // 인증 체크 먼저
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) {
+        router.replace("/login?redirect=" + encodeURIComponent("/community/guestbook"));
+        return;
+      }
       try {
         const res = await fetch("/api/guestbook");
         if (!res.ok) {
           if (res.status === 401) {
-            setError("로그인이 필요합니다.");
+            router.replace("/login?redirect=" + encodeURIComponent("/community/guestbook"));
             return;
           }
           throw new Error("load failed");

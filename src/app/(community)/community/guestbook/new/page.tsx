@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/community/Toast";
 
 export default function NewGuestbookPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // 인증 체크 — 미로그인이면 로그인 페이지로
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.replace(
+          "/login?redirect=" + encodeURIComponent("/community/guestbook/new")
+        );
+        return;
+      }
+      setAuthChecked(true);
+    });
+  }, [router]);
+
   const [form, setForm] = useState({
     bride_name: "",
     groom_name: "",
@@ -52,6 +73,14 @@ export default function NewGuestbookPage() {
 
   const inputCls =
     "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none text-base";
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
