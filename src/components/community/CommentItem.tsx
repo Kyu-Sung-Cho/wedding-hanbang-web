@@ -17,14 +17,16 @@ interface CommentItemProps {
   onReply: (parentId: string, content: string) => Promise<void>;
 }
 
-function badgeLabel(badge: BadgeType): string | null {
+function badgeLabel(badge: BadgeType | string | null | undefined): string | null {
   switch (badge) {
-    case "verified_couple":
-      return "인증 커플";
-    case "top_contributor":
-      return "우수 기여자";
-    case "admin":
-      return "관리자";
+    case "senior":
+      return "결혼 선배";
+    case "master":
+      return "웨딩 마스터";
+    case "expert":
+      return "결준 고수";
+    case "preparing":
+      return "예비 신부/신랑";
     default:
       return null;
   }
@@ -132,11 +134,11 @@ export default function CommentItem({
               <span className="font-medium text-[#1A1A1F]">
                 {comment.author.nickname}
               </span>
-              {badgeLabel(comment.author.badge) && (
+              {badgeLabel(comment.author.rank) && (
                 <>
                   <span className="text-[#B5ADA3]">&middot;</span>
                   <span className="text-[#C4967E] font-medium">
-                    {badgeLabel(comment.author.badge)}
+                    {badgeLabel(comment.author.rank)}
                   </span>
                 </>
               )}

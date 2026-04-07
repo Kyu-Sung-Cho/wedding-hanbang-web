@@ -21,13 +21,16 @@ import { useCommunityStore } from "@/stores/communityStore";
 import ImageUploader from "@/components/community/ImageUploader";
 import TagInput from "@/components/community/TagInput";
 import VendorTagPicker from "@/components/community/VendorTagPicker";
-import CostShareEditor from "@/components/community/CostShareEditor";
+import AdDisclosureModal from "@/components/community/AdDisclosureModal";
+import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
+import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import { sanitizeHtml } from "@/utils/sanitize";
 import type {
   CommunityCategory,
   PostVisibility,
-  CostShareData,
   CreatePostInput,
+  AdDisclosure,
+  PriceData,
 } from "@/types/community.types";
 
 // 로컬스토리지 키
@@ -45,21 +48,10 @@ interface DraftData {
   images: string[];
   tags: string[];
   vendorTags: string[];
-  costData: CostShareData;
+  adDisclosure?: AdDisclosure;
+  sponsorshipDetail?: string;
+  priceData?: PriceData | null;
   savedAt: number;
-}
-
-function emptyCostData(): CostShareData {
-  return {
-    totalCost: 0,
-    region: "",
-    guestCount: 0,
-    weddingDate: "",
-    categories: [],
-    regretPoints: "",
-    goodPoints: "",
-    advice: "",
-  };
 }
 
 // 동적으로 아이콘 컴포넌트 가져오기
@@ -96,7 +88,10 @@ function PostWriteContent() {
   const [images, setImages] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [vendorTags, setVendorTags] = useState<string[]>([]);
-  const [costData, setCostData] = useState<CostShareData>(emptyCostData());
+  const [adDisclosure, setAdDisclosure] = useState<AdDisclosure | null>(null);
+  const [sponsorshipDetail, setSponsorshipDetail] = useState<string>("");
+  const [priceData, setPriceData] = useState<PriceData | null>(null);
+  const [showAdModal, setShowAdModal] = useState(false);
 
   // UI 상태
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -157,7 +152,9 @@ function PostWriteContent() {
         setImages(post.images || []);
         setTags(post.tags || []);
         setVendorTags(post.vendor_tags || []);
-        if (post.cost_data) setCostData(post.cost_data);
+        if (post.ad_disclosure) setAdDisclosure(post.ad_disclosure);
+        if (post.sponsorship_detail) setSponsorshipDetail(post.sponsorship_detail);
+        if (post.price_data) setPriceData(post.price_data);
 
         // 초기 상태 저장
         initialFormRef.current = JSON.stringify({
@@ -201,7 +198,9 @@ function PostWriteContent() {
       setImages(draft.images || []);
       setTags(draft.tags || []);
       setVendorTags(draft.vendorTags || []);
-      if (draft.costData) setCostData(draft.costData);
+      if (draft.adDisclosure) setAdDisclosure(draft.adDisclosure);
+      if (draft.sponsorshipDetail) setSponsorshipDetail(draft.sponsorshipDetail);
+      if (draft.priceData) setPriceData(draft.priceData);
       setDraftRestored(true);
     } catch {
       // 파싱 실패 시 무시
@@ -254,7 +253,9 @@ function PostWriteContent() {
         images,
         tags,
         vendorTags,
-        costData,
+        adDisclosure: adDisclosure ?? undefined,
+        sponsorshipDetail: sponsorshipDetail || undefined,
+        priceData,
         savedAt: Date.now(),
       };
       // 비어있으면 저장하지 않음
@@ -272,7 +273,7 @@ function PostWriteContent() {
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, costData]);
+  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -311,6 +312,12 @@ function PostWriteContent() {
       return;
     }
 
+    // 광고 표시 필수
+    if (!adDisclosure) {
+      setShowAdModal(true);
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
 
@@ -322,7 +329,9 @@ function PostWriteContent() {
       images,
       tags,
       vendor_tags: vendorTags,
-      ...(category === "cost_share" ? { cost_data: costData } : {}),
+      ad_disclosure: adDisclosure,
+      sponsorship_detail: sponsorshipDetail || undefined,
+      ...(category === "is_normal" && priceData ? { price_data: priceData } : {}),
     };
 
     try {
@@ -607,17 +616,53 @@ function PostWriteContent() {
             </section>
           )}
 
-          {/* 비용 공유 에디터 (cost_share 카테고리) */}
-          {category === "cost_share" && (
+          {/* 광고 표시 */}
+          <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
+            <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
+              광고 표시 <span className="text-[#C4967E]">*</span>
+            </label>
+            {adDisclosure ? (
+              <button
+                type="button"
+                onClick={() => setShowAdModal(true)}
+                className="flex items-center justify-between w-full px-3 py-2 text-left bg-[#FAFAF8] border border-[#F0EFED] rounded-xl hover:border-[#C4967E] transition-colors"
+              >
+                <AdDisclosureBadge adDisclosure={adDisclosure} sponsorshipDetail={sponsorshipDetail} />
+                <span className="text-xs text-[#878680]">변경</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAdModal(true)}
+                className="w-full px-3 py-2 text-sm text-[#878680] bg-[#FAFAF8] border border-dashed border-[#F0EFED] rounded-xl hover:border-[#C4967E] hover:text-[#1A1A1F] transition-colors"
+              >
+                유형을 선택해주세요
+              </button>
+            )}
+          </section>
+
+          {/* "이거 정상이야?" 가격 폼 */}
+          {category === "is_normal" && (
             <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
               <label className="block text-sm font-medium text-[#1c1c1e] mb-3">
-                비용 내역
+                가격 질문 (선택)
               </label>
-              <CostShareEditor data={costData} onChange={setCostData} />
+              <PriceQuestionForm onChange={setPriceData} />
             </section>
           )}
         </div>
       </div>
+
+      {/* 광고 표시 모달 */}
+      {showAdModal && (
+        <AdDisclosureModal
+          onSelect={({ adDisclosure: d, sponsorshipDetail: detail }) => {
+            setAdDisclosure(d);
+            setSponsorshipDetail(detail ?? "");
+            setShowAdModal(false);
+          }}
+        />
+      )}
 
       {/* 하단 버튼 - 데스크탑 */}
       <div className="hidden sm:flex items-center justify-between gap-3 mt-8 pt-6 border-t border-[#E5E7EB]">

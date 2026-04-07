@@ -9,7 +9,59 @@ import type {
   TimePeriod,
   PostVisibility,
   CostShareData,
+  AdDisclosure,
+  PriceData,
+  AiComment,
 } from "@/types/community.types";
+import Anthropic from "@anthropic-ai/sdk";
+
+const AI_PRICE_SYSTEM_PROMPT = `You are the wedding hanbang AI 아모라 price analyzer. Given a vendor price, compare to Korean wedding industry averages and write a SHORT 1-2 sentence Korean comment.
+
+References (기재부 2024.11):
+- 스튜디오/드레스/메이크업 기본금 평균: 346만원
+- 평균 추가금: 174만원
+
+Output JSON only:
+{
+  "text": "1-2문장 한국어 코멘트",
+  "comparison": "below|average|above",
+  "percentage": <int 평균 대비 %>,
+  "reference": "기재부 2024.11 기준 평균 346만원"
+}`;
+
+async function generateAiPriceComment(priceData: PriceData): Promise<AiComment | null> {
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    const userContent = `카테고리: ${priceData.vendor_category}
+기본금: ${priceData.base_price}만원
+추가금: ${priceData.extra_price ?? 0}만원
+업체명: ${priceData.vendor_name ?? "미상"}
+지역: ${priceData.region ?? "미상"}
+상세: ${priceData.details ?? "없음"}`;
+
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: AI_PRICE_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userContent }],
+    });
+    const firstBlock = message.content[0];
+    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]) as Omit<AiComment, "generated_at">;
+    return {
+      text: parsed.text,
+      comparison: parsed.comparison,
+      percentage: parsed.percentage,
+      reference: parsed.reference,
+      generated_at: new Date().toISOString(),
+    };
+  } catch (err) {
+    console.error("AI price comment inline error:", err);
+    return null;
+  }
+}
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -190,6 +242,11 @@ export async function POST(req: NextRequest) {
       vendor_tags: rawVendorTags,
       tags: rawTags,
       cost_data,
+      ad_disclosure: rawAdDisclosure,
+      sponsorship_detail: rawSponsorshipDetail,
+      price_data: rawPriceData,
+      is_quick_review,
+      rating,
     } = body as {
       category: CommunityCategory;
       title: string;
@@ -199,7 +256,46 @@ export async function POST(req: NextRequest) {
       vendor_tags?: string[];
       tags?: string[];
       cost_data?: CostShareData;
+      ad_disclosure?: AdDisclosure;
+      sponsorship_detail?: string;
+      price_data?: PriceData;
+      is_quick_review?: boolean;
+      rating?: number;
     };
+
+    // 광고 표시 필수 검증
+    const validAdDisclosures: AdDisclosure[] = ["general", "sponsored", "ad"];
+    if (!rawAdDisclosure || !validAdDisclosures.includes(rawAdDisclosure)) {
+      return NextResponse.json(
+        { error: "광고 표시 유형을 선택해주세요." },
+        { status: 400 }
+      );
+    }
+    const adDisclosure: AdDisclosure = rawAdDisclosure;
+    let sponsorshipDetail: string | null = null;
+    if (adDisclosure === "sponsored") {
+      const d = (rawSponsorshipDetail ?? "").trim();
+      if (!d || d.length < 5) {
+        return NextResponse.json(
+          { error: "협찬 내용을 5자 이상 입력해주세요." },
+          { status: 400 }
+        );
+      }
+      sponsorshipDetail = d.slice(0, 500);
+    }
+
+    // price_data 검증
+    let priceData: PriceData | null = null;
+    if (rawPriceData && typeof rawPriceData.base_price === "number" && rawPriceData.base_price > 0) {
+      priceData = {
+        vendor_category: rawPriceData.vendor_category,
+        base_price: rawPriceData.base_price,
+        extra_price: rawPriceData.extra_price,
+        vendor_name: rawPriceData.vendor_name?.slice(0, 100),
+        region: rawPriceData.region?.slice(0, 100),
+        details: rawPriceData.details?.slice(0, 1000),
+      };
+    }
 
     // 입력 검증 및 정화
     const title = rawTitle?.trim().slice(0, 200);
@@ -281,6 +377,11 @@ export async function POST(req: NextRequest) {
         vendor_tags: vendor_tags ?? [],
         tags: tags ?? [],
         cost_data: cost_data ?? null,
+        ad_disclosure: adDisclosure,
+        sponsorship_detail: sponsorshipDetail,
+        price_data: priceData,
+        is_quick_review: is_quick_review ?? false,
+        rating: typeof rating === "number" ? rating : null,
         upvote_count: 0,
         downvote_count: 0,
         comment_count: 0,
@@ -368,7 +469,26 @@ export async function POST(req: NextRequest) {
       // 게이미피케이션 오류는 무시
     }
 
-    return NextResponse.json({ post }, { status: 201 });
+    // is_normal + price_data: AI 코멘트 생성 (비차단 실패)
+    let finalPost = post;
+    if (category === "is_normal" && priceData) {
+      try {
+        const aiComment = await generateAiPriceComment(priceData);
+        if (aiComment) {
+          const { data: updated } = await serviceClient
+            .from("community_posts")
+            .update({ ai_comment: aiComment })
+            .eq("id", post.id)
+            .select("*")
+            .single();
+          if (updated) finalPost = updated;
+        }
+      } catch (aiErr) {
+        console.error("AI comment generation failed:", aiErr);
+      }
+    }
+
+    return NextResponse.json({ post: finalPost }, { status: 201 });
   } catch (err) {
     console.error("Create post error:", err);
     return NextResponse.json(

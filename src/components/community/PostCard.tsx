@@ -12,10 +12,14 @@ import {
   Bookmark,
   Eye,
   Pin,
+  Sparkles,
+  CheckCircle2,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
-import type { PostWithAuthor, BadgeType } from "@/types/community.types";
+import type { PostWithAuthor, CommunityRank } from "@/types/community.types";
 
 interface PostCardProps {
   post: PostWithAuthor;
@@ -24,25 +28,27 @@ interface PostCardProps {
   onBookmark?: (postId: string) => void;
 }
 
-function badgeText(badge: BadgeType): string | null {
-  switch (badge) {
-    case "verified_couple":
-      return "인증";
-    case "top_contributor":
-      return "TOP";
-    case "admin":
-      return "관리자";
-    default:
-      return null;
-  }
-}
+const RANK_LABEL: Record<CommunityRank, string | null> = {
+  sprout: null,
+  preparing: "예비",
+  expert: "고수",
+  master: "마스터",
+  senior: "선배",
+};
 
-function formatCost(costInManwon: number): string {
-  if (costInManwon >= 10000) {
-    const billions = costInManwon / 10000;
-    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}억`;
+function rankColor(rank: CommunityRank): string {
+  switch (rank) {
+    case "senior":
+      return "text-[#C9A96E]";
+    case "master":
+      return "text-[#C9A96E]";
+    case "expert":
+      return "text-[#C4967E]";
+    case "preparing":
+      return "text-[#878680]";
+    default:
+      return "text-[#B5ADA3]";
   }
-  return `${costInManwon.toLocaleString()}만`;
 }
 
 export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark }: PostCardProps) {
@@ -64,8 +70,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
     .slice(0, 180);
 
   const hasThumbnail = post.images && post.images.length > 0;
-  const totalCost = post.cost_data?.totalCost;
-  const badge = badgeText(post.author.badge);
+  const rankLabel = RANK_LABEL[post.author.rank];
 
   const handleVote = useCallback(
     async (vote: 1 | -1) => {
@@ -129,16 +134,47 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         >
           {post.author.nickname}
         </Link>
-        {badge && (
+        {rankLabel && (
           <>
             <span className="text-[#B5ADA3]">&middot;</span>
-            <span className="text-[#C9A96E] font-medium">
-              {badge}
+            <span className={`${rankColor(post.author.rank)} font-medium`}>
+              {rankLabel}
+            </span>
+          </>
+        )}
+        {post.author.wedding_year && post.author.wedding_month && (
+          <>
+            <span className="text-[#B5ADA3]">&middot;</span>
+            <span className="text-[#878680]">
+              {String(post.author.wedding_year).slice(2)}.{String(post.author.wedding_month).padStart(2, "0")} 동기
             </span>
           </>
         )}
         <span className="text-[#B5ADA3]">&middot;</span>
         <span className="text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
+        {/* 광고 표시 배지 */}
+        {post.ad_disclosure === "sponsored" && (
+          <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-xs font-medium">
+            협찬
+          </span>
+        )}
+        {post.ad_disclosure === "ad" && (
+          <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">
+            광고
+          </span>
+        )}
+        {post.is_verified_review && (
+          <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-xs font-medium">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            인증후기
+          </span>
+        )}
+        {post.under_review && (
+          <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-xs font-medium">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            검토 중
+          </span>
+        )}
       </div>
 
       {/* 제목 + 썸네일 */}
@@ -162,9 +198,17 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
                 </span>
               )}
 
-              {post.category === "cost_share" && totalCost != null && (
-                <span className="text-[#C9A96E] font-medium mr-2 align-middle">
-                  &#8361; {formatCost(totalCost)}
+              {post.is_resolved && (
+                <span className="inline-flex items-center gap-1 text-[#22C55E] mr-2 text-sm font-medium align-middle">
+                  <CheckCircle2 className="w-4 h-4" />
+                  해결됨
+                </span>
+              )}
+
+              {post.ai_comment && (
+                <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                  <Sparkles className="w-4 h-4" />
+                  AI 분석
                 </span>
               )}
 

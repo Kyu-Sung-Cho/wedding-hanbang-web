@@ -9,86 +9,65 @@ export interface CommunityCategoryInfo {
   color: string;
   bgColor: string;
   allowVendorTags: boolean;
-  allowCostTemplate: boolean;
+  allowPriceForm: boolean;
 }
 
+// 신규 5개 게시판 (전략 프롬프트 기반)
 export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   {
-    key: "sdme_review",
-    label: "스드메 후기",
-    shortLabel: "스드메",
-    description: "스튜디오·드레스·메이크업 실제 이용 후기",
+    key: "is_normal",
+    label: "이거 정상이야?",
+    shortLabel: "정상이야?",
+    description: "가격·상황·업체 대응이 정상인지 묻는 공간. AI가 자동으로 평균과 비교해 알려드려요.",
+    icon: "HelpCircle",
+    color: "text-[#C4967E]",
+    bgColor: "bg-[#FAF8F5]",
+    allowVendorTags: true,
+    allowPriceForm: true,
+  },
+  {
+    key: "tour_review",
+    label: "투어/이용 후기",
+    shortLabel: "후기",
+    description: "스튜디오·드레스·메이크업·예식장 투어 및 이용 후기. 15초 후기와 상세 후기 모두 환영.",
     icon: "Camera",
-    color: "text-rose-600",
-    bgColor: "bg-rose-50",
+    color: "text-[#C4967E]",
+    bgColor: "bg-[#FAF8F5]",
     allowVendorTags: true,
-    allowCostTemplate: false,
+    allowPriceForm: false,
   },
   {
-    key: "venue_review",
-    label: "예식장 후기",
-    shortLabel: "예식장",
-    description: "예식장 실제 이용 후기와 견적 공유",
-    icon: "Building2",
-    color: "text-amber-600",
-    bgColor: "bg-amber-50",
-    allowVendorTags: true,
-    allowCostTemplate: false,
-  },
-  {
-    key: "cost_share",
-    label: "비용 공유",
-    shortLabel: "비용",
-    description: "결혼 준비 전체 비용 내역 공유",
-    icon: "Receipt",
-    color: "text-emerald-600",
-    bgColor: "bg-emerald-50",
-    allowVendorTags: true,
-    allowCostTemplate: true,
-  },
-  {
-    key: "tips",
+    key: "tips_v2",
     label: "꿀팁",
     shortLabel: "꿀팁",
-    description: "결혼 준비 노하우와 꿀팁",
+    description: "절약팁, 협상팁, 숨은 할인, 비시즌 활용법, 계약서 체크 포인트.",
     icon: "Lightbulb",
-    color: "text-yellow-600",
-    bgColor: "bg-yellow-50",
+    color: "text-[#C9A96E]",
+    bgColor: "bg-[#FAF8F0]",
     allowVendorTags: false,
-    allowCostTemplate: false,
+    allowPriceForm: false,
   },
   {
-    key: "honeymoon",
-    label: "신혼여행",
-    shortLabel: "여행",
-    description: "신혼여행 후기와 추천",
-    icon: "Plane",
-    color: "text-sky-600",
-    bgColor: "bg-sky-50",
-    allowVendorTags: true,
-    allowCostTemplate: false,
-  },
-  {
-    key: "qa",
-    label: "Q&A",
-    shortLabel: "Q&A",
-    description: "결혼 준비 관련 질문",
-    icon: "MessageCircleQuestion",
-    color: "text-violet-600",
-    bgColor: "bg-violet-50",
+    key: "ama",
+    label: "결혼 끝났다 AMA",
+    shortLabel: "AMA",
+    description: "결혼 완료한 선배에게 무엇이든 물어보세요. Ask Me Anything.",
+    icon: "GraduationCap",
+    color: "text-[#1A1A1F]",
+    bgColor: "bg-[#F0EFED]",
     allowVendorTags: false,
-    allowCostTemplate: false,
+    allowPriceForm: false,
   },
   {
-    key: "free_board",
+    key: "free",
     label: "자유게시판",
     shortLabel: "자유",
-    description: "자유롭게 이야기하는 공간",
+    description: "시댁 고민, 메리지블루, 커플 갈등, 잡담, 하소연 — 무엇이든 편하게.",
     icon: "MessageSquare",
-    color: "text-slate-600",
-    bgColor: "bg-slate-50",
+    color: "text-[#878680]",
+    bgColor: "bg-[#FAFAF8]",
     allowVendorTags: false,
-    allowCostTemplate: false,
+    allowPriceForm: false,
   },
 ];
 
@@ -96,31 +75,82 @@ export const CATEGORY_MAP = Object.fromEntries(
   COMMUNITY_CATEGORIES.map((c) => [c.key, c])
 ) as Record<CommunityCategory, CommunityCategoryInfo>;
 
-// 비용공유 템플릿 카테고리
-export const COST_SHARE_CATEGORIES = [
+// 광고 표시 시스템 (필수 선택)
+export const AD_DISCLOSURE_OPTIONS = [
+  {
+    key: "general",
+    label: "일반",
+    shortLabel: "일반",
+    description: "내가 직접 쓴 글입니다. 어떤 혜택도 받지 않았어요.",
+    color: "#22C55E",
+    bgColor: "#F0FDF4",
+  },
+  {
+    key: "sponsored",
+    label: "협찬",
+    shortLabel: "협찬",
+    description: "혜택을 받고 작성한 글입니다. (할인, 무료 제공 등)",
+    color: "#EAB308",
+    bgColor: "#FEFCE8",
+    requiresDetail: true,
+  },
+  {
+    key: "ad",
+    label: "광고",
+    shortLabel: "광고",
+    description: "업체 공식 광고입니다. 추천/검색 알고리즘에 반영되지 않아요.",
+    color: "#EF4444",
+    bgColor: "#FEF2F2",
+  },
+] as const;
+
+// 동기방 계약 카테고리
+export const COHORT_CONTRACT_CATEGORIES = [
   { key: "venue", label: "예식장" },
   { key: "studio", label: "스튜디오" },
   { key: "dress", label: "드레스" },
   { key: "makeup", label: "메이크업" },
-  { key: "ring", label: "예물(반지)" },
-  { key: "hanbok", label: "한복" },
-  { key: "yedan", label: "예단" },
-  { key: "honeymoon", label: "신혼여행" },
-  { key: "houseware", label: "혼수(가전/가구)" },
-  { key: "housing", label: "신혼집" },
-  { key: "invitation", label: "청첩장" },
   { key: "snap", label: "본식 스냅/영상" },
-  { key: "bouquet", label: "부케/꽃장식" },
-  { key: "gift", label: "답례품" },
-  { key: "pyebaek", label: "폐백" },
+  { key: "ring", label: "예물(반지)" },
+  { key: "honeymoon", label: "신혼여행" },
   { key: "other", label: "기타" },
-];
+] as const;
+
+// 동기방 메시지 스레드 토픽
+export const COHORT_THREAD_TOPICS = [
+  { key: "price", label: "가격", icon: "💰" },
+  { key: "review", label: "후기", icon: "⭐" },
+  { key: "concern", label: "고민", icon: "💭" },
+  { key: "chat", label: "잡담", icon: "💬" },
+] as const;
+
+// 계급 시스템
+export const COMMUNITY_RANKS = [
+  { key: "sprout", label: "웨딩 새싹", emoji: "🌱", description: "가입" },
+  { key: "preparing", label: "예비 신부/신랑", emoji: "💍", description: "글 5개 또는 댓글 20개" },
+  { key: "expert", label: "결준 고수", emoji: "⭐", description: "글 20개 + 댓글 50개" },
+  { key: "master", label: "웨딩 마스터", emoji: "👑", description: "글 50개 + 좋아요 100개" },
+  { key: "senior", label: "결혼 선배", emoji: "🎓", description: "결혼 완료" },
+] as const;
 
 // 신고 사유
 export const REPORT_REASONS = [
   { key: "spam", label: "스팸/광고" },
   { key: "abuse", label: "욕설/비방" },
-  { key: "ad", label: "업체 홍보글" },
+  { key: "ad", label: "업체 홍보글 (협찬 미표시)" },
   { key: "inappropriate", label: "음란물/부적절" },
+  { key: "other", label: "기타" },
+] as const;
+
+// 레거시 호환: 비용공유 카테고리 (CostShareEditor용)
+export const COST_SHARE_CATEGORIES = COHORT_CONTRACT_CATEGORIES;
+
+// 하객 관계 (방명록)
+export const GUEST_RELATIONS = [
+  { key: "university_friend", label: "대학친구" },
+  { key: "work_colleague", label: "직장동료" },
+  { key: "family", label: "가족" },
+  { key: "old_friend", label: "오래된 친구" },
+  { key: "partner", label: "파트너 지인" },
   { key: "other", label: "기타" },
 ] as const;

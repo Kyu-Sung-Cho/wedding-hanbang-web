@@ -28,14 +28,16 @@ import CommentSection from "@/components/community/CommentSection";
 import type { BadgeType } from "@/types/community.types";
 
 // 배지 라벨
-function badgeLabel(badge: BadgeType): string | null {
+function badgeLabel(badge: BadgeType | string | null | undefined): string | null {
   switch (badge) {
-    case "verified_couple":
-      return "인증 커플";
-    case "top_contributor":
-      return "우수 기여자";
-    case "admin":
-      return "관리자";
+    case "senior":
+      return "결혼 선배";
+    case "master":
+      return "웨딩 마스터";
+    case "expert":
+      return "결준 고수";
+    case "preparing":
+      return "예비 신부/신랑";
     default:
       return null;
   }
@@ -301,11 +303,11 @@ export default function PostDetailPage() {
                     {post.author.nickname}
                   </span>
                 </div>
-                {badgeLabel(post.author.badge) && (
+                {badgeLabel(post.author.rank) && (
                   <>
                     <span>&middot;</span>
                     <span className="text-[#C4967E] font-medium">
-                      {badgeLabel(post.author.badge)}
+                      {badgeLabel(post.author.rank)}
                     </span>
                   </>
                 )}
@@ -471,14 +473,12 @@ export default function PostDetailPage() {
                 </div>
               )}
 
-              {/* 비용 공유 데이터 */}
-              {!isMembersOnly &&
-                post.category === "cost_share" &&
-                post.cost_data && (
-                  <div className="mt-4">
-                    <CostShareDisplay data={post.cost_data} />
-                  </div>
-                )}
+              {/* 비용 공유 데이터 (레거시) */}
+              {!isMembersOnly && post.cost_data && (
+                <div className="mt-4">
+                  <CostShareDisplay data={post.cost_data} />
+                </div>
+              )}
 
               {/* 태그 */}
               {!isMembersOnly && post.tags && post.tags.length > 0 && (

@@ -5,25 +5,22 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Flame,
+  HelpCircle,
   Camera,
-  Building2,
-  Receipt,
   Lightbulb,
-  Plane,
-  MessageCircleQuestion,
+  GraduationCap,
   MessageSquare,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import { useState } from "react";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  HelpCircle,
   Camera,
-  Building2,
-  Receipt,
   Lightbulb,
-  Plane,
-  MessageCircleQuestion,
+  GraduationCap,
   MessageSquare,
 };
 
@@ -60,6 +57,13 @@ export default function CategoryTabs() {
           >
             <Flame className="w-6 h-6 shrink-0" />
             <span className="text-base">인기</span>
+          </Link>
+          <Link
+            href="/community/guestbook"
+            className="flex items-center gap-4 px-4 py-3 rounded-xl text-[#1A1A1F] hover:bg-[#F5F2ED] transition-all duration-150"
+          >
+            <BookOpen className="w-6 h-6 shrink-0" />
+            <span className="text-base">내 방명록</span>
           </Link>
         </div>
 
