@@ -68,18 +68,18 @@
 html {
   scroll-behavior: smooth;
   /* 기본 16px → 17px로 전체 스케일 업 (Tailwind의 모든 rem 기반 텍스트가 함께 커짐) */
-  font-size: 18px;
+  font-size: 25px;
 }
 
 @media (min-width: 1280px) {
   html {
-    font-size: 19px;
+    font-size: 26px;
   }
 }
 
 @media (min-width: 1536px) {
   html {
-    font-size: 20px;
+    font-size: 28px;
   }
 }
 
