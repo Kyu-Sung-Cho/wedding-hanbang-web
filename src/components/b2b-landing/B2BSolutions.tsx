@@ -11,7 +11,7 @@ const solutions = [
     highlight: "계약 성사 시에만 수수료 발생",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
-        <div className="text-[11px] text-white/40 mb-3">웨딩한방 수수료 구조</div>
+        <div className="text-[23px] text-white/40 mb-3">웨딩한방 수수료 구조</div>
         <div className="flex flex-col gap-3">
           {[
             { label: "가입비", value: "무료", accent: true },
@@ -19,14 +19,14 @@ const solutions = [
             { label: "수수료 발생 시점", value: "계약 성사 시에만", accent: false },
             { label: "해지", value: "언제든 자유롭게", accent: false },
           ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between text-[12px]">
+            <div key={item.label} className="flex items-center justify-between text-[38px]">
               <span className="text-white/50">{item.label}</span>
               <span className={`font-medium ${item.accent ? "text-rose-500" : "text-white/80"}`}>{item.value}</span>
             </div>
           ))}
         </div>
         <div className="mt-3 pt-3 border-t border-white/[0.06] text-center">
-          <span className="text-[11px] text-white/40">숨겨진 비용 없이 투명하게 운영됩니다</span>
+          <span className="text-[23px] text-white/40">숨겨진 비용 없이 투명하게 운영됩니다</span>
         </div>
       </div>
     ),
@@ -39,18 +39,18 @@ const solutions = [
     highlight: "자연스러운 고객 유입",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
-        <div className="text-[11px] text-white/40 mb-3">이번 주 고객 유입 현황</div>
+        <div className="text-[23px] text-white/40 mb-3">이번 주 고객 유입 현황</div>
         <div className="flex flex-col gap-2.5">
           {[
             { label: "AI 추천 노출", value: "142회", change: "+23%" },
             { label: "상세 페이지 조회", value: "38회", change: "+15%" },
             { label: "상담 요청", value: "12건", change: "+8%" },
           ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between text-[12px]">
+            <div key={item.label} className="flex items-center justify-between text-[38px]">
               <span className="text-white/50">{item.label}</span>
               <div className="flex items-center gap-2">
                 <span className="text-white/80 font-medium">{item.value}</span>
-                <span className="text-[10px] text-[#6BCB9A] bg-[#6BCB9A]/10 px-1.5 py-0.5 rounded">{item.change}</span>
+                <span className="text-[25px] text-[#6BCB9A] bg-[#6BCB9A]/10 px-1.5 py-0.5 rounded">{item.change}</span>
               </div>
             </div>
           ))}
@@ -66,18 +66,18 @@ const solutions = [
     highlight: "상담 효율 극대화",
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
-        <div className="text-[11px] text-white/40 mb-3">고객 A님 사전 분석 리포트</div>
+        <div className="text-[23px] text-white/40 mb-3">고객 A님 사전 분석 리포트</div>
         <div className="flex flex-col gap-2">
           {[
             { label: "선호 스타일", value: "야외 자연광 촬영", tag: "강한 선호" },
             { label: "원본 추가 구매", value: "의향 있음 (5점 중 4점)", tag: "업셀링 가능" },
             { label: "예산 범위", value: "250~350만원", tag: "매칭됨" },
           ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between text-[12px]">
+            <div key={item.label} className="flex items-center justify-between text-[38px]">
               <span className="text-white/50">{item.label}</span>
               <div className="flex items-center gap-2">
                 <span className="text-white/80">{item.value}</span>
-                <span className="text-[10px] text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded">{item.tag}</span>
+                <span className="text-[25px] text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded">{item.tag}</span>
               </div>
             </div>
           ))}
@@ -94,8 +94,8 @@ const solutions = [
     visual: (
       <div className="bg-white/[0.06] rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[11px] text-white/40">월간 분석 리포트</span>
-          <span className="text-[9px] text-white/25 bg-white/[0.06] px-1.5 py-0.5 rounded">화면 예시</span>
+          <span className="text-[23px] text-white/40">월간 분석 리포트</span>
+          <span className="text-[23px] text-white/25 bg-white/[0.06] px-1.5 py-0.5 rounded">화면 예시</span>
         </div>
         <div className="flex flex-col gap-3">
           {[
@@ -104,7 +104,7 @@ const solutions = [
             { label: "원본 추가 구매율", pct: 42, color: "bg-taupe-500" },
           ].map((item) => (
             <div key={item.label}>
-              <div className="flex justify-between text-[11px] mb-1">
+              <div className="flex justify-between text-[23px] mb-1">
                 <span className="text-white/60">{item.label}</span>
                 <span className="text-white/80">{item.pct}%</span>
               </div>
@@ -131,7 +131,7 @@ export default function B2BSolutions() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
           <span className="w-5 h-px bg-rose-light" />
           Solution
         </div>
@@ -155,8 +155,8 @@ export default function B2BSolutions() {
           >
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <span className="font-display text-[14px] text-rose-500 font-semibold">{sol.num}</span>
-                <span className="text-[11px] text-white/30 bg-white/[0.06] px-2.5 py-1 rounded-full">
+                <span className="font-display text-[23px] text-rose-500 font-semibold">{sol.num}</span>
+                <span className="text-[23px] text-white/30 bg-white/[0.06] px-2.5 py-1 rounded-full">
                   &ldquo;{sol.problem}&rdquo; 해결
                 </span>
               </div>
@@ -166,7 +166,7 @@ export default function B2BSolutions() {
               <p className="text-[clamp(13px,1.5vw,14px)] text-white/60 font-light leading-relaxed mb-4">
                 {sol.desc}
               </p>
-              <div className="inline-flex items-center gap-[5px] px-3.5 py-1.5 bg-rose-500/15 rounded-full text-[12px] text-rose-500 font-medium">
+              <div className="inline-flex items-center gap-[5px] px-3.5 py-1.5 bg-rose-500/15 rounded-full text-[38px] text-rose-500 font-medium">
                 ✦ {sol.highlight}
               </div>
             </div>

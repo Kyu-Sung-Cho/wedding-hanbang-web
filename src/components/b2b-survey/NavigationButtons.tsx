@@ -21,7 +21,7 @@ export default function NavigationButtons({
         <button
           type="button"
           onClick={onPrev}
-          className="flex-1 py-3.5 rounded-full border border-platinum text-[14px] text-charcoal font-medium hover:border-taupe-400 transition-colors"
+          className="flex-1 py-3.5 rounded-full border border-platinum text-[23px] text-charcoal font-medium hover:border-taupe-400 transition-colors"
         >
           이전
         </button>
@@ -30,7 +30,7 @@ export default function NavigationButtons({
         type="button"
         onClick={onNext}
         disabled={isSubmitting}
-        className={`flex-1 py-3.5 rounded-full text-[14px] font-medium transition-all ${
+        className={`flex-1 py-3.5 rounded-full text-[23px] font-medium transition-all ${
           isLast
             ? "bg-rose-500 text-white hover:bg-rose-600"
             : "bg-noir-800 text-white hover:bg-noir-soft"

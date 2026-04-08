@@ -37,10 +37,10 @@ export default function SingleChoice({
     <div className="flex flex-col gap-2.5">
       {reportContents && reportContents.length > 0 && (
         <div className="bg-ivory-warm rounded-xl p-4 mb-2 border border-platinum">
-          <p className="text-[12px] text-taupe-500 font-medium mb-2">리포트에 포함되는 내용:</p>
+          <p className="text-[38px] text-taupe-500 font-medium mb-2">리포트에 포함되는 내용:</p>
           <ul className="flex flex-col gap-1">
             {reportContents.map((item, i) => (
-              <li key={i} className="text-[13px] text-charcoal flex items-start gap-2">
+              <li key={i} className="text-[25px] text-charcoal flex items-start gap-2">
                 <span className="text-rose-500 mt-0.5">&#x2022;</span>
                 {item}
               </li>
@@ -72,7 +72,7 @@ export default function SingleChoice({
                 <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
               )}
             </div>
-            <span className="text-[14px] font-light">{option.label}</span>
+            <span className="text-[23px] font-light">{option.label}</span>
           </div>
         </motion.button>
       ))}
@@ -87,12 +87,12 @@ export default function SingleChoice({
             value={otherText || ""}
             onChange={(e) => onOtherTextChange?.(e.target.value)}
             placeholder="직접 입력해주세요"
-            className="w-full px-5 py-3 rounded-xl border border-platinum bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+            className="w-full px-5 py-3 rounded-xl border border-platinum bg-white text-[23px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
           />
         </motion.div>
       )}
       {error && (
-        <p className="text-[13px] text-rose-600 mt-1">{error}</p>
+        <p className="text-[25px] text-rose-600 mt-1">{error}</p>
       )}
     </div>
   );

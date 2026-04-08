@@ -120,12 +120,12 @@ function BudgetMiniCard() {
   return (
     <div className="mt-2 pt-2 border-t border-black/[0.06]">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-[#928980]">총 {formatWon(totalSpent)}원 / {formatWon(totalBudget)}원</span>
-        <span className={`text-[10px] font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
+        <span className="text-[25px] text-[#928980]">총 {formatWon(totalSpent)}원 / {formatWon(totalBudget)}원</span>
+        <span className={`text-[25px] font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
       <div className="space-y-1">
         {items.map((cat) => (
-          <div key={cat.key} className="flex items-center gap-2 text-[10px]">
+          <div key={cat.key} className="flex items-center gap-2 text-[25px]">
             <span className="text-[#928980] w-[52px] flex-shrink-0 truncate">{cat.label}</span>
             <div className="flex-1 h-1 bg-black/[0.04] rounded-full overflow-hidden">
               <div
@@ -180,9 +180,9 @@ function ScheduleMiniCard() {
     <div className="mt-2 pt-2 border-t border-black/[0.06] space-y-1.5">
       {items.map((cat) => (
         <div key={cat.key}>
-          <div className="flex items-center gap-2 text-[10px] mb-0.5">
+          <div className="flex items-center gap-2 text-[25px] mb-0.5">
             <span className="text-[#928980] flex-shrink-0">{cat.label}</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+            <span className={`px-1.5 py-0.5 rounded-full text-[23px] font-medium ${
               cat.status === "completed" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
               cat.status === "in_progress" ? "bg-[#C4967E]/10 text-[#C4967E]" :
               "bg-black/[0.04] text-[#928980]"
@@ -206,7 +206,7 @@ function ScheduleMiniCard() {
                   <div className="w-3.5 h-3.5 rounded-full border border-[#B5ADA3]" />
                 )}
               </div>
-              <span className={`text-[10px] ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
+              <span className={`text-[25px] ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
                 {item.label}
               </span>
             </div>

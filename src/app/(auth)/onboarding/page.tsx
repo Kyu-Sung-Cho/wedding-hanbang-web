@@ -146,7 +146,7 @@ export default function OnboardingPage() {
         {/* 로고 */}
         <div className="text-center mb-8">
           <Logo size="md" />
-          <p className="text-[13px] text-taupe-400 mt-2">웨딩 준비 시작하기</p>
+          <p className="text-[25px] text-taupe-400 mt-2">웨딩 준비 시작하기</p>
         </div>
 
         {/* 스텝 인디케이터 */}
@@ -202,7 +202,7 @@ export default function OnboardingPage() {
 
           {/* 에러 */}
           {error && (
-            <p className="text-[12px] text-rose-600 text-center mt-4">{error}</p>
+            <p className="text-[38px] text-rose-600 text-center mt-4">{error}</p>
           )}
 
           {/* 버튼 */}
@@ -210,7 +210,7 @@ export default function OnboardingPage() {
             {store.currentStep > 1 && (
               <button
                 onClick={store.prevStep}
-                className="px-6 py-3 rounded-2xl text-[14px] font-medium border border-black/[0.08] text-taupe-500 hover:bg-black/[0.02] transition-all"
+                className="px-6 py-3 rounded-2xl text-[23px] font-medium border border-black/[0.08] text-taupe-500 hover:bg-black/[0.02] transition-all"
               >
                 이전
               </button>
@@ -226,7 +226,7 @@ export default function OnboardingPage() {
                   store.nextStep();
                 }}
                 disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
-                className="flex-1 py-3 rounded-2xl text-[14px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 py-3 rounded-2xl text-[23px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {store.currentStep === 2 && store.coupleAction === "join"
                   ? loading ? "연결 중..." : "파트너와 연결하기"
@@ -237,14 +237,14 @@ export default function OnboardingPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
+                  className="w-full py-3 rounded-2xl text-[23px] font-medium transition-all bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
                 >
                   {loading ? "저장 중..." : "시작하기"}
                 </button>
                 <button
                   onClick={handleSkipChecklist}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
+                  className="w-full py-2.5 rounded-2xl text-[25px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
                 >
                   나중에 하기
                 </button>
@@ -279,24 +279,24 @@ export default function OnboardingPage() {
                 </svg>
               </div>
 
-              <h3 className="text-[20px] font-semibold text-noir-800 mb-2">
+              <h3 className="text-[25px] font-semibold text-noir-800 mb-2">
                 파트너 초대 코드
               </h3>
-              <p className="text-[13px] text-taupe-400 mb-5 leading-relaxed">
+              <p className="text-[25px] text-taupe-400 mb-5 leading-relaxed">
                 아래 코드를 파트너에게 공유하세요.
                 <br />
                 파트너가 이 코드로 가입하면 함께 준비할 수 있어요!
               </p>
 
               <div className="bg-ivory-100 rounded-2xl p-5 mb-5">
-                <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
+                <p className="text-[35px] font-mono font-bold text-noir-800 tracking-[0.15em]">
                   {inviteCodeResult}
                 </p>
               </div>
 
               <button
                 onClick={handleCopyCode}
-                className={`w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 ${
+                className={`w-full py-3 rounded-2xl text-[23px] font-medium transition-all mb-3 ${
                   codeCopied
                     ? "bg-green-500 text-white"
                     : "bg-noir-800 text-white hover:bg-noir-soft"
@@ -309,7 +309,7 @@ export default function OnboardingPage() {
                 onClick={() => {
                   window.location.href = "/dashboard";
                 }}
-                className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
+                className="w-full py-3 rounded-2xl text-[23px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
                 대시보드로 이동
               </button>

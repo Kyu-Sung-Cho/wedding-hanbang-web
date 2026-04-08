@@ -14,7 +14,7 @@ export default function LikertScale({ value, onChange, error, note }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {note && (
-        <p className="text-[12px] text-taupe-500 bg-ivory-warm rounded-xl px-4 py-3 border border-platinum">
+        <p className="text-[38px] text-taupe-500 bg-ivory-warm rounded-xl px-4 py-3 border border-platinum">
           {note}
         </p>
       )}
@@ -39,7 +39,7 @@ export default function LikertScale({ value, onChange, error, note }: Props) {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium shrink-0 transition-colors ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[25px] font-medium shrink-0 transition-colors ${
                     isSelected
                       ? "bg-rose-500 text-white"
                       : "bg-ivory-warm text-taupe-500"
@@ -47,14 +47,14 @@ export default function LikertScale({ value, onChange, error, note }: Props) {
                 >
                   {score}
                 </div>
-                <span className="text-[14px] font-light">{label}</span>
+                <span className="text-[23px] font-light">{label}</span>
               </div>
             </motion.button>
           );
         })}
       </div>
       {error && (
-        <p className="text-[13px] text-rose-600 mt-1">{error}</p>
+        <p className="text-[25px] text-rose-600 mt-1">{error}</p>
       )}
     </div>
   );

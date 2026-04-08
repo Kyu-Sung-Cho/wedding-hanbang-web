@@ -146,21 +146,21 @@ export default function MoneyPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[22px] font-semibold text-noir-800">축의금 관리</h1>
-          <p className="text-[13px] text-taupe-500 mt-1">축의금 내역을 기록하고 관리하세요</p>
+          <h1 className="text-[35px] font-semibold text-noir-800">축의금 관리</h1>
+          <p className="text-[25px] text-taupe-500 mt-1">축의금 내역을 기록하고 관리하세요</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExportCSV}
             disabled={moneyList.length === 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-black/[0.06] rounded-xl text-[13px] font-medium text-taupe-500 hover:bg-ivory-100 disabled:opacity-30 transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-black/[0.06] rounded-xl text-[25px] font-medium text-taupe-500 hover:bg-ivory-100 disabled:opacity-30 transition-colors"
           >
             <Download className="w-4 h-4" />
             CSV
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-900 transition-colors"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[25px] font-medium hover:bg-noir-900 transition-colors"
           >
             <Plus className="w-4 h-4" />
             추가
@@ -172,24 +172,24 @@ export default function MoneyPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-xl border border-black/[0.06] p-4">
           <Wallet className="w-5 h-5 text-rose-500 mb-2" />
-          <div className="text-[18px] font-semibold text-noir-800">{formatMoney(stats.total)}</div>
-          <div className="text-[11px] text-taupe-500">총 축의금</div>
+          <div className="text-[23px] font-semibold text-noir-800">{formatMoney(stats.total)}</div>
+          <div className="text-[23px] text-taupe-500">총 축의금</div>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.06] p-4">
           <Users className="w-5 h-5 text-blue-500 mb-2" />
-          <div className="text-[18px] font-semibold text-noir-800">{stats.count}명</div>
-          <div className="text-[11px] text-taupe-500">총 인원</div>
+          <div className="text-[23px] font-semibold text-noir-800">{stats.count}명</div>
+          <div className="text-[23px] text-taupe-500">총 인원</div>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.06] p-4">
           <TrendingUp className="w-5 h-5 text-green-500 mb-2" />
-          <div className="text-[18px] font-semibold text-noir-800">{formatMoney(stats.avg)}</div>
-          <div className="text-[11px] text-taupe-500">평균</div>
+          <div className="text-[23px] font-semibold text-noir-800">{formatMoney(stats.avg)}</div>
+          <div className="text-[23px] text-taupe-500">평균</div>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.06] p-4">
           <div className="flex gap-2 mb-2">
-            <span className="text-[11px] text-blue-500">신랑 {formatMoney(stats.groomTotal)}</span>
+            <span className="text-[23px] text-blue-500">신랑 {formatMoney(stats.groomTotal)}</span>
           </div>
-          <span className="text-[11px] text-rose-500">신부 {formatMoney(stats.brideTotal)}</span>
+          <span className="text-[23px] text-rose-500">신부 {formatMoney(stats.brideTotal)}</span>
         </div>
       </div>
 
@@ -197,7 +197,7 @@ export default function MoneyPage() {
       {showForm && (
         <div className="bg-white rounded-2xl border border-black/[0.06] p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[15px] font-medium text-noir-800">
+            <h2 className="text-[38px] font-medium text-noir-800">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
             <button onClick={resetForm} className="text-taupe-400 hover:text-noir-800">
@@ -210,21 +210,21 @@ export default function MoneyPage() {
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
               placeholder="이름"
-              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
             />
             <input
               type="number"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="금액"
-              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
             />
             <div className="flex gap-2">
               {(["groom", "bride"] as Side[]).map((s) => (
                 <button
                   key={s}
                   onClick={() => setForm({ ...form, side: s })}
-                  className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                  className={`flex-1 py-2 rounded-lg text-[38px] font-medium transition-colors ${
                     form.side === s ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
                   }`}
                 >
@@ -235,7 +235,7 @@ export default function MoneyPage() {
             <select
               value={form.relation}
               onChange={(e) => setForm({ ...form, relation: e.target.value })}
-              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 focus:outline-none focus:border-rose-500"
+              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 focus:outline-none focus:border-rose-500"
             >
               <option value="">관계 선택</option>
               {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -245,7 +245,7 @@ export default function MoneyPage() {
                 <button
                   key={m.key}
                   onClick={() => setForm({ ...form, method: m.key })}
-                  className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                  className={`flex-1 py-2 rounded-lg text-[38px] font-medium transition-colors ${
                     form.method === m.key ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
                   }`}
                 >
@@ -257,7 +257,7 @@ export default function MoneyPage() {
               type="date"
               value={form.received_at}
               onChange={(e) => setForm({ ...form, received_at: e.target.value })}
-              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 focus:outline-none focus:border-rose-500"
+              className="px-3 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 focus:outline-none focus:border-rose-500"
             />
           </div>
           <input
@@ -265,12 +265,12 @@ export default function MoneyPage() {
             value={form.memo}
             onChange={(e) => setForm({ ...form, memo: e.target.value })}
             placeholder="메모 (선택)"
-            className="w-full mt-3 px-3 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+            className="w-full mt-3 px-3 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
           />
           <button
             onClick={handleSubmit}
             disabled={!form.guest_name.trim() || !form.amount}
-            className="w-full mt-4 py-3 bg-rose-500 text-white rounded-xl text-[14px] font-medium hover:bg-rose-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+            className="w-full mt-4 py-3 bg-rose-500 text-white rounded-xl text-[23px] font-medium hover:bg-rose-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
           >
             <Check className="w-4 h-4" />
             {editId ? "수정 완료" : "추가"}
@@ -287,7 +287,7 @@ export default function MoneyPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="이름, 관계 검색..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-black/[0.06] text-[25px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
           />
         </div>
         <div className="flex gap-1">
@@ -295,7 +295,7 @@ export default function MoneyPage() {
             <button
               key={key}
               onClick={() => setFilterSide(key)}
-              className={`px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
+              className={`px-3 py-2 rounded-xl text-[38px] font-medium transition-colors ${
                 filterSide === key ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
               }`}
             >
@@ -313,7 +313,7 @@ export default function MoneyPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-black/[0.06]">
           <Wallet className="w-12 h-12 text-taupe-400 mx-auto mb-4" />
-          <p className="text-[14px] text-taupe-500">축의금 내역이 없습니다</p>
+          <p className="text-[23px] text-taupe-500">축의금 내역이 없습니다</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-black/[0.06] overflow-hidden">
@@ -331,22 +331,22 @@ export default function MoneyPage() {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-medium text-noir-800">{money.guest_name}</span>
+                  <span className="text-[23px] font-medium text-noir-800">{money.guest_name}</span>
                   {money.relation && (
-                    <span className="text-[11px] text-taupe-400 px-1.5 py-0.5 bg-ivory-100 rounded">
+                    <span className="text-[23px] text-taupe-400 px-1.5 py-0.5 bg-ivory-100 rounded">
                       {money.relation}
                     </span>
                   )}
                 </div>
                 {money.memo && (
-                  <p className="text-[11px] text-taupe-400 truncate">{money.memo}</p>
+                  <p className="text-[23px] text-taupe-400 truncate">{money.memo}</p>
                 )}
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-[14px] font-semibold text-noir-800">
+                <div className="text-[23px] font-semibold text-noir-800">
                   {formatMoney(money.amount)}
                 </div>
-                <div className="text-[10px] text-taupe-400">{money.received_at}</div>
+                <div className="text-[25px] text-taupe-400">{money.received_at}</div>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button
@@ -359,7 +359,7 @@ export default function MoneyPage() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => setDeleteConfirm(null)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-ivory-100 text-taupe-500 text-[10px]"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-ivory-100 text-taupe-500 text-[25px]"
                     >
                       취소
                     </button>

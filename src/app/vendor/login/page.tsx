@@ -117,20 +117,20 @@ export default function VendorLoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-gold mb-4">
             <Building2 className="w-7 h-7 text-white" />
           </div>
-          <h1 className="font-serif-kr text-[22px] font-light text-white mb-2">
+          <h1 className="font-serif-kr text-[35px] font-light text-white mb-2">
             웨딩한방 업체 포털
           </h1>
-          <p className="text-[13px] text-white/50">
+          <p className="text-[25px] text-white/50">
             파트너 업체 전용 관리 시스템
           </p>
         </div>
 
         {/* 로그인 카드 */}
         <div className="bg-white/[0.06] backdrop-blur-[20px] rounded-3xl border border-white/[0.08] p-8">
-          <h2 className="text-[18px] font-medium text-white text-center mb-1">
+          <h2 className="text-[23px] font-medium text-white text-center mb-1">
             업체 로그인
           </h2>
-          <p className="text-[12px] text-white/40 text-center mb-8">
+          <p className="text-[38px] text-white/40 text-center mb-8">
             등록된 업체 계정으로 로그인하세요
           </p>
 
@@ -138,25 +138,25 @@ export default function VendorLoginPage() {
             resetSent ? (
               <div className="text-center py-4 mb-6">
                 <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/20 flex items-center justify-center mx-auto mb-4">
-                  <span className="text-[24px]">✉️</span>
+                  <span className="text-[38px]">✉️</span>
                 </div>
-                <p className="text-[14px] text-white font-medium mb-2">
+                <p className="text-[23px] text-white font-medium mb-2">
                   비밀번호 재설정 메일을 보냈습니다
                 </p>
-                <p className="text-[12px] text-white/40 mb-6">
+                <p className="text-[38px] text-white/40 mb-6">
                   {email}로 발송된 메일을 확인해주세요.
                   <br />메일이 오지 않으면 스팸함도 확인해보세요.
                 </p>
                 <button
                   onClick={() => { setResetMode(false); setResetSent(false); setError(""); }}
-                  className="text-[13px] text-rose-400 font-medium hover:text-rose-300 transition-colors"
+                  className="text-[25px] text-rose-400 font-medium hover:text-rose-300 transition-colors"
                 >
                   로그인으로 돌아가기
                 </button>
               </div>
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-3 mb-6">
-                <p className="text-[12px] text-white/50 px-1 mb-1">
+                <p className="text-[38px] text-white/50 px-1 mb-1">
                   가입하신 이메일을 입력하시면 비밀번호 재설정 링크를 보내드립니다.
                 </p>
                 <input
@@ -164,20 +164,20 @@ export default function VendorLoginPage() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   placeholder="업체 이메일"
-                  className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
+                  className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[23px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
                 />
-                {error && <p className="text-[12px] text-rose-400 px-1">{error}</p>}
+                {error && <p className="text-[38px] text-rose-400 px-1">{error}</p>}
                 <button
                   type="submit"
                   disabled={loading !== null}
-                  className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_4px_20px_rgba(196,150,126,0.3)] disabled:opacity-50"
+                  className="w-full py-3.5 rounded-full text-[23px] font-medium transition-all bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_4px_20px_rgba(196,150,126,0.3)] disabled:opacity-50"
                 >
                   {loading === "reset" ? "발송 중..." : "재설정 메일 보내기"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setResetMode(false); setError(""); }}
-                  className="w-full text-[13px] text-white/40 hover:text-white/70 transition-colors py-2"
+                  className="w-full text-[25px] text-white/40 hover:text-white/70 transition-colors py-2"
                 >
                   로그인으로 돌아가기
                 </button>
@@ -193,7 +193,7 @@ export default function VendorLoginPage() {
                   setError("");
                 }}
                 placeholder="업체 이메일"
-                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
+                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[23px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
               />
               <input
                 type="password"
@@ -203,17 +203,17 @@ export default function VendorLoginPage() {
                   setError("");
                 }}
                 placeholder="비밀번호"
-                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
+                className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[23px] text-white outline-none focus:border-rose-500 transition-colors placeholder:text-white/30"
               />
 
               {error && (
-                <p className="text-[12px] text-rose-400 px-1">{error}</p>
+                <p className="text-[38px] text-rose-400 px-1">{error}</p>
               )}
 
               <button
                 type="submit"
                 disabled={loading !== null}
-                className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_4px_20px_rgba(196,150,126,0.3)] disabled:opacity-50"
+                className="w-full py-3.5 rounded-full text-[23px] font-medium transition-all bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_4px_20px_rgba(196,150,126,0.3)] disabled:opacity-50"
               >
                 {loading === "email" ? "로그인 중..." : "로그인"}
               </button>
@@ -222,7 +222,7 @@ export default function VendorLoginPage() {
                 <button
                   type="button"
                   onClick={() => { setResetMode(true); setError(""); }}
-                  className="text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                  className="text-[38px] text-white/40 hover:text-white/60 transition-colors"
                 >
                   비밀번호를 잊으셨나요?
                 </button>
@@ -232,12 +232,12 @@ export default function VendorLoginPage() {
 
           {/* 업체 등록 안내 */}
           <div className="bg-white/[0.04] rounded-xl p-4 text-center">
-            <p className="text-[12px] text-white/40 mb-2">
+            <p className="text-[38px] text-white/40 mb-2">
               아직 계정이 없으신가요?
             </p>
             <a
               href="/vendor/register"
-              className="text-[13px] text-rose-400 font-medium hover:text-rose-300 transition-colors"
+              className="text-[25px] text-rose-400 font-medium hover:text-rose-300 transition-colors"
             >
               회원가입 + 업체 등록하기 →
             </a>
@@ -248,7 +248,7 @@ export default function VendorLoginPage() {
         <div className="flex items-center justify-center gap-6 mt-6">
           <a
             href="/vendor/service"
-            className="inline-flex items-center gap-1 text-[13px] text-white/40 hover:text-white/70 transition-colors"
+            className="inline-flex items-center gap-1 text-[25px] text-white/40 hover:text-white/70 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             업체 서비스 안내
@@ -256,7 +256,7 @@ export default function VendorLoginPage() {
           <span className="text-white/10">|</span>
           <a
             href="/login"
-            className="text-[13px] text-white/40 hover:text-white/70 transition-colors"
+            className="text-[25px] text-white/40 hover:text-white/70 transition-colors"
           >
             고객 로그인
           </a>

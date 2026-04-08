@@ -208,18 +208,18 @@ export default function TimelineView({
                 className="w-full flex items-center justify-between px-5 py-4"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
+                  <span className="text-[23px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                     {phase.dday}
                   </span>
-                  <span className="text-[14px] font-medium text-noir-800">
+                  <span className="text-[23px] font-medium text-noir-800">
                     {phase.label}
                   </span>
-                  <span className="text-[11px] text-taupe-400 font-light">
+                  <span className="text-[23px] text-taupe-400 font-light">
                     {phase.period}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[12px] text-taupe-400">
+                  <span className="text-[38px] text-taupe-400">
                     {phaseStats.done}/{phaseStats.total}
                   </span>
                   {isPhaseExpanded ? (
@@ -250,7 +250,7 @@ export default function TimelineView({
                           <div className="mt-3 mb-2 px-3">
                             <div className="flex items-center gap-2 mb-2">
                               <CalendarDays className="w-3.5 h-3.5 text-gold" />
-                              <span className="text-[11px] text-taupe-400 font-medium">등록된 일정</span>
+                              <span className="text-[23px] text-taupe-400 font-medium">등록된 일정</span>
                             </div>
                             {phaseEvents.map(evt => (
                               <div key={evt.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-ivory-50 group">
@@ -258,8 +258,8 @@ export default function TimelineView({
                                   <CalendarDays className="w-3.5 h-3.5 text-gold" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[12px] font-medium text-noir-800">{evt.title}</p>
-                                  <p className="text-[10px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                                  <p className="text-[38px] font-medium text-noir-800">{evt.title}</p>
+                                  <p className="text-[25px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                                 </div>
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}
@@ -296,11 +296,11 @@ export default function TimelineView({
 
                               <div className="flex-1 min-w-0 text-left">
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-[13px] font-medium text-noir-800">
+                                  <span className="text-[25px] font-medium text-noir-800">
                                     {cat.label}
                                   </span>
                                   <span
-                                    className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${
+                                    className={`text-[25px] px-2 py-0.5 rounded-full text-white font-medium ${
                                       STATUS_COLORS[data.status]
                                     }`}
                                   >
@@ -315,7 +315,7 @@ export default function TimelineView({
                                       style={{ width: `${percent}%` }}
                                     />
                                   </div>
-                                  <span className="text-[10px] text-taupe-400 flex-shrink-0">
+                                  <span className="text-[25px] text-taupe-400 flex-shrink-0">
                                     {data.done}/{data.total}
                                   </span>
                                 </div>
@@ -363,7 +363,7 @@ export default function TimelineView({
                                           )}
                                         </div>
                                         <span
-                                          className={`text-[12px] leading-snug ${
+                                          className={`text-[38px] leading-snug ${
                                             item.done
                                               ? "text-taupe-400 line-through"
                                               : "text-noir-800"
@@ -405,14 +405,14 @@ export default function TimelineView({
             <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-gold bg-gold/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
-                  <span className="text-[14px] font-medium text-noir-800">직접 추가한 일정</span>
-                  <span className="text-[11px] text-taupe-400">{uncategorized.length}건</span>
+                  <span className="text-[23px] text-gold bg-gold/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
+                  <span className="text-[23px] font-medium text-noir-800">직접 추가한 일정</span>
+                  <span className="text-[23px] text-taupe-400">{uncategorized.length}건</span>
                 </div>
                 {onAddEvent && (
                   <button
                     onClick={onAddEvent}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[23px] font-medium text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     일정 추가
@@ -427,8 +427,8 @@ export default function TimelineView({
                         <CalendarDays className="w-4 h-4 text-gold" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-noir-800">{evt.title}</p>
-                        <p className="text-[11px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                        <p className="text-[25px] font-medium text-noir-800">{evt.title}</p>
+                        <p className="text-[23px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}

@@ -36,7 +36,7 @@ export default function B2BPainPoints() {
   return (
     <section className="bg-ivory-50 py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] relative">
       <motion.div {...fadeInUp} className="text-center max-w-[640px] mx-auto mb-20">
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Problem
         </div>
@@ -62,11 +62,11 @@ export default function B2BPainPoints() {
             transition={{ duration: 0.7, delay: i * 0.1 }}
             className="bg-white rounded-2xl p-7 border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all duration-500"
           >
-            <div className="w-11 h-11 rounded-xl bg-noir-800 flex items-center justify-center mb-5 text-[18px]">
+            <div className="w-11 h-11 rounded-xl bg-noir-800 flex items-center justify-center mb-5 text-[23px]">
               {card.icon}
             </div>
             <h4 className="text-[clamp(14px,1.8vw,16px)] font-medium mb-2 text-noir-800">{card.title}</h4>
-            <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{card.desc}</p>
+            <p className="text-[25px] text-taupe-500 leading-relaxed font-light">{card.desc}</p>
           </motion.div>
         ))}
       </div>

@@ -33,7 +33,7 @@ export default function Footer() {
           <a href="/" className="no-underline">
             <Logo size="sm" variant="white" />
           </a>
-          <p className="text-[14px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
+          <p className="text-[23px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
             AI가 이끄는 새로운 결혼 준비의 시작.
             <br />
             웨딩 플래너 없이도 완벽한 결혼을 준비하세요.
@@ -42,7 +42,7 @@ export default function Footer() {
 
         {/* 정보 */}
         <div>
-          <h5 className="text-[12px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
+          <h5 className="text-[38px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
             정보
           </h5>
           {infoLinks.map((link) =>
@@ -50,7 +50,7 @@ export default function Footer() {
               <a
                 key={link.label}
                 href={link.href}
-                className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors"
+                className="block text-white/60 no-underline text-[23px] mb-3 font-light hover:text-rose-light transition-colors"
               >
                 {link.label}
               </a>
@@ -58,7 +58,7 @@ export default function Footer() {
               <button
                 key={link.label}
                 onClick={handleComingSoon}
-                className="block text-white/60 text-[14px] mb-3 font-light hover:text-rose-light transition-colors cursor-pointer bg-transparent border-none p-0 text-left"
+                className="block text-white/60 text-[23px] mb-3 font-light hover:text-rose-light transition-colors cursor-pointer bg-transparent border-none p-0 text-left"
               >
                 {link.label}
               </button>
@@ -68,7 +68,7 @@ export default function Footer() {
       </div>
 
       <div className="max-w-[1200px] mx-auto pt-10 border-t border-white/[0.06] flex justify-between items-center max-md:flex-col max-md:gap-4 max-md:text-center">
-        <span className="text-[13px] text-white/30 font-light">
+        <span className="text-[25px] text-white/30 font-light">
           &copy; 2026 웨딩한방. All rights reserved.
         </span>
         <div className="flex gap-4">
@@ -81,7 +81,7 @@ export default function Footer() {
               key={social.label}
               title={social.title}
               onClick={handleComingSoon}
-              className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/40 text-[14px] hover:bg-rose-500/15 hover:text-rose-light transition-all cursor-pointer border-none"
+              className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/40 text-[23px] hover:bg-rose-500/15 hover:text-rose-light transition-all cursor-pointer border-none"
             >
               {social.label}
             </button>
@@ -91,7 +91,7 @@ export default function Footer() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 bg-noir-800 text-white text-[14px] rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 animate-fade-in">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 bg-noir-800 text-white text-[23px] rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 animate-fade-in">
           {toast}
         </div>
       )}

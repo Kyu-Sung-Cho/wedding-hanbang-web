@@ -136,7 +136,7 @@ function TemplateEditModal({
       >
         {/* 헤더 */}
         <div className="sticky top-0 bg-white border-b border-black/[0.04] px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-[17px] font-medium text-noir-800">
+          <h2 className="text-[21px] font-medium text-noir-800">
             {isNew ? "계약 템플릿 생성" : "계약 템플릿 수정"}
           </h2>
           <button
@@ -151,13 +151,13 @@ function TemplateEditModal({
           {/* 표준 템플릿 선택 (신규일 때만) */}
           {isNew && standardTemplates.length > 0 && (
             <div>
-              <h3 className="text-[13px] font-medium text-taupe-500 mb-3 uppercase tracking-wider">
+              <h3 className="text-[25px] font-medium text-taupe-500 mb-3 uppercase tracking-wider">
                 표준 템플릿 기반으로 시작 (선택)
               </h3>
               <select
                 value={baseTemplateId}
                 onChange={(e) => handleLoadStandardTemplate(e.target.value)}
-                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors bg-white"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[25px] outline-none focus:border-rose-500 transition-colors bg-white"
               >
                 <option value="">직접 작성하기</option>
                 {standardTemplates.map((t) => (
@@ -171,12 +171,12 @@ function TemplateEditModal({
 
           {/* 기본 정보 */}
           <div>
-            <h3 className="text-[13px] font-medium text-taupe-500 mb-3 uppercase tracking-wider">
+            <h3 className="text-[25px] font-medium text-taupe-500 mb-3 uppercase tracking-wider">
               기본 정보
             </h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-medium text-noir-800 mb-1.5">
+                <label className="block text-[38px] font-medium text-noir-800 mb-1.5">
                   템플릿 이름 *
                 </label>
                 <input
@@ -184,12 +184,12 @@ function TemplateEditModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="예: 스튜디오 촬영 표준 계약서"
-                  className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+                  className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[25px] outline-none focus:border-rose-500 transition-colors"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-medium text-noir-800 mb-1.5">
+                  <label className="block text-[38px] font-medium text-noir-800 mb-1.5">
                     계약금 비율 (%)
                   </label>
                   <input
@@ -200,7 +200,7 @@ function TemplateEditModal({
                     }
                     min={0}
                     max={100}
-                    className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors"
+                    className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[25px] outline-none focus:border-rose-500 transition-colors"
                   />
                 </div>
                 <div className="flex items-end">
@@ -211,7 +211,7 @@ function TemplateEditModal({
                       onChange={(e) => setIsDefault(e.target.checked)}
                       className="w-4 h-4 accent-rose-500 rounded"
                     />
-                    <span className="text-[13px] text-noir-800">기본 템플릿으로 설정</span>
+                    <span className="text-[25px] text-noir-800">기본 템플릿으로 설정</span>
                   </label>
                 </div>
               </div>
@@ -221,12 +221,12 @@ function TemplateEditModal({
           {/* 계약 조항 */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[13px] font-medium text-taupe-500 uppercase tracking-wider">
+              <h3 className="text-[25px] font-medium text-taupe-500 uppercase tracking-wider">
                 계약 조항
               </h3>
               <button
                 onClick={handleAddClause}
-                className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-[38px] text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 조항 추가
@@ -239,7 +239,7 @@ function TemplateEditModal({
                   className="border border-black/[0.04] rounded-xl p-4 bg-ivory-50/50"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] text-taupe-400 font-medium">
+                    <span className="text-[23px] text-taupe-400 font-medium">
                       제{idx + 1}조
                     </span>
                     {content.length > 1 && (
@@ -256,14 +256,14 @@ function TemplateEditModal({
                     value={clause.title}
                     onChange={(e) => handleClauseChange(idx, "title", e.target.value)}
                     placeholder="조항 제목 (예: 서비스 내용)"
-                    className="w-full px-3 py-2 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors mb-2"
+                    className="w-full px-3 py-2 border border-platinum rounded-lg text-[25px] outline-none focus:border-rose-500 transition-colors mb-2"
                   />
                   <textarea
                     value={clause.body}
                     onChange={(e) => handleClauseChange(idx, "body", e.target.value)}
                     placeholder="조항 내용을 입력하세요..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 transition-colors resize-none"
+                    className="w-full px-3 py-2 border border-platinum rounded-lg text-[25px] outline-none focus:border-rose-500 transition-colors resize-none"
                   />
                 </div>
               ))}
@@ -273,12 +273,12 @@ function TemplateEditModal({
           {/* 취소/환불 정책 */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[13px] font-medium text-taupe-500 uppercase tracking-wider">
+              <h3 className="text-[25px] font-medium text-taupe-500 uppercase tracking-wider">
                 취소/환불 정책
               </h3>
               <button
                 onClick={handleAddPolicy}
-                className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-[38px] text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 정책 추가
@@ -290,16 +290,16 @@ function TemplateEditModal({
                   key={idx}
                   className="flex items-center gap-2 bg-ivory-50/50 border border-black/[0.04] rounded-lg px-3 py-2"
                 >
-                  <span className="text-[12px] text-taupe-500 whitespace-nowrap">서비스</span>
+                  <span className="text-[38px] text-taupe-500 whitespace-nowrap">서비스</span>
                   <input
                     type="number"
                     value={policy.daysBefore}
                     onChange={(e) =>
                       handlePolicyChange(idx, "daysBefore", Number(e.target.value))
                     }
-                    className="w-16 px-2 py-1.5 border border-platinum rounded text-[12px] text-center outline-none focus:border-rose-500"
+                    className="w-16 px-2 py-1.5 border border-platinum rounded text-[38px] text-center outline-none focus:border-rose-500"
                   />
-                  <span className="text-[12px] text-taupe-500 whitespace-nowrap">일 전:</span>
+                  <span className="text-[38px] text-taupe-500 whitespace-nowrap">일 전:</span>
                   <input
                     type="number"
                     value={policy.refundPercent}
@@ -308,15 +308,15 @@ function TemplateEditModal({
                     }
                     min={0}
                     max={100}
-                    className="w-16 px-2 py-1.5 border border-platinum rounded text-[12px] text-center outline-none focus:border-rose-500"
+                    className="w-16 px-2 py-1.5 border border-platinum rounded text-[38px] text-center outline-none focus:border-rose-500"
                   />
-                  <span className="text-[12px] text-taupe-500 whitespace-nowrap">% 환불</span>
+                  <span className="text-[38px] text-taupe-500 whitespace-nowrap">% 환불</span>
                   <input
                     type="text"
                     value={policy.label}
                     onChange={(e) => handlePolicyChange(idx, "label", e.target.value)}
                     placeholder="설명"
-                    className="flex-1 px-2 py-1.5 border border-platinum rounded text-[12px] outline-none focus:border-rose-500"
+                    className="flex-1 px-2 py-1.5 border border-platinum rounded text-[38px] outline-none focus:border-rose-500"
                   />
                   {cancellationPolicy.length > 1 && (
                     <button
@@ -336,14 +336,14 @@ function TemplateEditModal({
         <div className="sticky bottom-0 bg-white border-t border-black/[0.04] px-6 py-4 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-platinum text-[14px] font-medium text-taupe-500 hover:bg-ivory-50 transition-colors"
+            className="flex-1 py-3 rounded-xl border border-platinum text-[23px] font-medium text-taupe-500 hover:bg-ivory-50 transition-colors"
           >
             취소
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving || !title.trim()}
-            className="flex-1 py-3 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 py-3 rounded-xl bg-noir-800 text-white text-[23px] font-medium hover:bg-noir-soft transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             {saving ? "저장 중..." : isNew ? "생성하기" : "저장하기"}
@@ -452,14 +452,14 @@ export default function ContractTemplatesPage() {
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="font-serif-kr text-[20px] text-noir-800">계약 템플릿 관리</h2>
-          <p className="text-[13px] text-taupe-500 font-light mt-0.5">
+          <h2 className="font-serif-kr text-[25px] text-noir-800">계약 템플릿 관리</h2>
+          <p className="text-[25px] text-taupe-500 font-light mt-0.5">
             계약서의 표준 양식을 관리합니다. 예약 확인 시 자동으로 적용됩니다.
           </p>
         </div>
         <button
           onClick={() => setEditTemplate("new")}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-gold text-white rounded-xl text-[13px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-gold text-white rounded-xl text-[25px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] transition-all"
         >
           <Plus className="w-4 h-4" />
           템플릿 생성
@@ -469,16 +469,16 @@ export default function ContractTemplatesPage() {
       {/* 통계 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.05 }} className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-black/[0.04] p-4 text-center">
-          <p className="text-[12px] text-taupe-500 mb-1">내 템플릿</p>
-          <p className="font-display text-[24px] text-noir-800">{templates.length}</p>
+          <p className="text-[38px] text-taupe-500 mb-1">내 템플릿</p>
+          <p className="font-display text-[38px] text-noir-800">{templates.length}</p>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.04] p-4 text-center">
-          <p className="text-[12px] text-taupe-500 mb-1">표준 템플릿</p>
-          <p className="font-display text-[24px] text-[#2E7D5A]">{standardTemplates.length}</p>
+          <p className="text-[38px] text-taupe-500 mb-1">표준 템플릿</p>
+          <p className="font-display text-[38px] text-[#2E7D5A]">{standardTemplates.length}</p>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.04] p-4 text-center">
-          <p className="text-[12px] text-taupe-500 mb-1">기본 설정</p>
-          <p className="font-display text-[24px] text-gold">
+          <p className="text-[38px] text-taupe-500 mb-1">기본 설정</p>
+          <p className="font-display text-[38px] text-gold">
             {templates.filter((t) => t.isDefault).length > 0 ? "O" : "-"}
           </p>
         </div>
@@ -492,7 +492,7 @@ export default function ContractTemplatesPage() {
           className="bg-gold/5 border border-gold/20 rounded-xl px-5 py-3.5 flex items-center gap-3 mb-6"
         >
           <AlertTriangle className="w-4 h-4 text-gold flex-shrink-0" />
-          <p className="text-[13px] text-charcoal">
+          <p className="text-[25px] text-charcoal">
             기본 템플릿이 설정되지 않았습니다. 예약 확인 시 자동 적용할 기본 템플릿을 지정해주세요.
           </p>
         </motion.div>
@@ -506,13 +506,13 @@ export default function ContractTemplatesPage() {
           className="bg-white rounded-2xl border border-black/[0.04] p-12 text-center"
         >
           <FileText className="w-12 h-12 text-taupe-400/40 mx-auto mb-4" />
-          <p className="text-[15px] text-taupe-500 mb-2">등록된 계약 템플릿이 없습니다</p>
-          <p className="text-[13px] text-taupe-400 font-light mb-6">
+          <p className="text-[38px] text-taupe-500 mb-2">등록된 계약 템플릿이 없습니다</p>
+          <p className="text-[25px] text-taupe-400 font-light mb-6">
             표준 템플릿을 기반으로 커스텀 계약서를 만들어보세요
           </p>
           <button
             onClick={() => setEditTemplate("new")}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-soft transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-noir-800 text-white rounded-xl text-[25px] font-medium hover:bg-noir-soft transition-colors"
           >
             <Plus className="w-4 h-4" />
             첫 번째 템플릿 만들기
@@ -540,17 +540,17 @@ export default function ContractTemplatesPage() {
                     <FileText className="w-5 h-5 text-taupe-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-[15px] font-medium text-noir-800 truncate">
+                        <h3 className="text-[38px] font-medium text-noir-800 truncate">
                           {tmpl.title}
                         </h3>
                         {tmpl.isDefault && (
-                          <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-gold/10 text-[10px] text-gold font-medium">
+                          <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-gold/10 text-[25px] text-gold font-medium">
                             <Star className="w-2.5 h-2.5" />
                             기본
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-[12px] text-taupe-400">
+                      <div className="flex items-center gap-3 text-[38px] text-taupe-400">
                         <span>{tmpl.content.length}개 조항</span>
                         <span>계약금 {Math.round(tmpl.depositRate * 100)}%</span>
                         <span>
@@ -607,10 +607,10 @@ export default function ContractTemplatesPage() {
                               key={idx}
                               className="bg-ivory-50/50 rounded-lg px-4 py-3 border border-black/[0.03]"
                             >
-                              <p className="text-[12px] text-rose-500 font-medium mb-1">
+                              <p className="text-[38px] text-rose-500 font-medium mb-1">
                                 제{idx + 1}조 {clause.title}
                               </p>
-                              <p className="text-[13px] text-charcoal leading-relaxed whitespace-pre-wrap">
+                              <p className="text-[25px] text-charcoal leading-relaxed whitespace-pre-wrap">
                                 {clause.body}
                               </p>
                             </div>
@@ -620,14 +620,14 @@ export default function ContractTemplatesPage() {
                         {/* 취소 정책 */}
                         {tmpl.cancellationPolicy.length > 0 && (
                           <div className="mt-4">
-                            <p className="text-[11px] text-taupe-400 font-medium uppercase tracking-wider mb-2">
+                            <p className="text-[23px] text-taupe-400 font-medium uppercase tracking-wider mb-2">
                               취소/환불 정책
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {tmpl.cancellationPolicy.map((p, idx) => (
                                 <span
                                   key={idx}
-                                  className={`px-3 py-1.5 rounded-lg text-[11px] font-medium ${
+                                  className={`px-3 py-1.5 rounded-lg text-[23px] font-medium ${
                                     p.refundPercent >= 80
                                       ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
                                       : p.refundPercent >= 50
@@ -660,7 +660,7 @@ export default function ContractTemplatesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-[#2E7D5A] text-white rounded-xl text-[14px] font-medium flex items-center gap-2 shadow-lg z-50"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-[#2E7D5A] text-white rounded-xl text-[23px] font-medium flex items-center gap-2 shadow-lg z-50"
           >
             <Check className="w-4 h-4" />
             저장되었습니다
@@ -688,7 +688,7 @@ export default function ContractTemplatesPage() {
       >
         <FileText className="w-4 h-4 text-taupe-400 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-[12px] text-taupe-500 font-light leading-relaxed">
+          <p className="text-[38px] text-taupe-500 font-light leading-relaxed">
             <strong className="font-medium">계약 템플릿</strong>은 예약 확인 시 자동으로 적용됩니다.
             플랫폼 표준 템플릿을 기반으로 업체에 맞는 조항과 취소 정책을 커스터마이즈할 수 있습니다.
             기본 템플릿을 설정하면 모든 새 계약에 자동 적용됩니다.

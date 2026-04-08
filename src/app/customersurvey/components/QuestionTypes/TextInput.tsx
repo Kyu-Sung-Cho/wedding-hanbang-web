@@ -29,10 +29,10 @@ export default function TextInput({
         value={text}
         onChange={(e) => onChange(questionId, e.target.value)}
         placeholder={placeholder}
-        className="w-full px-5 py-4 text-[15px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors"
+        className="w-full px-5 py-4 text-[38px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors"
       />
       {error && (
-        <p className="text-[13px] text-rose-600 mt-1 pl-1">{error}</p>
+        <p className="text-[25px] text-rose-600 mt-1 pl-1">{error}</p>
       )}
     </motion.div>
   );

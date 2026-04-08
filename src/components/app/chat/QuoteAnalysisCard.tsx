@@ -132,8 +132,8 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             <Search className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-[11px] text-white/70 font-medium">AI 견적 체크</p>
-            <p className="text-[15px] text-white font-semibold">
+            <p className="text-[23px] text-white/70 font-medium">AI 견적 체크</p>
+            <p className="text-[38px] text-white font-semibold">
               {vendorName || CATEGORY_LABELS[category]} — {quotePrice}만원
             </p>
           </div>
@@ -142,7 +142,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
 
       {/* 안내 */}
       <div className="px-4 py-3 bg-amber-50/60 border-b border-black/[0.06]">
-        <p className="text-[12px] text-amber-800 leading-relaxed">
+        <p className="text-[38px] text-amber-800 leading-relaxed">
           아래 항목이 견적에 <b>포함</b>인지 확인해주세요.
           탭하면 포함 → 미포함 → 모름 순으로 바뀝니다.
         </p>
@@ -157,7 +157,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
               <div className="border-b border-black/[0.04]">
                 <div className="px-4 pt-3 pb-1 flex items-center gap-1.5">
                   <AlertTriangle className="w-3 h-3 text-red-500" />
-                  <p className="text-[11px] font-semibold text-red-600">
+                  <p className="text-[23px] font-semibold text-red-600">
                     꼭 확인하세요 ({criticalItems.length})
                   </p>
                 </div>
@@ -171,7 +171,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             {Object.entries(highGrouped).map(([cat, items]) => (
               <div key={cat} className="border-b border-black/[0.04]">
                 <div className="px-4 pt-3 pb-1">
-                  <p className="text-[11px] font-semibold text-[#928980] tracking-wider">
+                  <p className="text-[23px] font-semibold text-[#928980] tracking-wider">
                     {ITEM_CATEGORY_LABELS[cat] || cat} ({items.length})
                   </p>
                 </div>
@@ -188,7 +188,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
                   onClick={() => setShowMore(!showMore)}
                   className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
                 >
-                  <span className="text-[11px] text-[#928980]">
+                  <span className="text-[23px] text-[#928980]">
                     선택 항목 {mediumItems.length}개 {showMore ? "접기" : "더보기"}
                   </span>
                   {showMore ? <ChevronUp className="w-3.5 h-3.5 text-[#B5ADA3]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#B5ADA3]" />}
@@ -203,10 +203,10 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
           {/* 제출 버튼 */}
           <div className="px-4 py-3 border-t border-black/[0.06] bg-slate-50/30">
             <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] text-[#928980]">
+              <span className="text-[23px] text-[#928980]">
                 {answeredCount}/{visibleCount}개 확인됨
               </span>
-              <div className="flex items-center gap-3 text-[10px] text-[#B5ADA3]">
+              <div className="flex items-center gap-3 text-[25px] text-[#B5ADA3]">
                 <span className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-500" />포함</span>
                 <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />미포함</span>
                 <span className="flex items-center gap-1"><Circle className="w-3 h-3 text-slate-400" />모름</span>
@@ -215,7 +215,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             <button
               onClick={handleSubmit}
               disabled={disabled || answeredCount === 0}
-              className="w-full py-3 rounded-xl text-[13px] font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-xl text-[25px] font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               견적 분석하기
             </button>
@@ -226,8 +226,8 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
           <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-emerald-50 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
-          <p className="text-[13px] text-[#1A1A1F] font-medium">체크 완료!</p>
-          <p className="text-[11px] text-[#928980] mt-1">분석 결과를 준비하고 있어요...</p>
+          <p className="text-[25px] text-[#1A1A1F] font-medium">체크 완료!</p>
+          <p className="text-[23px] text-[#928980] mt-1">분석 결과를 준비하고 있어요...</p>
         </div>
       )}
     </div>
@@ -257,15 +257,15 @@ function ChecklistItemRow({ item, state, onToggle }: { item: ChecklistItem; stat
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium ${severity.badge}`}>
+          <span className={`text-[23px] px-1.5 py-0.5 rounded-md font-medium ${severity.badge}`}>
             {severity.label}
           </span>
-          <span className="text-[12px] text-[#1A1A1F] truncate">{item.name}</span>
+          <span className="text-[38px] text-[#1A1A1F] truncate">{item.name}</span>
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-[11px] font-medium text-[#1A1A1F]">~{item.price}만</p>
-        <p className="text-[9px] text-[#B5ADA3]">이용률 {item.usageRate}%</p>
+        <p className="text-[23px] font-medium text-[#1A1A1F]">~{item.price}만</p>
+        <p className="text-[23px] text-[#B5ADA3]">이용률 {item.usageRate}%</p>
       </div>
     </button>
   );
@@ -307,14 +307,14 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] text-white/50 font-medium tracking-wider uppercase">AI 견적 분석 리포트</p>
-            <p className="text-[15px] text-white font-medium mt-0.5">
+            <p className="text-[23px] text-white/50 font-medium tracking-wider uppercase">AI 견적 분석 리포트</p>
+            <p className="text-[38px] text-white font-medium mt-0.5">
               {vendorName || CATEGORY_LABELS[category] || "스드메"} 견적
             </p>
           </div>
           <div className={`w-14 h-14 rounded-2xl ${gradeStyle.bg} flex flex-col items-center justify-center`}>
-            <span className={`text-[20px] font-bold ${gradeStyle.text}`}>{grade}</span>
-            <span className={`text-[9px] ${gradeStyle.text} -mt-0.5`}>{score}점</span>
+            <span className={`text-[25px] font-bold ${gradeStyle.text}`}>{grade}</span>
+            <span className={`text-[23px] ${gradeStyle.text} -mt-0.5`}>{score}점</span>
           </div>
         </div>
       </div>
@@ -322,18 +322,18 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       {/* 핵심 수치 3개 */}
       <div className="grid grid-cols-3 divide-x divide-black/[0.06] border-b border-black/[0.06]">
         <div className="px-3 py-3 text-center">
-          <p className="text-[10px] text-[#B5ADA3]">견적가</p>
-          <p className="text-[16px] font-semibold text-[#1A1A1F] mt-0.5">{quotePrice}만</p>
+          <p className="text-[25px] text-[#B5ADA3]">견적가</p>
+          <p className="text-[25px] font-semibold text-[#1A1A1F] mt-0.5">{quotePrice}만</p>
         </div>
         <div className="px-3 py-3 text-center">
-          <p className="text-[10px] text-[#B5ADA3]">예상 추가금</p>
-          <p className="text-[16px] font-semibold text-red-600 mt-0.5">
+          <p className="text-[25px] text-[#B5ADA3]">예상 추가금</p>
+          <p className="text-[25px] font-semibold text-red-600 mt-0.5">
             +{estimatedHiddenMin}~{estimatedHiddenMax}만
           </p>
         </div>
         <div className="px-3 py-3 text-center">
-          <p className="text-[10px] text-[#B5ADA3]">예상 실제 비용</p>
-          <p className="text-[16px] font-semibold text-[#1A1A1F] mt-0.5">
+          <p className="text-[25px] text-[#B5ADA3]">예상 실제 비용</p>
+          <p className="text-[25px] font-semibold text-[#1A1A1F] mt-0.5">
             {estimatedTotalMin}~{estimatedTotalMax}만
           </p>
         </div>
@@ -342,8 +342,8 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       {/* 시세 비교 */}
       <div className="px-4 py-3 border-b border-black/[0.06]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] text-[#928980]">시세 대비</span>
-          <span className="text-[10px] text-[#B5ADA3]">{dataSource}</span>
+          <span className="text-[23px] text-[#928980]">시세 대비</span>
+          <span className="text-[25px] text-[#B5ADA3]">{dataSource}</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -352,13 +352,13 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
               style={{ width: `${Math.max(10, Math.min(100, 50 + priceDiffPercent))}%` }}
             />
           </div>
-          <span className={`text-[12px] font-semibold ${
+          <span className={`text-[38px] font-semibold ${
             priceDiffPercent > 20 ? "text-red-600" : priceDiffPercent < -30 ? "text-amber-600" : "text-emerald-600"
           }`}>
             {priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent}%
           </span>
         </div>
-        <p className="text-[10px] text-[#B5ADA3] mt-1">
+        <p className="text-[25px] text-[#B5ADA3] mt-1">
           시세 중위값 {marketMedian}만원 기준
           {priceDiffPercent < -30 && " · ⚠️ 기본가가 지나치게 낮을 수 있음"}
         </p>
@@ -369,15 +369,15 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         <div className="px-4 py-3 border-b border-black/[0.06] bg-red-50/50">
           <div className="flex items-center gap-1.5 mb-2">
             <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-            <span className="text-[12px] font-semibold text-red-700">레드플래그 {redFlags.length}건</span>
+            <span className="text-[38px] font-semibold text-red-700">레드플래그 {redFlags.length}건</span>
           </div>
           <div className="space-y-1.5">
             {redFlags.map((flag) => (
               <div key={flag.id} className="flex items-start gap-2">
                 <XCircle className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-[11px] font-medium text-red-700">{flag.name}</p>
-                  <p className="text-[10px] text-red-600/70">{flag.description}</p>
+                  <p className="text-[23px] font-medium text-red-700">{flag.name}</p>
+                  <p className="text-[25px] text-red-600/70">{flag.description}</p>
                 </div>
               </div>
             ))}
@@ -393,9 +393,9 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-            <span className="text-[12px] font-semibold text-[#1A1A1F]">빠진 항목 {missingItems.length}개</span>
+            <span className="text-[38px] font-semibold text-[#1A1A1F]">빠진 항목 {missingItems.length}개</span>
             {missingCritical.length > 0 && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">필수 {missingCritical.length}</span>
+              <span className="text-[23px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">필수 {missingCritical.length}</span>
             )}
           </div>
           {expandedSection === "missing" ? <ChevronUp className="w-4 h-4 text-[#B5ADA3]" /> : <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />}
@@ -410,7 +410,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             ].map(({ label, items }) =>
               items.length > 0 ? (
                 <div key={label}>
-                  <p className="text-[10px] text-[#928980] font-medium mb-1">{label}</p>
+                  <p className="text-[25px] text-[#928980] font-medium mb-1">{label}</p>
                   {items.map((item) => (
                     <MissingItemRow key={item.name} item={item} style={SEVERITY_STYLES[item.severity]} />
                   ))}
@@ -430,7 +430,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           >
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-[12px] font-semibold text-[#1A1A1F]">포함 확인된 항목 {includedItems.length}개</span>
+              <span className="text-[38px] font-semibold text-[#1A1A1F]">포함 확인된 항목 {includedItems.length}개</span>
             </div>
             {expandedSection === "included" ? <ChevronUp className="w-4 h-4 text-[#B5ADA3]" /> : <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />}
           </button>
@@ -438,7 +438,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             <div className="px-4 pb-3">
               <div className="flex flex-wrap gap-1.5">
                 {includedItems.map((item) => (
-                  <span key={item.name} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  <span key={item.name} className="inline-flex items-center gap-1 text-[23px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                     <CheckCircle2 className="w-3 h-3" />{item.name}
                   </span>
                 ))}
@@ -450,10 +450,10 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
       {/* 하단 */}
       <div className="px-4 py-3 bg-slate-50/50">
-        <p className="text-[10px] text-[#B5ADA3] leading-relaxed">{statsNote}</p>
+        <p className="text-[25px] text-[#B5ADA3] leading-relaxed">{statsNote}</p>
         <div className="flex items-center gap-1 mt-1.5">
           <Shield className="w-3 h-3 text-[#C4967E]" />
-          <p className="text-[10px] text-[#C4967E] font-medium">계약 전 빠진 항목을 업체에 반드시 확인하세요</p>
+          <p className="text-[25px] text-[#C4967E] font-medium">계약 전 빠진 항목을 업체에 반드시 확인하세요</p>
         </div>
       </div>
     </div>
@@ -471,14 +471,14 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
         className="w-full px-3 py-2 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
-          <span className="text-[11px] text-[#1A1A1F] truncate">
+          <span className={`text-[23px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
+          <span className="text-[23px] text-[#1A1A1F] truncate">
             {ITEM_CATEGORY_LABELS[item.category] ? `[${ITEM_CATEGORY_LABELS[item.category]}] ` : ""}{item.name}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`text-[12px] font-semibold ${style.text}`}>~{item.price}만</span>
-          <span className="text-[9px] text-[#B5ADA3]">{item.usageRate}%</span>
+          <span className={`text-[38px] font-semibold ${style.text}`}>~{item.price}만</span>
+          <span className="text-[23px] text-[#B5ADA3]">{item.usageRate}%</span>
           {expanded ? <ChevronUp className="w-3 h-3 text-[#B5ADA3]" /> : <ChevronDown className="w-3 h-3 text-[#B5ADA3]" />}
         </div>
       </button>
@@ -487,15 +487,15 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
         <div className="px-3 pb-2.5 space-y-1.5 border-t border-black/[0.04]">
           <div className="flex items-start gap-1.5 mt-2">
             <AlertTriangle className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-[10px] text-[#928980] leading-relaxed">{item.disguise}</p>
+            <p className="text-[25px] text-[#928980] leading-relaxed">{item.disguise}</p>
           </div>
           <div className="flex items-start gap-1.5">
             <HelpCircle className="w-3 h-3 text-blue-400 mt-0.5 flex-shrink-0" />
-            <p className="text-[10px] text-[#1A1A1F] leading-relaxed">{item.reason}</p>
+            <p className="text-[25px] text-[#1A1A1F] leading-relaxed">{item.reason}</p>
           </div>
           <div className="bg-white rounded-lg px-2.5 py-2 border border-black/[0.04]">
-            <p className="text-[9px] text-[#C4967E] font-medium mb-0.5">계약 전 확인 질문</p>
-            <p className="text-[11px] text-[#1A1A1F] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
+            <p className="text-[23px] text-[#C4967E] font-medium mb-0.5">계약 전 확인 질문</p>
+            <p className="text-[23px] text-[#1A1A1F] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
           </div>
         </div>
       )}

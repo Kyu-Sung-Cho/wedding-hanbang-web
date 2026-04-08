@@ -128,7 +128,7 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
         return decorations.map((d, i) => (
           <div
             key={i}
-            className="absolute text-[16px]"
+            className="absolute text-[25px]"
             style={{
               left: d.left,
               top: d.top,
@@ -142,7 +142,7 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
         return decorations.map((d, i) => (
           <div
             key={i}
-            className="absolute text-[14px]"
+            className="absolute text-[23px]"
             style={{
               left: d.left,
               top: d.top,
@@ -176,7 +176,7 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
 
       <div className="text-center relative z-10">
         <p
-          className="text-[11px] tracking-[0.3em] uppercase mb-4"
+          className="text-[23px] tracking-[0.3em] uppercase mb-4"
           style={{
             color: accent,
             opacity: phase >= 1 ? 1 : 0,
@@ -186,7 +186,7 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
           Wedding Invitation
         </p>
         <h1
-          className="text-[24px] font-light leading-[1.5]"
+          className="text-[38px] font-light leading-[1.5]"
           style={{
             fontFamily: `'${fonts.heading}', serif`,
             color: text,
@@ -198,7 +198,7 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
           {groomName} & {brideName}
         </h1>
         <p
-          className="text-[12px] mt-6 tracking-wide"
+          className="text-[38px] mt-6 tracking-wide"
           style={{
             color: accent,
             opacity: phase >= 2 ? 0.5 : 0,
