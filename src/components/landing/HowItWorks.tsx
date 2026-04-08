@@ -31,7 +31,7 @@ export default function HowItWorks() {
         </p>
       </motion.div>
 
-      <div className="grid grid-cols-4 gap-8 max-w-[1100px] mx-auto relative max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="grid grid-cols-4 gap-8 max-w-[1375px] mx-auto relative max-lg:grid-cols-2 max-md:grid-cols-1">
         {/* 연결선 */}
         <div className="absolute top-12 left-[60px] right-[60px] h-px bg-gradient-to-r from-rose-pale via-gold-light to-rose-pale max-lg:hidden" />
 

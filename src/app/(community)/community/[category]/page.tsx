@@ -88,7 +88,7 @@ export default function CategoryFeedPage() {
 
       <div className="flex w-full">
         {/* 왼쪽 사이드바 */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+        <aside className="hidden lg:flex flex-col w-[350px] xl:w-[375px] shrink-0 sticky top-[90px] h-[calc(100vh-90px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
           <CategoryTabs />
 
           <div className="mt-auto pt-4 px-2">
@@ -104,7 +104,7 @@ export default function CategoryFeedPage() {
 
         {/* 가운데: 메인 피드 */}
         <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
-          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
+          <div className="max-w-[1250px] mx-auto lg:mx-0 lg:max-w-none">
             {/* 카테고리 헤더 */}
             <div className="mb-5">
               <h1 className="text-xl font-medium text-[#1A1A1F]">
@@ -159,7 +159,7 @@ export default function CategoryFeedPage() {
         </main>
 
         {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-5 border-l border-[#F0EFED]">
+        <aside className="hidden xl:flex flex-col w-[425px] 2xl:w-[475px] shrink-0 sticky top-[90px] h-[calc(100vh-90px)] overflow-y-auto py-6 pr-6 pl-2 space-y-5 border-l border-[#F0EFED]">
           <GamificationWidget />
 
           <div className="bg-white rounded-2xl border border-[#F0EFED] overflow-hidden">

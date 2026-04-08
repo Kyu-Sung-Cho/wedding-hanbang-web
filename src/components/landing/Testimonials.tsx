@@ -34,7 +34,7 @@ export default function Testimonials() {
         예비 신부님들의 이야기
       </h2>
 
-      <div className="grid grid-cols-3 gap-6 max-w-[1100px] mx-auto mt-[60px] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[480px]">
+      <div className="grid grid-cols-3 gap-6 max-w-[1375px] mx-auto mt-[60px] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[600px]">
         {testimonials.map((t, i) => (
           <motion.div
             key={t.name}

@@ -297,7 +297,7 @@ export default function VendorRegisterPage() {
     return (
       <div className="min-h-screen bg-ivory-50">
         <header className="bg-white border-b border-black/[0.04] px-8 py-5 max-md:px-5">
-          <div className="max-w-[800px] mx-auto flex items-center justify-between">
+          <div className="max-w-[1250px] mx-auto flex items-center justify-between">
             <Link href="/business" className="flex items-center gap-2">
               <Logo size="sm" />
               <span className="font-serif-kr text-[38px] font-medium text-noir-800">업체 등록</span>
@@ -365,7 +365,7 @@ export default function VendorRegisterPage() {
   return (
     <div className="min-h-screen bg-ivory-50">
       <header className="bg-white border-b border-black/[0.04] px-8 py-5 max-md:px-5">
-        <div className="max-w-[800px] mx-auto flex items-center justify-between">
+        <div className="max-w-[1250px] mx-auto flex items-center justify-between">
           <Link href="/business" className="flex items-center gap-2">
             <Logo size="sm" />
             <span className="font-serif-kr text-[38px] font-medium text-noir-800">업체 등록</span>
@@ -376,7 +376,7 @@ export default function VendorRegisterPage() {
         </div>
       </header>
 
-      <div className="max-w-[800px] mx-auto px-8 py-10 max-md:px-5">
+      <div className="max-w-[1250px] mx-auto px-8 py-10 max-md:px-5">
         {/* 비로그인 안내 배너 */}
         {isLoggedIn === false && (
           <div className="bg-noir-800 rounded-xl p-4 mb-6 text-center">

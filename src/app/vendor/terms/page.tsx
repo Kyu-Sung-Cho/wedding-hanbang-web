@@ -7,7 +7,7 @@ export default function VendorTermsPage() {
   return (
     <div className="min-h-screen bg-ivory-50">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
-        <div className="max-w-[800px] mx-auto px-6 h-16 flex items-center">
+        <div className="max-w-[1250px] mx-auto px-6 h-16 flex items-center">
           <Link href="/vendor/register" className="flex items-center gap-2 text-[25px] text-taupe-500 hover:text-rose-500 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             업체 등록으로
@@ -15,7 +15,7 @@ export default function VendorTermsPage() {
         </div>
       </nav>
 
-      <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
+      <div className="max-w-[1250px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[35px] font-light text-noir-800 mb-2">파트너 이용약관</h1>
         <p className="text-[25px] text-taupe-400 mb-10">최종 수정일: 2026년 3월 1일</p>
 

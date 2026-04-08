@@ -72,7 +72,7 @@ export default function ScriptsPage() {
   const typeInfo = (type: ScriptType) => SCRIPT_TYPES.find((t) => t.key === type);
 
   return (
-    <div className="max-w-[800px] mx-auto">
+    <div className="max-w-[1250px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>

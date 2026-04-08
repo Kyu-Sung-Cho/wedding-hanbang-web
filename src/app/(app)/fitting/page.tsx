@@ -34,11 +34,11 @@ export default function FittingPage() {
   const [notifyRequested, setNotifyRequested] = useState(false);
 
   return (
-    <div className="max-w-[900px] mx-auto">
+    <div className="max-w-[1125px] mx-auto">
       {/* Coming Soon 히어로 */}
       <div className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-12 max-md:p-7 mb-8 relative overflow-hidden text-center animate-fade-in">
         <div className="absolute top-[-30%] right-[-15%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent)] rounded-full" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[375px] h-[300px] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
 
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/15 text-rose-500 text-[38px] font-medium mb-6">
@@ -49,7 +49,7 @@ export default function FittingPage() {
           <h1 className="font-serif-kr text-[clamp(28px,4vw,44px)] font-light text-white leading-tight mb-4">
             AI 가상 드레스 피팅
           </h1>
-          <p className="text-[38px] text-white/50 font-light leading-relaxed max-w-[480px] mx-auto mb-8">
+          <p className="text-[38px] text-white/50 font-light leading-relaxed max-w-[600px] mx-auto mb-8">
             집에서 편하게 수십 벌의 드레스를 입어보세요.
             <br />
             AI가 체형을 분석하고 가장 어울리는 드레스를 찾아드립니다.

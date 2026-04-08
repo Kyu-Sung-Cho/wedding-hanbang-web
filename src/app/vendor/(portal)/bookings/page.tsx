@@ -264,7 +264,7 @@ export default function BookingsPage() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto">
+    <div className="max-w-[1250px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
         <div>

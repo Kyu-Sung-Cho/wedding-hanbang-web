@@ -142,7 +142,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
-      <div className="w-full max-w-[480px]">
+      <div className="w-full max-w-[600px]">
         {/* 로고 */}
         <div className="text-center mb-8">
           <Logo size="md" />

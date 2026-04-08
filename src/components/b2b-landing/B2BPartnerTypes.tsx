@@ -74,7 +74,7 @@ export default function B2BPartnerTypes() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(20px,2.5vw,28px)] max-lg:grid-cols-1 max-lg:max-w-[520px]">
+      <div className="max-w-[1375px] mx-auto grid grid-cols-3 gap-[clamp(20px,2.5vw,28px)] max-lg:grid-cols-1 max-lg:max-w-[520px]">
         {partnerTypes.map((partner, i) => (
           <motion.div
             key={partner.type}

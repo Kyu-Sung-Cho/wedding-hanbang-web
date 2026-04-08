@@ -101,7 +101,7 @@ export default function InvitePage() {
 
   return (
     <div
-      className="min-h-screen max-w-[480px] mx-auto overflow-hidden"
+      className="min-h-screen max-w-[600px] mx-auto overflow-hidden"
       style={{
         fontFamily: `'${fonts.body}', sans-serif`,
         background: colors[1] || "#FDFCFA",

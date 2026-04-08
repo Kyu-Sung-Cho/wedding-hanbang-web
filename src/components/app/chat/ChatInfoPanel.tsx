@@ -43,7 +43,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed right-0 top-[72px] w-[380px] h-[calc(100vh-72px)] bg-white border-l border-black/[0.06] shadow-[-8px_0_40px_rgba(0,0,0,0.06)] z-50 flex flex-col max-md:hidden"
+            className="fixed right-0 top-[90px] w-[475px] h-[calc(100vh-90px)] bg-white border-l border-black/[0.06] shadow-[-8px_0_40px_rgba(0,0,0,0.06)] z-50 flex flex-col max-md:hidden"
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">

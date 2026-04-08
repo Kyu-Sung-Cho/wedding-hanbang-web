@@ -102,7 +102,7 @@ export default function VendorMessagesPage() {
   }
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1375px] mx-auto">
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden" style={{ height: "calc(100vh - 160px)" }}>
         <div className="flex h-full">
           {/* 스레드 목록 */}

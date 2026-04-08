@@ -31,7 +31,7 @@ export default function VendorTopNav({ onMenuToggle, status = "approved", isAdmi
   const s = statusConfig[status];
 
   return (
-    <header className="sticky top-0 z-30 h-[72px] bg-white/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-4">
+    <header className="sticky top-0 z-30 h-[90px] bg-white/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-4">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuToggle}

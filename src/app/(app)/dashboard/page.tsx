@@ -120,7 +120,7 @@ export default function DashboardPage() {
     : "날짜 미정";
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1375px] mx-auto">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
         <div

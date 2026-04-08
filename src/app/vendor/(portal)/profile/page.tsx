@@ -39,7 +39,7 @@ export default function VendorProfilePage() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto">
+    <div className="max-w-[1250px] mx-auto">
       <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1">
         <div className="col-span-3 space-y-6">
           <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="bg-white rounded-2xl border border-black/[0.04] p-6">

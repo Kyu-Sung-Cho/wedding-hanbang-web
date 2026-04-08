@@ -15,7 +15,7 @@ export default function ThankYou({ shopTypeName }: Props) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="max-w-[480px] w-full text-center"
+        className="max-w-[600px] w-full text-center"
       >
         {/* 로고 */}
         <div className="flex items-center justify-center mb-8">

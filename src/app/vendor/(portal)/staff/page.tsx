@@ -180,7 +180,7 @@ export default function VendorStaffPage() {
   const isEditing = editingId !== null || showAdd;
 
   return (
-    <div className="max-w-[900px] mx-auto">
+    <div className="max-w-[1125px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

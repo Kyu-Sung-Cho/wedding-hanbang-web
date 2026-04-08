@@ -64,7 +64,7 @@ export default function VendorDashboardPage() {
   };
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1375px] mx-auto">
       {/* 심사 상태 배너 */}
       <motion.div
         {...fadeIn}

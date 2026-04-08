@@ -169,7 +169,7 @@ export default function CustomerSolutions() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1000px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
+      <div className="max-w-[1250px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.title}

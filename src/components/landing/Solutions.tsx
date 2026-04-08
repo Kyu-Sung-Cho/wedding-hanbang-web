@@ -30,7 +30,7 @@ export default function Solutions() {
       </motion.div>
 
       {/* 쇼케이스 */}
-      <div className="max-w-[1200px] mx-auto grid grid-cols-2 gap-6 max-lg:grid-cols-1">
+      <div className="max-w-[1500px] mx-auto grid grid-cols-2 gap-6 max-lg:grid-cols-1">
         {/* AI 플래너 - 큰 카드 */}
         <motion.div {...fadeInUp} className="col-span-2 max-lg:col-span-1 bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 max-lg:grid-cols-1">
           <div className="h-80 max-md:h-auto max-md:min-h-[280px] bg-gradient-to-br from-noir-800 to-noir-soft p-8 max-md:p-6 flex flex-col justify-center">

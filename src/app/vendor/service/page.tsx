@@ -7,7 +7,7 @@ export default function VendorServicePage() {
   return (
     <div className="min-h-screen bg-noir-800 flex flex-col">
       {/* 헤더 */}
-      <nav className="px-[clamp(20px,5vw,60px)] h-[72px] flex items-center">
+      <nav className="px-[clamp(20px,5vw,60px)] h-[90px] flex items-center">
         <Link
           href="/business"
           className="flex items-center gap-2 text-[25px] text-white/50 hover:text-white transition-colors"
@@ -19,7 +19,7 @@ export default function VendorServicePage() {
 
       {/* 준비중 콘텐츠 */}
       <div className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center max-w-[480px]">
+        <div className="text-center max-w-[600px]">
           <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-light font-medium mb-8">
             <span className="w-5 h-px bg-rose-light" />
             Coming Soon

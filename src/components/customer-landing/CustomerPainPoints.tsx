@@ -71,7 +71,7 @@ export default function CustomerPainPoints() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-2 gap-[clamp(16px,2vw,24px)] relative z-10 max-md:grid-cols-1">
+      <div className="max-w-[1375px] mx-auto grid grid-cols-2 gap-[clamp(16px,2vw,24px)] relative z-10 max-md:grid-cols-1">
         {painPoints.map((pain, i) => (
           <motion.div
             key={pain.title}
@@ -105,7 +105,7 @@ export default function CustomerPainPoints() {
       </div>
 
       {/* 출처 */}
-      <div className="max-w-[1100px] mx-auto mt-10 relative z-10">
+      <div className="max-w-[1375px] mx-auto mt-10 relative z-10">
         <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
           {sources.map((src) => (
             <span key={src} className="text-[23px] text-white/25 font-light">
