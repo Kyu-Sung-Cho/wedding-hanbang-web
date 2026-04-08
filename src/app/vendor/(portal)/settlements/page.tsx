@@ -48,18 +48,18 @@ export default function VendorSettlementsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[900px] mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[1015px] mx-auto flex items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[900px] mx-auto">
+    <div className="max-w-[1015px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="mb-6">
-        <h2 className="font-serif-kr text-[20px] text-noir-800">정산 내역</h2>
-        <p className="text-[13px] text-taupe-500 font-light mt-0.5">
+        <h2 className="font-serif-kr text-[23px] text-noir-800">정산 내역</h2>
+        <p className="text-[21px] text-taupe-500 font-light mt-0.5">
           서비스 완료 후 정산 현황을 확인합니다
         </p>
       </motion.div>
@@ -69,27 +69,27 @@ export default function VendorSettlementsPage() {
         <div className="bg-white rounded-xl border border-black/[0.04] p-5">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-[#2E7D5A]" />
-            <p className="text-[12px] text-taupe-500">총 정산 금액</p>
+            <p className="text-[23px] text-taupe-500">총 정산 금액</p>
           </div>
-          <p className="font-display text-[22px] text-[#2E7D5A]">
+          <p className="font-display text-[25px] text-[#2E7D5A]">
             {formatPrice(stats.totalSettled)}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.04] p-5">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-4 h-4 text-gold" />
-            <p className="text-[12px] text-taupe-500">정산 대기</p>
+            <p className="text-[23px] text-taupe-500">정산 대기</p>
           </div>
-          <p className="font-display text-[22px] text-gold">
+          <p className="font-display text-[25px] text-gold">
             {formatPrice(stats.pendingAmount)}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-black/[0.04] p-5">
           <div className="flex items-center gap-2 mb-2">
             <Banknote className="w-4 h-4 text-taupe-400" />
-            <p className="text-[12px] text-taupe-500">수수료 합계</p>
+            <p className="text-[23px] text-taupe-500">수수료 합계</p>
           </div>
-          <p className="font-display text-[22px] text-taupe-500">
+          <p className="font-display text-[25px] text-taupe-500">
             {formatPrice(stats.totalCommission)}
           </p>
         </div>
@@ -101,7 +101,7 @@ export default function VendorSettlementsPage() {
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg text-[21px] font-medium transition-colors ${
               filter === s ? "bg-noir-800 text-white" : "text-taupe-500 hover:bg-ivory-warm"
             }`}
           >
@@ -114,8 +114,8 @@ export default function VendorSettlementsPage() {
       {filtered.length === 0 ? (
         <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.15 }} className="bg-white rounded-2xl border border-black/[0.04] p-12 text-center">
           <Banknote className="w-12 h-12 text-taupe-400/40 mx-auto mb-4" />
-          <p className="text-[15px] text-taupe-500 mb-2">정산 내역이 없습니다</p>
-          <p className="text-[13px] text-taupe-400 font-light">
+          <p className="text-[21px] text-taupe-500 mb-2">정산 내역이 없습니다</p>
+          <p className="text-[21px] text-taupe-400 font-light">
             서비스 완료 후 정산이 자동으로 생성됩니다
           </p>
         </motion.div>
@@ -138,14 +138,14 @@ export default function VendorSettlementsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${config.color}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[23px] font-medium ${config.color}`}>
                         {config.label}
                       </span>
-                      <span className="text-[12px] text-taupe-400">
+                      <span className="text-[23px] text-taupe-400">
                         {new Date(settlement.createdAt).toLocaleDateString("ko-KR")}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-[13px]">
+                    <div className="flex items-center gap-4 text-[21px]">
                       <div>
                         <span className="text-taupe-500">결제 금액: </span>
                         <span className="text-noir-800 font-medium">{formatPrice(settlement.totalAmount)}</span>
@@ -157,15 +157,15 @@ export default function VendorSettlementsPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-[11px] text-taupe-400">정산 금액</p>
-                    <p className="font-display text-[18px] text-[#2E7D5A]">
+                    <p className="text-[23px] text-taupe-400">정산 금액</p>
+                    <p className="font-display text-[23px] text-[#2E7D5A]">
                       {formatPrice(settlement.settleAmount)}
                     </p>
                   </div>
                 </div>
 
                 {settlement.status === "completed" && settlement.settledAt && (
-                  <div className="mt-3 pt-3 border-t border-black/[0.03] flex items-center gap-2 text-[12px] text-[#2E7D5A]">
+                  <div className="mt-3 pt-3 border-t border-black/[0.03] flex items-center gap-2 text-[23px] text-[#2E7D5A]">
                     <CheckCircle className="w-3.5 h-3.5" />
                     {new Date(settlement.settledAt).toLocaleDateString("ko-KR")}에 정산 완료
                     {settlement.bankName && ` — ${settlement.bankName} ${settlement.accountNumber}`}

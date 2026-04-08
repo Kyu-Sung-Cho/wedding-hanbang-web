@@ -46,7 +46,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <Wallet className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[10px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[23px] text-[#928980] leading-none mb-0.5">
                 총 비용
               </p>
               <p className="text-sm font-medium text-[#1A1A1F]">
@@ -60,7 +60,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <MapPin className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[10px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[23px] text-[#928980] leading-none mb-0.5">
                 지역
               </p>
               <p className="text-sm font-medium text-[#1A1A1F]">
@@ -74,7 +74,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[10px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[23px] text-[#928980] leading-none mb-0.5">
                 하객 수
               </p>
               <p className="text-sm font-medium text-[#1A1A1F]">
@@ -88,7 +88,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <CalendarDays className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[10px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[23px] text-[#928980] leading-none mb-0.5">
                 결혼 시기
               </p>
               <p className="text-sm font-medium text-[#1A1A1F]">
@@ -121,7 +121,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {cat.contractCost != null && cat.extraCost != null && (
-                      <span className="text-[10px] text-[#B5ADA3]">
+                      <span className="text-[23px] text-[#B5ADA3]">
                         계약 {cat.contractCost.toLocaleString()} + 추가{" "}
                         {cat.extraCost.toLocaleString()}
                       </span>

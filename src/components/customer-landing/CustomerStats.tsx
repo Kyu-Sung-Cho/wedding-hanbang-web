@@ -52,7 +52,7 @@ export default function CustomerStats() {
         <div className="absolute bottom-[-20%] left-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.06),transparent)] rounded-full" />
       </div>
 
-      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,40px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
+      <div className="max-w-[1125px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,40px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}

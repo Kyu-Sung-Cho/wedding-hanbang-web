@@ -429,7 +429,7 @@ export default function AdminPage() {
       <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[14px] text-taupe-500">인증 확인 중...</p>
+          <p className="text-[23px] text-taupe-500">인증 확인 중...</p>
         </div>
       </div>
     );
@@ -453,7 +453,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-ivory-50 p-8 max-md:p-4">
-      <div className="max-w-[1200px] mx-auto">
+      <div className="max-w-[1350px] mx-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-8 max-md:flex-col max-md:gap-4">
           <div>
@@ -479,7 +479,7 @@ export default function AdminPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-medium transition-colors ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[23px] font-medium transition-colors ${
                 activeTab === tab.key
                   ? "bg-noir-800 text-white"
                   : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
@@ -488,7 +488,7 @@ export default function AdminPage() {
               <tab.icon className="w-4 h-4" />
               {tab.label}
               {tab.badge !== undefined && tab.badge > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
+                <span className={`px-1.5 py-0.5 rounded-full text-[23px] ${
                   activeTab === tab.key ? "bg-white/20" : "bg-noir-800/10"
                 }`}>{tab.badge}</span>
               )}
@@ -525,12 +525,12 @@ export default function AdminPage() {
               <div className="flex items-end gap-2 h-[200px]">
                 {dailyCounts.slice(-14).map((day) => (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
-                    <span className="text-[11px] text-taupe-500 font-medium">{day.count}</span>
+                    <span className="text-[23px] text-taupe-500 font-medium">{day.count}</span>
                     <div
                       className="w-full bg-gradient-to-t from-rose-500 to-rose-light rounded-t-md transition-all duration-500"
                       style={{ height: `${(day.count / maxDailyCount) * 160}px`, minHeight: day.count > 0 ? "4px" : "0" }}
                     />
-                    <span className="text-[10px] text-taupe-400 -rotate-45 origin-top-left whitespace-nowrap">{day.date.slice(5)}</span>
+                    <span className="text-[23px] text-taupe-400 -rotate-45 origin-top-left whitespace-nowrap">{day.date.slice(5)}</span>
                   </div>
                 ))}
               </div>
@@ -542,10 +542,10 @@ export default function AdminPage() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-platinum">
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">#</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">이메일</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">소스</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
+                      <th className="px-8 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">#</th>
+                      <th className="px-8 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">이메일</th>
+                      <th className="px-8 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">소스</th>
+                      <th className="px-8 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -593,7 +593,7 @@ export default function AdminPage() {
                 { key: "rejected" as const, label: "반려됨" },
               ]).map((f) => (
                 <button key={f.key} onClick={() => setVendorFilter(f.key)}
-                  className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-lg text-[21px] font-medium transition-colors ${
                     vendorFilter === f.key ? "bg-noir-800 text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
                   }`}>{f.label}</button>
               ))}
@@ -603,21 +603,21 @@ export default function AdminPage() {
               {vendorLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                  <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                  <span className="ml-2 text-[23px] text-taupe-400">로딩 중...</span>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-platinum">
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체명</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업종</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">대표자</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">연락처</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">사업자번호</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">업체명</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">업종</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">대표자</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">연락처</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">사업자번호</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -636,7 +636,7 @@ export default function AdminPage() {
                           <td className="px-6 py-4 text-sm text-taupe-500 font-mono">{v.businessNumber}</td>
                           <td className="px-6 py-4 text-sm text-taupe-500">{formatDate(v.createdAt)}</td>
                           <td className="px-6 py-4">
-                            <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
+                            <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium ${
                               v.status === "approved" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
                               v.status === "pending" ? "bg-gold/10 text-gold" : "bg-red-500/10 text-red-500"
                             }`}>{v.status === "approved" ? "승인" : v.status === "pending" ? "대기" : "반려"}</span>
@@ -679,7 +679,7 @@ export default function AdminPage() {
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedVendor(null)}>
                 <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-serif-kr text-[20px] font-normal text-noir-800">업체 상세 정보</h3>
+                    <h3 className="font-serif-kr text-[23px] font-normal text-noir-800">업체 상세 정보</h3>
                     <button onClick={() => setSelectedVendor(null)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">
                       <X className="w-5 h-5 text-taupe-400" />
                     </button>
@@ -697,22 +697,22 @@ export default function AdminPage() {
                       { label: "등록일", value: formatDate(selectedVendor.createdAt) },
                     ].map((item) => (
                       <div key={item.label} className="flex items-start gap-3">
-                        <span className="text-[12px] text-taupe-400 w-[80px] flex-shrink-0 pt-0.5">{item.label}</span>
-                        <span className="text-[14px] text-noir-800">{item.value || "-"}</span>
+                        <span className="text-[23px] text-taupe-400 w-[80px] flex-shrink-0 pt-0.5">{item.label}</span>
+                        <span className="text-[23px] text-noir-800">{item.value || "-"}</span>
                       </div>
                     ))}
                     {selectedVendor.description && (
                       <div>
-                        <span className="text-[12px] text-taupe-400 block mb-1">소개</span>
-                        <p className="text-[13px] text-charcoal font-light leading-relaxed">{selectedVendor.description}</p>
+                        <span className="text-[23px] text-taupe-400 block mb-1">소개</span>
+                        <p className="text-[21px] text-charcoal font-light leading-relaxed">{selectedVendor.description}</p>
                       </div>
                     )}
                     {selectedVendor.tags?.length > 0 && (
                       <div>
-                        <span className="text-[12px] text-taupe-400 block mb-1">태그</span>
+                        <span className="text-[23px] text-taupe-400 block mb-1">태그</span>
                         <div className="flex gap-1.5 flex-wrap">
                           {selectedVendor.tags.map((tag) => (
-                            <span key={tag} className="px-2.5 py-1 rounded-full bg-ivory-warm text-[11px] text-charcoal font-medium">{tag}</span>
+                            <span key={tag} className="px-2.5 py-1 rounded-full bg-ivory-warm text-[23px] text-charcoal font-medium">{tag}</span>
                           ))}
                         </div>
                       </div>
@@ -721,17 +721,17 @@ export default function AdminPage() {
                   {selectedVendor.status === "pending" && (
                     <div className="mt-6 pt-6 border-t border-black/[0.04]">
                       <div className="mb-4">
-                        <label className="block text-[13px] font-medium text-noir-800 mb-2">반려 사유 (반려 시)</label>
+                        <label className="block text-[21px] font-medium text-noir-800 mb-2">반려 사유 (반려 시)</label>
                         <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="반려 사유를 입력해주세요..." rows={2}
-                          className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors resize-none" />
+                          className="w-full px-4 py-3 border border-platinum rounded-xl text-[23px] outline-none focus:border-rose-500 transition-colors resize-none" />
                       </div>
                       <div className="flex gap-3">
                         <button onClick={() => handleApprove(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[23px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} 승인
                         </button>
                         <button onClick={() => handleReject(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[23px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} 반려
                         </button>
                       </div>
@@ -740,10 +740,10 @@ export default function AdminPage() {
                   {selectedVendor.status === "approved" && (
                     <div className="mt-6 pt-6 border-t border-black/[0.04]">
                       <button onClick={() => handleRevoke(selectedVendor.id)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white text-[23px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 승인 취소
                       </button>
-                      <p className="mt-2 text-[12px] text-taupe-400 text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
+                      <p className="mt-2 text-[23px] text-taupe-400 text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
                     </div>
                   )}
                 </div>
@@ -779,21 +779,21 @@ export default function AdminPage() {
               {customerLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                  <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                  <span className="ml-2 text-[23px] text-taupe-400">로딩 중...</span>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-platinum">
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">이름</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">이메일</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">역할</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">온보딩</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">커플</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">결혼일</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">예산</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">가입일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">이름</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">이메일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">역할</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">온보딩</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">커플</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">결혼일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">예산</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">가입일</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -803,18 +803,18 @@ export default function AdminPage() {
                           <td className="px-6 py-4 text-sm text-taupe-500">{c.email || "-"}</td>
                           <td className="px-6 py-4">
                             {c.role && (
-                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                              <span className={`text-[23px] px-2 py-0.5 rounded-full font-medium ${
                                 c.role === "bride" ? "bg-rose-500/10 text-rose-500" : "bg-blue-500/10 text-blue-500"
                               }`}>{c.role === "bride" ? "신부" : "신랑"}</span>
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            <span className={`text-[23px] px-2 py-0.5 rounded-full font-medium ${
                               c.onboardingCompleted ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" : "bg-gold/10 text-gold"
                             }`}>{c.onboardingCompleted ? "완료" : `${c.onboardingStep}/4`}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            <span className={`text-[23px] px-2 py-0.5 rounded-full font-medium ${
                               c.hasPartner ? "bg-rose-500/10 text-rose-500" : c.coupleId ? "bg-gold/10 text-gold" : "bg-black/[0.04] text-taupe-400"
                             }`}>{c.hasPartner ? "연동됨" : c.coupleId ? "대기중" : "미연동"}</span>
                           </td>
@@ -861,7 +861,7 @@ export default function AdminPage() {
                 { key: "cancelled" as const, label: "취소" },
               ]).map((f) => (
                 <button key={f.key} onClick={() => setBookingFilter(f.key)}
-                  className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-lg text-[21px] font-medium transition-colors ${
                     bookingFilter === f.key ? "bg-noir-800 text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
                   }`}>{f.label}</button>
               ))}
@@ -871,22 +871,22 @@ export default function AdminPage() {
               {bookingLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                  <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                  <span className="ml-2 text-[23px] text-taupe-400">로딩 중...</span>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-platinum">
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상품</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">고객</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">연락처</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">예약일</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">시간</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">금액</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">신청일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">상품</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">고객</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">연락처</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">예약일</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">시간</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">금액</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
+                        <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">신청일</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -909,7 +909,7 @@ export default function AdminPage() {
                             <td className="px-6 py-4 text-sm text-taupe-500">{b.bookingTime || "-"}</td>
                             <td className="px-6 py-4 text-sm text-taupe-500">{b.amount ? `${b.amount.toLocaleString()}원` : "-"}</td>
                             <td className="px-6 py-4">
-                              <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
+                              <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
                             </td>
                             <td className="px-6 py-4 text-sm text-taupe-500">{formatDate(b.createdAt)}</td>
                           </tr>
@@ -929,7 +929,7 @@ export default function AdminPage() {
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedBooking(null)}>
                 <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-serif-kr text-[20px] font-normal text-noir-800">예약 상세</h3>
+                    <h3 className="font-serif-kr text-[23px] font-normal text-noir-800">예약 상세</h3>
                     <button onClick={() => setSelectedBooking(null)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">
                       <X className="w-5 h-5 text-taupe-400" />
                     </button>
@@ -949,20 +949,20 @@ export default function AdminPage() {
                       { label: "신청일", value: formatDate(selectedBooking.createdAt) },
                     ].map((item) => (
                       <div key={item.label} className="flex items-start gap-3">
-                        <span className="text-[12px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">{item.label}</span>
-                        <span className="text-[14px] text-noir-800">{item.value || "-"}</span>
+                        <span className="text-[23px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">{item.label}</span>
+                        <span className="text-[23px] text-noir-800">{item.value || "-"}</span>
                       </div>
                     ))}
                     <div className="flex items-start gap-3">
-                      <span className="text-[12px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">상태</span>
-                      <span className={`text-[12px] px-2.5 py-1 rounded-full font-medium ${
+                      <span className="text-[23px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">상태</span>
+                      <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium ${
                         (BOOKING_STATUS_LABEL[selectedBooking.status] ?? BOOKING_STATUS_LABEL.pending).cls
                       }`}>{(BOOKING_STATUS_LABEL[selectedBooking.status] ?? BOOKING_STATUS_LABEL.pending).text}</span>
                     </div>
                     {selectedBooking.memo && (
                       <div>
-                        <span className="text-[12px] text-taupe-400 block mb-1">메모</span>
-                        <p className="text-[13px] text-charcoal font-light leading-relaxed bg-ivory-50 rounded-xl p-3">{selectedBooking.memo}</p>
+                        <span className="text-[23px] text-taupe-400 block mb-1">메모</span>
+                        <p className="text-[21px] text-charcoal font-light leading-relaxed bg-ivory-50 rounded-xl p-3">{selectedBooking.memo}</p>
                       </div>
                     )}
                   </div>
@@ -981,7 +981,7 @@ export default function AdminPage() {
                 <button
                   key={p}
                   onClick={() => { setInsightsPeriod(p); fetchInsights(p); }}
-                  className={`px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-md text-[21px] font-medium transition-colors ${
                     insightsPeriod === p ? "bg-noir-800 text-white" : "text-taupe-400 hover:text-charcoal"
                   }`}
                 >
@@ -993,7 +993,7 @@ export default function AdminPage() {
             {insightsLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                <span className="ml-2 text-[14px] text-taupe-400">인사이트 로딩 중...</span>
+                <span className="ml-2 text-[23px] text-taupe-400">인사이트 로딩 중...</span>
               </div>
             ) : insights ? (
               <>
@@ -1024,7 +1024,7 @@ export default function AdminPage() {
                     { label: "확정 예약", value: insights.overview.confirmedBookings },
                   ].map((s) => (
                     <div key={s.label} className="bg-white rounded-2xl p-5 border border-black/[0.04]">
-                      <p className="text-[12px] text-taupe-400 mb-1">{s.label}</p>
+                      <p className="text-[23px] text-taupe-400 mb-1">{s.label}</p>
                       <p className="font-display text-2xl font-light text-noir-800">{s.value}</p>
                     </div>
                   ))}
@@ -1035,10 +1035,10 @@ export default function AdminPage() {
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <TrendingUp className="w-4 h-4 text-rose-500" />
-                      <h2 className="font-serif-kr text-[16px] font-normal">인기 업체 TOP 10</h2>
+                      <h2 className="font-serif-kr text-[23px] font-normal">인기 업체 TOP 10</h2>
                     </div>
                     <div className="space-y-2">
-                      <div className="grid grid-cols-5 gap-2 px-3 text-[11px] text-taupe-400 font-medium">
+                      <div className="grid grid-cols-5 gap-2 px-3 text-[23px] text-taupe-400 font-medium">
                         <span className="col-span-2">업체명</span>
                         <span className="text-center">조회</span>
                         <span className="text-center">찜</span>
@@ -1047,19 +1047,19 @@ export default function AdminPage() {
                       {insights.topVendors.map((v, i) => (
                         <div key={v.id} className="grid grid-cols-5 gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center">
                           <div className="col-span-2 flex items-center gap-2 min-w-0">
-                            <span className="text-[11px] text-taupe-400 font-medium w-4 flex-shrink-0">{i + 1}</span>
+                            <span className="text-[23px] text-taupe-400 font-medium w-4 flex-shrink-0">{i + 1}</span>
                             <div className="min-w-0">
-                              <p className="text-[13px] text-noir-800 font-medium truncate">{v.name}</p>
-                              <p className="text-[10px] text-taupe-400">{v.category}</p>
+                              <p className="text-[21px] text-noir-800 font-medium truncate">{v.name}</p>
+                              <p className="text-[23px] text-taupe-400">{v.category}</p>
                             </div>
                           </div>
-                          <span className="text-[13px] text-charcoal text-center">{v.views}</span>
-                          <span className="text-[13px] text-rose-500 text-center">{v.favorites}</span>
-                          <span className="text-[13px] text-[#2E7D5A] text-center font-medium">{v.bookings}</span>
+                          <span className="text-[21px] text-charcoal text-center">{v.views}</span>
+                          <span className="text-[21px] text-rose-500 text-center">{v.favorites}</span>
+                          <span className="text-[21px] text-[#2E7D5A] text-center font-medium">{v.bookings}</span>
                         </div>
                       ))}
                       {insights.topVendors.length === 0 && (
-                        <p className="text-[13px] text-taupe-400 text-center py-6">데이터가 없습니다</p>
+                        <p className="text-[21px] text-taupe-400 text-center py-6">데이터가 없습니다</p>
                       )}
                     </div>
                   </div>
@@ -1068,10 +1068,10 @@ export default function AdminPage() {
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Store className="w-4 h-4 text-gold" />
-                      <h2 className="font-serif-kr text-[16px] font-normal">카테고리별 현황</h2>
+                      <h2 className="font-serif-kr text-[23px] font-normal">카테고리별 현황</h2>
                     </div>
                     <div className="space-y-2">
-                      <div className="grid grid-cols-4 gap-2 px-3 text-[11px] text-taupe-400 font-medium">
+                      <div className="grid grid-cols-4 gap-2 px-3 text-[23px] text-taupe-400 font-medium">
                         <span>카테고리</span>
                         <span className="text-center">업체 수</span>
                         <span className="text-center">예약</span>
@@ -1079,10 +1079,10 @@ export default function AdminPage() {
                       </div>
                       {insights.categoryStats.map((c) => (
                         <div key={c.category} className="grid grid-cols-4 gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center">
-                          <span className="text-[13px] text-noir-800 font-medium">{c.category}</span>
-                          <span className="text-[13px] text-charcoal text-center">{c.vendorCount}</span>
-                          <span className="text-[13px] text-charcoal text-center">{c.bookingCount}</span>
-                          <span className="text-[13px] text-gold text-center">{c.avgRating > 0 ? `${c.avgRating}점` : "-"}</span>
+                          <span className="text-[21px] text-noir-800 font-medium">{c.category}</span>
+                          <span className="text-[21px] text-charcoal text-center">{c.vendorCount}</span>
+                          <span className="text-[21px] text-charcoal text-center">{c.bookingCount}</span>
+                          <span className="text-[21px] text-gold text-center">{c.avgRating > 0 ? `${c.avgRating}점` : "-"}</span>
                         </div>
                       ))}
                     </div>
@@ -1094,9 +1094,9 @@ export default function AdminPage() {
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-1">
                       <Users className="w-4 h-4 text-[#2E7D5A]" />
-                      <h2 className="text-[15px] font-medium text-noir-800">일별 활성 사용자</h2>
+                      <h2 className="text-[21px] font-medium text-noir-800">일별 활성 사용자</h2>
                     </div>
-                    <p className="text-[12px] text-taupe-400 font-light mb-4">DAU 추이</p>
+                    <p className="text-[23px] text-taupe-400 font-light mb-4">DAU 추이</p>
                     {(() => {
                       const dau = insights.customerActivity.dailyActiveUsers;
                       const display = dau.length <= 14 ? dau : dau.filter((_, i) => i % Math.ceil(dau.length / 14) === 0 || i === dau.length - 1);
@@ -1105,7 +1105,7 @@ export default function AdminPage() {
                         <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
                           {display.map((d, i) => (
                             <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[23px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
                                 {d.date.slice(5)}: {d.count}명
                               </div>
                               <div
@@ -1123,7 +1123,7 @@ export default function AdminPage() {
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <MousePointerClick className="w-4 h-4 text-rose-500" />
-                      <h2 className="text-[15px] font-medium text-noir-800">이벤트 분석</h2>
+                      <h2 className="text-[21px] font-medium text-noir-800">이벤트 분석</h2>
                     </div>
                     <div className="space-y-2">
                       {insights.customerActivity.eventBreakdown.slice(0, 8).map((e) => {
@@ -1142,8 +1142,8 @@ export default function AdminPage() {
                         return (
                           <div key={e.event_type}>
                             <div className="flex justify-between mb-1">
-                              <span className="text-[12px] text-charcoal">{labels[e.event_type] ?? e.event_type}</span>
-                              <span className="text-[11px] text-taupe-400">{e.count}건</span>
+                              <span className="text-[23px] text-charcoal">{labels[e.event_type] ?? e.event_type}</span>
+                              <span className="text-[23px] text-taupe-400">{e.count}건</span>
                             </div>
                             <div className="h-1.5 bg-ivory-warm rounded-full overflow-hidden">
                               <div className="h-full bg-rose-500/60 rounded-full" style={{ width: `${pct}%` }} />
@@ -1158,22 +1158,22 @@ export default function AdminPage() {
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Eye className="w-4 h-4 text-gold" />
-                      <h2 className="text-[15px] font-medium text-noir-800">인기 페이지</h2>
+                      <h2 className="text-[21px] font-medium text-noir-800">인기 페이지</h2>
                     </div>
                     <div className="space-y-2">
                       {insights.customerActivity.topPages.slice(0, 10).map((p, i) => {
                         return (
                           <div key={i} className="flex items-center justify-between py-1.5">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-[11px] text-taupe-400 w-4 flex-shrink-0">{i + 1}</span>
-                              <span className="text-[12px] text-noir-800 truncate">{p.path}</span>
+                              <span className="text-[23px] text-taupe-400 w-4 flex-shrink-0">{i + 1}</span>
+                              <span className="text-[23px] text-noir-800 truncate">{p.path}</span>
                             </div>
-                            <span className="text-[12px] text-taupe-400 flex-shrink-0 ml-2">{p.count}회</span>
+                            <span className="text-[23px] text-taupe-400 flex-shrink-0 ml-2">{p.count}회</span>
                           </div>
                         );
                       })}
                       {insights.customerActivity.topPages.length === 0 && (
-                        <p className="text-[13px] text-taupe-400 text-center py-4">페이지 데이터가 없습니다</p>
+                        <p className="text-[21px] text-taupe-400 text-center py-4">페이지 데이터가 없습니다</p>
                       )}
                     </div>
                   </div>
@@ -1183,9 +1183,9 @@ export default function AdminPage() {
                 <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="w-4 h-4 text-rose-500" />
-                    <h2 className="text-[15px] font-medium text-noir-800">즐겨찾기 트렌드</h2>
+                    <h2 className="text-[21px] font-medium text-noir-800">즐겨찾기 트렌드</h2>
                   </div>
-                  <p className="text-[12px] text-taupe-400 font-light mb-4">일별 신규 즐겨찾기 추이</p>
+                  <p className="text-[23px] text-taupe-400 font-light mb-4">일별 신규 즐겨찾기 추이</p>
                   {(() => {
                     const trend = insights.favoriteInsights.trend;
                     const display = trend.length <= 30 ? trend : trend.filter((_, i) => i % Math.ceil(trend.length / 30) === 0 || i === trend.length - 1);
@@ -1194,13 +1194,13 @@ export default function AdminPage() {
                     return (
                       <div>
                         <div className="flex items-center gap-2 mb-3">
-                          <span className="text-[20px] font-semibold text-noir-800 font-display">{total}</span>
-                          <span className="text-[12px] text-taupe-400">건 (기간 내)</span>
+                          <span className="text-[23px] font-semibold text-noir-800 font-display">{total}</span>
+                          <span className="text-[23px] text-taupe-400">건 (기간 내)</span>
                         </div>
                         <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
                           {display.map((d, i) => (
                             <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[23px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
                                 {d.date.slice(5)}: {d.count}건
                               </div>
                               <div
@@ -1217,7 +1217,7 @@ export default function AdminPage() {
               </>
             ) : (
               <div className="text-center py-16">
-                <p className="text-[14px] text-taupe-400">인사이트 데이터를 불러올 수 없습니다.</p>
+                <p className="text-[23px] text-taupe-400">인사이트 데이터를 불러올 수 없습니다.</p>
               </div>
             )}
           </>
@@ -1266,7 +1266,7 @@ export default function AdminPage() {
                       { key: "completed", label: "완료" },
                     ]).map((f) => (
                       <button key={f.key} onClick={() => setSettlementFilter(f.key)}
-                        className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-[21px] font-medium transition-colors ${
                           settlementFilter === f.key ? "bg-noir-800 text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
                         }`}>{f.label}</button>
                     ))}
@@ -1276,21 +1276,21 @@ export default function AdminPage() {
                     {settlementLoading ? (
                       <div className="flex items-center justify-center py-16">
                         <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                        <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                        <span className="ml-2 text-[23px] text-taupe-400">로딩 중...</span>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
                           <thead>
                             <tr className="border-b border-platinum">
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">결제 금액</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">수수료</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">정산 금액</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">계좌</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">생성일</th>
-                              <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">결제 금액</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">수수료</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">정산 금액</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">계좌</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">생성일</th>
+                              <th className="px-6 py-3 text-[23px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1306,7 +1306,7 @@ export default function AdminPage() {
                                     {s.bankName ? `${s.bankName} ${s.accountNumber}` : <span className="text-taupe-400">미등록</span>}
                                   </td>
                                   <td className="px-6 py-4">
-                                    <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
+                                    <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-taupe-500">{new Date(s.createdAt).toLocaleDateString("ko-KR")}</td>
                                   <td className="px-6 py-4">
@@ -1314,14 +1314,14 @@ export default function AdminPage() {
                                       <button
                                         onClick={() => handleProcessSettlement(s.id)}
                                         disabled={processingId === s.id}
-                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[12px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50"
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#2E7D5A] text-white text-[23px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50"
                                       >
                                         {processingId === s.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                                         정산 실행
                                       </button>
                                     )}
                                     {s.status === "completed" && (
-                                      <span className="text-[12px] text-[#2E7D5A]">{s.settledAt ? new Date(s.settledAt).toLocaleDateString("ko-KR") : "완료"}</span>
+                                      <span className="text-[23px] text-[#2E7D5A]">{s.settledAt ? new Date(s.settledAt).toLocaleDateString("ko-KR") : "완료"}</span>
                                     )}
                                   </td>
                                 </tr>
@@ -1348,42 +1348,42 @@ export default function AdminPage() {
               {/* 관리자 추가 폼 */}
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
                 <h2 className="font-serif-kr text-lg font-normal mb-1">새 관리자 추가</h2>
-                <p className="text-[12px] text-taupe-400 mb-6">기존 관리자만 새 관리자 계정을 생성할 수 있습니다.</p>
+                <p className="text-[23px] text-taupe-400 mb-6">기존 관리자만 새 관리자 계정을 생성할 수 있습니다.</p>
                 <form onSubmit={handleCreateAdmin} className="space-y-4">
                   <div>
-                    <label className="block text-[12px] text-taupe-500 mb-1.5">이름</label>
+                    <label className="block text-[23px] text-taupe-500 mb-1.5">이름</label>
                     <input
                       type="text"
                       value={newAdminName}
                       onChange={(e) => { setNewAdminName(e.target.value); setCreateAdminError(""); }}
                       placeholder="관리자 이름"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[23px] outline-none focus:border-rose-500 transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] text-taupe-500 mb-1.5">이메일 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[23px] text-taupe-500 mb-1.5">이메일 <span className="text-rose-500">*</span></label>
                     <input
                       type="email"
                       value={newAdminEmail}
                       onChange={(e) => { setNewAdminEmail(e.target.value); setCreateAdminError(""); }}
                       placeholder="admin@hanbang.ai"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[23px] outline-none focus:border-rose-500 transition-colors"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] text-taupe-500 mb-1.5">비밀번호 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[23px] text-taupe-500 mb-1.5">비밀번호 <span className="text-rose-500">*</span></label>
                     <input
                       type="password"
                       value={newAdminPassword}
                       onChange={(e) => { setNewAdminPassword(e.target.value); setCreateAdminError(""); }}
                       placeholder="6자 이상"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[23px] outline-none focus:border-rose-500 transition-colors"
                       required
                     />
                   </div>
                   <div>
-                    <label className="flex items-center gap-1.5 text-[12px] text-gold font-medium mb-1.5">
+                    <label className="flex items-center gap-1.5 text-[23px] text-gold font-medium mb-1.5">
                       <Shield className="w-3.5 h-3.5" /> 관리자 인증 비밀번호 <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -1391,22 +1391,22 @@ export default function AdminPage() {
                       value={adminSetupPw}
                       onChange={(e) => { setAdminSetupPw(e.target.value); setCreateAdminError(""); }}
                       placeholder="ADMIN_PASSWORD"
-                      className="w-full px-4 py-3 border border-gold/30 bg-gold/[0.02] rounded-xl text-[14px] outline-none focus:border-gold transition-colors"
+                      className="w-full px-4 py-3 border border-gold/30 bg-gold/[0.02] rounded-xl text-[23px] outline-none focus:border-gold transition-colors"
                       required
                     />
                   </div>
 
                   {createAdminError && (
-                    <p className="text-[12px] text-red-500 px-1">{createAdminError}</p>
+                    <p className="text-[23px] text-red-500 px-1">{createAdminError}</p>
                   )}
                   {createAdminSuccess && (
-                    <p className="text-[12px] text-[#2E7D5A] px-1">{createAdminSuccess}</p>
+                    <p className="text-[23px] text-[#2E7D5A] px-1">{createAdminSuccess}</p>
                   )}
 
                   <button
                     type="submit"
                     disabled={createAdminLoading}
-                    className="w-full py-3 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl bg-noir-800 text-white text-[23px] font-medium hover:bg-noir-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {createAdminLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                     {createAdminLoading ? "생성 중..." : "관리자 계정 생성"}
@@ -1417,11 +1417,11 @@ export default function AdminPage() {
               {/* 관리자 목록 */}
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
                 <h2 className="font-serif-kr text-lg font-normal mb-1">관리자 목록</h2>
-                <p className="text-[12px] text-taupe-400 mb-6">현재 등록된 관리자 계정입니다.</p>
+                <p className="text-[23px] text-taupe-400 mb-6">현재 등록된 관리자 계정입니다.</p>
                 {adminListLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
-                    <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
+                    <span className="ml-2 text-[23px] text-taupe-400">로딩 중...</span>
                   </div>
                 ) : adminUsers.length === 0 ? (
                   <p className="text-center text-taupe-400 text-sm py-12">등록된 관리자가 없습니다.</p>
@@ -1433,13 +1433,13 @@ export default function AdminPage() {
                           <Shield className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[14px] text-noir-800 font-medium truncate">{admin.name || "관리자"}</p>
-                          <p className="text-[12px] text-taupe-400 truncate">{admin.email}</p>
+                          <p className="text-[23px] text-noir-800 font-medium truncate">{admin.name || "관리자"}</p>
+                          <p className="text-[23px] text-taupe-400 truncate">{admin.email}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-[11px] text-taupe-400">{formatDate(admin.createdAt)}</p>
+                          <p className="text-[23px] text-taupe-400">{formatDate(admin.createdAt)}</p>
                           {admin.email === adminEmail && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold/10 text-gold font-medium">나</span>
+                            <span className="text-[23px] px-2 py-0.5 rounded-full bg-gold/10 text-gold font-medium">나</span>
                           )}
                         </div>
                       </div>

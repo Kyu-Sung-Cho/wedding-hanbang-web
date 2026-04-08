@@ -28,18 +28,18 @@ export default function ThankYou() {
             />
           </svg>
         </motion.div>
-        <h2 className="text-[28px] font-serif-kr font-medium text-noir-800 mb-3">
+        <h2 className="text-[45px] font-serif-kr font-medium text-noir-800 mb-3">
           소중한 응답 감사합니다
         </h2>
-        <p className="text-[15px] text-taupe-500 leading-relaxed mb-4">
+        <p className="text-[21px] text-taupe-500 leading-relaxed mb-4">
           응답해 주신 내용은 더 나은 결혼 준비 서비스를 만드는 데 큰 도움이 됩니다.
         </p>
-        <p className="text-[14px] text-rose-500 font-medium mb-8">
+        <p className="text-[23px] text-rose-500 font-medium mb-8">
           웨딩한방이 여러분의 행복한 결혼 준비를 함께하겠습니다.
         </p>
         <Link
           href="/"
-          className="inline-block px-8 py-3.5 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all"
+          className="inline-block px-8 py-3.5 rounded-2xl bg-noir-800 text-white text-[21px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all"
         >
           웨딩한방 알아보기
         </Link>

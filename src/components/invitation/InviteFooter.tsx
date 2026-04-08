@@ -28,14 +28,14 @@ export default function InviteFooter({ invitation, colors }: Props) {
     <section className="py-12 px-6 text-center">
       <button
         onClick={handleShare}
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13px] font-medium text-white transition-colors mb-6"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[21px] font-medium text-white transition-colors mb-6"
         style={{ background: colors[0] }}
       >
         <Heart className="w-4 h-4" />
         청첩장 공유하기
       </button>
 
-      <p className="text-[10px] opacity-20 mt-4">
+      <p className="text-[23px] opacity-20 mt-4">
         Powered by 웨딩한방
       </p>
     </section>

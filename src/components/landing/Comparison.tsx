@@ -22,14 +22,14 @@ export default function Comparison() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[600px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[23px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Comparison
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           기존 방식 vs 웨딩한방
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[23px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           웨딩 플래너에게 맡기거나, 직접 발품을 파는 것이 전부였던 시대는 끝났습니다.
         </p>
       </motion.div>
@@ -40,13 +40,13 @@ export default function Comparison() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
-        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
+        className="max-w-[1015px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
         {/* 헤더 */}
         <div className="grid grid-cols-[200px_1fr_1fr] lg:grid-cols-[200px_1fr_1fr] bg-noir-800 text-white">
-          <div className="p-5 px-7 text-[13px] font-medium tracking-wide" />
-          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">기존 방식</div>
-          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">웨딩한방</div>
+          <div className="p-5 px-7 text-[21px] font-medium tracking-wide" />
+          <div className="p-5 px-7 text-[21px] font-medium tracking-wide">기존 방식</div>
+          <div className="p-5 px-7 text-[21px] font-medium tracking-wide">웨딩한방</div>
         </div>
 
         {/* 행 */}
@@ -55,13 +55,13 @@ export default function Comparison() {
             key={row.label}
             className={`grid grid-cols-[200px_1fr_1fr] lg:grid-cols-[200px_1fr_1fr] ${i < rows.length - 1 ? "border-b border-black/[0.04]" : ""}`}
           >
-            <div className="p-5 px-7 text-[13px] font-medium text-charcoal bg-ivory-warm flex items-center">
+            <div className="p-5 px-7 text-[21px] font-medium text-charcoal bg-ivory-warm flex items-center">
               {row.label}
             </div>
-            <div className="p-5 px-7 text-[13px] text-taupe-500 font-light flex items-center">
+            <div className="p-5 px-7 text-[21px] text-taupe-500 font-light flex items-center">
               {row.old}
             </div>
-            <div className="p-5 px-7 text-[13px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
+            <div className="p-5 px-7 text-[21px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
               <span className="text-rose-500 font-semibold mr-2">✓</span>
               {row.new}
             </div>
@@ -70,7 +70,7 @@ export default function Comparison() {
       </motion.div>
 
       {/* 모바일 카드 레이아웃 */}
-      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
+      <div className="md:hidden flex flex-col gap-4 max-w-[540px] mx-auto">
         {rows.map((row, i) => (
           <motion.div
             key={row.label}
@@ -80,15 +80,15 @@ export default function Comparison() {
             transition={{ duration: 0.6, delay: i * 0.08 }}
             className="rounded-2xl border border-platinum overflow-hidden"
           >
-            <div className="bg-ivory-warm px-5 py-3 text-[13px] font-medium text-charcoal">
+            <div className="bg-ivory-warm px-5 py-3 text-[21px] font-medium text-charcoal">
               {row.label}
             </div>
-            <div className="px-5 py-3 text-[13px] text-taupe-500 font-light border-b border-black/[0.04]">
-              <span className="text-[11px] text-taupe-400 block mb-1">기존 방식</span>
+            <div className="px-5 py-3 text-[21px] text-taupe-500 font-light border-b border-black/[0.04]">
+              <span className="text-[23px] text-taupe-400 block mb-1">기존 방식</span>
               {row.old}
             </div>
-            <div className="px-5 py-3 text-[13px] text-noir-800 font-normal bg-rose-500/[0.04]">
-              <span className="text-[11px] text-rose-500 block mb-1">웨딩한방</span>
+            <div className="px-5 py-3 text-[21px] text-noir-800 font-normal bg-rose-500/[0.04]">
+              <span className="text-[23px] text-rose-500 block mb-1">웨딩한방</span>
               <span className="text-rose-500 font-semibold mr-1.5">✓</span>
               {row.new}
             </div>

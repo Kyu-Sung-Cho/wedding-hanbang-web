@@ -147,7 +147,7 @@ export default function B2BSurveyPage({ config }: Props) {
 
         {/* 설문 참여 혜택 배너 */}
         <div className="bg-rose-500/[0.05] rounded-xl px-4 py-3 mb-6 border border-rose-500/10">
-          <div className="flex items-center gap-2 text-[12px] text-rose-600 font-medium leading-relaxed">
+          <div className="flex items-center gap-2 text-[23px] text-rose-600 font-medium leading-relaxed">
             <span className="shrink-0">✦</span>
             <span>설문 참여 혜택: 정식 출시 우선 초대 · 베타 수수료 할인 · 맞춤 기능 우선 개발</span>
           </div>
@@ -182,14 +182,14 @@ export default function B2BSurveyPage({ config }: Props) {
                   transition={{ delay: qIdx * 0.06, duration: 0.3 }}
                 >
                   <div className="mb-3">
-                    <h3 className="text-[15px] font-medium text-noir-800 leading-relaxed">
+                    <h3 className="text-[21px] font-medium text-noir-800 leading-relaxed">
                       {question.question}
                       {question.required && (
                         <span className="text-rose-500 ml-1">*</span>
                       )}
                     </h3>
                     {question.subtitle && (
-                      <p className="text-[13px] text-taupe-500 mt-1">
+                      <p className="text-[21px] text-taupe-500 mt-1">
                         {question.subtitle}
                       </p>
                     )}

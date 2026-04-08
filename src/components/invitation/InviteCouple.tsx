@@ -17,19 +17,19 @@ export default function InviteCouple({ invitation, colors, fonts }: Props) {
     relation: string,
   ) => (
     <div className="flex-1 text-center">
-      <p className="text-[11px] tracking-[0.1em] uppercase mb-2 opacity-40">{role}</p>
+      <p className="text-[23px] tracking-[0.1em] uppercase mb-2 opacity-40">{role}</p>
       <p
-        className="text-[18px] font-light mb-3"
+        className="text-[23px] font-light mb-3"
         style={{ fontFamily: `'${fonts.heading}', serif` }}
       >
         {name || role}
       </p>
       {(father || mother) && (
-        <p className="text-[12px] opacity-50 leading-relaxed">
+        <p className="text-[23px] opacity-50 leading-relaxed">
           {father && <span>{father}</span>}
           {father && mother && <span> · </span>}
           {mother && <span>{mother}</span>}
-          <span className="block text-[11px] mt-0.5 opacity-70">의 {relation}</span>
+          <span className="block text-[23px] mt-0.5 opacity-70">의 {relation}</span>
         </p>
       )}
     </div>
@@ -42,7 +42,7 @@ export default function InviteCouple({ invitation, colors, fonts }: Props) {
 
         <div className="flex flex-col items-center justify-center px-3 pt-6">
           <div className="w-px h-6 opacity-20" style={{ background: colors[0] }} />
-          <span className="text-[14px] my-2 opacity-40" style={{ color: colors[0] }}>&</span>
+          <span className="text-[23px] my-2 opacity-40" style={{ color: colors[0] }}>&</span>
           <div className="w-px h-6 opacity-20" style={{ background: colors[0] }} />
         </div>
 

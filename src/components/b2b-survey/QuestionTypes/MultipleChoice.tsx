@@ -44,7 +44,7 @@ export default function MultipleChoice({
   return (
     <div className="flex flex-col gap-2.5">
       {maxSelect && (
-        <p className="text-[12px] text-taupe-500 mb-1">
+        <p className="text-[23px] text-taupe-500 mb-1">
           최대 {maxSelect}개 선택 ({value.length}/{maxSelect})
         </p>
       )}
@@ -81,7 +81,7 @@ export default function MultipleChoice({
                   </svg>
                 )}
               </div>
-              <span className="text-[14px] font-light">{option.label}</span>
+              <span className="text-[23px] font-light">{option.label}</span>
             </div>
           </motion.button>
         );
@@ -97,12 +97,12 @@ export default function MultipleChoice({
             value={otherText || ""}
             onChange={(e) => onOtherTextChange?.(e.target.value)}
             placeholder="직접 입력해주세요"
-            className="w-full px-5 py-3 rounded-xl border border-platinum bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+            className="w-full px-5 py-3 rounded-xl border border-platinum bg-white text-[23px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
           />
         </motion.div>
       )}
       {error && (
-        <p className="text-[13px] text-rose-600 mt-1">{error}</p>
+        <p className="text-[21px] text-rose-600 mt-1">{error}</p>
       )}
     </div>
   );

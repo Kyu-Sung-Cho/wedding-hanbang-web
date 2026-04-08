@@ -15,7 +15,7 @@ export default function ThankYou({ shopTypeName }: Props) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="max-w-[480px] w-full text-center"
+        className="max-w-[540px] w-full text-center"
       >
         {/* 로고 */}
         <div className="flex items-center justify-center mb-8">
@@ -30,15 +30,15 @@ export default function ThankYou({ shopTypeName }: Props) {
           </svg>
         </div>
 
-        <h2 className="font-serif-kr text-[28px] font-light tracking-tight mb-4">
+        <h2 className="font-serif-kr text-[45px] font-light tracking-tight mb-4">
           감사합니다!
         </h2>
-        <p className="text-[15px] text-charcoal font-light leading-relaxed mb-3">
+        <p className="text-[21px] text-charcoal font-light leading-relaxed mb-3">
           {shopTypeName} 대표님의 소중한 의견,
           <br />
           서비스 개발에 적극 반영하겠습니다.
         </p>
-        <p className="text-[13px] text-taupe-500 font-light leading-relaxed mb-8">
+        <p className="text-[21px] text-taupe-500 font-light leading-relaxed mb-8">
           웨딩한방 파트너 서비스 출시 시
           <br />
           연락처를 남겨주신 분께 우선 안내드리겠습니다.
@@ -46,7 +46,7 @@ export default function ThankYou({ shopTypeName }: Props) {
 
         <Link
           href="/business"
-          className="inline-flex px-8 py-3.5 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors"
+          className="inline-flex px-8 py-3.5 rounded-full bg-noir-800 text-white text-[23px] font-medium hover:bg-noir-soft transition-colors"
         >
           웨딩한방 파트너 홈으로
         </Link>

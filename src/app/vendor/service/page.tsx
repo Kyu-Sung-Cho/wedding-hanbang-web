@@ -7,10 +7,10 @@ export default function VendorServicePage() {
   return (
     <div className="min-h-screen bg-noir-800 flex flex-col">
       {/* 헤더 */}
-      <nav className="px-[clamp(20px,5vw,60px)] h-[72px] flex items-center">
+      <nav className="px-[clamp(20px,5vw,60px)] h-[81px] flex items-center">
         <Link
           href="/business"
-          className="flex items-center gap-2 text-[13px] text-white/50 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-[21px] text-white/50 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           메인페이지로
@@ -19,8 +19,8 @@ export default function VendorServicePage() {
 
       {/* 준비중 콘텐츠 */}
       <div className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center max-w-[480px]">
-          <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-8">
+        <div className="text-center max-w-[540px]">
+          <div className="inline-flex items-center gap-2 text-[23px] tracking-[0.18em] uppercase text-rose-light font-medium mb-8">
             <span className="w-5 h-px bg-rose-light" />
             Coming Soon
             <span className="w-5 h-px bg-rose-light" />
@@ -41,7 +41,7 @@ export default function VendorServicePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <Link
               href="/business"
-              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all text-center"
+              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[21px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all text-center"
             >
               메인페이지로 돌아가기
             </Link>
@@ -49,7 +49,7 @@ export default function VendorServicePage() {
 
           <a
             href="mailto:partner@hanbang.ai"
-            className="text-[13px] text-white/40 hover:text-white/60 transition-colors underline underline-offset-4"
+            className="text-[21px] text-white/40 hover:text-white/60 transition-colors underline underline-offset-4"
           >
             문의: partner@hanbang.ai
           </a>

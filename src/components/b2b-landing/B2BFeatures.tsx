@@ -68,7 +68,7 @@ export default function B2BFeatures() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[23px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Features
         </div>
@@ -80,7 +80,7 @@ export default function B2BFeatures() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="max-w-[1240px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-md:grid-cols-1">
         {features.map((feat, i) => (
           <motion.div
             key={feat.title}
@@ -93,11 +93,11 @@ export default function B2BFeatures() {
             <div className="w-12 h-12 rounded-xl bg-noir-800 text-rose-500 flex items-center justify-center mb-5 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-500">
               {feat.icon}
             </div>
-            <div className="inline-block text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium mb-3">
+            <div className="inline-block text-[23px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium mb-3">
               {feat.tag}
             </div>
-            <h4 className="text-[17px] font-medium mb-2.5 text-noir-800">{feat.title}</h4>
-            <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{feat.desc}</p>
+            <h4 className="text-[21px] font-medium mb-2.5 text-noir-800">{feat.title}</h4>
+            <p className="text-[21px] text-taupe-500 leading-relaxed font-light">{feat.desc}</p>
           </motion.div>
         ))}
       </div>
