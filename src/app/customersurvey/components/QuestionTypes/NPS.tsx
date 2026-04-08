@@ -38,7 +38,7 @@ export default function NPS({
               transition={{ delay: i * 0.03 }}
               type="button"
               onClick={() => onChange(questionId, score)}
-              className={`w-11 h-11 max-sm:w-[calc((100%-40px)/11)] max-sm:h-10 rounded-xl border-[1.5px] flex items-center justify-center text-[21px] font-display font-semibold transition-all duration-200 ${
+              className={`w-11 h-11 max-sm:w-[calc((100%-40px)/11)] max-sm:h-10 rounded-xl border-[1.5px] flex items-center justify-center text-[15px] font-display font-semibold transition-all duration-200 ${
                 isSelected
                   ? 'border-rose-500 bg-rose-500 text-white shadow-[0_2px_12px_rgba(196,150,126,0.3)]'
                   : 'border-platinum bg-white text-charcoal hover:border-rose-pale hover:bg-ivory-warm'
@@ -50,11 +50,11 @@ export default function NPS({
         })}
       </div>
       <div className="flex justify-between mt-2 px-1">
-        <span className="text-[21px] text-taupe-500">{minLabel}</span>
-        <span className="text-[21px] text-taupe-500">{maxLabel}</span>
+        <span className="text-[12px] text-taupe-500">{minLabel}</span>
+        <span className="text-[12px] text-taupe-500">{maxLabel}</span>
       </div>
       {error && (
-        <p className="text-[21px] text-rose-600 mt-2 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-2 pl-1">{error}</p>
       )}
     </div>
   );

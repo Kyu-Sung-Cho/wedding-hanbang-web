@@ -41,7 +41,7 @@ export default function MyBookmarksPage() {
         <Link href="/community" className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
           <ArrowLeft className="w-4 h-4 text-noir-800" />
         </Link>
-        <h1 className="font-serif-kr text-[21px] text-noir-800">북마크</h1>
+        <h1 className="font-serif-kr text-[20px] text-noir-800">북마크</h1>
       </div>
 
       {loading ? (
@@ -51,8 +51,8 @@ export default function MyBookmarksPage() {
       ) : posts.length === 0 ? (
         <div className="py-16 text-center">
           <Bookmark className="w-10 h-10 text-[#B5ADA3]/40 mx-auto mb-3" />
-          <p className="text-[21px] text-[#928980]">북마크한 글이 없습니다</p>
-          <Link href="/community" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[21px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors">
+          <p className="text-[14px] text-[#928980]">북마크한 글이 없습니다</p>
+          <Link href="/community" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors">
             커뮤니티 둘러보기
           </Link>
         </div>

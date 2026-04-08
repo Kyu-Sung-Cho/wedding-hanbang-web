@@ -150,9 +150,9 @@ function InlineMoneyEdit({
             if (e.key === "Enter") save();
             if (e.key === "Escape") cancel();
           }}
-          className="w-[80px] px-2 py-1 rounded-lg border border-rose-500/30 text-[21px] text-right text-noir-800 focus:outline-none focus:border-rose-500"
+          className="w-[80px] px-2 py-1 rounded-lg border border-rose-500/30 text-[13px] text-right text-noir-800 focus:outline-none focus:border-rose-500"
         />
-        <span className="text-[21px] text-taupe-400">만원</span>
+        <span className="text-[11px] text-taupe-400">만원</span>
         <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10" title="저장">
           <Check className="w-3.5 h-3.5" />
         </button>
@@ -174,7 +174,7 @@ function InlineMoneyEdit({
         }`}
         title={`${label} 수정`}
       >
-        <span className={`text-[21px] font-medium ${
+        <span className={`text-[13px] font-medium ${
           highlight === "spent" ? "text-noir-800" : "text-taupe-500"
         }`}>
           {formatWon(value)}
@@ -242,7 +242,7 @@ function BudgetRow({
         }`}>
           <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-rose-500"}`} />
         </div>
-        <span className="text-[21px] font-medium text-noir-800">{label}</span>
+        <span className="text-[13px] font-medium text-noir-800">{label}</span>
       </div>
 
       {/* 진행 바 + 퍼센트 */}
@@ -256,7 +256,7 @@ function BudgetRow({
               style={{ width: `${Math.min(percent, 100)}%` }}
             />
           </div>
-          <span className={`text-[21px] font-medium w-[32px] text-right flex-shrink-0 ${
+          <span className={`text-[10px] font-medium w-[32px] text-right flex-shrink-0 ${
             isOver ? "text-red-400" : percent >= 100 ? "text-[#2E7D5A]" : "text-taupe-400"
           }`}>
             {percent}%
@@ -266,7 +266,7 @@ function BudgetRow({
 
       {/* 지출 (편집 가능) - 라벨 포함 */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[21px] text-taupe-400 mb-0.5">지출</span>
+        <span className="text-[9px] text-taupe-400 mb-0.5">지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
@@ -277,11 +277,11 @@ function BudgetRow({
       </div>
 
       {/* 구분선 */}
-      <span className="text-[21px] text-taupe-300 flex-shrink-0 self-end mb-1">/</span>
+      <span className="text-[11px] text-taupe-300 flex-shrink-0 self-end mb-1">/</span>
 
       {/* 예산 (편집 가능) - 라벨 포함 */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[21px] text-taupe-400 mb-0.5">예산</span>
+        <span className="text-[9px] text-taupe-400 mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
           onSave={(v) => onBudgetChange(catKey, v)}
@@ -292,7 +292,7 @@ function BudgetRow({
 
       {/* 상태 + 삭제 */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <div className={`text-[21px] px-2 py-0.5 rounded-full font-medium ${
+        <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
           status === "완료" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
           status === "진행중" ? "bg-rose-500/10 text-rose-500" :
           "bg-taupe-400/10 text-taupe-400"
@@ -348,13 +348,13 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
       <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <ShoppingBag className="w-5 h-5 text-rose-500" />
-          <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">내 예약 내역</h3>
-          {!loading && <span className="text-[21px] text-taupe-400">{activeBookings.length}건</span>}
+          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">내 예약 내역</h3>
+          {!loading && <span className="text-[11px] text-taupe-400">{activeBookings.length}건</span>}
         </div>
         {cancelledBookings.length > 0 && (
           <button
             onClick={() => setShowCancelled(!showCancelled)}
-            className={`text-[21px] px-2.5 py-1 rounded-lg transition-colors ${
+            className={`text-[11px] px-2.5 py-1 rounded-lg transition-colors ${
               showCancelled
                 ? "bg-red-50 text-red-400 font-medium"
                 : "text-taupe-400 hover:bg-ivory-100"
@@ -370,7 +370,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
         </div>
       ) : displayBookings.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-[21px] text-taupe-400">
+          <p className="text-[13px] text-taupe-400">
             {showCancelled ? "취소된 예약이 없습니다" : "예약 내역이 없습니다"}
           </p>
         </div>
@@ -381,18 +381,18 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
             return (
               <div key={b.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-ivory-50 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[21px] font-medium text-noir-800 truncate">{b.vendorName}</p>
+                  <p className="text-[13px] font-medium text-noir-800 truncate">{b.vendorName}</p>
                   {b.productName && (
-                    <p className="text-[21px] text-taupe-400 truncate">{b.productName}</p>
+                    <p className="text-[11px] text-taupe-400 truncate">{b.productName}</p>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[21px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
+                  <p className="text-[12px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
                   {b.amount > 0 && (
-                    <p className="text-[21px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
+                    <p className="text-[11px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
                   )}
                 </div>
-                <span className={`text-[21px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
                   {badge.label}
                 </span>
               </div>
@@ -627,7 +627,7 @@ export default function BudgetPage() {
   };
 
   return (
-    <div className="max-w-[1065px] mx-auto">
+    <div className="max-w-[1000px] mx-auto">
       {/* 요약 카드 3개 */}
       <div className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1">
         {/* 총 예산 (편집 가능) */}
@@ -636,7 +636,7 @@ export default function BudgetPage() {
           transition={{ duration: 0.5 }}
           className="bg-white rounded-2xl p-6 border border-black/[0.04]"
         >
-          <p className="text-[21px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
+          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
             총 예산
             {!editingTotal && (
               <button
@@ -661,9 +661,9 @@ export default function BudgetPage() {
                   if (e.key === "Enter") handleTotalBudgetSave();
                   if (e.key === "Escape") setEditingTotal(false);
                 }}
-                className="w-[100px] px-3 py-2 rounded-xl border border-rose-500/30 text-[21px] font-display font-light text-noir-800 focus:outline-none focus:border-rose-500"
+                className="w-[100px] px-3 py-2 rounded-xl border border-rose-500/30 text-[20px] font-display font-light text-noir-800 focus:outline-none focus:border-rose-500"
               />
-              <span className="text-[21px] text-taupe-400">만원</span>
+              <span className="text-[14px] text-taupe-400">만원</span>
               <button onClick={handleTotalBudgetSave} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10">
                 <Check className="w-4 h-4" />
               </button>
@@ -672,8 +672,8 @@ export default function BudgetPage() {
               </button>
             </div>
           ) : (
-            <p className="font-display text-[38px] font-light text-noir-800">
-              {formatWon(totalBudget)}<span className="text-[21px] text-taupe-400">원</span>
+            <p className="font-display text-[32px] font-light text-noir-800">
+              {formatWon(totalBudget)}<span className="text-[16px] text-taupe-400">원</span>
             </p>
           )}
         </motion.div>
@@ -684,11 +684,11 @@ export default function BudgetPage() {
           transition={{ duration: 0.5, delay: 0.05 }}
           className="bg-white rounded-2xl p-6 border border-black/[0.04]"
         >
-          <p className="text-[21px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
+          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
             사용 금액 <TrendingUp className="w-3.5 h-3.5 text-rose-500" />
           </p>
-          <p className="font-display text-[38px] font-light text-noir-800">
-            {formatWon(totalSpent)}<span className="text-[21px] text-taupe-400">원</span>
+          <p className="font-display text-[32px] font-light text-noir-800">
+            {formatWon(totalSpent)}<span className="text-[16px] text-taupe-400">원</span>
           </p>
           <div className="w-full h-2 bg-ivory-warm rounded-full mt-3 overflow-hidden">
             <div
@@ -696,7 +696,7 @@ export default function BudgetPage() {
               style={{ width: `${Math.min(spentPercent, 100)}%` }}
             />
           </div>
-          <p className="text-[21px] text-taupe-400 mt-1.5">예산 대비 {spentPercent}% 사용</p>
+          <p className="text-[11px] text-taupe-400 mt-1.5">예산 대비 {spentPercent}% 사용</p>
         </motion.div>
 
         {/* 잔여 예산 */}
@@ -705,14 +705,14 @@ export default function BudgetPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-white rounded-2xl p-6 border border-black/[0.04]"
         >
-          <p className="text-[21px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
+          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
             잔여 예산 <TrendingDown className={`w-3.5 h-3.5 ${remaining >= 0 ? "text-[#2E7D5A]" : "text-red-400"}`} />
           </p>
-          <p className={`font-display text-[38px] font-light ${remaining >= 0 ? "text-[#2E7D5A]" : "text-red-400"}`}>
-            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-[21px] ${remaining >= 0 ? "text-[#2E7D5A]/50" : "text-red-400/50"}`}>원</span>
+          <p className={`font-display text-[32px] font-light ${remaining >= 0 ? "text-[#2E7D5A]" : "text-red-400"}`}>
+            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-[16px] ${remaining >= 0 ? "text-[#2E7D5A]/50" : "text-red-400/50"}`}>원</span>
           </p>
           {remaining < 0 && (
-            <p className="text-[21px] text-red-400 mt-2 flex items-center gap-1">
+            <p className="text-[11px] text-red-400 mt-2 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
               예산 초과
             </p>
@@ -729,10 +729,10 @@ export default function BudgetPage() {
           <TrendingUp className="w-4 h-4 text-rose-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[21px] text-noir-800 font-medium">시세 대비 내 예산 확인</p>
-          <p className="text-[21px] text-taupe-400">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
+          <p className="text-[13px] text-noir-800 font-medium">시세 대비 내 예산 확인</p>
+          <p className="text-[11px] text-taupe-400">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
         </div>
-        <span className="text-[21px] text-rose-500 flex-shrink-0 group-hover:underline">자세히 보기 →</span>
+        <span className="text-[12px] text-rose-500 flex-shrink-0 group-hover:underline">자세히 보기 →</span>
       </Link>
 
       {/* 내 예약 내역 */}
@@ -759,15 +759,15 @@ export default function BudgetPage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-[21px] font-medium text-noir-800">스드메 패키지</h3>
-                <p className="text-[21px] text-taupe-400">스튜디오 + 드레스 + 메이크업</p>
+                <h3 className="text-[15px] font-medium text-noir-800">스드메 패키지</h3>
+                <p className="text-[11px] text-taupe-400">스튜디오 + 드레스 + 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[21px] font-medium text-noir-800">
+              <p className="text-[13px] font-medium text-noir-800">
                 {formatWonFull(sdmSpent)} <span className="text-taupe-400 font-normal">/ {formatWonFull(sdmBudget)}</span>
               </p>
-              <p className="text-[21px] text-taupe-400">
+              <p className="text-[11px] text-taupe-400">
                 {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
               </p>
             </div>
@@ -803,8 +803,8 @@ export default function BudgetPage() {
         className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden"
       >
         <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
-          <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">기타 카테고리</h3>
-          <div className="flex items-center gap-1.5 text-[21px] text-taupe-400">
+          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">기타 카테고리</h3>
+          <div className="flex items-center gap-1.5 text-[11px] text-taupe-400">
             <Pencil className="w-3 h-3 text-rose-500/40" />
             클릭하여 수정 · <X className="w-3 h-3 text-taupe-400/50" /> 초기화
           </div>
@@ -856,7 +856,7 @@ export default function BudgetPage() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-dashed border-taupe-300 group-hover:border-rose-500/40 transition-colors">
               <Plus className="w-4 h-4" />
             </div>
-            <span className="text-[21px]">새 항목 추가</span>
+            <span className="text-[13px]">새 항목 추가</span>
           </button>
         </div>
       </motion.div>
@@ -867,7 +867,7 @@ export default function BudgetPage() {
         transition={{ duration: 0.5, delay: 0.4 }}
         className="mt-4 px-2"
       >
-        <p className="text-[21px] text-taupe-400 text-center">
+        <p className="text-[11px] text-taupe-400 text-center">
           {totalAllocated !== totalBudget && (
             <span className="text-rose-500">
               배분 합계 {formatWonFull(totalAllocated)} (총 예산과 {formatWonFull(Math.abs(totalBudget - totalAllocated))} {totalAllocated > totalBudget ? "초과" : "차이"})
@@ -885,7 +885,7 @@ export default function BudgetPage() {
           <div className="absolute inset-0 bg-noir-900/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <div className="relative bg-white rounded-2xl w-[90%] max-w-[400px] p-6 border border-black/[0.04] shadow-xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-serif-kr text-[21px] text-noir-800">새 항목 추가</h3>
+              <h3 className="font-serif-kr text-[17px] text-noir-800">새 항목 추가</h3>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10 transition-colors"
@@ -896,7 +896,7 @@ export default function BudgetPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-[21px] text-taupe-500 mb-1.5 block">카테고리 이름 <span className="text-rose-500">*</span></label>
+                <label className="text-[12px] text-taupe-500 mb-1.5 block">카테고리 이름 <span className="text-rose-500">*</span></label>
                 <input
                   autoFocus
                   type="text"
@@ -904,29 +904,29 @@ export default function BudgetPage() {
                   onChange={(e) => setNewCatLabel(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
                   placeholder="예: 웨딩카, 답례떡"
-                  className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[21px] text-taupe-500 mb-1.5 block">예산 (만원)</label>
+                  <label className="text-[12px] text-taupe-500 mb-1.5 block">예산 (만원)</label>
                   <input
                     type="number"
                     value={newCatBudget}
                     onChange={(e) => setNewCatBudget(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-gold/40 focus:ring-1 focus:ring-gold/20 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-gold/40 focus:ring-1 focus:ring-gold/20 transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="text-[21px] text-taupe-500 mb-1.5 block">지출 (만원)</label>
+                  <label className="text-[12px] text-taupe-500 mb-1.5 block">지출 (만원)</label>
                   <input
                     type="number"
                     value={newCatSpent}
                     onChange={(e) => setNewCatSpent(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
                   />
                 </div>
               </div>
@@ -935,14 +935,14 @@ export default function BudgetPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleAddCategory}
                 disabled={!newCatLabel.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-gold text-white text-[21px] font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-gold text-white text-[13px] font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
               >
                 추가
               </button>
@@ -967,10 +967,10 @@ export default function BudgetPage() {
                   <AlertTriangle className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-[21px] font-medium text-noir-800">
+                  <h3 className="text-[15px] font-medium text-noir-800">
                     {isFixed ? "항목 관리" : "항목 삭제"}
                   </h3>
-                  <p className="text-[21px] text-taupe-400 mt-0.5">
+                  <p className="text-[12px] text-taupe-400 mt-0.5">
                     <span className="font-medium text-noir-800">{catLabel}</span>
                     {isFixed
                       ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
@@ -985,20 +985,20 @@ export default function BudgetPage() {
                     <div className="flex gap-3">
                       <button
                         onClick={() => handleResetCategory(deletingKey)}
-                        className="flex-1 py-2.5 rounded-xl border border-gold/30 text-[21px] text-gold font-medium hover:bg-gold/5 transition-colors"
+                        className="flex-1 py-2.5 rounded-xl border border-gold/30 text-[13px] text-gold font-medium hover:bg-gold/5 transition-colors"
                       >
                         데이터 초기화
                       </button>
                       <button
                         onClick={() => handleDeleteCategory(deletingKey)}
-                        className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[21px] font-medium hover:bg-red-500 transition-colors"
+                        className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                       >
                         항목 삭제
                       </button>
                     </div>
                     <button
                       onClick={() => setDeletingKey(null)}
-                      className="py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                      className="py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
                     >
                       취소
                     </button>
@@ -1007,13 +1007,13 @@ export default function BudgetPage() {
                   <>
                     <button
                       onClick={() => setDeletingKey(null)}
-                      className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[21px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                      className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
                     >
                       취소
                     </button>
                     <button
                       onClick={() => handleDeleteCategory(deletingKey)}
-                      className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[21px] font-medium hover:bg-red-500 transition-colors"
+                      className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                     >
                       삭제
                     </button>

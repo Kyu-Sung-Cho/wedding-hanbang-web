@@ -159,7 +159,7 @@ export default function QuestionRenderer({
       className="mb-10"
     >
       <div className="mb-4">
-        <p className="text-[21px] font-medium text-noir-800 leading-relaxed">
+        <p className="text-[16px] font-medium text-noir-800 leading-relaxed">
           {question.question}
           {question.required && (
             <span className="text-rose-500 ml-1">*</span>

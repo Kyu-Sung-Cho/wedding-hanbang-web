@@ -40,12 +40,12 @@ export default function NotificationPanel({
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[21px] font-medium text-[#1A1A1F]">알림</h3>
+          <h3 className="text-[15px] font-medium text-[#1A1A1F]">알림</h3>
           <div className="flex items-center gap-2">
             {notifications.length > 0 && (
               <button
                 onClick={onDismissAll}
-                className="text-[21px] text-[#928980] hover:text-[#C4967E] transition-colors"
+                className="text-[11px] text-[#928980] hover:text-[#C4967E] transition-colors"
               >
                 모두 읽음
               </button>
@@ -66,10 +66,10 @@ export default function NotificationPanel({
               <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/10 flex items-center justify-center mb-3">
                 <Check className="w-6 h-6 text-[#2E7D5A]" />
               </div>
-              <p className="text-[21px] text-[#928980] font-medium">
+              <p className="text-[14px] text-[#928980] font-medium">
                 모든 알림을 확인했습니다
               </p>
-              <p className="text-[21px] text-[#B5ADA3] mt-1">
+              <p className="text-[12px] text-[#B5ADA3] mt-1">
                 새로운 알림이 오면 여기에 표시됩니다
               </p>
             </div>
@@ -98,21 +98,21 @@ export default function NotificationPanel({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-[21px] font-medium text-[#1A1A1F]">
+                            <p className="text-[13px] font-medium text-[#1A1A1F]">
                               {n.title}
                             </p>
                             {n.isNew && (
                               <div className="w-1.5 h-1.5 rounded-full bg-[#C4967E] flex-shrink-0" />
                             )}
                           </div>
-                          <p className="text-[21px] text-[#928980] font-light mt-0.5 leading-relaxed">
+                          <p className="text-[12px] text-[#928980] font-light mt-0.5 leading-relaxed">
                             {n.message}
                           </p>
                           <div className="flex items-center gap-2 mt-2">
                             {n.categoryKey && (
                               <button
                                 onClick={() => onCategoryClick(n.categoryKey!)}
-                                className="text-[21px] text-[#C4967E] hover:underline"
+                                className="text-[11px] text-[#C4967E] hover:underline"
                               >
                                 체크리스트 보기
                               </button>
@@ -120,7 +120,7 @@ export default function NotificationPanel({
                             {n.isNew && (
                               <button
                                 onClick={() => onDismiss(n.id)}
-                                className="text-[21px] text-[#B5ADA3] hover:text-[#928980]"
+                                className="text-[11px] text-[#B5ADA3] hover:text-[#928980]"
                               >
                                 읽음
                               </button>

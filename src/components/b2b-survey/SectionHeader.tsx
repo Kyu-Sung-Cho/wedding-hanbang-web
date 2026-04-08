@@ -19,22 +19,22 @@ export default function SectionHeader({ sectionIndex, title, sectionNote, additi
       className="mb-8"
     >
       <div className="flex items-center gap-3 mb-2">
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-noir-800 text-white text-[21px] font-medium">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-noir-800 text-white text-[12px] font-medium">
           {sectionIndex + 1}
         </span>
-        <h2 className="font-serif-kr text-[21px] font-normal tracking-tight text-noir-800">
+        <h2 className="font-serif-kr text-[20px] font-normal tracking-tight text-noir-800">
           {title}
         </h2>
       </div>
       {sectionNote && (
-        <p className="text-[21px] text-charcoal font-light leading-relaxed ml-10 mb-3">
+        <p className="text-[13px] text-charcoal font-light leading-relaxed ml-10 mb-3">
           {sectionNote}
         </p>
       )}
       {additionalNotes && additionalNotes.length > 0 && (
         <div className="ml-10 mb-3 flex flex-col gap-0.5">
           {additionalNotes.map((note, i) => (
-            <p key={i} className="text-[21px] text-taupe-500 font-light leading-relaxed">
+            <p key={i} className="text-[11px] text-taupe-500 font-light leading-relaxed">
               {note}
             </p>
           ))}
@@ -42,7 +42,7 @@ export default function SectionHeader({ sectionIndex, title, sectionNote, additi
       )}
       {exampleBox && (
         <div className="ml-10 bg-ivory-deep rounded-xl p-4 border border-platinum">
-          <p className="text-[21px] text-charcoal font-light leading-relaxed">
+          <p className="text-[12px] text-charcoal font-light leading-relaxed">
             {exampleBox}
           </p>
         </div>

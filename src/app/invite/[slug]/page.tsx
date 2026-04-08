@@ -50,7 +50,7 @@ export default function InvitePage() {
       <div className="min-h-screen flex items-center justify-center bg-ivory-50">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-[21px] text-taupe-500">청첩장을 불러오는 중...</p>
+          <p className="text-[13px] text-taupe-500">청첩장을 불러오는 중...</p>
         </div>
       </div>
     );
@@ -60,11 +60,11 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-ivory-50">
         <div className="text-center px-6">
-          <div className="text-[51px] mb-4">💌</div>
-          <h1 className="text-[21px] font-medium text-noir-800 mb-2">
+          <div className="text-[48px] mb-4">💌</div>
+          <h1 className="text-[18px] font-medium text-noir-800 mb-2">
             {error ?? "청첩장을 찾을 수 없습니다."}
           </h1>
-          <p className="text-[21px] text-taupe-500">
+          <p className="text-[13px] text-taupe-500">
             링크가 올바른지 확인해주세요.
           </p>
         </div>
@@ -101,7 +101,7 @@ export default function InvitePage() {
 
   return (
     <div
-      className="min-h-screen max-w-[510px] mx-auto overflow-hidden"
+      className="min-h-screen max-w-[480px] mx-auto overflow-hidden"
       style={{
         fontFamily: `'${fonts.body}', sans-serif`,
         background: colors[1] || "#FDFCFA",

@@ -13,10 +13,10 @@ export default function SurveyProgress({ current, total }: Props) {
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[21px] text-taupe-500 font-medium">
+        <span className="text-[12px] text-taupe-500 font-medium">
           {current} / {total}
         </span>
-        <span className="text-[21px] text-taupe-500">{pct}%</span>
+        <span className="text-[12px] text-taupe-500">{pct}%</span>
       </div>
       <div className="h-1.5 bg-ivory-200 rounded-full overflow-hidden">
         <motion.div

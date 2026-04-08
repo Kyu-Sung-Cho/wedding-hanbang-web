@@ -97,8 +97,8 @@ export default function ChecklistTab() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="text-[21px] text-noir-800 truncate text-left">{cat.label}</span>
-              <span className="text-[21px] text-taupe-400 ml-1">{cat.done}/{cat.total}</span>
+              <span className="text-[11px] text-noir-800 truncate text-left">{cat.label}</span>
+              <span className="text-[10px] text-taupe-400 ml-1">{cat.done}/{cat.total}</span>
             </div>
             {cat.status !== "completed" && (
               <div className="h-1 bg-ivory-warm rounded-full overflow-hidden mt-1">
@@ -109,7 +109,7 @@ export default function ChecklistTab() {
               </div>
             )}
           </div>
-          <span className={`text-[21px] px-1.5 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
             {STATUS_LABELS[cat.status]}
           </span>
         </button>
@@ -133,7 +133,7 @@ export default function ChecklistTab() {
                       <Circle className="w-3.5 h-3.5 text-taupe-400 flex-shrink-0" />
                     )}
                     <span
-                      className={`text-[21px] leading-tight ${
+                      className={`text-[10px] leading-tight ${
                         item.done
                           ? "text-taupe-400 line-through"
                           : "text-noir-800"
@@ -156,8 +156,8 @@ export default function ChecklistTab() {
       {/* 전체 진행률 */}
       <div className="px-4 py-3 border-b border-black/[0.04]">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[21px] text-taupe-400">전체 진행률</span>
-          <span className="text-[21px] font-medium text-noir-800">{overallPercent}%</span>
+          <span className="text-[11px] text-taupe-400">전체 진행률</span>
+          <span className="text-[13px] font-medium text-noir-800">{overallPercent}%</span>
         </div>
         <div className="h-2 bg-ivory-warm rounded-full overflow-hidden">
           <div
@@ -165,7 +165,7 @@ export default function ChecklistTab() {
             style={{ width: `${overallPercent}%` }}
           />
         </div>
-        <p className="text-[21px] text-taupe-400 mt-1 text-right">
+        <p className="text-[10px] text-taupe-400 mt-1 text-right">
           {totalDone}/{totalItems} 항목 완료
         </p>
       </div>
@@ -175,7 +175,7 @@ export default function ChecklistTab() {
         <div className="flex flex-col gap-0.5">
           {incomplete.map((cat) => renderCategoryRow(cat))}
           {incomplete.length === 0 && (
-            <p className="text-[21px] text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-[11px] text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
           )}
         </div>
       </CollapsibleSection>
@@ -185,7 +185,7 @@ export default function ChecklistTab() {
         <div className="flex flex-col gap-0.5">
           {completed.map((cat) => renderCategoryRow(cat, true))}
           {completed.length === 0 && (
-            <p className="text-[21px] text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-[11px] text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
         </div>
       </CollapsibleSection>

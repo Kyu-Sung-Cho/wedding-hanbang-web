@@ -422,15 +422,15 @@ function MessageBubble({ message }: { message: CohortMessage }) {
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[#1A1A1F]">{nickname}</span>
           {message.author?.rank && (
-            <span className="rounded-full bg-[#F0EFED] px-1.5 py-0.5 text-[21px] text-[#878680]">
+            <span className="rounded-full bg-[#F0EFED] px-1.5 py-0.5 text-[10px] text-[#878680]">
               {message.author.rank}
             </span>
           )}
-          <span className="text-[21px] text-[#B5ADA3]">
+          <span className="text-[10px] text-[#B5ADA3]">
             {relativeTime(message.created_at)}
           </span>
           {message.thread_topic && (
-            <span className="rounded-full bg-[#FAF8F5] px-1.5 py-0.5 text-[21px] text-[#C4967E]">
+            <span className="rounded-full bg-[#FAF8F5] px-1.5 py-0.5 text-[10px] text-[#C4967E]">
               {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
                 ?.label ?? message.thread_topic}
             </span>
@@ -509,7 +509,7 @@ function InfoTab({
                 <h3 className="font-serif text-sm text-[#1A1A1F]">
                   {cat.label}
                 </h3>
-                <span className="text-[21px] text-[#B5ADA3]">
+                <span className="text-[11px] text-[#B5ADA3]">
                   {sample}명 등록
                 </span>
               </div>
@@ -540,7 +540,7 @@ function InfoTab({
                     </p>
                   </div>
                   {NATIONAL_AVG[cat.key as CohortContractCategory] > 0 && (
-                    <p className="text-[21px] text-[#B5ADA3]">
+                    <p className="text-[11px] text-[#B5ADA3]">
                       전국 평균:{" "}
                       {NATIONAL_AVG[
                         cat.key as CohortContractCategory
@@ -556,7 +556,7 @@ function InfoTab({
       </div>
 
       {contracts.length > 0 && (
-        <div className="mt-4 text-[21px] text-[#B5ADA3]">
+        <div className="mt-4 text-[11px] text-[#B5ADA3]">
           동기방 내 총 {contracts.length}건의 계약 정보
         </div>
       )}
@@ -784,7 +784,7 @@ function TimelineTab({
               {ev.description && (
                 <p className="mt-1 text-xs text-[#878680]">{ev.description}</p>
               )}
-              <p className="mt-1 text-[21px] text-[#B5ADA3]">
+              <p className="mt-1 text-[11px] text-[#B5ADA3]">
                 {relativeTime(ev.created_at)}
               </p>
             </div>

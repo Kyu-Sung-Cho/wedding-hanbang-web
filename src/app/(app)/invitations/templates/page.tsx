@@ -54,7 +54,7 @@ export default function TemplateSelectPage() {
   };
 
   return (
-    <div className="max-w-[955px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -64,8 +64,8 @@ export default function TemplateSelectPage() {
           <ArrowLeft className="w-5 h-5 text-noir-800" />
         </Link>
         <div>
-          <h1 className="text-[21px] font-semibold text-noir-800">템플릿 선택</h1>
-          <p className="text-[21px] text-taupe-500">마음에 드는 디자인을 눌러 미리보기 하세요</p>
+          <h1 className="text-[20px] font-semibold text-noir-800">템플릿 선택</h1>
+          <p className="text-[13px] text-taupe-500">마음에 드는 디자인을 눌러 미리보기 하세요</p>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export default function TemplateSelectPage() {
           <button
             key={cat.key}
             onClick={() => setCategory(cat.key)}
-            className={`px-4 py-2 rounded-full text-[21px] font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
               category === cat.key
                 ? "bg-noir-800 text-white"
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
@@ -114,13 +114,13 @@ export default function TemplateSelectPage() {
             >
               <div className="text-center p-4">
                 <div
-                  className="text-[21px] font-medium mb-1"
+                  className="text-[18px] font-medium mb-1"
                   style={{ color: template.color_palette[0], fontFamily: template.font_pair.heading }}
                 >
                   Wedding
                 </div>
                 <div
-                  className="text-[21px]"
+                  className="text-[11px]"
                   style={{ color: template.color_palette[2] || "#666", fontFamily: template.font_pair.body }}
                 >
                   {template.name}
@@ -131,12 +131,12 @@ export default function TemplateSelectPage() {
             {/* 정보 */}
             <div className="p-3 bg-white">
               <div className="flex items-center justify-between">
-                <span className="text-[21px] font-medium text-noir-800">{template.name}</span>
+                <span className="text-[13px] font-medium text-noir-800">{template.name}</span>
                 {template.is_premium && (
                   <Crown className="w-3.5 h-3.5 text-gold" />
                 )}
               </div>
-              <span className="text-[21px] text-taupe-500 capitalize">{template.category}</span>
+              <span className="text-[11px] text-taupe-500 capitalize">{template.category}</span>
             </div>
 
             {/* 미리보기 아이콘 */}
@@ -174,26 +174,26 @@ export default function TemplateSelectPage() {
                 style={{ background: `${preview.color_palette[0]}10` }}
               >
                 <ImageIcon className="w-10 h-10 mb-2 opacity-20" style={{ color: preview.color_palette[0] }} />
-                <p className="text-[21px] opacity-30">대표 사진</p>
+                <p className="text-[11px] opacity-30">대표 사진</p>
               </div>
 
               {/* 2. 히어로: 커플 이름 + 날짜 + 장소 */}
               <div className="py-14 px-6 text-center">
                 <p
-                  className="text-[21px] tracking-[0.3em] uppercase mb-6 opacity-60"
+                  className="text-[10px] tracking-[0.3em] uppercase mb-6 opacity-60"
                   style={{ color: preview.color_palette[0] }}
                 >
                   Wedding Invitation
                 </p>
                 <h2
-                  className="text-[38px] font-light leading-[1.6] mb-4"
+                  className="text-[24px] font-light leading-[1.6] mb-4"
                   style={{ fontFamily: `'${preview.font_pair.heading}', serif` }}
                 >
-                  신랑 <span className="text-[21px] opacity-40" style={{ color: preview.color_palette[0] }}>&</span> 신부
+                  신랑 <span className="text-[18px] opacity-40" style={{ color: preview.color_palette[0] }}>&</span> 신부
                 </h2>
                 <div className="w-8 h-px mx-auto mb-4 opacity-30" style={{ background: preview.color_palette[0] }} />
-                <p className="text-[21px] opacity-50">2026.00.00 토요일 오후 0시</p>
-                <p className="text-[21px] opacity-40 mt-1">예식장 이름</p>
+                <p className="text-[13px] opacity-50">2026.00.00 토요일 오후 0시</p>
+                <p className="text-[12px] opacity-40 mt-1">예식장 이름</p>
               </div>
 
               {/* 3. 인사말 */}
@@ -204,7 +204,7 @@ export default function TemplateSelectPage() {
                   <div className="w-8 h-px" style={{ background: preview.color_palette[0] }} />
                 </div>
                 <p
-                  className="text-[21px] leading-[2] opacity-50"
+                  className="text-[13px] leading-[2] opacity-50"
                   style={{ fontFamily: `'${preview.font_pair.body}', sans-serif` }}
                 >
                   서로 다른 두 사람이 만나<br />
@@ -222,22 +222,22 @@ export default function TemplateSelectPage() {
               <div className="py-8 px-6">
                 <div className="flex items-center justify-center gap-8">
                   <div className="text-center flex-1">
-                    <p className="text-[21px] opacity-30 mb-1.5">Groom</p>
-                    <p className="text-[21px] font-light opacity-50" style={{ fontFamily: `'${preview.font_pair.heading}', serif` }}>신랑</p>
-                    <p className="text-[21px] opacity-30 mt-1">아버지 · 어머니</p>
+                    <p className="text-[10px] opacity-30 mb-1.5">Groom</p>
+                    <p className="text-[15px] font-light opacity-50" style={{ fontFamily: `'${preview.font_pair.heading}', serif` }}>신랑</p>
+                    <p className="text-[11px] opacity-30 mt-1">아버지 · 어머니</p>
                   </div>
-                  <div className="text-[21px] opacity-20" style={{ color: preview.color_palette[0] }}>♥</div>
+                  <div className="text-[16px] opacity-20" style={{ color: preview.color_palette[0] }}>♥</div>
                   <div className="text-center flex-1">
-                    <p className="text-[21px] opacity-30 mb-1.5">Bride</p>
-                    <p className="text-[21px] font-light opacity-50" style={{ fontFamily: `'${preview.font_pair.heading}', serif` }}>신부</p>
-                    <p className="text-[21px] opacity-30 mt-1">아버지 · 어머니</p>
+                    <p className="text-[10px] opacity-30 mb-1.5">Bride</p>
+                    <p className="text-[15px] font-light opacity-50" style={{ fontFamily: `'${preview.font_pair.heading}', serif` }}>신부</p>
+                    <p className="text-[11px] opacity-30 mt-1">아버지 · 어머니</p>
                   </div>
                 </div>
               </div>
 
               {/* 5. 갤러리 */}
               <div className="px-6 pb-8">
-                <p className="text-center text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-center text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   Gallery
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -255,17 +255,17 @@ export default function TemplateSelectPage() {
 
               {/* 6. 캘린더 */}
               <div className="px-6 pb-10 text-center">
-                <p className="text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   Calendar
                 </p>
-                <div className="grid grid-cols-7 gap-1 max-w-[298px] mx-auto">
+                <div className="grid grid-cols-7 gap-1 max-w-[280px] mx-auto">
                   {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
-                    <div key={d} className="text-[21px] opacity-30 py-1">{d}</div>
+                    <div key={d} className="text-[10px] opacity-30 py-1">{d}</div>
                   ))}
                   {Array.from({ length: 28 }, (_, i) => (
                     <div
                       key={i}
-                      className={`text-[21px] py-1.5 rounded-full ${i === 14 ? "text-white font-bold" : "opacity-40"}`}
+                      className={`text-[11px] py-1.5 rounded-full ${i === 14 ? "text-white font-bold" : "opacity-40"}`}
                       style={i === 14 ? { background: preview.color_palette[0] } : undefined}
                     >
                       {i + 1}
@@ -276,26 +276,26 @@ export default function TemplateSelectPage() {
 
               {/* 7. 오시는 길 */}
               <div className="px-6 pb-8">
-                <p className="text-center text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-center text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   Location
                 </p>
                 <div className="p-4 rounded-2xl" style={{ background: `${preview.color_palette[0]}08` }}>
                   <div className="flex items-center gap-2 mb-2">
                     <MapPin className="w-4 h-4 opacity-40" style={{ color: preview.color_palette[0] }} />
-                    <span className="text-[21px] opacity-50">예식장 이름</span>
+                    <span className="text-[13px] opacity-50">예식장 이름</span>
                   </div>
-                  <p className="text-[21px] opacity-30 pl-6 mb-2">서울특별시 강남구 ...</p>
+                  <p className="text-[11px] opacity-30 pl-6 mb-2">서울특별시 강남구 ...</p>
                   <div className="pl-6 mb-3">
-                    <p className="text-[21px] font-medium opacity-50 mb-1" style={{ color: preview.color_palette[0] }}>오시는 길</p>
-                    <p className="text-[21px] opacity-30 leading-[1.8]">
+                    <p className="text-[11px] font-medium opacity-50 mb-1" style={{ color: preview.color_palette[0] }}>오시는 길</p>
+                    <p className="text-[11px] opacity-30 leading-[1.8]">
                       지하철: 0호선 역 출구<br />버스: 000번<br />자가용: 주차 가능
                     </p>
                   </div>
                   <div className="flex gap-2 pl-6">
-                    <div className="px-3 py-1.5 rounded-lg text-[21px] font-medium text-white" style={{ background: preview.color_palette[0] }}>
+                    <div className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-white" style={{ background: preview.color_palette[0] }}>
                       지도 보기
                     </div>
-                    <div className="px-3 py-1.5 rounded-lg text-[21px] font-medium border" style={{ borderColor: `${preview.color_palette[0]}40`, color: preview.color_palette[0] }}>
+                    <div className="px-3 py-1.5 rounded-lg text-[11px] font-medium border" style={{ borderColor: `${preview.color_palette[0]}40`, color: preview.color_palette[0] }}>
                       카카오맵
                     </div>
                   </div>
@@ -304,25 +304,25 @@ export default function TemplateSelectPage() {
 
               {/* 8. RSVP */}
               <div className="px-6 pb-8">
-                <p className="text-center text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-center text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   RSVP
                 </p>
                 <div className="p-4 rounded-2xl flex flex-col gap-2" style={{ background: `${preview.color_palette[0]}08` }}>
                   <div className="w-full h-9 rounded-xl bg-white border border-black/[0.04] flex items-center px-3">
-                    <span className="text-[21px] opacity-25">이름</span>
+                    <span className="text-[12px] opacity-25">이름</span>
                   </div>
                   <div className="w-full h-9 rounded-xl bg-white border border-black/[0.04] flex items-center px-3">
-                    <span className="text-[21px] opacity-25">연락처 (선택)</span>
+                    <span className="text-[12px] opacity-25">연락처 (선택)</span>
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 h-9 rounded-xl border border-black/[0.04] flex items-center justify-center text-[21px] opacity-30 bg-white">참석합니다</div>
-                    <div className="flex-1 h-9 rounded-xl border border-black/[0.04] flex items-center justify-center text-[21px] opacity-30 bg-white">불참입니다</div>
+                    <div className="flex-1 h-9 rounded-xl border border-black/[0.04] flex items-center justify-center text-[12px] opacity-30 bg-white">참석합니다</div>
+                    <div className="flex-1 h-9 rounded-xl border border-black/[0.04] flex items-center justify-center text-[12px] opacity-30 bg-white">불참입니다</div>
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 h-9 rounded-xl flex items-center justify-center text-[21px] opacity-40 border" style={{ borderColor: `${preview.color_palette[0]}30`, color: preview.color_palette[0] }}>신랑측</div>
-                    <div className="flex-1 h-9 rounded-xl flex items-center justify-center text-[21px] opacity-40 border" style={{ borderColor: `${preview.color_palette[0]}30`, color: preview.color_palette[0] }}>신부측</div>
+                    <div className="flex-1 h-9 rounded-xl flex items-center justify-center text-[11px] opacity-40 border" style={{ borderColor: `${preview.color_palette[0]}30`, color: preview.color_palette[0] }}>신랑측</div>
+                    <div className="flex-1 h-9 rounded-xl flex items-center justify-center text-[11px] opacity-40 border" style={{ borderColor: `${preview.color_palette[0]}30`, color: preview.color_palette[0] }}>신부측</div>
                   </div>
-                  <div className="w-full h-10 rounded-xl text-white text-[21px] font-medium flex items-center justify-center opacity-70" style={{ background: preview.color_palette[0] }}>
+                  <div className="w-full h-10 rounded-xl text-white text-[13px] font-medium flex items-center justify-center opacity-70" style={{ background: preview.color_palette[0] }}>
                     참석 여부 전달하기
                   </div>
                 </div>
@@ -330,16 +330,16 @@ export default function TemplateSelectPage() {
 
               {/* 9. 축의금 계좌 */}
               <div className="px-6 pb-8">
-                <p className="text-center text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-center text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   축의금 계좌
                 </p>
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: `${preview.color_palette[0]}08` }}>
-                    <span className="text-[21px] opacity-50">신랑 측 계좌</span>
+                    <span className="text-[13px] opacity-50">신랑 측 계좌</span>
                     <ChevronDown className="w-4 h-4 opacity-30" />
                   </div>
                   <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: `${preview.color_palette[0]}08` }}>
-                    <span className="text-[21px] opacity-50">신부 측 계좌</span>
+                    <span className="text-[13px] opacity-50">신부 측 계좌</span>
                     <ChevronDown className="w-4 h-4 opacity-30" />
                   </div>
                 </div>
@@ -347,21 +347,21 @@ export default function TemplateSelectPage() {
 
               {/* 10. 방명록 */}
               <div className="px-6 pb-8">
-                <p className="text-center text-[21px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
+                <p className="text-center text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   Guestbook
                 </p>
                 <div className="p-3 rounded-2xl" style={{ background: `${preview.color_palette[0]}08` }}>
                   <div className="flex gap-2 mb-2">
                     <div className="flex-1 h-8 rounded-lg bg-white border border-black/[0.04] flex items-center px-2.5">
-                      <span className="text-[21px] opacity-20">이름</span>
+                      <span className="text-[11px] opacity-20">이름</span>
                     </div>
                     <div className="w-20 h-8 rounded-lg bg-white border border-black/[0.04] flex items-center px-2.5">
-                      <span className="text-[21px] opacity-20">비밀번호</span>
+                      <span className="text-[11px] opacity-20">비밀번호</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1 h-14 rounded-lg bg-white border border-black/[0.04] flex items-start p-2.5">
-                      <span className="text-[21px] opacity-20">축하 메시지</span>
+                      <span className="text-[11px] opacity-20">축하 메시지</span>
                     </div>
                     <div className="self-end w-10 h-8 rounded-lg flex items-center justify-center" style={{ background: preview.color_palette[0] }}>
                       <Send className="w-3.5 h-3.5 text-white" />
@@ -370,23 +370,23 @@ export default function TemplateSelectPage() {
                 </div>
                 <div className="mt-2 p-3 rounded-xl bg-white border border-black/[0.04]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[21px] font-medium opacity-40">홍길동</span>
-                    <span className="text-[21px] opacity-20">2026.03.01</span>
+                    <span className="text-[11px] font-medium opacity-40">홍길동</span>
+                    <span className="text-[9px] opacity-20">2026.03.01</span>
                   </div>
-                  <p className="text-[21px] opacity-30">결혼 진심으로 축하해요!</p>
+                  <p className="text-[12px] opacity-30">결혼 진심으로 축하해요!</p>
                 </div>
               </div>
 
               {/* 11. 공유 버튼 */}
               <div className="py-8 text-center">
                 <div
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[21px] font-medium text-white opacity-70"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[12px] font-medium text-white opacity-70"
                   style={{ background: preview.color_palette[0] }}
                 >
                   <Heart className="w-3.5 h-3.5" />
                   청첩장 공유하기
                 </div>
-                <p className="text-[21px] opacity-15 mt-4">Powered by 웨딩한방</p>
+                <p className="text-[10px] opacity-15 mt-4">Powered by 웨딩한방</p>
               </div>
             </div>
 
@@ -395,10 +395,10 @@ export default function TemplateSelectPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[21px] font-semibold text-noir-800">{preview.name}</h3>
+                    <h3 className="text-[16px] font-semibold text-noir-800">{preview.name}</h3>
                     {preview.is_premium && <Crown className="w-4 h-4 text-gold" />}
                   </div>
-                  <p className="text-[21px] text-taupe-500 capitalize mt-0.5">
+                  <p className="text-[12px] text-taupe-500 capitalize mt-0.5">
                     {preview.category} · {preview.opening_animation} 오프닝
                   </p>
                 </div>
@@ -416,7 +416,7 @@ export default function TemplateSelectPage() {
               <button
                 onClick={handleConfirm}
                 disabled={creating}
-                className="w-full py-3.5 rounded-xl bg-noir-800 text-white text-[21px] font-medium hover:bg-noir-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {creating ? (
                   <>

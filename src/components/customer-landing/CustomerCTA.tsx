@@ -25,7 +25,7 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
+          <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
             <span className="w-5 h-px bg-rose-500" />
             Get Started
           </div>
@@ -58,7 +58,7 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
           <div className="flex gap-4 justify-center flex-wrap mb-8">
             <a
               href={loginHref}
-              className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[21px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
+              className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
             >
               {isComingSoon ? "미리 둘러보기" : "무료로 시작하기"}
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -67,7 +67,7 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
             </a>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[21px] text-taupe-500">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-taupe-500">
             {isComingSoon ? (
               <>
                 <span>✦ 로그인 없이 체험</span>

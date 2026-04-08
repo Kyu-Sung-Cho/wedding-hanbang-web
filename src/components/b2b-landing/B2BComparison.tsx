@@ -23,7 +23,7 @@ export default function B2BComparison() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[600px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Comparison
         </div>
@@ -41,25 +41,25 @@ export default function B2BComparison() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
-        className="max-w-[955px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
+        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
         <div className="grid grid-cols-[180px_1fr_1fr] bg-noir-800 text-white">
-          <div className="p-5 px-7 text-[21px] font-medium tracking-wide" />
-          <div className="p-5 px-7 text-[21px] font-medium tracking-wide">기존 플랫폼</div>
-          <div className="p-5 px-7 text-[21px] font-medium tracking-wide">웨딩한방</div>
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide" />
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">기존 플랫폼</div>
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">웨딩한방</div>
         </div>
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={`grid grid-cols-[180px_1fr_1fr] ${i < rows.length - 1 ? "border-b border-black/[0.04]" : ""}`}
           >
-            <div className="p-5 px-7 text-[21px] font-medium text-charcoal bg-ivory-warm flex items-center">
+            <div className="p-5 px-7 text-[13px] font-medium text-charcoal bg-ivory-warm flex items-center">
               {row.label}
             </div>
-            <div className="p-5 px-7 text-[21px] text-taupe-500 font-light flex items-center">
+            <div className="p-5 px-7 text-[13px] text-taupe-500 font-light flex items-center">
               {row.old}
             </div>
-            <div className="p-5 px-7 text-[21px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
+            <div className="p-5 px-7 text-[13px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04]">
               <span className="text-rose-500 font-semibold mr-2">&#x2713;</span>
               {row.new}
             </div>
@@ -68,7 +68,7 @@ export default function B2BComparison() {
       </motion.div>
 
       {/* 모바일 카드 */}
-      <div className="md:hidden flex flex-col gap-4 max-w-[510px] mx-auto">
+      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
         {rows.map((row, i) => (
           <motion.div
             key={row.label}
@@ -78,15 +78,15 @@ export default function B2BComparison() {
             transition={{ duration: 0.6, delay: i * 0.06 }}
             className="rounded-2xl border border-platinum overflow-hidden"
           >
-            <div className="bg-ivory-warm px-5 py-3 text-[21px] font-medium text-charcoal">
+            <div className="bg-ivory-warm px-5 py-3 text-[13px] font-medium text-charcoal">
               {row.label}
             </div>
-            <div className="px-5 py-3 text-[21px] text-taupe-500 font-light border-b border-black/[0.04]">
-              <span className="text-[21px] text-taupe-400 block mb-1">기존 플랫폼</span>
+            <div className="px-5 py-3 text-[13px] text-taupe-500 font-light border-b border-black/[0.04]">
+              <span className="text-[11px] text-taupe-400 block mb-1">기존 플랫폼</span>
               {row.old}
             </div>
-            <div className="px-5 py-3 text-[21px] text-noir-800 font-normal bg-rose-500/[0.04]">
-              <span className="text-[21px] text-rose-500 block mb-1">웨딩한방</span>
+            <div className="px-5 py-3 text-[13px] text-noir-800 font-normal bg-rose-500/[0.04]">
+              <span className="text-[11px] text-rose-500 block mb-1">웨딩한방</span>
               <span className="text-rose-500 font-semibold mr-1.5">&#x2713;</span>
               {row.new}
             </div>

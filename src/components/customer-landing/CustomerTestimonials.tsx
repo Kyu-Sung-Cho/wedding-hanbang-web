@@ -59,7 +59,7 @@ export default function CustomerTestimonials() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Experience
         </div>
@@ -73,7 +73,7 @@ export default function CustomerTestimonials() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1170px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[510px]">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[480px]">
         {scenarios.map((s, i) => (
           <motion.div
             key={s.label}
@@ -84,8 +84,8 @@ export default function CustomerTestimonials() {
             className="bg-ivory-warm rounded-[20px] p-8 text-left border border-transparent hover:border-rose-pale md:hover:-translate-y-1.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.06)] transition-all duration-400"
           >
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[21px] text-taupe-500 font-light">{s.situation}</span>
-              <span className="text-[21px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
+              <span className="text-[11px] text-taupe-500 font-light">{s.situation}</span>
+              <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                 {s.feature}
               </span>
             </div>
@@ -93,10 +93,10 @@ export default function CustomerTestimonials() {
               {s.text}
             </p>
             <div className="flex items-center gap-3 pt-5 border-t border-black/[0.04]">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-pale to-gold-light flex items-center justify-center text-[21px]">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-pale to-gold-light flex items-center justify-center text-[16px]">
                 {s.avatar}
               </div>
-              <div className="text-[21px] font-medium text-noir-800">{s.label}</div>
+              <div className="text-[14px] font-medium text-noir-800">{s.label}</div>
             </div>
           </motion.div>
         ))}

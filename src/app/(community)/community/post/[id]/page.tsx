@@ -175,7 +175,7 @@ export default function PostDetailPage() {
   if (postLoading) {
     return (
       <div className="min-h-screen bg-[#FAFAF8]">
-        <div className="mx-auto max-w-[955px] px-4 sm:px-6 lg:px-8 py-5">
+        <div className="mx-auto max-w-[900px] px-4 sm:px-6 lg:px-8 py-5">
           <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] p-4">
             <div className="animate-pulse space-y-4">
               <div className="h-4 w-24 bg-[#F0EFED] rounded-lg" />
@@ -200,7 +200,7 @@ export default function PostDetailPage() {
   if (!post) {
     return (
       <div className="min-h-screen bg-[#FAFAF8]">
-        <div className="mx-auto max-w-[955px] px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="mx-auto max-w-[900px] px-4 sm:px-6 lg:px-8 py-16 text-center">
           <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] p-8">
             <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#878680]" />
             <p className="text-[#1A1A1F] font-medium">
@@ -229,7 +229,7 @@ export default function PostDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      <div className="mx-auto max-w-[955px] px-4 sm:px-6 lg:px-8 py-5">
+      <div className="mx-auto max-w-[900px] px-4 sm:px-6 lg:px-8 py-5">
         {/* 브레드크럼 네비게이션 */}
         <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
           <Link

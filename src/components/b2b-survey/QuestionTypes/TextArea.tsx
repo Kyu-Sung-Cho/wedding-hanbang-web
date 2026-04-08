@@ -30,15 +30,15 @@ export default function TextArea({
         placeholder={placeholder || "자유롭게 적어주세요"}
         maxLength={maxLength}
         rows={4}
-        className="w-full px-5 py-4 rounded-2xl border border-platinum bg-white text-[21px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 resize-none leading-relaxed"
+        className="w-full px-5 py-4 rounded-2xl border border-platinum bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 resize-none leading-relaxed"
       />
       {maxLength && (
-        <p className="text-[21px] text-taupe-400 text-right">
+        <p className="text-[12px] text-taupe-400 text-right">
           {value.length}/{maxLength}
         </p>
       )}
       {error && (
-        <p className="text-[21px] text-rose-600">{error}</p>
+        <p className="text-[13px] text-rose-600">{error}</p>
       )}
     </motion.div>
   );

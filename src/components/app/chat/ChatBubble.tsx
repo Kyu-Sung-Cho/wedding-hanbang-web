@@ -73,8 +73,8 @@ export default function ChatBubble({
                         <BookOpen className="w-3.5 h-3.5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[21px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
-                        <p className="text-[21px] text-[#928980]">예절 가이드 보기</p>
+                        <p className="text-[12px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
+                        <p className="text-[10px] text-[#928980]">예절 가이드 보기</p>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#C4967E] transition-colors flex-shrink-0" />
                     </Link>
@@ -83,7 +83,7 @@ export default function ChatBubble({
               </div>
             )}
           </div>
-          <span className="text-[21px] text-[#B5ADA3] ml-1">
+          <span className="text-[10px] text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
         </div>
@@ -126,7 +126,7 @@ export default function ChatBubble({
           {isPartnerMsg && (
             <div className="flex items-center gap-1 mr-1">
               <Heart className="w-3 h-3 text-pink-400" />
-              <span className="text-[21px] text-pink-400 font-medium">상대방에게</span>
+              <span className="text-[10px] text-pink-400 font-medium">상대방에게</span>
             </div>
           )}
           {/* 첨부 파일 (이미지 + PDF) */}
@@ -162,7 +162,7 @@ export default function ChatBubble({
               {displayContent}
             </p>
           </div>
-          <span className="text-[21px] text-[#B5ADA3] mr-1">
+          <span className="text-[10px] text-[#B5ADA3] mr-1">
             {formatTime(created_at)}
           </span>
         </div>
@@ -192,7 +192,7 @@ export default function ChatBubble({
             {message.sender_id ? "" : roleLabel}
           </span>
           <span
-            className={`text-[21px] px-1.5 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-pink-500" : badgeBg}`}
+            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-pink-500" : badgeBg}`}
           >
             {isPartnerMsg ? `${roleLabel} → 나에게` : roleLabel}
           </span>
@@ -204,7 +204,7 @@ export default function ChatBubble({
             {displayContent}
           </p>
         </div>
-        <span className="text-[21px] text-[#B5ADA3] ml-1">
+        <span className="text-[10px] text-[#B5ADA3] ml-1">
           {formatTime(created_at)}
         </span>
       </div>

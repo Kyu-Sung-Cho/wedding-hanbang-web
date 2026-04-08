@@ -15,7 +15,7 @@ export default function CTA() {
         transition={{ duration: 0.8 }}
         className="relative z-10 max-w-[640px] mx-auto"
       >
-        <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
           <span className="w-5 h-px bg-rose-500" />
           Get Started
         </div>
@@ -27,7 +27,7 @@ export default function CTA() {
           </em>
           과 함께
         </h2>
-        <p className="text-[21px] text-charcoal leading-relaxed font-light mb-10">
+        <p className="text-[16px] text-charcoal leading-relaxed font-light mb-10">
           지금 바로 시작하세요. 카카오 또는 구글 계정으로
           <br className="hidden md:block" />
           간편하게 가입하고 모든 기능을 무료로 이용할 수 있습니다.
@@ -35,13 +35,13 @@ export default function CTA() {
 
         <a
           href="/login"
-          className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[21px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300 mb-6"
+          className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300 mb-6"
         >
           무료로 시작하기
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </a>
 
-        <p className="text-[21px] text-taupe-500">
+        <p className="text-[12px] text-taupe-500">
           카카오 · 구글 간편 로그인 · 완전 무료
         </p>
       </motion.div>

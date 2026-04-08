@@ -13,13 +13,13 @@ export default function B2BHero() {
         <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(800px,90vw)] h-[min(800px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.05),transparent)] rounded-full" />
       </div>
 
-      <div className="relative z-10 max-w-[850px] mx-auto px-[clamp(20px,5vw,60px)] text-center py-[clamp(80px,10vw,128px)]">
+      <div className="relative z-10 max-w-[800px] mx-auto px-[clamp(20px,5vw,60px)] text-center py-[clamp(80px,10vw,128px)]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.2em] uppercase text-rose-light font-medium mb-8">
+          <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.2em] uppercase text-rose-light font-medium mb-8">
             <span className="w-6 h-px bg-rose-light" />
             Business Partner
             <span className="w-6 h-px bg-rose-light" />
@@ -59,13 +59,13 @@ export default function B2BHero() {
         >
           <Link
             href="/vendor/service"
-            className="px-8 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[21px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
+            className="px-8 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
           >
             서비스 안내 & 업체 등록
           </Link>
           <button
             onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="px-8 py-4 rounded-full border border-white/20 text-white/80 text-[21px] font-medium hover:border-white/40 hover:text-white transition-all"
+            className="px-8 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all"
           >
             파트너 설문 참여하기
           </button>
@@ -87,7 +87,7 @@ export default function B2BHero() {
               <div className="font-display text-[clamp(24px,3vw,36px)] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
                 {stat.num}
               </div>
-              <div className="text-[21px] text-white/40 mt-1">{stat.label}</div>
+              <div className="text-[12px] text-white/40 mt-1">{stat.label}</div>
             </div>
           ))}
         </motion.div>
@@ -95,7 +95,7 @@ export default function B2BHero() {
 
       {/* 스크롤 힌트 */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-10">
-        <span className="text-[21px] text-white/30 tracking-wider">SCROLL</span>
+        <span className="text-[11px] text-white/30 tracking-wider">SCROLL</span>
         <div className="w-px h-8 bg-gradient-to-b from-white/30 to-transparent animate-[scrollLine_2s_ease-in-out_infinite]" />
       </div>
     </section>
