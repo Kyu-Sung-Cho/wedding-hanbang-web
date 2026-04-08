@@ -17,7 +17,7 @@ export default function SectionHeader({ title, note, sectionNumber }: SectionHea
       className="mb-8"
     >
       <div className="flex items-center gap-3 mb-2">
-        <span className="text-[38px] font-display font-semibold tracking-widest text-rose-500 uppercase">
+        <span className="text-[12px] font-display font-semibold tracking-widest text-rose-500 uppercase">
           Section {sectionNumber}
         </span>
         <div className="h-px flex-1 bg-gradient-to-r from-rose-pale to-transparent" />
@@ -26,7 +26,7 @@ export default function SectionHeader({ title, note, sectionNumber }: SectionHea
         {title}
       </h2>
       {note && (
-        <p className="mt-2 text-[23px] text-taupe-500 leading-relaxed">{note}</p>
+        <p className="mt-2 text-[14px] text-taupe-500 leading-relaxed">{note}</p>
       )}
     </motion.div>
   );

@@ -34,8 +34,8 @@ export default function StepTemplate() {
 
   return (
     <div>
-      <h2 className="text-[25px] font-medium text-noir-800 mb-1">템플릿 선택</h2>
-      <p className="text-[25px] text-taupe-500 mb-4">디자인을 선택하세요. 입력한 내용은 유지됩니다.</p>
+      <h2 className="text-[16px] font-medium text-noir-800 mb-1">템플릿 선택</h2>
+      <p className="text-[13px] text-taupe-500 mb-4">디자인을 선택하세요. 입력한 내용은 유지됩니다.</p>
 
       {/* 카테고리 필터 */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
@@ -43,7 +43,7 @@ export default function StepTemplate() {
           <button
             key={c.value}
             onClick={() => setCategory(c.value)}
-            className={`px-3 py-1.5 rounded-full text-[38px] font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap transition-colors ${
               category === c.value
                 ? "bg-noir-800 text-white"
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
@@ -88,7 +88,7 @@ export default function StepTemplate() {
                   style={{ borderColor: primary }}
                 />
                 <span
-                  className="text-[38px] font-light leading-tight text-center"
+                  className="text-[12px] font-light leading-tight text-center"
                   style={{ fontFamily: `'${heading}', serif`, color: text }}
                 >
                   신랑 & 신부
@@ -113,10 +113,10 @@ export default function StepTemplate() {
               {/* 이름 + 카테고리 */}
               <div className="p-2 bg-white">
                 <div className="flex items-center justify-between">
-                  <span className="text-[23px] text-noir-800 font-medium truncate">{t.name}</span>
+                  <span className="text-[11px] text-noir-800 font-medium truncate">{t.name}</span>
                   {t.is_premium && <Crown className="w-3 h-3 text-gold flex-shrink-0" />}
                 </div>
-                <span className="text-[23px] text-taupe-400 capitalize">{t.category}</span>
+                <span className="text-[9px] text-taupe-400 capitalize">{t.category}</span>
               </div>
 
               {/* 선택 체크 */}

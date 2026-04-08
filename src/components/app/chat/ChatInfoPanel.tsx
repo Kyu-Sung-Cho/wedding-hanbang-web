@@ -47,7 +47,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">
-              <h3 className="text-[23px] font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-[14px] font-medium text-noir-800">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
@@ -62,7 +62,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[23px] font-medium transition-colors relative ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors relative ${
                     activeTab === tab.key
                       ? "text-rose-500"
                       : "text-taupe-400 hover:text-taupe-500"
@@ -103,7 +103,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
 
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-black/[0.04]">
-              <h3 className="text-[23px] font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-[14px] font-medium text-noir-800">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
@@ -118,7 +118,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[23px] font-medium transition-colors relative ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors relative ${
                     activeTab === tab.key
                       ? "text-rose-500"
                       : "text-taupe-400 hover:text-taupe-500"

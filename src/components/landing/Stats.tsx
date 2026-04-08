@@ -25,7 +25,7 @@ export default function Stats() {
             <div className="font-display text-[clamp(44px,5vw,64px)] font-light bg-gradient-to-br from-rose-light to-gold-light bg-clip-text text-transparent leading-none mb-3">
               {stat.number}
             </div>
-            <div className="text-[25px] text-white/50 font-light tracking-wide">
+            <div className="text-[13px] text-white/50 font-light tracking-wide">
               {stat.label}
             </div>
           </motion.div>

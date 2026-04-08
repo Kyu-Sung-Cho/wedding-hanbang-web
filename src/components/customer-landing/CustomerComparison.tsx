@@ -23,7 +23,7 @@ export default function CustomerComparison() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Comparison
         </div>
@@ -46,22 +46,22 @@ export default function CustomerComparison() {
         className="max-w-[960px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
         <div className="grid grid-cols-[160px_1fr_1fr] bg-noir-800 text-white">
-          <div className="p-5 px-7 text-[25px] font-medium tracking-wide" />
-          <div className="p-5 px-7 text-[25px] font-medium tracking-wide text-white/60">기존 방식</div>
-          <div className="p-5 px-7 text-[25px] font-medium tracking-wide">웨딩한방</div>
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide" />
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide text-white/60">기존 방식</div>
+          <div className="p-5 px-7 text-[13px] font-medium tracking-wide">웨딩한방</div>
         </div>
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={`grid grid-cols-[160px_1fr_1fr] ${i < rows.length - 1 ? "border-b border-black/[0.04]" : ""}`}
           >
-            <div className="p-5 px-7 text-[25px] font-medium text-charcoal bg-ivory-warm flex items-center">
+            <div className="p-5 px-7 text-[13px] font-medium text-charcoal bg-ivory-warm flex items-center">
               {row.label}
             </div>
-            <div className="p-5 px-7 text-[25px] text-taupe-500 font-light flex items-center leading-relaxed">
+            <div className="p-5 px-7 text-[13px] text-taupe-500 font-light flex items-center leading-relaxed">
               {row.old}
             </div>
-            <div className="p-5 px-7 text-[25px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04] leading-relaxed">
+            <div className="p-5 px-7 text-[13px] text-noir-800 font-normal flex items-center bg-rose-500/[0.04] leading-relaxed">
               <span className="text-rose-500 font-semibold mr-2 flex-shrink-0">&#x2713;</span>
               {row.new}
             </div>
@@ -80,15 +80,15 @@ export default function CustomerComparison() {
             transition={{ duration: 0.6, delay: i * 0.06 }}
             className="rounded-2xl border border-platinum overflow-hidden"
           >
-            <div className="bg-ivory-warm px-5 py-3 text-[25px] font-medium text-charcoal">
+            <div className="bg-ivory-warm px-5 py-3 text-[13px] font-medium text-charcoal">
               {row.label}
             </div>
-            <div className="px-5 py-3 text-[25px] text-taupe-500 font-light border-b border-black/[0.04]">
-              <span className="text-[23px] text-taupe-400 block mb-1">기존 방식</span>
+            <div className="px-5 py-3 text-[13px] text-taupe-500 font-light border-b border-black/[0.04]">
+              <span className="text-[11px] text-taupe-400 block mb-1">기존 방식</span>
               {row.old}
             </div>
-            <div className="px-5 py-3 text-[25px] text-noir-800 font-normal bg-rose-500/[0.04]">
-              <span className="text-[23px] text-rose-500 block mb-1">웨딩한방</span>
+            <div className="px-5 py-3 text-[13px] text-noir-800 font-normal bg-rose-500/[0.04]">
+              <span className="text-[11px] text-rose-500 block mb-1">웨딩한방</span>
               <span className="text-rose-500 font-semibold mr-1.5">&#x2713;</span>
               {row.new}
             </div>

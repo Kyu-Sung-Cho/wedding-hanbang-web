@@ -49,7 +49,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
           className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/80 backdrop-blur-sm border border-platinum rounded-full mb-12 cursor-pointer hover:bg-white hover:border-rose-500/30 transition-all"
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? "bg-gold" : "bg-emerald-500"} animate-pulse`} />
-          <span className="text-[25px] text-charcoal tracking-wide font-light">
+          <span className="text-[13px] text-charcoal tracking-wide font-light">
             {isComingSoon ? "오픈 준비중 · 미리 체험 가능" : "지금 무료로 이용 가능"}
           </span>
         </motion.a>
@@ -90,7 +90,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
         >
           <a
             href={loginHref}
-            className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[38px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
+            className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
           >
             {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -99,7 +99,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
           </a>
           <a
             href="#features"
-            className="inline-flex items-center gap-2.5 px-10 py-4 bg-transparent text-charcoal border border-platinum rounded-full text-[38px] font-light hover:border-rose-500 hover:text-rose-500 hover:-translate-y-0.5 transition-all duration-300"
+            className="inline-flex items-center gap-2.5 px-10 py-4 bg-transparent text-charcoal border border-platinum rounded-full text-[15px] font-light hover:border-rose-500 hover:text-rose-500 hover:-translate-y-0.5 transition-all duration-300"
           >
             기능 둘러보기
           </a>
@@ -121,7 +121,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
               <div className="font-display text-[clamp(20px,3vw,28px)] font-medium bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
                 {stat.num}
               </div>
-              <div className="text-[25px] text-taupe-500 mt-1.5 font-normal tracking-wide">{stat.label}</div>
+              <div className="text-[13px] text-taupe-500 mt-1.5 font-normal tracking-wide">{stat.label}</div>
             </div>
           ))}
         </motion.div>
@@ -134,7 +134,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
         transition={{ duration: 1, delay: 1.4 }}
         className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 max-md:hidden"
       >
-        <span className="text-[25px] tracking-[0.2em] uppercase text-taupe-400">
+        <span className="text-[10px] tracking-[0.2em] uppercase text-taupe-400">
           Scroll
         </span>
         <div className="w-px h-8 bg-gradient-to-b from-taupe-400 to-transparent animate-[scrollLine_2s_ease-in-out_infinite]" />

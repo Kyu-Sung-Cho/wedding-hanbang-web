@@ -44,8 +44,8 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
           >
             <Check className="w-6 h-6 text-white" />
           </div>
-          <p className="text-[38px] font-medium">감사합니다!</p>
-          <p className="text-[25px] opacity-60 mt-1">참석 여부가 전달되었습니다.</p>
+          <p className="text-[15px] font-medium">감사합니다!</p>
+          <p className="text-[13px] opacity-60 mt-1">참석 여부가 전달되었습니다.</p>
         </div>
       </section>
     );
@@ -54,7 +54,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
   return (
     <section className="py-12 px-6">
       <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
-        <h3 className="text-center text-[23px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
+        <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           RSVP
         </h3>
 
@@ -64,7 +64,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="이름"
-            className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/[0.06] text-[23px] placeholder:opacity-40 focus:outline-none"
+            className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/[0.06] text-[14px] placeholder:opacity-40 focus:outline-none"
             style={{ borderColor: name ? `${colors[0]}40` : undefined }}
           />
           <input
@@ -72,7 +72,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="연락처 (선택)"
-            className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/[0.06] text-[23px] placeholder:opacity-40 focus:outline-none"
+            className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/[0.06] text-[14px] placeholder:opacity-40 focus:outline-none"
           />
 
           <div className="flex gap-2">
@@ -83,7 +83,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
               <button
                 key={String(opt.value)}
                 onClick={() => setAttending(opt.value)}
-                className={`flex-1 py-2.5 rounded-xl text-[25px] font-medium border transition-colors ${
+                className={`flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-colors ${
                   attending === opt.value
                     ? "text-white border-transparent"
                     : "bg-white border-black/[0.06] opacity-60"
@@ -97,18 +97,18 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
 
           {attending === true && (
             <div className="flex items-center gap-3">
-              <span className="text-[25px] opacity-60">참석 인원</span>
+              <span className="text-[13px] opacity-60">참석 인원</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
-                  className="w-8 h-8 rounded-lg bg-white border border-black/[0.06] text-[23px]"
+                  className="w-8 h-8 rounded-lg bg-white border border-black/[0.06] text-[14px]"
                 >
                   -
                 </button>
-                <span className="text-[23px] font-medium w-6 text-center">{guestCount}</span>
+                <span className="text-[14px] font-medium w-6 text-center">{guestCount}</span>
                 <button
                   onClick={() => setGuestCount(guestCount + 1)}
-                  className="w-8 h-8 rounded-lg bg-white border border-black/[0.06] text-[23px]"
+                  className="w-8 h-8 rounded-lg bg-white border border-black/[0.06] text-[14px]"
                 >
                   +
                 </button>
@@ -124,7 +124,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
               <button
                 key={opt.value}
                 onClick={() => setSide(opt.value)}
-                className={`flex-1 py-2 rounded-xl text-[38px] border transition-colors ${
+                className={`flex-1 py-2 rounded-xl text-[12px] border transition-colors ${
                   side === opt.value
                     ? "font-medium border-transparent text-white"
                     : "bg-white border-black/[0.06] opacity-50"
@@ -139,7 +139,7 @@ export default function InviteRsvp({ colors, onSubmit }: Props) {
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || attending === null || submitting}
-            className="w-full py-3 rounded-xl text-[23px] font-medium text-white disabled:opacity-40 transition-colors"
+            className="w-full py-3 rounded-xl text-[14px] font-medium text-white disabled:opacity-40 transition-colors"
             style={{ background: colors[0] }}
           >
             {submitting ? "전송 중..." : "참석 여부 전달하기"}

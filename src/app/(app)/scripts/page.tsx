@@ -76,12 +76,12 @@ export default function ScriptsPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[35px] font-semibold text-noir-800">AI 웨딩 대본</h1>
-          <p className="text-[25px] text-taupe-500 mt-1">AI가 작성하는 완벽한 웨딩 대본</p>
+          <h1 className="text-[22px] font-semibold text-noir-800">AI 웨딩 대본</h1>
+          <p className="text-[13px] text-taupe-500 mt-1">AI가 작성하는 완벽한 웨딩 대본</p>
         </div>
         <button
           onClick={() => setShowGenerator(true)}
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[25px] font-medium hover:bg-noir-900 transition-colors"
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-900 transition-colors"
         >
           <Sparkles className="w-4 h-4" />
           새 대본 생성
@@ -91,7 +91,7 @@ export default function ScriptsPage() {
       {/* 대본 생성 폼 */}
       {showGenerator && (
         <div className="bg-white rounded-2xl border border-black/[0.06] p-6 mb-6">
-          <h2 className="text-[25px] font-medium text-noir-800 mb-4">대본 생성</h2>
+          <h2 className="text-[16px] font-medium text-noir-800 mb-4">대본 생성</h2>
 
           {/* 타입 선택 */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
@@ -107,8 +107,8 @@ export default function ScriptsPage() {
               >
                 <type.icon className="w-4 h-4 flex-shrink-0" />
                 <div>
-                  <div className="text-[38px] font-medium">{type.label}</div>
-                  <div className={`text-[25px] ${selectedType === type.key ? "text-white/60" : "text-taupe-400"}`}>
+                  <div className="text-[12px] font-medium">{type.label}</div>
+                  <div className={`text-[10px] ${selectedType === type.key ? "text-white/60" : "text-taupe-400"}`}>
                     {type.desc}
                   </div>
                 </div>
@@ -122,7 +122,7 @@ export default function ScriptsPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="대본 제목"
-            className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 mb-3"
+            className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 mb-3"
           />
 
           {/* 톤 */}
@@ -131,7 +131,7 @@ export default function ScriptsPage() {
               <button
                 key={t}
                 onClick={() => setTone(t)}
-                className={`px-3 py-1.5 rounded-lg text-[23px] font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
                   tone === t ? "bg-rose-500 text-white" : "bg-ivory-100 text-taupe-500"
                 }`}
               >
@@ -146,20 +146,20 @@ export default function ScriptsPage() {
             onChange={(e) => setAdditionalInfo(e.target.value)}
             placeholder="추가 정보 (선택): 특별히 포함할 에피소드, 분위기 등"
             rows={3}
-            className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 resize-none mb-4"
+            className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] text-[14px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500 resize-none mb-4"
           />
 
           <div className="flex gap-2">
             <button
               onClick={() => setShowGenerator(false)}
-              className="px-4 py-2.5 text-[25px] text-taupe-500 hover:text-noir-800"
+              className="px-4 py-2.5 text-[13px] text-taupe-500 hover:text-noir-800"
             >
               취소
             </button>
             <button
               onClick={handleGenerate}
               disabled={!title.trim() || scriptStreaming}
-              className="flex-1 py-2.5 bg-rose-500 text-white rounded-xl text-[23px] font-medium hover:bg-rose-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-rose-500 text-white rounded-xl text-[14px] font-medium hover:bg-rose-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               AI 대본 생성
@@ -173,9 +173,9 @@ export default function ScriptsPage() {
         <div className="bg-white rounded-2xl border border-rose-500/20 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
-            <span className="text-[23px] font-medium text-rose-500">대본 생성 중...</span>
+            <span className="text-[14px] font-medium text-rose-500">대본 생성 중...</span>
           </div>
-          <div className="text-[23px] text-noir-800 leading-[1.8] whitespace-pre-wrap">
+          <div className="text-[14px] text-noir-800 leading-[1.8] whitespace-pre-wrap">
             {scriptStreamContent}
             <span className="inline-block w-0.5 h-4 bg-rose-500 animate-pulse ml-0.5" />
           </div>
@@ -193,13 +193,13 @@ export default function ScriptsPage() {
       {!scriptsLoading && scripts.length === 0 && !scriptStreaming && (
         <div className="text-center py-20 bg-white rounded-2xl border border-black/[0.06]">
           <Sparkles className="w-12 h-12 text-taupe-400 mx-auto mb-4" />
-          <h2 className="text-[25px] font-medium text-noir-800 mb-2">아직 대본이 없습니다</h2>
-          <p className="text-[25px] text-taupe-500 mb-6">
+          <h2 className="text-[16px] font-medium text-noir-800 mb-2">아직 대본이 없습니다</h2>
+          <p className="text-[13px] text-taupe-500 mb-6">
             AI가 사회자 대본, 서약, 축사 등을 작성해드립니다.
           </p>
           <button
             onClick={() => setShowGenerator(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl text-[23px] font-medium"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl text-[14px] font-medium"
           >
             <Plus className="w-4 h-4" />
             첫 대본 생성하기
@@ -222,10 +222,10 @@ export default function ScriptsPage() {
                 {info && <info.icon className="w-5 h-5 text-rose-500 flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[23px] font-medium text-noir-800 truncate">{script.title}</span>
+                    <span className="text-[14px] font-medium text-noir-800 truncate">{script.title}</span>
                     {script.is_favorite && <Star className="w-3.5 h-3.5 text-gold fill-gold" />}
                   </div>
-                  <span className="text-[23px] text-taupe-400">
+                  <span className="text-[11px] text-taupe-400">
                     {info?.label} · {new Date(script.created_at).toLocaleDateString("ko-KR")}
                   </span>
                 </div>
@@ -240,21 +240,21 @@ export default function ScriptsPage() {
               {isExpanded && (
                 <div className="px-4 pb-4">
                   <div className="p-4 bg-ivory-50 rounded-xl mb-3 max-h-[400px] overflow-y-auto">
-                    <pre className="text-[25px] text-noir-800 leading-[1.8] whitespace-pre-wrap font-sans">
+                    <pre className="text-[13px] text-noir-800 leading-[1.8] whitespace-pre-wrap font-sans">
                       {script.content}
                     </pre>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleCopy(script.content, script.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[38px] font-medium bg-ivory-100 text-taupe-500 hover:bg-ivory-200 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium bg-ivory-100 text-taupe-500 hover:bg-ivory-200 transition-colors"
                     >
                       {copiedId === script.id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                       {copiedId === script.id ? "복사됨" : "복사"}
                     </button>
                     <button
                       onClick={() => toggleScriptFavorite(script.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[38px] font-medium transition-colors ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
                         script.is_favorite ? "bg-gold/10 text-gold" : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
                       }`}
                     >
@@ -265,13 +265,13 @@ export default function ScriptsPage() {
                       <div className="flex gap-1 ml-auto">
                         <button
                           onClick={() => setDeleteConfirm(null)}
-                          className="px-2 py-1 text-[23px] text-taupe-500"
+                          className="px-2 py-1 text-[11px] text-taupe-500"
                         >
                           취소
                         </button>
                         <button
                           onClick={() => handleDelete(script.id)}
-                          className="px-2 py-1 bg-red-500 text-white text-[23px] rounded-lg"
+                          className="px-2 py-1 bg-red-500 text-white text-[11px] rounded-lg"
                         >
                           삭제
                         </button>
@@ -279,7 +279,7 @@ export default function ScriptsPage() {
                     ) : (
                       <button
                         onClick={() => setDeleteConfirm(script.id)}
-                        className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[38px] text-taupe-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] text-taupe-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

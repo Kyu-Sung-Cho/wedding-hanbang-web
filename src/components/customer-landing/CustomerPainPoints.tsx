@@ -55,7 +55,7 @@ export default function CustomerPainPoints() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20 relative z-10"
       >
-        <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
           <span className="w-5 h-px bg-rose-light" />
           Problem
         </div>
@@ -82,7 +82,7 @@ export default function CustomerPainPoints() {
             className="group bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-3xl p-8 hover:bg-white/[0.07] hover:border-white/[0.1] transition-all duration-500 max-md:p-6"
           >
             <div className="flex items-start justify-between mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-white/[0.06] flex items-center justify-center text-[35px]">
+              <div className="w-12 h-12 rounded-2xl bg-white/[0.06] flex items-center justify-center text-[22px]">
                 {pain.emoji}
               </div>
             </div>
@@ -90,15 +90,15 @@ export default function CustomerPainPoints() {
             <h3 className="font-serif-kr text-[clamp(17px,2.5vw,20px)] font-normal text-white leading-snug mb-3 tracking-tight">
               {pain.title}
             </h3>
-            <p className="text-[25px] text-white/50 font-light leading-relaxed mb-6">
+            <p className="text-[13px] text-white/50 font-light leading-relaxed mb-6">
               {pain.desc}
             </p>
 
             <div className="pt-5 border-t border-white/[0.06] flex items-center gap-3">
-              <span className="font-display text-[38px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
+              <span className="font-display text-[24px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
                 {pain.stat}
               </span>
-              <span className="text-[38px] text-white/30 font-light">{pain.statLabel}</span>
+              <span className="text-[12px] text-white/30 font-light">{pain.statLabel}</span>
             </div>
           </motion.div>
         ))}
@@ -108,7 +108,7 @@ export default function CustomerPainPoints() {
       <div className="max-w-[1100px] mx-auto mt-10 relative z-10">
         <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
           {sources.map((src) => (
-            <span key={src} className="text-[23px] text-white/25 font-light">
+            <span key={src} className="text-[11px] text-white/25 font-light">
               {src}
             </span>
           ))}

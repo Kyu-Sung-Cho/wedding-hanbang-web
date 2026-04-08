@@ -37,12 +37,12 @@ export default function IntroScreen({
         <h1 className="text-[clamp(26px,5vw,36px)] font-serif-kr font-medium text-noir-800 mb-4 leading-tight">
           결혼 준비 경험 설문조사
         </h1>
-        <p className="text-[38px] text-taupe-500 leading-relaxed mb-3">
+        <p className="text-[15px] text-taupe-500 leading-relaxed mb-3">
           수도권 예비부부 및 신혼부부의 결혼 준비 경험에 대한 설문입니다.
           <br />
           소요 시간은 약 5~7분이며, 응답 내용은 서비스 개선에만 활용됩니다.
         </p>
-        <p className="text-[25px] text-taupe-400 mb-10">
+        <p className="text-[13px] text-taupe-400 mb-10">
           모든 응답은 익명으로 처리됩니다.
         </p>
 
@@ -54,14 +54,14 @@ export default function IntroScreen({
               transition={{ delay: 0.4 }}
               className="p-4 rounded-2xl bg-[var(--rose-glow)] border border-rose-pale mb-4"
             >
-              <p className="text-[23px] text-noir-800">
+              <p className="text-[14px] text-noir-800">
                 이전에 작성 중이던 응답이 있습니다.
               </p>
             </motion.div>
             <button
               type="button"
               onClick={onResume}
-              className="w-full py-4 rounded-2xl bg-noir-800 text-white text-[38px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
+              className="w-full py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
             >
               이어서 작성하기
             </button>
@@ -71,7 +71,7 @@ export default function IntroScreen({
                 onDismissDraft();
                 onStart();
               }}
-              className="w-full py-4 rounded-2xl border-[1.5px] border-platinum text-[38px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all"
+              className="w-full py-4 rounded-2xl border-[1.5px] border-platinum text-[15px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all"
             >
               처음부터 시작하기
             </button>
@@ -83,7 +83,7 @@ export default function IntroScreen({
             transition={{ delay: 0.4 }}
             type="button"
             onClick={onStart}
-            className="w-full max-w-xs mx-auto py-4 rounded-2xl bg-noir-800 text-white text-[38px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
+            className="w-full max-w-xs mx-auto py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
           >
             설문 시작하기
           </motion.button>

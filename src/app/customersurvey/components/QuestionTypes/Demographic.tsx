@@ -33,7 +33,7 @@ export default function Demographic({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.1 }}
         >
-          <label className="block text-[23px] text-noir-800 mb-3 font-medium">
+          <label className="block text-[14px] text-noir-800 mb-3 font-medium">
             {sq.label}
           </label>
           <div className="flex gap-2 flex-wrap">
@@ -44,7 +44,7 @@ export default function Demographic({
                   key={option}
                   type="button"
                   onClick={() => handleSelect(sq.id, option)}
-                  className={`px-5 py-3 rounded-2xl border-[1.5px] text-[23px] transition-all duration-200 ${
+                  className={`px-5 py-3 rounded-2xl border-[1.5px] text-[14px] transition-all duration-200 ${
                     isSelected
                       ? 'border-rose-500 bg-[var(--rose-glow)] text-noir-800 shadow-[0_2px_12px_rgba(196,150,126,0.15)]'
                       : 'border-platinum bg-white text-charcoal hover:border-rose-pale hover:bg-ivory-warm'
@@ -58,7 +58,7 @@ export default function Demographic({
         </motion.div>
       ))}
       {error && (
-        <p className="text-[25px] text-rose-600 mt-1 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-1 pl-1">{error}</p>
       )}
     </div>
   );

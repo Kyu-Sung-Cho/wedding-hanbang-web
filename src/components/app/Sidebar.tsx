@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[23px] transition-all duration-200 ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-all duration-200 ${
                     isActive
                       ? "bg-rose-500/15 text-rose-500 font-medium"
                       : "text-white/50 hover:text-white/80 hover:bg-white/[0.04]"
@@ -119,18 +119,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="px-3 pb-4">
           <div className="px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[25px] font-medium">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[13px] font-medium">
                 {userInitial}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[25px] text-white font-medium truncate">{userName}</div>
-                <div className="text-[23px] text-white/30">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
+                <div className="text-[13px] text-white font-medium truncate">{userName}</div>
+                <div className="text-[11px] text-white/30">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
               </div>
             </div>
           </div>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[25px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full"
+            className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[13px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full"
           >
             <LogOut className="w-4 h-4" />
             로그아웃

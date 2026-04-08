@@ -26,9 +26,9 @@ export default function CollapsibleSection({
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-ivory-50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-[38px] font-medium text-noir-800">{title}</span>
+          <span className="text-[12px] font-medium text-noir-800">{title}</span>
           {count !== undefined && (
-            <span className="text-[25px] px-1.5 py-0.5 rounded-full bg-taupe-400/10 text-taupe-500 font-medium">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-taupe-400/10 text-taupe-500 font-medium">
               {count}
             </span>
           )}

@@ -40,7 +40,7 @@ export default function PriceInput({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.1 }}
         >
-          <label className="block text-[23px] text-noir-800 mb-2 font-medium">
+          <label className="block text-[14px] text-noir-800 mb-2 font-medium">
             {sq.label}
           </label>
           <div className="relative">
@@ -50,16 +50,16 @@ export default function PriceInput({
               value={formatNumber(prices[sq.id])}
               onChange={(e) => handleChange(sq.id, e.target.value)}
               placeholder="0"
-              className="w-full px-5 py-4 pr-16 text-[25px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors text-right font-display font-semibold"
+              className="w-full px-5 py-4 pr-16 text-[16px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors text-right font-display font-semibold"
             />
-            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[25px] text-taupe-500">
+            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[13px] text-taupe-500">
               {sq.unit}
             </span>
           </div>
         </motion.div>
       ))}
       {error && (
-        <p className="text-[25px] text-rose-600 mt-1 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-1 pl-1">{error}</p>
       )}
     </div>
   );

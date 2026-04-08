@@ -85,7 +85,7 @@ export default function MultipleChoice({
                   </motion.svg>
                 )}
               </div>
-              <span className="text-[38px] leading-relaxed text-noir-800">
+              <span className="text-[15px] leading-relaxed text-noir-800">
                 {option.label}
               </span>
             </div>
@@ -103,7 +103,7 @@ export default function MultipleChoice({
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                   placeholder="직접 입력해 주세요"
-                  className="w-full px-4 py-2.5 text-[23px] rounded-xl border border-platinum bg-ivory-50 focus:border-rose-500 focus:outline-none transition-colors"
+                  className="w-full px-4 py-2.5 text-[14px] rounded-xl border border-platinum bg-ivory-50 focus:border-rose-500 focus:outline-none transition-colors"
                 />
               </motion.div>
             )}
@@ -111,7 +111,7 @@ export default function MultipleChoice({
         );
       })}
       {error && (
-        <p className="text-[25px] text-rose-600 mt-1 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-1 pl-1">{error}</p>
       )}
     </div>
   );

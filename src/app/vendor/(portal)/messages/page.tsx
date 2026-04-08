@@ -108,15 +108,15 @@ export default function VendorMessagesPage() {
           {/* 스레드 목록 */}
           <div className={`w-[320px] border-r border-black/[0.04] flex flex-col max-md:w-full ${activeThread ? "max-md:hidden" : ""}`}>
             <div className="px-5 py-4 border-b border-black/[0.04]">
-              <h2 className="font-serif-kr text-[21px] font-normal text-noir-800">고객 문의</h2>
-              <p className="text-[38px] text-taupe-400 font-light mt-0.5">{threads.length}개 대화</p>
+              <h2 className="font-serif-kr text-[17px] font-normal text-noir-800">고객 문의</h2>
+              <p className="text-[12px] text-taupe-400 font-light mt-0.5">{threads.length}개 대화</p>
             </div>
             <div className="flex-1 overflow-y-auto">
               {threads.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-5">
                   <MessageSquare className="w-10 h-10 text-taupe-400/20 mb-3" />
-                  <p className="text-[23px] text-taupe-400">아직 문의가 없습니다</p>
-                  <p className="text-[38px] text-taupe-400/70 font-light mt-1">고객이 문의를 보내면 여기에 표시됩니다</p>
+                  <p className="text-[14px] text-taupe-400">아직 문의가 없습니다</p>
+                  <p className="text-[12px] text-taupe-400/70 font-light mt-1">고객이 문의를 보내면 여기에 표시됩니다</p>
                 </div>
               ) : (
                 threads.map((thread) => (
@@ -132,13 +132,13 @@ export default function VendorMessagesPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
-                        <p className="text-[23px] font-medium text-noir-800 truncate">{thread.customerName}</p>
-                        <span className="text-[23px] text-taupe-400 flex-shrink-0 ml-2">{formatTime(thread.lastMessageAt)}</span>
+                        <p className="text-[14px] font-medium text-noir-800 truncate">{thread.customerName}</p>
+                        <span className="text-[11px] text-taupe-400 flex-shrink-0 ml-2">{formatTime(thread.lastMessageAt)}</span>
                       </div>
-                      <p className="text-[38px] text-taupe-500 font-light truncate">{thread.lastMessage}</p>
+                      <p className="text-[12px] text-taupe-500 font-light truncate">{thread.lastMessage}</p>
                     </div>
                     {thread.unreadCount > 0 && (
-                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-rose-500 text-white text-[25px] font-medium flex items-center justify-center">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-medium flex items-center justify-center">
                         {thread.unreadCount}
                       </span>
                     )}
@@ -161,8 +161,8 @@ export default function VendorMessagesPage() {
                     <User className="w-4 h-4 text-rose-500" />
                   </div>
                   <div>
-                    <p className="text-[23px] font-medium text-noir-800">{activeThreadData.customerName}</p>
-                    <p className="text-[23px] text-taupe-400">고객</p>
+                    <p className="text-[14px] font-medium text-noir-800">{activeThreadData.customerName}</p>
+                    <p className="text-[11px] text-taupe-400">고객</p>
                   </div>
                 </div>
 
@@ -170,13 +170,13 @@ export default function VendorMessagesPage() {
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                   {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.senderType === "vendor" ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[25px] ${
+                      <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] ${
                         msg.senderType === "vendor"
                           ? "bg-noir-800 text-white rounded-br-sm"
                           : "bg-ivory-warm text-noir-800 rounded-bl-sm"
                       }`}>
                         <p>{msg.content}</p>
-                        <p className={`text-[25px] mt-1 ${msg.senderType === "vendor" ? "text-white/50" : "text-taupe-400"}`}>
+                        <p className={`text-[10px] mt-1 ${msg.senderType === "vendor" ? "text-white/50" : "text-taupe-400"}`}>
                           {formatTime(msg.createdAt)}
                         </p>
                       </div>
@@ -194,7 +194,7 @@ export default function VendorMessagesPage() {
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                       placeholder="메시지를 입력하세요..."
-                      className="flex-1 px-4 py-3 border border-platinum rounded-xl text-[25px] outline-none focus:border-rose-500 transition-colors"
+                      className="flex-1 px-4 py-3 border border-platinum rounded-xl text-[13px] outline-none focus:border-rose-500 transition-colors"
                     />
                     <button
                       onClick={handleSend}
@@ -210,7 +210,7 @@ export default function VendorMessagesPage() {
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <MessageSquare className="w-12 h-12 text-taupe-400/20 mx-auto mb-3" />
-                  <p className="text-[23px] text-taupe-400">대화를 선택해주세요</p>
+                  <p className="text-[14px] text-taupe-400">대화를 선택해주세요</p>
                 </div>
               </div>
             )}

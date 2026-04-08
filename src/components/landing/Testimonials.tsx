@@ -26,7 +26,7 @@ const testimonials = [
 export default function Testimonials() {
   return (
     <section id="reviews" className="bg-white py-[140px] px-[60px] text-center max-md:py-20 max-md:px-5">
-      <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
+      <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5 justify-center">
         <span className="w-5 h-px bg-rose-500" />
         Reviews
       </div>
@@ -44,17 +44,17 @@ export default function Testimonials() {
             transition={{ duration: 0.8, delay: i * 0.1 }}
             className="bg-ivory-warm rounded-[20px] p-9 text-left border border-transparent hover:border-rose-pale hover:-translate-y-1.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.06)] transition-all duration-400"
           >
-            <div className="text-gold text-[23px] tracking-[2px] mb-4">★★★★★</div>
-            <p className="text-[38px] leading-relaxed text-charcoal font-light mb-6 italic">
+            <div className="text-gold text-[14px] tracking-[2px] mb-4">★★★★★</div>
+            <p className="text-[15px] leading-relaxed text-charcoal font-light mb-6 italic">
               &ldquo;{t.text}&rdquo;
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-pale to-gold-light flex items-center justify-center text-[25px]">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-pale to-gold-light flex items-center justify-center text-[16px]">
                 {t.avatar}
               </div>
               <div>
-                <div className="text-[23px] font-medium">{t.name}</div>
-                <div className="text-[38px] text-taupe-500">{t.detail}</div>
+                <div className="text-[14px] font-medium">{t.name}</div>
+                <div className="text-[12px] text-taupe-500">{t.detail}</div>
               </div>
             </div>
           </motion.div>
