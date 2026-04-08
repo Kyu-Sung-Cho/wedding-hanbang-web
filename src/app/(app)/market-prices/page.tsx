@@ -45,7 +45,7 @@ export default function MarketPricesPage() {
   const currentPeriod = PRICE_PERIODS.find(p => p.id === periodId)!;
 
   return (
-    <div className="max-w-[1000px] mx-auto pb-20">
+    <div className="max-w-[1560px] mx-auto pb-20">
       {/* 헤더 */}
       <div className="mb-6">
         <h1 className="font-serif-kr text-[24px] font-medium text-noir-800 mb-1">

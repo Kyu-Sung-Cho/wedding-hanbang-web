@@ -10,7 +10,7 @@ export default function CommunityLayout({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAF8]">
-      <Suspense fallback={<div className="h-[72px] border-b border-[#F0EFED] bg-white" />}>
+      <Suspense fallback={<div className="h-[112px] border-b border-[#F0EFED] bg-white" />}>
         <CommunityNav />
       </Suspense>
       <ToastContainer />

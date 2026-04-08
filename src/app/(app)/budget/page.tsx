@@ -627,7 +627,7 @@ export default function BudgetPage() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto">
+    <div className="max-w-[1560px] mx-auto">
       {/* 요약 카드 3개 */}
       <div className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1">
         {/* 총 예산 (편집 가능) */}

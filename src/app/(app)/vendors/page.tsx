@@ -100,7 +100,7 @@ export default function VendorsPage() {
   }, [fetchVendors, searchQuery]);
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1720px] mx-auto">
       {/* 검색바 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] p-4 mb-6 flex items-center gap-3 animate-fade-in">
         <Search className="w-5 h-5 text-taupe-400 flex-shrink-0" />

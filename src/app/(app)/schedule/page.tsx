@@ -221,7 +221,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="max-w-[800px] mx-auto">
+    <div className="max-w-[1280px] mx-auto">
       {/* 상단 요약 */}
       <motion.div
         {...fadeIn}

@@ -67,7 +67,7 @@ export default function BookingsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[700px] mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[1100px] mx-auto flex items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -75,7 +75,7 @@ export default function BookingsPage() {
 
   if (error) {
     return (
-      <div className="max-w-[700px] mx-auto text-center py-20">
+      <div className="max-w-[1100px] mx-auto text-center py-20">
         <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
         <p className="text-[14px] text-taupe-500">{error}</p>
       </div>
@@ -90,7 +90,7 @@ export default function BookingsPage() {
   );
 
   return (
-    <div className="max-w-[700px] mx-auto">
+    <div className="max-w-[1100px] mx-auto">
       <motion.div {...fadeIn} transition={{ duration: 0.5 }}>
         <h1 className="font-serif-kr text-[22px] text-noir-800 mb-1">내 예약</h1>
         <p className="text-[14px] text-taupe-500 font-light mb-6">

@@ -170,7 +170,7 @@ export default function SettingsPage() {
   const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
 
   return (
-    <div className="max-w-[700px] mx-auto">
+    <div className="max-w-[1100px] mx-auto">
       {/* 프로필 카드 */}
       <motion.div
         {...fadeIn}
