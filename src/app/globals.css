@@ -67,6 +67,14 @@
 
 html {
   scroll-behavior: smooth;
+  /* 기본 16px → 17px로 전체 스케일 업 (Tailwind의 모든 rem 기반 텍스트가 함께 커짐) */
+  font-size: 17px;
+}
+
+@media (min-width: 1280px) {
+  html {
+    font-size: 18px;
+  }
 }
 
 body {
@@ -74,8 +82,11 @@ body {
   background: var(--ivory-50);
   color: var(--noir-800);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   word-break: keep-all;
   overflow-wrap: break-word;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
 }
 
 /* 커스텀 애니메이션 */
