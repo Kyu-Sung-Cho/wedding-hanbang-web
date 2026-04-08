@@ -26,10 +26,10 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-[25px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
           어떤 역할이신가요?
         </h2>
-        <p className="text-[23px] text-taupe-400">
+        <p className="text-[14px] text-taupe-400">
           커플 연동 시 역할이 구분됩니다
         </p>
       </div>
@@ -45,11 +45,11 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"
             }`}
           >
-            <div className="text-[54px] mb-3">{role.emoji}</div>
-            <div className="text-[23px] font-semibold text-noir-800 mb-1">
+            <div className="text-[48px] mb-3">{role.emoji}</div>
+            <div className="text-[18px] font-semibold text-noir-800 mb-1">
               {role.label}
             </div>
-            <div className="text-[23px] text-taupe-400">{role.desc}</div>
+            <div className="text-[12px] text-taupe-400">{role.desc}</div>
           </button>
         ))}
       </div>

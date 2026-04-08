@@ -37,10 +37,10 @@ const fadeIn = {
 };
 
 function ChangeIndicator({ value }: { value: number }) {
-  if (value === 0) return <span className="flex items-center gap-0.5 text-[23px] text-taupe-400"><Minus className="w-3 h-3" />변동 없음</span>;
+  if (value === 0) return <span className="flex items-center gap-0.5 text-[11px] text-taupe-400"><Minus className="w-3 h-3" />변동 없음</span>;
   const isUp = value > 0;
   return (
-    <span className={`flex items-center gap-0.5 text-[23px] font-medium ${isUp ? "text-[#2E7D5A]" : "text-rose-500"}`}>
+    <span className={`flex items-center gap-0.5 text-[11px] font-medium ${isUp ? "text-[#2E7D5A]" : "text-rose-500"}`}>
       {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
       {isUp ? "+" : ""}{value}%
     </span>
@@ -60,12 +60,12 @@ function StatCard({ icon: Icon, label, value, change, suffix }: {
         <div className="w-8 h-8 rounded-lg bg-ivory-warm flex items-center justify-center">
           <Icon className="w-4 h-4 text-rose-500" />
         </div>
-        <span className="text-[23px] text-taupe-400 font-medium">{label}</span>
+        <span className="text-[12px] text-taupe-400 font-medium">{label}</span>
       </div>
       <div className="flex items-end justify-between">
         <div>
-          <span className="text-[27px] font-semibold text-noir-800 font-cormorant">{value}</span>
-          {suffix && <span className="text-[21px] text-taupe-400 ml-1">{suffix}</span>}
+          <span className="text-[24px] font-semibold text-noir-800 font-cormorant">{value}</span>
+          {suffix && <span className="text-[13px] text-taupe-400 ml-1">{suffix}</span>}
         </div>
         {change !== undefined && <ChangeIndicator value={change} />}
       </div>
@@ -89,7 +89,7 @@ function MiniBarChart({ data, maxHeight = 80 }: { data: { label: string; value: 
               style={{ height: "100%" }}
             />
           </div>
-          <span className="text-[23px] text-taupe-400">{d.label}</span>
+          <span className="text-[9px] text-taupe-400">{d.label}</span>
         </div>
       ))}
     </div>
@@ -113,7 +113,7 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
           return (
             <div key={i} className="flex flex-col items-center flex-1 gap-1 group relative">
               {/* 호버 툴팁 */}
-              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[23px] px-2 py-1 rounded whitespace-nowrap z-10">
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
                 {d.date}: 조회 {d.views} | 찜 {d.favorites} | 예약 {d.bookings}
               </div>
               <div className="w-full flex flex-col items-center gap-0.5">
@@ -142,15 +142,15 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-2 bg-rose-500/30 rounded-sm" />
-          <span className="text-[23px] text-taupe-400">조회수</span>
+          <span className="text-[11px] text-taupe-400">조회수</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 bg-rose-500 rounded-full" />
-          <span className="text-[23px] text-taupe-400">찜</span>
+          <span className="text-[11px] text-taupe-400">찜</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 bg-gold rounded-full" />
-          <span className="text-[23px] text-taupe-400">예약</span>
+          <span className="text-[11px] text-taupe-400">예약</span>
         </div>
       </div>
     </div>
@@ -160,7 +160,7 @@ function TrendChart({ data }: { data: { date: string; views: number; bookings: n
 function SourceDonut({ sources }: { sources: { search: number; recommendation: number; direct: number } }) {
   const total = sources.search + sources.recommendation + sources.direct;
   if (total === 0) {
-    return <p className="text-[21px] text-taupe-400 text-center py-4">데이터가 없습니다</p>;
+    return <p className="text-[13px] text-taupe-400 text-center py-4">데이터가 없습니다</p>;
   }
 
   const items = [
@@ -176,8 +176,8 @@ function SourceDonut({ sources }: { sources: { search: number; recommendation: n
         return (
           <div key={item.label}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[23px] text-charcoal font-medium">{item.label}</span>
-              <span className="text-[23px] text-taupe-400">{item.value}회 ({pct.toFixed(0)}%)</span>
+              <span className="text-[12px] text-charcoal font-medium">{item.label}</span>
+              <span className="text-[12px] text-taupe-400">{item.value}회 ({pct.toFixed(0)}%)</span>
             </div>
             <div className="h-2 bg-ivory-warm rounded-full overflow-hidden">
               <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
@@ -202,7 +202,7 @@ function PeakHoursChart({ hours }: { hours: number[] }) {
         const isPeak = count >= maxVal * 0.7;
         return (
           <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[23px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
               {hour}시: {count}건
             </div>
             <div
@@ -227,15 +227,15 @@ function FavoriteTrendChart({ data }: { data: { date: string; count: number }[] 
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[23px] font-semibold text-noir-800 font-cormorant">{totalFavs}</span>
-        <span className="text-[23px] text-taupe-400">건 (기간 내)</span>
+        <span className="text-[20px] font-semibold text-noir-800 font-cormorant">{totalFavs}</span>
+        <span className="text-[12px] text-taupe-400">건 (기간 내)</span>
       </div>
       <div className="flex items-end gap-[2px]" style={{ height: 50 }}>
         {displayData.map((d, i) => {
           const h = (d.count / maxVal) * 40;
           return (
             <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[23px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-noir-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
                 {d.date.slice(5)}: {d.count}건
               </div>
               <div
@@ -284,7 +284,7 @@ export default function VendorAnalyticsPage() {
   if (!data) {
     return (
       <div className="text-center py-20">
-        <p className="text-[23px] text-taupe-400">분석 데이터를 불러올 수 없습니다</p>
+        <p className="text-[14px] text-taupe-400">분석 데이터를 불러올 수 없습니다</p>
       </div>
     );
   }
@@ -292,7 +292,7 @@ export default function VendorAnalyticsPage() {
   const periodLabel = period === "7d" ? "7일" : period === "30d" ? "30일" : "90일";
 
   return (
-    <div className="max-w-[1125px] mx-auto">
+    <div className="max-w-[1000px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} className="mb-6">
         <div className="flex items-center justify-between">
@@ -301,8 +301,8 @@ export default function VendorAnalyticsPage() {
               <BarChart3 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-[23px] font-medium text-noir-800">분석 대시보드</h1>
-              <p className="text-[23px] text-taupe-400 font-light">최근 {periodLabel} 기준</p>
+              <h1 className="text-[20px] font-medium text-noir-800">분석 대시보드</h1>
+              <p className="text-[12px] text-taupe-400 font-light">최근 {periodLabel} 기준</p>
             </div>
           </div>
           <div className="flex gap-1 bg-ivory-warm rounded-lg p-1">
@@ -310,7 +310,7 @@ export default function VendorAnalyticsPage() {
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-md text-[23px] font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
                   period === p ? "bg-white text-noir-800 shadow-sm" : "text-taupe-400 hover:text-charcoal"
                 }`}
               >
@@ -336,9 +336,9 @@ export default function VendorAnalyticsPage() {
             <Heart className="w-5 h-5 text-rose-500" />
           </div>
           <div>
-            <p className="text-[23px] text-taupe-400">찜 수</p>
+            <p className="text-[12px] text-taupe-400">찜 수</p>
             <div className="flex items-center gap-2">
-              <p className="text-[23px] font-semibold text-noir-800 font-cormorant">{data.overview.favoriteCount}</p>
+              <p className="text-[20px] font-semibold text-noir-800 font-cormorant">{data.overview.favoriteCount}</p>
               <ChangeIndicator value={data.overview.favoriteChange} />
             </div>
           </div>
@@ -348,8 +348,8 @@ export default function VendorAnalyticsPage() {
             <CalendarCheck className="w-5 h-5 text-[#2E7D5A]" />
           </div>
           <div>
-            <p className="text-[23px] text-taupe-400">예약 신청</p>
-            <p className="text-[23px] font-semibold text-noir-800 font-cormorant">{data.overview.bookingRequests}</p>
+            <p className="text-[12px] text-taupe-400">예약 신청</p>
+            <p className="text-[20px] font-semibold text-noir-800 font-cormorant">{data.overview.bookingRequests}</p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-black/[0.04] p-5 flex items-center gap-4">
@@ -357,8 +357,8 @@ export default function VendorAnalyticsPage() {
             <ArrowUpRight className="w-5 h-5 text-[#2E7D5A]" />
           </div>
           <div>
-            <p className="text-[23px] text-taupe-400">확정 예약</p>
-            <p className="text-[23px] font-semibold text-noir-800 font-cormorant">{data.overview.bookingConfirmed}</p>
+            <p className="text-[12px] text-taupe-400">확정 예약</p>
+            <p className="text-[20px] font-semibold text-noir-800 font-cormorant">{data.overview.bookingConfirmed}</p>
           </div>
         </div>
       </motion.div>
@@ -369,8 +369,8 @@ export default function VendorAnalyticsPage() {
           {/* 트렌드 차트 */}
           <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.15 }}>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
-              <h2 className="text-[21px] font-medium text-noir-800 mb-1">일별 트렌드</h2>
-              <p className="text-[23px] text-taupe-400 font-light mb-2">조회수 및 예약 추이</p>
+              <h2 className="text-[15px] font-medium text-noir-800 mb-1">일별 트렌드</h2>
+              <p className="text-[12px] text-taupe-400 font-light mb-2">조회수 및 예약 추이</p>
               <TrendChart data={data.trend} />
             </div>
           </motion.div>
@@ -378,11 +378,11 @@ export default function VendorAnalyticsPage() {
           {/* 상품별 성과 */}
           <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.2 }}>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
-              <h2 className="text-[21px] font-medium text-noir-800 mb-4">상품별 성과</h2>
+              <h2 className="text-[15px] font-medium text-noir-800 mb-4">상품별 성과</h2>
               {data.products.length > 0 ? (
                 <div className="space-y-3">
                   {/* 헤더 */}
-                  <div className="grid grid-cols-4 gap-3 px-3 text-[23px] text-taupe-400 font-medium">
+                  <div className="grid grid-cols-4 gap-3 px-3 text-[11px] text-taupe-400 font-medium">
                     <span>상품명</span>
                     <span className="text-center">조회수</span>
                     <span className="text-center">예약수</span>
@@ -391,19 +391,19 @@ export default function VendorAnalyticsPage() {
                   {data.products.map((p, i) => (
                     <div key={p.id} className="grid grid-cols-4 gap-3 px-3 py-2.5 rounded-xl bg-ivory-warm/50 items-center">
                       <div className="flex items-center gap-2">
-                        <span className="text-[23px] text-taupe-400 font-medium w-4">{i + 1}</span>
-                        <span className="text-[21px] text-noir-800 font-medium truncate">{p.name}</span>
+                        <span className="text-[11px] text-taupe-400 font-medium w-4">{i + 1}</span>
+                        <span className="text-[13px] text-noir-800 font-medium truncate">{p.name}</span>
                       </div>
-                      <span className="text-[21px] text-charcoal text-center">{p.views}</span>
-                      <span className="text-[21px] text-charcoal text-center">{p.bookings}</span>
-                      <span className={`text-[21px] text-center font-medium ${p.conversionRate > 0 ? "text-[#2E7D5A]" : "text-taupe-400"}`}>
+                      <span className="text-[13px] text-charcoal text-center">{p.views}</span>
+                      <span className="text-[13px] text-charcoal text-center">{p.bookings}</span>
+                      <span className={`text-[13px] text-center font-medium ${p.conversionRate > 0 ? "text-[#2E7D5A]" : "text-taupe-400"}`}>
                         {p.conversionRate}%
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-[21px] text-taupe-400 text-center py-6">상품 데이터가 없습니다</p>
+                <p className="text-[13px] text-taupe-400 text-center py-6">상품 데이터가 없습니다</p>
               )}
             </div>
           </motion.div>
@@ -414,7 +414,7 @@ export default function VendorAnalyticsPage() {
           {/* 유입 경로 */}
           <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.15 }}>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
-              <h2 className="text-[21px] font-medium text-noir-800 mb-4">유입 경로</h2>
+              <h2 className="text-[15px] font-medium text-noir-800 mb-4">유입 경로</h2>
               <SourceDonut sources={data.customerInsights.viewSources} />
             </div>
           </motion.div>
@@ -422,8 +422,8 @@ export default function VendorAnalyticsPage() {
           {/* 피크 시간대 */}
           <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.2 }}>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
-              <h2 className="text-[21px] font-medium text-noir-800 mb-1">방문 시간대</h2>
-              <p className="text-[23px] text-taupe-400 font-light mb-4">시간대별 조회 분포</p>
+              <h2 className="text-[15px] font-medium text-noir-800 mb-1">방문 시간대</h2>
+              <p className="text-[12px] text-taupe-400 font-light mb-4">시간대별 조회 분포</p>
               <PeakHoursChart hours={data.customerInsights.peakHours} />
             </div>
           </motion.div>
@@ -433,13 +433,13 @@ export default function VendorAnalyticsPage() {
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="w-4 h-4 text-rose-500" />
-                <h2 className="text-[21px] font-medium text-noir-800">찜 트렌드</h2>
+                <h2 className="text-[15px] font-medium text-noir-800">찜 트렌드</h2>
               </div>
-              <p className="text-[23px] text-taupe-400 font-light mb-4">기간별 즐겨찾기 추이</p>
+              <p className="text-[12px] text-taupe-400 font-light mb-4">기간별 즐겨찾기 추이</p>
               {data.favoriteTrend && data.favoriteTrend.some((f) => f.count > 0) ? (
                 <FavoriteTrendChart data={data.favoriteTrend} />
               ) : (
-                <p className="text-[21px] text-taupe-400 text-center py-4">찜 데이터가 없습니다</p>
+                <p className="text-[13px] text-taupe-400 text-center py-4">찜 데이터가 없습니다</p>
               )}
             </div>
           </motion.div>
@@ -449,14 +449,14 @@ export default function VendorAnalyticsPage() {
             <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Search className="w-4 h-4 text-rose-500" />
-                <h2 className="text-[21px] font-medium text-noir-800">인기 검색어</h2>
+                <h2 className="text-[15px] font-medium text-noir-800">인기 검색어</h2>
               </div>
               {data.customerInsights.topSearchTerms.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {data.customerInsights.topSearchTerms.map((t, i) => (
                     <span
                       key={i}
-                      className="px-3 py-1.5 rounded-full bg-ivory-warm text-[23px] text-charcoal font-medium"
+                      className="px-3 py-1.5 rounded-full bg-ivory-warm text-[12px] text-charcoal font-medium"
                     >
                       {t.term}
                       <span className="text-taupe-400 ml-1">({t.count})</span>
@@ -464,7 +464,7 @@ export default function VendorAnalyticsPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-[21px] text-taupe-400 text-center py-4">검색어 데이터가 없습니다</p>
+                <p className="text-[13px] text-taupe-400 text-center py-4">검색어 데이터가 없습니다</p>
               )}
             </div>
           </motion.div>

@@ -267,7 +267,7 @@ function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSche
       {title && (
         <div className="flex items-center gap-2 mb-3">
           <Icon className={`w-4 h-4 ${style.iconColor} flex-shrink-0`} />
-          <h4 className={`text-[23px] font-medium ${style.titleColor}`}>{title}</h4>
+          <h4 className={`text-[14px] font-medium ${style.titleColor}`}>{title}</h4>
         </div>
       )}
       <div className="space-y-1.5">
@@ -302,7 +302,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "group-title":
       return (
         <div className="pt-2 pb-1 first:pt-0">
-          <p className="text-[21px] font-semibold text-noir-800">{item.text}</p>
+          <p className="text-[13px] font-semibold text-noir-800">{item.text}</p>
         </div>
       );
 
@@ -310,8 +310,8 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       if (blockType === "warning") {
         return (
           <div className="flex gap-2 pl-1">
-            <span className="text-red-400 mt-0.5 text-[23px] flex-shrink-0">&#x2716;</span>
-            <p className="text-[21px] text-charcoal font-light leading-[1.7]">
+            <span className="text-red-400 mt-0.5 text-[12px] flex-shrink-0">&#x2716;</span>
+            <p className="text-[13px] text-charcoal font-light leading-[1.7]">
               {formatInlineText(item.text)}
             </p>
           </div>
@@ -331,7 +331,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
               <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover/item:border-[#C4967E] transition-colors" />
             )}
           </div>
-          <p className={`text-[21px] leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
+          <p className={`text-[13px] leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
             {formatInlineText(item.text)}
           </p>
           {(blockType === "checklist" || blockType === "steps" || blockType === "paragraph") && (
@@ -351,17 +351,17 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       return (
         <div className="pl-1 py-1.5">
           <div className="flex gap-2">
-            <span className={`text-[23px] font-semibold mt-0.5 flex-shrink-0 ${blockType === "tips" ? "text-amber-500" : blockType === "steps" ? "text-violet-500" : "text-rose-500"}`}>
+            <span className={`text-[12px] font-semibold mt-0.5 flex-shrink-0 ${blockType === "tips" ? "text-amber-500" : blockType === "steps" ? "text-violet-500" : "text-rose-500"}`}>
               {item.subItems ? "•" : "•"}
             </span>
             <div>
-              <p className="text-[21px] text-noir-800 font-medium leading-[1.7]">
+              <p className="text-[13px] text-noir-800 font-medium leading-[1.7]">
                 {formatInlineText(item.text)}
               </p>
               {item.subItems && item.subItems.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {item.subItems.map((sub, i) => (
-                    <p key={i} className={`text-[23px] font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
+                    <p key={i} className={`text-[12px] font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
                       {formatInlineText(sub)}
                     </p>
                   ))}
@@ -376,7 +376,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "dialogue-speaker":
       return (
         <div className="pt-2 first:pt-0">
-          <p className="text-[21px] font-semibold text-sky-600">{item.text}</p>
+          <p className="text-[13px] font-semibold text-sky-600">{item.text}</p>
         </div>
       );
 
@@ -384,7 +384,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       return (
         <div className="bg-white/60 rounded-lg px-3 py-2 ml-0 border-l-2 border-sky-200">
           {item.text.split("\n").map((line, i) => (
-            <p key={i} className="text-[21px] text-charcoal font-light leading-[1.8] italic">
+            <p key={i} className="text-[13px] text-charcoal font-light leading-[1.8] italic">
               {formatInlineText(line)}
             </p>
           ))}
@@ -393,7 +393,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
 
     case "arrow":
       return (
-        <p className="text-[23px] text-taupe-500 font-light pl-4 leading-[1.7]">
+        <p className="text-[12px] text-taupe-500 font-light pl-4 leading-[1.7]">
           → {formatInlineText(item.text)}
         </p>
       );
@@ -401,7 +401,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "text":
     default:
       return (
-        <p className="text-[21px] text-charcoal font-light leading-[1.8]">
+        <p className="text-[13px] text-charcoal font-light leading-[1.8]">
           {formatInlineText(item.text)}
         </p>
       );
@@ -429,31 +429,31 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   }, [onClose]);
 
   return (
-    <div ref={popoverRef} className="w-[385px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
+    <div ref={popoverRef} className="w-[300px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[21px] font-medium text-noir-800">일정에 추가</p>
+        <p className="text-[13px] font-medium text-noir-800">일정에 추가</p>
         <button onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors">
           <X className="w-3.5 h-3.5 text-taupe-400" />
         </button>
       </div>
       <div className="space-y-3">
         <div>
-          <label className="block text-[23px] text-taupe-500 mb-1">날짜</label>
+          <label className="block text-[11px] text-taupe-500 mb-1">날짜</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[21px] text-noir-800 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
           />
         </div>
         <div>
-          <label className="block text-[23px] text-taupe-500 mb-1">메모</label>
+          <label className="block text-[11px] text-taupe-500 mb-1">메모</label>
           <input
             type="text"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
             placeholder="메모 (선택)"
-            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[21px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
           />
         </div>
         <button
@@ -462,7 +462,7 @@ function SchedulePopover({ itemText, onClose, onSave }: {
             onSave(date, memo);
           }}
           disabled={!date}
-          className="w-full py-2 rounded-lg bg-rose-500 text-white text-[21px] font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-2 rounded-lg bg-rose-500 text-white text-[13px] font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           일정에 추가
         </button>
@@ -607,7 +607,7 @@ function EtiquettePageInner() {
   return (
     <div className="flex h-[calc(100vh-64px)] max-md:h-[calc(100vh-56px)] overflow-hidden">
       {/* 사이드바 (데스크톱) */}
-      <aside className="hidden lg:flex flex-col w-[315px] border-r border-black/[0.04] bg-ivory-50/50 flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-[280px] border-r border-black/[0.04] bg-ivory-50/50 flex-shrink-0">
         {/* 검색 */}
         <div className="p-4 border-b border-black/[0.04]">
           <div className="relative">
@@ -617,7 +617,7 @@ function EtiquettePageInner() {
               placeholder="검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[21px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500/30 focus:ring-1 focus:ring-rose-500/20 transition-colors"
             />
           </div>
         </div>
@@ -628,7 +628,7 @@ function EtiquettePageInner() {
             // 검색 결과
             <div className="px-2">
               {filteredParts.length === 0 && (
-                <p className="text-[21px] text-taupe-400 text-center py-8">검색 결과가 없습니다</p>
+                <p className="text-[13px] text-taupe-400 text-center py-8">검색 결과가 없습니다</p>
               )}
               {filteredParts.map((p) => {
                 const Icon = ICON_MAP[p.icon] || BookOpen;
@@ -646,10 +646,10 @@ function EtiquettePageInner() {
                       <Icon className="w-3.5 h-3.5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-[21px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                      <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
                         {p.title}
                       </p>
-                      <p className="text-[23px] text-taupe-400 truncate">{p.subtitle}</p>
+                      <p className="text-[11px] text-taupe-400 truncate">{p.subtitle}</p>
                     </div>
                   </button>
                 );
@@ -659,7 +659,7 @@ function EtiquettePageInner() {
             // 카테고리별 목록
             ETIQUETTE_CATEGORIES.map((cat) => (
               <div key={cat.label} className="mb-2">
-                <p className="px-4 py-1.5 text-[23px] font-semibold text-taupe-400 uppercase tracking-wider">
+                <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
                   {cat.label}
                 </p>
                 <div className="px-2">
@@ -681,7 +681,7 @@ function EtiquettePageInner() {
                           <Icon className="w-3.5 h-3.5 text-white" />
                         </div>
                         <div className="min-w-0">
-                          <p className={`text-[21px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
                             {p.title}
                           </p>
                         </div>
@@ -701,9 +701,9 @@ function EtiquettePageInner() {
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-[385px] bg-ivory-50 flex flex-col h-full animate-fade-in">
+          <aside className="relative w-[300px] bg-ivory-50 flex flex-col h-full animate-fade-in">
             <div className="p-4 border-b border-black/[0.04] flex items-center justify-between">
-              <p className="text-[23px] font-medium text-noir-800">전체 목록</p>
+              <p className="text-[14px] font-medium text-noir-800">전체 목록</p>
               <button onClick={() => setSidebarOpen(false)} className="p-1">
                 <ArrowLeft className="w-5 h-5 text-taupe-500" />
               </button>
@@ -711,7 +711,7 @@ function EtiquettePageInner() {
             <div className="flex-1 overflow-y-auto py-2">
               {ETIQUETTE_CATEGORIES.map((cat) => (
                 <div key={cat.label} className="mb-2">
-                  <p className="px-4 py-1.5 text-[23px] font-semibold text-taupe-400 uppercase tracking-wider">
+                  <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
                     {cat.label}
                   </p>
                   <div className="px-2">
@@ -732,7 +732,7 @@ function EtiquettePageInner() {
                           <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
                             <Icon className="w-3.5 h-3.5 text-white" />
                           </div>
-                          <p className={`text-[21px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
+                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-rose-600" : ""}`}>
                             {p.title}
                           </p>
                         </button>
@@ -768,7 +768,7 @@ function EtiquettePageInner() {
                   <button
                     key={p.number}
                     onClick={() => !isLocked && setSelectedPart(idx)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[23px] font-medium transition-colors ${
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
                       isLocked
                         ? "bg-white/60 text-taupe-400/50 border border-black/[0.03] cursor-not-allowed"
                         : isActive
@@ -785,7 +785,7 @@ function EtiquettePageInner() {
         </div>
 
         {/* 파트 헤더 */}
-        <div className="max-w-[1015px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
+        <div className="max-w-[800px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-12 h-12 max-md:w-10 max-md:h-10 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center`}>
@@ -793,19 +793,19 @@ function EtiquettePageInner() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[23px] font-medium text-taupe-400 bg-taupe-400/10 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-medium text-taupe-400 bg-taupe-400/10 px-2 py-0.5 rounded-full">
                     Part {part.number}
                   </span>
                 </div>
-                <h1 className="font-serif-kr text-[27px] max-md:text-[23px] font-light text-noir-800 leading-tight">
+                <h1 className="font-serif-kr text-[24px] max-md:text-[20px] font-light text-noir-800 leading-tight">
                   {part.title}
                 </h1>
               </div>
             </div>
-            <p className="text-[23px] max-md:text-[21px] text-taupe-500 font-light mb-1">
+            <p className="text-[14px] max-md:text-[13px] text-taupe-500 font-light mb-1">
               {part.subtitle}
             </p>
-            <p className="text-[21px] text-charcoal/70 font-light leading-[1.7]">
+            <p className="text-[13px] text-charcoal/70 font-light leading-[1.7]">
               {part.description}
             </p>
           </div>
@@ -814,7 +814,7 @@ function EtiquettePageInner() {
           {hasSectionNav && selectedSection === null ? (
             /* 섹션 선택 카드 */
             <div className="mt-8 animate-fade-in">
-              <p className="text-[21px] text-taupe-500 font-light mb-4">
+              <p className="text-[13px] text-taupe-500 font-light mb-4">
                 항목을 선택하세요
               </p>
               <div className="grid gap-3">
@@ -833,33 +833,33 @@ function EtiquettePageInner() {
                     >
                       <div className={`w-10 h-10 max-md:w-9 max-md:h-9 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity`}>
                         {section.emoji ? (
-                          <span className="text-[23px] max-md:text-[23px]">{section.emoji}</span>
+                          <span className="text-[18px] max-md:text-[16px]">{section.emoji}</span>
                         ) : (
                           <PartIcon className="w-5 h-5 max-md:w-4 max-md:h-4 text-white" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[23px] max-md:text-[21px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
+                        <p className="text-[14px] max-md:text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
                           {section.title || `섹션 ${sIdx + 1}`}
                         </p>
                         <div className="flex gap-2 mt-1 flex-wrap">
                           {checklistCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[23px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                               <CheckCircle2 className="w-3 h-3" />체크리스트
                             </span>
                           )}
                           {tipsCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[23px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
                               <Lightbulb className="w-3 h-3" />꿀팁
                             </span>
                           )}
                           {warningCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[23px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
                               <AlertTriangle className="w-3 h-3" />주의사항
                             </span>
                           )}
                           {dialogueCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[23px] text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">
                               <MessageSquareQuote className="w-3 h-3" />대사
                             </span>
                           )}
@@ -879,7 +879,7 @@ function EtiquettePageInner() {
                 <div className="mb-6">
                   <button
                     onClick={() => setSelectedSection(null)}
-                    className="inline-flex items-center gap-1.5 text-[21px] text-taupe-500 hover:text-rose-500 transition-colors mb-4"
+                    className="inline-flex items-center gap-1.5 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors mb-4"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     전체 항목으로
@@ -890,13 +890,13 @@ function EtiquettePageInner() {
                       <button
                         key={sIdx}
                         onClick={() => setSelectedSection(sIdx)}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[21px] font-medium transition-colors ${
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                           selectedSection === sIdx
                             ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
                             : "bg-white text-taupe-500 border border-black/[0.04] hover:border-rose-500/10"
                         }`}
                       >
-                        {sec.emoji && <span className="text-[23px]">{sec.emoji}</span>}
+                        {sec.emoji && <span className="text-[14px]">{sec.emoji}</span>}
                         {sec.title || `섹션 ${sIdx + 1}`}
                       </button>
                     ))}
@@ -912,8 +912,8 @@ function EtiquettePageInner() {
                 <div key={sIdx} className="mb-8 last:mb-0">
                   {section.title && (
                     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
-                      {section.emoji && <span className="text-[23px]">{section.emoji}</span>}
-                      <h2 className="font-serif-kr text-[23px] max-md:text-[23px] font-light text-noir-800">
+                      {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
+                      <h2 className="font-serif-kr text-[18px] max-md:text-[16px] font-light text-noir-800">
                         {section.title}
                       </h2>
                     </div>
@@ -971,11 +971,11 @@ function EtiquettePageInner() {
                 >
                   <ArrowLeft className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors flex-shrink-0" />
                   <div className="text-left min-w-0">
-                    <p className="text-[23px] text-taupe-400">이전</p>
-                    <p className="text-[21px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
+                    <p className="text-[11px] text-taupe-400">이전</p>
+                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
                       {prevLabel}
                     </p>
-                    {prevSub && <p className="text-[23px] text-taupe-400 truncate">{prevSub}</p>}
+                    {prevSub && <p className="text-[11px] text-taupe-400 truncate">{prevSub}</p>}
                   </div>
                 </button>
               ) : <div />;
@@ -1023,11 +1023,11 @@ function EtiquettePageInner() {
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group max-w-[45%]"
                 >
                   <div className="text-right min-w-0">
-                    <p className="text-[23px] text-taupe-400">다음</p>
-                    <p className="text-[21px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
+                    <p className="text-[11px] text-taupe-400">다음</p>
+                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors truncate">
                       {nextLabel}
                     </p>
-                    {nextSub && <p className="text-[23px] text-taupe-400 truncate">{nextSub}</p>}
+                    {nextSub && <p className="text-[11px] text-taupe-400 truncate">{nextSub}</p>}
                   </div>
                   <ChevronRight className="w-4 h-4 text-taupe-400 group-hover:text-rose-500 transition-colors flex-shrink-0" />
                 </button>
@@ -1058,7 +1058,7 @@ function EtiquettePageInner() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-noir-800 text-white shadow-lg">
             <Check className="w-4 h-4 text-emerald-400" />
-            <p className="text-[21px] font-medium">{toast}</p>
+            <p className="text-[13px] font-medium">{toast}</p>
           </div>
         </div>
       )}

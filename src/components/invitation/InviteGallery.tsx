@@ -19,7 +19,7 @@ export default function InviteGallery({ photos, colors, skipFirst }: Props) {
   return (
     <section className="py-12 px-6">
       <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
-        <h3 className="text-center text-[23px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
+        <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Gallery
         </h3>
 

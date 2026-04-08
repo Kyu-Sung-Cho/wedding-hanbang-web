@@ -32,15 +32,15 @@ export default function TextArea({
         placeholder={placeholder}
         maxLength={maxLength}
         rows={4}
-        className="w-full px-5 py-4 text-[21px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors resize-none leading-relaxed"
+        className="w-full px-5 py-4 text-[15px] rounded-2xl border-[1.5px] border-platinum bg-white focus:border-rose-500 focus:outline-none transition-colors resize-none leading-relaxed"
       />
       {maxLength && (
-        <p className="text-right text-[23px] text-taupe-400 mt-1">
+        <p className="text-right text-[12px] text-taupe-400 mt-1">
           {text.length}/{maxLength}
         </p>
       )}
       {error && (
-        <p className="text-[21px] text-rose-600 mt-1 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-1 pl-1">{error}</p>
       )}
     </motion.div>
   );

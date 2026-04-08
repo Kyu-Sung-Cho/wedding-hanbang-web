@@ -64,7 +64,7 @@ export default function VendorDashboardPage() {
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto">
+    <div className="max-w-[1100px] mx-auto">
       {/* 심사 상태 배너 */}
       <motion.div
         {...fadeIn}
@@ -74,13 +74,13 @@ export default function VendorDashboardPage() {
         <div className="flex items-center gap-3">
           <statusBanner.icon className="w-6 h-6 text-white" />
           <div>
-            <p className="text-[23px] text-white font-medium">{statusBanner.title}</p>
-            <p className="text-[23px] text-white/70 font-light">{statusBanner.desc}</p>
+            <p className="text-[14px] text-white font-medium">{statusBanner.title}</p>
+            <p className="text-[12px] text-white/70 font-light">{statusBanner.desc}</p>
           </div>
         </div>
         <Link
           href="/vendor/profile"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/20 text-white text-[23px] font-medium hover:bg-white/30 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/20 text-white text-[12px] font-medium hover:bg-white/30 transition-colors"
         >
           프로필 관리 <ArrowRight className="w-3.5 h-3.5" />
         </Link>
@@ -101,12 +101,12 @@ export default function VendorDashboardPage() {
             className="bg-white rounded-2xl p-5 border border-black/[0.04]"
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[23px] text-taupe-500">{stat.label}</p>
+              <p className="text-[12px] text-taupe-500">{stat.label}</p>
               <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
               </div>
             </div>
-            <p className="font-display text-[45px] font-light text-noir-800">{stat.value}</p>
+            <p className="font-display text-[28px] font-light text-noir-800">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -119,8 +119,8 @@ export default function VendorDashboardPage() {
           className="col-span-3 bg-white rounded-2xl border border-black/[0.04] p-6"
         >
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">오늘의 예약</h3>
-            <Link href="/vendor/bookings" className="text-[23px] text-rose-500 font-medium flex items-center gap-1 hover:gap-2 transition-all">
+            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">오늘의 예약</h3>
+            <Link href="/vendor/bookings" className="text-[12px] text-rose-500 font-medium flex items-center gap-1 hover:gap-2 transition-all">
               전체 보기 <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -134,11 +134,11 @@ export default function VendorDashboardPage() {
                       <Clock className="w-4 h-4 text-rose-500" />
                     </div>
                     <div>
-                      <p className="text-[23px] font-medium text-noir-800">{booking.bookingTime}</p>
-                      <p className="text-[23px] text-taupe-400">{booking.brideName || booking.groomName || "고객"} · {booking.memo || "예약"}</p>
+                      <p className="text-[14px] font-medium text-noir-800">{booking.bookingTime}</p>
+                      <p className="text-[12px] text-taupe-400">{booking.brideName || booking.groomName || "고객"} · {booking.memo || "예약"}</p>
                     </div>
                   </div>
-                  <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium ${getStatusStyle(booking.status)}`}>
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${getStatusStyle(booking.status)}`}>
                     {getStatusLabel(booking.status)}
                   </span>
                 </div>
@@ -146,7 +146,7 @@ export default function VendorDashboardPage() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-[23px] text-taupe-400">오늘 예약이 없습니다</p>
+              <p className="text-[14px] text-taupe-400">오늘 예약이 없습니다</p>
             </div>
           )}
         </motion.div>
@@ -159,7 +159,7 @@ export default function VendorDashboardPage() {
         >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-4 h-4 text-rose-500" />
-            <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">빠른 액션</h3>
+            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">빠른 액션</h3>
           </div>
           <div className="space-y-3">
             {[
@@ -176,8 +176,8 @@ export default function VendorDashboardPage() {
                   <ArrowRight className="w-4 h-4 text-white" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-[23px] font-medium text-noir-800">{action.label}</p>
-                  <p className="text-[23px] text-taupe-400 font-light">{action.desc}</p>
+                  <p className="text-[14px] font-medium text-noir-800">{action.label}</p>
+                  <p className="text-[12px] text-taupe-400 font-light">{action.desc}</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
@@ -193,17 +193,17 @@ export default function VendorDashboardPage() {
         className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mt-6"
       >
         <div className="px-6 py-4 border-b border-black/[0.04]">
-          <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">최근 예약</h3>
+          <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">최근 예약</h3>
         </div>
         {bookings.length > 0 ? (
           <div className="divide-y divide-black/[0.03]">
             {bookings.slice(0, 5).map((booking) => (
               <div key={booking.id} className="flex items-center gap-4 px-6 py-4 hover:bg-ivory-50 transition-colors">
-                <div className="w-[90px] text-[21px] text-taupe-500 flex-shrink-0">{booking.bookingDate.slice(5)}</div>
-                <div className="w-[60px] text-[23px] font-medium text-noir-800 flex-shrink-0">{booking.bookingTime}</div>
-                <div className="flex-1 text-[21px] text-noir-800">{booking.brideName || booking.groomName || "고객"}</div>
-                <div className="text-[23px] text-taupe-400 max-md:hidden">{booking.memo}</div>
-                <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${getStatusStyle(booking.status)}`}>
+                <div className="w-[90px] text-[13px] text-taupe-500 flex-shrink-0">{booking.bookingDate.slice(5)}</div>
+                <div className="w-[60px] text-[14px] font-medium text-noir-800 flex-shrink-0">{booking.bookingTime}</div>
+                <div className="flex-1 text-[13px] text-noir-800">{booking.brideName || booking.groomName || "고객"}</div>
+                <div className="text-[12px] text-taupe-400 max-md:hidden">{booking.memo}</div>
+                <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${getStatusStyle(booking.status)}`}>
                   {getStatusLabel(booking.status)}
                 </span>
               </div>
@@ -211,7 +211,7 @@ export default function VendorDashboardPage() {
           </div>
         ) : (
           <div className="text-center py-10">
-            <p className="text-[23px] text-taupe-400">아직 예약이 없습니다</p>
+            <p className="text-[14px] text-taupe-400">아직 예약이 없습니다</p>
           </div>
         )}
       </motion.div>

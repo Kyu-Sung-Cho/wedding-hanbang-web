@@ -22,10 +22,10 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-[25px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
           준비 현황
         </h2>
-        <p className="text-[23px] text-taupe-400">
+        <p className="text-[14px] text-taupe-400">
           각 항목의 진행 상태를 선택해주세요
         </p>
       </div>
@@ -34,16 +34,16 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
       <div className="bg-ivory-100 rounded-2xl p-4">
         <div className="flex items-center justify-center gap-6 mb-3">
           <div className="text-center">
-            <div className="text-[23px] font-bold text-[#2E7D5A]">{completedCount}</div>
-            <div className="text-[23px] text-taupe-400">완료</div>
+            <div className="text-[20px] font-bold text-[#2E7D5A]">{completedCount}</div>
+            <div className="text-[10px] text-taupe-400">완료</div>
           </div>
           <div className="text-center">
-            <div className="text-[23px] font-bold text-rose-500">{inProgressCount}</div>
-            <div className="text-[23px] text-taupe-400">진행중</div>
+            <div className="text-[20px] font-bold text-rose-500">{inProgressCount}</div>
+            <div className="text-[10px] text-taupe-400">진행중</div>
           </div>
           <div className="text-center">
-            <div className="text-[23px] font-bold text-taupe-400">{items.length - activeCount}</div>
-            <div className="text-[23px] text-taupe-400">예정</div>
+            <div className="text-[20px] font-bold text-taupe-400">{items.length - activeCount}</div>
+            <div className="text-[10px] text-taupe-400">예정</div>
           </div>
         </div>
         <div className="w-full bg-black/[0.06] rounded-full h-1.5">
@@ -58,7 +58,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
             />
           </div>
         </div>
-        <div className="text-[23px] text-taupe-400 mt-2 text-center">
+        <div className="text-[11px] text-taupe-400 mt-2 text-center">
           {activeCount === 0
             ? "아직 시작 전이시군요! 함께 준비해요"
             : `${items.length - activeCount}개 항목이 남았어요`}
@@ -77,7 +77,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
           }`}>
             <div className="flex items-center gap-3 px-4 py-3">
               {/* 항목 이름 */}
-              <span className={`text-[21px] font-medium flex-1 min-w-0 ${
+              <span className={`text-[13px] font-medium flex-1 min-w-0 ${
                 item.status !== "not_started" ? "text-noir-800" : "text-taupe-500"
               }`}>
                 {item.label}
@@ -89,7 +89,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
                   <button
                     key={opt.value}
                     onClick={() => onStatusChange(item.key, opt.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[23px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
                       item.status === opt.value
                         ? opt.value === "completed"
                           ? "bg-[#2E7D5A] text-white"
@@ -117,16 +117,16 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
                     onCostChange(item.key, num ? Number(num) : undefined);
                   }}
                   placeholder="사용한 비용"
-                  className="flex-1 px-3 py-2 rounded-lg border border-black/[0.06] bg-white text-[23px] text-noir-800 outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-taupe-400"
+                  className="flex-1 px-3 py-2 rounded-lg border border-black/[0.06] bg-white text-[12px] text-noir-800 outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-taupe-400"
                 />
-                <span className="text-[23px] text-taupe-400 whitespace-nowrap">만원</span>
+                <span className="text-[11px] text-taupe-400 whitespace-nowrap">만원</span>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      <p className="text-[23px] text-taupe-400 text-center">
+      <p className="text-[12px] text-taupe-400 text-center">
         체크하지 않은 항목은 AI가 우선 안내해드립니다
       </p>
     </div>

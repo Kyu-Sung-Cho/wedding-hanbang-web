@@ -74,22 +74,22 @@ export default function StepAccount() {
 
   return (
     <div>
-      <h2 className="text-[23px] font-medium text-noir-800 mb-1">축의금 계좌</h2>
-      <p className="text-[21px] text-taupe-500 mb-6">축의금을 받을 계좌를 등록하세요.</p>
+      <h2 className="text-[16px] font-medium text-noir-800 mb-1">축의금 계좌</h2>
+      <p className="text-[13px] text-taupe-500 mb-6">축의금을 받을 계좌를 등록하세요.</p>
 
       {/* 신랑측 */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[23px] font-medium text-noir-800">신랑 측</h3>
+          <h3 className="text-[14px] font-medium text-noir-800">신랑 측</h3>
           <button
             onClick={() => addAccount("groom")}
-            className="text-[23px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
+            className="text-[12px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" /> 추가
           </button>
         </div>
         {groomAccounts.length === 0 && (
-          <p className="text-[23px] text-taupe-400 py-3 text-center border border-dashed border-taupe-400/20 rounded-xl">계좌를 추가하세요</p>
+          <p className="text-[12px] text-taupe-400 py-3 text-center border border-dashed border-taupe-400/20 rounded-xl">계좌를 추가하세요</p>
         )}
         {forms.map((form, i) =>
           form.side !== "groom" ? null : (
@@ -101,16 +101,16 @@ export default function StepAccount() {
       {/* 신부측 */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[23px] font-medium text-noir-800">신부 측</h3>
+          <h3 className="text-[14px] font-medium text-noir-800">신부 측</h3>
           <button
             onClick={() => addAccount("bride")}
-            className="text-[23px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
+            className="text-[12px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" /> 추가
           </button>
         </div>
         {brideAccounts.length === 0 && (
-          <p className="text-[23px] text-taupe-400 py-3 text-center border border-dashed border-taupe-400/20 rounded-xl">계좌를 추가하세요</p>
+          <p className="text-[12px] text-taupe-400 py-3 text-center border border-dashed border-taupe-400/20 rounded-xl">계좌를 추가하세요</p>
         )}
         {forms.map((form, i) =>
           form.side !== "bride" ? null : (
@@ -123,7 +123,7 @@ export default function StepAccount() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full py-3 bg-noir-800 text-white rounded-xl text-[23px] font-medium hover:bg-noir-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-noir-800 text-white rounded-xl text-[14px] font-medium hover:bg-noir-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
       >
         <Save className="w-4 h-4" />
         {saving ? "저장 중..." : "계좌 정보 저장"}
@@ -150,7 +150,7 @@ function AccountRow({
           type="text"
           value={form.label}
           onChange={(e) => onChange(index, "label", e.target.value)}
-          className="text-[21px] font-medium text-noir-800 bg-transparent border-none focus:outline-none"
+          className="text-[13px] font-medium text-noir-800 bg-transparent border-none focus:outline-none"
           placeholder="표시 이름"
         />
         <button onClick={() => onRemove(index)} className="text-taupe-400 hover:text-red-500">
@@ -161,7 +161,7 @@ function AccountRow({
         <select
           value={form.bank}
           onChange={(e) => onChange(index, "bank", e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[23px] text-noir-800 focus:outline-none focus:border-rose-500"
+          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[12px] text-noir-800 focus:outline-none focus:border-rose-500"
         >
           <option value="">은행 선택</option>
           {BANKS.map((b) => (
@@ -173,14 +173,14 @@ function AccountRow({
           value={form.account_number}
           onChange={(e) => onChange(index, "account_number", e.target.value)}
           placeholder="계좌번호"
-          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[12px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
         />
         <input
           type="text"
           value={form.holder}
           onChange={(e) => onChange(index, "holder", e.target.value)}
           placeholder="예금주"
-          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[23px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
+          className="px-2 py-1.5 rounded-lg border border-black/[0.06] text-[12px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-rose-500"
         />
       </div>
     </div>

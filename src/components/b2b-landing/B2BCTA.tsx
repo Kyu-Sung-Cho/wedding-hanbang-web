@@ -35,14 +35,14 @@ export default function B2BCTA() {
         <div className="absolute bottom-[-20%] left-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.06),transparent)] rounded-full" />
       </div>
 
-      <div className="relative z-10 max-w-[790px] mx-auto text-center">
+      <div className="relative z-10 max-w-[700px] mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center gap-2 text-[23px] tracking-[0.18em] uppercase text-rose-light font-medium mb-8">
+          <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-8">
             <span className="w-5 h-px bg-rose-light" />
             Get Started
             <span className="w-5 h-px bg-rose-light" />
@@ -54,26 +54,26 @@ export default function B2BCTA() {
             참여해주세요
           </h2>
 
-          <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[540px] mb-4">
+          <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[480px] mb-4">
             약 5분이면 충분합니다.
             <br className="hidden md:block" />
             설문을 기반으로 맞춤 파트너십 제안을 드립니다.
           </p>
 
-          <p className="text-[21px] text-white/30 font-light mb-10">
+          <p className="text-[13px] text-white/30 font-light mb-10">
             합리적 수수료 · 가입비 없음 · 언제든 해지 가능
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link
               href="/vendor/service"
-              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[21px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all max-md:w-full max-md:text-center"
+              className="px-10 py-4 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[15px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all max-md:w-full max-md:text-center"
             >
               서비스 안내 & 업체 등록
             </Link>
             <button
               onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="px-10 py-4 rounded-full border border-white/20 text-white/80 text-[21px] font-medium hover:border-white/40 hover:text-white transition-all max-md:w-full max-md:text-center"
+              className="px-10 py-4 rounded-full border border-white/20 text-white/80 text-[15px] font-medium hover:border-white/40 hover:text-white transition-all max-md:w-full max-md:text-center"
             >
               파트너 설문 참여하기
             </button>
@@ -81,9 +81,9 @@ export default function B2BCTA() {
 
           {/* 이메일 구독 */}
           <div className="max-w-[440px] mx-auto mb-10">
-            <p className="text-[21px] text-white/40 mb-3">파트너 소식과 업데이트를 이메일로 받아보세요</p>
+            <p className="text-[13px] text-white/40 mb-3">파트너 소식과 업데이트를 이메일로 받아보세요</p>
             {subStatus === "success" ? (
-              <p className="text-[23px] text-[#6BCB9A] font-medium py-3">구독이 완료되었습니다!</p>
+              <p className="text-[14px] text-[#6BCB9A] font-medium py-3">구독이 완료되었습니다!</p>
             ) : (
               <form onSubmit={handleSubscribe} className="flex gap-2 max-sm:flex-col">
                 <input
@@ -92,26 +92,26 @@ export default function B2BCTA() {
                   onChange={(e) => setSubEmail(e.target.value)}
                   placeholder="이메일 주소를 입력해 주세요"
                   required
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/[0.06] border border-white/[0.08] text-white text-[23px] placeholder:text-white/30 outline-none focus:border-rose-500/40 transition-colors"
+                  className="flex-1 px-4 py-3 rounded-xl bg-white/[0.06] border border-white/[0.08] text-white text-[14px] placeholder:text-white/30 outline-none focus:border-rose-500/40 transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={subStatus === "sending"}
-                  className="px-6 py-3 rounded-xl bg-white/[0.1] text-white/80 text-[23px] font-medium hover:bg-white/[0.15] transition-colors whitespace-nowrap disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl bg-white/[0.1] text-white/80 text-[14px] font-medium hover:bg-white/[0.15] transition-colors whitespace-nowrap disabled:opacity-50"
                 >
                   {subStatus === "sending" ? "구독 중..." : "구독"}
                 </button>
               </form>
             )}
             {subStatus === "error" && (
-              <p className="text-[23px] text-rose-500 mt-2">오류가 발생했습니다. 다시 시도해 주세요.</p>
+              <p className="text-[12px] text-rose-500 mt-2">오류가 발생했습니다. 다시 시도해 주세요.</p>
             )}
           </div>
 
           <div className="flex justify-center mb-16">
             <a
               href="mailto:partner@hanbang.ai"
-              className="text-[21px] text-white/40 hover:text-white/60 transition-colors underline underline-offset-4"
+              className="text-[13px] text-white/40 hover:text-white/60 transition-colors underline underline-offset-4"
             >
               이메일 문의: partner@hanbang.ai
             </a>
@@ -124,7 +124,7 @@ export default function B2BCTA() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="flex flex-wrap justify-center gap-x-[clamp(20px,3vw,40px)] gap-y-4 text-[21px] text-white/30"
+          className="flex flex-wrap justify-center gap-x-[clamp(20px,3vw,40px)] gap-y-4 text-[13px] text-white/30"
         >
           {[
             "✦ 개인정보 안전하게 보호",

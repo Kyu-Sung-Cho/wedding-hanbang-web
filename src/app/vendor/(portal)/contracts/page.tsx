@@ -100,7 +100,7 @@ function CreateContractModal({
         className="bg-white rounded-2xl w-full max-w-[500px] mx-4 overflow-hidden"
       >
         <div className="border-b border-black/[0.04] px-6 py-4 flex items-center justify-between">
-          <h2 className="text-[21px] font-medium text-noir-800">새 계약 생성</h2>
+          <h2 className="text-[17px] font-medium text-noir-800">새 계약 생성</h2>
           <button onClick={onClose} className="text-taupe-400 hover:text-noir-800 transition-colors">
             <XCircle className="w-5 h-5" />
           </button>
@@ -108,11 +108,11 @@ function CreateContractModal({
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-[23px] font-medium text-noir-800 mb-1.5">예약 선택 *</label>
+            <label className="block text-[12px] font-medium text-noir-800 mb-1.5">예약 선택 *</label>
             <select
               value={selectedBooking}
               onChange={(e) => handleBookingSelect(e.target.value)}
-              className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[21px] outline-none focus:border-rose-500 bg-white"
+              className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 bg-white"
             >
               <option value="">예약을 선택하세요</option>
               {bookings.map((b) => (
@@ -125,13 +125,13 @@ function CreateContractModal({
           </div>
 
           <div>
-            <label className="block text-[23px] font-medium text-noir-800 mb-1.5">
+            <label className="block text-[12px] font-medium text-noir-800 mb-1.5">
               계약 템플릿 (선택)
             </label>
             <select
               value={selectedTemplate}
               onChange={(e) => handleTemplateSelect(e.target.value)}
-              className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[21px] outline-none focus:border-rose-500 bg-white"
+              className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500 bg-white"
             >
               <option value="">템플릿 없이 생성</option>
               {templates.map((t) => (
@@ -144,7 +144,7 @@ function CreateContractModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[23px] font-medium text-noir-800 mb-1.5">
+              <label className="block text-[12px] font-medium text-noir-800 mb-1.5">
                 계약 금액 (원) *
               </label>
               <input
@@ -152,11 +152,11 @@ function CreateContractModal({
                 value={contractAmount || ""}
                 onChange={(e) => setContractAmount(Number(e.target.value))}
                 placeholder="2500000"
-                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[21px] outline-none focus:border-rose-500"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500"
               />
             </div>
             <div>
-              <label className="block text-[23px] font-medium text-noir-800 mb-1.5">
+              <label className="block text-[12px] font-medium text-noir-800 mb-1.5">
                 계약금 비율 (%)
               </label>
               <input
@@ -165,18 +165,18 @@ function CreateContractModal({
                 onChange={(e) => setDepositRate(Number(e.target.value))}
                 min={0}
                 max={100}
-                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[21px] outline-none focus:border-rose-500"
+                className="w-full px-3 py-2.5 border border-platinum rounded-lg text-[13px] outline-none focus:border-rose-500"
               />
             </div>
           </div>
 
           {contractAmount > 0 && (
             <div className="bg-ivory-50 rounded-lg px-4 py-3 border border-black/[0.03]">
-              <div className="flex justify-between text-[21px]">
+              <div className="flex justify-between text-[13px]">
                 <span className="text-taupe-500">총 계약 금액</span>
                 <span className="font-medium text-noir-800">{formatPrice(contractAmount)}</span>
               </div>
-              <div className="flex justify-between text-[21px] mt-1">
+              <div className="flex justify-between text-[13px] mt-1">
                 <span className="text-taupe-500">계약금 ({depositRate}%)</span>
                 <span className="font-medium text-rose-500">
                   {formatPrice(Math.round(contractAmount * (depositRate / 100)))}
@@ -189,14 +189,14 @@ function CreateContractModal({
         <div className="border-t border-black/[0.04] px-6 py-4 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-platinum text-[23px] font-medium text-taupe-500 hover:bg-ivory-50 transition-colors"
+            className="flex-1 py-3 rounded-xl border border-platinum text-[14px] font-medium text-taupe-500 hover:bg-ivory-50 transition-colors"
           >
             취소
           </button>
           <button
             onClick={handleSubmit}
             disabled={creating || !selectedBooking || !contractAmount}
-            className="flex-1 py-3 rounded-xl bg-noir-800 text-white text-[23px] font-medium hover:bg-noir-soft transition-colors disabled:opacity-50"
+            className="flex-1 py-3 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors disabled:opacity-50"
           >
             {creating ? "생성 중..." : "계약 생성"}
           </button>
@@ -292,26 +292,26 @@ export default function VendorContractsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[1015px] mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[900px] mx-auto flex items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1015px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="font-serif-kr text-[23px] text-noir-800">계약 관리</h2>
-          <p className="text-[21px] text-taupe-500 font-light mt-0.5">
+          <h2 className="font-serif-kr text-[20px] text-noir-800">계약 관리</h2>
+          <p className="text-[13px] text-taupe-500 font-light mt-0.5">
             고객과의 계약 현황을 관리합니다
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/vendor/contracts/templates"
-            className="flex items-center gap-2 px-4 py-2.5 border border-platinum rounded-xl text-[21px] font-medium text-charcoal hover:bg-ivory-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 border border-platinum rounded-xl text-[13px] font-medium text-charcoal hover:bg-ivory-50 transition-colors"
           >
             <Settings2 className="w-4 h-4" />
             템플릿 관리
@@ -319,7 +319,7 @@ export default function VendorContractsPage() {
           <button
             onClick={() => setShowCreateModal(true)}
             disabled={availableBookings.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-gold text-white rounded-xl text-[21px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-gold text-white rounded-xl text-[13px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             계약 생성
@@ -333,14 +333,14 @@ export default function VendorContractsPage() {
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`px-4 py-2 rounded-lg text-[21px] font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
               filter === s
                 ? "bg-noir-800 text-white"
                 : "text-taupe-500 hover:bg-ivory-warm"
             }`}
           >
             {s === "all" ? "전체" : STATUS_CONFIG[s].label}
-            <span className="ml-1.5 text-[23px] opacity-60">{statusCounts[s]}</span>
+            <span className="ml-1.5 text-[11px] opacity-60">{statusCounts[s]}</span>
           </button>
         ))}
       </motion.div>
@@ -349,17 +349,17 @@ export default function VendorContractsPage() {
       {filtered.length === 0 ? (
         <motion.div {...fadeIn} transition={{ duration: 0.5, delay: 0.1 }} className="bg-white rounded-2xl border border-black/[0.04] p-12 text-center">
           <FileText className="w-12 h-12 text-taupe-400/40 mx-auto mb-4" />
-          <p className="text-[21px] text-taupe-500 mb-2">
+          <p className="text-[15px] text-taupe-500 mb-2">
             {filter === "all" ? "아직 계약이 없습니다" : `${STATUS_CONFIG[filter]?.label} 상태의 계약이 없습니다`}
           </p>
           {filter === "all" && availableBookings.length > 0 && (
             <>
-              <p className="text-[21px] text-taupe-400 font-light mb-6">
+              <p className="text-[13px] text-taupe-400 font-light mb-6">
                 확인된 예약에서 계약을 생성해보세요
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-noir-800 text-white rounded-xl text-[21px] font-medium hover:bg-noir-soft transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-soft transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 첫 계약 생성하기
@@ -393,14 +393,14 @@ export default function VendorContractsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-[21px] font-medium text-noir-800 truncate">
+                        <h3 className="text-[15px] font-medium text-noir-800 truncate">
                           {contract.vendorName || "고객"}
                         </h3>
-                        <span className={`px-2 py-0.5 rounded-full text-[23px] font-medium ${config.color}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${config.color}`}>
                           {config.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[23px] text-taupe-400">
+                      <div className="flex items-center gap-3 text-[12px] text-taupe-400">
                         {contract.productName && <span>{contract.productName}</span>}
                         <span>{formatPrice(contract.contractAmount)}</span>
                         <span>계약금 {formatPrice(contract.depositAmount)}</span>
@@ -421,7 +421,7 @@ export default function VendorContractsPage() {
                     {contract.status === "draft" && (
                       <button
                         onClick={() => handleSend(contract.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-600 text-[23px] font-medium hover:bg-blue-500/20 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-600 text-[12px] font-medium hover:bg-blue-500/20 transition-colors"
                       >
                         <Send className="w-3.5 h-3.5" />
                         전송
@@ -466,9 +466,9 @@ export default function VendorContractsPage() {
                                   )}
                                 </div>
                                 <div>
-                                  <span className="text-[23px] text-noir-800 font-medium">{step.label}</span>
+                                  <span className="text-[11px] text-noir-800 font-medium">{step.label}</span>
                                   {step.date && (
-                                    <p className="text-[23px] text-taupe-400">
+                                    <p className="text-[10px] text-taupe-400">
                                       {new Date(step.date).toLocaleDateString("ko-KR")}
                                     </p>
                                   )}
@@ -483,16 +483,16 @@ export default function VendorContractsPage() {
                           <div className="space-y-2">
                             {(contract.content as ContractClause[]).slice(0, 3).map((clause, idx) => (
                               <div key={idx} className="bg-ivory-50/50 rounded-lg px-4 py-2 border border-black/[0.03]">
-                                <p className="text-[23px] text-rose-500 font-medium">
+                                <p className="text-[12px] text-rose-500 font-medium">
                                   제{idx + 1}조 {clause.title}
                                 </p>
-                                <p className="text-[23px] text-taupe-500 line-clamp-2 mt-0.5">
+                                <p className="text-[12px] text-taupe-500 line-clamp-2 mt-0.5">
                                   {clause.body}
                                 </p>
                               </div>
                             ))}
                             {contract.content.length > 3 && (
-                              <p className="text-[23px] text-taupe-400 text-center">
+                              <p className="text-[11px] text-taupe-400 text-center">
                                 외 {contract.content.length - 3}개 조항
                               </p>
                             )}
@@ -501,13 +501,13 @@ export default function VendorContractsPage() {
 
                         {/* 금액 정보 */}
                         <div className="mt-4 bg-ivory-50/50 rounded-lg px-4 py-3 border border-black/[0.03]">
-                          <div className="flex justify-between text-[21px] mb-1">
+                          <div className="flex justify-between text-[13px] mb-1">
                             <span className="text-taupe-500">총 계약 금액</span>
                             <span className="font-medium text-noir-800">
                               {formatPrice(contract.contractAmount)}
                             </span>
                           </div>
-                          <div className="flex justify-between text-[21px]">
+                          <div className="flex justify-between text-[13px]">
                             <span className="text-taupe-500">
                               계약금 ({Math.round(contract.depositRate * 100)}%)
                             </span>
@@ -519,7 +519,7 @@ export default function VendorContractsPage() {
 
                         {/* 서명 정보 */}
                         {contract.signedName && (
-                          <div className="mt-3 flex items-center gap-2 text-[23px] text-[#2E7D5A]">
+                          <div className="mt-3 flex items-center gap-2 text-[12px] text-[#2E7D5A]">
                             <CheckCircle className="w-4 h-4" />
                             <span>
                               {contract.signedName}님이{" "}
@@ -533,7 +533,7 @@ export default function VendorContractsPage() {
 
                         {/* 취소 정보 */}
                         {contract.status === "cancelled" && (
-                          <div className="mt-3 flex items-start gap-2 text-[23px] text-red-500">
+                          <div className="mt-3 flex items-start gap-2 text-[12px] text-red-500">
                             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                             <span>
                               계약 취소됨
@@ -558,7 +558,7 @@ export default function VendorContractsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-[#2E7D5A] text-white rounded-xl text-[23px] font-medium flex items-center gap-2 shadow-lg z-50"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-[#2E7D5A] text-white rounded-xl text-[14px] font-medium flex items-center gap-2 shadow-lg z-50"
           >
             <Check className="w-4 h-4" />
             처리되었습니다

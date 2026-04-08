@@ -94,15 +94,15 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
       >
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-[#C4967E]" />
-          <span className="text-[21px] font-medium text-noir-800">임박 체크리스트</span>
-          <span className="text-[23px] text-taupe-400">{items.length}건</span>
+          <span className="text-[13px] font-medium text-noir-800">임박 체크리스트</span>
+          <span className="text-[11px] text-taupe-400">{items.length}건</span>
           {overdueCount > 0 && (
-            <span className="text-[23px] px-2 py-0.5 rounded-full bg-[#9A6B62] text-white font-medium">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#9A6B62] text-white font-medium">
               {overdueCount} 초과
             </span>
           )}
           {urgentCount > 0 && (
-            <span className="text-[23px] px-2 py-0.5 rounded-full bg-[#C4967E]/80 text-white font-medium">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C4967E]/80 text-white font-medium">
               {urgentCount} 긴급
             </span>
           )}
@@ -146,8 +146,8 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                     {/* 카테고리 정보 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[21px] font-medium text-noir-800">{item.label}</span>
-                        <span className="text-[23px] text-taupe-400">
+                        <span className="text-[13px] font-medium text-noir-800">{item.label}</span>
+                        <span className="text-[11px] text-taupe-400">
                           {item.doneCount}/{item.totalCount}
                         </span>
                       </div>
@@ -161,7 +161,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                     </div>
 
                     {/* D-day 뱃지 */}
-                    <span className={`text-[23px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${styles.badgeBg} ${styles.badgeText}`}>
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${styles.badgeBg} ${styles.badgeText}`}>
                       {item.deadlineDaysLeft <= 0
                         ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
                         : `D-${item.deadlineDaysLeft}`}

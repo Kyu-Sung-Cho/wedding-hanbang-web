@@ -59,7 +59,7 @@ export default function ContactForm({ fields, value, onChange }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.06, duration: 0.25 }}
         >
-          <label className="text-[21px] text-charcoal font-medium mb-1.5 block">
+          <label className="text-[13px] text-charcoal font-medium mb-1.5 block">
             {field.label}
           </label>
           <input
@@ -69,14 +69,14 @@ export default function ContactForm({ fields, value, onChange }: Props) {
             onChange={(e) => handleFieldChange(field.id, e.target.value, field.inputType)}
             onBlur={() => handleBlur(field.id, field.inputType)}
             placeholder={field.placeholder}
-            className={`w-full px-5 py-3.5 rounded-xl border bg-white text-[23px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
+            className={`w-full px-5 py-3.5 rounded-xl border bg-white text-[14px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
               fieldErrors[field.id]
                 ? "border-red-400 focus:border-red-500"
                 : "border-platinum focus:border-rose-500"
             }`}
           />
           {fieldErrors[field.id] && (
-            <p className="text-[23px] text-red-500 mt-1">{fieldErrors[field.id]}</p>
+            <p className="text-[12px] text-red-500 mt-1">{fieldErrors[field.id]}</p>
           )}
         </motion.div>
       ))}

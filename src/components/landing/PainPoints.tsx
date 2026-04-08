@@ -14,9 +14,9 @@ export default function PainPoints() {
     <section className="bg-noir-800 text-white py-[140px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
       <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
 
-      <div className="grid grid-cols-2 gap-20 items-center max-w-[1350px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
+      <div className="grid grid-cols-2 gap-20 items-center max-w-[1200px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
         <div>
-          <div className="inline-flex items-center gap-2 text-[23px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
+          <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
             <span className="w-5 h-px bg-rose-light" />
             Problem
           </div>
@@ -25,7 +25,7 @@ export default function PainPoints() {
             <br />
             왜 이렇게 힘들까요?
           </h2>
-          <p className="text-[23px] leading-relaxed text-white/60 font-light max-w-[520px]">
+          <p className="text-[16px] leading-relaxed text-white/60 font-light max-w-[520px]">
             평균 결혼 준비 기간 10개월. 그 시간 동안 수십 곳의 업체를 비교하고,
             불투명한 가격에 지치고, 추가 비용에 놀라는 일의 연속입니다.
           </p>
@@ -44,10 +44,10 @@ export default function PainPoints() {
               <div className="w-10 h-10 rounded-[10px] bg-rose-500/15 flex items-center justify-center mb-4 text-lg">
                 {card.icon}
               </div>
-              <h4 className="text-[21px] font-medium mb-2 text-white/90">
+              <h4 className="text-[15px] font-medium mb-2 text-white/90">
                 {card.title}
               </h4>
-              <p className="text-[21px] text-white/45 leading-relaxed font-light">
+              <p className="text-[13px] text-white/45 leading-relaxed font-light">
                 {card.desc}
               </p>
             </motion.div>

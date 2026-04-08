@@ -43,20 +43,20 @@ export default function InviteHero({ invitation, colors, fonts, photos }: Props)
         />
 
         <div className="relative z-10 animate-fade-in" style={{ animationDuration: "0.8s" }}>
-          <p className="text-[23px] tracking-[0.3em] uppercase mb-8 opacity-60" style={{ color: colors[0] }}>
+          <p className="text-[10px] tracking-[0.3em] uppercase mb-8 opacity-60" style={{ color: colors[0] }}>
             Wedding Invitation
           </p>
 
         {hasNames ? (
           <h1
-            className="text-[45px] font-light leading-[1.6] mb-6"
+            className="text-[28px] font-light leading-[1.6] mb-6"
             style={{ fontFamily: `'${fonts.heading}', serif`, color: colors[2] }}
           >
-            {groomName || "신랑"} <span className="text-[23px] opacity-40" style={{ color: colors[0] }}>&</span> {brideName || "신부"}
+            {groomName || "신랑"} <span className="text-[20px] opacity-40" style={{ color: colors[0] }}>&</span> {brideName || "신부"}
           </h1>
         ) : (
           <h1
-            className="text-[25px] font-light mb-6"
+            className="text-[22px] font-light mb-6"
             style={{ fontFamily: `'${fonts.heading}', serif`, color: colors[2] }}
           >
             {invitation.title || "우리 결혼합니다"}
@@ -66,7 +66,7 @@ export default function InviteHero({ invitation, colors, fonts, photos }: Props)
         <div className="w-8 h-px mx-auto mb-5 opacity-30" style={{ background: colors[0] }} />
 
         {weddingDate && (
-          <p className="text-[23px] tracking-wide mb-2" style={{ color: colors[0] }}>
+          <p className="text-[14px] tracking-wide mb-2" style={{ color: colors[0] }}>
             {weddingDate.getFullYear()}.
             {String(weddingDate.getMonth() + 1).padStart(2, "0")}.
             {String(weddingDate.getDate()).padStart(2, "0")}
@@ -81,7 +81,7 @@ export default function InviteHero({ invitation, colors, fonts, photos }: Props)
         )}
 
         {invitation.wedding_venue && (
-          <p className="text-[21px] opacity-50">
+          <p className="text-[13px] opacity-50">
             {invitation.wedding_venue}
             {invitation.wedding_hall ? ` ${invitation.wedding_hall}` : ""}
           </p>
