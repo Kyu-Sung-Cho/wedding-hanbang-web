@@ -12,10 +12,10 @@ const fadeInUp = {
 export default function VirtualFitting() {
   return (
     <section id="fitting" className="bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep py-[140px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
-      <div className="grid grid-cols-2 gap-20 items-center max-w-[1500px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
+      <div className="grid grid-cols-2 gap-20 items-center max-w-[1200px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
         {/* 폰 비주얼 */}
         <motion.div {...fadeInUp} className="relative h-[520px] flex items-center justify-center max-md:h-[420px]">
-          <div className="w-[350px] h-[560px] bg-noir-800 rounded-[44px] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.15)] relative z-10 max-md:w-[220px] max-md:h-[440px] max-md:rounded-[36px]">
+          <div className="w-[280px] h-[560px] bg-noir-800 rounded-[44px] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.15)] relative z-10 max-md:w-[220px] max-md:h-[440px] max-md:rounded-[36px]">
             <div className="w-full h-full bg-gradient-to-b from-ivory-deep to-ivory-50 rounded-[34px] overflow-hidden flex flex-col items-center justify-center relative">
               <div className="w-[120px] h-[200px] bg-gradient-to-b from-rose-pale to-rose-light rounded-[35%_35%_45%_45%/25%_25%_40%_40%]" />
               <div className="absolute left-5 right-5 h-[2px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-[phoneScan_4s_ease-in-out_infinite] shadow-[0_0_15px_rgba(196,150,126,0.4)]" />

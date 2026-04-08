@@ -189,7 +189,7 @@ function ProductEditModal({ product, category, onSave, onClose }: {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl w-full max-w-[875px] mx-4 overflow-hidden"
+        className="bg-white rounded-2xl w-full max-w-[700px] mx-4 overflow-hidden"
       >
         {/* 헤더 */}
         <div className="sticky top-0 bg-white border-b border-black/[0.04] px-6 py-4 flex items-center justify-between z-10">
@@ -377,7 +377,7 @@ export default function VendorProductsPage() {
   };
 
   return (
-    <div className="max-w-[1125px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
         <div>

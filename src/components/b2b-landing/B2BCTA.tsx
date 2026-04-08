@@ -35,7 +35,7 @@ export default function B2BCTA() {
         <div className="absolute bottom-[-20%] left-[-10%] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.06),transparent)] rounded-full" />
       </div>
 
-      <div className="relative z-10 max-w-[875px] mx-auto text-center">
+      <div className="relative z-10 max-w-[700px] mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -54,7 +54,7 @@ export default function B2BCTA() {
             참여해주세요
           </h2>
 
-          <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[600px] mb-4">
+          <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[480px] mb-4">
             약 5분이면 충분합니다.
             <br className="hidden md:block" />
             설문을 기반으로 맞춤 파트너십 제안을 드립니다.

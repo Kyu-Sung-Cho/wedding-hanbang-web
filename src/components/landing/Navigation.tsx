@@ -24,7 +24,7 @@ export default function Navigation() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[1000] px-[60px] h-[90px] flex items-center justify-between transition-all duration-500 max-md:px-5 ${
+      className={`fixed top-0 left-0 right-0 z-[1000] px-[60px] h-[72px] flex items-center justify-between transition-all duration-500 max-md:px-5 ${
         scrolled
           ? "bg-ivory-50/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
           : ""

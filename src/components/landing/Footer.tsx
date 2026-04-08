@@ -27,13 +27,13 @@ export default function Footer() {
 
   return (
     <footer className="bg-noir-800 text-white pt-20 pb-10 px-[60px] max-md:px-5">
-      <div className="grid grid-cols-[2fr_1fr] gap-[60px] max-w-[1500px] mx-auto mb-[60px] max-md:grid-cols-1 max-md:gap-8">
+      <div className="grid grid-cols-[2fr_1fr] gap-[60px] max-w-[1200px] mx-auto mb-[60px] max-md:grid-cols-1 max-md:gap-8">
         {/* 브랜드 */}
         <div>
           <a href="/" className="no-underline">
             <Logo size="sm" variant="white" />
           </a>
-          <p className="text-[23px] text-white/40 leading-relaxed mt-4 font-light max-w-[375px]">
+          <p className="text-[23px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
             AI가 이끄는 새로운 결혼 준비의 시작.
             <br />
             웨딩 플래너 없이도 완벽한 결혼을 준비하세요.
@@ -67,7 +67,7 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="max-w-[1500px] mx-auto pt-10 border-t border-white/[0.06] flex justify-between items-center max-md:flex-col max-md:gap-4 max-md:text-center">
+      <div className="max-w-[1200px] mx-auto pt-10 border-t border-white/[0.06] flex justify-between items-center max-md:flex-col max-md:gap-4 max-md:text-center">
         <span className="text-[25px] text-white/30 font-light">
           &copy; 2026 웨딩한방. All rights reserved.
         </span>

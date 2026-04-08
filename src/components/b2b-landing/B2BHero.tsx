@@ -13,7 +13,7 @@ export default function B2BHero() {
         <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(800px,90vw)] h-[min(800px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.05),transparent)] rounded-full" />
       </div>
 
-      <div className="relative z-10 max-w-[1250px] mx-auto px-[clamp(20px,5vw,60px)] text-center py-[clamp(80px,10vw,128px)]">
+      <div className="relative z-10 max-w-[800px] mx-auto px-[clamp(20px,5vw,60px)] text-center py-[clamp(80px,10vw,128px)]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}

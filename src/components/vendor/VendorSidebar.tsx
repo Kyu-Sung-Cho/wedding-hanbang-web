@@ -59,7 +59,7 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
         }`}
       >
         {/* 로고 & 닫기 */}
-        <div className="h-[90px] flex items-center justify-between px-6 border-b border-black/[0.04]">
+        <div className="h-[72px] flex items-center justify-between px-6 border-b border-black/[0.04]">
           <Link href="/vendor/dashboard" className="flex items-center gap-2.5">
             <Logo size="sm" showText={false} />
             <div>

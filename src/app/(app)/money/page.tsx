@@ -142,7 +142,7 @@ export default function MoneyPage() {
   const formatMoney = (n: number) => n.toLocaleString("ko-KR") + "원";
 
   return (
-    <div className="max-w-[1250px] mx-auto">
+    <div className="max-w-[800px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>

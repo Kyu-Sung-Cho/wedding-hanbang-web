@@ -75,7 +75,7 @@ export default function CustomerHowItWorks() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1250px] mx-auto relative">
+      <div className="max-w-[1000px] mx-auto relative">
         {/* 연결 라인 (데스크톱) */}
         <div className="absolute top-[52px] left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-[1.5px] bg-gradient-to-r from-rose-500 via-gold to-rose-500 hidden md:block" />
 

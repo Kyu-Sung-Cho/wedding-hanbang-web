@@ -41,7 +41,7 @@ export default function B2BComparison() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
-        className="max-w-[1125px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
+        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
         <div className="grid grid-cols-[180px_1fr_1fr] bg-noir-800 text-white">
           <div className="p-5 px-7 text-[25px] font-medium tracking-wide" />
@@ -68,7 +68,7 @@ export default function B2BComparison() {
       </motion.div>
 
       {/* 모바일 카드 */}
-      <div className="md:hidden flex flex-col gap-4 max-w-[600px] mx-auto">
+      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
         {rows.map((row, i) => (
           <motion.div
             key={row.label}

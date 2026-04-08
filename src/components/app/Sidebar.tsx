@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         {/* 로고 영역 */}
-        <div className="flex items-center justify-between px-6 h-[90px] border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-6 h-[72px] border-b border-white/[0.06]">
           <Link href="/dashboard">
             <Logo size="sm" variant="white" />
           </Link>

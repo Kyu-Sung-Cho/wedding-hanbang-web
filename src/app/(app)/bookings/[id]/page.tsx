@@ -261,7 +261,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
   if (loading || confirming) {
     return (
-      <div className="max-w-[875px] mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[700px] mx-auto flex items-center justify-center py-20">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           {confirming && <p className="text-[25px] text-taupe-500">결제 확인 중...</p>}
@@ -272,7 +272,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
   if (!booking) {
     return (
-      <div className="max-w-[875px] mx-auto text-center py-20">
+      <div className="max-w-[700px] mx-auto text-center py-20">
         <p className="text-[38px] text-taupe-500">예약을 찾을 수 없습니다</p>
         <Link href="/bookings" className="text-[25px] text-rose-500 mt-4 inline-block">
           예약 목록으로 돌아가기
@@ -286,7 +286,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const displayStatus = STATUS_LABELS[booking.contractStatus ?? booking.status] ?? booking.status;
 
   return (
-    <div className="max-w-[875px] mx-auto pb-10">
+    <div className="max-w-[700px] mx-auto pb-10">
       {/* 뒤로가기 */}
       <motion.div {...fadeIn} transition={{ duration: 0.3 }}>
         <Link

@@ -33,7 +33,7 @@ export default function AdDisclosureBadge({
         {opt.label}
       </span>
       {adDisclosure === "sponsored" && sponsorshipDetail && (
-        <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 min-w-[200px] max-w-[350px] bg-[#1A1A1F] text-white text-xs rounded-lg p-2.5 shadow-lg">
+        <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 min-w-[200px] max-w-[280px] bg-[#1A1A1F] text-white text-xs rounded-lg p-2.5 shadow-lg">
           {sponsorshipDetail}
         </div>
       )}

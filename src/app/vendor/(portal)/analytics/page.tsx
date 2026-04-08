@@ -292,7 +292,7 @@ export default function VendorAnalyticsPage() {
   const periodLabel = period === "7d" ? "7일" : period === "30d" ? "30일" : "90일";
 
   return (
-    <div className="max-w-[1250px] mx-auto">
+    <div className="max-w-[1000px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} className="mb-6">
         <div className="flex items-center justify-between">

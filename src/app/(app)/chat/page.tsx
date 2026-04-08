@@ -450,7 +450,7 @@ export default function ChatPage() {
   // 데모 모드
   if (isDemo) {
     return (
-      <div className="max-w-[1250px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
+      <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
           <h3 className="text-[25px] font-medium text-[#1A1A1F] mb-2">
@@ -474,7 +474,7 @@ export default function ChatPage() {
   // 커플이 없는 경우
   if (!coupleId) {
     return (
-      <div className="max-w-[1250px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
+      <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
           <p className="text-[38px] text-[#928980]">
@@ -511,7 +511,7 @@ export default function ChatPage() {
         </div>
       )}
 
-    <div className="max-w-[1250px] mx-auto h-full flex flex-col">
+    <div className="max-w-[800px] mx-auto h-full flex flex-col">
       {/* 상단 툴바 */}
       <div className="flex items-center justify-between px-2 pb-2 pt-1">
         <div className="flex items-center gap-2">

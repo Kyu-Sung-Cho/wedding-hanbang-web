@@ -14,7 +14,7 @@ export default function PainPoints() {
     <section className="bg-noir-800 text-white py-[140px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
       <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
 
-      <div className="grid grid-cols-2 gap-20 items-center max-w-[1500px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
+      <div className="grid grid-cols-2 gap-20 items-center max-w-[1200px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
         <div>
           <div className="inline-flex items-center gap-2 text-[38px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
             <span className="w-5 h-px bg-rose-light" />

@@ -441,14 +441,14 @@ export default function ContractTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[1125px] mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[900px] mx-auto flex items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1125px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       {/* 헤더 */}
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="flex items-center justify-between mb-6">
         <div>

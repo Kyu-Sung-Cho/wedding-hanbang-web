@@ -101,7 +101,7 @@ export default function TimeSlotsPage() {
   };
 
   return (
-    <div className="max-w-[1375px] mx-auto">
+    <div className="max-w-[1100px] mx-auto">
       {/* 상품별 탭 */}
       {activeProducts.length > 0 && (
         <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="mb-6">

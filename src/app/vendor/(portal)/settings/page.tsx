@@ -26,7 +26,7 @@ export default function VendorSettingsPage() {
   };
 
   return (
-    <div className="max-w-[875px] mx-auto">
+    <div className="max-w-[700px] mx-auto">
       <motion.div {...fadeIn} transition={{ duration: 0.5 }} className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-6">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center"><Store className="w-6 h-6 text-white" /></div>

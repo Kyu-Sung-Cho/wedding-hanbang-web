@@ -22,7 +22,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
       {/* 상단·하단 라인 */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-platinum to-transparent" />
 
-      <div className="relative z-10 text-center max-w-[1125px] px-[clamp(20px,5vw,60px)] py-[clamp(80px,10vw,128px)] pb-[clamp(60px,8vw,128px)]">
+      <div className="relative z-10 text-center max-w-[900px] px-[clamp(20px,5vw,60px)] py-[clamp(80px,10vw,128px)] pb-[clamp(60px,8vw,128px)]">
         {/* 로고 */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -74,7 +74,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.6 }}
-          className="text-[clamp(15px,1.6vw,18px)] leading-[1.9] text-taupe-500 max-w-[600px] mx-auto mb-14 font-light"
+          className="text-[clamp(15px,1.6vw,18px)] leading-[1.9] text-taupe-500 max-w-[480px] mx-auto mb-14 font-light"
         >
           AI가 딱 맞는 업체를 추천하고
           <br />

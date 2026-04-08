@@ -12,7 +12,7 @@ const stats = [
 export default function Stats() {
   return (
     <section className="bg-noir-800 text-white py-[100px] px-[60px] text-center max-md:py-20 max-md:px-5">
-      <div className="grid grid-cols-4 gap-10 max-w-[1250px] mx-auto max-lg:grid-cols-2 max-md:gap-6">
+      <div className="grid grid-cols-4 gap-10 max-w-[1000px] mx-auto max-lg:grid-cols-2 max-md:gap-6">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}

@@ -61,7 +61,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-[90px] bg-ivory-50/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-5">
+      <header className="sticky top-0 z-30 h-[72px] bg-ivory-50/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-5">
         <div className="flex items-center gap-4">
           <button
             onClick={onMenuToggle}

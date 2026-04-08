@@ -185,7 +185,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
   if (!vendor) {
     return (
-      <div className="max-w-[1250px] mx-auto text-center py-20">
+      <div className="max-w-[800px] mx-auto text-center py-20">
         <p className="text-[23px] text-taupe-400">업체를 찾을 수 없습니다</p>
         <Link href="/vendors" className="text-[23px] text-rose-500 mt-2 inline-block">
           목록으로 돌아가기
@@ -327,7 +327,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   };
 
   return (
-    <div className="max-w-[1125px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       <Link href="/vendors" className="inline-flex items-center gap-1.5 text-[25px] text-taupe-400 hover:text-rose-500 transition-colors mb-6">
         <ArrowLeft className="w-4 h-4" />
         업체 목록

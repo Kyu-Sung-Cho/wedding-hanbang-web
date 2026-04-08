@@ -52,7 +52,7 @@ export default function B2BPainPoints() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1375px] mx-auto grid grid-cols-4 gap-[clamp(16px,2vw,20px)] max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-4 gap-[clamp(16px,2vw,20px)] max-lg:grid-cols-2 max-md:grid-cols-1">
         {painCards.map((card, i) => (
           <motion.div
             key={card.title}

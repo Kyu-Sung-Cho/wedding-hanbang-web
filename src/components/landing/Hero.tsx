@@ -10,10 +10,10 @@ export default function Hero() {
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,var(--rose-pale),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite]" />
         <div className="absolute -bottom-[15%] -left-[5%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,var(--gold-light),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-7s]" />
-        <div className="absolute top-[40%] left-[30%] w-[375px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(196,150,126,0.3),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-14s]" />
+        <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(196,150,126,0.3),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-14s]" />
       </div>
 
-      <div className="relative z-10 text-center max-w-[1125px] px-6">
+      <div className="relative z-10 text-center max-w-[900px] px-6">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}

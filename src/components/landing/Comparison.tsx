@@ -40,7 +40,7 @@ export default function Comparison() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.8 }}
-        className="max-w-[1125px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
+        className="max-w-[900px] mx-auto rounded-3xl overflow-hidden border border-platinum hidden md:block"
       >
         {/* 헤더 */}
         <div className="grid grid-cols-[200px_1fr_1fr] lg:grid-cols-[200px_1fr_1fr] bg-noir-800 text-white">
@@ -70,7 +70,7 @@ export default function Comparison() {
       </motion.div>
 
       {/* 모바일 카드 레이아웃 */}
-      <div className="md:hidden flex flex-col gap-4 max-w-[600px] mx-auto">
+      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
         {rows.map((row, i) => (
           <motion.div
             key={row.label}

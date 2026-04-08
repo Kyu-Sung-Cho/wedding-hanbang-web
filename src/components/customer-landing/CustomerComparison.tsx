@@ -70,7 +70,7 @@ export default function CustomerComparison() {
       </motion.div>
 
       {/* 모바일 카드 */}
-      <div className="md:hidden flex flex-col gap-4 max-w-[600px] mx-auto">
+      <div className="md:hidden flex flex-col gap-4 max-w-[480px] mx-auto">
         {rows.map((row, i) => (
           <motion.div
             key={row.label}

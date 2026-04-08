@@ -80,7 +80,7 @@ export default function B2BFeatures() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1375px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-md:grid-cols-1">
         {features.map((feat, i) => (
           <motion.div
             key={feat.title}

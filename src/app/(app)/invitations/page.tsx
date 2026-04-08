@@ -48,7 +48,7 @@ export default function InvitationsPage() {
   }
 
   return (
-    <div className="max-w-[1250px] mx-auto">
+    <div className="max-w-[800px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>

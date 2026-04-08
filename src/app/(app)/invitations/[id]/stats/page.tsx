@@ -29,7 +29,7 @@ export default function InvitationStatsPage() {
   }
 
   return (
-    <div className="max-w-[875px] mx-auto">
+    <div className="max-w-[700px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-8">
         <Link

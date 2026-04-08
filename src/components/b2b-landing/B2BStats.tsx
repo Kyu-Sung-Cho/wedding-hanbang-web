@@ -68,7 +68,7 @@ export default function B2BStats() {
         </h2>
       </motion.div>
 
-      <div className="max-w-[1250px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,32px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
+      <div className="max-w-[1000px] mx-auto grid grid-cols-4 gap-[clamp(20px,3vw,32px)] relative z-10 max-lg:grid-cols-2 max-md:grid-cols-2">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}

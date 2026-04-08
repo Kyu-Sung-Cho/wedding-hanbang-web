@@ -73,7 +73,7 @@ export default function CustomerTestimonials() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1375px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[600px]">
+      <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-[clamp(16px,2vw,24px)] max-lg:grid-cols-2 max-lg:max-w-[720px] max-md:grid-cols-1 max-md:max-w-[480px]">
         {scenarios.map((s, i) => (
           <motion.div
             key={s.label}

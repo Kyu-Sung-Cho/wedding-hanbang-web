@@ -143,7 +143,7 @@ export default function B2BSolutions() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1375px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
+      <div className="max-w-[1100px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.num}

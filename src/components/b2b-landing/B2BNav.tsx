@@ -15,7 +15,7 @@ export default function B2BNav() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(20px,5vw,60px)] h-[90px] flex items-center justify-between transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(20px,5vw,60px)] h-[72px] flex items-center justify-between transition-all duration-300 ${
         scrolled
           ? "bg-noir-800/90 backdrop-blur-md border-b border-white/[0.06]"
           : "bg-transparent"
