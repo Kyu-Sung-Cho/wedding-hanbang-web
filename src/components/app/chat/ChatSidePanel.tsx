@@ -327,7 +327,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           <div className="absolute inset-0 z-50 bg-rose-50/90 border-2 border-dashed border-rose-300 rounded-2xl flex items-center justify-center">
             <div className="text-center">
               <Paperclip className="w-8 h-8 text-rose-400 mx-auto mb-2" />
-              <p className="text-[13px] text-rose-600 font-medium">파일을 놓아주세요</p>
+              <p className="text-[21px] text-rose-600 font-medium">파일을 놓아주세요</p>
             </div>
           </div>
         )}
@@ -344,8 +344,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-[14px] font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[10px] text-taupe-400">웨딩 플래너</p>
+              <h3 className="text-[21px] font-medium text-noir-800">아모라 AI</h3>
+              <p className="text-[21px] text-taupe-400">웨딩 플래너</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -378,11 +378,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
               <Sparkles className="w-10 h-10 text-rose-500/30 mx-auto mb-3" />
-              <p className="text-[13px] text-taupe-500 mb-1">
+              <p className="text-[21px] text-taupe-500 mb-1">
                 {isDemo ? "로그인 후 이용할 수 있어요" : "온보딩을 완료해주세요"}
               </p>
               {isDemo && (
-                <a href="/login" className="text-[12px] text-rose-500 font-medium hover:underline">
+                <a href="/login" className="text-[21px] text-rose-500 font-medium hover:underline">
                   로그인하기
                 </a>
               )}
@@ -393,10 +393,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-[11px] text-red-600">대화를 모두 삭제할까요?</p>
+                <p className="text-[21px] text-red-600">대화를 모두 삭제할까요?</p>
                 <div className="flex gap-1.5">
-                  <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[21px] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
+                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[21px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
                 </div>
               </div>
             )}
@@ -404,7 +404,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 에러 표시 */}
             {error && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-[11px] text-red-600">{error}</p>
+                <p className="text-[21px] text-red-600">{error}</p>
               </div>
             )}
 
@@ -460,12 +460,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       <Sparkles className="w-3.5 h-3.5 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] text-[#1A1A1F] leading-relaxed">
+                      <p className="text-[21px] text-[#1A1A1F] leading-relaxed">
                         혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
                       </p>
                       <button
                         onClick={requestMediation}
-                        className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+                        className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[21px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
                       >
                         <Sparkles className="w-3 h-3" />
                         아모라에게 상담 요청하기
@@ -514,7 +514,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <button
                     onClick={() => setMessageTarget("ai")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[21px] font-medium transition-all ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
@@ -525,7 +525,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   </button>
                   <button
                     onClick={() => setMessageTarget("partner")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[21px] font-medium transition-all ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
@@ -568,7 +568,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   }}
                   placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "무엇이든 물어보세요..."}
                   disabled={isStreaming}
-                  className="flex-1 px-2 py-2 text-[13px] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
+                  className="flex-1 px-2 py-2 text-[21px] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button
                   onClick={() => handleSend()}

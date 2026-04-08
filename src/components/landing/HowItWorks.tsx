@@ -19,19 +19,19 @@ export default function HowItWorks() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[600px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           How It Works
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
           시작은 간단합니다
         </h2>
-        <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
+        <p className="text-[21px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           4단계만으로 AI 웨딩 플래너와 함께 결혼 준비를 시작하세요.
         </p>
       </motion.div>
 
-      <div className="grid grid-cols-4 gap-8 max-w-[1100px] mx-auto relative max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="grid grid-cols-4 gap-8 max-w-[1170px] mx-auto relative max-lg:grid-cols-2 max-md:grid-cols-1">
         {/* 연결선 */}
         <div className="absolute top-12 left-[60px] right-[60px] h-px bg-gradient-to-r from-rose-pale via-gold-light to-rose-pale max-lg:hidden" />
 
@@ -44,14 +44,14 @@ export default function HowItWorks() {
             transition={{ duration: 0.8, delay: i * 0.1 }}
             className="text-center relative"
           >
-            <div className="w-24 h-24 rounded-full bg-white mx-auto mb-6 flex items-center justify-center text-[32px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-2 border-ivory-deep relative z-10 hover:border-rose-pale hover:shadow-[0_8px_32px_rgba(196,150,126,0.15)] hover:-translate-y-1 transition-all duration-400">
+            <div className="w-24 h-24 rounded-full bg-white mx-auto mb-6 flex items-center justify-center text-[38px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-2 border-ivory-deep relative z-10 hover:border-rose-pale hover:shadow-[0_8px_32px_rgba(196,150,126,0.15)] hover:-translate-y-1 transition-all duration-400">
               {step.icon}
-              <span className="absolute -top-2 -right-2 w-7 h-7 bg-noir-800 text-white rounded-full text-[12px] font-semibold flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 w-7 h-7 bg-noir-800 text-white rounded-full text-[21px] font-semibold flex items-center justify-center">
                 {step.num}
               </span>
             </div>
-            <h4 className="text-[16px] font-medium mb-2 tracking-tight">{step.title}</h4>
-            <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{step.desc}</p>
+            <h4 className="text-[21px] font-medium mb-2 tracking-tight">{step.title}</h4>
+            <p className="text-[21px] text-taupe-500 leading-relaxed font-light">{step.desc}</p>
           </motion.div>
         ))}
       </div>

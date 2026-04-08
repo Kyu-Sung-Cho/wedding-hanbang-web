@@ -34,7 +34,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
           아모라 AI 코멘트
         </span>
         <span
-          className="ml-auto text-[11px] px-2 py-0.5 rounded-full font-medium"
+          className="ml-auto text-[21px] px-2 py-0.5 rounded-full font-medium"
           style={{
             backgroundColor: `${comparisonColor}20`,
             color: comparisonColor,
@@ -43,7 +43,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
           {comparisonLabel} · {aiComment.percentage}%
         </span>
       </div>
-      <p className="text-[15px] text-[#1A1A1F] leading-relaxed mb-3">
+      <p className="text-[21px] text-[#1A1A1F] leading-relaxed mb-3">
         {aiComment.text}
       </p>
       <p className="text-xs text-[#B5ADA3]">{aiComment.reference}</p>

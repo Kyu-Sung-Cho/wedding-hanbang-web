@@ -40,12 +40,12 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
   return (
     <section className="py-12 px-6">
       <div className="text-center animate-fade-in" style={{ animationDuration: "0.6s" }}>
-        <h3 className="text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
+        <h3 className="text-[21px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Calendar
         </h3>
 
         <p
-          className="text-[16px] font-light mb-4"
+          className="text-[21px] font-light mb-4"
           style={{ fontFamily: `'${fonts.heading}', serif` }}
         >
           {year}년 {month + 1}월
@@ -53,7 +53,7 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
 
         <div className="grid grid-cols-7 gap-1 mb-2">
           {DAYS.map((d) => (
-            <div key={d} className="text-[11px] font-medium opacity-40 py-1">
+            <div key={d} className="text-[21px] font-medium opacity-40 py-1">
               {d}
             </div>
           ))}
@@ -63,7 +63,7 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
           {weeks.flat().map((d, i) => (
             <div
               key={i}
-              className={`text-[13px] py-2 rounded-full ${
+              className={`text-[21px] py-2 rounded-full ${
                 d === day ? "font-bold text-white" : d ? "opacity-60" : ""
               }`}
               style={d === day ? { background: colors[0] } : undefined}
@@ -74,7 +74,7 @@ export default function InviteCalendar({ invitation, colors, fonts }: Props) {
         </div>
 
         {diff > 0 && (
-          <p className="mt-4 text-[13px]" style={{ color: colors[0] }}>
+          <p className="mt-4 text-[21px]" style={{ color: colors[0] }}>
             결혼식까지 <span className="font-semibold">{diff}</span>일
           </p>
         )}

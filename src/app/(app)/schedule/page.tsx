@@ -221,7 +221,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="max-w-[800px] mx-auto">
+    <div className="max-w-[850px] mx-auto">
       {/* 상단 요약 */}
       <motion.div
         {...fadeIn}
@@ -230,24 +230,24 @@ export default function SchedulePage() {
       >
         <div className="flex items-center justify-between max-md:flex-col max-md:gap-4">
           <div>
-            <p className="text-[12px] text-taupe-500 font-light mb-1">전체 체크리스트</p>
-            <p className="text-[14px] text-noir-800">
-              <span className="font-display text-[28px] font-light text-rose-500">
+            <p className="text-[21px] text-taupe-500 font-light mb-1">전체 체크리스트</p>
+            <p className="text-[21px] text-noir-800">
+              <span className="font-display text-[38px] font-light text-rose-500">
                 {totalDone}
               </span>
               <span className="text-taupe-400 mx-1">/</span>
-              <span className="font-display text-[28px] font-light text-taupe-400">
+              <span className="font-display text-[38px] font-light text-taupe-400">
                 {totalItems}
               </span>
-              <span className="text-[13px] text-taupe-400 ml-2">완료</span>
+              <span className="text-[21px] text-taupe-400 ml-2">완료</span>
             </p>
           </div>
           <div className="text-right max-md:text-left max-md:w-full">
             <div className="flex items-center gap-3 mb-2 max-md:justify-between">
-              <span className="text-[12px] text-taupe-400">결혼 예정일</span>
-              <span className="text-[14px] font-medium text-noir-800">{dateStr}</span>
+              <span className="text-[21px] text-taupe-400">결혼 예정일</span>
+              <span className="text-[21px] font-medium text-noir-800">{dateStr}</span>
               {dday !== null && (
-                <span className="text-[12px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
+                <span className="text-[21px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                   {dday > 0 ? `D-${dday}` : dday === 0 ? "D-Day" : `D+${Math.abs(dday)}`}
                 </span>
               )}
@@ -261,7 +261,7 @@ export default function SchedulePage() {
                   }}
                 />
               </div>
-              <p className="text-[11px] text-taupe-400 mt-1.5 text-right">
+              <p className="text-[21px] text-taupe-400 mt-1.5 text-right">
                 {totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0}% 달성
               </p>
             </div>
@@ -285,12 +285,12 @@ export default function SchedulePage() {
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/[0.03]">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
-              <span className="text-[13px] font-medium text-noir-800">다가오는 일정</span>
-              <span className="text-[11px] text-taupe-400">{upcomingEvents.length}건</span>
+              <span className="text-[21px] font-medium text-noir-800">다가오는 일정</span>
+              <span className="text-[21px] text-taupe-400">{upcomingEvents.length}건</span>
             </div>
             <button
               onClick={handleAddEventQuick}
-              className="flex items-center gap-1 text-[11px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
+              className="flex items-center gap-1 text-[21px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               일정 추가
@@ -304,10 +304,10 @@ export default function SchedulePage() {
               >
                 {/* 날짜 */}
                 <div className="flex-shrink-0 w-[60px] text-center">
-                  <p className="text-[13px] font-medium text-noir-800">
+                  <p className="text-[21px] font-medium text-noir-800">
                     {formatEventDate(evt.date).split(" ")[0]}
                   </p>
-                  <p className="text-[10px] text-taupe-400">
+                  <p className="text-[21px] text-taupe-400">
                     {formatEventDate(evt.date).split(" ")[1]}
                   </p>
                 </div>
@@ -315,22 +315,22 @@ export default function SchedulePage() {
                 <div className="w-[3px] h-8 rounded-full bg-[#C9A96E]/40 flex-shrink-0" />
                 {/* 내용 */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-noir-800 font-medium truncate">
+                  <p className="text-[21px] text-noir-800 font-medium truncate">
                     {evt.title}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {evt.memo && (
-                      <p className="text-[11px] text-taupe-400 truncate">{evt.memo}</p>
+                      <p className="text-[21px] text-taupe-400 truncate">{evt.memo}</p>
                     )}
                     {evt.categoryKey && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E] flex-shrink-0">
+                      <span className="text-[21px] px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E] flex-shrink-0">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
                   </div>
                 </div>
                 {/* D-day */}
-                <span className="text-[11px] text-taupe-400 flex-shrink-0">
+                <span className="text-[21px] text-taupe-400 flex-shrink-0">
                   {getDaysUntil(evt.date)}
                 </span>
                 {/* 편집/삭제 (hover) */}
@@ -339,13 +339,13 @@ export default function SchedulePage() {
                     <>
                       <button
                         onClick={() => { handleDeleteEvent(evt.id); setPendingDeleteId(null); }}
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        className="px-2 py-1 rounded-lg text-[21px] font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
                       >
                         삭제
                       </button>
                       <button
                         onClick={() => setPendingDeleteId(null)}
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-taupe-400/20 text-taupe-500 hover:bg-taupe-400/30 transition-colors"
+                        className="px-2 py-1 rounded-lg text-[21px] font-medium bg-taupe-400/20 text-taupe-500 hover:bg-taupe-400/30 transition-colors"
                       >
                         취소
                       </button>
@@ -382,7 +382,7 @@ export default function SchedulePage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setViewMode("timeline")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[21px] font-medium transition-all ${
               viewMode === "timeline"
                 ? "bg-[#1A1A1F] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
@@ -393,7 +393,7 @@ export default function SchedulePage() {
           </button>
           <button
             onClick={() => setViewMode("calendar")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[21px] font-medium transition-all ${
               viewMode === "calendar"
                 ? "bg-[#1A1A1F] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
@@ -405,7 +405,7 @@ export default function SchedulePage() {
         </div>
         <button
           onClick={handleAddEventQuick}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[21px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
         >
           <Plus className="w-4 h-4" />
           일정 추가

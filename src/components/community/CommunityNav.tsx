@@ -51,7 +51,7 @@ export default function CommunityNav() {
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#F0EFED]">
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-5 h-[56px] sm:h-[72px]">
+        <div className="flex items-center gap-5 h-[56px] sm:h-[77px]">
           {/* 왼쪽: 로고 + 커뮤니티 */}
           <div className="flex items-center gap-2.5 shrink-0">
             <Link

@@ -54,7 +54,7 @@ export default function MyPostsPage() {
         <Link href="/community" className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
           <ArrowLeft className="w-4 h-4 text-noir-800" />
         </Link>
-        <h1 className="font-serif-kr text-[20px] text-noir-800">내 글</h1>
+        <h1 className="font-serif-kr text-[21px] text-noir-800">내 글</h1>
       </div>
 
       {/* 탭 */}
@@ -66,7 +66,7 @@ export default function MyPostsPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
+            className={`px-4 py-2 rounded-xl text-[21px] font-medium transition-colors ${
               tab === t.key ? "bg-[#1A1A1F] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
             }`}
           >
@@ -82,10 +82,10 @@ export default function MyPostsPage() {
       ) : displayed.length === 0 ? (
         <div className="py-16 text-center">
           <FileText className="w-10 h-10 text-[#B5ADA3]/40 mx-auto mb-3" />
-          <p className="text-[14px] text-[#928980]">
+          <p className="text-[21px] text-[#928980]">
             {tab === "published" ? "아직 작성한 글이 없습니다" : "임시저장된 글이 없습니다"}
           </p>
-          <Link href="/community/post/write" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors">
+          <Link href="/community/post/write" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[21px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors">
             글쓰기
           </Link>
         </div>
@@ -99,20 +99,20 @@ export default function MyPostsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       {cat && (
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${cat.bgColor} ${cat.color}`}>
+                        <span className={`text-[21px] px-2 py-0.5 rounded-full font-medium ${cat.bgColor} ${cat.color}`}>
                           {cat.shortLabel}
                         </span>
                       )}
                       {post.visibility === "members" && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium flex items-center gap-0.5">
+                        <span className="text-[21px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium flex items-center gap-0.5">
                           <EyeOff className="w-2.5 h-2.5" /> 회원
                         </span>
                       )}
                     </div>
-                    <Link href={`/community/post/${post.id}`} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
+                    <Link href={`/community/post/${post.id}`} className="text-[21px] font-medium text-noir-800 hover:underline line-clamp-1">
                       {post.title}
                     </Link>
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[#B5ADA3]">
+                    <div className="flex items-center gap-3 mt-2 text-[21px] text-[#B5ADA3]">
                       <span>{timeAgo(post.created_at)}</span>
                       <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.view_count}</span>
                       <span>좋아요 {post.upvote_count}</span>

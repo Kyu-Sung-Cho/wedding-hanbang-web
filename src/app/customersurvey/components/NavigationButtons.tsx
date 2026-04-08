@@ -28,7 +28,7 @@ export default function NavigationButtons({
         <button
           type="button"
           onClick={onPrev}
-          className="flex-1 py-4 rounded-2xl border-[1.5px] border-platinum text-[15px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all duration-200"
+          className="flex-1 py-4 rounded-2xl border-[1.5px] border-platinum text-[21px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all duration-200"
         >
           이전
         </button>
@@ -37,7 +37,7 @@ export default function NavigationButtons({
         type="button"
         onClick={onNext}
         disabled={isSubmitting}
-        className={`flex-1 py-4 rounded-2xl text-[15px] font-medium text-white transition-all duration-200 ${
+        className={`flex-1 py-4 rounded-2xl text-[21px] font-medium text-white transition-all duration-200 ${
           isSubmitting
             ? 'bg-taupe-400 cursor-not-allowed'
             : 'bg-noir-800 hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] active:scale-[0.98]'

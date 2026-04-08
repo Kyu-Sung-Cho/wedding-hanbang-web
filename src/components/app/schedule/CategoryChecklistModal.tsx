@@ -155,12 +155,12 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-[16px] font-medium text-[#1A1A1F]">{template.label}</h3>
+                    <h3 className="text-[21px] font-medium text-[#1A1A1F]">{template.label}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[status]}`}>
+                      <span className={`text-[21px] px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[status]}`}>
                         {STATUS_LABELS[status]}
                       </span>
-                      <span className="text-[12px] text-[#928980]">{done}/{total} 완료</span>
+                      <span className="text-[21px] text-[#928980]">{done}/{total} 완료</span>
                     </div>
                   </div>
                 </div>
@@ -181,7 +181,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   transition={{ duration: 0.5, ease: "easeOut" }}
                 />
               </div>
-              <p className="text-[11px] text-[#928980] mt-1.5 text-right">{percent}% 달성</p>
+              <p className="text-[21px] text-[#928980] mt-1.5 text-right">{percent}% 달성</p>
             </div>
 
             {/* 체크리스트 */}
@@ -206,7 +206,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                       )}
                     </div>
                     <span
-                      className={`text-[13px] leading-snug flex-1 ${
+                      className={`text-[21px] leading-snug flex-1 ${
                         item.done
                           ? "text-[#B5ADA3] line-through"
                           : "text-[#1A1A1F]"
@@ -223,7 +223,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             <div className="px-6 py-4 border-t border-black/[0.04] bg-[#FDFCFA]">
               <div className="flex items-start gap-2.5">
                 <Lightbulb className="w-4 h-4 text-[#C9A96E] flex-shrink-0 mt-0.5" />
-                <p className="text-[12px] text-[#928980] font-light leading-relaxed">
+                <p className="text-[21px] text-[#928980] font-light leading-relaxed">
                   {template.tip}
                 </p>
               </div>
@@ -247,8 +247,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                             <BookOpen className="w-3.5 h-3.5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
-                            <p className="text-[10px] text-[#928980]">예절 가이드 보기</p>
+                            <p className="text-[21px] font-medium text-[#1A1A1F] truncate">{part.title}</p>
+                            <p className="text-[21px] text-[#928980]">예절 가이드 보기</p>
                           </div>
                           <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#C4967E] transition-colors flex-shrink-0" />
                         </Link>

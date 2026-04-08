@@ -38,13 +38,13 @@ export default function LikertScale({
               }`}
             >
               <span
-                className={`block text-[18px] font-display font-semibold max-sm:text-[16px] ${
+                className={`block text-[21px] font-display font-semibold max-sm:text-[21px] ${
                   isSelected ? 'text-rose-500' : 'text-taupe-400'
                 }`}
               >
                 {point}
               </span>
-              <span className="block text-[11px] mt-1 text-charcoal leading-tight max-sm:text-[13px] max-sm:mt-0 max-sm:text-left">
+              <span className="block text-[21px] mt-1 text-charcoal leading-tight max-sm:text-[21px] max-sm:mt-0 max-sm:text-left">
                 {label}
               </span>
             </motion.button>
@@ -52,7 +52,7 @@ export default function LikertScale({
         })}
       </div>
       {error && (
-        <p className="text-[13px] text-rose-600 mt-2 pl-1">{error}</p>
+        <p className="text-[21px] text-rose-600 mt-2 pl-1">{error}</p>
       )}
     </div>
   );

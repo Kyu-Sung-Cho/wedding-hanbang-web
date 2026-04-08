@@ -12,10 +12,10 @@ export default function SurveyProgress({ current, total, progress }: SurveyProgr
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-[13px] text-taupe-500 font-medium">
+        <span className="text-[21px] text-taupe-500 font-medium">
           {current} / {total}
         </span>
-        <span className="text-[13px] text-taupe-400 font-display">
+        <span className="text-[21px] text-taupe-400 font-display">
           {Math.round(progress)}%
         </span>
       </div>

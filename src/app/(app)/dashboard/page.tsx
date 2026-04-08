@@ -120,17 +120,17 @@ export default function DashboardPage() {
     : "날짜 미정";
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1170px] mx-auto">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
         <div
           className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in"
         >
           <div>
-            <p className="text-[14px] font-medium text-noir-800">
+            <p className="text-[21px] font-medium text-noir-800">
               파트너에게 초대 코드를 공유하세요
             </p>
-            <p className="text-[12px] text-taupe-400 mt-0.5">
+            <p className="text-[21px] text-taupe-400 mt-0.5">
               파트너가 회원가입 시 이 코드를 입력하면 커플 연동됩니다
             </p>
           </div>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             onClick={copyCode}
             className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-black/[0.06] hover:border-rose-500/30 transition-all"
           >
-            <span className="font-mono text-[15px] font-bold text-noir-800 tracking-wider">
+            <span className="font-mono text-[21px] font-bold text-noir-800 tracking-wider">
               {inviteCode}
             </span>
             {copied ? (
@@ -157,7 +157,7 @@ export default function DashboardPage() {
         <div className="absolute top-[-20%] right-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
         <div className="relative z-10 flex items-center justify-between max-md:flex-col max-md:text-center max-md:gap-6">
           <div>
-            <p className="text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-3">
+            <p className="text-[21px] tracking-[0.18em] uppercase text-rose-light font-medium mb-3">
               Wedding Day
             </p>
             <div className="flex items-baseline gap-3 max-md:justify-center">
@@ -171,7 +171,7 @@ export default function DashboardPage() {
                       : "미정"}
               </span>
             </div>
-            <p className="text-white/40 text-[14px] font-light mt-3">
+            <p className="text-white/40 text-[21px] font-light mt-3">
               {dateStr} · {coupleStr}
             </p>
           </div>
@@ -193,11 +193,11 @@ export default function DashboardPage() {
                 </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-display text-[28px] font-light text-white">{progressPercent}%</span>
-                <span className="text-[10px] text-white/30">진행률</span>
+                <span className="font-display text-[38px] font-light text-white">{progressPercent}%</span>
+                <span className="text-[21px] text-white/30">진행률</span>
               </div>
             </div>
-            <p className="text-white/40 text-[12px] mt-2">{totalDone}/{totalItems} 항목 완료</p>
+            <p className="text-white/40 text-[21px] mt-2">{totalDone}/{totalItems} 항목 완료</p>
           </div>
         </div>
       </div>
@@ -219,8 +219,8 @@ export default function DashboardPage() {
             <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${action.accent} flex items-center justify-center mb-4`}>
               <action.icon className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-[15px] font-medium text-noir-800 mb-1">{action.label}</h3>
-            <p className="text-[12px] text-taupe-500 font-light">{action.desc}</p>
+            <h3 className="text-[21px] font-medium text-noir-800 mb-1">{action.label}</h3>
+            <p className="text-[21px] text-taupe-500 font-light">{action.desc}</p>
           </Link>
         ))}
       </div>
@@ -231,8 +231,8 @@ export default function DashboardPage() {
           className="col-span-3 bg-white rounded-2xl p-6 border border-black/[0.04] animate-fade-in"
         >
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">카테고리별 진행 상태</h3>
-            <Link href="/schedule" className="text-[12px] text-rose-500 font-medium flex items-center gap-1 hover:gap-2 transition-all">
+            <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">카테고리별 진행 상태</h3>
+            <Link href="/schedule" className="text-[21px] text-rose-500 font-medium flex items-center gap-1 hover:gap-2 transition-all">
               전체 보기 <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -259,9 +259,9 @@ export default function DashboardPage() {
                     className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] text-noir-800 font-medium">{label}</span>
+                      <span className="text-[21px] text-noir-800 font-medium">{label}</span>
                       {total > 0 && (
-                        <span className="text-[11px] text-taupe-400">{done}/{total}</span>
+                        <span className="text-[21px] text-taupe-400">{done}/{total}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                               e.stopPropagation();
                               handleStatusChange(key, s);
                             }}
-                            className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
+                            className={`px-2 py-0.5 rounded-lg text-[21px] font-medium transition-all ${
                               status === s
                                 ? `${opt.color} text-white`
                                 : "bg-black/[0.04] text-taupe-400 hover:bg-black/[0.08]"
@@ -299,7 +299,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-4 h-4 text-rose-500" />
-            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">시작 가이드</h3>
+            <h3 className="font-serif-kr text-[21px] font-normal text-noir-800">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
             {[
@@ -316,10 +316,10 @@ export default function DashboardPage() {
                   <item.icon className="w-4 h-4 text-rose-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-noir-800 font-light leading-snug">{item.text}</p>
+                  <p className="text-[21px] text-noir-800 font-light leading-snug">{item.text}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <Clock className="w-3 h-3 text-taupe-400" />
-                    <span className="text-[11px] text-taupe-400">시작하기</span>
+                    <span className="text-[21px] text-taupe-400">시작하기</span>
                   </div>
                 </div>
               </Link>

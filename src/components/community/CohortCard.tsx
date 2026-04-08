@@ -139,7 +139,7 @@ export default function CohortCard({
             return (
               <div
                 key={m.id}
-                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#1A1A1F] bg-[#C4967E] text-[10px] font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#1A1A1F] bg-[#C4967E] text-[21px] font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -156,7 +156,7 @@ export default function CohortCard({
           })}
         </div>
         {extraCount > 0 && (
-          <span className="ml-2 text-[11px] text-[#878680]">
+          <span className="ml-2 text-[21px] text-[#878680]">
             +{extraCount}명
           </span>
         )}
@@ -168,7 +168,7 @@ export default function CohortCard({
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#C9A96E] opacity-70"></span>
           <span className="relative inline-flex h-2 w-2 rounded-full bg-[#C9A96E]"></span>
         </span>
-        <span className="text-[11px] text-[#C9A96E]">
+        <span className="text-[21px] text-[#C9A96E]">
           지금 {Math.max(1, Math.min(room.member_count, previewCount || 1))}명
           활동 중
         </span>

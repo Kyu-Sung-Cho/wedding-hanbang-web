@@ -23,7 +23,7 @@ export default function InviteLocation({ invitation, colors }: Props) {
   return (
     <section className="py-12 px-6">
       <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
-        <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
+        <h3 className="text-center text-[21px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           Location
         </h3>
 
@@ -31,16 +31,16 @@ export default function InviteLocation({ invitation, colors }: Props) {
           <div className="flex items-start gap-3 mb-4">
             <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: colors[0] }} />
             <div>
-              <p className="text-[15px] font-medium">{invitation.wedding_venue}</p>
+              <p className="text-[21px] font-medium">{invitation.wedding_venue}</p>
               {invitation.wedding_hall && (
-                <p className="text-[13px] opacity-60">{invitation.wedding_hall}</p>
+                <p className="text-[21px] opacity-60">{invitation.wedding_hall}</p>
               )}
             </div>
           </div>
 
           {invitation.wedding_address && (
             <div className="flex items-center gap-2 mb-4 pl-8">
-              <p className="text-[13px] opacity-60 flex-1">{invitation.wedding_address}</p>
+              <p className="text-[21px] opacity-60 flex-1">{invitation.wedding_address}</p>
               <button onClick={handleCopy} className="flex-shrink-0 p-1.5 rounded-lg hover:bg-white/50">
                 {copied ? (
                   <Check className="w-4 h-4 text-green-500" />
@@ -53,10 +53,10 @@ export default function InviteLocation({ invitation, colors }: Props) {
 
           {invitation.wedding_transport && (
             <div className="mb-4 pl-8">
-              <p className="text-[12px] font-medium mb-2 opacity-70" style={{ color: colors[0] }}>
+              <p className="text-[21px] font-medium mb-2 opacity-70" style={{ color: colors[0] }}>
                 오시는 길
               </p>
-              <div className="text-[12px] opacity-60 leading-[1.8] whitespace-pre-line">
+              <div className="text-[21px] opacity-60 leading-[1.8] whitespace-pre-line">
                 {invitation.wedding_transport}
               </div>
             </div>
@@ -68,7 +68,7 @@ export default function InviteLocation({ invitation, colors }: Props) {
                 href={invitation.wedding_map_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[21px] font-medium text-white transition-colors"
                 style={{ background: colors[0] }}
               >
                 <Navigation className="w-3.5 h-3.5" />
@@ -80,7 +80,7 @@ export default function InviteLocation({ invitation, colors }: Props) {
                 href={`https://map.kakao.com/?q=${encodeURIComponent(invitation.wedding_address)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium border transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[21px] font-medium border transition-colors"
                 style={{ borderColor: `${colors[0]}40`, color: colors[0] }}
               >
                 카카오맵

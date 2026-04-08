@@ -31,7 +31,7 @@ export default function VendorTopNav({ onMenuToggle, status = "approved", isAdmi
   const s = statusConfig[status];
 
   return (
-    <header className="sticky top-0 z-30 h-[72px] bg-white/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-4">
+    <header className="sticky top-0 z-30 h-[77px] bg-white/90 backdrop-blur-[12px] border-b border-black/[0.04] flex items-center justify-between px-8 max-md:px-4">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuToggle}
@@ -39,19 +39,19 @@ export default function VendorTopNav({ onMenuToggle, status = "approved", isAdmi
         >
           <Menu className="w-5 h-5 text-charcoal" />
         </button>
-        <h1 className="font-serif-kr text-[20px] font-normal text-noir-800">{title}</h1>
+        <h1 className="font-serif-kr text-[21px] font-normal text-noir-800">{title}</h1>
       </div>
 
       <div className="flex items-center gap-3">
         {/* 관리자 모드 배지 */}
         {isAdmin ? (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-rose-500/10 text-rose-600">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[21px] font-medium bg-rose-500/10 text-rose-600">
             <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
             <Shield className="w-3.5 h-3.5" />
             관리자
           </div>
         ) : (
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${s.color}`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[21px] font-medium ${s.color}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === "pending" ? "animate-pulse" : ""}`} />
             <s.icon className="w-3.5 h-3.5" />
             {s.label}

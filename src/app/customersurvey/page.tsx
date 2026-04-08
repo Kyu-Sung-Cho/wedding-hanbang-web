@@ -202,7 +202,7 @@ export default function CustomerSurveyPage() {
         />
 
         {/* 하단 안내 */}
-        <p className="text-center text-[12px] text-taupe-400 mt-6 mb-4">
+        <p className="text-center text-[21px] text-taupe-400 mt-6 mb-4">
           Enter 키로 다음 페이지로 이동할 수 있습니다
         </p>
       </div>

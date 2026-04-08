@@ -13,24 +13,24 @@ const solutions = [
           <div className="w-6 h-6 rounded-full bg-rose-500/30 flex items-center justify-center">
             <div className="w-2 h-2 rounded-full bg-rose-500" />
           </div>
-          <span className="text-[11px] text-white/40">웨딩한방 AI 플래너</span>
+          <span className="text-[21px] text-white/40">웨딩한방 AI 플래너</span>
           <div className="ml-auto flex -space-x-1.5">
             <div className="w-5 h-5 rounded-full bg-rose-500/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신부</div>
             <div className="w-5 h-5 rounded-full bg-gold/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신랑</div>
           </div>
         </div>
         <div className="flex flex-col gap-3">
-          <div className="self-end max-w-[85%] px-4 py-3 rounded-2xl rounded-br-md bg-rose-500 text-white text-[13px] leading-relaxed">
+          <div className="self-end max-w-[85%] px-4 py-3 rounded-2xl rounded-br-md bg-rose-500 text-white text-[21px] leading-relaxed">
             스튜디오 선택 기준이 뭐야? 유명한 곳이 좋을까?
           </div>
-          <div className="self-start max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 text-[13px] leading-[1.7]">
+          <div className="self-start max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 text-[21px] leading-[1.7]">
             지은님, 민수님! D-120일 남으셨네요 😊
             <br /><br />
             유명세보다 중요한 4가지를 체크해보세요:
           </div>
           <div className="self-start flex gap-2 flex-wrap">
             {["촬영 스타일", "보정 퀄리티", "패키지 구성", "추가비용"].map((tag) => (
-              <span key={tag} className="px-2.5 py-1 rounded-lg bg-white/[0.06] text-[11px] text-white/70 border border-white/[0.06]">
+              <span key={tag} className="px-2.5 py-1 rounded-lg bg-white/[0.06] text-[21px] text-white/70 border border-white/[0.06]">
                 {tag}
               </span>
             ))}
@@ -46,8 +46,8 @@ const solutions = [
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-5">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">AI 맞춤 추천</span>
-          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">매칭 완료</span>
+          <span className="font-serif-kr text-[21px] font-medium text-noir-soft">AI 맞춤 추천</span>
+          <span className="text-[21px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">매칭 완료</span>
         </div>
         <div className="flex flex-col gap-3">
           {[
@@ -56,16 +56,16 @@ const solutions = [
             { name: "C 메이크업", match: "92%", tags: ["내추럴", "본식전문"], price: "80만원~" },
           ].map((vendor) => (
             <div key={vendor.name} className="bg-white rounded-xl p-3.5 border border-black/[0.04] flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-gold/20 flex items-center justify-center text-[11px] font-medium text-rose-500 shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-gold/20 flex items-center justify-center text-[21px] font-medium text-rose-500 shrink-0">
                 {vendor.match}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-noir-800 truncate">{vendor.name}</div>
+                <div className="text-[21px] font-medium text-noir-800 truncate">{vendor.name}</div>
                 <div className="flex gap-1.5 mt-1">
                   {vendor.tags.map((tag) => (
-                    <span key={tag} className="text-[10px] text-taupe-500 bg-ivory-warm px-1.5 py-0.5 rounded">{tag}</span>
+                    <span key={tag} className="text-[21px] text-taupe-500 bg-ivory-warm px-1.5 py-0.5 rounded">{tag}</span>
                   ))}
-                  <span className="text-[10px] text-rose-500 font-medium ml-auto">{vendor.price}</span>
+                  <span className="text-[21px] text-rose-500 font-medium ml-auto">{vendor.price}</span>
                 </div>
               </div>
             </div>
@@ -81,8 +81,8 @@ const solutions = [
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-5">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">D-120 · 웨딩 타임라인</span>
-          <span className="text-[11px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">2/4 완료</span>
+          <span className="font-serif-kr text-[21px] font-medium text-noir-soft">D-120 · 웨딩 타임라인</span>
+          <span className="text-[21px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">2/4 완료</span>
         </div>
         <div className="flex flex-col relative pl-6">
           <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
@@ -96,11 +96,11 @@ const solutions = [
               <div className={`absolute -left-[21px] top-3.5 w-2.5 h-2.5 rounded-full border-2 ${item.done ? "border-rose-500 bg-rose-500 shadow-[0_0_0_4px_rgba(196,150,126,0.2)]" : "border-taupe-400 bg-white"}`} />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
-                  {item.done && <span className="text-[10px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-1.5 py-0.5 rounded">완료</span>}
+                  <span className={`text-[21px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
+                  {item.done && <span className="text-[21px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-1.5 py-0.5 rounded">완료</span>}
                 </div>
-                <h5 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
-                <p className="text-[11px] text-taupe-500">{item.desc}</p>
+                <h5 className={`text-[21px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
+                <p className="text-[21px] text-taupe-500">{item.desc}</p>
               </div>
             </div>
           ))}
@@ -115,11 +115,11 @@ const solutions = [
     visual: (
       <div className="bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-4">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">커플 예산 현황</span>
-          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">실시간</span>
+          <span className="font-serif-kr text-[21px] font-medium text-noir-soft">커플 예산 현황</span>
+          <span className="text-[21px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">실시간</span>
         </div>
-        <div className="font-display text-[28px] font-light text-noir-800 mb-1">₩12,500,000</div>
-        <div className="text-[12px] text-taupe-500 mb-5">예산 대비 68% 사용 · 잔여 ₩4,000,000</div>
+        <div className="font-display text-[38px] font-light text-noir-800 mb-1">₩12,500,000</div>
+        <div className="text-[21px] text-taupe-500 mb-5">예산 대비 68% 사용 · 잔여 ₩4,000,000</div>
         <div className="flex flex-col gap-3">
           {[
             { label: "스튜디오", width: "75%", color: "bg-rose-500", amt: "280만" },
@@ -128,11 +128,11 @@ const solutions = [
             { label: "예비비", width: "20%", color: "bg-noir-soft", amt: "60만" },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3">
-              <span className="text-[11px] font-medium w-[55px] text-right text-noir-soft">{item.label}</span>
+              <span className="text-[21px] font-medium w-[55px] text-right text-noir-soft">{item.label}</span>
               <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${item.color}`} style={{ width: item.width }} />
               </div>
-              <span className="text-[11px] text-taupe-500 w-9 font-medium">{item.amt}</span>
+              <span className="text-[21px] text-taupe-500 w-9 font-medium">{item.amt}</span>
             </div>
           ))}
         </div>
@@ -153,7 +153,7 @@ export default function CustomerSolutions() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[21px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Solution
         </div>
@@ -169,7 +169,7 @@ export default function CustomerSolutions() {
         </p>
       </motion.div>
 
-      <div className="max-w-[1000px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
+      <div className="max-w-[1065px] mx-auto flex flex-col gap-[clamp(20px,3vw,32px)]">
         {solutions.map((sol, i) => (
           <motion.div
             key={sol.title}
@@ -202,7 +202,7 @@ export default function CustomerSolutions() {
                 {sol.tags.map((tag, j) => (
                   <span
                     key={tag}
-                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-medium ${
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[21px] font-medium ${
                       j === 0
                         ? "bg-[var(--rose-glow)] text-rose-500"
                         : "bg-noir-800/[0.04] text-charcoal"

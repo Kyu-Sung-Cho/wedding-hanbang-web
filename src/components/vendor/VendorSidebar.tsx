@@ -59,12 +59,12 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
         }`}
       >
         {/* 로고 & 닫기 */}
-        <div className="h-[72px] flex items-center justify-between px-6 border-b border-black/[0.04]">
+        <div className="h-[77px] flex items-center justify-between px-6 border-b border-black/[0.04]">
           <Link href="/vendor/dashboard" className="flex items-center gap-2.5">
             <Logo size="sm" showText={false} />
             <div>
-              <span className="font-serif-kr text-[15px] font-medium text-noir-800">웨딩한방</span>
-              <span className="block text-[10px] text-rose-500 font-medium tracking-wider">PARTNER</span>
+              <span className="font-serif-kr text-[21px] font-medium text-noir-800">웨딩한방</span>
+              <span className="block text-[21px] text-rose-500 font-medium tracking-wider">PARTNER</span>
             </div>
           </Link>
           <button onClick={onClose} className="md:hidden p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">
@@ -79,7 +79,7 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
             <Link
               href="/admin"
               onClick={onClose}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-colors bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 font-medium mb-2"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-[21px] transition-colors bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 font-medium mb-2"
             >
               <Shield className="w-[18px] h-[18px] text-rose-500" />
               관리자 대시보드
@@ -92,7 +92,7 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-colors ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[21px] transition-colors ${
                   isActive
                     ? "bg-noir-800 text-white font-medium"
                     : "text-charcoal hover:bg-ivory-warm"
@@ -112,11 +112,11 @@ export default function VendorSidebar({ isOpen, onClose }: VendorSidebarProps) {
               <Store className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-noir-800 truncate">{vendor?.name ?? "업체"}</p>
-              <p className="text-[11px] text-taupe-400">{vendor?.category ?? ""} · {vendor?.location ?? ""}</p>
+              <p className="text-[21px] font-medium text-noir-800 truncate">{vendor?.name ?? "업체"}</p>
+              <p className="text-[21px] text-taupe-400">{vendor?.category ?? ""} · {vendor?.location ?? ""}</p>
             </div>
           </div>
-          <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-taupe-400 hover:text-red-400 hover:bg-red-50 transition-colors">
+          <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[21px] text-taupe-400 hover:text-red-400 hover:bg-red-50 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
             로그아웃
           </button>
