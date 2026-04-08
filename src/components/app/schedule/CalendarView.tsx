@@ -135,7 +135,7 @@ export default function CalendarView({
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="text-[16px] font-medium text-[#1A1A1F]">
+        <h3 className="text-[25px] font-medium text-[#1A1A1F]">
           {format(currentMonth, "yyyy년 M월", { locale: ko })}
         </h3>
         <button
@@ -151,7 +151,7 @@ export default function CalendarView({
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className={`text-center text-[11px] font-medium py-1.5 ${
+            className={`text-center text-[27px] font-medium py-1.5 ${
               day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[#928980]"
             }`}
           >
@@ -175,7 +175,7 @@ export default function CalendarView({
             <button
               key={day.toISOString()}
               onClick={() => setSelectedDate(isSelected ? null : day)}
-              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-[13px] transition-all ${
+              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-[31px] transition-all ${
                 !inMonth
                   ? "text-[#B5ADA3]/40"
                   : isWedding
@@ -222,23 +222,23 @@ export default function CalendarView({
       <div className="flex items-center gap-4 mt-4 px-2 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E]" />
-          <span className="text-[11px] text-[#928980]">결혼식</span>
+          <span className="text-[27px] text-[#928980]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#2E7D5A]" />
-          <span className="text-[11px] text-[#928980]">완료</span>
+          <span className="text-[27px] text-[#928980]">완료</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#C4967E]" />
-          <span className="text-[11px] text-[#928980]">진행중</span>
+          <span className="text-[27px] text-[#928980]">진행중</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#B5ADA3]" />
-          <span className="text-[11px] text-[#928980]">미시작</span>
+          <span className="text-[27px] text-[#928980]">미시작</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#C9A96E]" />
-          <span className="text-[11px] text-[#928980]">내 일정</span>
+          <span className="text-[27px] text-[#928980]">내 일정</span>
         </div>
       </div>
 
@@ -253,14 +253,14 @@ export default function CalendarView({
           >
             <div className="bg-[#FDFCFA] rounded-2xl border border-black/[0.04] p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[12px] text-[#928980]">
+                <p className="text-[47px] text-[#928980]">
                   {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
                 </p>
                 <button
                   onClick={() =>
                     onAddEvent(format(selectedDate, "yyyy-MM-dd"))
                   }
-                  className="flex items-center gap-1 text-[11px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
+                  className="flex items-center gap-1 text-[27px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   일정 추가
@@ -277,13 +277,13 @@ export default function CalendarView({
                   >
                     <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusColor(m.status)}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#1A1A1F] font-medium">{m.label}</p>
-                      <p className="text-[11px] text-[#928980]">
+                      <p className="text-[31px] text-[#1A1A1F] font-medium">{m.label}</p>
+                      <p className="text-[27px] text-[#928980]">
                         {m.type === "start" ? "준비 시작 권장일" : "완료 권장일"}
                       </p>
                     </div>
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${statusColor(m.status)}`}
+                      className={`text-[25px] px-2 py-0.5 rounded-full text-white font-medium ${statusColor(m.status)}`}
                     >
                       {m.status === "completed"
                         ? "완료"
@@ -303,13 +303,13 @@ export default function CalendarView({
                   >
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#C9A96E]" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#1A1A1F] font-medium">{evt.title}</p>
+                      <p className="text-[31px] text-[#1A1A1F] font-medium">{evt.title}</p>
                       {evt.memo && (
-                        <p className="text-[11px] text-[#928980] truncate">{evt.memo}</p>
+                        <p className="text-[27px] text-[#928980] truncate">{evt.memo}</p>
                       )}
                     </div>
                     {evt.categoryKey && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
+                      <span className="text-[25px] px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
@@ -318,7 +318,7 @@ export default function CalendarView({
 
                 {/* 빈 날짜 */}
                 {selectedMilestones.length === 0 && selectedEvents.length === 0 && (
-                  <p className="text-[12px] text-[#B5ADA3] text-center py-4">
+                  <p className="text-[47px] text-[#B5ADA3] text-center py-4">
                     이 날짜에 등록된 일정이 없습니다
                   </p>
                 )}
@@ -331,10 +331,10 @@ export default function CalendarView({
       {/* 결혼식 날짜 없을 때 안내 */}
       {!weddingDate && (
         <div className="mt-6 text-center py-8">
-          <p className="text-[14px] text-[#928980]">
+          <p className="text-[53px] text-[#928980]">
             결혼 예정일을 설정하면 D-day 기준 일정이 캘린더에 표시됩니다
           </p>
-          <p className="text-[12px] text-[#B5ADA3] mt-1">
+          <p className="text-[47px] text-[#B5ADA3] mt-1">
             설정 페이지에서 결혼 날짜를 입력하세요
           </p>
         </div>

@@ -18,7 +18,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.2 }}
-          className="inline-flex items-center gap-2 px-5 py-2 bg-white/70 backdrop-blur-[10px] border border-rose-pale/20 rounded-full mb-10 text-[13px] text-charcoal tracking-wide"
+          className="inline-flex items-center gap-2 px-5 py-2 bg-white/70 backdrop-blur-[10px] border border-rose-pale/20 rounded-full mb-10 text-[31px] text-charcoal tracking-wide"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
           AI 웨딩 플래너 — 지금 무료로 이용 가능
@@ -42,7 +42,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.6 }}
-          className="text-[17px] leading-relaxed text-charcoal max-w-[560px] mx-auto mb-12 font-light tracking-tight"
+          className="text-[27px] leading-relaxed text-charcoal max-w-[560px] mx-auto mb-12 font-light tracking-tight"
         >
           24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지.
           <br />
@@ -57,14 +57,14 @@ export default function Hero() {
         >
           <a
             href="/login"
-            className="group inline-flex items-center gap-2.5 px-9 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)] transition-all duration-400"
+            className="group inline-flex items-center gap-2.5 px-9 py-4 bg-noir-800 text-white rounded-full text-[23px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)] transition-all duration-400"
           >
             무료로 시작하기
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </a>
           <a
             href="#features"
-            className="inline-flex items-center gap-2.5 px-9 py-4 bg-transparent text-noir-800 border-[1.5px] border-platinum rounded-full text-[15px] font-normal hover:border-rose-500 hover:text-rose-500 hover:-translate-y-0.5 transition-all duration-400"
+            className="inline-flex items-center gap-2.5 px-9 py-4 bg-transparent text-noir-800 border-[1.5px] border-platinum rounded-full text-[23px] font-normal hover:border-rose-500 hover:text-rose-500 hover:-translate-y-0.5 transition-all duration-400"
           >
             기능 둘러보기
           </a>
@@ -78,7 +78,7 @@ export default function Hero() {
         transition={{ duration: 1, delay: 1.2 }}
         className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
       >
-        <span className="text-[11px] tracking-[0.15em] uppercase text-taupe-500">
+        <span className="text-[27px] tracking-[0.15em] uppercase text-taupe-500">
           Scroll
         </span>
         <div className="w-px h-10 bg-gradient-to-b from-taupe-400 to-transparent animate-[scrollLine_2s_ease-in-out_infinite]" />

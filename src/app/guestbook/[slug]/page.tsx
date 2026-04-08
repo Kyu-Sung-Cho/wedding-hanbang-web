@@ -179,7 +179,7 @@ export default function PublicGuestbookPage() {
             >
               우리의 이야기
             </h2>
-            <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[15px]">
+            <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[23px]">
               {guestbook.our_story}
             </p>
           </section>
@@ -193,7 +193,7 @@ export default function PublicGuestbookPage() {
             >
               프로포즈 이야기
             </h2>
-            <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[15px]">
+            <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[23px]">
               {guestbook.proposal_story}
             </p>
           </section>
@@ -293,7 +293,7 @@ export default function PublicGuestbookPage() {
                       {timeAgo(m.created_at)}
                     </span>
                   </div>
-                  <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[15px]">
+                  <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[23px]">
                     {m.message}
                   </p>
                 </div>

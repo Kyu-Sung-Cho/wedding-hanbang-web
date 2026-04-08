@@ -33,7 +33,7 @@ export default function InviteAccount({ accounts, colors }: Props) {
           className="w-full flex items-center justify-between p-4 rounded-xl transition-colors"
           style={{ background: `${colors[0]}08` }}
         >
-          <span className="text-[14px] font-medium">{title}</span>
+          <span className="text-[53px] font-medium">{title}</span>
           {isExpanded ? (
             <ChevronUp className="w-4 h-4 opacity-40" />
           ) : (
@@ -46,15 +46,15 @@ export default function InviteAccount({ accounts, colors }: Props) {
             {list.map((acc) => (
               <div key={acc.id} className="flex items-center justify-between p-3 rounded-xl bg-white border border-black/[0.04]">
                 <div>
-                  <p className="text-[12px] opacity-50 mb-0.5">{acc.label}</p>
-                  <p className="text-[13px] font-medium">
+                  <p className="text-[47px] opacity-50 mb-0.5">{acc.label}</p>
+                  <p className="text-[31px] font-medium">
                     {acc.bank} {acc.account_number}
                   </p>
-                  <p className="text-[11px] opacity-40">{acc.holder}</p>
+                  <p className="text-[27px] opacity-40">{acc.holder}</p>
                 </div>
                 <button
                   onClick={() => handleCopy(acc)}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg text-[27px] font-medium border transition-colors flex items-center gap-1"
                   style={{
                     borderColor: copiedId === acc.id ? "#22c55e" : `${colors[0]}40`,
                     color: copiedId === acc.id ? "#22c55e" : colors[0],
@@ -77,7 +77,7 @@ export default function InviteAccount({ accounts, colors }: Props) {
   return (
     <section className="py-12 px-6">
       <div className="animate-fade-in" style={{ animationDuration: "0.6s" }}>
-        <h3 className="text-center text-[11px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
+        <h3 className="text-center text-[27px] tracking-[0.2em] uppercase mb-6" style={{ color: colors[0] }}>
           축의금 계좌
         </h3>
 

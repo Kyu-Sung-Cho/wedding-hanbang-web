@@ -184,7 +184,7 @@ export default function ImageUploader({
               className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[#B5ADA3] hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
             >
               <ImageIcon className="w-5 h-5" />
-              <span className="text-[10px]">추가</span>
+              <span className="text-[25px]">추가</span>
             </button>
           )}
         </div>

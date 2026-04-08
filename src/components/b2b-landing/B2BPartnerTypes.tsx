@@ -60,7 +60,7 @@ export default function B2BPartnerTypes() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[47px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           Partner Survey
         </div>
@@ -87,7 +87,7 @@ export default function B2BPartnerTypes() {
             <div className={`absolute inset-0 bg-gradient-to-br ${partner.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
             <div className="relative p-8 max-md:p-6 flex flex-col h-full">
-              <div className="w-14 h-14 rounded-2xl bg-noir-800 flex items-center justify-center text-[24px] mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-noir-800 flex items-center justify-center text-[37px] mb-6">
                 {partner.icon}
               </div>
 
@@ -99,26 +99,26 @@ export default function B2BPartnerTypes() {
               <div className="flex flex-col gap-3 mb-8">
                 {partner.benefits.map((benefit) => (
                   <div key={benefit} className="flex items-start gap-2.5">
-                    <span className={`${partner.accent} text-[14px] mt-0.5 flex-shrink-0`}>&#x2713;</span>
-                    <span className="text-[13px] text-charcoal font-light leading-relaxed">{benefit}</span>
+                    <span className={`${partner.accent} text-[53px] mt-0.5 flex-shrink-0`}>&#x2713;</span>
+                    <span className="text-[31px] text-charcoal font-light leading-relaxed">{benefit}</span>
                   </div>
                 ))}
               </div>
 
               {/* 설문 참여 혜택 */}
               <div className="bg-ivory-100 rounded-xl p-4 mb-5 border border-platinum/50">
-                <p className="text-[12px] text-rose-600 font-medium mb-2 tracking-wide">참여 혜택</p>
+                <p className="text-[47px] text-rose-600 font-medium mb-2 tracking-wide">참여 혜택</p>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
-                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                  <span className="text-[47px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[27px]`}>&#x2713;</span>
                     정식 출시 우선 초대
                   </span>
-                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
-                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                  <span className="text-[47px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[27px]`}>&#x2713;</span>
                     베타 파트너 수수료 할인
                   </span>
-                  <span className="text-[12px] text-charcoal font-light flex items-center gap-1.5">
-                    <span className={`${partner.accent} text-[11px]`}>&#x2713;</span>
+                  <span className="text-[47px] text-charcoal font-light flex items-center gap-1.5">
+                    <span className={`${partner.accent} text-[27px]`}>&#x2713;</span>
                     맞춤 기능 우선 개발 반영
                   </span>
                 </div>
@@ -126,7 +126,7 @@ export default function B2BPartnerTypes() {
 
               <Link
                 href={partner.href}
-                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full ${partner.accentBg} ${partner.accent} text-[14px] font-medium hover:opacity-80 transition-opacity`}
+                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full ${partner.accentBg} ${partner.accent} text-[53px] font-medium hover:opacity-80 transition-opacity`}
               >
                 설문 참여하기
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

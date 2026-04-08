@@ -21,14 +21,14 @@ export default function InviteGreeting({ invitation, colors, fonts }: Props) {
         </div>
 
         <h2
-          className="text-[18px] font-light mb-6"
+          className="text-[44px] font-light mb-6"
           style={{ fontFamily: `'${fonts.heading}', serif`, color: colors[2] }}
         >
           {invitation.greeting_title}
         </h2>
 
         <p
-          className="text-[14px] leading-[2] whitespace-pre-line opacity-70"
+          className="text-[53px] leading-[2] whitespace-pre-line opacity-70"
           style={{ fontFamily: `'${fonts.body}', sans-serif` }}
         >
           {invitation.greeting_message}

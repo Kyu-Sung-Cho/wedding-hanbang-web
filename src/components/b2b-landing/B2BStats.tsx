@@ -59,7 +59,7 @@ export default function B2BStats() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[600px] mx-auto mb-16 relative z-10"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[47px] tracking-[0.18em] uppercase text-rose-light font-medium mb-5">
           <span className="w-5 h-px bg-rose-light" />
           Numbers
         </div>

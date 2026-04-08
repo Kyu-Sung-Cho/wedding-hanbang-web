@@ -61,7 +61,7 @@ export default function CustomerHowItWorks() {
         transition={{ duration: 0.8 }}
         className="text-center max-w-[640px] mx-auto mb-20"
       >
-        <div className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 text-[47px] tracking-[0.18em] uppercase text-rose-500 font-medium mb-5">
           <span className="w-5 h-px bg-rose-500" />
           How It Works
         </div>
@@ -96,10 +96,10 @@ export default function CustomerHowItWorks() {
                 {step.icon}
               </div>
               <div className="max-md:flex-1">
-                <span className="font-display text-[12px] text-rose-500 font-semibold block mb-2">{step.num}</span>
-                <h4 className="text-[16px] font-medium text-noir-800 mb-2">{step.title}</h4>
-                <p className="text-[13px] text-taupe-500 font-light leading-relaxed mb-3">{step.desc}</p>
-                <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
+                <span className="font-display text-[47px] text-rose-500 font-semibold block mb-2">{step.num}</span>
+                <h4 className="text-[25px] font-medium text-noir-800 mb-2">{step.title}</h4>
+                <p className="text-[31px] text-taupe-500 font-light leading-relaxed mb-3">{step.desc}</p>
+                <span className="text-[27px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                   {step.highlight}
                 </span>
               </div>

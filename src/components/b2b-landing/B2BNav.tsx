@@ -27,25 +27,25 @@ export default function B2BNav() {
       <div className="flex items-center gap-9 max-md:hidden">
         <Link
           href="/"
-          className="text-[14px] text-white/60 hover:text-white transition-colors tracking-wide"
+          className="text-[53px] text-white/60 hover:text-white transition-colors tracking-wide"
         >
           고객 페이지
         </Link>
         <button
           onClick={() => document.getElementById("partner-types")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          className="text-[14px] text-white/60 hover:text-white transition-colors tracking-wide"
+          className="text-[53px] text-white/60 hover:text-white transition-colors tracking-wide"
         >
           파트너 설문
         </button>
         <Link
           href="/vendor/login"
-          className="text-[14px] text-white/60 hover:text-white transition-colors tracking-wide"
+          className="text-[53px] text-white/60 hover:text-white transition-colors tracking-wide"
         >
           업체 로그인
         </Link>
         <Link
           href="/vendor/service"
-          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[13px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
+          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[31px] font-medium hover:shadow-[0_4px_16px_rgba(196,150,126,0.3)] hover:-translate-y-0.5 transition-all"
         >
           서비스 안내 & 업체 등록
         </Link>

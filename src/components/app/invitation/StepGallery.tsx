@@ -56,8 +56,8 @@ export default function StepGallery() {
 
   return (
     <div>
-      <h2 className="text-[16px] font-medium text-noir-800 mb-1">갤러리</h2>
-      <p className="text-[13px] text-taupe-500 mb-6">청첩장에 표시될 사진을 업로드하세요. (최대 10MB/장)</p>
+      <h2 className="text-[25px] font-medium text-noir-800 mb-1">갤러리</h2>
+      <p className="text-[31px] text-taupe-500 mb-6">청첩장에 표시될 사진을 업로드하세요. (최대 10MB/장)</p>
 
       {/* 업로드 영역 */}
       <div
@@ -82,22 +82,22 @@ export default function StepGallery() {
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
-            <p className="text-[13px] text-taupe-500">업로드 중...</p>
+            <p className="text-[31px] text-taupe-500">업로드 중...</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <Upload className="w-8 h-8 text-taupe-400" />
-            <p className="text-[13px] text-taupe-500">
+            <p className="text-[31px] text-taupe-500">
               클릭하거나 사진을 드래그하여 업로드
             </p>
-            <p className="text-[11px] text-taupe-400">JPG, PNG, WEBP (여러 장 동시 업로드 가능)</p>
+            <p className="text-[27px] text-taupe-400">JPG, PNG, WEBP (여러 장 동시 업로드 가능)</p>
           </div>
         )}
       </div>
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-600">
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[31px] text-red-600">
           {error}
         </div>
       )}
@@ -106,11 +106,11 @@ export default function StepGallery() {
       {photos.length === 0 ? (
         <div className="text-center py-8 border border-dashed border-taupe-400/20 rounded-xl">
           <ImagePlus className="w-8 h-8 text-taupe-400 mx-auto mb-2" />
-          <p className="text-[13px] text-taupe-500">아직 사진이 없습니다</p>
+          <p className="text-[31px] text-taupe-500">아직 사진이 없습니다</p>
         </div>
       ) : (
         <>
-          <p className="text-[12px] text-taupe-400 mb-3">{photos.length}장 업로드됨</p>
+          <p className="text-[47px] text-taupe-400 mb-3">{photos.length}장 업로드됨</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {photos.map((photo) => (
               <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-black/[0.06]">
