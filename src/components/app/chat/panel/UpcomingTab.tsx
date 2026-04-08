@@ -83,15 +83,15 @@ export default function UpcomingTab() {
                   <Clock className={`w-3.5 h-3.5 flex-shrink-0 ${colors.text}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[27px] text-noir-800 font-medium truncate">
+                      <span className="text-[11px] text-noir-800 font-medium truncate">
                         {item.label}
                       </span>
-                      <span className="text-[25px] text-taupe-400">
+                      <span className="text-[10px] text-taupe-400">
                         {item.doneCount}/{item.totalCount}
                       </span>
                     </div>
                   </div>
-                  <span className={`text-[53px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
                     {item.deadlineDaysLeft <= 0
                       ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
                       : `D-${item.deadlineDaysLeft}`}
@@ -101,7 +101,7 @@ export default function UpcomingTab() {
             })}
           </div>
         ) : (
-          <p className="text-[27px] text-taupe-400 py-2 text-center">
+          <p className="text-[11px] text-taupe-400 py-2 text-center">
             {weddingDate ? "임박한 항목이 없습니다" : "결혼 날짜를 설정하세요"}
           </p>
         )}
@@ -121,18 +121,18 @@ export default function UpcomingTab() {
               >
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7D5A] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-[27px] text-noir-800 font-medium truncate block">
+                  <span className="text-[11px] text-noir-800 font-medium truncate block">
                     {item.label}
                   </span>
                 </div>
-                <span className="text-[53px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 bg-[#2E7D5A] text-white">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 bg-[#2E7D5A] text-white">
                   완료
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[27px] text-taupe-400 py-2 text-center">
+          <p className="text-[11px] text-taupe-400 py-2 text-center">
             아직 완료된 임박 항목이 없습니다
           </p>
         )}
@@ -153,29 +153,29 @@ export default function UpcomingTab() {
               >
                 <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-[27px] text-noir-800 font-medium truncate block">
+                  <span className="text-[11px] text-noir-800 font-medium truncate block">
                     {evt.title}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <Clock className="w-2.5 h-2.5 text-taupe-400" />
-                    <span className="text-[25px] text-taupe-400">
+                    <span className="text-[10px] text-taupe-400">
                       {formatEventDate(evt.date)}
                     </span>
                     {evt.categoryKey && (
-                      <span className="text-[53px] px-1 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
                   </div>
                 </div>
-                <span className="text-[25px] text-taupe-400 flex-shrink-0">
+                <span className="text-[10px] text-taupe-400 flex-shrink-0">
                   {getDaysUntil(evt.date)}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[27px] text-taupe-400 py-2 text-center">
+          <p className="text-[11px] text-taupe-400 py-2 text-center">
             예정된 일정이 없습니다
           </p>
         )}

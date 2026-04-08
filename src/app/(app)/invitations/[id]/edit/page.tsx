@@ -83,12 +83,12 @@ export default function InvitationEditPage() {
           <ArrowLeft className="w-5 h-5 text-noir-800" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-[44px] font-semibold text-noir-800">청첩장 편집</h1>
+          <h1 className="text-[18px] font-semibold text-noir-800">청첩장 편집</h1>
         </div>
         {editorDirty && (
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-rose-500 text-white text-[31px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
+            className="px-4 py-2 bg-rose-500 text-white text-[13px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
           >
             저장
           </button>
@@ -101,7 +101,7 @@ export default function InvitationEditPage() {
           <button
             key={step.key}
             onClick={() => setEditorStep(step.key as EditorStep)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[47px] font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
               editorStep === step.key
                 ? "bg-noir-800 text-white"
                 : i < currentStepIndex
@@ -125,14 +125,14 @@ export default function InvitationEditPage() {
         <button
           onClick={handlePrev}
           disabled={currentStepIndex === 0}
-          className="px-5 py-2.5 text-[31px] font-medium text-taupe-500 hover:text-noir-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2.5 text-[13px] font-medium text-taupe-500 hover:text-noir-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           이전
         </button>
         {currentStepIndex < EDITOR_STEPS.length - 1 ? (
           <button
             onClick={handleNext}
-            className="inline-flex items-center gap-1.5 px-6 py-2.5 bg-noir-800 text-white text-[31px] font-medium rounded-xl hover:bg-noir-900 transition-colors"
+            className="inline-flex items-center gap-1.5 px-6 py-2.5 bg-noir-800 text-white text-[13px] font-medium rounded-xl hover:bg-noir-900 transition-colors"
           >
             다음
             <ChevronRight className="w-4 h-4" />
@@ -140,7 +140,7 @@ export default function InvitationEditPage() {
         ) : (
           <button
             onClick={() => router.push("/invitations")}
-            className="px-6 py-2.5 bg-rose-500 text-white text-[31px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
+            className="px-6 py-2.5 bg-rose-500 text-white text-[13px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
           >
             완료
           </button>

@@ -106,19 +106,19 @@ function VendorRecommendCards({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[31px] font-semibold text-[#1A1A1F] truncate">
+                <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
                   {v.name}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Star className="w-3 h-3 text-[#C9A96E] fill-[#C9A96E]" />
-                  <span className="text-[27px] text-[#928980]">
+                  <span className="text-[11px] text-[#928980]">
                     {v.rating} ({v.reviewCount})
                   </span>
-                  <span className="text-[27px] text-[#B5ADA3]">·</span>
+                  <span className="text-[11px] text-[#B5ADA3]">·</span>
                   <MapPin className="w-3 h-3 text-[#B5ADA3]" />
-                  <span className="text-[27px] text-[#928980]">{v.location}</span>
-                  <span className="text-[27px] text-[#B5ADA3]">·</span>
-                  <span className="text-[27px] text-[#928980]">{v.priceRange}</span>
+                  <span className="text-[11px] text-[#928980]">{v.location}</span>
+                  <span className="text-[11px] text-[#B5ADA3]">·</span>
+                  <span className="text-[11px] text-[#928980]">{v.priceRange}</span>
                 </div>
               </div>
             </div>
@@ -129,7 +129,7 @@ function VendorRecommendCards({
                 {v.tags.slice(0, 4).map((tag) => (
                   <span
                     key={tag}
-                    className="text-[25px] px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#928980] border border-black/[0.04]"
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#928980] border border-black/[0.04]"
                   >
                     {tag}
                   </span>
@@ -139,7 +139,7 @@ function VendorRecommendCards({
 
             {/* 추천 이유 */}
             {v.reasons && v.reasons.length > 0 && (
-              <p className="text-[25px] text-[#C4967E] mt-1.5 truncate">
+              <p className="text-[10px] text-[#C4967E] mt-1.5 truncate">
                 {v.reasons.slice(0, 3).join(" · ")}
               </p>
             )}
@@ -150,7 +150,7 @@ function VendorRecommendCards({
                 onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
                 disabled={disabled}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
-                  bg-[#1A1A1F] text-white text-[27px] font-medium
+                  bg-[#1A1A1F] text-white text-[11px] font-medium
                   hover:bg-[#2A2A2F] active:scale-[0.98]
                   disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
@@ -243,19 +243,19 @@ function VendorDetailCard({
       <div className="rounded-xl border border-black/[0.06] bg-white shadow-sm w-full max-w-[420px] overflow-hidden">
         {/* 헤더 */}
         <div className="px-4 py-3 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
-          <p className="text-[31px] font-semibold text-[#1A1A1F]">{output.vendorName}</p>
-          <p className="text-[25px] text-[#928980] mt-0.5">{hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}</p>
+          <p className="text-[13px] font-semibold text-[#1A1A1F]">{output.vendorName}</p>
+          <p className="text-[10px] text-[#928980] mt-0.5">{hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}</p>
         </div>
 
         {/* 상품 선택 */}
         <div className="px-4 pt-3 pb-2">
           <div className="flex items-center gap-1.5 mb-2">
             <Package className="w-3.5 h-3.5 text-[#C4967E]" />
-            <span className="text-[27px] font-semibold text-[#1A1A1F]">상품 선택</span>
+            <span className="text-[11px] font-semibold text-[#1A1A1F]">상품 선택</span>
           </div>
 
           {products.length === 0 ? (
-            <p className="text-[27px] text-[#B5ADA3] py-2">등록된 상품이 없습니다</p>
+            <p className="text-[11px] text-[#B5ADA3] py-2">등록된 상품이 없습니다</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {products.map((p) => {
@@ -274,11 +274,11 @@ function VendorDetailCard({
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className={`text-[47px] font-medium ${isSelected ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
+                          <p className={`text-[12px] font-medium ${isSelected ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
                             {p.name}
                           </p>
                           {p.isPopular && (
-                            <span className="text-[53px] px-1.5 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
                               인기
                             </span>
                           )}
@@ -286,22 +286,22 @@ function VendorDetailCard({
                         <div className="flex items-center gap-2 mt-0.5">
                           {p.discountPrice ? (
                             <>
-                              <span className="text-[27px] font-semibold text-[#C4967E]">
+                              <span className="text-[11px] font-semibold text-[#C4967E]">
                                 {formatPrice(p.discountPrice)}
                               </span>
-                              <span className="text-[25px] text-[#B5ADA3] line-through">
+                              <span className="text-[10px] text-[#B5ADA3] line-through">
                                 {formatPrice(p.price)}
                               </span>
                             </>
                           ) : (
-                            <span className="text-[27px] font-semibold text-[#1A1A1F]">
+                            <span className="text-[11px] font-semibold text-[#1A1A1F]">
                               {formatPrice(p.price)}
                             </span>
                           )}
                           {p.duration && (
                             <>
-                              <span className="text-[25px] text-[#B5ADA3]">·</span>
-                              <span className="text-[25px] text-[#928980]">
+                              <span className="text-[10px] text-[#B5ADA3]">·</span>
+                              <span className="text-[10px] text-[#928980]">
                                 {p.duration >= 60 ? `${Math.floor(p.duration / 60)}시간` : ""}
                                 {p.duration % 60 > 0 ? ` ${p.duration % 60}분` : ""}
                               </span>
@@ -319,7 +319,7 @@ function VendorDetailCard({
                         {p.includes.slice(0, 5).map((inc, i) => (
                           <span
                             key={i}
-                            className="text-[53px] px-1.5 py-0.5 rounded bg-[#FAF7F2] text-[#928980]"
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-[#FAF7F2] text-[#928980]"
                           >
                             {inc}
                           </span>
@@ -338,7 +338,7 @@ function VendorDetailCard({
           <div className="px-4 pt-2 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <Users className="w-3.5 h-3.5 text-[#C4967E]" />
-              <span className="text-[27px] font-semibold text-[#1A1A1F]">스태프 선택</span>
+              <span className="text-[11px] font-semibold text-[#1A1A1F]">스태프 선택</span>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -349,21 +349,21 @@ function VendorDetailCard({
                     key={s.id}
                     onClick={() => setSelectedStaff(isSelected ? null : s.id)}
                     disabled={disabled || confirmed}
-                    className={`px-3 py-1.5 rounded-lg text-[27px] font-medium border transition-all
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                         : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
                       } disabled:opacity-40`}
                   >
                     {s.name}
-                    {s.role && <span className="text-[25px] opacity-70 ml-1">{s.role}</span>}
+                    {s.role && <span className="text-[10px] opacity-70 ml-1">{s.role}</span>}
                   </button>
                 );
               })}
               <button
                 onClick={() => setSelectedStaff(null)}
                 disabled={disabled || confirmed}
-                className={`px-3 py-1.5 rounded-lg text-[27px] font-medium border transition-all
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all
                   ${selectedStaff === null
                     ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                     : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
@@ -382,7 +382,7 @@ function VendorDetailCard({
               onClick={() => handleConfirm(selectedProduct!, selectedStaff)}
               disabled={disabled || !selectedProduct || confirmed}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                bg-[#1A1A1F] text-white text-[47px] font-medium
+                bg-[#1A1A1F] text-white text-[12px] font-medium
                 hover:bg-[#2A2A2F] active:scale-[0.98]
                 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
@@ -455,7 +455,7 @@ function TimeslotPicker({
         <div className="rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm max-w-[400px]">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#B5ADA3]" />
-            <p className="text-[47px] text-[#928980]">
+            <p className="text-[12px] text-[#928980]">
               향후 14일간 예약 가능한 시간이 없습니다
             </p>
           </div>
@@ -471,9 +471,9 @@ function TimeslotPicker({
         <div className="px-4 py-3 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <div className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-[#C4967E]" />
-            <p className="text-[31px] font-semibold text-[#1A1A1F]">예약 가능 시간</p>
+            <p className="text-[13px] font-semibold text-[#1A1A1F]">예약 가능 시간</p>
           </div>
-          <p className="text-[25px] text-[#928980] mt-0.5">
+          <p className="text-[10px] text-[#928980] mt-0.5">
             {output.vendorName} · 원하시는 시간을 선택해 주세요
           </p>
         </div>
@@ -489,7 +489,7 @@ function TimeslotPicker({
 
             return (
               <div key={date}>
-                <p className={`text-[27px] font-medium mb-1.5 ${isWeekend ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
+                <p className={`text-[11px] font-medium mb-1.5 ${isWeekend ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
                   {month}/{day} ({dayLabel})
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -498,13 +498,13 @@ function TimeslotPicker({
                       key={`${slot.date}-${slot.time}`}
                       onClick={() => handleSelect(slot)}
                       disabled={disabled}
-                      className="px-3 py-1.5 rounded-lg border border-black/[0.06] text-[27px]
+                      className="px-3 py-1.5 rounded-lg border border-black/[0.06] text-[11px]
                         text-[#1A1A1F] hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
                         active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       <span className="font-medium">{slot.time}</span>
                       {slot.remaining <= 2 && (
-                        <span className="text-[53px] text-[#C4967E] ml-1">잔여{slot.remaining}</span>
+                        <span className="text-[9px] text-[#C4967E] ml-1">잔여{slot.remaining}</span>
                       )}
                     </button>
                   ))}
@@ -538,7 +538,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
     return (
       <div className="flex justify-start ml-12 my-2">
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm max-w-[400px]">
-          <p className="text-[47px] text-red-600">{result.displayMessage}</p>
+          <p className="text-[12px] text-red-600">{result.displayMessage}</p>
         </div>
       </div>
     );
@@ -567,10 +567,10 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             <CheckCircle2 className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-[31px] font-semibold text-[#1A1A1F]">
+            <p className="text-[13px] font-semibold text-[#1A1A1F]">
               {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다!"}
             </p>
-            <p className="text-[25px] text-[#928980]">
+            <p className="text-[10px] text-[#928980]">
               {cancelled ? "취소 처리 중입니다" : "업체 확인 후 최종 확정됩니다"}
             </p>
           </div>
@@ -581,14 +581,14 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <Sparkles className="w-3 h-3 text-[#C4967E]" />
-              <span className="text-[27px] text-[#928980]">업체</span>
-              <span className="text-[27px] font-medium text-[#1A1A1F] ml-auto">{output.vendorName}</span>
+              <span className="text-[11px] text-[#928980]">업체</span>
+              <span className="text-[11px] font-medium text-[#1A1A1F] ml-auto">{output.vendorName}</span>
             </div>
             {output.productName && (
               <div className="flex items-center gap-2">
                 <Package className="w-3 h-3 text-[#C4967E]" />
-                <span className="text-[27px] text-[#928980]">상품</span>
-                <span className="text-[27px] font-medium text-[#1A1A1F] ml-auto">
+                <span className="text-[11px] text-[#928980]">상품</span>
+                <span className="text-[11px] font-medium text-[#1A1A1F] ml-auto">
                   {output.productName}
                   {output.amount > 0 && ` (${formatPrice(output.amount)})`}
                 </span>
@@ -597,14 +597,14 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             {output.staffName && (
               <div className="flex items-center gap-2">
                 <Users className="w-3 h-3 text-[#C4967E]" />
-                <span className="text-[27px] text-[#928980]">담당</span>
-                <span className="text-[27px] font-medium text-[#1A1A1F] ml-auto">{output.staffName}</span>
+                <span className="text-[11px] text-[#928980]">담당</span>
+                <span className="text-[11px] font-medium text-[#1A1A1F] ml-auto">{output.staffName}</span>
               </div>
             )}
             <div className="flex items-center gap-2">
               <Clock className="w-3 h-3 text-[#C4967E]" />
-              <span className="text-[27px] text-[#928980]">일시</span>
-              <span className="text-[27px] font-medium text-[#1A1A1F] ml-auto">
+              <span className="text-[11px] text-[#928980]">일시</span>
+              <span className="text-[11px] font-medium text-[#1A1A1F] ml-auto">
                 {dateLabel} {output.time}
               </span>
             </div>
@@ -615,18 +615,18 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             <div className="mt-2">
               {showCancelConfirm ? (
                 <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                  <p className="text-[27px] text-red-600">예약을 취소할까요?</p>
+                  <p className="text-[11px] text-red-600">예약을 취소할까요?</p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
-                      className="px-2.5 py-1 text-[25px] rounded-md bg-white border border-black/[0.06] text-[#928980]"
+                      className="px-2.5 py-1 text-[10px] rounded-md bg-white border border-black/[0.06] text-[#928980]"
                     >
                       아니요
                     </button>
                     <button
                       onClick={handleCancel}
                       disabled={disabled}
-                      className="px-2.5 py-1 text-[25px] rounded-md bg-red-500 text-white disabled:opacity-40"
+                      className="px-2.5 py-1 text-[10px] rounded-md bg-red-500 text-white disabled:opacity-40"
                     >
                       취소하기
                     </button>
@@ -636,7 +636,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                 <button
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={disabled}
-                  className="text-[25px] text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
+                  className="text-[10px] text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
                 >
                   예약 취소
                 </button>
@@ -665,7 +665,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
     return (
       <div className="flex justify-start ml-12 my-2">
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm max-w-[400px]">
-          <p className="text-[47px] text-red-600">{result.displayMessage}</p>
+          <p className="text-[12px] text-red-600">{result.displayMessage}</p>
         </div>
       </div>
     );
@@ -683,27 +683,27 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             <X className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-[31px] font-semibold text-[#1A1A1F]">예약이 취소되었습니다</p>
+            <p className="text-[13px] font-semibold text-[#1A1A1F]">예약이 취소되었습니다</p>
           </div>
         </div>
         <div className="px-4 pb-3">
           <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <Sparkles className="w-3 h-3 text-[#928980]" />
-              <span className="text-[27px] text-[#928980]">업체</span>
-              <span className="text-[27px] font-medium text-[#928980] ml-auto line-through">{output.vendorName}</span>
+              <span className="text-[11px] text-[#928980]">업체</span>
+              <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{output.vendorName}</span>
             </div>
             {output.productName && (
               <div className="flex items-center gap-2">
                 <Package className="w-3 h-3 text-[#928980]" />
-                <span className="text-[27px] text-[#928980]">상품</span>
-                <span className="text-[27px] font-medium text-[#928980] ml-auto line-through">{output.productName}</span>
+                <span className="text-[11px] text-[#928980]">상품</span>
+                <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{output.productName}</span>
               </div>
             )}
             <div className="flex items-center gap-2">
               <Clock className="w-3 h-3 text-[#928980]" />
-              <span className="text-[27px] text-[#928980]">일시</span>
-              <span className="text-[27px] font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
+              <span className="text-[11px] text-[#928980]">일시</span>
+              <span className="text-[11px] font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
         </div>
@@ -759,7 +759,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
         {output.query && (
           <div className="flex items-center gap-2 px-1">
             <MapPin className="w-3.5 h-3.5 text-[#C4967E]" />
-            <span className="text-[27px] text-[#928980] font-medium">
+            <span className="text-[11px] text-[#928980] font-medium">
               &apos;{output.query}&apos; 검색 결과
             </span>
           </div>
@@ -775,31 +775,31 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               <div className="flex items-start gap-3">
                 {/* 순위 번호 */}
                 <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-[#FAF7F2] to-[#F5F0E8] flex items-center justify-center border border-black/[0.04]">
-                  <span className="text-[47px] font-semibold text-[#C4967E]">
+                  <span className="text-[12px] font-semibold text-[#C4967E]">
                     {idx + 1}
                   </span>
                 </div>
 
                 <div className="flex-1 min-w-0">
                   {/* 이름 */}
-                  <p className="text-[31px] font-semibold text-[#1A1A1F] truncate">
+                  <p className="text-[13px] font-semibold text-[#1A1A1F] truncate">
                     {p.name}
                   </p>
 
                   {/* 태그 줄: 음식종류 + 세부카테고리 + 후기 수 */}
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     {p.cuisineType && (
-                      <span className="text-[25px] px-2 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[#1A1A1F] font-medium">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[#1A1A1F] font-medium">
                         {cuisineEmoji[p.cuisineType] || "🍴"} {p.cuisineType}
                       </span>
                     )}
                     {p.category && p.category !== p.cuisineType && (
-                      <span className="text-[25px] px-2 py-0.5 rounded-full bg-[#C4967E]/10 text-[#C4967E] font-medium">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C4967E]/10 text-[#C4967E] font-medium">
                         {p.category}
                       </span>
                     )}
                     {p.blogReviewCount > 0 && (
-                      <span className="text-[25px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
                         후기 {formatCount(p.blogReviewCount)}
                       </span>
                     )}
@@ -809,12 +809,12 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   {(p.priceRange || p.hasPrivateRoom) && (
                     <div className="flex items-center gap-2 mt-1.5">
                       {p.priceRange && (
-                        <span className="text-[25px] text-[#C9A96E] font-semibold">
+                        <span className="text-[10px] text-[#C9A96E] font-semibold">
                           💰 {p.priceRange}
                         </span>
                       )}
                       {p.hasPrivateRoom && (
-                        <span className="text-[25px] px-2 py-0.5 rounded-full bg-[#EDE7F6] text-[#5E35B1] font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EDE7F6] text-[#5E35B1] font-medium">
                           🚪 룸 있음
                         </span>
                       )}
@@ -823,7 +823,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
 
                   {/* 설명 또는 블로그 스니펫 */}
                   {(p.description || p.blogSnippet) && (
-                    <p className="text-[27px] text-[#6B6560] mt-1.5 leading-[1.5] line-clamp-2">
+                    <p className="text-[11px] text-[#6B6560] mt-1.5 leading-[1.5] line-clamp-2">
                       {p.description || p.blogSnippet}
                     </p>
                   )}
@@ -832,14 +832,14 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-[#B5ADA3] shrink-0" />
-                      <span className="text-[25px] text-[#928980] truncate max-w-[200px]">
+                      <span className="text-[10px] text-[#928980] truncate max-w-[200px]">
                         {p.address}
                       </span>
                     </div>
                     {p.telephone && (
                       <div className="flex items-center gap-1">
                         <Phone className="w-2.5 h-2.5 text-[#B5ADA3] shrink-0" />
-                        <span className="text-[25px] text-[#928980]">
+                        <span className="text-[10px] text-[#928980]">
                           {p.telephone}
                         </span>
                       </div>
@@ -855,7 +855,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 href={p.mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[27px] font-medium text-[#1A1A1F] hover:bg-[#FAF7F2] transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[#1A1A1F] hover:bg-[#FAF7F2] transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
                 네이버 지도
@@ -865,7 +865,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 href={p.blogSearchUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[27px] font-medium text-[#C4967E] hover:bg-[#FDF8F5] transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[#C4967E] hover:bg-[#FDF8F5] transition-colors"
               >
                 <MessageSquareText className="w-3 h-3" />
                 블로그 후기

@@ -119,7 +119,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   return (
     <article className="bg-white rounded-2xl border border-[#F0EFED] px-7 py-5 hover:shadow-sm transition-all duration-300">
       {/* 메타 라인 */}
-      <div className="flex items-center gap-2 text-[23px] mb-3">
+      <div className="flex items-center gap-2 text-[15px] mb-3">
         {categoryInfo && (
           <>
             <span className="font-medium text-[#C4967E]">
@@ -217,7 +217,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           </Link>
 
           {contentPreview && (
-            <p className="mt-2 text-[23px] text-[#878680] leading-relaxed line-clamp-2">
+            <p className="mt-2 text-[15px] text-[#878680] leading-relaxed line-clamp-2">
               {contentPreview}
             </p>
           )}
@@ -253,7 +253,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
       </div>
 
       {/* 액션 바 */}
-      <div className="mt-5 flex items-center gap-7 text-[23px] text-[#B5ADA3]">
+      <div className="mt-5 flex items-center gap-7 text-[15px] text-[#B5ADA3]">
         {/* 투표 그룹 */}
         <div className="flex items-center gap-1">
           <button
@@ -270,7 +270,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             <ChevronUp className="w-5 h-5" />
           </button>
           <span
-            className={`text-[23px] font-medium min-w-[1.5rem] text-center ${
+            className={`text-[15px] font-medium min-w-[1.5rem] text-center ${
               displayVote === 1
                 ? "text-[#C4967E]"
                 : displayVote === -1

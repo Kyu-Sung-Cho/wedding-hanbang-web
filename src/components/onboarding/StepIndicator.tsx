@@ -12,7 +12,7 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
       {ONBOARDING_STEPS.map((step, i) => (
         <div key={step.step} className="flex items-center gap-2">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-[31px] font-medium transition-all ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium transition-all ${
               currentStep === step.step
                 ? "bg-noir-800 text-white"
                 : currentStep > step.step

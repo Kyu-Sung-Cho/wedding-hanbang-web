@@ -198,11 +198,11 @@ export default function VendorRegisterPage() {
 
   const FieldError = ({ field }: { field: string }) =>
     fieldErrors[field] ? (
-      <p className="text-[47px] text-rose-600 mt-1.5">{fieldErrors[field]}</p>
+      <p className="text-[12px] text-rose-600 mt-1.5">{fieldErrors[field]}</p>
     ) : null;
 
   const inputClass = (field: string) =>
-    `w-full px-4 py-3 border rounded-xl text-[53px] outline-none transition-colors ${
+    `w-full px-4 py-3 border rounded-xl text-[14px] outline-none transition-colors ${
       fieldErrors[field] ? "border-rose-500 bg-rose-500/[0.03]" : "border-platinum focus:border-rose-500"
     }`;
 
@@ -212,7 +212,7 @@ export default function VendorRegisterPage() {
       <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[53px] text-taupe-500">로딩 중...</p>
+          <p className="text-[14px] text-taupe-500">로딩 중...</p>
         </div>
       </div>
     );
@@ -237,16 +237,16 @@ export default function VendorRegisterPage() {
             <div className="w-16 h-16 rounded-full bg-[#2E7D5A]/10 flex items-center justify-center mx-auto mb-5">
               <Check className="w-8 h-8 text-[#2E7D5A]" />
             </div>
-            <h1 className="font-serif-kr text-[37px] font-light text-noir-800 mb-2">
+            <h1 className="font-serif-kr text-[24px] font-light text-noir-800 mb-2">
               등록 신청이 완료되었습니다
             </h1>
-            <p className="text-[53px] text-taupe-500 font-light leading-relaxed">
+            <p className="text-[14px] text-taupe-500 font-light leading-relaxed">
               심사가 완료되면 등록하신 이메일/연락처로 안내드립니다.
             </p>
           </div>
 
           <div className="bg-ivory-50 rounded-2xl p-6 mb-8">
-            <p className="text-[47px] text-taupe-400 font-medium uppercase tracking-wider mb-4">앞으로의 절차</p>
+            <p className="text-[12px] text-taupe-400 font-medium uppercase tracking-wider mb-4">앞으로의 절차</p>
             <div className="space-y-0">
               {roadmap.map((step, i) => (
                 <div key={step.label} className="flex items-start gap-3">
@@ -256,17 +256,17 @@ export default function VendorRegisterPage() {
                         ? "bg-[#2E7D5A] text-white"
                         : "border-2 border-taupe-400/20 text-taupe-400"
                     }`}>
-                      {step.done ? <Check className="w-3.5 h-3.5" /> : <span className="text-[27px] font-medium">{i + 1}</span>}
+                      {step.done ? <Check className="w-3.5 h-3.5" /> : <span className="text-[11px] font-medium">{i + 1}</span>}
                     </div>
                     {i < roadmap.length - 1 && (
                       <div className={`w-px h-8 ${step.done ? "bg-[#2E7D5A]/30" : "bg-taupe-400/15"}`} />
                     )}
                   </div>
                   <div className="pt-1 pb-4">
-                    <p className={`text-[53px] font-medium ${step.done ? "text-[#2E7D5A]" : "text-noir-800"}`}>
+                    <p className={`text-[14px] font-medium ${step.done ? "text-[#2E7D5A]" : "text-noir-800"}`}>
                       {step.label}
                     </p>
-                    <p className="text-[47px] text-taupe-400 font-light mt-0.5">{step.desc}</p>
+                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">{step.desc}</p>
                   </div>
                 </div>
               ))}
@@ -276,14 +276,14 @@ export default function VendorRegisterPage() {
           <div className="flex flex-col gap-3">
             <Link
               href="/vendor/dashboard"
-              className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-noir-800 text-white text-[53px] font-medium hover:bg-noir-soft transition-colors"
+              className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors"
             >
               업체 대시보드 바로가기
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
               href="/business"
-              className="flex items-center justify-center px-8 py-3 rounded-full text-[31px] text-taupe-400 hover:text-rose-500 transition-colors"
+              className="flex items-center justify-center px-8 py-3 rounded-full text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
             >
               메인페이지로 돌아가기
             </Link>
@@ -300,9 +300,9 @@ export default function VendorRegisterPage() {
           <div className="max-w-[800px] mx-auto flex items-center justify-between">
             <Link href="/business" className="flex items-center gap-2">
               <Logo size="sm" />
-              <span className="font-serif-kr text-[23px] font-medium text-noir-800">업체 등록</span>
+              <span className="font-serif-kr text-[15px] font-medium text-noir-800">업체 등록</span>
             </Link>
-            <Link href="/vendor/service" className="text-[31px] text-taupe-400 hover:text-rose-500 transition-colors">
+            <Link href="/vendor/service" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
               서비스 안내
             </Link>
           </div>
@@ -313,8 +313,8 @@ export default function VendorRegisterPage() {
               <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center">
                 <FileText className="w-6 h-6 text-white" />
               </div>
-              <h1 className="font-serif-kr text-[37px] font-light text-noir-800 mb-2">약관 동의</h1>
-              <p className="text-[53px] text-taupe-500 font-light">업체 등록을 위해 아래 약관에 동의해주세요</p>
+              <h1 className="font-serif-kr text-[24px] font-light text-noir-800 mb-2">약관 동의</h1>
+              <p className="text-[14px] text-taupe-500 font-light">업체 등록을 위해 아래 약관에 동의해주세요</p>
             </div>
             <div className="bg-white rounded-2xl border border-black/[0.04] p-8">
               <div className="space-y-3 mb-8">
@@ -322,29 +322,29 @@ export default function VendorRegisterPage() {
                   <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
                   <div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[53px] font-medium text-noir-800">파트너 이용약관 동의</span>
-                      <span className="text-[27px] text-rose-500">(필수)</span>
+                      <span className="text-[14px] font-medium text-noir-800">파트너 이용약관 동의</span>
+                      <span className="text-[11px] text-rose-500">(필수)</span>
                     </div>
-                    <p className="text-[47px] text-taupe-400 font-light mt-0.5">서비스 이용 조건, 수수료 정책, 정산 규정 등을 포함합니다.</p>
-                    <a href="/vendor/terms" target="_blank" className="text-[47px] text-rose-500 hover:underline mt-1 inline-block">약관 전문 보기 &rarr;</a>
+                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">서비스 이용 조건, 수수료 정책, 정산 규정 등을 포함합니다.</p>
+                    <a href="/vendor/terms" target="_blank" className="text-[12px] text-rose-500 hover:underline mt-1 inline-block">약관 전문 보기 &rarr;</a>
                   </div>
                 </label>
                 <label className="flex items-start gap-3 p-4 rounded-xl bg-ivory-50 cursor-pointer hover:bg-ivory-warm transition-colors">
                   <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-rose-500" />
                   <div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[53px] font-medium text-noir-800">개인정보 처리방침 동의</span>
-                      <span className="text-[27px] text-rose-500">(필수)</span>
+                      <span className="text-[14px] font-medium text-noir-800">개인정보 처리방침 동의</span>
+                      <span className="text-[11px] text-rose-500">(필수)</span>
                     </div>
-                    <p className="text-[47px] text-taupe-400 font-light mt-0.5">사업자 정보 및 대표자 개인정보의 수집·이용에 동의합니다.</p>
-                    <a href="/vendor/privacy" target="_blank" className="text-[47px] text-rose-500 hover:underline mt-1 inline-block">개인정보 처리방침 전문 보기 &rarr;</a>
+                    <p className="text-[12px] text-taupe-400 font-light mt-0.5">사업자 정보 및 대표자 개인정보의 수집·이용에 동의합니다.</p>
+                    <a href="/vendor/privacy" target="_blank" className="text-[12px] text-rose-500 hover:underline mt-1 inline-block">개인정보 처리방침 전문 보기 &rarr;</a>
                   </div>
                 </label>
               </div>
               <button
                 onClick={() => setShowForm(true)}
                 disabled={!agreedTerms || !agreedPrivacy}
-                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[53px] font-medium transition-all ${
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[14px] font-medium transition-all ${
                   agreedTerms && agreedPrivacy
                     ? "bg-gradient-to-r from-rose-500 to-gold text-white hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)]"
                     : "bg-taupe-400/20 text-taupe-400 cursor-not-allowed"
@@ -353,7 +353,7 @@ export default function VendorRegisterPage() {
                 동의하고 등록 진행하기 <ChevronRight className="w-4 h-4" />
               </button>
               {(!agreedTerms || !agreedPrivacy) && (
-                <p className="text-[47px] text-taupe-400 text-center mt-3">약관에 모두 동의해야 등록을 진행할 수 있습니다.</p>
+                <p className="text-[12px] text-taupe-400 text-center mt-3">약관에 모두 동의해야 등록을 진행할 수 있습니다.</p>
               )}
             </div>
           </motion.div>
@@ -368,9 +368,9 @@ export default function VendorRegisterPage() {
         <div className="max-w-[800px] mx-auto flex items-center justify-between">
           <Link href="/business" className="flex items-center gap-2">
             <Logo size="sm" />
-            <span className="font-serif-kr text-[23px] font-medium text-noir-800">업체 등록</span>
+            <span className="font-serif-kr text-[15px] font-medium text-noir-800">업체 등록</span>
           </Link>
-          <Link href="/business" className="text-[31px] text-taupe-400 hover:text-rose-500 transition-colors">
+          <Link href="/business" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
             돌아가기
           </Link>
         </div>
@@ -380,8 +380,8 @@ export default function VendorRegisterPage() {
         {/* 비로그인 안내 배너 */}
         {isLoggedIn === false && (
           <div className="bg-noir-800 rounded-xl p-4 mb-6 text-center">
-            <p className="text-[31px] text-white font-medium mb-1">계정 생성 + 업체 등록을 한번에 진행합니다</p>
-            <p className="text-[47px] text-white/50">
+            <p className="text-[13px] text-white font-medium mb-1">계정 생성 + 업체 등록을 한번에 진행합니다</p>
+            <p className="text-[12px] text-white/50">
               이미 계정이 있으신가요?{" "}
               <a href="/vendor/login" className="text-rose-400 underline font-medium hover:text-rose-300">로그인 후 등록하기</a>
             </p>
@@ -394,8 +394,8 @@ export default function VendorRegisterPage() {
             <div className="flex items-center gap-3">
               <Check className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
               <div>
-                <p className="text-[31px] text-[#2E7D5A] font-medium">로그인 상태로 등록을 진행합니다</p>
-                <p className="text-[47px] text-taupe-500">{email}</p>
+                <p className="text-[13px] text-[#2E7D5A] font-medium">로그인 상태로 등록을 진행합니다</p>
+                <p className="text-[12px] text-taupe-500">{email}</p>
               </div>
             </div>
             <button
@@ -405,7 +405,7 @@ export default function VendorRegisterPage() {
                 setIsLoggedIn(false);
                 setEmail("");
               }}
-              className="text-[47px] text-taupe-400 hover:text-rose-500 transition-colors whitespace-nowrap flex-shrink-0"
+              className="text-[12px] text-taupe-400 hover:text-rose-500 transition-colors whitespace-nowrap flex-shrink-0"
             >
               다른 계정으로 등록
             </button>
@@ -416,7 +416,7 @@ export default function VendorRegisterPage() {
         <div className="flex items-center justify-center gap-2 mb-10">
           {steps.map((step, i) => (
             <div key={step.num} className="flex items-center gap-2">
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[31px] font-medium transition-colors ${
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium transition-colors ${
                 currentStep === step.num
                   ? "bg-noir-800 text-white"
                   : currentStep > step.num
@@ -443,38 +443,38 @@ export default function VendorRegisterPage() {
         >
           {currentStep === 1 && (
             <>
-              <h2 className="font-serif-kr text-[31px] font-normal text-noir-800 mb-1">기본 정보</h2>
-              <p className="text-[31px] text-taupe-400 mb-6">업체의 기본 정보를 입력해주세요</p>
+              <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 mb-1">기본 정보</h2>
+              <p className="text-[13px] text-taupe-400 mb-6">업체의 기본 정보를 입력해주세요</p>
               <div className="space-y-5">
                 <div id="field-shopName">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">업체명 <span className="text-rose-500">*</span></label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">업체명 <span className="text-rose-500">*</span></label>
                   <input type="text" value={shopName} onChange={(e) => { setShopName(e.target.value); clearFieldError("shopName"); }} placeholder="업체명을 입력해 주세요" className={inputClass("shopName")} />
                   <FieldError field="shopName" />
                 </div>
                 <div id="field-category">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">업종 <span className="text-rose-500">*</span></label>
-                  <p className="text-[47px] text-taupe-400 font-light mb-2">현재 베타 기간에는 스드메(스튜디오, 드레스, 메이크업) 업종만 등록 가능합니다.</p>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">업종 <span className="text-rose-500">*</span></label>
+                  <p className="text-[12px] text-taupe-400 font-light mb-2">현재 베타 기간에는 스드메(스튜디오, 드레스, 메이크업) 업종만 등록 가능합니다.</p>
                   <div className="grid grid-cols-3 gap-2 max-md:grid-cols-3">
                     {BETA_CATEGORIES.map((cat) => (
-                      <button key={cat} onClick={() => { setCategory(cat); clearFieldError("category"); }} className={`px-3 py-2.5 rounded-xl text-[31px] font-medium transition-colors border ${category === cat ? "bg-noir-800 text-white border-noir-800" : "bg-white text-charcoal border-platinum hover:border-rose-500"}`}>{cat}</button>
+                      <button key={cat} onClick={() => { setCategory(cat); clearFieldError("category"); }} className={`px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors border ${category === cat ? "bg-noir-800 text-white border-noir-800" : "bg-white text-charcoal border-platinum hover:border-rose-500"}`}>{cat}</button>
                     ))}
                   </div>
                   <FieldError field="category" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
                   <div id="field-ownerName">
-                    <label className="block text-[31px] font-medium text-noir-800 mb-2">대표자명 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[13px] font-medium text-noir-800 mb-2">대표자명 <span className="text-rose-500">*</span></label>
                     <input type="text" value={ownerName} onChange={(e) => { setOwnerName(e.target.value); clearFieldError("ownerName"); }} placeholder="대표자명" className={inputClass("ownerName")} />
                     <FieldError field="ownerName" />
                   </div>
                   <div id="field-phone">
-                    <label className="block text-[31px] font-medium text-noir-800 mb-2">연락처 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[13px] font-medium text-noir-800 mb-2">연락처 <span className="text-rose-500">*</span></label>
                     <input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); clearFieldError("phone"); }} placeholder="010-0000-0000" className={inputClass("phone")} />
                     <FieldError field="phone" />
                   </div>
                 </div>
                 <div id="field-email">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">이메일 <span className="text-rose-500">*</span></label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">이메일 <span className="text-rose-500">*</span></label>
                   <input
                     type="email"
                     value={email}
@@ -484,7 +484,7 @@ export default function VendorRegisterPage() {
                     readOnly={isLoggedIn === true}
                   />
                   {isLoggedIn && (
-                    <p className="text-[27px] text-[#2E7D5A] mt-1">로그인된 계정의 이메일입니다</p>
+                    <p className="text-[11px] text-[#2E7D5A] mt-1">로그인된 계정의 이메일입니다</p>
                   )}
                   <FieldError field="email" />
                 </div>
@@ -493,7 +493,7 @@ export default function VendorRegisterPage() {
                 {isLoggedIn === false && (
                   <>
                     <div id="field-password">
-                      <label className="block text-[31px] font-medium text-noir-800 mb-2">비밀번호 <span className="text-rose-500">*</span></label>
+                      <label className="block text-[13px] font-medium text-noir-800 mb-2">비밀번호 <span className="text-rose-500">*</span></label>
                       <input
                         type="password"
                         value={password}
@@ -504,7 +504,7 @@ export default function VendorRegisterPage() {
                       <FieldError field="password" />
                     </div>
                     <div id="field-passwordConfirm">
-                      <label className="block text-[31px] font-medium text-noir-800 mb-2">비밀번호 확인 <span className="text-rose-500">*</span></label>
+                      <label className="block text-[13px] font-medium text-noir-800 mb-2">비밀번호 확인 <span className="text-rose-500">*</span></label>
                       <input
                         type="password"
                         value={passwordConfirm}
@@ -522,38 +522,38 @@ export default function VendorRegisterPage() {
 
           {currentStep === 2 && (
             <>
-              <h2 className="font-serif-kr text-[31px] font-normal text-noir-800 mb-1">업체 상세</h2>
-              <p className="text-[31px] text-taupe-400 mb-6">고객에게 보여질 상세 정보를 입력해주세요</p>
+              <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 mb-1">업체 상세</h2>
+              <p className="text-[13px] text-taupe-400 mb-6">고객에게 보여질 상세 정보를 입력해주세요</p>
               <div className="space-y-5">
                 <div id="field-address">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">주소 <span className="text-rose-500">*</span></label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">주소 <span className="text-rose-500">*</span></label>
                   <input type="text" value={address} onChange={(e) => { setAddress(e.target.value); clearFieldError("address"); }} placeholder="사업장 주소를 입력해 주세요" className={inputClass("address")} />
                   <FieldError field="address" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[31px] font-medium text-noir-800 mb-2">최소 가격 (만원)</label>
-                    <input type="number" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} placeholder="100" className="w-full px-4 py-3 border border-platinum rounded-xl text-[53px] outline-none focus:border-rose-500 transition-colors" />
+                    <label className="block text-[13px] font-medium text-noir-800 mb-2">최소 가격 (만원)</label>
+                    <input type="number" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} placeholder="100" className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors" />
                   </div>
                   <div>
-                    <label className="block text-[31px] font-medium text-noir-800 mb-2">최대 가격 (만원)</label>
-                    <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} placeholder="500" className="w-full px-4 py-3 border border-platinum rounded-xl text-[53px] outline-none focus:border-rose-500 transition-colors" />
+                    <label className="block text-[13px] font-medium text-noir-800 mb-2">최대 가격 (만원)</label>
+                    <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} placeholder="500" className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors" />
                   </div>
                 </div>
                 <div id="field-description">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">업체 소개 <span className="text-rose-500">*</span></label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">업체 소개 <span className="text-rose-500">*</span></label>
                   <textarea value={description} onChange={(e) => { setDescription(e.target.value); clearFieldError("description"); }} placeholder="업체의 특징과 강점을 자유롭게 작성해 주세요" rows={4} className={`${inputClass("description")} resize-none`} />
                   <FieldError field="description" />
                 </div>
                 <div>
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">태그 (쉼표로 구분, 최대 5개)</label>
-                  <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="예: 자연광, 감성 촬영, 1:1 맞춤" className="w-full px-4 py-3 border border-platinum rounded-xl text-[53px] outline-none focus:border-rose-500 transition-colors" />
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">태그 (쉼표로 구분, 최대 5개)</label>
+                  <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="예: 자연광, 감성 촬영, 1:1 맞춤" className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors" />
                 </div>
                 <div>
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">대표 사진</label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">대표 사진</label>
                   <div className="border-2 border-dashed border-platinum rounded-xl p-8 text-center hover:border-rose-500 transition-colors cursor-pointer">
                     <Upload className="w-8 h-8 text-taupe-400 mx-auto mb-2" />
-                    <p className="text-[31px] text-taupe-400">클릭하여 업로드 (정식 출시 후 활성화)</p>
+                    <p className="text-[13px] text-taupe-400">클릭하여 업로드 (정식 출시 후 활성화)</p>
                   </div>
                 </div>
               </div>
@@ -562,40 +562,40 @@ export default function VendorRegisterPage() {
 
           {currentStep === 3 && (
             <>
-              <h2 className="font-serif-kr text-[31px] font-normal text-noir-800 mb-1">사업자 인증</h2>
-              <p className="text-[31px] text-taupe-400 mb-6">사업자 등록 정보를 입력해주세요. 심사에 필요합니다.</p>
+              <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 mb-1">사업자 인증</h2>
+              <p className="text-[13px] text-taupe-400 mb-6">사업자 등록 정보를 입력해주세요. 심사에 필요합니다.</p>
               <div className="space-y-5">
                 <div id="field-businessNumber">
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">사업자등록번호 <span className="text-rose-500">*</span></label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">사업자등록번호 <span className="text-rose-500">*</span></label>
                   <input type="text" value={businessNumber} onChange={(e) => { setBusinessNumber(e.target.value); clearFieldError("businessNumber"); }} placeholder="000-00-00000" className={inputClass("businessNumber")} />
                   <FieldError field="businessNumber" />
                 </div>
                 <div>
-                  <label className="block text-[31px] font-medium text-noir-800 mb-2">사업자등록증 업로드</label>
+                  <label className="block text-[13px] font-medium text-noir-800 mb-2">사업자등록증 업로드</label>
                   <div className="border-2 border-dashed border-platinum rounded-xl p-8 text-center hover:border-rose-500 transition-colors cursor-pointer">
                     <FileText className="w-8 h-8 text-taupe-400 mx-auto mb-2" />
-                    <p className="text-[31px] text-taupe-400">클릭하여 사업자등록증 업로드</p>
-                    <p className="text-[27px] text-taupe-400/70 mt-1">PDF, JPG, PNG (최대 10MB) · 정식 출시 후 활성화</p>
+                    <p className="text-[13px] text-taupe-400">클릭하여 사업자등록증 업로드</p>
+                    <p className="text-[11px] text-taupe-400/70 mt-1">PDF, JPG, PNG (최대 10MB) · 정식 출시 후 활성화</p>
                   </div>
                 </div>
 
                 {/* 베타 파트너 혜택 안내 */}
                 <div className="bg-gradient-to-br from-noir-800 to-noir-900 rounded-xl p-5 text-white">
-                  <h4 className="text-[31px] font-medium mb-3 flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 to-gold text-[25px] font-semibold">BETA</span>
+                  <h4 className="text-[13px] font-medium mb-3 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 to-gold text-[10px] font-semibold">BETA</span>
                     베타 파트너 혜택
                   </h4>
-                  <ul className="text-[47px] text-white/70 font-light space-y-1.5">
+                  <ul className="text-[12px] text-white/70 font-light space-y-1.5">
                     <li className="flex items-center gap-2"><Check className="w-3 h-3 text-[#6BCB9A] flex-shrink-0" /> 월 이용료 면제 (199,000원/월 → 0원)</li>
                     <li className="flex items-center gap-2"><Check className="w-3 h-3 text-[#6BCB9A] flex-shrink-0" /> 예약 수수료 할인 (10% → 7%)</li>
                     <li className="flex items-center gap-2"><Check className="w-3 h-3 text-[#6BCB9A] flex-shrink-0" /> 최소 계약 기간 없음, 위약금 없음</li>
                   </ul>
-                  <p className="text-[27px] text-white/40 mt-3">베타 기간: 2026.03.01 ~ 05.31 (3개월)</p>
+                  <p className="text-[11px] text-white/40 mt-3">베타 기간: 2026.03.01 ~ 05.31 (3개월)</p>
                 </div>
 
                 <div className="bg-ivory-warm rounded-xl p-5">
-                  <h4 className="text-[31px] font-medium text-noir-800 mb-2">심사 안내</h4>
-                  <ul className="text-[47px] text-taupe-500 font-light space-y-1.5">
+                  <h4 className="text-[13px] font-medium text-noir-800 mb-2">심사 안내</h4>
+                  <ul className="text-[12px] text-taupe-500 font-light space-y-1.5">
                     <li>• 등록 신청 후 1~2영업일 내에 심사가 진행됩니다.</li>
                     <li>• 심사 완료 시 등록하신 이메일/연락처로 결과를 안내드립니다.</li>
                     <li>• 승인 후 고객 서비스에 업체가 노출됩니다.</li>
@@ -609,24 +609,24 @@ export default function VendorRegisterPage() {
 
         <div className="flex items-center justify-between mt-6">
           {currentStep > 1 ? (
-            <button onClick={() => { setCurrentStep((s) => s - 1); setFieldErrors({}); }} className="flex items-center gap-2 px-5 py-3 rounded-full border border-platinum text-[53px] text-charcoal hover:border-noir-800 transition-colors">
+            <button onClick={() => { setCurrentStep((s) => s - 1); setFieldErrors({}); }} className="flex items-center gap-2 px-5 py-3 rounded-full border border-platinum text-[14px] text-charcoal hover:border-noir-800 transition-colors">
               <ChevronLeft className="w-4 h-4" /> 이전
             </button>
           ) : <div />}
 
           {currentStep < 3 ? (
-            <button onClick={handleNext} className="flex items-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[53px] font-medium hover:bg-noir-soft transition-colors">
+            <button onClick={handleNext} className="flex items-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors">
               다음 <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleSubmit} disabled={isSubmitting} className="flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[53px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] transition-all disabled:opacity-50">
+            <button onClick={handleSubmit} disabled={isSubmitting} className="flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-r from-rose-500 to-gold text-white text-[14px] font-medium hover:shadow-[0_8px_32px_rgba(196,150,126,0.3)] transition-all disabled:opacity-50">
               {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> 등록 중...</> : <>등록 신청하기 <Check className="w-4 h-4" /></>}
             </button>
           )}
         </div>
 
         {errorMsg && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-[31px] text-red-600">
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-600">
             {errorMsg}
           </div>
         )}

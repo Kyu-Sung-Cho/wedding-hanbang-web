@@ -76,7 +76,7 @@ export default function WeeklyTimeGrid({ slots, onChange, readonly = false }: We
       onMouseLeave={handleMouseUp}
     >
       {/* 범례 */}
-      <div className="flex items-center gap-4 mb-4 text-[27px] text-taupe-500">
+      <div className="flex items-center gap-4 mb-4 text-[11px] text-taupe-500">
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-4 rounded bg-rose-500" />
           예약 가능
@@ -107,7 +107,7 @@ export default function WeeklyTimeGrid({ slots, onChange, readonly = false }: We
                   <button
                     onClick={() => toggleFullDay(di)}
                     disabled={readonly}
-                    className={`w-full py-2 rounded-lg text-[47px] font-medium transition-colors ${
+                    className={`w-full py-2 rounded-lg text-[12px] font-medium transition-colors ${
                       di >= 5
                         ? "text-rose-500 bg-rose-500/5 hover:bg-rose-500/10"
                         : "text-charcoal bg-ivory-warm hover:bg-ivory-deep"
@@ -126,7 +126,7 @@ export default function WeeklyTimeGrid({ slots, onChange, readonly = false }: We
                   <button
                     onClick={() => toggleFullHour(hour)}
                     disabled={readonly}
-                    className={`w-full py-1.5 rounded-lg text-[27px] text-taupe-500 font-medium hover:bg-ivory-deep transition-colors text-center ${
+                    className={`w-full py-1.5 rounded-lg text-[11px] text-taupe-500 font-medium hover:bg-ivory-deep transition-colors text-center ${
                       readonly ? "cursor-default" : "cursor-pointer"
                     }`}
                   >
@@ -152,7 +152,7 @@ export default function WeeklyTimeGrid({ slots, onChange, readonly = false }: We
                         } ${readonly ? "cursor-default" : "cursor-pointer"}`}
                       >
                         {hasBooking && (
-                          <span className="absolute inset-0 flex items-center justify-center text-[25px] text-white font-bold">
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold">
                             {slot.currentBookings}
                           </span>
                         )}

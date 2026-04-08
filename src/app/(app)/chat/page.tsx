@@ -453,16 +453,16 @@ export default function ChatPage() {
       <div className="max-w-[1280px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
-          <h3 className="text-[25px] font-medium text-[#1A1A1F] mb-2">
+          <h3 className="text-[16px] font-medium text-[#1A1A1F] mb-2">
             아모라는 로그인 후 이용할 수 있어요
           </h3>
-          <p className="text-[31px] text-[#928980] mb-6 leading-relaxed">
+          <p className="text-[13px] text-[#928980] mb-6 leading-relaxed">
             로그인하면 맞춤 웨딩 상담, 예산 관리,<br />
             일정 체크리스트 등을 아모라가 도와드려요
           </p>
           <a
             href="/login"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[53px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
           >
             로그인하기
           </a>
@@ -477,7 +477,7 @@ export default function ChatPage() {
       <div className="max-w-[1280px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center">
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-[#C4967E]/30 mx-auto mb-4" />
-          <p className="text-[23px] text-[#928980]">
+          <p className="text-[15px] text-[#928980]">
             온보딩을 완료하면 아모라와 상담할 수 있어요
           </p>
         </div>
@@ -505,8 +505,8 @@ export default function ChatPage() {
         <div className="fixed inset-0 z-50 bg-[#C4967E]/10 border-2 border-dashed border-[#C4967E] flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-2xl px-8 py-6 shadow-lg text-center">
             <Paperclip className="w-10 h-10 text-[#C4967E] mx-auto mb-3" />
-            <p className="text-[23px] font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
-            <p className="text-[47px] text-[#928980] mt-1">이미지, PDF, Word, Excel</p>
+            <p className="text-[15px] font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
+            <p className="text-[12px] text-[#928980] mt-1">이미지, PDF, Word, Excel</p>
           </div>
         </div>
       )}
@@ -516,15 +516,15 @@ export default function ChatPage() {
       <div className="flex items-center justify-between px-2 pb-2 pt-1">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[#C4967E]" />
-          <span className="text-[31px] font-medium text-[#1A1A1F]">아모라 상담</span>
+          <span className="text-[13px] font-medium text-[#1A1A1F]">아모라 상담</span>
           {messages.length > 0 && (
-            <span className="text-[25px] text-[#B5ADA3]">({messages.length})</span>
+            <span className="text-[10px] text-[#B5ADA3]">({messages.length})</span>
           )}
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[25px] transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
               infoPanelOpen
                 ? "text-[#C4967E] bg-[#C4967E]/10"
                 : "text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5"
@@ -537,7 +537,7 @@ export default function ChatPage() {
           {messages.length > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[25px] text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-[#C4967E] hover:bg-[#C4967E]/5 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               새 채팅
@@ -636,15 +636,15 @@ export default function ChatPage() {
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[31px] text-[#1A1A1F] leading-relaxed font-medium">
+                <p className="text-[13px] text-[#1A1A1F] leading-relaxed font-medium">
                   두 분 사이에 의견 차이가 있는 것 같아요
                 </p>
-                <p className="text-[47px] text-[#928980] leading-relaxed mt-0.5">
+                <p className="text-[12px] text-[#928980] leading-relaxed mt-0.5">
                   아모라가 중립적으로 의견 조율을 도와드릴게요
                 </p>
                 <button
                   onClick={handleManualMediation}
-                  className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[47px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
                 >
                   <Sparkles className="w-3 h-3" />
                   아모라에게 도움 요청하기
@@ -698,7 +698,7 @@ export default function ChatPage() {
         <div className="flex items-center gap-1.5 mb-1.5 px-1">
           <button
             onClick={() => setMessageTarget("ai")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[27px] font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
               messageTarget === "ai"
                 ? "bg-[#1A1A1F] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
@@ -709,7 +709,7 @@ export default function ChatPage() {
           </button>
           <button
             onClick={() => setMessageTarget("partner")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[27px] font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
               messageTarget === "partner"
                 ? "bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-pink-400 hover:text-pink-400"
@@ -754,7 +754,7 @@ export default function ChatPage() {
             onPaste={handlePaste}
             placeholder={messageTarget === "partner" ? "상대방에게 메시지를 보내세요..." : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."}
             disabled={isStreaming}
-            className="flex-1 px-2 py-3 text-[53px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
+            className="flex-1 px-2 py-3 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}

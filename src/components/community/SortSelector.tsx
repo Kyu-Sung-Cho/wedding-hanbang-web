@@ -39,7 +39,7 @@ export default function SortSelector({
             <button
               type="button"
               onClick={() => onSortChange(option.key)}
-              className={`text-[27px] transition-colors duration-200 ${
+              className={`text-[17px] transition-colors duration-200 ${
                 isActive
                   ? "text-[#1A1A1F] font-medium"
                   : "text-[#B5ADA3] hover:text-[#878680]"
@@ -60,7 +60,7 @@ export default function SortSelector({
               <button
                 type="button"
                 onClick={() => onPeriodChange(p.key)}
-                className={`text-[27px] transition-colors duration-200 ${
+                className={`text-[17px] transition-colors duration-200 ${
                   period === p.key
                     ? "text-[#1A1A1F] font-medium"
                     : "text-[#B5ADA3] hover:text-[#878680]"

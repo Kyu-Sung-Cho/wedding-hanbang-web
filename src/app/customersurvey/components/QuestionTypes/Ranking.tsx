@@ -42,7 +42,7 @@ export default function Ranking({
 
   return (
     <div>
-      <p className="text-[31px] text-taupe-500 mb-3">
+      <p className="text-[13px] text-taupe-500 mb-3">
         선택한 순서대로 순위가 매겨집니다. 다시 클릭하면 해제됩니다.
       </p>
       <div className="space-y-3">
@@ -68,7 +68,7 @@ export default function Ranking({
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[31px] font-semibold transition-colors ${
+                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[13px] font-semibold transition-colors ${
                     isSelected
                       ? 'bg-rose-500 text-white'
                       : 'bg-ivory-200 text-taupe-400'
@@ -76,7 +76,7 @@ export default function Ranking({
                 >
                   {isSelected ? rank : ''}
                 </div>
-                <span className="text-[23px] leading-relaxed text-noir-800">
+                <span className="text-[15px] leading-relaxed text-noir-800">
                   {option.label}
                 </span>
               </div>
@@ -85,7 +85,7 @@ export default function Ranking({
         })}
       </div>
       {error && (
-        <p className="text-[31px] text-rose-600 mt-2 pl-1">{error}</p>
+        <p className="text-[13px] text-rose-600 mt-2 pl-1">{error}</p>
       )}
     </div>
   );

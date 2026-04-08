@@ -48,10 +48,10 @@ export default function MarketPricesPage() {
     <div className="max-w-[1560px] mx-auto pb-20">
       {/* 헤더 */}
       <div className="mb-6">
-        <h1 className="font-serif-kr text-[37px] font-medium text-noir-800 mb-1">
+        <h1 className="font-serif-kr text-[24px] font-medium text-noir-800 mb-1">
           웨딩 시세 정보
         </h1>
-        <p className="text-[31px] text-taupe-500 flex items-center gap-1">
+        <p className="text-[13px] text-taupe-500 flex items-center gap-1">
           한국소비자원 제공
           <a
             href="https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do"
@@ -70,7 +70,7 @@ export default function MarketPricesPage() {
           <select
             value={periodId}
             onChange={e => setPeriodId(e.target.value)}
-            className="appearance-none bg-white border border-black/[0.06] rounded-xl px-4 py-2 pr-8 text-[31px] text-noir-800 focus:outline-none focus:ring-1 focus:ring-rose-500/30"
+            className="appearance-none bg-white border border-black/[0.06] rounded-xl px-4 py-2 pr-8 text-[13px] text-noir-800 focus:outline-none focus:ring-1 focus:ring-rose-500/30"
           >
             {[...PRICE_PERIODS].reverse().map(p => (
               <option key={p.id} value={p.id}>{p.label}</option>
@@ -85,7 +85,7 @@ export default function MarketPricesPage() {
               <button
                 key={s}
                 onClick={() => setScope(s)}
-                className={`px-3 py-1.5 rounded-md text-[47px] font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
                   scope === s
                     ? "bg-white text-noir-800 shadow-sm"
                     : "text-taupe-500 hover:text-taupe-400"
@@ -106,7 +106,7 @@ export default function MarketPricesPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[47px] font-medium whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.id
                   ? "bg-rose-500 text-white"
                   : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
@@ -131,7 +131,7 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 출처 */}
-      <div className="mt-8 text-center text-[27px] text-taupe-400">
+      <div className="mt-8 text-center text-[11px] text-taupe-400">
         데이터 출처: 한국소비자원 · {currentPeriod.label} 기준 · 단위: 만원
       </div>
     </div>
@@ -164,7 +164,7 @@ function OverviewTab({ periodId }: { periodId: string }) {
       {/* 비용 구성 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800">전국 평균 비용 구성</h3>
+          <h3 className="text-[14px] font-medium text-noir-800">전국 평균 비용 구성</h3>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
@@ -179,7 +179,7 @@ function OverviewTab({ periodId }: { periodId: string }) {
       {/* 서울 vs 전국 비교 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800">서울 vs 전국 비교</h3>
+          <h3 className="text-[14px] font-medium text-noir-800">서울 vs 전국 비교</h3>
         </div>
         <div className="divide-y divide-black/[0.03]">
           {(["meal", "rental", "sdm", "decoration"] as const).map(key => {
@@ -189,11 +189,11 @@ function OverviewTab({ periodId }: { periodId: string }) {
             const diff = Math.round(((seoulVal - natVal) / natVal) * 100);
             return (
               <div key={key} className="flex items-center justify-between px-5 py-3">
-                <span className="text-[31px] text-noir-800">{labels[key]}</span>
+                <span className="text-[13px] text-noir-800">{labels[key]}</span>
                 <div className="flex items-center gap-4">
-                  <span className="text-[47px] text-taupe-500">전국 {natVal.toLocaleString()}</span>
-                  <span className="text-[47px] font-medium text-noir-800">서울 {seoulVal.toLocaleString()}</span>
-                  <span className={`text-[27px] font-medium ${diff > 0 ? "text-[#C4967E]" : "text-[#2E7D5A]"}`}>
+                  <span className="text-[12px] text-taupe-500">전국 {natVal.toLocaleString()}</span>
+                  <span className="text-[12px] font-medium text-noir-800">서울 {seoulVal.toLocaleString()}</span>
+                  <span className={`text-[11px] font-medium ${diff > 0 ? "text-[#C4967E]" : "text-[#2E7D5A]"}`}>
                     {diff > 0 ? `+${diff}%` : `${diff}%`}
                   </span>
                 </div>
@@ -211,11 +211,11 @@ function RegionalTab({ periodId }: { periodId: string }) {
   return (
     <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
       <div className="px-5 py-4 border-b border-black/[0.04]">
-        <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+        <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
           <MapPin size={16} className="text-rose-500" />
           지역별 결혼 비용
         </h3>
-        <p className="text-[27px] text-taupe-400 mt-0.5">식대 + 스드메 + 대관료 + 꽃장식 합산 (만원)</p>
+        <p className="text-[11px] text-taupe-400 mt-0.5">식대 + 스드메 + 대관료 + 꽃장식 합산 (만원)</p>
       </div>
       <div className="p-5">
         <RegionalCostTable periodId={periodId} />
@@ -230,11 +230,11 @@ function TrendTab() {
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+          <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
             <TrendingUp size={16} className="text-rose-500" />
             18개월 비용 추이
           </h3>
-          <p className="text-[27px] text-taupe-400 mt-0.5">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
+          <p className="text-[11px] text-taupe-400 mt-0.5">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
         </div>
         <div className="p-5">
           <TrendChart />
@@ -243,8 +243,8 @@ function TrendTab() {
 
       {/* 주요 인사이트 */}
       <div className="bg-gradient-to-br from-rose-500/5 to-[#C9A96E]/5 rounded-2xl p-5 border border-black/[0.04]">
-        <h4 className="text-[31px] font-medium text-noir-800 mb-3">주요 인사이트</h4>
-        <ul className="space-y-2 text-[47px] text-taupe-500">
+        <h4 className="text-[13px] font-medium text-noir-800 mb-3">주요 인사이트</h4>
+        <ul className="space-y-2 text-[12px] text-taupe-500">
           <li className="flex items-start gap-2">
             <span className="text-rose-500 mt-0.5">&#8226;</span>
             <span>성수기(10~11월)와 비수기(2~3월, 8월)의 가격 차이가 400~500만원 수준</span>
@@ -273,7 +273,7 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
       {/* 필수 항목 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+          <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
             <Building2 size={16} className="text-rose-500" />
             필수 항목
           </h3>
@@ -291,23 +291,23 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
       {/* 선택 항목 (17개) */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800">선택 항목</h3>
-          <p className="text-[27px] text-taupe-400 mt-0.5">필수가 아닌 선택 서비스 — 절약 포인트!</p>
+          <h3 className="text-[14px] font-medium text-noir-800">선택 항목</h3>
+          <p className="text-[11px] text-taupe-400 mt-0.5">필수가 아닌 선택 서비스 — 절약 포인트!</p>
         </div>
         <div className="divide-y divide-black/[0.03]">
           {VENUE_OPTIONAL_NAMES.map(name => (
             <div key={name} className="flex items-center justify-between px-5 py-3">
-              <span className="text-[31px] text-noir-800">{name}</span>
-              <span className="text-[31px] font-medium text-noir-800">
-                {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-[27px] text-taupe-400 ml-0.5">만원</span>
+              <span className="text-[13px] text-noir-800">{name}</span>
+              <span className="text-[13px] font-medium text-noir-800">
+                {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-[11px] text-taupe-400 ml-0.5">만원</span>
               </span>
             </div>
           ))}
         </div>
         {/* 합계 */}
         <div className="px-5 py-3 bg-ivory-50 flex items-center justify-between border-t border-black/[0.04]">
-          <span className="text-[31px] font-medium text-noir-800">선택항목 전체 합계</span>
-          <span className="text-[53px] font-semibold text-rose-500">
+          <span className="text-[13px] font-medium text-noir-800">선택항목 전체 합계</span>
+          <span className="text-[14px] font-semibold text-rose-500">
             {Object.values(optItems.items).reduce((s, v) => s + v, 0).toLocaleString()}만원
           </span>
         </div>
@@ -329,19 +329,19 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 패키지 가격 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+          <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
             <Camera size={16} className="text-rose-500" />
             스드메 패키지 지역별 비교
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[47px]">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                <th className="text-left py-3 px-4 text-[27px] font-medium text-taupe-500">지역</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">스드메 패키지</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">드메 패키지</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">스튜디오 기본</th>
+                <th className="text-left py-3 px-4 text-[11px] font-medium text-taupe-500">지역</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">스드메 패키지</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">드메 패키지</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">스튜디오 기본</th>
               </tr>
             </thead>
             <tbody>
@@ -361,19 +361,19 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 드레스 상세 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+          <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
             <Shirt size={16} className="text-[#C9A96E]" />
             드레스 가격
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[47px]">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                <th className="text-left py-3 px-4 text-[27px] font-medium text-taupe-500">구분</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">촬영용</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">본식용</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">2부 드레스</th>
+                <th className="text-left py-3 px-4 text-[11px] font-medium text-taupe-500">구분</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">촬영용</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">본식용</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">2부 드레스</th>
               </tr>
             </thead>
             <tbody>
@@ -401,19 +401,19 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 메이크업 상세 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+          <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
             <Palette size={16} className="text-[#C9A96E]" />
             메이크업 가격
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[47px]">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                <th className="text-left py-3 px-4 text-[27px] font-medium text-taupe-500">구분</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">촬영</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">본식</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">리허설</th>
+                <th className="text-left py-3 px-4 text-[11px] font-medium text-taupe-500">구분</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">촬영</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">본식</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">리허설</th>
               </tr>
             </thead>
             <tbody>
@@ -457,19 +457,19 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
         return (
           <div key={cat.key} className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
             <div className="px-5 py-4 border-b border-black/[0.04]">
-              <h3 className="text-[53px] font-medium text-noir-800 flex items-center gap-2">
+              <h3 className="text-[14px] font-medium text-noir-800 flex items-center gap-2">
                 <Icon size={16} style={{ color: cat.color }} />
                 {cat.label} ({items.length}개)
               </h3>
-              <p className="text-[27px] text-taupe-400 mt-0.5">2026년 1월 기준 중위 가격</p>
+              <p className="text-[11px] text-taupe-400 mt-0.5">2026년 1월 기준 중위 가격</p>
             </div>
             <div className="divide-y divide-black/[0.03]">
               {items.map(item => {
                 const price = scope === "seoul" ? item.seoulPrice : item.nationalPrice;
                 return (
                   <div key={item.name} className="flex items-center justify-between px-5 py-2.5">
-                    <span className="text-[31px] text-noir-800">{item.name}</span>
-                    <span className="text-[31px] font-medium text-noir-800">
+                    <span className="text-[13px] text-noir-800">{item.name}</span>
+                    <span className="text-[13px] font-medium text-noir-800">
                       {price > 0 ? `${price.toLocaleString()}만원` : "—"}
                     </span>
                   </div>
@@ -492,49 +492,49 @@ function SeasonalTab() {
         <div className="bg-gradient-to-br from-[#C4967E]/10 to-[#C9A96E]/5 rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-2 mb-3">
             <Sun size={18} className="text-[#C4967E]" />
-            <span className="text-[31px] font-medium text-noir-800">성수기</span>
+            <span className="text-[13px] font-medium text-noir-800">성수기</span>
           </div>
-          <p className="text-[25px] text-taupe-400 mb-1">4~6월, 9~11월</p>
-          <p className="font-display text-[50px] font-light text-noir-800">
+          <p className="text-[10px] text-taupe-400 mb-1">4~6월, 9~11월</p>
+          <p className="font-display text-[32px] font-light text-noir-800">
             {SEASONAL_DATA[SEASONAL_DATA.length - 1].peak.toLocaleString()}
-            <span className="text-[53px] text-taupe-400 ml-1">만원</span>
+            <span className="text-[14px] text-taupe-400 ml-1">만원</span>
           </p>
         </div>
         <div className="bg-gradient-to-br from-[#2E7D5A]/10 to-[#2E7D5A]/3 rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-2 mb-3">
             <Snowflake size={18} className="text-[#2E7D5A]" />
-            <span className="text-[31px] font-medium text-noir-800">비수기</span>
+            <span className="text-[13px] font-medium text-noir-800">비수기</span>
           </div>
-          <p className="text-[25px] text-taupe-400 mb-1">1~3월, 7~8월, 12월</p>
-          <p className="font-display text-[50px] font-light text-noir-800">
+          <p className="text-[10px] text-taupe-400 mb-1">1~3월, 7~8월, 12월</p>
+          <p className="font-display text-[32px] font-light text-noir-800">
             {SEASONAL_DATA[SEASONAL_DATA.length - 1].offPeak.toLocaleString()}
-            <span className="text-[53px] text-taupe-400 ml-1">만원</span>
+            <span className="text-[14px] text-taupe-400 ml-1">만원</span>
           </p>
         </div>
       </div>
 
       {/* 절약 강조 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] p-5 text-center">
-        <p className="text-[31px] text-taupe-500 mb-1">비수기 결혼 시 평균 절약 금액</p>
-        <p className="font-display text-[62px] font-light text-[#2E7D5A]">
+        <p className="text-[13px] text-taupe-500 mb-1">비수기 결혼 시 평균 절약 금액</p>
+        <p className="font-display text-[40px] font-light text-[#2E7D5A]">
           {SEASONAL_DATA[SEASONAL_DATA.length - 1].savings.toLocaleString()}
-          <span className="text-[25px] text-taupe-400 ml-1">만원</span>
+          <span className="text-[16px] text-taupe-400 ml-1">만원</span>
         </p>
       </div>
 
       {/* 기간별 추이 테이블 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
         <div className="px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[53px] font-medium text-noir-800">기간별 성수기/비수기 비교</h3>
+          <h3 className="text-[14px] font-medium text-noir-800">기간별 성수기/비수기 비교</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[47px]">
+          <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                <th className="text-left py-3 px-4 text-[27px] font-medium text-taupe-500">기간</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">성수기</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">비수기</th>
-                <th className="text-right py-3 px-4 text-[27px] font-medium text-taupe-500">절약액</th>
+                <th className="text-left py-3 px-4 text-[11px] font-medium text-taupe-500">기간</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">성수기</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">비수기</th>
+                <th className="text-right py-3 px-4 text-[11px] font-medium text-taupe-500">절약액</th>
               </tr>
             </thead>
             <tbody>
@@ -561,12 +561,12 @@ function SeasonalTab() {
 function StatCard({ label, value, unit, color, sub }: { label: string; value: number; unit: string; color: string; sub?: string }) {
   return (
     <div className="bg-white rounded-2xl border border-black/[0.04] p-5">
-      <p className="text-[47px] text-taupe-500 font-light mb-2">{label}</p>
-      <p className="font-display text-[50px] font-light text-noir-800">
+      <p className="text-[12px] text-taupe-500 font-light mb-2">{label}</p>
+      <p className="font-display text-[32px] font-light text-noir-800">
         {value.toLocaleString()}
-        <span className="text-[31px] font-light ml-1" style={{ color }}>{unit}</span>
+        <span className="text-[13px] font-light ml-1" style={{ color }}>{unit}</span>
       </p>
-      {sub && <p className="text-[27px] text-taupe-400 mt-1">{sub}</p>}
+      {sub && <p className="text-[11px] text-taupe-400 mt-1">{sub}</p>}
     </div>
   );
 }
@@ -576,13 +576,13 @@ function CostBreakdownItem({ label, value, total, color }: { label: string; valu
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[47px] text-taupe-500">{label}</span>
-        <span className="text-[47px] font-medium" style={{ color }}>{percent}%</span>
+        <span className="text-[12px] text-taupe-500">{label}</span>
+        <span className="text-[12px] font-medium" style={{ color }}>{percent}%</span>
       </div>
       <div className="h-1.5 bg-ivory-200 rounded-full overflow-hidden mb-1">
         <div className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: color }} />
       </div>
-      <p className="text-[53px] font-medium text-noir-800">{value.toLocaleString()}<span className="text-[25px] text-taupe-400">만원</span></p>
+      <p className="text-[14px] font-medium text-noir-800">{value.toLocaleString()}<span className="text-[10px] text-taupe-400">만원</span></p>
     </div>
   );
 }
@@ -590,8 +590,8 @@ function CostBreakdownItem({ label, value, total, color }: { label: string; valu
 function DataCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white p-4">
-      <p className="text-[27px] text-taupe-500 mb-1">{label}</p>
-      <p className="text-[25px] font-medium text-noir-800">{value}</p>
+      <p className="text-[11px] text-taupe-500 mb-1">{label}</p>
+      <p className="text-[16px] font-medium text-noir-800">{value}</p>
     </div>
   );
 }

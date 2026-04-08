@@ -127,7 +127,7 @@ export default function EventFormModal({
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C9A96E]/20 to-[#C4967E]/20 flex items-center justify-center">
                     <CalendarDays className="w-5 h-5 text-[#C9A96E]" />
                   </div>
-                  <h3 className="text-[25px] font-medium text-[#1A1A1F]">
+                  <h3 className="text-[16px] font-medium text-[#1A1A1F]">
                     {mode === "edit" ? "일정 수정" : "일정 추가"}
                   </h3>
                 </div>
@@ -144,7 +144,7 @@ export default function EventFormModal({
             <div className="px-6 py-5 flex flex-col gap-4">
               {/* 제목 */}
               <div>
-                <label className="block text-[47px] text-[#928980] mb-1.5">
+                <label className="block text-[12px] text-[#928980] mb-1.5">
                   제목 <span className="text-[#C4967E]">*</span>
                 </label>
                 <input
@@ -152,26 +152,26 @@ export default function EventFormModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="예: 드레스 피팅, 친구들과 청첩장 모임, 혼수 쇼핑"
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[31px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
                 />
               </div>
 
               {/* 날짜 */}
               <div>
-                <label className="block text-[47px] text-[#928980] mb-1.5">
+                <label className="block text-[12px] text-[#928980] mb-1.5">
                   날짜 <span className="text-[#C4967E]">*</span>
                 </label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[31px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
                 />
               </div>
 
               {/* 메모 */}
               <div>
-                <label className="block text-[47px] text-[#928980] mb-1.5">
+                <label className="block text-[12px] text-[#928980] mb-1.5">
                   메모
                 </label>
                 <textarea
@@ -179,19 +179,19 @@ export default function EventFormModal({
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="예: 강남 드레스샵 오후 2시, 참석자: 지은, 수현"
                   rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[31px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
                 />
               </div>
 
               {/* 카테고리 */}
               <div>
-                <label className="block text-[47px] text-[#928980] mb-1.5">
+                <label className="block text-[12px] text-[#928980] mb-1.5">
                   관련 카테고리
                 </label>
                 <select
                   value={categoryKey}
                   onChange={(e) => setCategoryKey(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[31px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors bg-white"
                 >
                   {CATEGORY_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
@@ -208,7 +208,7 @@ export default function EventFormModal({
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="flex items-center gap-1.5 text-[47px] text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 text-[12px] text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {deleting ? "삭제중..." : "삭제"}
@@ -219,14 +219,14 @@ export default function EventFormModal({
               <div className="flex items-center gap-2">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl text-[31px] text-[#928980] hover:bg-[#FAF8F5] transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-[13px] text-[#928980] hover:bg-[#FAF8F5] transition-colors"
                 >
                   취소
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={saving || !title.trim() || !date}
-                  className="px-5 py-2.5 rounded-xl text-[31px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving
                     ? "저장중..."

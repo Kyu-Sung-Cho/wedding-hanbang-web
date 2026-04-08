@@ -69,7 +69,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           >
             <Menu className="w-5 h-5 text-noir-800" />
           </button>
-          <h1 className="font-serif-kr text-[31px] font-normal text-noir-800 tracking-tight">
+          <h1 className="font-serif-kr text-[20px] font-normal text-noir-800 tracking-tight">
             {title}
           </h1>
         </div>
@@ -79,13 +79,13 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           {dday !== null && dday > 0 && (
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-black/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-              <span className="font-display text-[53px] font-medium text-rose-500">D-{dday}</span>
-              <span className="text-[27px] text-taupe-500 font-light">결혼식까지</span>
+              <span className="font-display text-[14px] font-medium text-rose-500">D-{dday}</span>
+              <span className="text-[11px] text-taupe-500 font-light">결혼식까지</span>
             </div>
           )}
           {dday === null && (
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-black/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-              <span className="text-[47px] text-taupe-400">날짜 미정</span>
+              <span className="text-[12px] text-taupe-400">날짜 미정</span>
             </div>
           )}
 
@@ -102,7 +102,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             >
               <Bell className="w-[18px] h-[18px] text-taupe-500" />
               {newCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[25px] font-medium flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-medium flex items-center justify-center">
                   {newCount > 9 ? "9+" : newCount}
                 </span>
               )}
