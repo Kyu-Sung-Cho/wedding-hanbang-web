@@ -429,7 +429,7 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   }, [onClose]);
 
   return (
-    <div ref={popoverRef} className="w-[470px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
+    <div ref={popoverRef} className="w-[300px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[13px] font-medium text-noir-800">일정에 추가</p>
         <button onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors">
@@ -607,7 +607,7 @@ function EtiquettePageInner() {
   return (
     <div className="flex h-[calc(100vh-64px)] max-md:h-[calc(100vh-56px)] overflow-hidden">
       {/* 사이드바 (데스크톱) */}
-      <aside className="hidden lg:flex flex-col w-[440px] border-r border-black/[0.04] bg-ivory-50/50 flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-[280px] border-r border-black/[0.04] bg-ivory-50/50 flex-shrink-0">
         {/* 검색 */}
         <div className="p-4 border-b border-black/[0.04]">
           <div className="relative">
@@ -701,7 +701,7 @@ function EtiquettePageInner() {
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-[470px] bg-ivory-50 flex flex-col h-full animate-fade-in">
+          <aside className="relative w-[300px] bg-ivory-50 flex flex-col h-full animate-fade-in">
             <div className="p-4 border-b border-black/[0.04] flex items-center justify-between">
               <p className="text-[14px] font-medium text-noir-800">전체 목록</p>
               <button onClick={() => setSidebarOpen(false)} className="p-1">
@@ -785,7 +785,7 @@ function EtiquettePageInner() {
         </div>
 
         {/* 파트 헤더 */}
-        <div className="max-w-[1280px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
+        <div className="max-w-[800px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-12 h-12 max-md:w-10 max-md:h-10 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center`}>

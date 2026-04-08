@@ -54,7 +54,7 @@ export default function TemplateSelectPage() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="max-w-[900px] mx-auto">
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -258,7 +258,7 @@ export default function TemplateSelectPage() {
                 <p className="text-[10px] tracking-[0.2em] uppercase mb-4 opacity-40" style={{ color: preview.color_palette[0] }}>
                   Calendar
                 </p>
-                <div className="grid grid-cols-7 gap-1 max-w-[440px] mx-auto">
+                <div className="grid grid-cols-7 gap-1 max-w-[280px] mx-auto">
                   {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
                     <div key={d} className="text-[10px] opacity-30 py-1">{d}</div>
                   ))}

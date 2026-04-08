@@ -163,7 +163,7 @@ function CommunityFeedContent() {
 
       <div className="flex w-full">
         {/* 왼쪽 사이드바: 화면 왼쪽 끝에 붙임 */}
-        <aside className="hidden lg:flex flex-col w-[440px] xl:w-[470px] shrink-0 sticky top-[112px] h-[calc(100vh-112px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
           {/* 동기방 카드 */}
           <div className="px-2 mb-4">
             <CohortCard />
@@ -190,7 +190,7 @@ function CommunityFeedContent() {
 
         {/* 가운데: 메인 피드 */}
         <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
-          <div className="max-w-[1280px] mx-auto lg:mx-0 lg:max-w-none">
+          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-5">
@@ -288,7 +288,7 @@ function CommunityFeedContent() {
         </main>
 
         {/* 오른쪽 사이드바: 화면 오른쪽 끝에 붙임 */}
-        <aside className="hidden xl:flex flex-col w-[530px] 2xl:w-[600px] shrink-0 sticky top-[112px] h-[calc(100vh-112px)] overflow-y-auto py-6 pr-6 pl-2 space-y-4 border-l border-[#F0EFED]">
+        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-4 border-l border-[#F0EFED]">
           {/* 게이미피케이션 */}
           <GamificationWidget />
 
