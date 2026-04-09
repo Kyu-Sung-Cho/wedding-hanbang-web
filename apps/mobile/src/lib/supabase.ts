@@ -38,6 +38,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: LargeSecureStore,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // 모바일은 OAuth 콜백을 딥링크로 처리
+    detectSessionInUrl: false,
+    flowType: "implicit", // 모바일: PKCE 대신 implicit — 토큰이 URL fragment로 직접 돌아옴
   },
 });
