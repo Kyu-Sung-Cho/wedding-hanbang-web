@@ -1,39 +1,25 @@
 {
-  "name": "hanbang-web-temp",
+  "name": "wedding-hanbang",
   "version": "0.1.0",
   "private": true,
+  "description": "웨딩한방 모노레포 — 웹 + 모바일 + 공유 패키지",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.95.3",
-    "@tosspayments/tosspayments-sdk": "^2.5.0",
-    "date-fns": "^4.1.0",
-    "framer-motion": "^12.34.0",
-    "isomorphic-dompurify": "^3.7.1",
-    "lucide-react": "^0.563.0",
-    "mammoth": "^1.12.0",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "resend": "^6.9.1",
-    "sharp": "^0.34.5",
-    "xlsx": "^0.18.5",
-    "zustand": "^5.0.11"
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@hanbang/web",
+    "dev:mobile": "turbo run dev --filter=@hanbang/mobile",
+    "build": "turbo run build",
+    "build:web": "turbo run build --filter=@hanbang/web",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
+    "turbo": "^2.3.0",
     "typescript": "5.9.3"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   }
 }
