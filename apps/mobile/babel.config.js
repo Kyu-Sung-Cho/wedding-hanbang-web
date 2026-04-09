@@ -5,8 +5,7 @@ module.exports = function (api) {
       ["babel-preset-expo", { jsxImportSource: "nativewind" }],
       "nativewind/babel",
     ],
-    plugins: [
-      "react-native-reanimated/plugin", // 항상 마지막
-    ],
+    // Reanimated 4 (SDK 54) — plugin 은 선택. 필요해지면 아래 주석 해제
+    // plugins: ["react-native-worklets/plugin"],
   };
 };
