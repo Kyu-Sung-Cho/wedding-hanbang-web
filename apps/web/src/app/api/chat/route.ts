@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
 import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
@@ -132,8 +132,8 @@ async function processAttachments(attachments: unknown[]): Promise<ProcessedAtta
 }
 
 export async function POST(request: Request) {
-  // 인증 체크
-  const supabase = await createClient();
+  // 인증 체크 (웹: 쿠키, 앱: Bearer 토큰)
+  const supabase = await createClientFromRequest(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
