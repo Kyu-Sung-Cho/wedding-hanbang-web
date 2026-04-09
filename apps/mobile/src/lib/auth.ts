@@ -28,11 +28,17 @@ export async function signInWithOAuth(provider: Provider) {
   //       예) "exp://192.168.x.x:8081/--/auth/callback" (Expo Go)
 
   // 1. Supabase로부터 카카오 authorize URL 받기
+  // scopes: account_email은 비즈앱만 가능하므로 제외 — 닉네임+프로필사진만 요청
+  const scopes = provider === "kakao"
+    ? "profile_nickname profile_image"
+    : undefined;
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
       redirectTo,
-      skipBrowserRedirect: true, // 브라우저 자동 이동 막고 URL만 받기
+      skipBrowserRedirect: true,
+      scopes: scopes ?? "",
     },
   });
 
