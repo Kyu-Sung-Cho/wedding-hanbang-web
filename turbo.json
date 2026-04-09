@@ -41,7 +41,26 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["NODE_ENV"]
+      "env": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "ANTHROPIC_API_KEY",
+        "RESEND_API_KEY",
+        "NEXT_PUBLIC_SITE_URL",
+        "ADMIN_PASSWORD",
+        "DECART_API_KEY",
+        "NAVER_CLIENT_ID",
+        "NAVER_CLIENT_SECRET",
+        "SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT",
+        "NEXT_PUBLIC_POSTHOG_KEY",
+        "NEXT_PUBLIC_POSTHOG_HOST"
+      ]
     },
     "dev": {
       "cache": false,
