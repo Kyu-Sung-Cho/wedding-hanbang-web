@@ -1,0 +1,4 @@
+/* NativeWind v4 — 전역 Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

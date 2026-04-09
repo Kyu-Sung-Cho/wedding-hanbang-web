@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint · Typecheck · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build (web)
+        run: pnpm build:web
+        env:
+          # CI 빌드는 플레이스홀더 env로 타입/빌드만 검증
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
+          ANTHROPIC_API_KEY: placeholder
+          RESEND_API_KEY: placeholder
+          NEXT_PUBLIC_SITE_URL: https://hanbang.ai
+          ADMIN_PASSWORD: placeholder
+          DECART_API_KEY: placeholder
+          NAVER_CLIENT_ID: placeholder
+          NAVER_CLIENT_SECRET: placeholder

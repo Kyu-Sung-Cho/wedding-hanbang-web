@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
-    "@hanbang/shared": "workspace:*",
     "@hanbang/design-tokens": "workspace:*",
+    "@hanbang/shared": "workspace:*",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
     "@tosspayments/tosspayments-sdk": "^2.5.0",
@@ -31,6 +31,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@sentry/nextjs": "^10.47.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
