@@ -1,9 +1,33 @@
-// 로그인 화면 (Phase 0 — UI 껍데기만)
-import { View, Text, Pressable, StyleSheet, Image } from "react-native";
+// 로그인 화면 — 카카오/Apple OAuth
+import { useState } from "react";
+import { View, Text, Pressable, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
+import { signInWithOAuth } from "@/lib/auth";
 
 export default function LoginScreen() {
+  const [loading, setLoading] = useState<null | "kakao" | "apple">(null);
+
+  async function handleLogin(provider: "kakao" | "apple") {
+    if (loading) return;
+    setLoading(provider);
+    try {
+      const result = await signInWithOAuth(provider);
+      if (result.cancelled) {
+        setLoading(null);
+        return;
+      }
+      // 세션 성공 → 탭으로 이동 (루트 index가 세션 감지해서 리다이렉트)
+      router.replace("/(tabs)/dashboard");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "로그인에 실패했어요";
+      Alert.alert("로그인 오류", message);
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -24,16 +48,26 @@ export default function LoginScreen() {
         <View style={styles.buttons}>
           <Pressable
             style={({ pressed }) => [styles.kakaoButton, pressed && styles.pressed]}
-            onPress={() => console.log("Kakao login")}
+            onPress={() => handleLogin("kakao")}
+            disabled={loading !== null}
           >
-            <Text style={styles.kakaoText}>카카오로 계속하기</Text>
+            {loading === "kakao" ? (
+              <ActivityIndicator color="#191919" />
+            ) : (
+              <Text style={styles.kakaoText}>카카오로 계속하기</Text>
+            )}
           </Pressable>
 
           <Pressable
             style={({ pressed }) => [styles.appleButton, pressed && styles.pressed]}
-            onPress={() => console.log("Apple login")}
+            onPress={() => handleLogin("apple")}
+            disabled={loading !== null}
           >
-            <Text style={styles.appleText}>Apple로 계속하기</Text>
+            {loading === "apple" ? (
+              <ActivityIndicator color={colors.textPrimary} />
+            ) : (
+              <Text style={styles.appleText}>Apple로 계속하기</Text>
+            )}
           </Pressable>
 
           <Text style={styles.disclaimer}>
