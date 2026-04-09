@@ -13,6 +13,9 @@
     "clean": "rm -rf node_modules .expo"
   },
   "dependencies": {
+    "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/noto-sans-kr": "^0.4.3",
+    "@expo-google-fonts/noto-serif-kr": "^0.4.3",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.2",
     "@hanbang/design-tokens": "workspace:*",
@@ -32,10 +35,10 @@
     "expo-web-browser": "~15.0.0",
     "lucide-react-native": "^0.545.0",
     "nativewind": "^4.1.23",
-    "react-native-css-interop": "^0.1.22",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.4",
+    "react-native-css-interop": "^0.1.22",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.0",
     "react-native-safe-area-context": "~5.6.0",

@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 36,
-    fontWeight: "500",
+    fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     marginBottom: 12,
     letterSpacing: -0.5,

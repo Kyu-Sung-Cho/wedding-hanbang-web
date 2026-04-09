@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
   title: {
     fontSize: 32,
-    fontWeight: "500",
+    fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     marginBottom: 32,
     letterSpacing: -0.5,
