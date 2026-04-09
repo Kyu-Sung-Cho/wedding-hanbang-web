@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
 import { signInWithOAuth } from "@/lib/auth";
+import { makeRedirectUri } from "expo-auth-session";
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState<null | "kakao" | "apple">(null);
@@ -12,13 +13,19 @@ export default function LoginScreen() {
   async function handleLogin(provider: "kakao" | "apple") {
     if (loading) return;
     setLoading(provider);
+
+    // 디버그: redirect URI 확인
+    const redirectUri = makeRedirectUri();
+    console.log("[Auth] redirectUri:", redirectUri);
+    Alert.alert("Redirect URI", redirectUri);
+    // ↑ 이 Alert 확인 후 Supabase에 등록하고 삭제
+
     try {
       const result = await signInWithOAuth(provider);
       if (result.cancelled) {
         setLoading(null);
         return;
       }
-      // 세션 성공 → 탭으로 이동 (루트 index가 세션 감지해서 리다이렉트)
       router.replace("/(tabs)/dashboard");
     } catch (err) {
       const message = err instanceof Error ? err.message : "로그인에 실패했어요";

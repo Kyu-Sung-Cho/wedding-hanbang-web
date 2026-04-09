@@ -1,34 +1,52 @@
-// 웨딩한방 앱 OAuth 로직
-// 카카오/Apple 로그인은 Supabase의 외부 OAuth 플로우를 사용합니다.
+// Supabase 공식 Expo OAuth 플로우
+// https://supabase.com/docs/guides/auth/social-login/auth-kakao?queryGroups=framework&framework=expo
 //
-// 플로우:
-// 1. supabase.auth.signInWithOAuth() → authorize URL 받기
-// 2. expo-web-browser 로 authorize URL 열기 (인앱 브라우저)
-// 3. 사용자가 카카오 로그인 완료
-// 4. 카카오 → Supabase → hanbang://auth/callback 딥링크 리턴
-// 5. 딥링크에서 access_token, refresh_token 파싱
-// 6. supabase.auth.setSession() 호출
+// 핵심: makeRedirectUri() + openAuthSessionAsync + setSession
+// PKCE/implicit 관계없이 URL에서 토큰을 직접 파싱하는 방식
 
+import { makeRedirectUri } from "expo-auth-session";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import { supabase } from "./supabase";
 import type { Provider } from "@supabase/supabase-js";
 
-// iOS 웹 브라우저 인증 완료 감지
+// iOS: 브라우저 인증 세션 완료 감지
 WebBrowser.maybeCompleteAuthSession();
 
+// Expo Go에서는 Expo 프록시 URL, 프로덕션에서는 hanbang:// 스킴
+const redirectTo = makeRedirectUri();
+
 /**
- * OAuth 로그인 공통 함수
- * @param provider 'kakao' | 'google' | 'apple' | ...
+ * URL에서 세션 토큰 추출 → Supabase 세션 설정
+ */
+async function createSessionFromUrl(url: string) {
+  // access_token, refresh_token 이 URL의 hash fragment 또는 query param에 있음
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+
+  if (errorCode) {
+    throw new Error(`OAuth 에러: ${errorCode}`);
+  }
+
+  const { access_token, refresh_token } = params;
+
+  if (!access_token || !refresh_token) {
+    throw new Error("토큰을 받지 못했습니다. 다시 시도해주세요.");
+  }
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token,
+    refresh_token,
+  });
+
+  if (error) throw error;
+  return data.session;
+}
+
+/**
+ * OAuth 로그인
  */
 export async function signInWithOAuth(provider: Provider) {
-  // 앱이 돌려받을 딥링크 URL
-  const redirectTo = Linking.createURL("auth/callback");
-  // 결과: 예) "hanbang://auth/callback" (standalone)
-  //       예) "exp://192.168.x.x:8081/--/auth/callback" (Expo Go)
-
-  // 1. Supabase로부터 카카오 authorize URL 받기
-  // scopes: account_email은 비즈앱만 가능하므로 제외 — 닉네임+프로필사진만 요청
+  // 카카오: account_email scope 제거 (비즈앱 아니라 권한 없음)
   const scopes = provider === "kakao"
     ? "profile_nickname profile_image"
     : undefined;
@@ -42,77 +60,39 @@ export async function signInWithOAuth(provider: Provider) {
     },
   });
 
-  if (error) {
-    console.error("[Auth] signInWithOAuth error:", error);
-    throw error;
-  }
-  if (!data?.url) {
-    throw new Error("[Auth] No authorize URL returned from Supabase");
-  }
+  if (error) throw error;
+  if (!data?.url) throw new Error("인증 URL을 받지 못했습니다.");
 
-  // 2. Supabase가 기본으로 account_email scope를 넣을 수 있으므로 URL에서 직접 제거
+  // 카카오 URL에서 account_email scope 강제 제거 (Supabase 기본값 방어)
   let authorizeUrl = data.url;
   if (provider === "kakao") {
-    const urlObj = new URL(authorizeUrl);
-    const currentScopes = urlObj.searchParams.get("scope") ?? "";
-    const filteredScopes = currentScopes
-      .split(/[,\s]+/)
-      .filter((s) => s && s !== "account_email")
-      .join(" ");
-    urlObj.searchParams.set("scope", filteredScopes);
-    authorizeUrl = urlObj.toString();
+    try {
+      const urlObj = new URL(authorizeUrl);
+      const currentScopes = urlObj.searchParams.get("scope") ?? "";
+      const filtered = currentScopes
+        .split(/[,\s]+/)
+        .filter((s) => s && s !== "account_email")
+        .join(" ");
+      urlObj.searchParams.set("scope", filtered);
+      authorizeUrl = urlObj.toString();
+    } catch {
+      // URL 파싱 실패 시 원본 사용
+    }
   }
 
-  // 3. 인앱 브라우저로 authorize URL 열기
+  // 인앱 브라우저 열기 — redirectTo 로 시작하는 URL 감지 시 자동 닫힘
   const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, redirectTo);
 
   if (result.type !== "success" || !result.url) {
-    // 사용자가 취소했거나 에러
     if (result.type === "cancel" || result.type === "dismiss") {
-      return { cancelled: true };
+      return { cancelled: true, session: null };
     }
-    throw new Error(`[Auth] WebBrowser returned: ${result.type}`);
+    throw new Error(`브라우저 오류: ${result.type}`);
   }
 
-  // 3. 리턴된 URL에서 토큰 파싱
-  // PKCE 플로우면 URL에 code 파라미터, implicit 플로우면 hash에 access_token
-  const url = result.url;
-  const parsed = Linking.parse(url);
-
-  // code 파라미터 (PKCE)
-  const code = parsed.queryParams?.code as string | undefined;
-  if (code) {
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeError) {
-      console.error("[Auth] exchangeCodeForSession error:", exchangeError);
-      throw exchangeError;
-    }
-    return { cancelled: false };
-  }
-
-  // hash의 access_token (implicit / legacy)
-  // URL fragment는 expo-linking이 파싱 안 하므로 수동 처리
-  const hashIndex = url.indexOf("#");
-  if (hashIndex !== -1) {
-    const fragment = url.substring(hashIndex + 1);
-    const params = new URLSearchParams(fragment);
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-
-    if (accessToken && refreshToken) {
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-      if (sessionError) {
-        console.error("[Auth] setSession error:", sessionError);
-        throw sessionError;
-      }
-      return { cancelled: false };
-    }
-  }
-
-  throw new Error("[Auth] Could not extract tokens from redirect URL");
+  // 리턴된 URL에서 세션 생성
+  const session = await createSessionFromUrl(result.url);
+  return { cancelled: false, session };
 }
 
 export async function signOut() {
