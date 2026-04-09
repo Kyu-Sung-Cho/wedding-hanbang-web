@@ -4,38 +4,46 @@
 // 핵심: makeRedirectUri() + openAuthSessionAsync + setSession
 // PKCE/implicit 관계없이 URL에서 토큰을 직접 파싱하는 방식
 
-import { makeRedirectUri } from "expo-auth-session";
-import * as QueryParams from "expo-auth-session/build/QueryParams";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { supabase } from "./supabase";
 import type { Provider } from "@supabase/supabase-js";
 
 // iOS: 브라우저 인증 세션 완료 감지
 WebBrowser.maybeCompleteAuthSession();
 
-// Expo Go에서는 Expo 프록시 URL, 프로덕션에서는 hanbang:// 스킴
-const redirectTo = makeRedirectUri();
+// 웹 콜백 페이지를 중간 다리로 사용
+// Supabase → https://hanbang.ai/auth/mobile-callback#tokens → 앱으로 딥링크
+const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const redirectTo = `${SITE_URL}/auth/mobile-callback`;
+
+// 앱으로 돌아올 때 감지할 URL (hanbang:// 또는 exp://)
+const appReturnUrl = Linking.createURL("auth/callback");
 
 /**
  * URL에서 세션 토큰 추출 → Supabase 세션 설정
  */
 async function createSessionFromUrl(url: string) {
-  // access_token, refresh_token 이 URL의 hash fragment 또는 query param에 있음
-  const { params, errorCode } = QueryParams.getQueryParams(url);
+  // hash fragment에서 토큰 추출: ...#access_token=xxx&refresh_token=xxx
+  const hashIndex = url.indexOf("#");
+  const queryIndex = url.indexOf("?");
+  const paramString = hashIndex !== -1
+    ? url.substring(hashIndex + 1)
+    : queryIndex !== -1
+      ? url.substring(queryIndex + 1)
+      : "";
 
-  if (errorCode) {
-    throw new Error(`OAuth 에러: ${errorCode}`);
-  }
+  const params = new URLSearchParams(paramString);
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
 
-  const { access_token, refresh_token } = params;
-
-  if (!access_token || !refresh_token) {
+  if (!accessToken || !refreshToken) {
     throw new Error("토큰을 받지 못했습니다. 다시 시도해주세요.");
   }
 
   const { data, error } = await supabase.auth.setSession({
-    access_token,
-    refresh_token,
+    access_token: accessToken,
+    refresh_token: refreshToken,
   });
 
   if (error) throw error;
@@ -80,8 +88,10 @@ export async function signInWithOAuth(provider: Provider) {
     }
   }
 
-  // 인앱 브라우저 열기 — redirectTo 로 시작하는 URL 감지 시 자동 닫힘
-  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, redirectTo);
+  // 인앱 브라우저 열기
+  // 웹 콜백 페이지(hanbang.ai/auth/mobile-callback)가 앱 딥링크로 리다이렉트
+  // 앱 딥링크(hanbang:// 또는 exp://)를 감지하면 브라우저 자동 닫힘
+  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, appReturnUrl);
 
   if (result.type !== "success" || !result.url) {
     if (result.type === "cancel" || result.type === "dismiss") {
