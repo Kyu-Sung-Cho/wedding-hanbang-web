@@ -50,8 +50,21 @@ export async function signInWithOAuth(provider: Provider) {
     throw new Error("[Auth] No authorize URL returned from Supabase");
   }
 
-  // 2. 인앱 브라우저로 authorize URL 열기
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  // 2. Supabase가 기본으로 account_email scope를 넣을 수 있으므로 URL에서 직접 제거
+  let authorizeUrl = data.url;
+  if (provider === "kakao") {
+    const urlObj = new URL(authorizeUrl);
+    const currentScopes = urlObj.searchParams.get("scope") ?? "";
+    const filteredScopes = currentScopes
+      .split(/[,\s]+/)
+      .filter((s) => s && s !== "account_email")
+      .join(" ");
+    urlObj.searchParams.set("scope", filteredScopes);
+    authorizeUrl = urlObj.toString();
+  }
+
+  // 3. 인앱 브라우저로 authorize URL 열기
+  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, redirectTo);
 
   if (result.type !== "success" || !result.url) {
     // 사용자가 취소했거나 에러
