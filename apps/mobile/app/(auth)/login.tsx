@@ -1,7 +1,6 @@
 // 로그인 화면 (Phase 0 — UI 껍데기만)
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Sparkles } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 
 export default function LoginScreen() {
@@ -10,9 +9,11 @@ export default function LoginScreen() {
       <View style={styles.content}>
         {/* 상단 — 브랜드 */}
         <View style={styles.brand}>
-          <View style={styles.logoCircle}>
-            <Sparkles size={36} color={colors.gold.DEFAULT} />
-          </View>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>웨딩한방</Text>
           <Text style={styles.subtitle}>
             AI 웨딩 플래너와 함께{"\n"}완벽한 결혼을 준비하세요
@@ -60,14 +61,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
+  logo: {
+    width: 112,
+    height: 112,
+    marginBottom: 28,
     borderRadius: 28,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 32,
   },
   title: {
     fontSize: 36,
