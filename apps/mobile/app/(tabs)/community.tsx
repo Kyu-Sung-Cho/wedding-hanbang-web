@@ -79,10 +79,7 @@ export default function CommunityScreen() {
     return (
       <Pressable
         style={({ pressed }) => [styles.postCard, pressed && { opacity: 0.8 }]}
-        onPress={() => {
-          // Phase 4에서 상세 화면 구현
-          console.log("Navigate to post", item.id);
-        }}
+        onPress={() => router.push(`/community/post/${item.id}` as never)}
       >
         {/* 메타 */}
         <View style={styles.postMeta}>
@@ -178,10 +175,7 @@ export default function CommunityScreen() {
       {/* 글쓰기 FAB */}
       <Pressable
         style={styles.fab}
-        onPress={() => {
-          // Phase 5에서 글쓰기 화면 구현, 지금은 웹으로
-          console.log("Write post");
-        }}
+        onPress={() => router.push("/community/post/write" as never)}
       >
         <PenSquare size={22} color="#FFFFFF" />
       </Pressable>
