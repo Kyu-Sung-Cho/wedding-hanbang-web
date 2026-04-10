@@ -1,14 +1,19 @@
-// 업체 탐색 화면
+// 업체 탐색 화면 — 네이티브 업체 브라우징
 import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator,
-  RefreshControl, TextInput, Alert,
+  RefreshControl, TextInput, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Search, Star, MapPin } from "lucide-react-native";
+import {
+  ArrowLeft, Search, Star, MapPin, ExternalLink, Store,
+  DollarSign, Plus,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+
+const SITE_URL = "https://hanbang.ai";
 
 /* ───── types ───── */
 interface Vendor {
@@ -20,6 +25,7 @@ interface Vendor {
   phone: string | null;
   address: string | null;
   description: string | null;
+  price_range: string | null;
 }
 
 const CATEGORY_FILTERS = [
@@ -53,31 +59,32 @@ export default function VendorsScreen() {
       const { data, error } = await query;
 
       if (error) {
-        // 테이블 없는 경우
+        // 테이블이 없는 경우
         if (error.code === "42P01" || error.message.includes("does not exist")) {
           setHasTable(false);
           setVendors([]);
           return;
         }
-        console.error("Vendors load error:", error);
+        console.error("업체 로드 오류:", error);
         return;
       }
 
       setHasTable(true);
       setVendors(
-        (data ?? []).map((r) => ({
-          id: r.id,
-          name: r.name ?? "",
-          category: r.category ?? null,
-          region: r.region ?? null,
-          rating: r.rating ?? null,
-          phone: r.phone ?? null,
-          address: r.address ?? null,
-          description: r.description ?? null,
+        (data ?? []).map((r: Record<string, unknown>) => ({
+          id: String(r.id ?? ""),
+          name: String(r.name ?? ""),
+          category: r.category ? String(r.category) : null,
+          region: r.region ? String(r.region) : null,
+          rating: typeof r.rating === "number" ? r.rating : null,
+          phone: r.phone ? String(r.phone) : null,
+          address: r.address ? String(r.address) : null,
+          description: r.description ? String(r.description) : null,
+          price_range: r.price_range ? String(r.price_range) : null,
         }))
       );
     } catch (err) {
-      console.error("Vendors load error:", err);
+      console.error("업체 로드 오류:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -86,19 +93,31 @@ export default function VendorsScreen() {
 
   useEffect(() => { loadVendors(); }, [loadVendors]);
 
-  function showVendorDetail(vendor: Vendor) {
-    const info = [
-      vendor.category ? `카테고리: ${vendor.category}` : null,
-      vendor.region ? `지역: ${vendor.region}` : null,
-      vendor.address ? `주소: ${vendor.address}` : null,
-      vendor.phone ? `연락처: ${vendor.phone}` : null,
-      vendor.rating ? `평점: ${vendor.rating}점` : null,
-      vendor.description ? `\n${vendor.description}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
+  function openVendorDetail(vendor: Vendor) {
+    const url = `${SITE_URL}/vendors/${vendor.id}`;
+    Linking.openURL(url).catch(() => {
+      // 웹뷰 폴백 — 상세 정보 알림
+      const info = [
+        vendor.category ? `카테고리: ${vendor.category}` : null,
+        vendor.region ? `지역: ${vendor.region}` : null,
+        vendor.address ? `주소: ${vendor.address}` : null,
+        vendor.phone ? `연락처: ${vendor.phone}` : null,
+        vendor.rating ? `평점: ${vendor.rating}점` : null,
+        vendor.price_range ? `가격대: ${vendor.price_range}` : null,
+        vendor.description ? `\n${vendor.description}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      // fallback: 단순 정보 표시는 하지 않고 에러 무시
+    });
+  }
 
-    Alert.alert(vendor.name, info || "상세 정보가 없어요");
+  function openWebVendors() {
+    Linking.openURL(`${SITE_URL}/vendors`);
+  }
+
+  function openVendorRegister() {
+    Linking.openURL(`${SITE_URL}/vendor/register`);
   }
 
   function renderStars(rating: number | null) {
@@ -121,29 +140,46 @@ export default function VendorsScreen() {
   function renderVendor({ item }: { item: Vendor }) {
     return (
       <Pressable
-        style={({ pressed }) => [vstyles.card, pressed && { opacity: 0.85 }]}
-        onPress={() => showVendorDetail(item)}
+        style={({ pressed }) => [
+          vstyles.card,
+          pressed && { transform: [{ scale: 0.98 }] },
+        ]}
+        onPress={() => openVendorDetail(item)}
       >
         <View style={vstyles.cardTop}>
-          <Text style={vstyles.vendorName}>{item.name}</Text>
+          <Text style={vstyles.vendorName} numberOfLines={1}>{item.name}</Text>
           {item.category && (
             <View style={vstyles.catBadge}>
               <Text style={vstyles.catBadgeText}>{item.category}</Text>
             </View>
           )}
         </View>
-        <View style={vstyles.cardBottom}>
+
+        <View style={vstyles.cardMiddle}>
           {item.region && (
             <View style={vstyles.metaRow}>
-              <MapPin size={12} color={colors.textTertiary} />
+              <MapPin size={13} color={colors.textTertiary} />
               <Text style={vstyles.metaText}>{item.region}</Text>
             </View>
           )}
-          {renderStars(item.rating)}
-          {item.rating != null && (
-            <Text style={vstyles.ratingText}>{item.rating.toFixed(1)}</Text>
+          {item.price_range && (
+            <View style={vstyles.metaRow}>
+              <DollarSign size={13} color={colors.textTertiary} />
+              <Text style={vstyles.metaText}>{item.price_range}</Text>
+            </View>
           )}
         </View>
+
+        <View style={vstyles.cardBottom}>
+          <View style={vstyles.ratingRow}>
+            {renderStars(item.rating)}
+            {item.rating != null && (
+              <Text style={vstyles.ratingText}>{item.rating.toFixed(1)}</Text>
+            )}
+          </View>
+          <ExternalLink size={14} color={colors.textTertiary} />
+        </View>
+
         {item.description && (
           <Text style={vstyles.description} numberOfLines={2}>{item.description}</Text>
         )}
@@ -153,16 +189,49 @@ export default function VendorsScreen() {
 
   function renderEmpty() {
     if (loading) return null;
-    if (!hasTable) {
+
+    if (!hasTable || vendors.length === 0) {
       return (
         <View style={vstyles.emptyContainer}>
-          <Text style={vstyles.emptyText}>업체 정보가 곧 추가될 예정이에요</Text>
+          <View style={vstyles.emptyIconWrap}>
+            <Store size={36} color={colors.rose[500]} />
+          </View>
+          <Text style={vstyles.emptyTitle}>
+            {!hasTable
+              ? "업체 정보가 준비 중이에요"
+              : "검색 결과가 없어요"}
+          </Text>
+          <Text style={vstyles.emptyHint}>
+            {!hasTable
+              ? "웹에서 먼저 확인해보세요"
+              : "다른 카테고리나 검색어를 시도해보세요"}
+          </Text>
+          {!hasTable && (
+            <Pressable
+              style={({ pressed }) => [
+                vstyles.webLinkBtn,
+                pressed && { transform: [{ scale: 0.97 }] },
+              ]}
+              onPress={openWebVendors}
+            >
+              <ExternalLink size={16} color="#fff" />
+              <Text style={vstyles.webLinkBtnText}>웹에서 확인하기</Text>
+            </Pressable>
+          )}
         </View>
       );
     }
+
+    return null;
+  }
+
+  function renderFooter() {
+    if (vendors.length === 0) return null;
     return (
-      <View style={vstyles.emptyContainer}>
-        <Text style={vstyles.emptyText}>등록된 업체가 없어요</Text>
+      <View style={vstyles.footerContainer}>
+        <Text style={vstyles.footerCount}>
+          {vendors.length}개 업체
+        </Text>
       </View>
     );
   }
@@ -185,13 +254,14 @@ export default function VendorsScreen() {
           style={vstyles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="업체명 검색"
+          placeholder="업체명으로 검색하세요"
           placeholderTextColor={colors.textTertiary}
           returnKeyType="search"
+          clearButtonMode="while-editing"
         />
       </View>
 
-      {/* 카테고리 필터 */}
+      {/* 카테고리 필터 칩 */}
       <View style={vstyles.filterRow}>
         <FlatList
           horizontal
@@ -227,6 +297,7 @@ export default function VendorsScreen() {
           renderItem={renderVendor}
           contentContainerStyle={vstyles.listContent}
           ListEmptyComponent={renderEmpty}
+          ListFooterComponent={renderFooter}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -236,6 +307,20 @@ export default function VendorsScreen() {
           }
         />
       )}
+
+      {/* 하단 업체 등록 버튼 */}
+      <View style={vstyles.bottomBar}>
+        <Pressable
+          style={({ pressed }) => [
+            vstyles.registerBtn,
+            pressed && { transform: [{ scale: 0.97 }] },
+          ]}
+          onPress={openVendorRegister}
+        >
+          <Plus size={18} color={colors.rose[500]} />
+          <Text style={vstyles.registerBtnText}>업체 등록하기</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -251,7 +336,12 @@ const vstyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
 
   // 검색바
   searchBar: {
@@ -286,10 +376,10 @@ const vstyles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: colors.noir[800] },
   filterChipText: { fontSize: 13, color: colors.textSecondary },
-  filterChipTextActive: { color: "#fff" },
+  filterChipTextActive: { color: "#fff", fontWeight: "600" },
 
   // 목록
-  listContent: { padding: 20, paddingTop: 4, paddingBottom: 40 },
+  listContent: { padding: 20, paddingTop: 4, paddingBottom: 100 },
 
   // 카드
   card: {
@@ -299,33 +389,138 @@ const vstyles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  vendorName: { fontSize: 16, fontWeight: "600", color: colors.noir[800], flex: 1 },
+  vendorName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
+    flex: 1,
+    marginRight: 8,
+  },
   catBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
-    backgroundColor: colors.ivory[200],
+    backgroundColor: colors.rose.glow,
   },
-  catBadgeText: { fontSize: 11, color: colors.textSecondary, fontWeight: "500" },
+  catBadgeText: { fontSize: 11, color: colors.rose[600], fontWeight: "600" },
+
+  cardMiddle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 8,
+  },
   cardBottom: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, color: colors.textTertiary },
   stars: { flexDirection: "row", gap: 2 },
-  ratingText: { fontSize: 12, fontWeight: "600", color: colors.gold.DEFAULT },
-  description: { fontSize: 12, color: colors.textTertiary, marginTop: 8, lineHeight: 18 },
+  ratingText: { fontSize: 13, fontWeight: "700", color: colors.gold.DEFAULT },
+  description: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: 10,
+    lineHeight: 18,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
 
   // 빈 상태
-  emptyContainer: { alignItems: "center", paddingTop: 80 },
-  emptyText: { fontSize: 16, fontWeight: "500", color: colors.textTertiary },
+  emptyContainer: {
+    alignItems: "center",
+    paddingTop: 60,
+    paddingHorizontal: 32,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.noir[800],
+    marginBottom: 8,
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  webLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.rose[500],
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  webLinkBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+
+  // 푸터
+  footerContainer: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  footerCount: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+
+  // 하단 업체 등록 바
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingBottom: 32,
+  },
+  registerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.rose[500],
+    backgroundColor: colors.surface,
+  },
+  registerBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.rose[500],
+  },
 });

@@ -13,6 +13,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 /* ───── types ───── */
 interface ChecklistItem {
@@ -109,6 +110,16 @@ export default function ScheduleScreen() {
 
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
 
+      // id → 한글 라벨 룩업맵 (CATEGORY_CHECKLISTS 기반)
+      const idLabelMap: Record<string, string> = {};
+      const categoryLabelMap: Record<string, string> = {};
+      for (const cat of CATEGORY_CHECKLISTS) {
+        categoryLabelMap[cat.key] = cat.label;
+        for (const item of cat.items) {
+          idLabelMap[item.id] = item.label;
+        }
+      }
+
       // 카테고리별 체크리스트 추출
       const cats: Category[] = [];
       const progMap: Record<string, Record<string, boolean>> = {};
@@ -119,11 +130,12 @@ export default function ScheduleScreen() {
           const items = val as Record<string, boolean>;
           const checkItems: ChecklistItem[] = Object.entries(items).map(([id, done]) => ({
             id,
-            label: id.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
+            label: idLabelMap[id] ?? id.replace(/_\d+$/, "").replace(/_/g, " "),
             done: !!done,
           }));
 
-          cats.push({ key, label: key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()), items: checkItems });
+          const catLabel = categoryLabelMap[key] ?? key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+          cats.push({ key, label: catLabel, items: checkItems });
           progMap[key] = items;
         }
       }
@@ -482,7 +494,7 @@ export default function ScheduleScreen() {
                           : <Circle size={22} color={colors.taupe[400]} />
                         }
                         <Text style={[styles.itemLabel, done && styles.itemDone]}>
-                          {id.replace(/_\d+$/, "").replace(/_/g, " ")}
+                          {cat.items.find((ci) => ci.id === id)?.label ?? id.replace(/_\d+$/, "").replace(/_/g, " ")}
                         </Text>
                       </Pressable>
                     ))}

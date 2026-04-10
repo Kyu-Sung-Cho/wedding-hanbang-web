@@ -39,6 +39,24 @@ const CATEGORIES = [
   "답례품", "스냅", "영상", "축가", "사회자", "기타",
 ];
 
+const DEFAULT_BUDGET_ITEMS = [
+  { category: "예식장", item_name: "예식장 대관료", estimated_cost: 0 },
+  { category: "예식장", item_name: "식대 (인당)", estimated_cost: 0 },
+  { category: "스튜디오", item_name: "스튜디오 촬영", estimated_cost: 150 },
+  { category: "드레스", item_name: "드레스 대여", estimated_cost: 100 },
+  { category: "메이크업", item_name: "메이크업", estimated_cost: 80 },
+  { category: "예복", item_name: "신랑 예복", estimated_cost: 30 },
+  { category: "한복", item_name: "한복", estimated_cost: 50 },
+  { category: "예물", item_name: "반지", estimated_cost: 200 },
+  { category: "혼수", item_name: "혼수 (가전/가구)", estimated_cost: 0 },
+  { category: "허니문", item_name: "신혼여행", estimated_cost: 300 },
+  { category: "청첩장", item_name: "청첩장", estimated_cost: 20 },
+  { category: "부케", item_name: "부케/꽃장식", estimated_cost: 15 },
+  { category: "답례품", item_name: "답례품", estimated_cost: 10 },
+  { category: "스냅", item_name: "본식 스냅/영상", estimated_cost: 80 },
+  { category: "기타", item_name: "기타 비용", estimated_cost: 0 },
+];
+
 /* ───── helpers ───── */
 function formatWon(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(n % 10000 === 0 ? 0 : 1)}억`;
@@ -146,6 +164,7 @@ export default function BudgetScreen() {
   // budget edit
   const [editBudget, setEditBudget] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
+  const [settingUp, setSettingUp] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -219,6 +238,34 @@ export default function BudgetScreen() {
       .eq("couple_id", coupleId);
     setEditBudget(false);
     loadData();
+  }
+
+  /* ── 기본 항목 세팅 ── */
+  async function setupDefaultItems() {
+    if (!coupleId) return;
+    setSettingUp(true);
+    try {
+      const rows = DEFAULT_BUDGET_ITEMS.map((item) => ({
+        couple_id: coupleId,
+        category: item.category,
+        item_name: item.item_name,
+        estimated_cost: item.estimated_cost,
+        actual_cost: null,
+        is_paid: false,
+        notes: null,
+      }));
+      const { error } = await supabase.from("budget_items").insert(rows);
+      if (error) {
+        Alert.alert("오류", "기본 항목 세팅에 실패했어요. 다시 시도해주세요.");
+        console.error("기본 항목 세팅 오류:", error);
+      } else {
+        loadData();
+      }
+    } catch (err) {
+      Alert.alert("오류", "기본 항목 세팅에 실패했어요.");
+    } finally {
+      setSettingUp(false);
+    }
   }
 
   /* ── 항목 추가/수정 모달 열기 ── */
@@ -401,10 +448,34 @@ export default function BudgetScreen() {
 
         {/* 카테고리별 목록 */}
         {Object.keys(grouped).length === 0 ? (
-          <View style={styles.empty}>
-            <Wallet size={48} color={colors.textTertiary} />
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconWrap}>
+              <Wallet size={36} color={colors.rose[500]} />
+            </View>
             <Text style={styles.emptyText}>등록된 예산 항목이 없어요</Text>
-            <Text style={styles.emptyHint}>아래 + 버튼을 눌러 항목을 추가해보세요</Text>
+            <Text style={styles.emptyHint}>
+              기본 예산 항목을 자동으로 세팅해드릴까요?{"\n"}
+              예식장, 스튜디오, 드레스, 메이크업 등{"\n"}
+              15개 기본 카테고리가 추가됩니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.setupBtn,
+                pressed && { transform: [{ scale: 0.97 }] },
+              ]}
+              onPress={setupDefaultItems}
+              disabled={settingUp}
+            >
+              {settingUp ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.setupBtnText}>기본 항목 세팅하기</Text>
+              )}
+            </Pressable>
+            <Text style={styles.emptyOrText}>또는</Text>
+            <Pressable onPress={openAddModal}>
+              <Text style={styles.emptyAddLink}>직접 항목 추가하기</Text>
+            </Pressable>
           </View>
         ) : (
           Object.entries(grouped).map(([category, items]) => {
@@ -662,9 +733,38 @@ const styles = StyleSheet.create({
   },
   budgetEditUnit: { fontSize: 11, color: colors.taupe[400] },
 
-  empty: { alignItems: "center", paddingTop: 60, gap: 8 },
-  emptyText: { fontSize: 16, fontWeight: "500", color: colors.noir[800], marginTop: 8 },
-  emptyHint: { fontSize: 13, color: colors.textTertiary },
+  emptyCard: {
+    alignItems: "center",
+    paddingTop: 32,
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 24,
+    gap: 8,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyText: { fontSize: 17, fontWeight: "600", color: colors.noir[800], marginTop: 4 },
+  emptyHint: { fontSize: 13, color: colors.textTertiary, textAlign: "center", lineHeight: 20 },
+  setupBtn: {
+    backgroundColor: colors.rose[500],
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginTop: 8,
+  },
+  setupBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  emptyOrText: { fontSize: 12, color: colors.textTertiary, marginTop: 4 },
+  emptyAddLink: { fontSize: 14, fontWeight: "600", color: colors.rose[500] },
 
   catSection: {
     backgroundColor: colors.surface,
