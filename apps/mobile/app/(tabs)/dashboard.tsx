@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Calendar, CheckCircle2, ChevronRight, Sparkles, Wallet, ClipboardList } from "lucide-react-native";
+import { Calendar, CheckCircle2, ChevronRight, Sparkles, Wallet, ClipboardList, Store } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 

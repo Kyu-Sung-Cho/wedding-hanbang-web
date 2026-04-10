@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ChevronRight, LogOut, Globe, Shield, FileText, HelpCircle } from "lucide-react-native";
+import { ChevronRight, LogOut, Globe, Shield, FileText, HelpCircle, TrendingUp, BookOpen, Store } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
@@ -89,6 +89,9 @@ export default function ProfileScreen() {
 
         {/* 메뉴 목록 */}
         <View style={styles.menuSection}>
+          <MenuItem icon={TrendingUp} label="시세 정보" onPress={() => router.push("/market-prices/index" as never)} />
+          <MenuItem icon={BookOpen} label="예절 가이드" onPress={() => router.push("/etiquette/index" as never)} />
+          <MenuItem icon={Store} label="업체 탐색" onPress={() => router.push("/vendors/index" as never)} />
           <MenuItem icon={Globe} label="웹에서 편집" onPress={() => Linking.openURL("https://hanbang.ai/settings")} />
           <MenuItem icon={FileText} label="이용약관" onPress={() => Linking.openURL("https://hanbang.ai/terms")} />
           <MenuItem icon={Shield} label="개인정보처리방침" onPress={() => Linking.openURL("https://hanbang.ai/privacy")} />

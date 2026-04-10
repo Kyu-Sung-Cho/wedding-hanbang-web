@@ -1,11 +1,11 @@
 // 커뮤니티 피드 — 게시글 목록 (5개 게시판)
 import { useEffect, useState, useCallback } from "react";
 import {
-  View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl,
+  View, Text, FlatList, StyleSheet, Pressable, RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { MessageCircle, ChevronUp, Eye, PenSquare } from "lucide-react-native";
+import { MessageCircle, ChevronUp, Eye, PenSquare, FileText } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 
@@ -44,6 +44,26 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(days / 30)}달 전`;
 }
 
+// 로딩 스켈레톤 카드
+function SkeletonCard() {
+  return (
+    <View style={[styles.postCard, styles.postCardShadow]}>
+      <View style={styles.skeletonMeta}>
+        <View style={[styles.skeletonBar, { width: 50 }]} />
+        <View style={[styles.skeletonBar, { width: 40 }]} />
+        <View style={[styles.skeletonBar, { width: 36 }]} />
+      </View>
+      <View style={[styles.skeletonBar, { width: "80%", height: 16, marginBottom: 8 }]} />
+      <View style={[styles.skeletonBar, { width: "60%", height: 12, marginBottom: 12 }]} />
+      <View style={styles.skeletonActions}>
+        <View style={[styles.skeletonBar, { width: 32 }]} />
+        <View style={[styles.skeletonBar, { width: 32 }]} />
+        <View style={[styles.skeletonBar, { width: 32 }]} />
+      </View>
+    </View>
+  );
+}
+
 export default function CommunityScreen() {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +98,7 @@ export default function CommunityScreen() {
 
     return (
       <Pressable
-        style={({ pressed }) => [styles.postCard, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => [styles.postCard, styles.postCardShadow, pressed && { opacity: 0.8 }]}
         onPress={() => router.push(`/community/post/${item.id}` as never)}
       >
         {/* 메타 */}
@@ -150,7 +170,11 @@ export default function CommunityScreen() {
 
       {/* 피드 */}
       {loading ? (
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <View style={styles.feedList}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       ) : (
         <FlatList
           data={posts}
@@ -166,7 +190,9 @@ export default function CommunityScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>아직 작성된 글이 없어요</Text>
+              <FileText size={48} color={colors.textTertiary} />
+              <Text style={styles.emptyTitle}>아직 작성된 글이 없어요</Text>
+              <Text style={styles.emptyText}>첫 번째 글을 작성해보세요!</Text>
             </View>
           }
         />
@@ -222,6 +248,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
   },
+  postCardShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
   postMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
   postCat: { fontSize: 12, fontWeight: "600", color: colors.rose[500] },
   postDot: { fontSize: 12, color: colors.taupe[400] },
@@ -240,8 +273,9 @@ const styles = StyleSheet.create({
   actionGroup: { flexDirection: "row", alignItems: "center", gap: 4 },
   actionText: { fontSize: 12, color: colors.taupe[400] },
 
-  empty: { alignItems: "center", paddingTop: 60 },
-  emptyText: { fontSize: 15, color: colors.textTertiary },
+  empty: { alignItems: "center", paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginTop: 8 },
+  emptyText: { fontSize: 14, color: colors.textTertiary },
 
   fab: {
     position: "absolute",
@@ -259,4 +293,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
+
+  // 스켈레톤
+  skeletonMeta: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  skeletonBar: {
+    height: 10,
+    backgroundColor: colors.ivory[200],
+    borderRadius: 4,
+  },
+  skeletonActions: { flexDirection: "row", gap: 16, marginTop: 4 },
 });

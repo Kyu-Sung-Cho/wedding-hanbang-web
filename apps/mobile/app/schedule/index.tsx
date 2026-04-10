@@ -1,14 +1,19 @@
-// 체크리스트/일정 화면 — 카테고리별 체크리스트 + 체크 토글
+// 체크리스트/일정 화면 — 카테고리 체크 + 일정 CRUD
 import { useEffect, useState, useCallback } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl,
+  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
+  RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react-native";
+import {
+  ArrowLeft, ChevronDown, ChevronUp, CheckCircle2, Circle,
+  Plus, X, CalendarDays, Clock, Trash2,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
+/* ───── types ───── */
 interface ChecklistItem {
   id: string;
   label: string;
@@ -18,18 +23,68 @@ interface ChecklistItem {
 interface Category {
   key: string;
   label: string;
-  ddayStart: number;
-  ddayDeadline: number;
   items: ChecklistItem[];
 }
 
+interface ScheduleEvent {
+  date: string;
+  title: string;
+  time?: string;
+  categoryKey?: string;
+  memo?: string;
+}
+
+const CATEGORY_OPTIONS = [
+  "예식장", "스드메", "스튜디오", "드레스", "메이크업", "예복",
+  "한복", "예물", "혼수", "허니문", "청첩장", "부케",
+  "답례품", "스냅", "영상", "축가", "사회자", "기타",
+];
+
+/* ───── helpers ───── */
+function getUpcomingDays(n: number): string[] {
+  const days: string[] = [];
+  const today = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function getDayLabel(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
+  return days[d.getDay()];
+}
+
+/* ───── main screen ───── */
 export default function ScheduleScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
+  const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  // event modal
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [formTitle, setFormTitle] = useState("");
+  const [formDate, setFormDate] = useState("");
+  const [formTime, setFormTime] = useState("");
+  const [formCategoryKey, setFormCategoryKey] = useState("");
+  const [formMemo, setFormMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // 전체 progress 객체 보관 (이벤트 저장 시 필요)
+  const [rawProgress, setRawProgress] = useState<Record<string, unknown>>({});
 
   const loadData = useCallback(async () => {
     try {
@@ -52,8 +107,9 @@ export default function ScheduleScreen() {
         .single();
 
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
+      setRawProgress(prog);
 
-      // progress 객체에서 카테고리별 아이템 추출
+      // 카테고리별 체크리스트 추출
       const cats: Category[] = [];
       const progMap: Record<string, Record<string, boolean>> = {};
 
@@ -67,20 +123,17 @@ export default function ScheduleScreen() {
             done: !!done,
           }));
 
-          cats.push({
-            key,
-            label: key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
-            ddayStart: 0,
-            ddayDeadline: 0,
-            items: checkItems,
-          });
-
+          cats.push({ key, label: key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()), items: checkItems });
           progMap[key] = items;
         }
       }
 
       setCategories(cats);
       setProgress(progMap);
+
+      // 이벤트 추출
+      const evts = (prog.__events as ScheduleEvent[]) ?? [];
+      setEvents(evts);
     } catch (err) {
       console.error("Schedule load error:", err);
     } finally {
@@ -91,19 +144,15 @@ export default function ScheduleScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  /* ── 체크 토글 ── */
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {
     if (!coupleId) return;
 
-    // 낙관적 업데이트
     setProgress((prev) => ({
       ...prev,
-      [categoryKey]: {
-        ...prev[categoryKey],
-        [itemId]: !currentDone,
-      },
+      [categoryKey]: { ...prev[categoryKey], [itemId]: !currentDone },
     }));
 
-    // Supabase 업데이트
     const { data: journey } = await supabase
       .from("wedding_journeys")
       .select("progress")
@@ -130,6 +179,123 @@ export default function ScheduleScreen() {
     return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
   }
 
+  /* ── 이벤트 모달 ── */
+  function openAddEventModal() {
+    setEditingIdx(null);
+    const today = new Date().toISOString().slice(0, 10);
+    setFormTitle("");
+    setFormDate(today);
+    setFormTime("");
+    setFormCategoryKey("");
+    setFormMemo("");
+    setModalVisible(true);
+  }
+
+  function openEditEventModal(idx: number) {
+    const evt = events[idx];
+    setEditingIdx(idx);
+    setFormTitle(evt.title);
+    setFormDate(evt.date);
+    setFormTime(evt.time ?? "");
+    setFormCategoryKey(evt.categoryKey ?? "");
+    setFormMemo(evt.memo ?? "");
+    setModalVisible(true);
+  }
+
+  async function saveEvent() {
+    if (!coupleId) return;
+    if (!formTitle.trim()) {
+      Alert.alert("오류", "일정 제목을 입력해주세요");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(formDate)) {
+      Alert.alert("오류", "날짜를 YYYY-MM-DD 형식으로 입력해주세요");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // 현재 progress 다시 읽기
+      const { data: journey } = await supabase
+        .from("wedding_journeys")
+        .select("progress")
+        .eq("couple_id", coupleId)
+        .single();
+
+      const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
+      const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
+
+      const newEvent: ScheduleEvent = {
+        date: formDate,
+        title: formTitle.trim(),
+        ...(formTime ? { time: formTime.trim() } : {}),
+        ...(formCategoryKey ? { categoryKey: formCategoryKey } : {}),
+        ...(formMemo.trim() ? { memo: formMemo.trim() } : {}),
+      };
+
+      let updatedEvents: ScheduleEvent[];
+      if (editingIdx !== null) {
+        updatedEvents = [...currentEvents];
+        updatedEvents[editingIdx] = newEvent;
+      } else {
+        updatedEvents = [...currentEvents, newEvent];
+      }
+
+      // 날짜순 정렬
+      updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
+
+      const updatedProgress = { ...currentProgress, __events: updatedEvents };
+      await supabase
+        .from("wedding_journeys")
+        .update({ progress: updatedProgress })
+        .eq("couple_id", coupleId);
+
+      setModalVisible(false);
+      loadData();
+    } catch (err) {
+      Alert.alert("오류", "저장에 실패했어요");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteEvent() {
+    if (editingIdx === null || !coupleId) return;
+    Alert.alert("삭제 확인", "이 일정을 삭제할까요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          const { data: journey } = await supabase
+            .from("wedding_journeys")
+            .select("progress")
+            .eq("couple_id", coupleId)
+            .single();
+
+          const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
+          const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
+          const updatedEvents = currentEvents.filter((_, i) => i !== editingIdx);
+          const updatedProgress = { ...currentProgress, __events: updatedEvents };
+
+          await supabase
+            .from("wedding_journeys")
+            .update({ progress: updatedProgress })
+            .eq("couple_id", coupleId);
+
+          setModalVisible(false);
+          loadData();
+        },
+      },
+    ]);
+  }
+
+  /* ── 임박 일정 (7일 이내) ── */
+  const next7Days = getUpcomingDays(7);
+  const upcomingEvents = events
+    .filter((e) => next7Days.includes(e.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -146,7 +312,9 @@ export default function ScheduleScreen() {
           <ArrowLeft size={24} color={colors.noir[800]} />
         </Pressable>
         <Text style={styles.headerTitle}>체크리스트</Text>
-        <View style={{ width: 24 }} />
+        <Pressable onPress={openAddEventModal} hitSlop={12}>
+          <Plus size={24} color={colors.rose[500]} />
+        </Pressable>
       </View>
 
       {/* 전체 진행률 */}
@@ -167,10 +335,58 @@ export default function ScheduleScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); loadData(); }}
+            tintColor={colors.rose[500]}
+          />
         }
       >
-        {categories.length === 0 ? (
+        {/* 임박 알림 섹션 */}
+        {upcomingEvents.length > 0 && (
+          <View style={styles.upcomingSection}>
+            <View style={styles.upcomingHeader}>
+              <CalendarDays size={18} color={colors.rose[500]} />
+              <Text style={styles.upcomingTitle}>임박 일정</Text>
+            </View>
+            {upcomingEvents.map((evt, i) => (
+              <Pressable
+                key={`${evt.date}-${evt.title}-${i}`}
+                style={styles.eventCard}
+                onPress={() => {
+                  const idx = events.findIndex(
+                    (e) => e.date === evt.date && e.title === evt.title
+                  );
+                  if (idx >= 0) openEditEventModal(idx);
+                }}
+              >
+                <View style={styles.eventDateBadge}>
+                  <Text style={styles.eventDateNum}>{formatDate(evt.date)}</Text>
+                  <Text style={styles.eventDateDay}>{getDayLabel(evt.date)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.eventTitle}>{evt.title}</Text>
+                  <View style={styles.eventMeta}>
+                    {evt.time ? (
+                      <View style={styles.eventMetaRow}>
+                        <Clock size={12} color={colors.textTertiary} />
+                        <Text style={styles.eventMetaText}>{evt.time}</Text>
+                      </View>
+                    ) : null}
+                    {evt.categoryKey ? (
+                      <View style={styles.eventCatBadge}>
+                        <Text style={styles.eventCatText}>{evt.categoryKey}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* 카테고리 체크리스트 */}
+        {categories.length === 0 && events.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>체크리스트가 아직 없어요.</Text>
             <Text style={styles.emptyHint}>웹에서 온보딩을 완료하면 자동 생성됩니다.</Text>
@@ -199,12 +415,10 @@ export default function ScheduleScreen() {
                   </View>
                 </Pressable>
 
-                {/* 진행 바 */}
                 <View style={styles.catBar}>
                   <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
                 </View>
 
-                {/* 펼친 아이템 */}
                 {expanded && (
                   <View style={styles.itemList}>
                     {(progress[cat.key] ? Object.entries(progress[cat.key]) : []).map(([id, done]) => (
@@ -228,7 +442,135 @@ export default function ScheduleScreen() {
             );
           })
         )}
+
+        {/* 전체 일정 목록 */}
+        {events.length > 0 && (
+          <View style={styles.allEventsSection}>
+            <Text style={styles.allEventsTitle}>전체 일정</Text>
+            {events.map((evt, i) => (
+              <Pressable
+                key={`all-${evt.date}-${evt.title}-${i}`}
+                style={styles.allEventRow}
+                onPress={() => openEditEventModal(i)}
+              >
+                <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
+                <Text style={styles.allEventTitle}>{evt.title}</Text>
+                {evt.time ? <Text style={styles.allEventTime}>{evt.time}</Text> : null}
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
+
+      {/* 일정 추가/수정 모달 */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingIdx !== null ? "일정 수정" : "일정 추가"}
+              </Text>
+              <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
+                <X size={24} color={colors.textTertiary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.fieldLabel}>제목</Text>
+              <TextInput
+                style={styles.input}
+                value={formTitle}
+                onChangeText={setFormTitle}
+                placeholder="예: 드레스 피팅"
+                placeholderTextColor={colors.textTertiary}
+              />
+
+              <Text style={styles.fieldLabel}>날짜 (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={formDate}
+                onChangeText={setFormDate}
+                placeholder="2026-06-15"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+              />
+
+              <Text style={styles.fieldLabel}>시간 (선택)</Text>
+              <TextInput
+                style={styles.input}
+                value={formTime}
+                onChangeText={setFormTime}
+                placeholder="14:00"
+                placeholderTextColor={colors.textTertiary}
+              />
+
+              <Text style={styles.fieldLabel}>카테고리 (선택)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                <Pressable
+                  style={[styles.chip, !formCategoryKey && styles.chipActive]}
+                  onPress={() => setFormCategoryKey("")}
+                >
+                  <Text style={[styles.chipText, !formCategoryKey && styles.chipTextActive]}>없음</Text>
+                </Pressable>
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <Pressable
+                    key={cat}
+                    style={[styles.chip, formCategoryKey === cat && styles.chipActive]}
+                    onPress={() => setFormCategoryKey(cat)}
+                  >
+                    <Text style={[styles.chipText, formCategoryKey === cat && styles.chipTextActive]}>
+                      {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.fieldLabel}>메모 (선택)</Text>
+              <TextInput
+                style={[styles.input, { height: 60, textAlignVertical: "top" }]}
+                value={formMemo}
+                onChangeText={setFormMemo}
+                placeholder="메모"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+              />
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              {editingIdx !== null && (
+                <Pressable
+                  style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.8 }]}
+                  onPress={deleteEvent}
+                >
+                  <Trash2 size={18} color="#EF4444" />
+                  <Text style={styles.deleteBtnText}>삭제</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.8 }, { flex: 1 }]}
+                onPress={saveEvent}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>
+                    {editingIdx !== null ? "수정 완료" : "추가하기"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -258,6 +600,54 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 14, color: colors.taupe[400] },
   summaryPercent: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
   list: { padding: 20, gap: 12, paddingBottom: 40 },
+
+  // 임박 일정
+  upcomingSection: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+  upcomingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  upcomingTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800] },
+  eventCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  eventDateBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[200],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eventDateNum: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
+  eventDateDay: { fontSize: 10, color: colors.textTertiary },
+  eventTitle: { fontSize: 14, fontWeight: "500", color: colors.noir[800] },
+  eventMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  eventMetaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  eventMetaText: { fontSize: 11, color: colors.textTertiary },
+  eventCatBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: colors.ivory[200],
+  },
+  eventCatText: { fontSize: 10, color: colors.textSecondary },
+
+  // 카테고리 체크리스트
   empty: { alignItems: "center", paddingTop: 60 },
   emptyText: { fontSize: 16, fontWeight: "500", color: colors.noir[800], marginBottom: 8 },
   emptyHint: { fontSize: 13, color: colors.textTertiary },
@@ -287,4 +677,105 @@ const styles = StyleSheet.create({
   itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   itemLabel: { fontSize: 14, color: colors.noir[800], flex: 1 },
   itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
+
+  // 전체 일정 목록
+  allEventsSection: { marginTop: 8 },
+  allEventsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.noir[800],
+    marginBottom: 12,
+  },
+  allEventRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+  allEventDate: { fontSize: 13, fontWeight: "600", color: colors.rose[500], width: 44 },
+  allEventTitle: { fontSize: 14, color: colors.noir[800], flex: 1 },
+  allEventTime: { fontSize: 12, color: colors.textTertiary },
+
+  // 모달
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 36,
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  input: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: colors.noir[800],
+  },
+  chipScroll: { flexDirection: "row", marginBottom: 4 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.ivory[200],
+    marginRight: 8,
+  },
+  chipActive: { backgroundColor: colors.noir[800] },
+  chipText: { fontSize: 13, color: colors.textSecondary },
+  chipTextActive: { color: "#fff" },
+
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EF4444",
+  },
+  deleteBtnText: { fontSize: 14, fontWeight: "600", color: "#EF4444" },
+  saveBtn: {
+    backgroundColor: colors.rose[500],
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  saveBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
 });

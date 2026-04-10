@@ -1,4 +1,4 @@
-// 게시글 상세 + 댓글
+// 게시글 상세 + 댓글 + 투표/북마크
 import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput,
@@ -9,6 +9,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { ArrowLeft, ChevronUp, ChevronDown, MessageCircle, Send, Bookmark } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch, apiJson } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface PostDetail {
   id: string;
@@ -54,6 +55,11 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // 투표 상태: 1 = upvote, -1 = downvote, 0 = none
+  const [userVote, setUserVote] = useState<number>(0);
+  // 북마크 상태
+  const [bookmarked, setBookmarked] = useState(false);
+
   const loadPost = useCallback(async () => {
     try {
       const data = await apiJson<PostDetail>(`/api/community/posts/${id}`);
@@ -67,6 +73,28 @@ export default function PostDetailScreen() {
         `/api/community/comments?post_id=${id}`
       );
       setComments(commentsData.comments ?? []);
+
+      // 현재 사용자의 투표/북마크 상태 로드
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // 투표 상태
+        const { data: voteData } = await supabase
+          .from("community_votes")
+          .select("vote_type")
+          .eq("post_id", id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (voteData) setUserVote(voteData.vote_type);
+
+        // 북마크 상태
+        const { data: bmData } = await supabase
+          .from("community_bookmarks")
+          .select("id")
+          .eq("post_id", id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        setBookmarked(!!bmData);
+      }
     } catch (err) {
       console.error("Post load error:", err);
     } finally {
@@ -75,6 +103,74 @@ export default function PostDetailScreen() {
   }, [id]);
 
   useEffect(() => { loadPost(); }, [loadPost]);
+
+  // 투표 처리
+  async function handleVote(voteType: 1 | -1) {
+    if (!post) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert("로그인 필요", "투표하려면 로그인이 필요합니다.");
+      return;
+    }
+
+    const newVote = userVote === voteType ? 0 : voteType;
+    const prevVote = userVote;
+
+    // 낙관적 업데이트
+    setUserVote(newVote);
+    setPost((prev) => {
+      if (!prev) return prev;
+      let up = prev.upvote_count;
+      let down = prev.downvote_count;
+      // 이전 투표 제거
+      if (prevVote === 1) up--;
+      if (prevVote === -1) down--;
+      // 새 투표 추가
+      if (newVote === 1) up++;
+      if (newVote === -1) down++;
+      return { ...prev, upvote_count: up, downvote_count: down };
+    });
+
+    try {
+      await supabase.rpc("community_vote_post", {
+        p_user_id: user.id,
+        p_post_id: id,
+        p_vote_type: newVote,
+      });
+    } catch {
+      // 롤백
+      setUserVote(prevVote);
+      loadPost();
+    }
+  }
+
+  // 북마크 처리
+  async function handleBookmark() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert("로그인 필요", "북마크하려면 로그인이 필요합니다.");
+      return;
+    }
+
+    const wasBookmarked = bookmarked;
+    setBookmarked(!wasBookmarked);
+
+    try {
+      if (wasBookmarked) {
+        await supabase
+          .from("community_bookmarks")
+          .delete()
+          .eq("post_id", id)
+          .eq("user_id", user.id);
+      } else {
+        await supabase
+          .from("community_bookmarks")
+          .upsert({ post_id: id, user_id: user.id });
+      }
+    } catch {
+      setBookmarked(wasBookmarked);
+    }
+  }
 
   async function handleComment() {
     if (!commentText.trim() || submitting) return;
@@ -86,7 +182,7 @@ export default function PostDetailScreen() {
       });
       setCommentText("");
       loadPost(); // 새로고침
-    } catch (err) {
+    } catch {
       Alert.alert("오류", "댓글 작성에 실패했어요");
     } finally {
       setSubmitting(false);
@@ -125,7 +221,13 @@ export default function PostDetailScreen() {
           <ArrowLeft size={24} color={colors.noir[800]} />
         </Pressable>
         <Text style={styles.headerTitle}>게시글</Text>
-        <Bookmark size={22} color={colors.taupe[400]} />
+        <Pressable onPress={handleBookmark} hitSlop={12}>
+          <Bookmark
+            size={22}
+            color={bookmarked ? colors.rose[500] : colors.taupe[400]}
+            fill={bookmarked ? colors.rose[500] : "none"}
+          />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -159,9 +261,23 @@ export default function PostDetailScreen() {
           {/* 액션 바 */}
           <View style={styles.actions}>
             <View style={styles.actionGroup}>
-              <ChevronUp size={20} color={colors.taupe[400]} />
-              <Text style={styles.voteCount}>{votes}</Text>
-              <ChevronDown size={20} color={colors.taupe[400]} />
+              <Pressable onPress={() => handleVote(1)} hitSlop={8}>
+                <ChevronUp
+                  size={20}
+                  color={userVote === 1 ? colors.rose[500] : colors.taupe[400]}
+                />
+              </Pressable>
+              <Text style={[
+                styles.voteCount,
+                userVote === 1 && { color: colors.rose[500] },
+                userVote === -1 && { color: colors.taupe[400] },
+              ]}>{votes}</Text>
+              <Pressable onPress={() => handleVote(-1)} hitSlop={8}>
+                <ChevronDown
+                  size={20}
+                  color={userVote === -1 ? colors.rose[500] : colors.taupe[400]}
+                />
+              </Pressable>
             </View>
             <View style={styles.actionGroup}>
               <MessageCircle size={18} color={colors.taupe[400]} />
