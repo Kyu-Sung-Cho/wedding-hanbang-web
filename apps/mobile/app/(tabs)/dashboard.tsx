@@ -208,7 +208,7 @@ export default function DashboardScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/schedule/index" as never)}
+            onPress={() => router.push("/schedule" as never)}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
               <ClipboardList size={20} color={colors.rose[500]} />
@@ -222,7 +222,7 @@ export default function DashboardScreen() {
         <View style={[styles.actionsRow, { marginTop: 12 }]}>
           <Pressable
             style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/budget/index" as never)}
+            onPress={() => router.push("/budget" as never)}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
               <Wallet size={20} color={colors.gold.DEFAULT} />
@@ -234,7 +234,7 @@ export default function DashboardScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/vendors/index" as never)}
+            onPress={() => router.push("/vendors" as never)}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
               <Store size={20} color={colors.rose[500]} />
