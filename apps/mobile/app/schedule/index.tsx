@@ -110,34 +110,28 @@ export default function ScheduleScreen() {
 
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
 
-      // id → 한글 라벨 룩업맵 (CATEGORY_CHECKLISTS 기반)
-      const idLabelMap: Record<string, string> = {};
-      const categoryLabelMap: Record<string, string> = {};
-      for (const cat of CATEGORY_CHECKLISTS) {
-        categoryLabelMap[cat.key] = cat.label;
-        for (const item of cat.items) {
-          idLabelMap[item.id] = item.label;
-        }
-      }
-
-      // 카테고리별 체크리스트 추출
+      // 웹 상수가 소스 — DB는 체크 상태만 오버레이
+      // CATEGORY_CHECKLISTS의 모든 카테고리/항목을 그대로 사용
       const cats: Category[] = [];
       const progMap: Record<string, Record<string, boolean>> = {};
 
-      for (const [key, val] of Object.entries(prog)) {
-        if (key.startsWith("__")) continue;
-        if (typeof val === "object" && val !== null) {
-          const items = val as Record<string, boolean>;
-          const checkItems: ChecklistItem[] = Object.entries(items).map(([id, done]) => ({
-            id,
-            label: idLabelMap[id] ?? id.replace(/_\d+$/, "").replace(/_/g, " "),
-            done: !!done,
-          }));
+      for (const cat of CATEGORY_CHECKLISTS) {
+        // DB에서 이 카테고리의 체크 상태 가져오기
+        const dbCatData = prog[cat.key] as Record<string, boolean> | undefined;
+        const itemStates: Record<string, boolean> = {};
 
-          const catLabel = categoryLabelMap[key] ?? key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
-          cats.push({ key, label: catLabel, items: checkItems });
-          progMap[key] = items;
-        }
+        const checkItems: ChecklistItem[] = cat.items.map((item) => {
+          const done = dbCatData?.[item.id] ?? false;
+          itemStates[item.id] = done;
+          return {
+            id: item.id,
+            label: item.label, // 한글 라벨 (상수에서)
+            done,
+          };
+        });
+
+        cats.push({ key: cat.key, label: cat.label, items: checkItems });
+        progMap[cat.key] = itemStates;
       }
 
       setCategories(cats);
@@ -441,16 +435,8 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* 카테고리 체크리스트 */}
-        {categories.length === 0 && events.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIconWrap}>
-              <ListChecks size={40} color={colors.rose[500]} />
-            </View>
-            <Text style={styles.emptyText}>체크리스트가 아직 없어요</Text>
-            <Text style={styles.emptyHint}>웹에서 온보딩을 완료하면 자동 생성됩니다</Text>
-          </View>
-        ) : (
+        {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
+        {(
           categories.map((cat) => {
             const stats = getCategoryStats(cat.key);
             const expanded = expandedKey === cat.key;
@@ -480,21 +466,21 @@ export default function ScheduleScreen() {
 
                 {expanded && (
                   <View style={styles.itemList}>
-                    {(progress[cat.key] ? Object.entries(progress[cat.key]) : []).map(([id, done]) => (
+                    {cat.items.map((item) => (
                       <Pressable
-                        key={id}
+                        key={item.id}
                         style={({ pressed }) => [
                           styles.itemRow,
                           pressed && { transform: [{ scale: 0.98 }] },
                         ]}
-                        onPress={() => toggleItem(cat.key, id, done)}
+                        onPress={() => toggleItem(cat.key, item.id, item.done)}
                       >
-                        {done
+                        {item.done
                           ? <CheckCircle2 size={22} color={colors.rose[500]} />
                           : <Circle size={22} color={colors.taupe[400]} />
                         }
-                        <Text style={[styles.itemLabel, done && styles.itemDone]}>
-                          {cat.items.find((ci) => ci.id === id)?.label ?? id.replace(/_\d+$/, "").replace(/_/g, " ")}
+                        <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
+                          {item.label}
                         </Text>
                       </Pressable>
                     ))}
