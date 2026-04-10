@@ -1,11 +1,11 @@
-// 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 이미지
+// 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 미리보기
 import { useState } from "react";
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ChevronDown } from "lucide-react-native";
+import { ArrowLeft, ChevronDown, Eye, Edit3, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 
@@ -18,10 +18,13 @@ const CATEGORIES = [
 ];
 
 const AD_OPTIONS = [
-  { key: "general", label: "일반", desc: "직접 쓴 글", color: "#22C55E" },
-  { key: "sponsored", label: "협찬", desc: "혜택 받은 글", color: "#EAB308" },
-  { key: "ad", label: "광고", desc: "업체 공식 광고", color: "#EF4444" },
+  { key: "general", label: "일반", desc: "직접 쓴 글", color: "#22C55E", bgColor: "rgba(34,197,94,0.08)" },
+  { key: "sponsored", label: "협찬", desc: "혜택 받은 글", color: "#EAB308", bgColor: "rgba(234,179,8,0.08)" },
+  { key: "ad", label: "광고", desc: "업체 공식 광고", color: "#EF4444", bgColor: "rgba(239,68,68,0.08)" },
 ];
+
+const TITLE_MAX = 200;
+const CONTENT_MAX = 50000;
 
 export default function WritePostScreen() {
   const [category, setCategory] = useState("");
@@ -31,7 +34,7 @@ export default function WritePostScreen() {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [showAdPicker, setShowAdPicker] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
 
   async function handleSubmit() {
     if (!category) { Alert.alert("알림", "카테고리를 선택해주세요."); return; }
@@ -57,14 +60,23 @@ export default function WritePostScreen() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "게시글 작성 실패");
+        throw new Error(err.error || "게시글 작성에 실패했어요");
       }
 
       Alert.alert("완료", "게시글이 작성되었어요!", [
         { text: "확인", onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert("오류", err instanceof Error ? err.message : "작성에 실패했어요");
+      const msg = err instanceof Error ? err.message : "작성에 실패했어요";
+      // 영문 Supabase 에러 번역
+      const translated = msg.includes("duplicate")
+        ? "이미 동일한 글이 존재합니다."
+        : msg.includes("permission")
+          ? "권한이 없습니다. 다시 로그인해주세요."
+          : msg.includes("network")
+            ? "네트워크 오류가 발생했어요. 인터넷 연결을 확인해주세요."
+            : msg;
+      Alert.alert("오류", translated);
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +96,11 @@ export default function WritePostScreen() {
         <Pressable
           onPress={handleSubmit}
           disabled={submitting}
-          style={[styles.submitBtn, submitting && { opacity: 0.5 }]}
+          style={({ pressed }) => [
+            styles.submitBtn,
+            submitting && { opacity: 0.5 },
+            pressed && { transform: [{ scale: 0.96 }] },
+          ]}
         >
           {submitting
             ? <ActivityIndicator size="small" color="#FFF" />
@@ -93,89 +109,147 @@ export default function WritePostScreen() {
         </Pressable>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* 카테고리 선택 */}
-        <Pressable style={styles.picker} onPress={() => setShowCategoryPicker(!showCategoryPicker)}>
-          <Text style={selectedCat ? styles.pickerValue : styles.pickerPlaceholder}>
-            {selectedCat?.label ?? "카테고리 선택"}
-          </Text>
-          <ChevronDown size={18} color={colors.textTertiary} />
+      {/* 탭: 작성/미리보기 */}
+      <View style={styles.tabRow}>
+        <Pressable
+          style={[styles.tab, !isPreview && styles.tabActive]}
+          onPress={() => setIsPreview(false)}
+        >
+          <Edit3 size={14} color={!isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Text style={[styles.tabText, !isPreview && styles.tabTextActive]}>작성</Text>
         </Pressable>
-        {showCategoryPicker && (
-          <View style={styles.pickerDropdown}>
-            {CATEGORIES.map((cat) => (
-              <Pressable
-                key={cat.key}
-                style={[styles.pickerOption, category === cat.key && styles.pickerOptionActive]}
-                onPress={() => { setCategory(cat.key); setShowCategoryPicker(false); }}
-              >
-                <Text style={[styles.pickerOptionText, category === cat.key && { color: colors.rose[500] }]}>
-                  {cat.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {/* 광고 표시 */}
-        <Pressable style={styles.picker} onPress={() => setShowAdPicker(!showAdPicker)}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={[styles.adDot, { backgroundColor: selectedAd?.color }]} />
-            <Text style={styles.pickerValue}>{selectedAd?.label ?? "일반"}</Text>
-          </View>
-          <ChevronDown size={18} color={colors.textTertiary} />
+        <Pressable
+          style={[styles.tab, isPreview && styles.tabActive]}
+          onPress={() => setIsPreview(true)}
+        >
+          <Eye size={14} color={isPreview ? colors.rose[500] : colors.textTertiary} />
+          <Text style={[styles.tabText, isPreview && styles.tabTextActive]}>미리보기</Text>
         </Pressable>
-        {showAdPicker && (
-          <View style={styles.pickerDropdown}>
-            {AD_OPTIONS.map((ad) => (
-              <Pressable
-                key={ad.key}
-                style={[styles.pickerOption, adDisclosure === ad.key && styles.pickerOptionActive]}
-                onPress={() => { setAdDisclosure(ad.key); setShowAdPicker(false); }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <View style={[styles.adDot, { backgroundColor: ad.color }]} />
-                  <Text style={styles.pickerOptionText}>{ad.label}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textTertiary }}>— {ad.desc}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
+      </View>
 
-        {/* 협찬 상세 */}
-        {adDisclosure === "sponsored" && (
+      {isPreview ? (
+        /* 미리보기 모드 */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.previewContent}>
+          {selectedAd && selectedAd.key !== "general" && (
+            <View style={[styles.previewAdBadge, { backgroundColor: selectedAd.bgColor }]}>
+              <View style={[styles.adDot, { backgroundColor: selectedAd.color }]} />
+              <Text style={[styles.previewAdText, { color: selectedAd.color }]}>{selectedAd.label}</Text>
+            </View>
+          )}
+          <View style={styles.previewCatBadge}>
+            <Text style={styles.previewCatText}>{selectedCat?.label ?? "카테고리 미선택"}</Text>
+          </View>
+          <Text style={styles.previewTitle}>{title || "제목을 입력해주세요"}</Text>
+          <Text style={styles.previewBody}>{content || "내용을 입력해주세요"}</Text>
+        </ScrollView>
+      ) : (
+        /* 작성 모드 */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {/* 카테고리 선택 */}
+          <Text style={styles.fieldLabel}>카테고리</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.picker,
+              pressed && { borderColor: colors.rose[500] },
+            ]}
+            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+          >
+            <Text style={selectedCat ? styles.pickerValue : styles.pickerPlaceholder}>
+              {selectedCat?.label ?? "카테고리를 선택해주세요"}
+            </Text>
+            <ChevronDown size={18} color={colors.textTertiary} />
+          </Pressable>
+          {showCategoryPicker && (
+            <View style={styles.pickerDropdown}>
+              {CATEGORIES.map((cat) => (
+                <Pressable
+                  key={cat.key}
+                  style={[styles.pickerOption, category === cat.key && styles.pickerOptionActive]}
+                  onPress={() => { setCategory(cat.key); setShowCategoryPicker(false); }}
+                >
+                  <Text style={[styles.pickerOptionText, category === cat.key && { color: colors.rose[500], fontWeight: "600" }]}>
+                    {cat.label}
+                  </Text>
+                  {category === cat.key && <Check size={16} color={colors.rose[500]} />}
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* 광고 표시 — 라디오 카드 */}
+          <Text style={styles.fieldLabel}>글 유형</Text>
+          <View style={styles.adCardRow}>
+            {AD_OPTIONS.map((ad) => {
+              const isActive = adDisclosure === ad.key;
+              return (
+                <Pressable
+                  key={ad.key}
+                  style={[
+                    styles.adCard,
+                    isActive && { borderColor: ad.color, backgroundColor: ad.bgColor },
+                  ]}
+                  onPress={() => setAdDisclosure(ad.key)}
+                >
+                  <View style={[styles.adRadio, isActive && { borderColor: ad.color }]}>
+                    {isActive && <View style={[styles.adRadioFill, { backgroundColor: ad.color }]} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View style={[styles.adDot, { backgroundColor: ad.color }]} />
+                      <Text style={[styles.adCardLabel, isActive && { color: ad.color }]}>{ad.label}</Text>
+                    </View>
+                    <Text style={styles.adCardDesc}>{ad.desc}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* 협찬 상세 */}
+          {adDisclosure === "sponsored" && (
+            <View>
+              <Text style={styles.fieldLabel}>협찬 내용</Text>
+              <TextInput
+                style={styles.input}
+                value={sponsorDetail}
+                onChangeText={setSponsorDetail}
+                placeholder="어떤 혜택을 받았나요? (5자 이상)"
+                placeholderTextColor={colors.taupe[400]}
+              />
+            </View>
+          )}
+
+          {/* 제목 */}
+          <Text style={styles.fieldLabel}>제목</Text>
           <TextInput
-            style={styles.input}
-            value={sponsorDetail}
-            onChangeText={setSponsorDetail}
-            placeholder="어떤 혜택을 받았나요? (5자 이상)"
+            style={styles.titleInput}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="제목을 입력하세요"
             placeholderTextColor={colors.taupe[400]}
+            maxLength={TITLE_MAX}
           />
-        )}
+          <Text style={styles.charCount}>
+            {title.length}/{TITLE_MAX}
+          </Text>
 
-        {/* 제목 */}
-        <TextInput
-          style={styles.titleInput}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="제목"
-          placeholderTextColor={colors.taupe[400]}
-          maxLength={200}
-        />
-
-        {/* 내용 */}
-        <TextInput
-          style={styles.contentInput}
-          value={content}
-          onChangeText={setContent}
-          placeholder="내용을 입력하세요..."
-          placeholderTextColor={colors.taupe[400]}
-          multiline
-          textAlignVertical="top"
-          maxLength={50000}
-        />
-      </ScrollView>
+          {/* 내용 */}
+          <Text style={styles.fieldLabel}>내용</Text>
+          <TextInput
+            style={styles.contentInput}
+            value={content}
+            onChangeText={setContent}
+            placeholder="내용을 입력하세요..."
+            placeholderTextColor={colors.taupe[400]}
+            multiline
+            textAlignVertical="top"
+            maxLength={CONTENT_MAX}
+          />
+          <Text style={styles.charCount}>
+            {content.length.toLocaleString()}/{CONTENT_MAX.toLocaleString()}
+          </Text>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -191,16 +265,50 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
   submitBtn: {
     backgroundColor: colors.noir[800],
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 16,
   },
   submitText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 
-  content: { padding: 20, gap: 12, paddingBottom: 40 },
+  // 탭
+  tabRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: colors.rose[500],
+  },
+  tabText: { fontSize: 14, color: colors.textTertiary },
+  tabTextActive: { color: colors.rose[500], fontWeight: "600" },
+
+  content: { padding: 20, gap: 4, paddingBottom: 40 },
+
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: 8,
+    marginTop: 16,
+  },
 
   picker: {
     flexDirection: "row",
@@ -209,7 +317,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   pickerValue: { fontSize: 15, color: colors.noir[800] },
@@ -220,13 +328,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     overflow: "hidden",
-    marginTop: -4,
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  pickerOption: { padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  pickerOptionActive: { backgroundColor: colors.ivory[100] },
+  pickerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  pickerOptionActive: { backgroundColor: colors.rose.glow },
   pickerOptionText: { fontSize: 14, color: colors.noir[800] },
 
+  // 광고 라디오 카드
+  adCardRow: { gap: 8 },
+  adCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  adRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.taupe[400],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adRadioFill: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
   adDot: { width: 8, height: 8, borderRadius: 4 },
+  adCardLabel: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
+  adCardDesc: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
 
   input: {
     padding: 14,
@@ -257,5 +405,48 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     minHeight: 200,
     lineHeight: 24,
+  },
+  charCount: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: "right",
+    marginTop: 4,
+    fontFamily: "CormorantGaramond_400Regular",
+  },
+
+  // 미리보기
+  previewContent: { padding: 20, paddingBottom: 40 },
+  previewAdBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  previewAdText: { fontSize: 13, fontWeight: "700" },
+  previewCatBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.rose.glow,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  previewCatText: { fontSize: 13, fontWeight: "600", color: colors.rose[500] },
+  previewTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.noir[800],
+    lineHeight: 34,
+    marginBottom: 16,
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  previewBody: {
+    fontSize: 15,
+    color: colors.noir[800],
+    lineHeight: 28,
   },
 });

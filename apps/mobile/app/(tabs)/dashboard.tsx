@@ -1,9 +1,26 @@
 // 대시보드 — D-day, 진행률, 오늘의 할 일 (Supabase 실데이터)
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  RefreshControl,
+  Animated,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Calendar, CheckCircle2, ChevronRight, Sparkles, Wallet, ClipboardList, Store } from "lucide-react-native";
+import {
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Sparkles,
+  Wallet,
+  ClipboardList,
+  Store,
+  Heart,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
@@ -17,13 +34,41 @@ interface DashboardData {
   dday: number | null;
 }
 
+// 매일 바뀌는 동기부여 문구
+const DAILY_QUOTES = [
+  "완벽한 결혼 준비, 함께할게요",
+  "한 걸음씩, 아름다운 결혼을 향해",
+  "당신의 특별한 날을 위해",
+  "사랑으로 빛나는 그 날까지",
+  "설레는 마음, 완벽한 준비",
+  "두 사람의 이야기가 시작돼요",
+  "소중한 순간을 함께 만들어요",
+];
+
+function getGreetingByTime(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "좋은 아침이에요";
+  if (hour < 18) return "좋은 오후에요";
+  return "좋은 저녁이에요";
+}
+
+function getDailyQuote(): string {
+  const dayOfYear = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+  return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] as string;
+}
+
 function calcDday(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const wedding = new Date(dateStr);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   wedding.setHours(0, 0, 0, 0);
-  return Math.ceil((wedding.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil(
+    (wedding.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function calcProgress(progress: Record<string, unknown>): number {
@@ -55,9 +100,22 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // 진행률 바 애니메이션
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // 퀵 액션 스케일 애니메이션용
+  const actionScales = useRef([
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]).current;
+
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: profile } = await supabase
@@ -85,45 +143,131 @@ export default function DashboardScreen() {
         .eq("couple_id", profile.couple_id)
         .single();
 
-      const progress = (journey?.progress as Record<string, unknown>) ?? {};
+      const progress =
+        (journey?.progress as Record<string, unknown>) ?? {};
       const progressPercent = calcProgress(progress);
 
       // 오늘 할 일: 이벤트 중 오늘 날짜인 것
       const today = new Date().toISOString().slice(0, 10);
-      const events = ((progress as Record<string, unknown>).__events as Array<{
-        date: string;
-        title: string;
-        categoryKey?: string;
-      }>) ?? [];
+      const events =
+        ((progress as Record<string, unknown>).__events as Array<{
+          date: string;
+          title: string;
+          categoryKey?: string;
+        }>) ?? [];
       const todayTasks = events
         .filter((e) => e.date === today)
         .map((e) => ({ title: e.title, categoryKey: e.categoryKey ?? "" }));
 
+      const pct = progressPercent;
       setData({
         name: profile.name,
         weddingDate: journey?.wedding_date ?? null,
         totalBudget: journey?.total_budget ?? 0,
         progress,
-        progressPercent,
+        progressPercent: pct,
         todayTasks,
         dday: calcDday(journey?.wedding_date ?? null),
       });
+
+      // 진행률 바 애니메이션
+      progressAnim.setValue(0);
+      Animated.timing(progressAnim, {
+        toValue: pct,
+        duration: 800,
+        useNativeDriver: false,
+      }).start();
     } catch (err) {
       console.error("Dashboard load error:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [progressAnim]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 데이터 변경 시 진행률 바 다시 애니메이션
+  useEffect(() => {
+    if (data?.progressPercent != null) {
+      Animated.timing(progressAnim, {
+        toValue: data.progressPercent,
+        duration: 800,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [data?.progressPercent, progressAnim]);
 
   function onRefresh() {
     setRefreshing(true);
     loadData();
   }
 
-  const greeting = data?.name ? `${data.name}님, 안녕하세요` : "안녕하세요";
+  function handleActionPressIn(index: number) {
+    Animated.spring(actionScales[index]!, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  function handleActionPressOut(index: number) {
+    Animated.spring(actionScales[index]!, {
+      toValue: 1,
+      friction: 3,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  const timeGreeting = getGreetingByTime();
+  const greeting = data?.name
+    ? `${data.name}님, ${timeGreeting}`
+    : timeGreeting;
+
+  const isUrgent = data?.dday != null && data.dday > 0 && data.dday <= 30;
+
+  // 진행률 바 width interpolation
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
+  const quickActions = [
+    {
+      title: "아모라",
+      desc: "AI 상담",
+      icon: Sparkles,
+      iconColor: colors.gold.DEFAULT,
+      iconBg: colors.noir[800],
+      route: "/(tabs)/chat" as const,
+    },
+    {
+      title: "체크리스트",
+      desc: "일정 관리",
+      icon: ClipboardList,
+      iconColor: colors.rose[500],
+      iconBg: colors.ivory[200],
+      route: "/schedule" as never,
+    },
+    {
+      title: "예산",
+      desc: "지출 현황",
+      icon: Wallet,
+      iconColor: colors.gold.DEFAULT,
+      iconBg: colors.ivory[200],
+      route: "/budget" as never,
+    },
+    {
+      title: "업체 탐색",
+      desc: "업체 찾기",
+      icon: Store,
+      iconColor: colors.rose[500],
+      iconBg: colors.ivory[200],
+      route: "/vendors" as never,
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -131,7 +275,11 @@ export default function DashboardScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.rose[500]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.rose[500]}
+          />
         }
       >
         {/* 인사 */}
@@ -139,14 +287,38 @@ export default function DashboardScreen() {
         <Text style={styles.brandTitle}>웨딩한방</Text>
 
         {/* D-day 카드 */}
-        <View style={styles.ddayCard}>
+        <View
+          style={[
+            styles.ddayCard,
+            isUrgent && styles.ddayCardUrgent,
+          ]}
+        >
           <View style={styles.ddayRow}>
             <View>
-              <Text style={styles.ddayLabel}>결혼까지</Text>
-              <Text style={styles.ddayValue}>{formatDday(data?.dday ?? null)}</Text>
+              <Text
+                style={[
+                  styles.ddayLabel,
+                  isUrgent && styles.ddayLabelUrgent,
+                ]}
+              >
+                결혼까지
+              </Text>
+              <Text
+                style={[
+                  styles.ddayValue,
+                  isUrgent && styles.ddayValueUrgent,
+                ]}
+              >
+                {formatDday(data?.dday ?? null)}
+              </Text>
             </View>
             {data?.weddingDate && (
-              <Text style={styles.ddayDate}>
+              <Text
+                style={[
+                  styles.ddayDate,
+                  isUrgent && styles.ddayDateUrgent,
+                ]}
+              >
                 {new Date(data.weddingDate).toLocaleDateString("ko-KR", {
                   year: "numeric",
                   month: "long",
@@ -164,10 +336,14 @@ export default function DashboardScreen() {
         <View style={styles.card}>
           <View style={styles.cardRow}>
             <Text style={styles.cardLabel}>전체 진행률</Text>
-            <Text style={styles.progressPct}>{data?.progressPercent ?? 0}%</Text>
+            <Text style={styles.progressPct}>
+              {data?.progressPercent ?? 0}%
+            </Text>
           </View>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${data?.progressPercent ?? 0}%` }]} />
+            <Animated.View
+              style={[styles.progressFill, { width: progressWidth }]}
+            />
           </View>
         </View>
 
@@ -186,74 +362,121 @@ export default function DashboardScreen() {
             ))
           ) : (
             <Text style={styles.cardEmpty}>
-              {loading ? "불러오는 중..." : "오늘 예정된 할 일이 없어요"}
+              {loading
+                ? "불러오는 중..."
+                : "오늘 예정된 할 일이 없어요"}
             </Text>
           )}
         </View>
 
-        {/* 빠른 액션 */}
+        {/* 바로가기 */}
         <Text style={styles.sectionLabel}>바로가기</Text>
         <View style={styles.actionsRow}>
-          <Pressable
-            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/(tabs)/chat")}
-          >
-            <View style={styles.actionIcon}>
-              <Sparkles size={20} color={colors.gold.DEFAULT} />
-            </View>
-            <Text style={styles.actionTitle}>아모라</Text>
-            <Text style={styles.actionDesc}>AI 상담</Text>
-            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/schedule" as never)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
-              <ClipboardList size={20} color={colors.rose[500]} />
-            </View>
-            <Text style={styles.actionTitle}>체크리스트</Text>
-            <Text style={styles.actionDesc}>일정 관리</Text>
-            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
-          </Pressable>
+          {quickActions.slice(0, 2).map((action, idx) => {
+            const Icon = action.icon;
+            return (
+              <Animated.View
+                key={action.title}
+                style={[
+                  { flex: 1, transform: [{ scale: actionScales[idx]! }] },
+                ]}
+              >
+                <Pressable
+                  style={styles.actionCard}
+                  onPress={() => router.push(action.route)}
+                  onPressIn={() => handleActionPressIn(idx)}
+                  onPressOut={() => handleActionPressOut(idx)}
+                >
+                  <View
+                    style={[
+                      styles.actionIcon,
+                      { backgroundColor: action.iconBg },
+                    ]}
+                  >
+                    <Icon size={20} color={action.iconColor} />
+                  </View>
+                  <Text style={styles.actionTitle}>{action.title}</Text>
+                  <Text style={styles.actionDesc}>{action.desc}</Text>
+                  <ChevronRight
+                    size={16}
+                    color={colors.textTertiary}
+                    style={styles.actionArrow}
+                  />
+                </Pressable>
+              </Animated.View>
+            );
+          })}
         </View>
 
         <View style={[styles.actionsRow, { marginTop: 12 }]}>
-          <Pressable
-            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/budget" as never)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
-              <Wallet size={20} color={colors.gold.DEFAULT} />
-            </View>
-            <Text style={styles.actionTitle}>예산</Text>
-            <Text style={styles.actionDesc}>지출 현황</Text>
-            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
-          </Pressable>
+          {quickActions.slice(2, 4).map((action, idx) => {
+            const Icon = action.icon;
+            const scaleIdx = idx + 2;
+            return (
+              <Animated.View
+                key={action.title}
+                style={[
+                  {
+                    flex: 1,
+                    transform: [{ scale: actionScales[scaleIdx]! }],
+                  },
+                ]}
+              >
+                <Pressable
+                  style={styles.actionCard}
+                  onPress={() => router.push(action.route)}
+                  onPressIn={() => handleActionPressIn(scaleIdx)}
+                  onPressOut={() => handleActionPressOut(scaleIdx)}
+                >
+                  <View
+                    style={[
+                      styles.actionIcon,
+                      { backgroundColor: action.iconBg },
+                    ]}
+                  >
+                    <Icon size={20} color={action.iconColor} />
+                  </View>
+                  <Text style={styles.actionTitle}>{action.title}</Text>
+                  <Text style={styles.actionDesc}>{action.desc}</Text>
+                  <ChevronRight
+                    size={16}
+                    color={colors.textTertiary}
+                    style={styles.actionArrow}
+                  />
+                </Pressable>
+              </Animated.View>
+            );
+          })}
+        </View>
 
-          <Pressable
-            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/vendors" as never)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
-              <Store size={20} color={colors.rose[500]} />
-            </View>
-            <Text style={styles.actionTitle}>업체 탐색</Text>
-            <Text style={styles.actionDesc}>업체 찾기</Text>
-            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
-          </Pressable>
+        {/* 동기부여 문구 */}
+        <View style={styles.quoteCard}>
+          <Heart size={14} color={colors.rose[500]} />
+          <Text style={styles.quoteText}>{getDailyQuote()}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+const CARD_SHADOW = {
+  shadowColor: "#000" as const,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.04,
+  shadowRadius: 12,
+  elevation: 2,
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 20, paddingBottom: 40 },
 
-  greeting: { fontSize: 14, color: colors.textSecondary, marginBottom: 4 },
+  greeting: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
   brandTitle: {
     fontSize: 32,
     fontFamily: "NotoSerifKR_500Medium",
@@ -262,31 +485,66 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // D-day
+  // D-day 기본
   ddayCard: {
     backgroundColor: colors.noir[800],
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 16,
+    ...CARD_SHADOW,
+    shadowOpacity: 0.08,
+  },
+  // D-day 긴급 (30일 이내)
+  ddayCardUrgent: {
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.rose[500],
   },
   ddayRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  ddayLabel: { fontSize: 13, color: colors.taupe[400], marginBottom: 6 },
-  ddayValue: { fontSize: 48, fontFamily: "CormorantGaramond_400Regular", color: "#FFFFFF" },
-  ddayDate: { fontSize: 13, color: colors.taupe[400], marginBottom: 8 },
-  ddayHint: { fontSize: 13, color: colors.taupe[400], marginTop: 8 },
+  ddayLabel: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+    marginBottom: 6,
+  },
+  ddayLabelUrgent: {
+    color: colors.textSecondary,
+  },
+  ddayValue: {
+    fontSize: 48,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: "#FFFFFF",
+  },
+  ddayValueUrgent: {
+    color: colors.rose[500],
+  },
+  ddayDate: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+    marginBottom: 8,
+  },
+  ddayDateUrgent: {
+    color: colors.textSecondary,
+  },
+  ddayHint: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+    marginTop: 8,
+  },
 
   // 카드 공통
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
     borderRadius: 24,
     padding: 20,
     marginBottom: 16,
+    ...CARD_SHADOW,
   },
   cardRow: {
     flexDirection: "row",
@@ -294,12 +552,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  cardLabel: { fontSize: 13, color: colors.textSecondary },
-  cardTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800] },
-  cardEmpty: { fontSize: 13, color: colors.textTertiary },
+  cardLabel: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  cardEmpty: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+  },
 
   // 진행률
-  progressPct: { fontSize: 28, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  progressPct: {
+    fontSize: 28,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: colors.noir[800],
+  },
   progressBar: {
     height: 8,
     backgroundColor: colors.ivory[200],
@@ -321,12 +595,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  taskText: { fontSize: 14, color: colors.noir[800], flex: 1 },
+  taskText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.noir[800],
+    flex: 1,
+  },
 
   // 바로가기
   sectionLabel: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
     marginBottom: 12,
     marginTop: 8,
@@ -335,10 +614,9 @@ const styles = StyleSheet.create({
   actionCard: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
     borderRadius: 20,
     padding: 16,
+    ...CARD_SHADOW,
   },
   actionIcon: {
     width: 40,
@@ -349,7 +627,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
-  actionTitle: { fontSize: 15, fontWeight: "600", color: colors.noir[800] },
-  actionDesc: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
+  actionTitle: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  actionDesc: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
   actionArrow: { position: "absolute", top: 16, right: 16 },
+
+  // 동기부여 문구
+  quoteCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: colors.ivory[200],
+    borderRadius: 16,
+  },
+  quoteText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
+  },
 });

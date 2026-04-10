@@ -64,16 +64,16 @@ function SwipeableItem({
       },
       onPanResponderRelease: (_, g) => {
         if (g.dx < -60) {
-          Animated.spring(translateX, { toValue: -140, useNativeDriver: true }).start();
+          Animated.spring(translateX, { toValue: -140, useNativeDriver: true, friction: 8 }).start();
         } else {
-          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
         }
       },
     })
   ).current;
 
   const resetSwipe = () => {
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
   };
 
   return (
@@ -130,6 +130,7 @@ export default function BudgetScreen() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   // modal
   const [modalVisible, setModalVisible] = useState(false);
@@ -195,7 +196,7 @@ export default function BudgetScreen() {
         totalPaid,
       });
     } catch (err) {
-      console.error("Budget load error:", err);
+      console.error("예산 로드 오류:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -311,6 +312,13 @@ export default function BudgetScreen() {
 
   const remaining = (data?.totalBudget ?? 0) - (data?.totalActual ?? 0);
 
+  function handleFabPressIn() {
+    Animated.spring(fabScale, { toValue: 0.92, useNativeDriver: true }).start();
+  }
+  function handleFabPressOut() {
+    Animated.spring(fabScale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -334,7 +342,7 @@ export default function BudgetScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -343,17 +351,17 @@ export default function BudgetScreen() {
           />
         }
       >
-        {/* 요약 카드 */}
+        {/* 요약 카드 — 노아 배경에 서브틀 그래디언트 */}
         <View style={styles.summaryRow}>
           <Pressable
-            style={styles.summaryCard}
+            style={[styles.summaryCard, styles.summaryCardNoir]}
             onPress={() => {
               setBudgetInput(String(data?.totalBudget ?? 0));
               setEditBudget(true);
             }}
           >
-            <Wallet size={18} color={colors.textTertiary} />
-            <Text style={styles.summaryLabel}>총 예산</Text>
+            <Wallet size={18} color={colors.rose[500]} />
+            <Text style={styles.summaryLabelLight}>총 예산</Text>
             {editBudget ? (
               <View style={styles.budgetEditRow}>
                 <TextInput
@@ -368,13 +376,13 @@ export default function BudgetScreen() {
                 <Text style={styles.budgetEditUnit}>만원</Text>
               </View>
             ) : (
-              <Text style={styles.summaryValue}>
+              <Text style={styles.summaryValueNoir}>
                 {data?.totalBudget ? formatWon(data.totalBudget) : "설정"}
               </Text>
             )}
           </Pressable>
 
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, styles.summaryCardShadow]}>
             <TrendingDown size={18} color={colors.rose[500]} />
             <Text style={styles.summaryLabel}>지출</Text>
             <Text style={[styles.summaryValue, { color: colors.rose[500] }]}>
@@ -382,7 +390,7 @@ export default function BudgetScreen() {
             </Text>
           </View>
 
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, styles.summaryCardShadow]}>
             <TrendingUp size={18} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} />
             <Text style={styles.summaryLabel}>잔여</Text>
             <Text style={[styles.summaryValue, remaining < 0 && { color: "#EF4444" }]}>
@@ -394,8 +402,9 @@ export default function BudgetScreen() {
         {/* 카테고리별 목록 */}
         {Object.keys(grouped).length === 0 ? (
           <View style={styles.empty}>
+            <Wallet size={48} color={colors.textTertiary} />
             <Text style={styles.emptyText}>등록된 예산 항목이 없어요</Text>
-            <Text style={styles.emptyHint}>+ 버튼을 눌러 항목을 추가해보세요</Text>
+            <Text style={styles.emptyHint}>아래 + 버튼을 눌러 항목을 추가해보세요</Text>
           </View>
         ) : (
           Object.entries(grouped).map(([category, items]) => {
@@ -413,7 +422,10 @@ export default function BudgetScreen() {
                     onEdit={() => openEditModal(item)}
                   >
                     <Pressable
-                      style={styles.itemRow}
+                      style={({ pressed }) => [
+                        styles.itemRow,
+                        pressed && { transform: [{ scale: 0.98 }] },
+                      ]}
                       onPress={() => openEditModal(item)}
                       onLongPress={() => confirmDelete(item)}
                     >
@@ -442,12 +454,16 @@ export default function BudgetScreen() {
       </ScrollView>
 
       {/* FAB */}
-      <Pressable
-        style={({ pressed }) => [styles.fab, pressed && { opacity: 0.8 }]}
-        onPress={openAddModal}
-      >
-        <Plus size={28} color="#fff" />
-      </Pressable>
+      <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
+        <Pressable
+          style={styles.fabInner}
+          onPress={openAddModal}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+        >
+          <Plus size={28} color="#fff" />
+        </Pressable>
+      </Animated.View>
 
       {/* 추가/수정 모달 */}
       <Modal
@@ -461,6 +477,9 @@ export default function BudgetScreen() {
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
+            {/* 모달 핸들 */}
+            <View style={styles.modalHandle} />
+
             {/* 모달 헤더 */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -498,27 +517,34 @@ export default function BudgetScreen() {
                 placeholderTextColor={colors.textTertiary}
               />
 
-              {/* 예상 비용 */}
-              <Text style={styles.fieldLabel}>예상 비용 (만원)</Text>
-              <TextInput
-                style={styles.input}
-                value={formEstimated}
-                onChangeText={setFormEstimated}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              {/* 실제 비용 */}
-              <Text style={styles.fieldLabel}>실제 비용 (만원)</Text>
-              <TextInput
-                style={styles.input}
-                value={formActual}
-                onChangeText={setFormActual}
-                keyboardType="number-pad"
-                placeholder="미정"
-                placeholderTextColor={colors.textTertiary}
-              />
+              {/* 비용 섹션 */}
+              <View style={styles.costSection}>
+                <Text style={styles.sectionLabel}>비용 정보</Text>
+                <View style={styles.costRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabelSmall}>예상 비용 (만원)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={formEstimated}
+                      onChangeText={setFormEstimated}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabelSmall}>실제 비용 (만원)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={formActual}
+                      onChangeText={setFormActual}
+                      keyboardType="number-pad"
+                      placeholder="미정"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                </View>
+              </View>
 
               {/* 결제 완료 */}
               <View style={styles.switchRow}>
@@ -545,7 +571,10 @@ export default function BudgetScreen() {
 
             {/* 저장 버튼 */}
             <Pressable
-              style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [
+                styles.saveBtn,
+                pressed && { transform: [{ scale: 0.98 }] },
+              ]}
               onPress={saveItem}
               disabled={saving}
             >
@@ -575,38 +604,66 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
-  content: { padding: 20, paddingBottom: 100 },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  scrollContent: { padding: 20, paddingBottom: 100 },
 
-  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
   summaryCard: {
     flex: 1,
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 14,
     alignItems: "center",
     gap: 6,
   },
+  summaryCardNoir: {
+    backgroundColor: colors.noir[800],
+    borderColor: colors.noir[800],
+  },
+  summaryCardShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
   summaryLabel: { fontSize: 11, color: colors.textTertiary },
-  summaryValue: { fontSize: 16, fontWeight: "700", color: colors.noir[800] },
+  summaryLabelLight: { fontSize: 11, color: colors.taupe[400] },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
+  summaryValueNoir: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
 
   budgetEditRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   budgetEditInput: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.noir[800],
+    color: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: colors.rose[500],
     paddingVertical: 2,
     minWidth: 50,
     textAlign: "center",
   },
-  budgetEditUnit: { fontSize: 11, color: colors.textTertiary },
+  budgetEditUnit: { fontSize: 11, color: colors.taupe[400] },
 
-  empty: { alignItems: "center", paddingTop: 60 },
-  emptyText: { fontSize: 16, fontWeight: "500", color: colors.noir[800], marginBottom: 8 },
+  empty: { alignItems: "center", paddingTop: 60, gap: 8 },
+  emptyText: { fontSize: 16, fontWeight: "500", color: colors.noir[800], marginTop: 8 },
   emptyHint: { fontSize: 13, color: colors.textTertiary },
 
   catSection: {
@@ -616,6 +673,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   catHeader: {
     flexDirection: "row",
@@ -626,14 +688,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  catLabel: { fontSize: 16, fontWeight: "600", color: colors.noir[800] },
-  catTotal: { fontSize: 14, fontWeight: "600", color: colors.rose[500] },
+  catLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  catTotal: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.rose[500],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
 
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -646,28 +718,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ivory[200],
   },
   paidDotActive: { backgroundColor: colors.rose[500] },
-  itemName: { fontSize: 14, color: colors.noir[800] },
+  itemName: { fontSize: 14, fontWeight: "500", color: colors.noir[800] },
   itemNotes: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
   itemCosts: { alignItems: "flex-end" },
-  itemActual: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
-  itemEstimated: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
+  itemActual: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
+  itemEstimated: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 2,
+    fontFamily: "CormorantGaramond_400Regular",
+  },
 
   // FAB
   fab: {
     position: "absolute",
     bottom: 32,
     right: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabInner: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: colors.rose[500],
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
   },
 
   // 모달
@@ -681,9 +765,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 36,
     maxHeight: "85%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.ivory[200],
+    alignSelf: "center",
+    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: "row",
@@ -691,7 +783,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
 
   fieldLabel: {
     fontSize: 13,
@@ -700,16 +797,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 16,
   },
+  fieldLabelSmall: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.noir[800],
+    marginBottom: 12,
+    marginTop: 20,
+  },
   input: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
     color: colors.noir[800],
   },
+  costSection: { marginTop: 4 },
+  costRow: { flexDirection: "row", gap: 12 },
   chipScroll: { flexDirection: "row", marginBottom: 4 },
   chip: {
     paddingHorizontal: 14,
@@ -720,7 +832,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.noir[800] },
   chipText: { fontSize: 13, color: colors.textSecondary },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: "#fff", fontWeight: "600" },
 
   switchRow: {
     flexDirection: "row",

@@ -1,20 +1,99 @@
 // 비밀번호 찾기 — 이메일로 재설정 링크 발송
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import {
+  View, Text, TextInput, Pressable, StyleSheet, Alert,
+  ActivityIndicator, Animated,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Mail } from "lucide-react-native";
+import { ArrowLeft, Mail, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
+// 이메일 유효성 검사
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// 에러 한국어 변환
+function translateError(message: string): string {
+  if (message.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+  if (message.includes("not found")) return "등록되지 않은 이메일입니다.";
+  return "발송에 실패했어요. 다시 시도해주세요.";
+}
+
+// 체크마크 애니메이션 컴포넌트
+function CheckmarkAnimation() {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [scaleAnim, opacityAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.checkCircle,
+        {
+          opacity: opacityAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      <Check size={36} color="#FFFFFF" strokeWidth={3} />
+    </Animated.View>
+  );
+}
+
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+
+  // 발송 완료 화면 페이드인
+  const sentFadeAnim = useRef(new Animated.Value(0)).current;
+  const sentSlideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (sent) {
+      Animated.parallel([
+        Animated.timing(sentFadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sentSlideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [sent, sentFadeAnim, sentSlideAnim]);
+
+  const emailInvalid = emailTouched && email.length > 0 && !isValidEmail(email);
 
   async function handleReset() {
     if (!email.trim()) {
       Alert.alert("알림", "이메일을 입력해주세요.");
+      return;
+    }
+    if (!isValidEmail(email.trim())) {
+      Alert.alert("알림", "올바른 이메일 형식을 입력해주세요.");
       return;
     }
 
@@ -25,7 +104,7 @@ export default function ForgotPasswordScreen() {
       });
 
       if (error) {
-        Alert.alert("오류", error.message);
+        Alert.alert("오류", translateError(error.message));
         return;
       }
 
@@ -40,18 +119,24 @@ export default function ForgotPasswordScreen() {
   if (sent) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.sentContent}>
-          <View style={styles.iconCircle}>
-            <Mail size={32} color={colors.rose[500]} />
-          </View>
+        <Animated.View
+          style={[
+            styles.sentContent,
+            {
+              opacity: sentFadeAnim,
+              transform: [{ translateY: sentSlideAnim }],
+            },
+          ]}
+        >
+          <CheckmarkAnimation />
           <Text style={styles.sentTitle}>이메일을 보냈어요</Text>
           <Text style={styles.sentDesc}>
-            {email}으로 비밀번호 재설정 링크를 보냈어요.{"\n"}이메일을 확인해주세요.
+            {email}으로{"\n"}비밀번호 재설정 링크를 보냈어요.{"\n"}이메일을 확인해주세요.
           </Text>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backBtnText}>로그인으로 돌아가기</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </SafeAreaView>
     );
   }
@@ -72,20 +157,24 @@ export default function ForgotPasswordScreen() {
 
         <Text style={styles.label}>이메일</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, emailInvalid && styles.inputError]}
           value={email}
           onChangeText={setEmail}
-          placeholder="example@email.com"
+          onBlur={() => setEmailTouched(true)}
+          placeholder="가입한 이메일 주소"
           placeholderTextColor={colors.taupe[400]}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
         />
+        {emailInvalid && (
+          <Text style={styles.errorText}>올바른 이메일 형식을 입력해주세요</Text>
+        )}
 
         <Pressable
-          style={[styles.submitBtn, !email.trim() && styles.submitBtnDisabled]}
+          style={[styles.submitBtn, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
           onPress={handleReset}
-          disabled={!email.trim() || loading}
+          disabled={!email.trim() || loading || emailInvalid}
         >
           {loading
             ? <ActivityIndicator color="#FFF" />
@@ -107,8 +196,19 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 12,
   },
-  desc: { fontSize: 15, color: colors.textSecondary, lineHeight: 24, marginBottom: 28 },
-  label: { fontSize: 14, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
+  desc: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    lineHeight: 24,
+    marginBottom: 28,
+  },
+  label: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    marginBottom: 8,
+  },
   input: {
     padding: 14,
     borderRadius: 14,
@@ -116,7 +216,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.noir[800],
+  },
+  inputError: { borderColor: colors.danger },
+  errorText: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.danger,
+    marginTop: 6,
+    marginLeft: 4,
   },
   submitBtn: {
     height: 56,
@@ -125,28 +234,68 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   submitBtnDisabled: { opacity: 0.4 },
-  submitText: { fontSize: 16, fontWeight: "600", color: "#FFF" },
+  submitText: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: "#FFF",
+  },
 
   // 발송 완료
-  sentContent: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.ivory[200],
+  sentContent: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    paddingHorizontal: 32,
   },
-  sentTitle: { fontSize: 22, fontWeight: "600", color: colors.noir[800], marginBottom: 12 },
-  sentDesc: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 32 },
+  checkCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.rose[500],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 28,
+    shadowColor: colors.rose[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  sentTitle: {
+    fontSize: 22,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+    marginBottom: 12,
+  },
+  sentDesc: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 32,
+  },
   backBtn: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: colors.noir[800],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  backBtnText: { fontSize: 15, fontWeight: "600", color: "#FFF" },
+  backBtnText: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: "#FFF",
+  },
 });

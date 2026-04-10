@@ -1,11 +1,11 @@
 // 커뮤니티 피드 — 게시글 목록 (5개 게시판)
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, FlatList, StyleSheet, Pressable, RefreshControl,
+  View, Text, FlatList, StyleSheet, Pressable, RefreshControl, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { MessageCircle, ChevronUp, Eye, PenSquare, FileText } from "lucide-react-native";
+import { MessageCircle, ChevronUp, Eye, PenSquare, MessageSquarePlus } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 
@@ -44,23 +44,38 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(days / 30)}달 전`;
 }
 
-// 로딩 스켈레톤 카드
-function SkeletonCard() {
+// 로딩 스켈레톤 카드 — 다양한 너비로 실감나게
+function SkeletonCard({ index }: { index: number }) {
+  const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.8, duration: 800, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [fadeAnim]);
+
+  const titleWidths = ["85%" as const, "70%" as const, "90%" as const];
+  const previewWidths = ["65%" as const, "55%" as const, "75%" as const];
+
   return (
-    <View style={[styles.postCard, styles.postCardShadow]}>
+    <Animated.View style={[styles.postCard, styles.postCardShadow, { opacity: fadeAnim }]}>
       <View style={styles.skeletonMeta}>
-        <View style={[styles.skeletonBar, { width: 50 }]} />
-        <View style={[styles.skeletonBar, { width: 40 }]} />
-        <View style={[styles.skeletonBar, { width: 36 }]} />
+        <View style={[styles.skeletonBar, { width: 60 }]} />
+        <View style={[styles.skeletonBar, { width: 44 }]} />
+        <View style={[styles.skeletonBar, { width: 32 }]} />
       </View>
-      <View style={[styles.skeletonBar, { width: "80%", height: 16, marginBottom: 8 }]} />
-      <View style={[styles.skeletonBar, { width: "60%", height: 12, marginBottom: 12 }]} />
+      <View style={[styles.skeletonBar, { width: titleWidths[index % 3], height: 18, marginBottom: 10 }]} />
+      <View style={[styles.skeletonBar, { width: previewWidths[index % 3], height: 12, marginBottom: 6 }]} />
+      <View style={[styles.skeletonBar, { width: "40%", height: 12, marginBottom: 14 }]} />
       <View style={styles.skeletonActions}>
-        <View style={[styles.skeletonBar, { width: 32 }]} />
-        <View style={[styles.skeletonBar, { width: 32 }]} />
-        <View style={[styles.skeletonBar, { width: 32 }]} />
+        <View style={[styles.skeletonBar, { width: 36, height: 12 }]} />
+        <View style={[styles.skeletonBar, { width: 36, height: 12 }]} />
+        <View style={[styles.skeletonBar, { width: 36, height: 12 }]} />
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -69,6 +84,7 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState("all");
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   const loadPosts = useCallback(async (cat: string) => {
     try {
@@ -91,6 +107,21 @@ export default function CommunityScreen() {
     loadPosts(category);
   }, [category, loadPosts]);
 
+  function handleFabPressIn() {
+    Animated.spring(fabScale, {
+      toValue: 0.92,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  function handleFabPressOut() {
+    Animated.spring(fabScale, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  }
+
   function renderPost({ item }: { item: PostItem }) {
     const catLabel = CATEGORY_LABELS[item.category] ?? item.category;
     const preview = item.content.replace(/<[^>]*>/g, "").slice(0, 100);
@@ -98,12 +129,18 @@ export default function CommunityScreen() {
 
     return (
       <Pressable
-        style={({ pressed }) => [styles.postCard, styles.postCardShadow, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => [
+          styles.postCard,
+          styles.postCardShadow,
+          pressed && { transform: [{ scale: 0.98 }] },
+        ]}
         onPress={() => router.push(`/community/post/${item.id}` as never)}
       >
         {/* 메타 */}
         <View style={styles.postMeta}>
-          <Text style={styles.postCat}>{catLabel}</Text>
+          <View style={styles.postCatBadge}>
+            <Text style={styles.postCat}>{catLabel}</Text>
+          </View>
           <Text style={styles.postDot}>·</Text>
           <Text style={styles.postAuthor}>{item.author?.nickname ?? "익명"}</Text>
           <Text style={styles.postDot}>·</Text>
@@ -151,17 +188,22 @@ export default function CommunityScreen() {
           showsHorizontalScrollIndicator={false}
           data={CATEGORIES}
           keyExtractor={(c) => c}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
           renderItem={({ item: cat }) => {
             const active = category === cat;
             return (
               <Pressable
-                style={[styles.chip, active && styles.chipActive]}
+                style={({ pressed }) => [
+                  styles.chip,
+                  active && styles.chipActive,
+                  pressed && { transform: [{ scale: 0.96 }] },
+                ]}
                 onPress={() => setCategory(cat)}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {cat === "all" ? "전체" : (CATEGORY_LABELS[cat] ?? cat)}
                 </Text>
+                {active && <View style={styles.chipActiveDot} />}
               </Pressable>
             );
           }}
@@ -171,9 +213,10 @@ export default function CommunityScreen() {
       {/* 피드 */}
       {loading ? (
         <View style={styles.feedList}>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+          <SkeletonCard index={0} />
+          <SkeletonCard index={1} />
+          <SkeletonCard index={2} />
+          <SkeletonCard index={3} />
         </View>
       ) : (
         <FlatList
@@ -190,21 +233,27 @@ export default function CommunityScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <FileText size={48} color={colors.textTertiary} />
+              <View style={styles.emptyIconWrap}>
+                <MessageSquarePlus size={40} color={colors.rose[500]} />
+              </View>
               <Text style={styles.emptyTitle}>아직 작성된 글이 없어요</Text>
-              <Text style={styles.emptyText}>첫 번째 글을 작성해보세요!</Text>
+              <Text style={styles.emptyText}>첫 번째 글의 주인공이 되어보세요!</Text>
             </View>
           }
         />
       )}
 
       {/* 글쓰기 FAB */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push("/community/post/write" as never)}
-      >
-        <PenSquare size={22} color="#FFFFFF" />
-      </Pressable>
+      <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
+        <Pressable
+          style={styles.fabInner}
+          onPress={() => router.push("/community/post/write" as never)}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+        >
+          <PenSquare size={22} color="#FFFFFF" />
+        </Pressable>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -231,6 +280,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    alignItems: "center",
   },
   chipActive: {
     backgroundColor: colors.noir[800],
@@ -238,6 +288,13 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextActive: { color: "#FFFFFF", fontWeight: "600" },
+  chipActiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.rose[500],
+    marginTop: 4,
+  },
 
   feedList: { padding: 16, gap: 12, paddingBottom: 100 },
 
@@ -250,56 +307,83 @@ const styles = StyleSheet.create({
   },
   postCardShadow: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  postMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
-  postCat: { fontSize: 12, fontWeight: "600", color: colors.rose[500] },
+  postMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  postCatBadge: {
+    backgroundColor: colors.rose.glow,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  postCat: { fontSize: 12, fontWeight: "700", color: colors.rose[500] },
   postDot: { fontSize: 12, color: colors.taupe[400] },
-  postAuthor: { fontSize: 12, color: colors.noir[800] },
+  postAuthor: { fontSize: 12, fontWeight: "500", color: colors.noir[800] },
   postTime: { fontSize: 12, color: colors.taupe[400] },
 
-  postTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800], lineHeight: 22 },
+  postTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.noir[800],
+    lineHeight: 24,
+  },
   postPreview: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textTertiary,
     lineHeight: 20,
     marginTop: 6,
   },
 
-  postActions: { flexDirection: "row", gap: 16, marginTop: 12 },
+  postActions: { flexDirection: "row", gap: 16, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   actionGroup: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { fontSize: 12, color: colors.taupe[400] },
+  actionText: { fontSize: 12, color: colors.taupe[400], fontFamily: "CormorantGaramond_400Regular" },
 
-  empty: { alignItems: "center", paddingTop: 60, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginTop: 8 },
+  empty: { alignItems: "center", paddingTop: 80, gap: 8 },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
   emptyText: { fontSize: 14, color: colors.textTertiary },
 
   fab: {
     position: "absolute",
     right: 20,
     bottom: 100,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
 
   // 스켈레톤
-  skeletonMeta: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  skeletonMeta: { flexDirection: "row", gap: 8, marginBottom: 14 },
   skeletonBar: {
     height: 10,
     backgroundColor: colors.ivory[200],
-    borderRadius: 4,
+    borderRadius: 6,
   },
-  skeletonActions: { flexDirection: "row", gap: 16, marginTop: 4 },
+  skeletonActions: { flexDirection: "row", gap: 20, marginTop: 4 },
 });

@@ -1,17 +1,101 @@
 // 온보딩 화면 — 4단계 (역할 → 커플 → 결혼 상세 → 완료)
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Platform,
+  Alert, ActivityIndicator, Platform, Animated, Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ArrowRight, Heart, User, Calendar, CheckCircle2 } from "lucide-react-native";
+import { ArrowLeft, ArrowRight, Heart, User, Calendar, CheckCircle2, Sparkles } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
+
+// 축하 파티클 컴포넌트
+function CelebrationDots() {
+  const dots = useRef(
+    Array.from({ length: 12 }, (_, i) => ({
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+      scale: new Animated.Value(0),
+      color: i % 3 === 0 ? colors.rose[500] : i % 3 === 1 ? colors.gold.DEFAULT : colors.rose.light,
+      angle: (i / 12) * Math.PI * 2,
+    }))
+  ).current;
+
+  useEffect(() => {
+    const animations = dots.map((dot, i) => {
+      const radius = 80 + Math.random() * 40;
+      const targetX = Math.cos(dot.angle) * radius;
+      const targetY = Math.sin(dot.angle) * radius;
+
+      return Animated.sequence([
+        Animated.delay(i * 50),
+        Animated.parallel([
+          Animated.timing(dot.opacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot.scale, {
+            toValue: 1,
+            duration: 400,
+            easing: Easing.out(Easing.back(2)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot.x, {
+            toValue: targetX,
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot.y, {
+            toValue: targetY,
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.timing(dot.opacity, {
+          toValue: 0,
+          duration: 800,
+          delay: 400,
+          useNativeDriver: true,
+        }),
+      ]);
+    });
+
+    Animated.parallel(animations).start();
+  }, [dots]);
+
+  return (
+    <View style={styles.dotsContainer}>
+      {dots.map((dot, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.dot,
+            {
+              backgroundColor: dot.color,
+              width: 6 + (i % 3) * 3,
+              height: 6 + (i % 3) * 3,
+              borderRadius: 6,
+              opacity: dot.opacity,
+              transform: [
+                { translateX: dot.x },
+                { translateY: dot.y },
+                { scale: dot.scale },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
@@ -25,7 +109,40 @@ export default function OnboardingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
 
+  // 스텝 전환 애니메이션
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+  const contentSlide = useRef(new Animated.Value(0)).current;
+
+  // 역할 카드 애니메이션
+  const brideScale = useRef(new Animated.Value(1)).current;
+  const groomScale = useRef(new Animated.Value(1)).current;
+
   const totalSteps = 4;
+
+  const animateStepTransition = useCallback((nextStep: number) => {
+    Animated.parallel([
+      Animated.timing(contentOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(contentSlide, { toValue: -20, duration: 150, useNativeDriver: true }),
+    ]).start(() => {
+      setStep(nextStep);
+      contentSlide.setValue(20);
+      Animated.parallel([
+        Animated.timing(contentOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(contentSlide, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start();
+    });
+  }, [contentOpacity, contentSlide]);
+
+  function handleRolePress(r: Role) {
+    setRole(r);
+    const anim = r === "bride" ? brideScale : groomScale;
+    const other = r === "bride" ? groomScale : brideScale;
+    other.setValue(1);
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+      Animated.spring(anim, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true }),
+    ]).start();
+  }
 
   function canNext(): boolean {
     switch (step) {
@@ -60,12 +177,12 @@ export default function OnboardingScreen() {
 
       if (data.inviteCode && coupleAction === "create") {
         setResultCode(data.inviteCode);
-        setStep(4);
+        animateStepTransition(4);
       } else {
         router.replace("/(tabs)/dashboard");
       }
     } catch (err) {
-      Alert.alert("오류", err instanceof Error ? err.message : "저장 실패");
+      Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
     } finally {
       setSubmitting(false);
     }
@@ -77,7 +194,13 @@ export default function OnboardingScreen() {
     } else if (step === 4) {
       router.replace("/(tabs)/dashboard");
     } else {
-      setStep(step + 1);
+      animateStepTransition(step + 1);
+    }
+  }
+
+  function handleBack() {
+    if (step > 1 && step < 4) {
+      animateStepTransition(step - 1);
     }
   }
 
@@ -87,7 +210,7 @@ export default function OnboardingScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           {step > 1 && step < 4 ? (
-            <Pressable onPress={() => setStep(step - 1)} hitSlop={12}>
+            <Pressable onPress={handleBack} hitSlop={12}>
               <ArrowLeft size={24} color={colors.noir[800]} />
             </Pressable>
           ) : <View style={{ width: 24 }} />}
@@ -100,135 +223,168 @@ export default function OnboardingScreen() {
           <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
         </View>
 
-        {/* Step 1: 역할 */}
-        {step === 1 && (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>반가워요!</Text>
-            <Text style={styles.stepDesc}>결혼 준비에서의 역할을 알려주세요</Text>
+        {/* 애니메이션 래퍼 */}
+        <Animated.View
+          style={{
+            opacity: contentOpacity,
+            transform: [{ translateY: contentSlide }],
+          }}
+        >
+          {/* Step 1: 역할 */}
+          {step === 1 && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>반가워요!</Text>
+              <Text style={styles.stepDesc}>결혼 준비에서의 역할을 알려주세요</Text>
 
-            <View style={styles.roleRow}>
-              <Pressable
-                style={[styles.roleCard, role === "bride" && styles.roleCardActive]}
-                onPress={() => setRole("bride")}
-              >
-                <Heart size={32} color={role === "bride" ? colors.rose[500] : colors.taupe[400]} />
-                <Text style={[styles.roleLabel, role === "bride" && styles.roleLabelActive]}>신부</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.roleCard, role === "groom" && styles.roleCardActive]}
-                onPress={() => setRole("groom")}
-              >
-                <User size={32} color={role === "groom" ? colors.rose[500] : colors.taupe[400]} />
-                <Text style={[styles.roleLabel, role === "groom" && styles.roleLabelActive]}>신랑</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {/* Step 2: 커플 연결 */}
-        {step === 2 && (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>커플 연결</Text>
-            <Text style={styles.stepDesc}>파트너와 함께 준비할 수 있어요</Text>
-
-            <Pressable
-              style={[styles.optionCard, coupleAction === "create" && styles.optionActive]}
-              onPress={() => setCoupleAction("create")}
-            >
-              <Text style={styles.optionTitle}>새로 시작하기</Text>
-              <Text style={styles.optionDesc}>초대코드를 받아 파트너에게 공유</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.optionCard, coupleAction === "join" && styles.optionActive]}
-              onPress={() => setCoupleAction("join")}
-            >
-              <Text style={styles.optionTitle}>초대코드로 합류</Text>
-              <Text style={styles.optionDesc}>파트너가 보낸 코드를 입력</Text>
-            </Pressable>
-
-            {coupleAction === "join" && (
-              <TextInput
-                style={styles.input}
-                value={inviteCode}
-                onChangeText={setInviteCode}
-                placeholder="초대코드 (예: WH-ABC123)"
-                placeholderTextColor={colors.taupe[400]}
-                autoCapitalize="characters"
-                maxLength={10}
-              />
-            )}
-          </View>
-        )}
-
-        {/* Step 3: 결혼 상세 */}
-        {step === 3 && (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>결혼 정보</Text>
-            <Text style={styles.stepDesc}>나중에 변경할 수 있어요</Text>
-
-            <Text style={styles.fieldLabel}>결혼 예정일</Text>
-            {!weddingDateUndecided && (
-              <TextInput
-                style={styles.input}
-                value={weddingDate}
-                onChangeText={setWeddingDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.taupe[400]}
-                keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
-                maxLength={10}
-              />
-            )}
-            <Pressable
-              style={styles.checkRow}
-              onPress={() => setWeddingDateUndecided(!weddingDateUndecided)}
-            >
-              {weddingDateUndecided
-                ? <CheckCircle2 size={20} color={colors.rose[500]} />
-                : <View style={styles.checkbox} />
-              }
-              <Text style={styles.checkLabel}>아직 정하지 않았어요</Text>
-            </Pressable>
-
-            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>예식장</Text>
-            <TextInput
-              style={styles.input}
-              value={venue}
-              onChangeText={setVenue}
-              placeholder="예식장 이름 (선택)"
-              placeholderTextColor={colors.taupe[400]}
-            />
-
-            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산 (만원)</Text>
-            <TextInput
-              style={styles.input}
-              value={budget}
-              onChangeText={setBudget}
-              placeholder="예: 3000"
-              placeholderTextColor={colors.taupe[400]}
-              keyboardType="numeric"
-            />
-          </View>
-        )}
-
-        {/* Step 4: 완료 */}
-        {step === 4 && (
-          <View style={styles.stepContent}>
-            <View style={styles.doneIcon}>
-              <CheckCircle2 size={48} color={colors.rose[500]} />
-            </View>
-            <Text style={styles.stepTitle}>준비 완료!</Text>
-            <Text style={styles.stepDesc}>웨딩한방과 함께 완벽한 결혼을 준비하세요</Text>
-
-            {resultCode ? (
-              <View style={styles.codeCard}>
-                <Text style={styles.codeLabel}>파트너 초대코드</Text>
-                <Text style={styles.codeValue}>{resultCode}</Text>
-                <Text style={styles.codeHint}>이 코드를 파트너에게 보내주세요</Text>
+              <View style={styles.roleRow}>
+                <Animated.View style={[{ flex: 1 }, { transform: [{ scale: brideScale }] }]}>
+                  <Pressable
+                    style={[styles.roleCard, role === "bride" && styles.roleCardActive]}
+                    onPress={() => handleRolePress("bride")}
+                  >
+                    <View style={[styles.roleIconCircle, role === "bride" && styles.roleIconCircleActive]}>
+                      <Heart size={28} color={role === "bride" ? colors.rose[500] : colors.taupe[400]} />
+                    </View>
+                    <Text style={[styles.roleLabel, role === "bride" && styles.roleLabelActive]}>신부</Text>
+                  </Pressable>
+                </Animated.View>
+                <Animated.View style={[{ flex: 1 }, { transform: [{ scale: groomScale }] }]}>
+                  <Pressable
+                    style={[styles.roleCard, role === "groom" && styles.roleCardActive]}
+                    onPress={() => handleRolePress("groom")}
+                  >
+                    <View style={[styles.roleIconCircle, role === "groom" && styles.roleIconCircleActive]}>
+                      <User size={28} color={role === "groom" ? colors.rose[500] : colors.taupe[400]} />
+                    </View>
+                    <Text style={[styles.roleLabel, role === "groom" && styles.roleLabelActive]}>신랑</Text>
+                  </Pressable>
+                </Animated.View>
               </View>
-            ) : null}
-          </View>
-        )}
+            </View>
+          )}
+
+          {/* Step 2: 커플 연결 */}
+          {step === 2 && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>커플 연결</Text>
+              <Text style={styles.stepDesc}>파트너와 함께 준비할 수 있어요</Text>
+
+              <Pressable
+                style={[styles.optionCard, coupleAction === "create" && styles.optionActive]}
+                onPress={() => setCoupleAction("create")}
+              >
+                <Text style={[styles.optionTitle, coupleAction === "create" && styles.optionTitleActive]}>
+                  새로 시작하기
+                </Text>
+                <Text style={styles.optionDesc}>초대코드를 받아 파트너에게 공유</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.optionCard, coupleAction === "join" && styles.optionActive]}
+                onPress={() => setCoupleAction("join")}
+              >
+                <Text style={[styles.optionTitle, coupleAction === "join" && styles.optionTitleActive]}>
+                  초대코드로 합류
+                </Text>
+                <Text style={styles.optionDesc}>파트너가 보낸 코드를 입력</Text>
+              </Pressable>
+
+              {coupleAction === "join" && (
+                <TextInput
+                  style={styles.inviteCodeInput}
+                  value={inviteCode}
+                  onChangeText={setInviteCode}
+                  placeholder="초대코드 입력 (예: WH-ABC123)"
+                  placeholderTextColor={colors.taupe[400]}
+                  autoCapitalize="characters"
+                  maxLength={10}
+                />
+              )}
+            </View>
+          )}
+
+          {/* Step 3: 결혼 상세 */}
+          {step === 3 && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>결혼 정보</Text>
+              <Text style={styles.stepDesc}>나중에 변경할 수 있어요</Text>
+
+              <Text style={styles.fieldLabel}>결혼 예정일</Text>
+              {!weddingDateUndecided && (
+                <View>
+                  <TextInput
+                    style={styles.input}
+                    value={weddingDate}
+                    onChangeText={setWeddingDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.taupe[400]}
+                    keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                    maxLength={10}
+                  />
+                  <Text style={styles.fieldHint}>예: 2026-10-15</Text>
+                </View>
+              )}
+              <Pressable
+                style={styles.checkRow}
+                onPress={() => setWeddingDateUndecided(!weddingDateUndecided)}
+              >
+                {weddingDateUndecided
+                  ? <CheckCircle2 size={20} color={colors.rose[500]} />
+                  : <View style={styles.checkbox} />
+                }
+                <Text style={styles.checkLabel}>아직 정하지 않았어요</Text>
+              </Pressable>
+
+              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>예식장</Text>
+              <TextInput
+                style={styles.input}
+                value={venue}
+                onChangeText={setVenue}
+                placeholder="예식장 이름 (선택)"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산</Text>
+              <View style={styles.budgetRow}>
+                <TextInput
+                  style={[styles.input, styles.budgetInput]}
+                  value={budget}
+                  onChangeText={setBudget}
+                  placeholder="예: 3000"
+                  placeholderTextColor={colors.taupe[400]}
+                  keyboardType="numeric"
+                />
+                <View style={styles.budgetUnitBox}>
+                  <Text style={styles.budgetUnitText}>만원</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Step 4: 완료 */}
+          {step === 4 && (
+            <View style={styles.stepContent}>
+              <View style={styles.doneSection}>
+                <CelebrationDots />
+                <View style={styles.doneIconCircle}>
+                  <Sparkles size={36} color={colors.gold.DEFAULT} />
+                </View>
+              </View>
+              <Text style={[styles.stepTitle, { textAlign: "center" }]}>준비 완료!</Text>
+              <Text style={[styles.stepDesc, { textAlign: "center" }]}>
+                웨딩한방과 함께{"\n"}완벽한 결혼을 준비하세요
+              </Text>
+
+              {resultCode ? (
+                <View style={styles.codeCard}>
+                  <Text style={styles.codeLabel}>파트너 초대코드</Text>
+                  <Text style={styles.codeValue}>{resultCode}</Text>
+                  <Text style={styles.codeHint}>이 코드를 파트너에게 보내주세요</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
 
       {/* 하단 버튼 */}
@@ -270,10 +426,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 16,
   },
-  stepText: { fontSize: 14, color: colors.textTertiary, fontWeight: "500" },
+  stepText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.textTertiary,
+  },
 
-  progressBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, marginBottom: 32 },
-  progressFill: { height: "100%", backgroundColor: colors.rose[500], borderRadius: 2 },
+  progressBar: {
+    height: 4,
+    backgroundColor: colors.ivory[200],
+    borderRadius: 2,
+    marginBottom: 32,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.rose[500],
+    borderRadius: 2,
+  },
 
   stepContent: { paddingTop: 8 },
   stepTitle: {
@@ -282,12 +451,17 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 8,
   },
-  stepDesc: { fontSize: 15, color: colors.textSecondary, marginBottom: 32, lineHeight: 22 },
+  stepDesc: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginBottom: 32,
+    lineHeight: 22,
+  },
 
   // Step 1: 역할
   roleRow: { flexDirection: "row", gap: 16 },
   roleCard: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 32,
@@ -295,10 +469,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.border,
-    gap: 12,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
   },
-  roleCardActive: { borderColor: colors.rose[500], backgroundColor: colors.rose.pale + "30" },
-  roleLabel: { fontSize: 16, fontWeight: "600", color: colors.textSecondary },
+  roleCardActive: {
+    borderColor: colors.rose[500],
+    backgroundColor: colors.rose.pale + "30",
+  },
+  roleIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.ivory[200],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleIconCircleActive: {
+    backgroundColor: colors.rose.pale + "50",
+  },
+  roleLabel: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textSecondary,
+  },
   roleLabelActive: { color: colors.rose[500] },
 
   // Step 2: 커플
@@ -309,13 +506,53 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
   },
   optionActive: { borderColor: colors.rose[500] },
-  optionTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 4 },
-  optionDesc: { fontSize: 13, color: colors.textSecondary },
+  optionTitle: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    marginBottom: 4,
+  },
+  optionTitleActive: { color: colors.rose[500] },
+  optionDesc: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  inviteCodeInput: {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    fontSize: 16,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: colors.noir[800],
+    letterSpacing: 2,
+    textAlign: "center",
+    marginTop: 4,
+  },
 
   // Step 3: 상세
-  fieldLabel: { fontSize: 14, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
+  fieldLabel: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    marginBottom: 8,
+  },
+  fieldHint: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+    marginTop: 4,
+    marginLeft: 4,
+  },
   input: {
     padding: 14,
     borderRadius: 14,
@@ -323,8 +560,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.noir[800],
     marginBottom: 8,
+  },
+  budgetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  budgetInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  budgetUnitBox: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[200],
+  },
+  budgetUnitText: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.textSecondary,
   },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   checkbox: {
@@ -334,18 +592,59 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.taupe[400],
   },
-  checkLabel: { fontSize: 14, color: colors.textSecondary },
+  checkLabel: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
 
   // Step 4: 완료
-  doneIcon: { alignItems: "center", marginBottom: 24, marginTop: 40 },
+  doneSection: {
+    alignItems: "center",
+    marginTop: 40,
+    marginBottom: 28,
+  },
+  dotsContainer: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dot: {
+    position: "absolute",
+  },
+  doneIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.ivory[200],
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: colors.gold.DEFAULT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 3,
+  },
   codeCard: {
     backgroundColor: colors.noir[800],
     borderRadius: 20,
     padding: 24,
     alignItems: "center",
     marginTop: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  codeLabel: { fontSize: 13, color: colors.taupe[400], marginBottom: 8 },
+  codeLabel: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+    marginBottom: 8,
+  },
   codeValue: {
     fontSize: 28,
     fontFamily: "CormorantGaramond_600SemiBold",
@@ -353,7 +652,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 8,
   },
-  codeHint: { fontSize: 12, color: colors.taupe[400] },
+  codeHint: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+  },
 
   // Footer
   footer: { padding: 24, gap: 12 },
@@ -365,9 +668,22 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 16,
     backgroundColor: colors.noir[800],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   nextBtnDisabled: { opacity: 0.4 },
-  nextText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+  nextText: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: "#FFFFFF",
+  },
   skipBtn: { alignItems: "center", paddingVertical: 8 },
-  skipText: { fontSize: 14, color: colors.textTertiary },
+  skipText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+  },
 });

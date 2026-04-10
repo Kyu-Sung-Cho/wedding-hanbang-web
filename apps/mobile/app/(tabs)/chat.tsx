@@ -9,7 +9,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  Animated,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +24,91 @@ interface ChatMessage {
   content: string;
 }
 
+// 애니메이션 점 컴포넌트
+function ThinkingDots() {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    function animateDot(dot: Animated.Value, delay: number) {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    }
+
+    const a1 = animateDot(dot1, 0);
+    const a2 = animateDot(dot2, 200);
+    const a3 = animateDot(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  const dots = [dot1, dot2, dot3];
+
+  return (
+    <View style={thinkingStyles.container}>
+      {dots.map((dot, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            thinkingStyles.dot,
+            {
+              opacity: dot.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.3, 1],
+              }),
+              transform: [
+                {
+                  translateY: dot.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -4],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+const thinkingStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.textTertiary,
+  },
+});
+
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -31,11 +116,14 @@ export default function ChatScreen() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("사용자");
   const flatListRef = useRef<FlatList>(null);
+  const sendBtnScale = useRef(new Animated.Value(1)).current;
 
   // 유저 프로필 + coupleId 로드
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: profile } = await supabase
@@ -57,11 +145,30 @@ export default function ChatScreen() {
     }, 100);
   }, []);
 
+  function handleSendPressIn() {
+    Animated.spring(sendBtnScale, {
+      toValue: 0.88,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  function handleSendPressOut() {
+    Animated.spring(sendBtnScale, {
+      toValue: 1,
+      friction: 3,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || streaming) return;
     if (!coupleId) {
-      Alert.alert("알림", "프로필 설정이 필요해요. 웹에서 온보딩을 먼저 완료해주세요.");
+      Alert.alert(
+        "알림",
+        "프로필 설정이 필요해요. 온보딩을 먼저 완료해주세요."
+      );
       return;
     }
 
@@ -100,7 +207,9 @@ export default function ChatScreen() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "채팅 오류");
+        throw new Error(
+          (err as { error?: string }).error || "채팅 오류가 발생했어요"
+        );
       }
 
       // React Native은 ReadableStream 미지원 → 전체 텍스트로 읽기
@@ -116,7 +225,10 @@ export default function ChatScreen() {
 
         try {
           const parsed = JSON.parse(jsonStr);
-          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+          if (
+            parsed.type === "content_block_delta" &&
+            parsed.delta?.text
+          ) {
             fullText += parsed.delta.text;
           } else if (parsed.text) {
             fullText += parsed.text;
@@ -133,32 +245,43 @@ export default function ChatScreen() {
       if (!fullText && rawText) {
         try {
           const json = JSON.parse(rawText);
-          fullText = json.text || json.content || json.message || rawText;
+          fullText =
+            json.text || json.content || json.message || rawText;
         } catch {
           fullText = rawText;
         }
       }
 
       // [suggestions] 블록 제거
-      const cleanText = fullText.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim();
+      const cleanText = fullText
+        .replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "")
+        .trim();
 
       setMessages((prev) => {
         const updated = [...prev];
         const lastIdx = updated.length - 1;
         if (updated[lastIdx]?.role === "assistant") {
-          updated[lastIdx] = { ...updated[lastIdx], content: cleanText || fullText || "응답을 받지 못했어요." };
+          updated[lastIdx] = {
+            ...updated[lastIdx],
+            content:
+              cleanText || fullText || "응답을 받지 못했어요.",
+          };
         }
         return updated;
       });
       scrollToEnd();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "채팅 중 오류 발생";
+      const message =
+        err instanceof Error ? err.message : "채팅 중 오류가 발생했어요";
       // 에러 시 어시스턴트 메시지에 에러 표시
       setMessages((prev) => {
         const updated = [...prev];
         const lastIdx = updated.length - 1;
         if (updated[lastIdx]?.role === "assistant") {
-          updated[lastIdx] = { ...updated[lastIdx], content: `오류: ${message}` };
+          updated[lastIdx] = {
+            ...updated[lastIdx],
+            content: `오류가 발생했어요: ${message}`,
+          };
         }
         return updated;
       });
@@ -169,17 +292,34 @@ export default function ChatScreen() {
 
   function renderMessage({ item }: { item: ChatMessage }) {
     const isUser = item.role === "user";
+    const isThinking =
+      !isUser && !item.content && streaming;
+
     return (
       <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
         {!isUser && (
           <View style={styles.aiAvatar}>
-            <Sparkles size={16} color={colors.gold.DEFAULT} />
+            <Sparkles size={14} color={colors.gold.DEFAULT} />
           </View>
         )}
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-            {item.content || (streaming ? "..." : "")}
-          </Text>
+        <View
+          style={[
+            styles.bubble,
+            isUser ? styles.bubbleUser : styles.bubbleAi,
+          ]}
+        >
+          {isThinking ? (
+            <ThinkingDots />
+          ) : (
+            <Text
+              style={[
+                styles.bubbleText,
+                isUser ? styles.bubbleTextUser : styles.bubbleTextAi,
+              ]}
+            >
+              {item.content}
+            </Text>
+          )}
         </View>
       </View>
     );
@@ -190,10 +330,12 @@ export default function ChatScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <View style={styles.headerLogo}>
-          <Sparkles size={18} color={colors.gold.DEFAULT} />
+          <Sparkles size={16} color={colors.gold.DEFAULT} />
         </View>
-        <Text style={styles.headerTitle}>아모라</Text>
-        <Text style={styles.headerSub}>AI 웨딩 플래너</Text>
+        <View>
+          <Text style={styles.headerTitle}>아모라</Text>
+          <Text style={styles.headerSub}>AI 웨딩 플래너</Text>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -204,12 +346,17 @@ export default function ChatScreen() {
         {/* 메시지 영역 */}
         {messages.length === 0 ? (
           <View style={styles.empty}>
+            {/* 배경 데코 */}
+            <View style={styles.emptyDecoTop} />
+            <View style={styles.emptyDecoBottom} />
+
             <View style={styles.emptyLogo}>
-              <Sparkles size={32} color={colors.gold.DEFAULT} />
+              <Sparkles size={28} color={colors.gold.DEFAULT} />
             </View>
             <Text style={styles.emptyTitle}>안녕하세요, 아모라예요</Text>
             <Text style={styles.emptyDesc}>
-              결혼 준비 뭐든 물어보세요.{"\n"}가격, 일정, 업체, 예절... 다 도와드릴게요.
+              결혼 준비 뭐든 물어보세요.{"\n"}가격, 일정, 업체, 예절...
+              다 도와드릴게요.
             </Text>
 
             {/* 추천 질문 */}
@@ -221,7 +368,14 @@ export default function ChatScreen() {
               ].map((q) => (
                 <Pressable
                   key={q}
-                  style={({ pressed }) => [styles.sugBtn, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [
+                    styles.sugBtn,
+                    pressed && {
+                      opacity: 0.85,
+                      transform: [{ scale: 0.98 }],
+                      borderColor: colors.rose[500],
+                    },
+                  ]}
                   onPress={() => {
                     setInput(q);
                   }}
@@ -256,17 +410,22 @@ export default function ChatScreen() {
             onSubmitEditing={handleSend}
             returnKeyType="send"
           />
-          <Pressable
-            style={[styles.sendBtn, (!input.trim() || streaming) && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim() || streaming}
+          <Animated.View
+            style={{ transform: [{ scale: sendBtnScale }] }}
           >
-            {streaming ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Send size={20} color="#FFFFFF" />
-            )}
-          </Pressable>
+            <Pressable
+              style={[
+                styles.sendBtn,
+                (!input.trim() || streaming) && styles.sendBtnDisabled,
+              ]}
+              onPress={handleSend}
+              onPressIn={handleSendPressIn}
+              onPressOut={handleSendPressOut}
+              disabled={!input.trim() || streaming}
+            >
+              <Send size={18} color="#FFFFFF" />
+            </Pressable>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -280,7 +439,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
@@ -288,22 +447,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 17,
+    fontFamily: "NotoSansKR_600SemiBold",
     color: colors.noir[800],
   },
   headerSub: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.textTertiary,
-    marginLeft: "auto",
+    marginTop: -1,
   },
 
   // 빈 상태
@@ -312,6 +472,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
+    position: "relative",
+    overflow: "hidden",
+  },
+  // 배경 데코 (그라디언트 대용)
+  emptyDecoTop: {
+    position: "absolute",
+    top: -60,
+    right: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: colors.rose.glow,
+  },
+  emptyDecoBottom: {
+    position: "absolute",
+    bottom: -40,
+    left: -60,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: colors.ivory[200],
+    opacity: 0.6,
   },
   emptyLogo: {
     width: 64,
@@ -321,15 +503,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   emptyTitle: {
     fontSize: 22,
-    fontWeight: "500",
+    fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     marginBottom: 8,
   },
   emptyDesc: {
     fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 22,
@@ -338,27 +526,50 @@ const styles = StyleSheet.create({
   suggestions: { width: "100%", gap: 8 },
   sugBtn: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 16,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  sugText: { fontSize: 14, color: colors.noir[800] },
+  sugText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.noir[800],
+  },
 
   // 메시지 리스트
-  messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  messageList: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
 
-  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "85%" },
+  msgRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    maxWidth: "85%",
+  },
   msgRowUser: { alignSelf: "flex-end", flexDirection: "row-reverse" },
 
   aiAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
 
   bubble: {
@@ -379,11 +590,15 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 15,
-    lineHeight: 22,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.noir[800],
+  },
+  bubbleTextAi: {
+    lineHeight: 24,
   },
   bubbleTextUser: {
     color: "#FFFFFF",
+    lineHeight: 22,
   },
 
   // 입력창
@@ -404,16 +619,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.noir[800],
     backgroundColor: colors.bg,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
   sendBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: colors.rose[500],
     alignItems: "center",
     justifyContent: "center",
