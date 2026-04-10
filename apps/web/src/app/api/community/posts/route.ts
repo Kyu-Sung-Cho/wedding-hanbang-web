@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
@@ -73,7 +73,7 @@ function getServiceClient() {
 // 게시글 목록 조회
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
 
     const category = searchParams.get("category") as CommunityCategory | null;
@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
 // 게시글 생성
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
