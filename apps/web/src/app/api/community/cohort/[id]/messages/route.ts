@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortThreadTopic } from "@/types/community.types";
 
 async function assertMember(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
   userId: string
 ): Promise<boolean> {
@@ -23,7 +23,7 @@ export async function GET(
 ) {
   try {
     const { id: roomId } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -87,7 +87,7 @@ export async function POST(
 ) {
   try {
     const { id: roomId } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();

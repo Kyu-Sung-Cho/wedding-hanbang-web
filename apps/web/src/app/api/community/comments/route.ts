@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeHtml } from "@/utils/sanitize";
@@ -15,7 +15,7 @@ function getServiceClient() {
 // 댓글 목록 조회 (트리 구조)
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
     const postId = searchParams.get("postId");
 
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
 // 댓글 작성
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();

@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortContractCategory } from "@/types/community.types";
 
 async function assertMember(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
   userId: string
 ): Promise<boolean> {
@@ -18,12 +18,12 @@ async function assertMember(
 
 // GET: 계약 목록 + 카테고리별 집계 (cohort_stats view)
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: roomId } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -82,7 +82,7 @@ export async function POST(
 ) {
   try {
     const { id: roomId } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
