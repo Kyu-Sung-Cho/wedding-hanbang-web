@@ -50,7 +50,7 @@ export default function Index() {
     case "login":
       return <Redirect href="/(auth)/login" />;
     case "onboarding":
-      return <Redirect href="/onboarding/index" />;
+      return <Redirect href={"/onboarding/index" as never} />;
     case "dashboard":
       return <Redirect href="/(tabs)/dashboard" />;
   }
