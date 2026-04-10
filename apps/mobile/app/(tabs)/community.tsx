@@ -1,42 +1,268 @@
-import { View, Text, StyleSheet } from "react-native";
+// 커뮤니티 피드 — 게시글 목록 (5개 게시판)
+import { useEffect, useState, useCallback } from "react";
+import {
+  View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Users } from "lucide-react-native";
+import { router } from "expo-router";
+import { MessageCircle, ChevronUp, Eye, PenSquare } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { apiJson } from "@/lib/api";
+
+interface PostItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  upvote_count: number;
+  downvote_count: number;
+  comment_count: number;
+  view_count: number;
+  created_at: string;
+  author: { nickname: string; rank: string } | null;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  is_normal: "이거 정상이야?",
+  tour_review: "투어/후기",
+  tips_v2: "꿀팁",
+  ama: "AMA",
+  free: "자유",
+};
+
+const CATEGORIES = ["all", "is_normal", "tour_review", "tips_v2", "ama", "free"];
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}일 전`;
+  return `${Math.floor(days / 30)}달 전`;
+}
 
 export default function CommunityScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.center}>
-        <View style={styles.logoCircle}>
-          <Users size={28} color={colors.rose[500]} />
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [category, setCategory] = useState("all");
+
+  const loadPosts = useCallback(async (cat: string) => {
+    try {
+      const params = cat === "all" ? "" : `&category=${cat}`;
+      const data = await apiJson<{ posts: PostItem[] }>(
+        `/api/community/posts?sort=new&limit=30${params}`
+      );
+      setPosts(data.posts ?? []);
+    } catch (err) {
+      console.error("Community load error:", err);
+      setPosts([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    loadPosts(category);
+  }, [category, loadPosts]);
+
+  function renderPost({ item }: { item: PostItem }) {
+    const catLabel = CATEGORY_LABELS[item.category] ?? item.category;
+    const preview = item.content.replace(/<[^>]*>/g, "").slice(0, 100);
+    const votes = item.upvote_count - item.downvote_count;
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.postCard, pressed && { opacity: 0.8 }]}
+        onPress={() => {
+          // Phase 4에서 상세 화면 구현
+          console.log("Navigate to post", item.id);
+        }}
+      >
+        {/* 메타 */}
+        <View style={styles.postMeta}>
+          <Text style={styles.postCat}>{catLabel}</Text>
+          <Text style={styles.postDot}>·</Text>
+          <Text style={styles.postAuthor}>{item.author?.nickname ?? "익명"}</Text>
+          <Text style={styles.postDot}>·</Text>
+          <Text style={styles.postTime}>{timeAgo(item.created_at)}</Text>
         </View>
-        <Text style={styles.title}>커뮤니티</Text>
-        <Text style={styles.subtitle}>
-          동기방과 게시판이 여기에 열려요{"\n"}Phase 2 예정
-        </Text>
+
+        {/* 제목 */}
+        <Text style={styles.postTitle} numberOfLines={2}>{item.title}</Text>
+
+        {/* 미리보기 */}
+        {preview.length > 0 && (
+          <Text style={styles.postPreview} numberOfLines={2}>{preview}</Text>
+        )}
+
+        {/* 액션 바 */}
+        <View style={styles.postActions}>
+          <View style={styles.actionGroup}>
+            <ChevronUp size={16} color={colors.taupe[400]} />
+            <Text style={styles.actionText}>{votes}</Text>
+          </View>
+          <View style={styles.actionGroup}>
+            <MessageCircle size={16} color={colors.taupe[400]} />
+            <Text style={styles.actionText}>{item.comment_count}</Text>
+          </View>
+          <View style={styles.actionGroup}>
+            <Eye size={16} color={colors.taupe[400]} />
+            <Text style={styles.actionText}>{item.view_count}</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>커뮤니티</Text>
       </View>
+
+      {/* 카테고리 칩 */}
+      <View style={styles.chipRow}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={CATEGORIES}
+          keyExtractor={(c) => c}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          renderItem={({ item: cat }) => {
+            const active = category === cat;
+            return (
+              <Pressable
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setCategory(cat)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {cat === "all" ? "전체" : (CATEGORY_LABELS[cat] ?? cat)}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
+
+      {/* 피드 */}
+      {loading ? (
+        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={posts}
+          keyExtractor={(p) => p.id}
+          renderItem={renderPost}
+          contentContainerStyle={styles.feedList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); loadPosts(category); }}
+              tintColor={colors.rose[500]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>아직 작성된 글이 없어요</Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* 글쓰기 FAB */}
+      <Pressable
+        style={styles.fab}
+        onPress={() => {
+          // Phase 5에서 글쓰기 화면 구현, 지금은 웹으로
+          console.log("Write post");
+        }}
+      >
+        <PenSquare size={22} color="#FFFFFF" />
+      </Pressable>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
-  logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: colors.ivory[200],
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+  },
+
+  chipRow: { paddingVertical: 12 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: colors.noir[800],
+    borderColor: colors.noir[800],
+  },
+  chipText: { fontSize: 13, color: colors.textSecondary },
+  chipTextActive: { color: "#FFFFFF", fontWeight: "600" },
+
+  feedList: { padding: 16, gap: 12, paddingBottom: 100 },
+
+  postCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+  },
+  postMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
+  postCat: { fontSize: 12, fontWeight: "600", color: colors.rose[500] },
+  postDot: { fontSize: 12, color: colors.taupe[400] },
+  postAuthor: { fontSize: 12, color: colors.noir[800] },
+  postTime: { fontSize: 12, color: colors.taupe[400] },
+
+  postTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800], lineHeight: 22 },
+  postPreview: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+
+  postActions: { flexDirection: "row", gap: 16, marginTop: 12 },
+  actionGroup: { flexDirection: "row", alignItems: "center", gap: 4 },
+  actionText: { fontSize: 12, color: colors.taupe[400] },
+
+  empty: { alignItems: "center", paddingTop: 60 },
+  emptyText: { fontSize: 15, color: colors.textTertiary },
+
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 100,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "500",
-    color: colors.noir[800],
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 22 },
 });
