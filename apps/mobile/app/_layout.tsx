@@ -79,17 +79,15 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
           <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-          <Stack.Screen name="onboarding/index" options={{ headerShown: false, animation: "fade" }} />
-          <Stack.Screen name="schedule/index" options={{ headerShown: false }} />
-          <Stack.Screen name="budget/index" options={{ headerShown: false }} />
-          <Stack.Screen name="vendors/index" options={{ headerShown: false }} />
-          <Stack.Screen name="settings/index" options={{ headerShown: false }} />
-          <Stack.Screen name="market-prices/index" options={{ headerShown: false }} />
-          <Stack.Screen name="etiquette/index" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
+          <Stack.Screen name="schedule" options={{ headerShown: false }} />
+          <Stack.Screen name="budget" options={{ headerShown: false }} />
+          <Stack.Screen name="vendors" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="market-prices" options={{ headerShown: false }} />
+          <Stack.Screen name="etiquette" options={{ headerShown: false }} />
           <Stack.Screen name="webview" options={{ headerShown: false }} />
-          <Stack.Screen name="community/post/[id]" options={{ headerShown: false }} />
-          <Stack.Screen name="community/post/write" options={{ headerShown: false }} />
-          <Stack.Screen name="community/cohort/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="community" options={{ headerShown: false }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
