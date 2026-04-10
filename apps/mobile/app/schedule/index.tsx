@@ -110,24 +110,38 @@ export default function ScheduleScreen() {
 
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
 
-      // 웹 상수가 소스 — DB는 체크 상태만 오버레이
-      // CATEGORY_CHECKLISTS의 모든 카테고리/항목을 그대로 사용
+      // 웹과 동일한 progress 구조:
+      // progress[catKey] = { category, status, checklist: [{id, label, done}, ...], cost?, budget? }
+      // CATEGORY_CHECKLISTS 상수가 소스 → DB의 checklist 배열에서 done 상태만 오버레이
       const cats: Category[] = [];
       const progMap: Record<string, Record<string, boolean>> = {};
 
       for (const cat of CATEGORY_CHECKLISTS) {
-        // DB에서 이 카테고리의 체크 상태 가져오기
-        const dbCatData = prog[cat.key] as Record<string, boolean> | undefined;
-        const itemStates: Record<string, boolean> = {};
+        const dbCatData = prog[cat.key] as {
+          status?: string;
+          checklist?: Array<{ id: string; label?: string; done: boolean }>;
+          [key: string]: unknown;
+        } | undefined;
 
+        // DB의 checklist 배열에서 done 상태 매핑
+        const dbDoneMap: Record<string, boolean> = {};
+        if (dbCatData?.checklist && Array.isArray(dbCatData.checklist)) {
+          for (const item of dbCatData.checklist) {
+            dbDoneMap[item.id] = !!item.done;
+          }
+        }
+        // 레거시: 플랫 구조 { meeting_01: true } 호환
+        if (!dbCatData?.checklist && dbCatData && typeof dbCatData === "object") {
+          for (const [k, v] of Object.entries(dbCatData)) {
+            if (typeof v === "boolean") dbDoneMap[k] = v;
+          }
+        }
+
+        const itemStates: Record<string, boolean> = {};
         const checkItems: ChecklistItem[] = cat.items.map((item) => {
-          const done = dbCatData?.[item.id] ?? false;
+          const done = dbDoneMap[item.id] ?? false;
           itemStates[item.id] = done;
-          return {
-            id: item.id,
-            label: item.label, // 한글 라벨 (상수에서)
-            done,
-          };
+          return { id: item.id, label: item.label, done };
         });
 
         cats.push({ key: cat.key, label: cat.label, items: checkItems });
@@ -178,6 +192,7 @@ export default function ScheduleScreen() {
       [categoryKey]: { ...prev[categoryKey], [itemId]: !currentDone },
     }));
 
+    // 웹과 동일한 구조로 DB 업데이트
     const { data: journey } = await supabase
       .from("wedding_journeys")
       .select("progress")
@@ -185,15 +200,37 @@ export default function ScheduleScreen() {
       .single();
 
     if (journey) {
-      const updatedProgress = { ...(journey.progress as Record<string, unknown>) };
-      const cat = updatedProgress[categoryKey] as Record<string, boolean>;
-      if (cat) {
-        cat[itemId] = !currentDone;
-        await supabase
-          .from("wedding_journeys")
-          .update({ progress: updatedProgress })
-          .eq("couple_id", coupleId);
-      }
+      const currentProgress = { ...(journey.progress as Record<string, unknown>) };
+      const catTemplate = CATEGORY_CHECKLISTS.find((c) => c.key === categoryKey);
+      if (!catTemplate) return;
+
+      // 기존 DB의 카테고리 데이터
+      const existing = currentProgress[categoryKey] as Record<string, unknown> | undefined;
+      const existingChecklist = (existing?.checklist as Array<{ id: string; label: string; done: boolean }>) ?? [];
+
+      // 체크리스트 배열 업데이트 (없으면 상수에서 생성)
+      const updatedChecklist = catTemplate.items.map((item) => {
+        const dbItem = existingChecklist.find((c) => c.id === item.id);
+        const done = item.id === itemId ? !currentDone : (dbItem?.done ?? false);
+        return { id: item.id, label: item.label, done };
+      });
+
+      // 전체 완료 상태 계산
+      const allDone = updatedChecklist.every((i) => i.done);
+      const anyDone = updatedChecklist.some((i) => i.done);
+      const status = allDone ? "completed" : anyDone ? "in_progress" : "not_started";
+
+      currentProgress[categoryKey] = {
+        ...(existing ?? {}),
+        category: categoryKey,
+        status,
+        checklist: updatedChecklist,
+      };
+
+      await supabase
+        .from("wedding_journeys")
+        .update({ progress: currentProgress })
+        .eq("couple_id", coupleId);
     }
 
     // 진행률 재계산
