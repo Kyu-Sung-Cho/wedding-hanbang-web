@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Calendar, CheckCircle2, ChevronRight, Sparkles } from "lucide-react-native";
+import { Calendar, CheckCircle2, ChevronRight, Sparkles, Wallet, ClipboardList } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
@@ -203,6 +203,32 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.actionTitle}>아모라</Text>
             <Text style={styles.actionDesc}>AI 상담</Text>
+            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
+            onPress={() => router.push("/schedule/index")}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
+              <ClipboardList size={20} color={colors.rose[500]} />
+            </View>
+            <Text style={styles.actionTitle}>체크리스트</Text>
+            <Text style={styles.actionDesc}>일정 관리</Text>
+            <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
+          </Pressable>
+        </View>
+
+        <View style={[styles.actionsRow, { marginTop: 12 }]}>
+          <Pressable
+            style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
+            onPress={() => router.push("/budget/index")}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
+              <Wallet size={20} color={colors.gold.DEFAULT} />
+            </View>
+            <Text style={styles.actionTitle}>예산</Text>
+            <Text style={styles.actionDesc}>지출 현황</Text>
             <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
           </Pressable>
 
