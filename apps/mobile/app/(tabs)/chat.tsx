@@ -103,71 +103,54 @@ export default function ChatScreen() {
         throw new Error(err.error || "채팅 오류");
       }
 
-      // 스트리밍 응답 읽기
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("스트림 없음");
+      // React Native은 ReadableStream 미지원 → 전체 텍스트로 읽기
+      const rawText = await res.text();
 
-      const decoder = new TextDecoder();
+      // SSE 형식에서 텍스트 추출
       let fullText = "";
+      const lines = rawText.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.slice(6).trim();
+        if (jsonStr === "[DONE]" || !jsonStr) continue;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-
-        // SSE 파싱: data: {...}\n\n 형식
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6);
-          if (jsonStr === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-
-            // 텍스트 청크
-            if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-              fullText += parsed.delta.text;
-            }
-            // 또는 간단한 text 필드
-            if (parsed.text) {
-              fullText += parsed.text;
-            }
-            // chunk 필드 (웹 API 형식)
-            if (parsed.chunk) {
-              fullText += parsed.chunk;
-            }
-          } catch {
-            // JSON이 아닌 텍스트 청크 — 직접 추가
-            if (jsonStr.trim() && jsonStr !== "[DONE]") {
-              fullText += jsonStr;
-            }
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+            fullText += parsed.delta.text;
+          } else if (parsed.text) {
+            fullText += parsed.text;
+          } else if (parsed.chunk) {
+            fullText += parsed.chunk;
           }
+        } catch {
+          // JSON 아닌 경우 직접 추가
+          if (jsonStr) fullText += jsonStr;
         }
-
-        // 어시스턴트 메시지 업데이트
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === "assistant") {
-            updated[lastIdx] = { ...updated[lastIdx], content: fullText };
-          }
-          return updated;
-        });
-        scrollToEnd();
       }
 
-      // [suggestions] 블록 제거 (웹과 동일)
+      // SSE가 아닌 일반 JSON 응답인 경우
+      if (!fullText && rawText) {
+        try {
+          const json = JSON.parse(rawText);
+          fullText = json.text || json.content || json.message || rawText;
+        } catch {
+          fullText = rawText;
+        }
+      }
+
+      // [suggestions] 블록 제거
       const cleanText = fullText.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim();
+
       setMessages((prev) => {
         const updated = [...prev];
         const lastIdx = updated.length - 1;
         if (updated[lastIdx]?.role === "assistant") {
-          updated[lastIdx] = { ...updated[lastIdx], content: cleanText || fullText };
+          updated[lastIdx] = { ...updated[lastIdx], content: cleanText || fullText || "응답을 받지 못했어요." };
         }
         return updated;
       });
+      scrollToEnd();
     } catch (err) {
       const message = err instanceof Error ? err.message : "채팅 중 오류 발생";
       // 에러 시 어시스턴트 메시지에 에러 표시
