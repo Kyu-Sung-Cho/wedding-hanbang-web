@@ -78,7 +78,7 @@ export default function CommunityScreen() {
       );
       setPosts(data.posts ?? []);
     } catch (err) {
-      console.error("Community load error:", err);
+      // API 에러 시 조용히 빈 리스트 — 크래시 방지
       setPosts([]);
     } finally {
       setLoading(false);
