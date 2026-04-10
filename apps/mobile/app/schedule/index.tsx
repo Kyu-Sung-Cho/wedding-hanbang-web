@@ -1,14 +1,15 @@
 // 체크리스트/일정 화면 — 카테고리 체크 + 일정 CRUD
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
   RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
+  Animated, LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   ArrowLeft, ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, X, CalendarDays, Clock, Trash2,
+  Plus, X, CalendarDays, Clock, Trash2, ListChecks,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -60,7 +61,7 @@ function formatDate(dateStr: string): string {
 function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
-  return days[d.getDay()];
+  return days[d.getDay()] ?? "";
 }
 
 /* ───── main screen ───── */
@@ -73,6 +74,9 @@ export default function ScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
+  // 진행률 애니메이션
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
   // event modal
   const [modalVisible, setModalVisible] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -82,9 +86,6 @@ export default function ScheduleScreen() {
   const [formCategoryKey, setFormCategoryKey] = useState("");
   const [formMemo, setFormMemo] = useState("");
   const [saving, setSaving] = useState(false);
-
-  // 전체 progress 객체 보관 (이벤트 저장 시 필요)
-  const [rawProgress, setRawProgress] = useState<Record<string, unknown>>({});
 
   const loadData = useCallback(async () => {
     try {
@@ -107,7 +108,6 @@ export default function ScheduleScreen() {
         .single();
 
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
-      setRawProgress(prog);
 
       // 카테고리별 체크리스트 추출
       const cats: Category[] = [];
@@ -131,22 +131,41 @@ export default function ScheduleScreen() {
       setCategories(cats);
       setProgress(progMap);
 
+      // 전체 진행률 애니메이션
+      if (cats.length > 0) {
+        const totalPercent = Math.round(
+          cats.reduce((sum, c) => {
+            const total = Object.keys(progMap[c.key] ?? {}).length;
+            const done = Object.values(progMap[c.key] ?? {}).filter(Boolean).length;
+            return sum + (total > 0 ? (done / total) * 100 : 0);
+          }, 0) / cats.length
+        );
+        Animated.timing(progressAnim, {
+          toValue: totalPercent,
+          duration: 800,
+          useNativeDriver: false,
+        }).start();
+      }
+
       // 이벤트 추출
       const evts = (prog.__events as ScheduleEvent[]) ?? [];
       setEvents(evts);
     } catch (err) {
-      console.error("Schedule load error:", err);
+      console.error("일정 로드 오류:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [progressAnim]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   /* ── 체크 토글 ── */
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {
     if (!coupleId) return;
+
+    // 레이아웃 애니메이션
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
     setProgress((prev) => ({
       ...prev,
@@ -170,6 +189,9 @@ export default function ScheduleScreen() {
           .eq("couple_id", coupleId);
       }
     }
+
+    // 진행률 재계산
+    loadData();
   }
 
   function getCategoryStats(key: string) {
@@ -215,7 +237,6 @@ export default function ScheduleScreen() {
 
     setSaving(true);
     try {
-      // 현재 progress 다시 읽기
       const { data: journey } = await supabase
         .from("wedding_journeys")
         .select("progress")
@@ -241,7 +262,6 @@ export default function ScheduleScreen() {
         updatedEvents = [...currentEvents, newEvent];
       }
 
-      // 날짜순 정렬
       updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
 
       const updatedProgress = { ...currentProgress, __events: updatedEvents };
@@ -253,7 +273,7 @@ export default function ScheduleScreen() {
       setModalVisible(false);
       loadData();
     } catch (err) {
-      Alert.alert("오류", "저장에 실패했어요");
+      Alert.alert("오류", "저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
@@ -290,11 +310,30 @@ export default function ScheduleScreen() {
     ]);
   }
 
+  function handleExpandToggle(key: string) {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedKey(expandedKey === key ? null : key);
+  }
+
   /* ── 임박 일정 (7일 이내) ── */
   const next7Days = getUpcomingDays(7);
   const upcomingEvents = events
     .filter((e) => next7Days.includes(e.date))
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  // 전체 진행률 계산
+  const overallPercent = categories.length > 0
+    ? Math.round(
+        categories.reduce((sum, c) => sum + getCategoryStats(c.key).percent, 0) /
+          categories.length
+      )
+    : 0;
+
+  // 진행바 width 보간
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
 
   if (loading) {
     return (
@@ -317,17 +356,19 @@ export default function ScheduleScreen() {
         </Pressable>
       </View>
 
-      {/* 전체 진행률 */}
+      {/* 전체 진행률 — 프리미엄 카드 */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>전체 진행률</Text>
-        <Text style={styles.summaryPercent}>
-          {categories.length > 0
-            ? Math.round(
-                categories.reduce((sum, c) => sum + getCategoryStats(c.key).percent, 0) /
-                  categories.length
-              )
-            : 0}
-          %
+        <View style={styles.summaryTop}>
+          <Text style={styles.summaryLabel}>전체 진행률</Text>
+          <Text style={styles.summaryPercent}>{overallPercent}%</Text>
+        </View>
+        <View style={styles.summaryBar}>
+          <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
+        </View>
+        <Text style={styles.summaryHint}>
+          {overallPercent >= 100 ? "모든 준비가 완료되었어요!" :
+           overallPercent >= 50 ? "절반 이상 완료! 잘 하고 있어요" :
+           "차근차근 준비해봐요"}
         </Text>
       </View>
 
@@ -352,7 +393,10 @@ export default function ScheduleScreen() {
             {upcomingEvents.map((evt, i) => (
               <Pressable
                 key={`${evt.date}-${evt.title}-${i}`}
-                style={styles.eventCard}
+                style={({ pressed }) => [
+                  styles.eventCard,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
                 onPress={() => {
                   const idx = events.findIndex(
                     (e) => e.date === evt.date && e.title === evt.title
@@ -388,8 +432,11 @@ export default function ScheduleScreen() {
         {/* 카테고리 체크리스트 */}
         {categories.length === 0 && events.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>체크리스트가 아직 없어요.</Text>
-            <Text style={styles.emptyHint}>웹에서 온보딩을 완료하면 자동 생성됩니다.</Text>
+            <View style={styles.emptyIconWrap}>
+              <ListChecks size={40} color={colors.rose[500]} />
+            </View>
+            <Text style={styles.emptyText}>체크리스트가 아직 없어요</Text>
+            <Text style={styles.emptyHint}>웹에서 온보딩을 완료하면 자동 생성됩니다</Text>
           </View>
         ) : (
           categories.map((cat) => {
@@ -400,7 +447,7 @@ export default function ScheduleScreen() {
               <View key={cat.key} style={styles.catCard}>
                 <Pressable
                   style={styles.catHeader}
-                  onPress={() => setExpandedKey(expanded ? null : cat.key)}
+                  onPress={() => handleExpandToggle(cat.key)}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
@@ -424,7 +471,10 @@ export default function ScheduleScreen() {
                     {(progress[cat.key] ? Object.entries(progress[cat.key]) : []).map(([id, done]) => (
                       <Pressable
                         key={id}
-                        style={styles.itemRow}
+                        style={({ pressed }) => [
+                          styles.itemRow,
+                          pressed && { transform: [{ scale: 0.98 }] },
+                        ]}
                         onPress={() => toggleItem(cat.key, id, done)}
                       >
                         {done
@@ -450,7 +500,10 @@ export default function ScheduleScreen() {
             {events.map((evt, i) => (
               <Pressable
                 key={`all-${evt.date}-${evt.title}-${i}`}
-                style={styles.allEventRow}
+                style={({ pressed }) => [
+                  styles.allEventRow,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
                 onPress={() => openEditEventModal(i)}
               >
                 <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
@@ -474,6 +527,7 @@ export default function ScheduleScreen() {
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editingIdx !== null ? "일정 수정" : "일정 추가"}
@@ -547,7 +601,7 @@ export default function ScheduleScreen() {
             <View style={styles.modalActions}>
               {editingIdx !== null && (
                 <Pressable
-                  style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.8 }]}
+                  style={({ pressed }) => [styles.deleteBtn, pressed && { transform: [{ scale: 0.96 }] }]}
                   onPress={deleteEvent}
                 >
                   <Trash2 size={18} color="#EF4444" />
@@ -555,7 +609,11 @@ export default function ScheduleScreen() {
                 </Pressable>
               )}
               <Pressable
-                style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.8 }, { flex: 1 }]}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                  { flex: 1 },
+                ]}
                 onPress={saveEvent}
                 disabled={saving}
               >
@@ -586,19 +644,42 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+
   summaryCard: {
+    margin: 20,
+    marginBottom: 8,
+    padding: 24,
+    backgroundColor: colors.noir[800],
+    borderRadius: 24,
+  },
+  summaryTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    margin: 20,
-    marginBottom: 8,
-    padding: 20,
-    backgroundColor: colors.noir[800],
-    borderRadius: 20,
+    marginBottom: 16,
   },
   summaryLabel: { fontSize: 14, color: colors.taupe[400] },
-  summaryPercent: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
+  summaryPercent: { fontSize: 36, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
+  summaryBar: {
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  summaryBarFill: {
+    height: "100%",
+    backgroundColor: colors.rose[500],
+    borderRadius: 3,
+  },
+  summaryHint: { fontSize: 12, color: colors.taupe[400] },
+
   list: { padding: 20, gap: 12, paddingBottom: 40 },
 
   // 임박 일정
@@ -606,9 +687,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 16,
     marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   upcomingHeader: {
     flexDirection: "row",
@@ -616,26 +702,31 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  upcomingTitle: { fontSize: 16, fontWeight: "600", color: colors.noir[800] },
+  upcomingTitle: { fontSize: 16, fontWeight: "700", color: colors.noir[800] },
   eventCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   eventDateBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.ivory[200],
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: colors.rose.glow,
     alignItems: "center",
     justifyContent: "center",
   },
-  eventDateNum: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
-  eventDateDay: { fontSize: 10, color: colors.textTertiary },
-  eventTitle: { fontSize: 14, fontWeight: "500", color: colors.noir[800] },
+  eventDateNum: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.rose[500],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
+  eventDateDay: { fontSize: 10, color: colors.rose[600] },
+  eventTitle: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
   eventMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   eventMetaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   eventMetaText: { fontSize: 11, color: colors.textTertiary },
@@ -649,7 +740,16 @@ const styles = StyleSheet.create({
 
   // 카테고리 체크리스트
   empty: { alignItems: "center", paddingTop: 60 },
-  emptyText: { fontSize: 16, fontWeight: "500", color: colors.noir[800], marginBottom: 8 },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  emptyText: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
   emptyHint: { fontSize: 13, color: colors.textTertiary },
 
   catCard: {
@@ -658,12 +758,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 20,
     padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   catHeader: { flexDirection: "row", alignItems: "center" },
-  catLabel: { fontSize: 16, fontWeight: "600", color: colors.noir[800] },
+  catLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
   catStat: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   catRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  catPercent: { fontSize: 14, fontWeight: "600", color: colors.rose[500] },
+  catPercent: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.rose[500],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
   catBar: {
     height: 4,
     backgroundColor: colors.ivory[200],
@@ -673,7 +788,7 @@ const styles = StyleSheet.create({
   },
   catBarFill: { height: "100%", backgroundColor: colors.rose[500], borderRadius: 999 },
 
-  itemList: { marginTop: 16, gap: 12 },
+  itemList: { marginTop: 16, gap: 14 },
   itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   itemLabel: { fontSize: 14, color: colors.noir[800], flex: 1 },
   itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
@@ -682,9 +797,10 @@ const styles = StyleSheet.create({
   allEventsSection: { marginTop: 8 },
   allEventsTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.noir[800],
     marginBottom: 12,
+    fontFamily: "NotoSerifKR_500Medium",
   },
   allEventRow: {
     flexDirection: "row",
@@ -697,8 +813,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 14,
     marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  allEventDate: { fontSize: 13, fontWeight: "600", color: colors.rose[500], width: 44 },
+  allEventDate: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.rose[500],
+    width: 44,
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
   allEventTitle: { fontSize: 14, color: colors.noir[800], flex: 1 },
   allEventTime: { fontSize: 12, color: colors.textTertiary },
 
@@ -713,9 +840,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 36,
     maxHeight: "85%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.ivory[200],
+    alignSelf: "center",
+    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: "row",
@@ -723,7 +858,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
 
   fieldLabel: {
     fontSize: 13,
@@ -736,7 +876,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
@@ -752,7 +892,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.noir[800] },
   chipText: { fontSize: 13, color: colors.textSecondary },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: "#fff", fontWeight: "600" },
 
   modalActions: {
     flexDirection: "row",

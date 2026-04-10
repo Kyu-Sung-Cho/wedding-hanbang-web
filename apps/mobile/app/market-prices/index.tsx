@@ -10,16 +10,18 @@ interface PriceCategory {
   base: string;
   extra: string;
   note?: string;
+  basePercent: number;
+  extraPercent: number;
 }
 
 const PRICE_DATA: PriceCategory[] = [
-  { name: "스튜디오", base: "150~200만", extra: "50~80만" },
-  { name: "드레스", base: "100~150만", extra: "50~80만" },
-  { name: "메이크업", base: "50~80만", extra: "20~30만" },
-  { name: "예식장 식대", base: "인당 5~8만", extra: "", note: "200명 기준 1,000~1,600만" },
-  { name: "한복", base: "50~200만", extra: "" },
-  { name: "예물 (반지)", base: "100~500만", extra: "" },
-  { name: "신혼여행", base: "300~800만", extra: "" },
+  { name: "스튜디오", base: "150~200만", extra: "50~80만", basePercent: 70, extraPercent: 40 },
+  { name: "드레스", base: "100~150만", extra: "50~80만", basePercent: 55, extraPercent: 40 },
+  { name: "메이크업", base: "50~80만", extra: "20~30만", basePercent: 35, extraPercent: 18 },
+  { name: "예식장 식대", base: "인당 5~8만", extra: "", note: "200명 기준 1,000~1,600만", basePercent: 90, extraPercent: 0 },
+  { name: "한복", base: "50~200만", extra: "", basePercent: 50, extraPercent: 0 },
+  { name: "예물 (반지)", base: "100~500만", extra: "", basePercent: 65, extraPercent: 0 },
+  { name: "신혼여행", base: "300~800만", extra: "", basePercent: 80, extraPercent: 0 },
 ];
 
 export default function MarketPricesScreen() {
@@ -70,7 +72,7 @@ export default function MarketPricesScreen() {
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>기본</Text>
               <View style={styles.priceBarTrack}>
-                <View style={styles.priceBarFill} />
+                <View style={[styles.priceBarFill, { width: `${item.basePercent}%` }]} />
               </View>
               <Text style={styles.priceValue}>{item.base}</Text>
             </View>
@@ -79,7 +81,7 @@ export default function MarketPricesScreen() {
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>추가</Text>
                 <View style={styles.priceBarTrack}>
-                  <View style={[styles.priceBarFill, styles.priceBarExtra]} />
+                  <View style={[styles.priceBarFill, styles.priceBarExtra, { width: `${item.extraPercent}%` }]} />
                 </View>
                 <Text style={styles.priceValue}>{item.extra}</Text>
               </View>
@@ -110,7 +112,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: colors.noir[800] },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
   content: { padding: 20, paddingBottom: 40 },
 
   // 요약 카드
@@ -129,7 +136,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   summaryBadgeText: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.8)" },
-  summaryTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF", marginBottom: 20 },
+  summaryTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 20,
+    fontFamily: "NotoSerifKR_500Medium",
+  },
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -137,7 +150,12 @@ const styles = StyleSheet.create({
   },
   summaryItem: { flex: 1, alignItems: "center" },
   summaryLabel: { fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
-  summaryValue: { fontSize: 22, fontWeight: "700", color: colors.rose[500] },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.rose[500],
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
   summaryDivider: { width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.15)" },
   totalRow: {
     flexDirection: "row",
@@ -148,14 +166,20 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.15)",
   },
   totalLabel: { fontSize: 15, fontWeight: "500", color: "rgba(255,255,255,0.7)" },
-  totalValue: { fontSize: 26, fontWeight: "700", color: colors.gold.DEFAULT },
+  totalValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: colors.gold.DEFAULT,
+    fontFamily: "CormorantGaramond_600SemiBold",
+  },
 
   // 섹션
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.noir[800],
     marginBottom: 16,
+    fontFamily: "NotoSerifKR_500Medium",
   },
 
   // 가격 카드
@@ -166,18 +190,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   priceName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.noir[800],
-    marginBottom: 12,
+    marginBottom: 14,
+    fontFamily: "NotoSerifKR_500Medium",
   },
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   priceLabel: {
     fontSize: 12,
@@ -186,33 +216,31 @@ const styles = StyleSheet.create({
   },
   priceBarTrack: {
     flex: 1,
-    height: 8,
+    height: 10,
     backgroundColor: colors.ivory[200],
-    borderRadius: 4,
+    borderRadius: 5,
     overflow: "hidden",
   },
   priceBarFill: {
-    width: "60%",
     height: "100%",
     backgroundColor: colors.rose[500],
-    borderRadius: 4,
+    borderRadius: 5,
   },
   priceBarExtra: {
-    width: "35%",
     backgroundColor: colors.taupe[400],
   },
   priceValue: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     color: colors.noir[800],
-    minWidth: 80,
+    minWidth: 90,
     textAlign: "right",
+    fontFamily: "CormorantGaramond_600SemiBold",
   },
   priceNote: {
     fontSize: 12,
     color: colors.textTertiary,
     marginTop: 4,
-    fontStyle: "italic",
   },
 
   disclaimer: {
