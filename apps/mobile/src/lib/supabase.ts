@@ -16,20 +16,30 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// SecureStore에는 2KB 제한이 있어 큰 값은 쪼개서 저장하는 어댑터 사용
+// SecureStore는 2KB 제한 — 큰 값은 AsyncStorage로 fallback
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 const LargeSecureStore = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") return null;
+    // SecureStore에서 먼저 시도, 없으면 AsyncStorage
     const value = await SecureStore.getItemAsync(key);
-    return value;
+    if (value) return value;
+    return AsyncStorage.getItem(key);
   },
   async setItem(key: string, value: string): Promise<void> {
     if (Platform.OS === "web") return;
-    await SecureStore.setItemAsync(key, value);
+    if (value.length > 2000) {
+      // 2KB 초과: AsyncStorage에 저장 (SecureStore 실패 방지)
+      await AsyncStorage.setItem(key, value);
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
   },
   async removeItem(key: string): Promise<void> {
     if (Platform.OS === "web") return;
-    await SecureStore.deleteItemAsync(key);
+    await SecureStore.deleteItemAsync(key).catch(() => {});
+    await AsyncStorage.removeItem(key).catch(() => {});
   },
 };
 

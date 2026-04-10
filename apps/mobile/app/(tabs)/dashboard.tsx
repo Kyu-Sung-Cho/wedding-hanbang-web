@@ -234,13 +234,13 @@ export default function DashboardScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/(tabs)/community")}
+            onPress={() => router.push("/vendors/index" as never)}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.ivory[200] }]}>
-              <Calendar size={20} color={colors.rose[500]} />
+              <Store size={20} color={colors.rose[500]} />
             </View>
-            <Text style={styles.actionTitle}>커뮤니티</Text>
-            <Text style={styles.actionDesc}>동기방</Text>
+            <Text style={styles.actionTitle}>업체 탐색</Text>
+            <Text style={styles.actionDesc}>업체 찾기</Text>
             <ChevronRight size={16} color={colors.textTertiary} style={styles.actionArrow} />
           </Pressable>
         </View>
