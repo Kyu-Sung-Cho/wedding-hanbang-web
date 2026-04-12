@@ -57,6 +57,13 @@
           "image": "./assets/splash.png",
           "resizeMode": "contain"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1A1A1F"
+        }
       ]
     ],
     "experiments": {

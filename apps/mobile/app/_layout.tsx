@@ -58,6 +58,15 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // 푸시 알림 등록
+  useEffect(() => {
+    if (fontsLoaded) {
+      import("@/lib/notifications").then(({ registerForPushNotifications }) => {
+        registerForPushNotifications().catch(() => {});
+      });
+    }
+  }, [fontsLoaded]);
+
   if (!fontsLoaded && !fontError) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
