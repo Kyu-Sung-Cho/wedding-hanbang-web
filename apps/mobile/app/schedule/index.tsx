@@ -77,6 +77,7 @@ export default function ScheduleScreen() {
 
   // 진행률 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // event modal
   const [modalVisible, setModalVisible] = useState(false);
@@ -178,7 +179,37 @@ export default function ScheduleScreen() {
     }
   }, [progressAnim]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData().then(() => {
+      // coupleId가 세팅된 후 Realtime 구독
+      // setCoupleId는 loadData 안에서 호출되므로 state 대신 직접 참조 불가
+      // loadData가 완료된 뒤 다음 렌더에서 coupleId가 설정됨
+    });
+  }, [loadData]);
+
+  // Realtime: 웹에서 체크리스트 변경 시 자동 갱신
+  useEffect(() => {
+    if (!coupleId) return;
+
+    const channel = supabase.channel(`schedule:${coupleId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'wedding_journeys',
+        filter: `couple_id=eq.${coupleId}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, [coupleId, loadData]);
 
   /* ── 체크 토글 ── */
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {

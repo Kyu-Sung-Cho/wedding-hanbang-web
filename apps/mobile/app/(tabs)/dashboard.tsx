@@ -103,6 +103,9 @@ export default function DashboardScreen() {
   // 진행률 바 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
 
+  const coupleIdRef = useRef<string | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   // 퀵 액션 스케일 애니메이션용
   const actionScales = useRef([
     new Animated.Value(1),
@@ -123,6 +126,8 @@ export default function DashboardScreen() {
         .select("name, couple_id")
         .eq("id", user.id)
         .single();
+
+      coupleIdRef.current = profile?.couple_id ?? null;
 
       if (!profile?.couple_id) {
         setData({
@@ -186,7 +191,30 @@ export default function DashboardScreen() {
   }, [progressAnim]);
 
   useEffect(() => {
-    loadData();
+    loadData().then(() => {
+      const cid = coupleIdRef.current;
+      if (!cid) return;
+
+      // Realtime: 웹에서 변경 시 대시보드 자동 갱신
+      const channel = supabase.channel(`journey:${cid}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wedding_journeys',
+          filter: `couple_id=eq.${cid}`,
+        }, () => {
+          loadData();
+        })
+        .subscribe();
+
+      channelRef.current = channel;
+    });
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
   }, [loadData]);
 
   // 데이터 변경 시 진행률 바 다시 애니메이션

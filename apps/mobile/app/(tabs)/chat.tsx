@@ -68,6 +68,11 @@ export default function ChatScreen() {
   const [initialLoaded, setInitialLoaded] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const scrollToEnd = useCallback(() => {
+    setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
+  }, []);
 
   // 유저 프로필 + coupleId + 기존 메시지 로드
   useEffect(() => {
@@ -105,15 +110,44 @@ export default function ChatScreen() {
             created_at: m.created_at,
           })));
         }
+
+        // Realtime: 새 메시지 자동 수신 (웹에서 보낸 메시지도 실시간)
+        const channel = supabase.channel(`chat:${profile.couple_id}`)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `couple_id=eq.${profile.couple_id}`,
+          }, (payload) => {
+            const newMsg = payload.new as { id: string; role: string; content: string; created_at: string };
+            setMessages((prev) => {
+              // 중복 방지 (이미 있으면 스킵)
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              // 임시 메시지(temp_) 제거 후 추가
+              const filtered = prev.filter((m) => !m.id.startsWith("temp_"));
+              return [...filtered, {
+                id: newMsg.id,
+                role: newMsg.role as "user" | "assistant",
+                content: newMsg.content,
+                created_at: newMsg.created_at,
+              }];
+            });
+            scrollToEnd();
+          })
+          .subscribe();
+
+        channelRef.current = channel;
       }
 
       setInitialLoaded(true);
     })();
-  }, []);
 
-  const scrollToEnd = useCallback(() => {
-    setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
-  }, []);
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, [scrollToEnd]);
 
   useEffect(() => {
     if (initialLoaded && messages.length > 0) scrollToEnd();
