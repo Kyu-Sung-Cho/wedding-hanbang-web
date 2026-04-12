@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Alert,
-  ActivityIndicator, Animated,
+  ActivityIndicator, Animated, Keyboard,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, Mail, Check } from "lucide-react-native";
@@ -143,6 +144,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <DismissKeyboard>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color={colors.noir[800]} />
@@ -182,6 +184,7 @@ export default function ForgotPasswordScreen() {
           }
         </Pressable>
       </View>
+      </DismissKeyboard>
     </SafeAreaView>
   );
 }

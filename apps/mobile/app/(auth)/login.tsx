@@ -3,8 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
+  Animated, Keyboard,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
@@ -106,6 +107,7 @@ export default function LoginScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <DismissKeyboard>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -142,6 +144,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isFormDisabled}
+                accessibilityLabel="이메일 입력"
               />
               {emailInvalid && (
                 <Text style={styles.errorHint}>올바른 이메일 형식을 입력해주세요</Text>
@@ -161,6 +164,7 @@ export default function LoginScreen() {
                   onSubmitEditing={handleEmailLogin}
                   returnKeyType="go"
                   editable={!isFormDisabled}
+                  accessibilityLabel="비밀번호 입력"
                 />
                 <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
                   {showPassword
@@ -176,6 +180,8 @@ export default function LoginScreen() {
               style={[styles.emailBtn, (!email.trim() || !password || emailInvalid) && { opacity: 0.4 }]}
               onPress={handleEmailLogin}
               disabled={!email.trim() || !password || loading !== null || emailInvalid}
+              accessibilityLabel="로그인"
+              accessibilityRole="button"
             >
               {loading === "email"
                 ? <ActivityIndicator color="#FFF" />
@@ -185,11 +191,11 @@ export default function LoginScreen() {
 
             {/* 비밀번호 찾기 + 회원가입 */}
             <View style={styles.linkRow}>
-              <Pressable onPress={() => router.push("/(auth)/forgot-password" as never)}>
+              <Pressable onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
                 <Text style={styles.link}>비밀번호 찾기</Text>
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
-              <Pressable onPress={() => router.push("/(auth)/signup" as never)}>
+              <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
                 <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
               </Pressable>
             </View>
@@ -208,6 +214,8 @@ export default function LoginScreen() {
               style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
               disabled={loading !== null}
+              accessibilityLabel="카카오로 로그인"
+              accessibilityRole="button"
             >
               {loading === "kakao" ? (
                 <ActivityIndicator color="#191919" />
@@ -225,6 +233,8 @@ export default function LoginScreen() {
               style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
               disabled={loading !== null}
+              accessibilityLabel="Apple로 로그인"
+              accessibilityRole="button"
             >
               {loading === "apple" ? (
                 <ActivityIndicator color={colors.textPrimary} />
@@ -241,6 +251,7 @@ export default function LoginScreen() {
             계속하면 이용약관과 개인정보처리방침에{"\n"}동의하는 것으로 간주됩니다
           </Text>
         </ScrollView>
+        </DismissKeyboard>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

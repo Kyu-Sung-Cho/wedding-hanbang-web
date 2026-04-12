@@ -7,7 +7,10 @@ import { useFonts } from "expo-font";
 import { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { initSentry } from "@/lib/sentry";
+import { initAuthListener } from "@/lib/authListener";
 import { colors } from "@hanbang/design-tokens";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import OfflineBanner from "@/components/OfflineBanner";
 
 // 폰트 import
 import {
@@ -58,6 +61,11 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // 세션 만료 감지 리스너
+  useEffect(() => {
+    initAuthListener();
+  }, []);
+
   // 푸시 알림 등록
   useEffect(() => {
     if (fontsLoaded) {
@@ -77,28 +85,31 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
-          <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
-          <Stack.Screen name="schedule" options={{ headerShown: false }} />
-          <Stack.Screen name="budget" options={{ headerShown: false }} />
-          <Stack.Screen name="vendors" options={{ headerShown: false }} />
-          <Stack.Screen name="settings" options={{ headerShown: false }} />
-          <Stack.Screen name="market-prices" options={{ headerShown: false }} />
-          <Stack.Screen name="etiquette" options={{ headerShown: false }} />
-          <Stack.Screen name="webview" options={{ headerShown: false }} />
-          <Stack.Screen name="community" options={{ headerShown: false }} />
-        </Stack>
-      </SafeAreaProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <OfflineBanner />
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+            <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
+            <Stack.Screen name="schedule" options={{ headerShown: false }} />
+            <Stack.Screen name="budget" options={{ headerShown: false }} />
+            <Stack.Screen name="vendors" options={{ headerShown: false }} />
+            <Stack.Screen name="settings" options={{ headerShown: false }} />
+            <Stack.Screen name="market-prices" options={{ headerShown: false }} />
+            <Stack.Screen name="etiquette" options={{ headerShown: false }} />
+            <Stack.Screen name="webview" options={{ headerShown: false }} />
+            <Stack.Screen name="community" options={{ headerShown: false }} />
+          </Stack>
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

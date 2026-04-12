@@ -23,6 +23,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import ErrorRetry from "@/components/ErrorRetry";
 
 interface DashboardData {
   name: string | null;
@@ -99,6 +100,7 @@ export default function DashboardScreen() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   // 진행률 바 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -116,6 +118,7 @@ export default function DashboardScreen() {
 
   const loadData = useCallback(async () => {
     try {
+      setError(false);
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -184,6 +187,7 @@ export default function DashboardScreen() {
       }).start();
     } catch (err) {
       console.error("Dashboard load error:", err);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -213,6 +217,7 @@ export default function DashboardScreen() {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, [loadData]);
@@ -277,7 +282,7 @@ export default function DashboardScreen() {
       icon: ClipboardList,
       iconColor: colors.rose[500],
       iconBg: colors.ivory[200],
-      route: "/schedule" as never,
+      route: "/schedule" as const,
     },
     {
       title: "예산",
@@ -285,7 +290,7 @@ export default function DashboardScreen() {
       icon: Wallet,
       iconColor: colors.gold.DEFAULT,
       iconBg: colors.ivory[200],
-      route: "/budget" as never,
+      route: "/budget" as const,
     },
     {
       title: "업체 탐색",
@@ -293,9 +298,20 @@ export default function DashboardScreen() {
       icon: Store,
       iconColor: colors.rose[500],
       iconBg: colors.ivory[200],
-      route: "/vendors" as never,
+      route: "/vendors" as const,
     },
   ];
+
+  if (error && !data) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <ErrorRetry
+          message="대시보드를 불러올 수 없어요"
+          onRetry={() => { setLoading(true); loadData(); }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -320,6 +336,7 @@ export default function DashboardScreen() {
             styles.ddayCard,
             isUrgent && styles.ddayCardUrgent,
           ]}
+          accessibilityLabel="결혼까지 D-day"
         >
           <View style={styles.ddayRow}>
             <View>
@@ -414,6 +431,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push(action.route)}
                   onPressIn={() => handleActionPressIn(idx)}
                   onPressOut={() => handleActionPressOut(idx)}
+                  accessibilityLabel={action.title}
                 >
                   <View
                     style={[
@@ -455,6 +473,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push(action.route)}
                   onPressIn={() => handleActionPressIn(scaleIdx)}
                   onPressOut={() => handleActionPressOut(scaleIdx)}
+                  accessibilityLabel={action.title}
                 >
                   <View
                     style={[

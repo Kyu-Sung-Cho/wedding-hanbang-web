@@ -145,6 +145,7 @@ export default function ChatScreen() {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, [scrollToEnd]);
@@ -339,6 +340,7 @@ export default function ChatScreen() {
                   key={q}
                   style={({ pressed }) => [styles.sugBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }], borderColor: colors.rose[500] }]}
                   onPress={() => setInput(q)}
+                  accessibilityRole="button"
                 >
                   <Text style={styles.sugText}>{q}</Text>
                 </Pressable>
@@ -353,6 +355,11 @@ export default function ChatScreen() {
             renderItem={renderMessage}
             contentContainerStyle={styles.messageList}
             onContentSizeChange={scrollToEnd}
+            keyboardDismissMode="on-drag"
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            initialNumToRender={10}
           />
         )}
 
@@ -368,6 +375,7 @@ export default function ChatScreen() {
             editable={!streaming}
             onSubmitEditing={handleSend}
             returnKeyType="send"
+            accessibilityLabel="메시지 입력"
           />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
             <Pressable
@@ -376,6 +384,8 @@ export default function ChatScreen() {
               onPressIn={handleSendPressIn}
               onPressOut={handleSendPressOut}
               disabled={!input.trim() || streaming}
+              accessibilityLabel="메시지 보내기"
+              accessibilityRole="button"
             >
               <Send size={18} color="#FFFFFF" />
             </Pressable>

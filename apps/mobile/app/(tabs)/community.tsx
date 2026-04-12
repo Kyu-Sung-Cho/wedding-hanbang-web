@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { MessageCircle, ChevronUp, Eye, PenSquare, MessageSquarePlus } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
+import ErrorRetry from "@/components/ErrorRetry";
 
 interface PostItem {
   id: string;
@@ -83,19 +84,22 @@ export default function CommunityScreen() {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [category, setCategory] = useState("all");
   const fabScale = useRef(new Animated.Value(1)).current;
 
   const loadPosts = useCallback(async (cat: string) => {
     try {
+      setError(false);
       const params = cat === "all" ? "" : `&category=${cat}`;
       const data = await apiJson<{ posts: PostItem[] }>(
         `/api/community/posts?sort=new&limit=30${params}`
       );
       setPosts(data.posts ?? []);
     } catch (err) {
-      // API 에러 시 조용히 빈 리스트 — 크래시 방지
+      // API 에러 시 에러 상태 표시
       setPosts([]);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -134,7 +138,7 @@ export default function CommunityScreen() {
           styles.postCardShadow,
           pressed && { transform: [{ scale: 0.98 }] },
         ]}
-        onPress={() => router.push(`/community/post/${item.id}` as never)}
+        onPress={() => router.push({ pathname: "/community/post/[id]", params: { id: item.id } })}
       >
         {/* 메타 */}
         <View style={styles.postMeta}>
@@ -218,12 +222,21 @@ export default function CommunityScreen() {
           <SkeletonCard index={2} />
           <SkeletonCard index={3} />
         </View>
+      ) : error ? (
+        <ErrorRetry
+          message="게시글을 불러올 수 없어요"
+          onRetry={() => { setLoading(true); loadPosts(category); }}
+        />
       ) : (
         <FlatList
           data={posts}
           keyExtractor={(p) => p.id}
           renderItem={renderPost}
           contentContainerStyle={styles.feedList}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -247,7 +260,7 @@ export default function CommunityScreen() {
       <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
         <Pressable
           style={styles.fabInner}
-          onPress={() => router.push("/community/post/write" as never)}
+          onPress={() => router.push({ pathname: "/community/post/write" })}
           onPressIn={handleFabPressIn}
           onPressOut={handleFabPressOut}
         >

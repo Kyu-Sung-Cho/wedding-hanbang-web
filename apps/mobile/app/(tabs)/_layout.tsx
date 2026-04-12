@@ -28,6 +28,7 @@ export default function TabsLayout() {
         options={{
           title: "홈",
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          tabBarAccessibilityLabel: "홈",
         }}
       />
       <Tabs.Screen
@@ -35,6 +36,7 @@ export default function TabsLayout() {
         options={{
           title: "아모라",
           tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarAccessibilityLabel: "아모라",
         }}
       />
       <Tabs.Screen
@@ -42,6 +44,7 @@ export default function TabsLayout() {
         options={{
           title: "커뮤니티",
           tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
+          tabBarAccessibilityLabel: "커뮤니티",
         }}
       />
       <Tabs.Screen
@@ -49,6 +52,7 @@ export default function TabsLayout() {
         options={{
           title: "내 정보",
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarAccessibilityLabel: "내 정보",
         }}
       />
     </Tabs>

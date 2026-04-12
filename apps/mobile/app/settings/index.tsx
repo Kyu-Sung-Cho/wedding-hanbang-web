@@ -10,8 +10,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
-  Animated,
+  Animated, Keyboard,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, Save, ExternalLink, Check, User, Heart, Smartphone } from "lucide-react-native";
@@ -196,6 +197,7 @@ export default function SettingsScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      <DismissKeyboard>
       <ScrollView contentContainerStyle={styles.content}>
         {/* 섹션 1: 프로필 */}
         <View style={styles.sectionHeader}>
@@ -351,6 +353,7 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      </DismissKeyboard>
     </SafeAreaView>
   );
 }

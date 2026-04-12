@@ -207,6 +207,7 @@ export default function ScheduleScreen() {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, [coupleId, loadData]);

@@ -162,22 +162,22 @@ export default function ProfileScreen() {
           <MenuItem
             icon={TrendingUp}
             label="시세 정보"
-            onPress={() => router.push("/market-prices" as never)}
+            onPress={() => router.push({ pathname: "/market-prices" })}
           />
           <MenuItem
             icon={BookOpen}
             label="예절 가이드"
-            onPress={() => router.push("/etiquette" as never)}
+            onPress={() => router.push({ pathname: "/etiquette" })}
           />
           <MenuItem
             icon={Store}
             label="업체 탐색"
-            onPress={() => router.push("/vendors" as never)}
+            onPress={() => router.push({ pathname: "/vendors" })}
           />
           <MenuItem
             icon={Settings}
             label="설정"
-            onPress={() => router.push("/settings" as never)}
+            onPress={() => router.push({ pathname: "/settings" })}
             isLast
           />
         </View>

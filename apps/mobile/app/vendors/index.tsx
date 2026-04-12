@@ -11,6 +11,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import ErrorRetry from "@/components/ErrorRetry";
 
 /* ───── types ───── */
 interface Vendor {
@@ -36,11 +37,13 @@ export default function VendorsScreen() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
 
   const loadVendors = useCallback(async () => {
     try {
+      setError(false);
       let query = supabase
         .from("vendors")
         .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified")
@@ -59,6 +62,7 @@ export default function VendorsScreen() {
       if (error) {
         console.error("업체 로드 오류:", error);
         setVendors([]);
+        setError(true);
         return;
       }
 
@@ -79,6 +83,7 @@ export default function VendorsScreen() {
       );
     } catch (err) {
       console.error("업체 로드 오류:", err);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -220,12 +225,21 @@ export default function VendorsScreen() {
       {/* 업체 목록 */}
       {loading ? (
         <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <ErrorRetry
+          message="업체 목록을 불러올 수 없어요"
+          onRetry={() => { setLoading(true); loadVendors(); }}
+        />
       ) : (
         <FlatList
           data={vendors}
           keyExtractor={(item) => item.id}
           renderItem={renderVendor}
           contentContainerStyle={s.listContent}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={
             vendors.length > 0 ? (

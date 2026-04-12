@@ -1,8 +1,9 @@
 // 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 미리보기
 import { useState } from "react";
 import {
-  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator,
+  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Keyboard,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, ChevronDown, Eye, Edit3, Check } from "lucide-react-native";
@@ -144,6 +145,7 @@ export default function WritePostScreen() {
         </ScrollView>
       ) : (
         /* 작성 모드 */
+        <DismissKeyboard>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* 카테고리 선택 */}
           <Text style={styles.fieldLabel}>카테고리</Text>
@@ -249,6 +251,7 @@ export default function WritePostScreen() {
             {content.length.toLocaleString()}/{CONTENT_MAX.toLocaleString()}
           </Text>
         </ScrollView>
+        </DismissKeyboard>
       )}
     </SafeAreaView>
   );

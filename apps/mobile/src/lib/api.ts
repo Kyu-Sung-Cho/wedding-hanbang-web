@@ -1,4 +1,6 @@
 // 웹 API 호출 헬퍼 — Bearer 토큰으로 인증
+import { Alert } from "react-native";
+import { router } from "expo-router";
 import { supabase } from "./supabase";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
@@ -23,6 +25,20 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   });
+
+  // 세션 만료 시 로그아웃 후 로그인 화면으로 이동
+  if (res.status === 401) {
+    Alert.alert("세션 만료", "다시 로그인해주세요.", [
+      {
+        text: "확인",
+        onPress: () => {
+          supabase.auth.signOut();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
+    throw new Error("세션이 만료되었습니다.");
+  }
 
   return res;
 }

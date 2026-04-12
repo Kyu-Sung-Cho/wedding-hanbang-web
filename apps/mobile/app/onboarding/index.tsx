@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Platform, Animated, Easing,
+  Alert, ActivityIndicator, Platform, Animated, Easing, Keyboard,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, ArrowRight, Heart, User, Calendar, CheckCircle2, Sparkles } from "lucide-react-native";
@@ -206,6 +207,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <DismissKeyboard>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* 헤더 */}
         <View style={styles.header}>
@@ -386,6 +388,7 @@ export default function OnboardingScreen() {
           )}
         </Animated.View>
       </ScrollView>
+      </DismissKeyboard>
 
       {/* 하단 버튼 */}
       <View style={styles.footer}>

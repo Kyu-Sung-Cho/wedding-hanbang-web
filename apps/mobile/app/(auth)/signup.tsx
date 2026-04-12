@@ -3,8 +3,9 @@ import { useState, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, ScrollView,
   Alert, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
-  LayoutAnimation, UIManager,
+  LayoutAnimation, UIManager, Keyboard, DimensionValue,
 } from "react-native";
+import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
@@ -38,7 +39,7 @@ function getPasswordStrength(pw: string): PasswordStrength {
   return "weak";
 }
 
-const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string; color: string; width: string }> = {
+const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string; color: string; width: DimensionValue }> = {
   weak: { label: "약함", color: colors.danger, width: "33%" },
   medium: { label: "보통", color: colors.warning, width: "66%" },
   strong: { label: "강함", color: colors.success, width: "100%" },
@@ -162,6 +163,7 @@ export default function SignupScreen() {
           <View style={{ width: 24 }} />
         </View>
 
+        <DismissKeyboard>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>웨딩한방에{"\n"}오신 것을 환영해요</Text>
 
@@ -224,7 +226,7 @@ export default function SignupScreen() {
                   style={[
                     styles.strengthBarFill,
                     {
-                      width: strengthConfig[passwordStrength].width as never,
+                      width: strengthConfig[passwordStrength].width,
                       backgroundColor: strengthConfig[passwordStrength].color,
                     },
                   ]}
@@ -346,6 +348,7 @@ export default function SignupScreen() {
             </Text>
           </Pressable>
         </ScrollView>
+        </DismissKeyboard>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
