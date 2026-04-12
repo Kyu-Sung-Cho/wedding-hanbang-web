@@ -179,14 +179,13 @@ export async function GET(req: NextRequest) {
       const postIds = sortedPosts.map((p) => p.id);
       const { data: votes } = await supabase
         .from("community_votes")
-        .select("target_id, vote_type")
+        .select("post_id, vote_type")
         .eq("user_id", user.id)
-        .eq("target_type", "post")
-        .in("target_id", postIds);
+        .in("post_id", postIds);
 
       if (votes) {
         userVotesMap = Object.fromEntries(
-          votes.map((v) => [v.target_id, v.vote_type])
+          votes.map((v) => [v.post_id, v.vote_type])
         );
       }
     }
