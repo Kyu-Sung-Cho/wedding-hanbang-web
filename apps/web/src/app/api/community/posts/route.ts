@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("community_posts")
       .select(
-        "*, author:community_profiles!community_posts_author_id_fkey(*)",
+        "*",
         { count: "exact" }
       );
 
