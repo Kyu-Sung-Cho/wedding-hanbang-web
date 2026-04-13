@@ -215,37 +215,54 @@ export default function CohortChatScreen() {
   const [activeTab, setActiveTab] = useState<ScreenTab>("chat");
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
 
-  // 초기 메시지 로드 (멤버 아니면 자동 입장 후 재시도)
+  // 초기: 자동 입장 + 메시지/방 정보 로드 (Supabase 직접)
   const loadMessages = useCallback(async () => {
     if (!id) return;
     try {
-      const data = await apiJson<{ messages: CohortMessage[]; room: RoomInfo }>(
-        `/api/community/cohort/${id}/messages`
-      );
-      setMessages(data.messages ?? []);
-      if (data.room) setRoomInfo(data.room);
-    } catch (err) {
-      // 멤버가 아닌 경우 → 자동 입장 시도
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("멤버") || msg.includes("member") || msg.includes("403")) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase.from("cohort_members").upsert(
-              { room_id: id, user_id: user.id },
-              { onConflict: "room_id,user_id" }
-            );
-            // 재시도
-            const retry = await apiJson<{ messages: CohortMessage[]; room: RoomInfo }>(
-              `/api/community/cohort/${id}/messages`
-            );
-            setMessages(retry.messages ?? []);
-            if (retry.room) setRoomInfo(retry.room);
-          }
-        } catch (joinErr) {
-          console.error("동기방 입장 실패:", joinErr);
-        }
+      // 1. 자동 입장 (이미 멤버면 무시)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("cohort_members").upsert(
+          { room_id: id, user_id: user.id },
+          { onConflict: "room_id,user_id" }
+        ).then(() => {});
       }
+
+      // 2. 방 정보 로드
+      const { data: roomData } = await supabase
+        .from("cohort_rooms")
+        .select("id, name, member_count, message_count, year, month")
+        .eq("id", id)
+        .single();
+
+      if (roomData) {
+        setRoomInfo({
+          name: roomData.name,
+          member_count: roomData.member_count,
+        });
+      }
+
+      // 3. 메시지 로드 (Supabase 직접 — RLS는 멤버 확인)
+      const { data: msgs } = await supabase
+        .from("cohort_messages")
+        .select("id, room_id, author_id, content, thread_topic, created_at")
+        .eq("room_id", id)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (msgs) {
+        setMessages(msgs.map((m) => ({
+          id: m.id,
+          room_id: m.room_id,
+          author_id: m.author_id,
+          author_nickname: null, // 멤버 리스트에서 매칭
+          content: m.content,
+          topic: m.thread_topic,
+          created_at: m.created_at,
+        })));
+      }
+    } catch (err) {
+      console.error("동기방 로드 에러:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
