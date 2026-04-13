@@ -2,28 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
-    // 1단계: createClientFromRequest import
+    // community/posts/route.ts 와 동일한 import 테스트
     const { createClientFromRequest } = await import("@/lib/supabase/server");
+    const { sanitizeHtml, sanitizeText } = await import("@/utils/sanitize");
+    const { checkRateLimit, rateLimitKey } = await import("@/utils/rateLimit");
 
-    // 2단계: 클라이언트 생성
-    const supabase = await createClientFromRequest(req);
-
-    // 3단계: 간단한 쿼리
-    const { data, error } = await supabase
-      .from("community_posts")
-      .select("id, title, category")
-      .limit(1);
-
-    if (error) {
-      return NextResponse.json({ step: "query", error: error.message }, { status: 500 });
+    let anthropicOk = false;
+    try {
+      await import("@anthropic-ai/sdk");
+      anthropicOk = true;
+    } catch (e) {
+      return NextResponse.json({
+        step: "anthropic-import",
+        error: e instanceof Error ? e.message : String(e),
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, posts: data });
+    const supabase = await createClientFromRequest(req);
+    const { data, error } = await supabase
+      .from("community_posts")
+      .select("id, title")
+      .limit(1);
+
+    return NextResponse.json({
+      ok: true,
+      anthropicOk,
+      sanitizeOk: typeof sanitizeHtml === "function",
+      rateLimitOk: typeof checkRateLimit === "function",
+      posts: data,
+      queryError: error?.message ?? null,
+    });
   } catch (err) {
     return NextResponse.json({
       step: "catch",
       error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 5) : undefined,
     }, { status: 500 });
   }
 }
