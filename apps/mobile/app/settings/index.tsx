@@ -22,7 +22,8 @@ import { supabase } from "@/lib/supabase";
 interface SettingsData {
   userId: string;
   coupleId: string | null;
-  nickname: string;
+  nickname: string;          // 실명 (profiles.name)
+  communityNickname: string; // 커뮤니티 별명 (community_profiles.nickname)
   role: string | null;
   weddingDate: string;
   venue: string;
@@ -73,10 +74,31 @@ export default function SettingsScreen() {
           }
         }
 
+        // 커뮤니티 프로필 (별명)
+        let communityNickname = "";
+        const { data: communityProfile } = await supabase
+          .from("community_profiles")
+          .select("nickname")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (communityProfile) {
+          communityNickname = communityProfile.nickname ?? "";
+        } else {
+          // 커뮤니티 프로필 자동 생성 (이름 기반 초기 별명)
+          const initialNick = profile?.name ?? "유저" + user.id.slice(0, 4);
+          await supabase.from("community_profiles").insert({
+            user_id: user.id,
+            nickname: initialNick,
+          }).then(() => {});
+          communityNickname = initialNick;
+        }
+
         const loadedData: SettingsData = {
           userId: user.id,
           coupleId: profile?.couple_id ?? null,
           nickname: profile?.name ?? "",
+          communityNickname,
           role: profile?.role ?? null,
           weddingDate,
           venue,
@@ -111,13 +133,21 @@ export default function SettingsScreen() {
     setSaving(true);
 
     try {
-      // 프로필 업데이트
+      // 프로필 업데이트 (실명)
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ name: data.nickname })
         .eq("id", data.userId);
 
       if (profileError) throw profileError;
+
+      // 커뮤니티 별명 업데이트
+      if (data.communityNickname) {
+        await supabase
+          .from("community_profiles")
+          .update({ nickname: data.communityNickname })
+          .eq("user_id", data.userId);
+      }
 
       // 결혼 정보 업데이트
       if (data.coupleId) {
@@ -206,7 +236,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.card}>
           <View style={styles.field}>
-            <Text style={styles.label}>닉네임</Text>
+            <Text style={styles.label}>이름 (실명)</Text>
             <TextInput
               style={[
                 styles.textInput,
@@ -214,12 +244,33 @@ export default function SettingsScreen() {
               ]}
               value={data?.nickname ?? ""}
               onChangeText={(v) => updateField("nickname", v)}
-              placeholder="닉네임을 입력하세요"
+              placeholder="실명을 입력하세요"
               placeholderTextColor={colors.taupe[400]}
               maxLength={20}
               onFocus={() => setFocusedField("nickname")}
               onBlur={() => setFocusedField(null)}
             />
+            <Text style={styles.fieldHint}>아모라, 파트너 채팅에서 사용돼요</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.field}>
+            <Text style={styles.label}>커뮤니티 별명</Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                focusedField === "communityNickname" && styles.textInputFocused,
+              ]}
+              value={data?.communityNickname ?? ""}
+              onChangeText={(v) => updateField("communityNickname", v)}
+              placeholder="커뮤니티에서 사용할 별명"
+              placeholderTextColor={colors.taupe[400]}
+              maxLength={15}
+              onFocus={() => setFocusedField("communityNickname")}
+              onBlur={() => setFocusedField(null)}
+            />
+            <Text style={styles.fieldHint}>게시글, 댓글, 동기방에서 표시돼요</Text>
           </View>
 
           <View style={styles.divider} />
@@ -414,6 +465,7 @@ const styles = StyleSheet.create({
   // 필드
   field: { gap: 6 },
   label: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
+  fieldHint: { fontSize: 11, color: colors.taupe[400], marginTop: 4, marginLeft: 2 },
   textInput: {
     fontSize: 15,
     color: colors.noir[800],
