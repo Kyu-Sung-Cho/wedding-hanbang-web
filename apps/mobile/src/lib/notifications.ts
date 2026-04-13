@@ -49,11 +49,9 @@ export async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  // Expo Push Token 발급
+  // Expo Push Token 발급 (EAS Build에서만 작동, Expo Go에서는 스킵)
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: undefined, // EAS 프로젝트 ID (eas.json 설정 후 자동)
-    });
+    const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
     console.log("[Push] Token:", token);
 
@@ -67,8 +65,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     return token;
-  } catch (err) {
-    console.error("[Push] 토큰 발급 실패:", err);
+  } catch {
+    // Expo Go에서는 projectId가 없어서 실패 — 정상 (EAS Build 후 작동)
     return null;
   }
 }
