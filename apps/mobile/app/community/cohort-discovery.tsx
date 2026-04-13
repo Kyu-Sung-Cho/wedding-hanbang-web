@@ -38,7 +38,7 @@ interface CohortRoom {
 type FilterTab = "monthly" | "region" | "budget";
 
 const FILTER_TABS: { key: FilterTab; label: string; icon: typeof Calendar }[] = [
-  { key: "monthly", label: "월별", icon: Calendar },
+  { key: "monthly", label: "분기별", icon: Calendar },
   { key: "region", label: "지역별", icon: MapPin },
   { key: "budget", label: "예산별", icon: Wallet },
 ];
@@ -113,7 +113,19 @@ function RoomCard({
   );
 }
 
-/* ───── 월별 그룹 섹션 ───── */
+/* ───── 분기별 그룹 섹션 ───── */
+
+function getQuarterLabel(month: number): string {
+  if (month <= 3) return "1분기 (1~3월)";
+  if (month <= 6) return "2분기 (4~6월)";
+  if (month <= 9) return "3분기 (7~9월)";
+  return "4분기 (10~12월)";
+}
+
+function getQuarterKey(year: number, month: number): string {
+  const q = Math.ceil(month / 3);
+  return `${year}년 ${q}`;
+}
 
 function MonthlySection({
   rooms,
@@ -124,9 +136,10 @@ function MonthlySection({
   onJoin: (roomId: string) => void;
   joining: string | null;
 }) {
-  // 연-월로 그룹핑
+  // 연도+분기별로 그룹핑
   const grouped = rooms.reduce<Record<string, CohortRoom[]>>((acc, room) => {
-    const key = `${room.year}년 ${room.month}월`;
+    const q = Math.ceil(room.month / 3);
+    const key = `${room.year}년 ${getQuarterLabel(room.month)}`;
     if (!acc[key]) acc[key] = [];
     acc[key].push(room);
     return acc;
@@ -352,7 +365,7 @@ export default function CohortDiscoveryScreen() {
             <View style={styles.bottomCtaLine} />
             <Text style={styles.bottomCtaText}>
               나만의 동기방이 없다면?{"\n"}
-              결혼 예정월을 설정하면 자동으로 배정돼요
+              결혼 예정일을 설정하면 같은 분기 동기방에 자동 배정돼요
             </Text>
             <Pressable
               style={({ pressed }) => [

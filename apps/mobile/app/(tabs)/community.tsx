@@ -239,7 +239,7 @@ function CohortExploreSection({ rooms }: { rooms: CohortRoom[] }) {
             }
           >
             <Text style={styles.exploreMonth}>
-              {room.year}년 {room.month}월
+              {room.year}년 {Math.ceil(room.month / 3)}분기
             </Text>
             <Text style={styles.exploreRoomName} numberOfLines={1}>
               {room.name}
