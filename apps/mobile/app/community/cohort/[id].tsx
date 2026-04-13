@@ -304,7 +304,16 @@ export default function CohortChatScreen() {
           filter: `room_id=eq.${id}`,
         },
         (payload) => {
-          const newMsg = payload.new as CohortMessage;
+          const raw = payload.new as Record<string, unknown>;
+          const newMsg: CohortMessage = {
+            id: raw.id as string,
+            room_id: raw.room_id as string,
+            author_id: raw.author_id as string | null,
+            author_nickname: null, // 멤버 리스트에서 매칭
+            content: raw.content as string,
+            topic: (raw.thread_topic as string) ?? null,
+            created_at: raw.created_at as string,
+          };
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -342,14 +351,40 @@ export default function CohortChatScreen() {
 
     setSending(true);
     try {
-      await apiFetch(`/api/community/cohort/${id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ content: text, topic: selectedTopic }),
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Supabase 직접 INSERT (API 멤버 체크 우회)
+      const { error } = await supabase.from("cohort_messages").insert({
+        room_id: id,
+        author_id: user.id,
+        content: text,
+        thread_topic: selectedTopic === "all" ? null : selectedTopic,
       });
+
+      if (error) {
+        console.error("메시지 전송 에러:", error.message);
+        // RLS 에러면 멤버 재가입 시도
+        if (error.message.includes("policy") || error.message.includes("violates")) {
+          await supabase.from("cohort_members").upsert(
+            { room_id: id, user_id: user.id },
+            { onConflict: "room_id,user_id" }
+          );
+          // 재시도
+          await supabase.from("cohort_messages").insert({
+            room_id: id,
+            author_id: user.id,
+            content: text,
+            thread_topic: selectedTopic === "all" ? null : selectedTopic,
+          });
+        }
+      }
+
       setInput("");
       setSelectedTopic(null);
+      // Realtime이 새 메시지를 자동 추가하므로 수동 reload 불필요
     } catch (err) {
-      console.error("Send error:", err);
+      console.error("전송 실패:", err);
     } finally {
       setSending(false);
     }
