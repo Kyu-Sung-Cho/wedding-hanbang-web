@@ -11,6 +11,15 @@ function getServiceClient() {
   );
 }
 
+async function isAdmin(userId: string): Promise<boolean> {
+  const { data } = await getServiceClient()
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", userId)
+    .single();
+  return data?.is_admin === true;
+}
+
 // 게시글 상세 조회
 export async function GET(
   req: NextRequest,
@@ -158,7 +167,7 @@ export async function PATCH(
       );
     }
 
-    if (existingPost.author_id !== user.id) {
+    if (existingPost.author_id !== user.id && !(await isAdmin(user.id))) {
       return NextResponse.json(
         { error: "수정 권한이 없습니다." },
         { status: 403 }
@@ -263,7 +272,7 @@ export async function DELETE(
       );
     }
 
-    if (existingPost.author_id !== user.id) {
+    if (existingPost.author_id !== user.id && !(await isAdmin(user.id))) {
       return NextResponse.json(
         { error: "삭제 권한이 없습니다." },
         { status: 403 }
