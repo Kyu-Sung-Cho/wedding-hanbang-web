@@ -30,12 +30,10 @@ export async function GET(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 댓글 + 작성자 정보 조회
+    // 댓글 조회
     const { data: comments, error } = await supabase
       .from("community_comments")
-      .select(
-        "*, author:community_profiles!community_comments_author_id_fkey(*)"
-      )
+      .select("*")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
@@ -45,6 +43,21 @@ export async function GET(req: NextRequest) {
         { error: "댓글을 불러올 수 없습니다." },
         { status: 500 }
       );
+    }
+
+    // 작성자 프로필 별도 조회
+    const commentAuthorIds = [...new Set((comments ?? []).map((c) => c.author_id))];
+    let commentAuthorMap: Record<string, { nickname: string; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
+    if (commentAuthorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("community_profiles")
+        .select("user_id, nickname, rank, wedding_year, wedding_month")
+        .in("user_id", commentAuthorIds);
+      if (profiles) {
+        commentAuthorMap = Object.fromEntries(
+          profiles.map((p) => [p.user_id, { nickname: p.nickname, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
+        );
+      }
     }
 
     // 인증 사용자의 투표 상태 조회
@@ -66,8 +79,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 트리 구조로 변환
+    const defaultAuthor = { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null };
     const commentsWithVotes = (comments ?? []).map((c) => ({
       ...c,
+      author: commentAuthorMap[c.author_id] ?? defaultAuthor,
       user_vote: userVotesMap[c.id] ?? null,
     }));
 
@@ -196,9 +211,7 @@ export async function POST(req: NextRequest) {
         upvote_count: 0,
         is_deleted: false,
       })
-      .select(
-        "*, author:community_profiles!community_comments_author_id_fkey(*)"
-      )
+      .select("*")
       .single();
 
     if (error) {
@@ -271,7 +284,19 @@ export async function POST(req: NextRequest) {
       // 게이미피케이션 오류는 무시
     }
 
-    return NextResponse.json({ comment }, { status: 201 });
+    // 작성자 프로필 추가
+    const { data: creatorProfile } = await serviceClient
+      .from("community_profiles")
+      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .eq("user_id", user.id)
+      .single();
+
+    const commentWithAuthor = {
+      ...comment,
+      author: creatorProfile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
+    };
+
+    return NextResponse.json({ comment: commentWithAuthor }, { status: 201 });
   } catch (err) {
     console.error("Create comment error:", err);
     return NextResponse.json(

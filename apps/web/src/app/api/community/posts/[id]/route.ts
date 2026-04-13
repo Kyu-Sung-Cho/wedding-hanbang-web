@@ -102,8 +102,16 @@ export async function GET(
       userBookmarked = !!bookmarkResult.data;
     }
 
+    // author 프로필 조회
+    const { data: authorProfile } = await supabase
+      .from("community_profiles")
+      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .eq("user_id", post.author_id)
+      .single();
+
     return NextResponse.json({
       ...post,
+      author: authorProfile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
       vendor_details: vendorDetails,
       user_vote: userVote,
       user_bookmarked: userBookmarked,

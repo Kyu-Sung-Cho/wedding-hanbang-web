@@ -70,7 +70,8 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
     .slice(0, 180);
 
   const hasThumbnail = post.images && post.images.length > 0;
-  const rankLabel = RANK_LABEL[post.author.rank];
+  const author = post.author ?? { nickname: "익명", rank: "sprout" as CommunityRank, wedding_year: null, wedding_month: null };
+  const rankLabel = RANK_LABEL[author.rank];
 
   const handleVote = useCallback(
     async (vote: 1 | -1) => {
@@ -132,21 +133,21 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           href={`/community?author_id=${post.author_id}`}
           className="text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200"
         >
-          {post.author.nickname}
+          {author.nickname}
         </Link>
         {rankLabel && (
           <>
             <span className="text-[#B5ADA3]">&middot;</span>
-            <span className={`${rankColor(post.author.rank)} font-medium`}>
+            <span className={`${rankColor(author.rank)} font-medium`}>
               {rankLabel}
             </span>
           </>
         )}
-        {post.author.wedding_year && post.author.wedding_month && (
+        {author.wedding_year && author.wedding_month && (
           <>
             <span className="text-[#B5ADA3]">&middot;</span>
             <span className="text-[#878680]">
-              {String(post.author.wedding_year).slice(2)}.{String(post.author.wedding_month).padStart(2, "0")} 동기
+              {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
             </span>
           </>
         )}

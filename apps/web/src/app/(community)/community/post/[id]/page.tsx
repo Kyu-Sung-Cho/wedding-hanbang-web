@@ -285,9 +285,9 @@ export default function PostDetailPage() {
                 )}
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-[#F0EFED] ring-1 ring-[#F0EFED] flex items-center justify-center overflow-hidden">
-                    {post.author.avatar_url ? (
+                    {post.author?.avatar_url ? (
                       <Image
-                        src={post.author.avatar_url}
+                        src={post.author?.avatar_url}
                         alt=""
                         width={20}
                         height={20}
@@ -295,19 +295,19 @@ export default function PostDetailPage() {
                       />
                     ) : (
                       <span className="text-xs font-bold text-[#878680]">
-                        {post.author.nickname.charAt(0)}
+                        {(post.author?.nickname ?? "익명").charAt(0)}
                       </span>
                     )}
                   </div>
                   <span className="hover:underline cursor-pointer font-medium text-[#1A1A1F]">
-                    {post.author.nickname}
+                    {(post.author?.nickname ?? "익명")}
                   </span>
                 </div>
-                {badgeLabel(post.author.rank) && (
+                {badgeLabel(post.author?.rank) && (
                   <>
                     <span>&middot;</span>
                     <span className="text-[#C4967E] font-medium">
-                      {badgeLabel(post.author.rank)}
+                      {badgeLabel(post.author?.rank)}
                     </span>
                   </>
                 )}

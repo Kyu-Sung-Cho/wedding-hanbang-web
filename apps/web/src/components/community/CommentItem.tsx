@@ -110,9 +110,9 @@ export default function CommentItem({
               isReply ? "w-7 h-7" : "w-8 h-8"
             }`}
           >
-            {comment.author.avatar_url ? (
+            {comment.author?.avatar_url ? (
               <Image
-                src={comment.author.avatar_url}
+                src={comment.author?.avatar_url}
                 alt=""
                 width={isReply ? 28 : 32}
                 height={isReply ? 28 : 32}
@@ -122,7 +122,7 @@ export default function CommentItem({
               <span
                 className="text-xs font-bold"
               >
-                {comment.author.nickname.charAt(0)}
+                {(comment.author?.nickname ?? "익명").charAt(0)}
               </span>
             )}
           </div>
@@ -132,13 +132,13 @@ export default function CommentItem({
             {/* 작성자 정보 */}
             <div className="flex items-center gap-1 text-sm">
               <span className="font-medium text-[#1A1A1F]">
-                {comment.author.nickname}
+                {(comment.author?.nickname ?? "익명")}
               </span>
-              {badgeLabel(comment.author.rank) && (
+              {badgeLabel(comment.author?.rank) && (
                 <>
                   <span className="text-[#B5ADA3]">&middot;</span>
                   <span className="text-[#C4967E] font-medium">
-                    {badgeLabel(comment.author.rank)}
+                    {badgeLabel(comment.author?.rank)}
                   </span>
                 </>
               )}
