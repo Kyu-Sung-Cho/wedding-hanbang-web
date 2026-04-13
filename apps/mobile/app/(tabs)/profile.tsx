@@ -179,7 +179,7 @@ export default function ProfileScreen() {
               styles.bookingSummary,
               pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
             ]}
-            onPress={() => router.push({ pathname: "/bookings/index" })}
+            onPress={() => router.push({ pathname: "/bookings" as const })}
           >
             <CalendarCheck size={18} color={colors.rose[500]} />
             <Text style={styles.bookingSummaryText}>
@@ -195,7 +195,7 @@ export default function ProfileScreen() {
           <MenuItem
             icon={CalendarCheck}
             label="내 예약"
-            onPress={() => router.push({ pathname: "/bookings/index" })}
+            onPress={() => router.push({ pathname: "/bookings" as const })}
           />
           <MenuItem
             icon={FileText}
