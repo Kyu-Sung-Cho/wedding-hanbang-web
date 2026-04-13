@@ -25,6 +25,7 @@ import { sanitizeHtml } from "@/utils/sanitize";
 import VoteButtons from "@/components/community/VoteButtons";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
+import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import type { BadgeType } from "@/types/community.types";
 
 // 배지 라벨
@@ -66,6 +67,9 @@ export default function PostDetailPage() {
     toggleBookmark,
     deletePost,
   } = useCommunityStore();
+
+  // 댓글 리얼타임 구독
+  useCommentsRealtime(postId);
 
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [shareToast, setShareToast] = useState(false);

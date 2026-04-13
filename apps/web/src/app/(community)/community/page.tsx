@@ -15,6 +15,7 @@ import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import dynamic from "next/dynamic";
+import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 
 const CohortCard = dynamic(() => import("@/components/community/CohortCardContainer"), {
   ssr: false,
@@ -42,6 +43,9 @@ export default function CommunityFeedPage() {
 }
 
 function CommunityFeedContent() {
+  // 리얼타임: 새 글/수정/삭제 즉시 반영
+  useCommunityRealtime();
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const searchQuery = searchParams.get("search") ?? "";
