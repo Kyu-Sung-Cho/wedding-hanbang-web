@@ -1,4 +1,4 @@
-// 동기방 실시간 채팅
+// 동기방 실시간 채팅 — 개선 버전 (멤버 목록, 정보판, 타임라인 탭)
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
@@ -6,18 +6,33 @@ import {
   TextInput,
   Pressable,
   FlatList,
+  ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Animated,
+  LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { ArrowLeft, Send, ChevronDown, Users } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  MessageSquare,
+  Info,
+  Clock,
+  FileText,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch, apiJson } from "@/lib/api";
+
+/* ───── 타입 ───── */
 
 interface CohortMessage {
   id: string;
@@ -34,6 +49,19 @@ interface RoomInfo {
   member_count: number;
 }
 
+interface CohortMember {
+  id: string;
+  user_id: string;
+  profile: {
+    nickname: string;
+    rank: string;
+    wedding_year: number | null;
+    wedding_month: number | null;
+  } | null;
+}
+
+type ScreenTab = "chat" | "info" | "timeline";
+
 const TOPICS = [
   { key: "all", label: "전체" },
   { key: "price", label: "가격" },
@@ -43,6 +71,20 @@ const TOPICS = [
 ] as const;
 
 type TopicKey = (typeof TOPICS)[number]["key"];
+
+// 닉네임 기반 아바타 색상
+const AVATAR_COLORS = [
+  "#C4967E", "#C9A96E", "#9A6B62", "#928980", "#B5ADA3",
+  "#D4AFA0", "#DCC9A0", "#4A4A52", "#1A1A1F", "#E8D5CD",
+];
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -54,10 +96,115 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}일 전`;
 }
 
+/* ───── 멤버 목록 (접이식) ───── */
+
+function MemberListSection({ members }: { members: CohortMember[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  function toggleExpand() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => !prev);
+  }
+
+  return (
+    <View style={styles.memberSection}>
+      <Pressable style={styles.memberToggle} onPress={toggleExpand}>
+        <Users size={16} color={colors.textSecondary} />
+        <Text style={styles.memberToggleText}>
+          멤버 {members.length}명
+        </Text>
+        {expanded ? (
+          <ChevronUp size={16} color={colors.taupe[400]} />
+        ) : (
+          <ChevronDown size={16} color={colors.taupe[400]} />
+        )}
+      </Pressable>
+
+      {expanded && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.memberScroll}
+        >
+          {members.map((member) => {
+            const nickname = member.profile?.nickname ?? "멤버";
+            const bgColor = getAvatarColor(nickname);
+            return (
+              <View key={member.id} style={styles.memberItem}>
+                <View style={[styles.memberAvatar, { backgroundColor: bgColor }]}>
+                  <Text style={styles.memberAvatarText}>
+                    {nickname.charAt(0)}
+                  </Text>
+                </View>
+                <Text style={styles.memberName} numberOfLines={1}>
+                  {nickname}
+                </Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+/* ───── 정보판 탭 플레이스홀더 ───── */
+
+function InfoBoardTab() {
+  return (
+    <View style={styles.placeholderWrap}>
+      <View style={styles.placeholderIcon}>
+        <FileText size={40} color={colors.rose[500]} />
+      </View>
+      <Text style={styles.placeholderTitle}>정보판</Text>
+      <Text style={styles.placeholderText}>
+        계약 정보를 공유해보세요{"\n"}
+        동기들과 가격, 업체 정보를 비교할 수 있어요
+      </Text>
+      <Pressable
+        style={({ pressed }) => [
+          styles.placeholderBtn,
+          pressed && { backgroundColor: colors.rose[600] },
+        ]}
+      >
+        <Text style={styles.placeholderBtnText}>정보 공유하기</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/* ───── 타임라인 탭 플레이스홀더 ───── */
+
+function TimelineTab() {
+  return (
+    <View style={styles.placeholderWrap}>
+      <View style={styles.placeholderIcon}>
+        <Clock size={40} color={colors.gold.DEFAULT} />
+      </View>
+      <Text style={styles.placeholderTitle}>타임라인</Text>
+      <Text style={styles.placeholderText}>
+        동기들의 진행 상황을 확인하세요{"\n"}
+        서로의 웨딩 준비 과정을 함께해요
+      </Text>
+      <Pressable
+        style={({ pressed }) => [
+          styles.placeholderBtn,
+          pressed && { backgroundColor: colors.rose[600] },
+        ]}
+      >
+        <Text style={styles.placeholderBtnText}>내 진행상황 공유</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/* ───── 메인 ───── */
+
 export default function CohortChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
+  const [members, setMembers] = useState<CohortMember[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,6 +212,7 @@ export default function CohortChatScreen() {
   const [activeTopic, setActiveTopic] = useState<TopicKey>("all");
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState<ScreenTab>("chat");
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
 
   // 초기 메시지 로드
@@ -84,9 +232,25 @@ export default function CohortChatScreen() {
     }
   }, [id]);
 
+  // 멤버 로드
+  const loadMembers = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { data } = await supabase
+        .from("cohort_members")
+        .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
+        .eq("room_id", id);
+
+      setMembers((data as unknown as CohortMember[]) ?? []);
+    } catch (err) {
+      console.error("멤버 로드 에러:", err);
+    }
+  }, [id]);
+
   useEffect(() => {
     loadMessages();
-  }, [loadMessages]);
+    loadMembers();
+  }, [loadMessages, loadMembers]);
 
   // Supabase Realtime 구독
   useEffect(() => {
@@ -105,7 +269,6 @@ export default function CohortChatScreen() {
         (payload) => {
           const newMsg = payload.new as CohortMessage;
           setMessages((prev) => {
-            // 중복 방지
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
@@ -126,8 +289,8 @@ export default function CohortChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (messages.length > 0) scrollToEnd();
-  }, [messages.length, scrollToEnd]);
+    if (messages.length > 0 && activeTab === "chat") scrollToEnd();
+  }, [messages.length, scrollToEnd, activeTab]);
 
   // 토픽 필터 적용된 메시지
   const filteredMessages =
@@ -155,7 +318,6 @@ export default function CohortChatScreen() {
     }
   }
 
-  // 아바타 첫 글자
   function getInitial(nickname: string | null): string {
     if (!nickname) return "AI";
     return nickname.charAt(0);
@@ -163,11 +325,13 @@ export default function CohortChatScreen() {
 
   function renderMessage({ item }: { item: CohortMessage }) {
     const isAi = item.author_id === null;
+    const nickname = item.author_nickname ?? "아모라 AI";
+    const avatarBg = isAi ? colors.noir[800] : getAvatarColor(nickname);
 
     return (
-      <View style={[styles.msgRow, isAi && styles.msgRowAi]}>
+      <View style={styles.msgRow}>
         {/* 아바타 */}
-        <View style={[styles.avatar, isAi && styles.avatarAi]}>
+        <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
           <Text style={[styles.avatarText, isAi && styles.avatarTextAi]}>
             {getInitial(item.author_nickname)}
           </Text>
@@ -176,8 +340,13 @@ export default function CohortChatScreen() {
         <View style={styles.msgContent}>
           {/* 닉네임 + 시간 */}
           <View style={styles.msgMeta}>
-            <Text style={[styles.msgNickname, isAi && styles.msgNicknameAi]}>
-              {item.author_nickname ?? "아모라 AI"}
+            <Text
+              style={[
+                styles.msgNickname,
+                { color: isAi ? colors.gold.DEFAULT : avatarBg },
+              ]}
+            >
+              {nickname}
             </Text>
             {item.topic && (
               <View style={styles.topicBadge}>
@@ -200,6 +369,14 @@ export default function CohortChatScreen() {
     );
   }
 
+  /* ── 스크린 탭 ── */
+
+  const SCREEN_TABS: { key: ScreenTab; label: string; icon: typeof MessageSquare }[] = [
+    { key: "chat", label: "채팅", icon: MessageSquare },
+    { key: "info", label: "정보판", icon: Info },
+    { key: "timeline", label: "타임라인", icon: Clock },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* 헤더 */}
@@ -220,149 +397,190 @@ export default function CohortChatScreen() {
         </View>
       </View>
 
-      {/* 토픽 필터 */}
-      <View style={styles.topicRow}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={TOPICS}
-          keyExtractor={(t) => t.key}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-          renderItem={({ item: topic }) => {
-            const active = activeTopic === topic.key;
-            return (
-              <Pressable
-                style={[styles.topicChip, active && styles.topicChipActive]}
-                onPress={() => setActiveTopic(topic.key)}
+      {/* 멤버 목록 (접이식) */}
+      {members.length > 0 && <MemberListSection members={members} />}
+
+      {/* 스크린 탭 */}
+      <View style={styles.screenTabRow}>
+        {SCREEN_TABS.map((tab) => {
+          const active = activeTab === tab.key;
+          const Icon = tab.icon;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[styles.screenTab, active && styles.screenTabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Icon
+                size={16}
+                color={active ? colors.noir[800] : colors.taupe[400]}
+              />
+              <Text
+                style={[
+                  styles.screenTabText,
+                  active && styles.screenTabTextActive,
+                ]}
               >
-                <Text
-                  style={[
-                    styles.topicChipText,
-                    active && styles.topicChipTextActive,
-                  ]}
-                >
-                  {topic.label}
-                </Text>
-              </Pressable>
-            );
-          }}
-        />
+                {tab.label}
+              </Text>
+              {active && <View style={styles.screenTabIndicator} />}
+            </Pressable>
+          );
+        })}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
-      >
-        {/* 메시지 영역 */}
-        {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.rose[500]} />
+      {/* 탭 컨텐츠 */}
+      {activeTab === "info" ? (
+        <InfoBoardTab />
+      ) : activeTab === "timeline" ? (
+        <TimelineTab />
+      ) : (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={0}
+        >
+          {/* 토픽 필터 */}
+          <View style={styles.topicRow}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={TOPICS}
+              keyExtractor={(t) => t.key}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+              renderItem={({ item: topic }) => {
+                const active = activeTopic === topic.key;
+                return (
+                  <Pressable
+                    style={[styles.topicChip, active && styles.topicChipActive]}
+                    onPress={() => setActiveTopic(topic.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.topicChipText,
+                        active && styles.topicChipTextActive,
+                      ]}
+                    >
+                      {topic.label}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
           </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={filteredMessages}
-            keyExtractor={(m) => m.id}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.messageList}
-            onContentSizeChange={scrollToEnd}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => {
-                  setRefreshing(true);
-                  loadMessages();
-                }}
-                tintColor={colors.rose[500]}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <Text style={styles.emptyText}>
-                  아직 메시지가 없어요. 첫 대화를 시작해보세요!
-                </Text>
-              </View>
-            }
-          />
-        )}
 
-        {/* 입력 바 */}
-        <View style={styles.inputBar}>
-          {/* 선택된 토픽 표시 */}
-          {selectedTopic && (
-            <View style={styles.selectedTopicRow}>
-              <Text style={styles.selectedTopicLabel}>
-                #{TOPICS.find((t) => t.key === selectedTopic)?.label ?? selectedTopic}
-              </Text>
-              <Pressable onPress={() => setSelectedTopic(null)} hitSlop={8}>
-                <Text style={styles.selectedTopicRemove}>X</Text>
-              </Pressable>
+          {/* 메시지 영역 */}
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color={colors.rose[500]} />
             </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={filteredMessages}
+              keyExtractor={(m) => m.id}
+              renderItem={renderMessage}
+              contentContainerStyle={styles.messageList}
+              onContentSizeChange={scrollToEnd}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    loadMessages();
+                    loadMembers();
+                  }}
+                  tintColor={colors.rose[500]}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyWrap}>
+                  <Text style={styles.emptyText}>
+                    아직 메시지가 없어요. 첫 대화를 시작해보세요!
+                  </Text>
+                </View>
+              }
+            />
           )}
 
-          <View style={styles.inputRow}>
-            {/* 토픽 선택 드롭다운 */}
-            <View>
+          {/* 입력 바 */}
+          <View style={styles.inputBar}>
+            {selectedTopic && (
+              <View style={styles.selectedTopicRow}>
+                <Text style={styles.selectedTopicLabel}>
+                  #{TOPICS.find((t) => t.key === selectedTopic)?.label ?? selectedTopic}
+                </Text>
+                <Pressable onPress={() => setSelectedTopic(null)} hitSlop={8}>
+                  <Text style={styles.selectedTopicRemove}>X</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <View style={styles.inputRow}>
+              {/* 토픽 선택 드롭다운 */}
+              <View>
+                <Pressable
+                  style={styles.topicSelector}
+                  onPress={() => setShowTopicDropdown(!showTopicDropdown)}
+                >
+                  <Text style={styles.topicSelectorText}>#</Text>
+                  <ChevronDown size={14} color={colors.textSecondary} />
+                </Pressable>
+
+                {showTopicDropdown && (
+                  <View style={styles.dropdown}>
+                    {TOPICS.filter((t) => t.key !== "all").map((topic) => (
+                      <Pressable
+                        key={topic.key}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedTopic(topic.key);
+                          setShowTopicDropdown(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>{topic.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <TextInput
+                style={styles.input}
+                value={input}
+                onChangeText={setInput}
+                placeholder="메시지를 입력하세요..."
+                placeholderTextColor={colors.taupe[400]}
+                multiline
+                maxLength={2000}
+                editable={!sending}
+                returnKeyType="send"
+                onSubmitEditing={handleSend}
+              />
+
               <Pressable
-                style={styles.topicSelector}
-                onPress={() => setShowTopicDropdown(!showTopicDropdown)}
+                style={[
+                  styles.sendBtn,
+                  (!input.trim() || sending) && styles.sendBtnDisabled,
+                ]}
+                onPress={handleSend}
+                disabled={!input.trim() || sending}
               >
-                <Text style={styles.topicSelectorText}>#</Text>
-                <ChevronDown size={14} color={colors.textSecondary} />
+                {sending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Send size={18} color="#FFFFFF" />
+                )}
               </Pressable>
-
-              {showTopicDropdown && (
-                <View style={styles.dropdown}>
-                  {TOPICS.filter((t) => t.key !== "all").map((topic) => (
-                    <Pressable
-                      key={topic.key}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setSelectedTopic(topic.key);
-                        setShowTopicDropdown(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownText}>{topic.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
             </View>
-
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="메시지를 입력하세요..."
-              placeholderTextColor={colors.taupe[400]}
-              multiline
-              maxLength={2000}
-              editable={!sending}
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-            />
-
-            <Pressable
-              style={[
-                styles.sendBtn,
-                (!input.trim() || sending) && styles.sendBtnDisabled,
-              ]}
-              onPress={handleSend}
-              disabled={!input.trim() || sending}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Send size={18} color="#FFFFFF" />
-              )}
-            </Pressable>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }
+
+/* ───── 스타일 ───── */
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -399,6 +617,82 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 
+  // 멤버 섹션
+  memberSection: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  memberToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  memberToggleText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  memberScroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 16,
+  },
+  memberItem: {
+    alignItems: "center",
+    width: 56,
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  memberAvatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  memberName: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+
+  // 스크린 탭
+  screenTabRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  screenTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    position: "relative",
+  },
+  screenTabActive: {},
+  screenTabText: { fontSize: 14, color: colors.taupe[400] },
+  screenTabTextActive: { color: colors.noir[800], fontWeight: "600" },
+  screenTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: "20%",
+    right: "20%",
+    height: 2,
+    backgroundColor: colors.noir[800],
+    borderRadius: 1,
+  },
+
   // 토픽 필터
   topicRow: { paddingVertical: 10, backgroundColor: colors.surface },
   topicChip: {
@@ -424,7 +718,6 @@ const styles = StyleSheet.create({
 
   // 메시지 행
   msgRow: { flexDirection: "row", gap: 10 },
-  msgRowAi: {},
   msgContent: { flex: 1 },
   msgMeta: {
     flexDirection: "row",
@@ -432,8 +725,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
-  msgNickname: { fontSize: 13, fontWeight: "600", color: colors.noir[800] },
-  msgNicknameAi: { color: colors.gold.DEFAULT },
+  msgNickname: { fontSize: 13, fontWeight: "600" },
   msgTime: { fontSize: 11, color: colors.taupe[400] },
 
   // 토픽 배지
@@ -450,12 +742,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: colors.ivory[200],
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarAi: { backgroundColor: colors.noir[800] },
-  avatarText: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
+  avatarText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   avatarTextAi: { color: colors.gold.DEFAULT },
 
   // 말풍선
@@ -479,6 +769,53 @@ const styles = StyleSheet.create({
   // 빈 상태
   emptyWrap: { alignItems: "center", paddingTop: 60 },
   emptyText: { fontSize: 14, color: colors.textTertiary, textAlign: "center" },
+
+  // 플레이스홀더 (정보판 / 타임라인)
+  placeholderWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  placeholderIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 28,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  placeholderTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  placeholderBtn: {
+    backgroundColor: colors.rose[500],
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    marginTop: 8,
+    shadowColor: colors.rose[500],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  placeholderBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
 
   // 입력 바
   inputBar: {
