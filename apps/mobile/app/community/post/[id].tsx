@@ -94,7 +94,7 @@ export default function PostDetailScreen() {
 
       // 댓글
       const commentsData = await apiJson<{ comments: Comment[] }>(
-        `/api/community/comments?post_id=${id}`
+        `/api/community/comments?postId=${id}`
       );
       setComments(commentsData.comments ?? []);
 
