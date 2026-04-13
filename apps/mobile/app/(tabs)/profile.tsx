@@ -22,6 +22,9 @@ import {
   Store,
   Settings,
   MessageCircle,
+  CalendarCheck,
+  Bookmark,
+  Star,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -33,6 +36,7 @@ interface ProfileData {
   role: string | null;
   weddingDate: string | null;
   dday: number | null;
+  upcomingBookings: number;
 }
 
 function calcDday(dateStr: string | null): number | null {
@@ -77,6 +81,7 @@ export default function ProfileScreen() {
         .single();
 
       let weddingDate: string | null = null;
+      let upcomingBookings = 0;
       if (data?.couple_id) {
         const { data: journey } = await supabase
           .from("wedding_journeys")
@@ -84,6 +89,16 @@ export default function ProfileScreen() {
           .eq("couple_id", data.couple_id)
           .single();
         weddingDate = journey?.wedding_date ?? null;
+
+        // 예정된 예약 수
+        const today = new Date().toISOString().split("T")[0];
+        const { count } = await supabase
+          .from("vendor_bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("couple_id", data.couple_id)
+          .neq("status", "cancelled")
+          .gte("booking_date", today);
+        upcomingBookings = count ?? 0;
       }
 
       setProfile({
@@ -92,6 +107,7 @@ export default function ProfileScreen() {
         role: data?.role ?? null,
         weddingDate,
         dday: calcDday(weddingDate),
+        upcomingBookings,
       });
     })();
   }, []);
@@ -156,9 +172,46 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* 예약 요약 */}
+        {profile != null && profile.upcomingBookings > 0 && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.bookingSummary,
+              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+            ]}
+            onPress={() => router.push({ pathname: "/bookings/index" })}
+          >
+            <CalendarCheck size={18} color={colors.rose[500]} />
+            <Text style={styles.bookingSummaryText}>
+              예정된 예약 {profile.upcomingBookings}건
+            </Text>
+            <ChevronRight size={16} color={colors.textTertiary} />
+          </Pressable>
+        )}
+
         {/* 서비스 메뉴 */}
         <Text style={styles.menuSectionTitle}>서비스</Text>
         <View style={styles.menuSection}>
+          <MenuItem
+            icon={CalendarCheck}
+            label="내 예약"
+            onPress={() => router.push({ pathname: "/bookings/index" })}
+          />
+          <MenuItem
+            icon={FileText}
+            label="내가 쓴 글"
+            onPress={() => router.push({ pathname: "/community/my-posts" })}
+          />
+          <MenuItem
+            icon={Bookmark}
+            label="북마크"
+            onPress={() => router.push({ pathname: "/community/my-bookmarks" })}
+          />
+          <MenuItem
+            icon={Star}
+            label="15초 후기 작성"
+            onPress={() => router.push({ pathname: "/community/quick-review" })}
+          />
           <MenuItem
             icon={TrendingUp}
             label="시세 정보"
@@ -324,6 +377,23 @@ const styles = StyleSheet.create({
   ddayBadge: {
     fontFamily: "CormorantGaramond_600SemiBold",
     fontSize: 13,
+    color: colors.rose[500],
+  },
+
+  bookingSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.rose.glow,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 24,
+  },
+  bookingSummaryText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "NotoSansKR_500Medium",
     color: colors.rose[500],
   },
 
