@@ -1,35 +1,28 @@
-import DOMPurify from "isomorphic-dompurify";
+// HTML 정화 (XSS 방지)
+// isomorphic-dompurify가 Vercel에서 jsdom ESM 충돌 → 서버용 간단 정규식 사용
 
-// HTML 콘텐츠 정화 (XSS 방지)
+function stripDangerous(dirty: string): string {
+  return dirty
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[\s\S]*?<\/object>/gi, "")
+    .replace(/<embed[\s\S]*?>/gi, "")
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/<input[\s\S]*?>/gi, "")
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
+    .replace(/on\w+\s*=\s*[^\s>]*/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
+
 export function sanitizeHtml(dirty: string): string {
-  return DOMPurify.sanitize(dirty, {
-    ALLOWED_TAGS: [
-      "p", "br", "b", "i", "em", "strong", "u", "s", "del",
-      "h1", "h2", "h3", "h4", "h5", "h6",
-      "ul", "ol", "li", "blockquote", "pre", "code",
-      "a", "img", "hr", "span", "div",
-      "table", "thead", "tbody", "tr", "th", "td",
-    ],
-    ALLOWED_ATTR: [
-      "href", "src", "alt", "title", "class", "target", "rel",
-      "width", "height",
-    ],
-    ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ["target"],
-    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input"],
-    FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onblur"],
-  });
+  return stripDangerous(dirty);
 }
 
-// 일반 텍스트 정화 (태그 완전 제거)
 export function sanitizeText(dirty: string): string {
-  return DOMPurify.sanitize(dirty, { ALLOWED_TAGS: [] });
+  return dirty.replace(/<[^>]*>/g, "").trim();
 }
 
-// 입력값 길이 + 기본 정화
-export function validateTextInput(
-  value: string,
-  maxLength: number,
-): string {
+export function validateTextInput(value: string, maxLength: number): string {
   return value.trim().slice(0, maxLength);
 }
