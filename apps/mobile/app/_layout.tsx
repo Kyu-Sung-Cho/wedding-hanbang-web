@@ -66,9 +66,9 @@ export default function RootLayout() {
     initAuthListener();
   }, []);
 
-  // 푸시 알림 등록
+  // 푸시 알림 등록 (EAS Build에서만 작동, Expo Go에서는 스킵)
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && !__DEV__) {
       import("@/lib/notifications").then(({ registerForPushNotifications }) => {
         registerForPushNotifications().catch(() => {});
       });

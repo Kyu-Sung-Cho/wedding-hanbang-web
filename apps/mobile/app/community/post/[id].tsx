@@ -89,36 +89,40 @@ export default function PostDetailScreen() {
       const data = await apiJson<PostDetail>(`/api/community/posts/${id}`);
       setPost(data);
 
-      // 조회수 증가
+      // 조회수 증가 (실패 무시)
       apiFetch(`/api/community/posts/${id}/view`, { method: "POST" }).catch(() => {});
 
-      // 댓글
-      const commentsData = await apiJson<{ comments: Comment[] }>(
-        `/api/community/comments?postId=${id}`
-      );
-      setComments(commentsData.comments ?? []);
+      // 댓글 (실패해도 게시글은 표시)
+      try {
+        const commentsData = await apiJson<{ comments: Comment[] }>(
+          `/api/community/comments?postId=${id}`
+        );
+        setComments(commentsData.comments ?? []);
+      } catch { /* 댓글 로드 실패 무시 */ }
 
-      // 현재 사용자의 투표/북마크 상태 로드
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: voteData } = await supabase
-          .from("community_votes")
-          .select("vote_type")
-          .eq("post_id", id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (voteData) setUserVote(voteData.vote_type);
+      // 투표/북마크 상태 (실패 무시)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: voteData } = await supabase
+            .from("community_votes")
+            .select("vote_type")
+            .eq("post_id", id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (voteData) setUserVote(voteData.vote_type);
 
-        const { data: bmData } = await supabase
-          .from("community_bookmarks")
-          .select("id")
-          .eq("post_id", id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        setBookmarked(!!bmData);
-      }
+          const { data: bmData } = await supabase
+            .from("community_bookmarks")
+            .select("id")
+            .eq("post_id", id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          setBookmarked(!!bmData);
+        }
+      } catch { /* 투표/북마크 로드 실패 무시 */ }
     } catch (err) {
-      console.error("게시글 로드 오류:", err);
+      // 게시글 자체 로드 실패만 표시
     } finally {
       setLoading(false);
     }

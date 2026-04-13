@@ -5,30 +5,38 @@ import { createServerClient } from "@supabase/ssr";
  * Server Components, Server Actions에서 사용
  */
 export async function createClient() {
-  // 동적 import로 cookies()를 API Route에서도 안전하게 사용
-  const { cookies } = await import("next/headers");
-  const cookieStore = await cookies();
+  try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
+    return createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch {
+              // Server Component에서 호출 시 무시
+            }
+          },
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Server Component에서 호출 시 무시
-          }
-        },
-      },
-    }
-  );
+      }
+    );
+  } catch {
+    // cookies() 실패 시 익명 클라이언트 (API Route 외부 호출 등)
+    return createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    );
+  }
 }
 
 /**
