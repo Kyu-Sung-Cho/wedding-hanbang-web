@@ -215,7 +215,7 @@ export default function CohortChatScreen() {
   const [activeTab, setActiveTab] = useState<ScreenTab>("chat");
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
 
-  // 초기 메시지 로드
+  // 초기 메시지 로드 (멤버 아니면 자동 입장 후 재시도)
   const loadMessages = useCallback(async () => {
     if (!id) return;
     try {
@@ -225,7 +225,27 @@ export default function CohortChatScreen() {
       setMessages(data.messages ?? []);
       if (data.room) setRoomInfo(data.room);
     } catch (err) {
-      console.error("Cohort messages load error:", err);
+      // 멤버가 아닌 경우 → 자동 입장 시도
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("멤버") || msg.includes("member") || msg.includes("403")) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from("cohort_members").upsert(
+              { room_id: id, user_id: user.id },
+              { onConflict: "room_id,user_id" }
+            );
+            // 재시도
+            const retry = await apiJson<{ messages: CohortMessage[]; room: RoomInfo }>(
+              `/api/community/cohort/${id}/messages`
+            );
+            setMessages(retry.messages ?? []);
+            if (retry.room) setRoomInfo(retry.room);
+          }
+        } catch (joinErr) {
+          console.error("동기방 입장 실패:", joinErr);
+        }
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
