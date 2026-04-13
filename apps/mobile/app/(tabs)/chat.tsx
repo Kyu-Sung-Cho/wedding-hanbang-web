@@ -1,11 +1,12 @@
-// AI 채팅 (아모라) — 웹과 동일한 chat_messages 테이블 연동
+// AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
+// 신부=분홍(#F5E6DF), 신랑=파랑(#E8EDF5), AI=noir
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, Animated, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Send, Sparkles } from "lucide-react-native";
+import { Send, Sparkles, Heart } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
@@ -13,49 +14,32 @@ import { apiFetch } from "@/lib/api";
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
+  sender_type: "bride" | "groom" | "ai";
   content: string;
+  metadata?: { target?: string } | null;
   created_at?: string;
 }
 
-// 타이핑 점 애니메이션
+type MessageTarget = "ai" | "partner";
+
 function ThinkingDots() {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    function animateDot(dot: Animated.Value, delay: number) {
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(dot, { toValue: 1, duration: 400, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0, duration: 400, useNativeDriver: true }),
-        ])
-      );
-    }
-    const a1 = animateDot(dot1, 0);
-    const a2 = animateDot(dot2, 200);
-    const a3 = animateDot(dot3, 400);
-    a1.start(); a2.start(); a3.start();
-    return () => { a1.stop(); a2.stop(); a3.stop(); };
+    function a(d: Animated.Value, dl: number) { return Animated.loop(Animated.sequence([Animated.delay(dl), Animated.timing(d, { toValue: 1, duration: 400, useNativeDriver: true }), Animated.timing(d, { toValue: 0, duration: 400, useNativeDriver: true })])); }
+    const anims = [a(dot1, 0), a(dot2, 200), a(dot3, 400)];
+    anims.forEach((x) => x.start());
+    return () => anims.forEach((x) => x.stop());
   }, [dot1, dot2, dot3]);
-
   return (
-    <View style={thinkingStyles.container}>
-      {[dot1, dot2, dot3].map((dot, i) => (
-        <Animated.View key={i} style={[thinkingStyles.dot, {
-          opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-          transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
-        }]} />
+    <View style={{ flexDirection: "row", gap: 4, paddingVertical: 4 }}>
+      {[dot1, dot2, dot3].map((d, i) => (
+        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.textTertiary, opacity: d.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }), transform: [{ translateY: d.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }} />
       ))}
     </View>
   );
 }
-
-const thinkingStyles = StyleSheet.create({
-  container: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 2 },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.textTertiary },
-});
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -63,9 +47,11 @@ export default function ChatScreen() {
   const [streaming, setStreaming] = useState(false);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string>("bride");
-  const [userName, setUserName] = useState<string>("사용자");
+  const [userRole, setUserRole] = useState<"bride" | "groom">("bride");
+  const [userName, setUserName] = useState("사용자");
+  const [partnerName, setPartnerName] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [target, setTarget] = useState<MessageTarget>("ai");
   const flatListRef = useRef<FlatList>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -74,320 +60,141 @@ export default function ChatScreen() {
     setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
   }, []);
 
-  // 유저 프로필 + coupleId + 기존 메시지 로드
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { setInitialLoaded(true); return; }
       setUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name, role, couple_id")
-        .eq("id", user.id)
-        .single();
+      const { data: profile } = await supabase.from("profiles").select("name, role, couple_id").eq("id", user.id).single();
+      if (!profile?.couple_id) { setInitialLoaded(true); return; }
+      setCoupleId(profile.couple_id);
+      if (profile.name) setUserName(profile.name);
+      if (profile.role) setUserRole(profile.role as "bride" | "groom");
 
-      if (profile) {
-        setCoupleId(profile.couple_id);
-        if (profile.name) setUserName(profile.name);
-        if (profile.role) setUserRole(profile.role);
+      // 파트너
+      const { data: partners } = await supabase.from("profiles").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
+      if (partners?.[0]) setPartnerName(partners[0].name);
+
+      // 대화 이력
+      const { data: history } = await supabase.from("chat_messages")
+        .select("id, role, sender_type, content, metadata, created_at")
+        .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
+
+      if (history?.length) {
+        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], created_at: m.created_at })));
       }
 
-      // 기존 대화 불러오기 (웹과 동일한 chat_messages 테이블)
-      if (profile?.couple_id) {
-        const { data: chatHistory } = await supabase
-          .from("chat_messages")
-          .select("id, role, content, created_at")
-          .eq("couple_id", profile.couple_id)
-          .order("created_at", { ascending: true })
-          .limit(200);
-
-        if (chatHistory && chatHistory.length > 0) {
-          setMessages(chatHistory.map((m) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            created_at: m.created_at,
-          })));
-        }
-
-        // Realtime: 새 메시지 자동 수신 (웹에서 보낸 메시지도 실시간)
-        const channel = supabase.channel(`chat:${profile.couple_id}`)
-          .on('postgres_changes', {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'chat_messages',
-            filter: `couple_id=eq.${profile.couple_id}`,
-          }, (payload) => {
-            const newMsg = payload.new as { id: string; role: string; content: string; created_at: string };
-            setMessages((prev) => {
-              // 중복 방지 (이미 있으면 스킵)
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              // 임시 메시지(temp_) 제거 후 추가
-              const filtered = prev.filter((m) => !m.id.startsWith("temp_"));
-              return [...filtered, {
-                id: newMsg.id,
-                role: newMsg.role as "user" | "assistant",
-                content: newMsg.content,
-                created_at: newMsg.created_at,
-              }];
-            });
-            scrollToEnd();
-          })
-          .subscribe();
-
-        channelRef.current = channel;
-      }
-
+      // Realtime
+      const ch = supabase.channel(`chat:${profile.couple_id}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          const n = payload.new as Record<string, unknown>;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === n.id)) return prev;
+            return [...prev.filter((m) => !m.id.toString().startsWith("temp_")), {
+              id: n.id as string, role: n.role as "user" | "assistant", sender_type: n.sender_type as "bride" | "groom" | "ai",
+              content: n.content as string, metadata: n.metadata as ChatMessage["metadata"], created_at: n.created_at as string,
+            }];
+          });
+          scrollToEnd();
+        }).subscribe();
+      channelRef.current = ch;
       setInitialLoaded(true);
     })();
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
+    return () => { if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; } };
   }, [scrollToEnd]);
 
-  useEffect(() => {
-    if (initialLoaded && messages.length > 0) scrollToEnd();
-  }, [initialLoaded, messages.length, scrollToEnd]);
+  useEffect(() => { if (initialLoaded && messages.length > 0) scrollToEnd(); }, [initialLoaded, messages.length, scrollToEnd]);
 
-  function handleSendPressIn() {
-    Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start();
-  }
-  function handleSendPressOut() {
-    Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start();
-  }
+  function pressIn() { Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start(); }
+  function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || streaming) return;
-    if (!coupleId || !userId) {
-      Alert.alert("알림", "프로필 설정이 필요해요. 온보딩을 먼저 완료해주세요.");
-      return;
+    if (!text || streaming || !coupleId || !userId) return;
+
+    if (target === "partner") {
+      await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: userId, sender_type: userRole, role: "user", content: text, metadata: { target: "partner" } });
+      setInput(""); scrollToEnd(); return;
     }
 
-    // 1. 유저 메시지를 DB에 저장 (웹과 동일)
-    const { data: userInserted } = await supabase
-      .from("chat_messages")
-      .insert({
-        couple_id: coupleId,
-        sender_id: userId,
-        sender_type: userRole,
-        role: "user",
-        content: text,
-      })
-      .select("id, role, content, created_at")
-      .single();
-
-    const userMsg: ChatMessage = userInserted
-      ? { id: userInserted.id, role: "user", content: text, created_at: userInserted.created_at }
-      : { id: Date.now().toString(), role: "user", content: text };
-
-    // 임시 AI 메시지 (로딩 표시용)
-    const tempAiId = `temp_${Date.now()}`;
-    const aiMsg: ChatMessage = { id: tempAiId, role: "assistant", content: "" };
-
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
-    setInput("");
-    setStreaming(true);
-    scrollToEnd();
+    // AI
+    const { data: ui } = await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: userId, sender_type: userRole, role: "user", content: text }).select("id, role, sender_type, content, created_at").single();
+    const userMsg: ChatMessage = ui ? { ...ui, role: "user", sender_type: userRole } : { id: Date.now().toString(), role: "user", sender_type: userRole, content: text };
+    const tempId = `temp_${Date.now()}`;
+    setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "" }]);
+    setInput(""); setStreaming(true); scrollToEnd();
 
     try {
-      // 2. 웹 API 호출 (Bearer 토큰)
-      const apiMessages = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const res = await apiFetch("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          messages: apiMessages,
-          coupleId,
-          senderName: userName,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "채팅 오류가 발생했어요");
-      }
-
-      // 3. 응답 읽기 (RN은 스트리밍 불가 → 전체 텍스트)
-      const rawText = await res.text();
-      let fullText = "";
-
-      const lines = rawText.split("\n");
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]" || !jsonStr) continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
-          if (parsed.type === "content_block_delta" && parsed.delta?.text) fullText += parsed.delta.text;
-          else if (parsed.text) fullText += parsed.text;
-          else if (parsed.chunk) fullText += parsed.chunk;
-        } catch {
-          if (jsonStr) fullText += jsonStr;
-        }
-      }
-
-      if (!fullText && rawText) {
-        try {
-          const json = JSON.parse(rawText);
-          fullText = json.text || json.content || json.message || rawText;
-        } catch {
-          fullText = rawText;
-        }
-      }
-
-      const cleanText = fullText.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim();
-      const finalContent = cleanText || fullText || "응답을 받지 못했어요.";
-
-      // 4. AI 응답을 DB에 저장 (웹과 동일)
-      const { data: aiInserted } = await supabase
-        .from("chat_messages")
-        .insert({
-          couple_id: coupleId,
-          sender_id: null,
-          sender_type: "ai",
-          role: "assistant",
-          content: finalContent,
-        })
-        .select("id, role, content, created_at")
-        .single();
-
-      // 임시 메시지를 실제 DB 메시지로 교체
-      setMessages((prev) => prev.map((m) =>
-        m.id === tempAiId
-          ? (aiInserted
-            ? { id: aiInserted.id, role: "assistant", content: finalContent, created_at: aiInserted.created_at }
-            : { ...m, content: finalContent })
-          : m
-      ));
+      const res = await apiFetch("/api/chat", { method: "POST", body: JSON.stringify({ messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })), coupleId, senderName: userName }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "채팅 오류");
+      const raw = await res.text();
+      let full = "";
+      for (const line of raw.split("\n")) { if (!line.startsWith("data: ")) continue; const j = line.slice(6).trim(); if (j === "[DONE]" || !j) continue; try { const p = JSON.parse(j); if (p.type === "content_block_delta" && p.delta?.text) full += p.delta.text; else if (p.text) full += p.text; else if (p.chunk) full += p.chunk; } catch { if (j) full += j; } }
+      if (!full && raw) { try { const json = JSON.parse(raw); full = json.text || json.content || raw; } catch { full = raw; } }
+      const clean = full.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim() || full || "응답을 받지 못했어요.";
+      await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: null, sender_type: "ai", role: "assistant", content: clean });
+      setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: clean } : m));
       scrollToEnd();
-
     } catch (err) {
-      const message = err instanceof Error ? err.message : "채팅 중 오류가 발생했어요";
-      setMessages((prev) => prev.map((m) =>
-        m.id === tempAiId ? { ...m, content: `오류: ${message}` } : m
-      ));
-    } finally {
-      setStreaming(false);
-    }
+      setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: `오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}` } : m));
+    } finally { setStreaming(false); }
   }
 
   function renderMessage({ item }: { item: ChatMessage }) {
-    const isUser = item.role === "user";
-    const isThinking = !isUser && !item.content && streaming;
+    const isAi = item.sender_type === "ai";
+    const isMe = item.sender_type === userRole;
+    const isPartnerMsg = item.metadata?.target === "partner";
+    const isBride = item.sender_type === "bride";
+    const isThinking = isAi && !item.content && streaming;
+    const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
+    const textColor = isMe ? "#FFF" : colors.noir[800];
 
     return (
-      <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
-        {!isUser && (
-          <View style={styles.aiAvatar}>
-            <Sparkles size={14} color={colors.gold.DEFAULT} />
+      <View style={[st.msgRow, isMe && st.msgRowRight]}>
+        {!isMe && (
+          <View style={[st.avatar, isAi ? st.avatarAi : isBride ? st.avatarBride : st.avatarGroom]}>
+            {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <Text style={st.avatarLetter}>{isBride ? "신부" : "신랑"}</Text>}
           </View>
         )}
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-          {isThinking ? (
-            <ThinkingDots />
-          ) : (
-            <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextAi]}>
-              {item.content}
-            </Text>
-          )}
+        <View style={{ maxWidth: "78%" }}>
+          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
+          <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+            {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+          </View>
         </View>
       </View>
     );
   }
 
+  const isP = target === "partner";
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <View style={styles.headerLogo}>
-          <Sparkles size={16} color={colors.gold.DEFAULT} />
-        </View>
-        <View>
-          <Text style={styles.headerTitle}>아모라</Text>
-          <Text style={styles.headerSub}>AI 웨딩 플래너</Text>
-        </View>
-        {messages.length > 0 && (
-          <Text style={styles.msgCount}>{messages.length}개의 대화</Text>
-        )}
+    <SafeAreaView style={st.container} edges={["top"]}>
+      <View style={st.header}>
+        <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 웨딩 플래너</Text></View></View>
+        {messages.length > 0 && <Text style={st.badge}>{messages.length}</Text>}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={st.targetRow}>
+        <Pressable style={[st.targetBtn, !isP && st.targetActive]} onPress={() => setTarget("ai")}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
+        <Pressable style={[st.targetBtn, isP && st.targetPartner]} onPress={() => setTarget("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {messages.length === 0 && initialLoaded ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyDecoTop} />
-            <View style={styles.emptyDecoBottom} />
-            <View style={styles.emptyLogo}>
-              <Sparkles size={28} color={colors.gold.DEFAULT} />
-            </View>
-            <Text style={styles.emptyTitle}>안녕하세요, 아모라예요</Text>
-            <Text style={styles.emptyDesc}>
-              결혼 준비 뭐든 물어보세요.{"\n"}가격, 일정, 업체, 예절... 다 도와드릴게요.
-            </Text>
-            <View style={styles.suggestions}>
-              {["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (
-                <Pressable
-                  key={q}
-                  style={({ pressed }) => [styles.sugBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }], borderColor: colors.rose[500] }]}
-                  onPress={() => setInput(q)}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.sugText}>{q}</Text>
-                </Pressable>
-              ))}
-            </View>
+          <View style={st.empty}><View style={st.emptyLogo}><Sparkles size={28} color={colors.gold.DEFAULT} /></View><Text style={st.emptyTitle}>안녕하세요, 아모라예요</Text><Text style={st.emptyDesc}>결혼 준비 뭐든 물어보세요.{"\n"}파트너에게도 메시지를 보낼 수 있어요.</Text>
+            <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { setTarget("ai"); setInput(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
           </View>
         ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(m) => m.id}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.messageList}
-            onContentSizeChange={scrollToEnd}
-            keyboardDismissMode="on-drag"
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            initialNumToRender={10}
-          />
+          <FlatList ref={flatListRef} data={messages} keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} onContentSizeChange={scrollToEnd} keyboardDismissMode="on-drag" removeClippedSubviews maxToRenderPerBatch={10} windowSize={5} initialNumToRender={10} />
         )}
 
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="메시지를 입력하세요..."
-            placeholderTextColor={colors.taupe[400]}
-            multiline
-            maxLength={4000}
-            editable={!streaming}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            accessibilityLabel="메시지 입력"
-          />
+        <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
+          <TextInput style={st.input} value={input} onChangeText={setInput} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable
-              style={[styles.sendBtn, (!input.trim() || streaming) && styles.sendBtnDisabled]}
-              onPress={handleSend}
-              onPressIn={handleSendPressIn}
-              onPressOut={handleSendPressOut}
-              disabled={!input.trim() || streaming}
-              accessibilityLabel="메시지 보내기"
-              accessibilityRole="button"
-            >
-              <Send size={18} color="#FFFFFF" />
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+              {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
         </View>
@@ -396,70 +203,43 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface,
-  },
-  headerLogo: {
-    width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800],
-    alignItems: "center", justifyContent: "center",
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  headerSub: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary, marginTop: -1 },
-  msgCount: { marginLeft: "auto", fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
-
-  empty: {
-    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, position: "relative", overflow: "hidden",
-  },
-  emptyDecoTop: { position: "absolute", top: -60, right: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: colors.rose.glow },
-  emptyDecoBottom: { position: "absolute", bottom: -40, left: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: colors.ivory[200], opacity: 0.6 },
-  emptyLogo: {
-    width: 64, height: 64, borderRadius: 22, backgroundColor: colors.noir[800],
-    alignItems: "center", justifyContent: "center", marginBottom: 20,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
-  },
+  headerSub: { fontSize: 11, color: colors.textTertiary },
+  badge: { fontSize: 12, color: colors.textTertiary, backgroundColor: colors.ivory[200], paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  targetBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
+  targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
+  targetPartner: { borderBottomWidth: 2, borderBottomColor: colors.rose[500] },
+  targetText: { fontSize: 14, color: colors.textTertiary },
+  targetTextActive: { color: colors.noir[800], fontWeight: "600" },
+  targetTextPartner: { color: colors.rose[500], fontWeight: "600" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  emptyLogo: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center", marginBottom: 20 },
   emptyTitle: { fontSize: 22, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800], marginBottom: 8 },
-  emptyDesc: { fontSize: 14, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 28 },
+  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 28 },
   suggestions: { width: "100%", gap: 8 },
-  sugBtn: {
-    paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
-  },
-  sugText: { fontSize: 14, fontFamily: "NotoSansKR_400Regular", color: colors.noir[800] },
-
-  messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "85%" },
-  msgRowUser: { alignSelf: "flex-end", flexDirection: "row-reverse" },
-  aiAvatar: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: colors.noir[800],
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1,
-  },
-  bubble: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, maxWidth: "100%" },
-  bubbleAi: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 4 },
-  bubbleUser: { backgroundColor: colors.noir[800], borderBottomRightRadius: 4 },
-  bubbleText: { fontSize: 15, fontFamily: "NotoSansKR_400Regular", color: colors.noir[800] },
-  bubbleTextAi: { lineHeight: 24 },
-  bubbleTextUser: { color: "#FFFFFF", lineHeight: 22 },
-
-  inputBar: {
-    flexDirection: "row", alignItems: "flex-end", gap: 8,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
-  },
-  input: {
-    flex: 1, minHeight: 40, maxHeight: 120,
-    paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 15, fontFamily: "NotoSansKR_400Regular", color: colors.noir[800],
-    backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
-  },
-  sendBtn: {
-    width: 40, height: 40, borderRadius: 16, backgroundColor: colors.rose[500],
-    alignItems: "center", justifyContent: "center",
-  },
-  sendBtnDisabled: { backgroundColor: colors.taupe[400] },
+  sugBtn: { paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  sugText: { fontSize: 14, color: colors.noir[800] },
+  messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
+  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
+  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  avatarAi: { backgroundColor: colors.noir[800] },
+  avatarBride: { backgroundColor: "#F5E6DF" },
+  avatarGroom: { backgroundColor: "#E8EDF5" },
+  avatarLetter: { fontSize: 8, fontWeight: "700", color: colors.noir[800] },
+  senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
+  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  bubbleRight: { borderBottomRightRadius: 4 },
+  bubbleLeft: { borderBottomLeftRadius: 4 },
+  bubbleText: { fontSize: 15, lineHeight: 22 },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  sendBtn: { width: 40, height: 40, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
+  sendBtnOff: { backgroundColor: colors.taupe[400] },
 });
