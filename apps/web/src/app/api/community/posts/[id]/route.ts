@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
@@ -18,7 +18,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     const {
       data: { user },
@@ -28,7 +28,7 @@ export async function GET(
     const { data: post, error } = await supabase
       .from("community_posts")
       .select(
-        "*, author:community_profiles!community_posts_author_id_fkey(*)"
+        "*"
       )
       .eq("id", id)
       .single();
@@ -124,7 +124,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -228,7 +228,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const serviceClient = getServiceClient();
     const {
       data: { user },
