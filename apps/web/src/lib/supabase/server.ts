@@ -59,32 +59,12 @@ export function createClientFromToken(accessToken: string) {
  * 2순위: Request Cookie 헤더 직접 파싱 (API Route)
  */
 export async function createClientFromRequest(request: Request) {
-  // 1순위: Bearer 토큰
+  // 1순위: Bearer 토큰 (모바일 앱)
   const authHeader = request.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     return createClientFromToken(authHeader.substring(7));
   }
 
-  // 2순위: Cookie 헤더 직접 파싱
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const parsedCookies: Array<{ name: string; value: string }> = [];
-  if (cookieHeader) {
-    cookieHeader.split(";").forEach((c) => {
-      const [name, ...rest] = c.trim().split("=");
-      if (name) {
-        parsedCookies.push({ name: name.trim(), value: rest.join("=").trim() });
-      }
-    });
-  }
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => parsedCookies,
-        setAll: () => {},
-      },
-    }
-  );
+  // 2순위: Next.js cookies() (웹 브라우저 — 세션 read+write 지원)
+  return createClient();
 }
