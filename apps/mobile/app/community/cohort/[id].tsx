@@ -213,6 +213,7 @@ export default function CohortChatScreen() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<ScreenTab>("chat");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
 
   // 초기: 자동 입장 + 메시지/방 정보 로드 (Supabase 직접)
@@ -222,6 +223,7 @@ export default function CohortChatScreen() {
       // 1. 자동 입장 (이미 멤버면 무시)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        setCurrentUserId(user.id);
         await supabase.from("cohort_members").upsert(
           { room_id: id, user_id: user.id },
           { onConflict: "room_id,user_id" }
@@ -397,15 +399,33 @@ export default function CohortChatScreen() {
 
   function renderMessage({ item }: { item: CohortMessage }) {
     const isAi = item.author_id === null;
-    const nickname = item.author_nickname ?? "아모라 AI";
+    const isMe = item.author_id === currentUserId;
+
+    // 멤버 닉네임 매칭
+    const memberNick = members.find((m) => m.user_id === item.author_id)?.profile?.nickname;
+    const nickname = isAi ? "아모라 AI" : (memberNick ?? item.author_nickname ?? "멤버");
     const avatarBg = isAi ? colors.noir[800] : getAvatarColor(nickname);
+
+    // 내 메시지 → 오른쪽
+    if (isMe) {
+      return (
+        <View style={styles.msgRowMe}>
+          <View style={styles.msgContentMe}>
+            <Text style={styles.msgTimeMe}>{timeAgo(item.created_at)}</Text>
+            <View style={styles.bubbleMe}>
+              <Text style={styles.bubbleTextMe}>{item.content}</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
 
     return (
       <View style={styles.msgRow}>
         {/* 아바타 */}
         <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
           <Text style={[styles.avatarText, isAi && styles.avatarTextAi]}>
-            {getInitial(item.author_nickname)}
+            {getInitial(isAi ? null : nickname)}
           </Text>
         </View>
 
@@ -790,7 +810,18 @@ const styles = StyleSheet.create({
 
   // 메시지 행
   msgRow: { flexDirection: "row", gap: 10 },
+  msgRowMe: { alignSelf: "flex-end", maxWidth: "80%" },
   msgContent: { flex: 1 },
+  msgContentMe: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  msgTimeMe: { fontSize: 11, color: colors.taupe[400], marginBottom: 2 },
+  bubbleMe: {
+    backgroundColor: colors.noir[800],
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderBottomRightRadius: 4,
+  },
+  bubbleTextMe: { fontSize: 14, color: "#FFFFFF", lineHeight: 20 },
   msgMeta: {
     flexDirection: "row",
     alignItems: "center",
