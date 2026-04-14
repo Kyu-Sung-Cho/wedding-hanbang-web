@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorToInsertRow, categoryToDb } from "@/lib/utils/vendorMapper";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +11,13 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    // Rate limit: 5 registrations per hour per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("vendor:register", req, user.id),
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     const body = await req.json();
     const { name, category, ownerName, phone, email, address, priceMin, priceMax, description, tags, businessNumber } = body;

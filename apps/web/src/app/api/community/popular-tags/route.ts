@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // 인기 태그 조회
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     // 최근 30일간 게시글의 태그 집계
     const thirtyDaysAgo = new Date();

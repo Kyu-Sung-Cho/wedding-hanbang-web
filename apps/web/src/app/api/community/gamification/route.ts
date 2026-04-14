@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 // GET /api/community/gamification
 // 유저의 게이미피케이션 데이터 조회 (XP, 레벨, 스트릭, 업적, 리더보드)
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     const {
       data: { user },

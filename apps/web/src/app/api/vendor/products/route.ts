@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { productToInsertRow, productRowToProduct, slotsToTimeslotInserts } from "@/lib/utils/vendorMapper";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 export async function GET() {
   try {
@@ -62,6 +63,13 @@ export async function POST(req: Request) {
     if (!vendor) {
       return NextResponse.json({ error: "등록된 업체가 없습니다." }, { status: 404 });
     }
+
+    // Rate limit: 20 products per hour per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("vendor:product:create", req, user.id),
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     const body = await req.json();
     const insertData = productToInsertRow({ ...body, vendorId: vendor.id });

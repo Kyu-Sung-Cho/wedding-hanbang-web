@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -17,7 +17,7 @@ export async function POST(
     );
     if (rlResult) return rlResult;
 
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     // RPC로 원자적 조회수 증가
     const { error } = await supabase.rpc("community_increment_view", {

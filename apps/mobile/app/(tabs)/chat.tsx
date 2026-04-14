@@ -74,7 +74,7 @@ export default function ChatScreen() {
 
       // 파트너
       const { data: partners } = await supabase.from("profiles").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
-      if (partners?.[0]) setPartnerName(partners[0].name);
+      if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
 
       // 대화 이력
       const { data: history } = await supabase.from("chat_messages")

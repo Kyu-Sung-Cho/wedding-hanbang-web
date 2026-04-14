@@ -158,11 +158,11 @@ export default function DashboardScreen() {
       // 오늘 할 일: 이벤트 중 오늘 날짜인 것
       const today = new Date().toISOString().slice(0, 10);
       const events =
-        ((progress as Record<string, unknown>).__events as Array<{
+        ((progress as Record<string, unknown>)?.__events as Array<{
           date: string;
           title: string;
           categoryKey?: string;
-        }>) ?? [];
+        }> | undefined) ?? [];
       const todayTasks = events
         .filter((e) => e.date === today)
         .map((e) => ({ title: e.title, categoryKey: e.categoryKey ?? "" }));

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -23,7 +23,7 @@ const EXT_MAP: Record<string, string> = {
 // 이미지 업로드
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();

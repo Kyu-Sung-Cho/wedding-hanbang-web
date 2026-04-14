@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommunityCategory } from "@/types/community.types";
@@ -6,13 +6,13 @@ import type { CommunityCategory } from "@/types/community.types";
 // 전문 검색
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
 
     const q = searchParams.get("q");
     const category = searchParams.get("category") as CommunityCategory | null;
-    const page = parseInt(searchParams.get("page") ?? "1");
-    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
 
     if (!q || q.trim().length === 0) {

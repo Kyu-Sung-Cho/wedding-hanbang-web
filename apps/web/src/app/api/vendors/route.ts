@@ -8,8 +8,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") ?? "1");
-    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
 
     let query = supabase

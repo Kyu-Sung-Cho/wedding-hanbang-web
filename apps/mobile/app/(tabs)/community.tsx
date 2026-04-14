@@ -456,7 +456,7 @@ export default function CommunityScreen() {
           {hasImage && (
             <View style={styles.postThumbWrap}>
               <Image
-                source={{ uri: item.image_urls![0] }}
+                source={{ uri: item.image_urls?.[0] }}
                 style={styles.postThumb}
                 resizeMode="cover"
               />

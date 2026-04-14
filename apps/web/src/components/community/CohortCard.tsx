@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Users, ChevronRight, Sparkles, Calendar } from "lucide-react";
 import { useToast } from "./Toast";
 import type { CohortRoom, CommunityProfile } from "@/types/community.types";
@@ -27,10 +27,17 @@ export default function CohortCard({
   onAssigned,
 }: CohortCardProps) {
   const { toast } = useToast();
-  const now = new Date();
-  const [year, setYear] = useState<number>(now.getFullYear());
-  const [month, setMonth] = useState<number>(now.getMonth() + 1);
+  const [now, setNow] = useState<Date | null>(null);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const d = new Date();
+    setNow(d);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+  }, []);
 
   // 배정 플로우
   async function handleAssign() {
@@ -77,7 +84,7 @@ export default function CohortCard({
             className="flex-1 rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E]"
           >
             {[0, 1, 2].map((offset) => {
-              const y = now.getFullYear() + offset;
+              const y = (now?.getFullYear() ?? new Date().getFullYear()) + offset;
               return (
                 <option key={y} value={y}>
                   {y}년

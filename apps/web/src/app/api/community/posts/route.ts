@@ -79,8 +79,8 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category") as CommunityCategory | null;
     const sort = (searchParams.get("sort") ?? "hot") as PostSort;
     const period = (searchParams.get("period") ?? "week") as TimePeriod;
-    const page = parseInt(searchParams.get("page") ?? "1");
-    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const tag = searchParams.get("tag");
     const authorId = searchParams.get("author_id");
     const offset = (page - 1) * limit;

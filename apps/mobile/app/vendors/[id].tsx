@@ -219,7 +219,8 @@ export default function VendorDetailScreen() {
       const bookedCounts: Record<number, number> = {};
       (bookings ?? []).forEach((b: Record<string, unknown>) => {
         const timeStr = String(b.booking_time ?? "");
-        const hour = parseInt(timeStr.split(":")[0], 10);
+        const parts = timeStr.split(":");
+        const hour = parseInt(parts[0] ?? "0", 10);
         if (!isNaN(hour)) {
           bookedCounts[hour] = (bookedCounts[hour] ?? 0) + 1;
         }

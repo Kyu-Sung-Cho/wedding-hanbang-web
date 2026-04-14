@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Menu, Bell, Search } from "lucide-react";
@@ -38,12 +38,14 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // D-day 계산
+  // D-day 계산 (hydration-safe)
+  const [today, setToday] = useState<Date | null>(null);
+  useEffect(() => { setToday(new Date()); }, []);
+
   const weddingDate = journey?.wedding_date
     ? new Date(journey.wedding_date)
     : null;
-  const today = new Date();
-  const dday = weddingDate
+  const dday = weddingDate && today
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 

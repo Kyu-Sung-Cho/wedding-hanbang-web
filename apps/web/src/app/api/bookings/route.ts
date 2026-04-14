@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 export async function POST(req: Request) {
   try {
@@ -9,6 +10,13 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    // Rate limit: 10 bookings per hour per user
+    const rlResult = checkRateLimit(
+      rateLimitKey("booking:create", req, user.id),
+      { maxRequests: 10, windowMs: 60 * 60 * 1000 }
+    );
+    if (rlResult) return rlResult;
 
     const body = await req.json();
     const { vendorId, productId, staffId, date, time, brideName, groomName, contactPhone, memo } = body;
