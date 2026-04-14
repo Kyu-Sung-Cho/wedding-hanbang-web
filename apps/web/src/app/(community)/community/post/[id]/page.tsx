@@ -380,19 +380,29 @@ export default function PostDetailPage() {
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setLightboxIndex(idx)}
+                        onClick={() => !(/\.(mp4|mov|webm)(\?|$)/i.test(src)) && setLightboxIndex(idx)}
                         className={`relative overflow-hidden rounded-xl bg-[#FAFAF8] hover:opacity-90 transition-all duration-200 ${
                           post.images!.length === 1
                             ? "aspect-video"
                             : "aspect-square"
                         }`}
                       >
-                        <Image
-                          src={src}
-                          alt={`이미지 ${idx + 1}`}
-                          fill
-                          className="object-cover"
-                        />
+                        {/\.(mp4|mov|webm)(\?|$)/i.test(src) ? (
+                          <video
+                            src={src}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Image
+                            src={src}
+                            alt={`이미지 ${idx + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                        )}
                         {/* 4장 이상이고 마지막 보이는 셀일 때 오버레이 */}
                         {post.images!.length > 6 && idx === 5 && (
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">

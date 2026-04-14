@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Upload, X, Loader2, ImageIcon } from "lucide-react";
+import { Upload, X, Loader2, ImageIcon, Film } from "lucide-react";
 
 interface ImageUploaderProps {
   images: string[];
@@ -10,29 +10,42 @@ interface ImageUploaderProps {
   max?: number;
 }
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const ALL_ACCEPTED = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
+const ACCEPT_STRING = "image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm";
+
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm)(\?|$)/i.test(url);
+}
 
 export default function ImageUploader({
   images,
   onChange,
-  max = 5,
+  max = 10,
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadFile = useCallback(
-    async (file: File): Promise<string | null> => {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError("JPG, PNG, GIF, WEBP 파일만 업로드할 수 있습니다.");
+    async (file: File, idx: number, total: number): Promise<string | null> => {
+      if (!ALL_ACCEPTED.includes(file.type)) {
+        setError("JPG, PNG, GIF, WEBP, MP4, MOV, WebM 파일만 업로드할 수 있습니다.");
         return null;
       }
-      if (file.size > MAX_SIZE_BYTES) {
-        setError("파일 크기는 5MB 이하여야 합니다.");
+      const isVideo = ACCEPTED_VIDEO_TYPES.includes(file.type);
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (file.size > maxSize) {
+        setError(isVideo ? "영상은 100MB 이하여야 합니다." : "이미지는 5MB 이하여야 합니다.");
         return null;
       }
+
+      setProgress(`${idx + 1}/${total} 업로드 중...`);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -61,21 +74,26 @@ export default function ImageUploader({
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
       setError(null);
+      setProgress(null);
       const fileArray = Array.from(files);
       const remaining = max - images.length;
       if (remaining <= 0) {
-        setError(`최대 ${max}장까지 업로드할 수 있습니다.`);
+        setError(`최대 ${max}개까지 업로드할 수 있습니다.`);
         return;
       }
       const toUpload = fileArray.slice(0, remaining);
 
       setUploading(true);
-      const results = await Promise.all(toUpload.map(uploadFile));
-      const urls = results.filter((u): u is string => u !== null);
+      const urls: string[] = [];
+      for (let i = 0; i < toUpload.length; i++) {
+        const url = await uploadFile(toUpload[i], i, toUpload.length);
+        if (url) urls.push(url);
+      }
       if (urls.length > 0) {
         onChange([...images, ...urls]);
       }
       setUploading(false);
+      setProgress(null);
     },
     [images, onChange, max, uploadFile]
   );
@@ -124,11 +142,14 @@ export default function ImageUploader({
           <div className="text-center">
             <p className="text-sm font-medium text-[#928980]">
               {uploading
-                ? "업로드 중..."
-                : "클릭하거나 이미지를 드래그하세요"}
+                ? progress || "업로드 중..."
+                : "클릭하거나 파일을 드래그하세요"}
             </p>
             <p className="mt-1 text-xs text-[#B5ADA3]">
-              JPG, PNG, GIF, WEBP / 최대 5MB / {images.length}/{max}장
+              이미지 5MB · 영상 100MB / {images.length}/{max}개
+            </p>
+            <p className="mt-0.5 text-xs text-[#B5ADA3]">
+              JPG, PNG, GIF, WEBP, MP4, MOV, WebM
             </p>
           </div>
         </div>
@@ -137,7 +158,7 @@ export default function ImageUploader({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
+        accept={ACCEPT_STRING}
         multiple
         className="hidden"
         onChange={(e) => {
@@ -151,25 +172,31 @@ export default function ImageUploader({
         <p className="text-xs text-red-500">{error}</p>
       )}
 
-      {/* 미리보기 썸네일 */}
+      {/* 미리보기 */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {images.map((url, i) => (
             <div key={url} className="relative group">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#F5F2ED] border border-[#F5F2ED]">
-                <Image
-                  src={url}
-                  alt={`업로드 이미지 ${i + 1}`}
-                  width={96}
-                  height={96}
-                  className="w-full h-full object-cover"
-                />
+                {isVideoUrl(url) ? (
+                  <div className="w-full h-full flex items-center justify-center bg-[#1A1A1F]/10">
+                    <Film className="w-8 h-8 text-[#928980]" />
+                  </div>
+                ) : (
+                  <Image
+                    src={url}
+                    alt={`업로드 ${i + 1}`}
+                    width={96}
+                    height={96}
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
               <button
                 type="button"
                 onClick={() => removeImage(i)}
                 className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#1A1A1F]/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label={`이미지 ${i + 1} 삭제`}
+                aria-label={`파일 ${i + 1} 삭제`}
               >
                 <X className="w-3.5 h-3.5" />
               </button>

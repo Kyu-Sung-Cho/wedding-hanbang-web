@@ -11,13 +11,19 @@ function getServiceClient() {
   );
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 const EXT_MAP: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/gif": "gif",
   "image/webp": "webp",
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
 };
 
 // 이미지 업로드
@@ -76,15 +82,18 @@ export async function POST(req: NextRequest) {
     // 파일 타입 검증
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "지원하지 않는 파일 형식입니다. (JPEG, PNG, GIF, WebP만 가능)" },
+        { error: "지원하지 않는 파일 형식입니다. (JPEG, PNG, GIF, WebP, MP4, MOV, WebM 가능)" },
         { status: 400 }
       );
     }
 
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+    const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+
     // 파일 크기 검증
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "파일 크기는 5MB 이하여야 합니다." },
+        { error: isVideo ? "영상 크기는 100MB 이하여야 합니다." : "이미지 크기는 5MB 이하여야 합니다." },
         { status: 400 }
       );
     }
@@ -92,7 +101,8 @@ export async function POST(req: NextRequest) {
     const ext = EXT_MAP[file.type] ?? "jpg";
     const timestamp = Date.now();
     const random = crypto.randomUUID();
-    const filePath = `community-images/${user.id}/${timestamp}_${random}.${ext}`;
+    const folder = isVideo ? "community-videos" : "community-images";
+    const filePath = `${folder}/${user.id}/${timestamp}_${random}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -102,7 +112,13 @@ export async function POST(req: NextRequest) {
     const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
     const isGIF = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
     const isWEBP = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-    if (!isJPEG && !isPNG && !isGIF && !isWEBP) {
+    // MP4/MOV: ftyp box at offset 4
+    const isFtyp = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+    // WebM: EBML header
+    const isEBML = bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3;
+    const isValidImage = isJPEG || isPNG || isGIF || isWEBP;
+    const isValidVideo = isFtyp || isEBML;
+    if (!isValidImage && !isValidVideo) {
       return NextResponse.json({ error: "지원하지 않는 파일 형식입니다." }, { status: 400 });
     }
 
