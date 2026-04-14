@@ -31,21 +31,21 @@ export async function POST(
       );
     }
 
-    // Rate limit: 10 reports per hour per user
+    // Rate limit: 5 reports per hour per user
     const rlResult = checkRateLimit(
       rateLimitKey("community:report", req, user.id),
-      { maxRequests: 10, windowMs: 60 * 60 * 1000 }
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    const { reason, description: rawDescription } = (await req.json()) as {
+    const { reason, details: rawDetails } = (await req.json()) as {
       reason: ReportReason;
-      description?: string;
+      details?: string;
     };
 
-    // description 정화
-    const description = rawDescription
-      ? sanitizeText(rawDescription).slice(0, 1000)
+    // details 정화
+    const details = rawDetails
+      ? sanitizeText(rawDetails).slice(0, 1000)
       : undefined;
 
     if (!reason) {
@@ -91,10 +91,12 @@ export async function POST(
       .from("community_reports")
       .insert({
         reporter_id: user.id,
+        post_id: id,
         target_type: "post",
         target_id: id,
         reason,
-        description: description ?? null,
+        details: details ?? null,
+        status: "pending",
       });
 
     if (error) {

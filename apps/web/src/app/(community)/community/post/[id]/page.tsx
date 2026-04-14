@@ -79,7 +79,9 @@ export default function PostDetailPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [reportError, setReportError] = useState("");
 
   // 삭제 확인 모달
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -134,14 +136,35 @@ export default function PostDetailPage() {
   }
 
   // 신고 제출
-  function handleReportSubmit() {
-    if (!reportReason) return;
-    // TODO: API 호출로 신고 전송
-    setReportSubmitted(true);
-    setTimeout(() => {
-      setShowReportModal(false);
-      setReportSubmitted(false);
-    }, 1500);
+  async function handleReportSubmit() {
+    if (!reportReason || reportSubmitting) return;
+    setReportSubmitting(true);
+    setReportError("");
+    try {
+      const res = await fetch(`/api/community/posts/${postId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: reportReason,
+          details: reportDescription || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReportError(data.error || "신고에 실패했습니다.");
+        setReportSubmitting(false);
+        return;
+      }
+      setReportSubmitted(true);
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSubmitted(false);
+      }, 1500);
+    } catch {
+      setReportError("네트워크 오류가 발생했습니다.");
+    } finally {
+      setReportSubmitting(false);
+    }
   }
 
   // 삭제 처리
@@ -752,6 +775,13 @@ export default function PostDetailPage() {
                     />
                   </div>
 
+                  {/* 에러 메시지 */}
+                  {reportError && (
+                    <div className="mx-5 mb-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg">
+                      {reportError}
+                    </div>
+                  )}
+
                   {/* 푸터 */}
                   <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#F0EFED] bg-[#FAFAF8]">
                     <button
@@ -764,10 +794,10 @@ export default function PostDetailPage() {
                     <button
                       type="button"
                       onClick={handleReportSubmit}
-                      disabled={!reportReason}
+                      disabled={!reportReason || reportSubmitting}
                       className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      신고하기
+                      {reportSubmitting ? "처리 중..." : "신고하기"}
                     </button>
                   </div>
                 </>
