@@ -68,7 +68,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const handleOAuth = async (provider: "kakao" | "google") => {
+  const handleOAuth = async (provider: "kakao" | "google" | "apple") => {
     setLoading(provider);
     setError("");
     // 실제 로그인 시작 시 데모 모드 쿠키 제거
@@ -519,6 +519,16 @@ export default function LoginPage() {
                     <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z" fill="#EA4335"/>
                   </svg>
                   Google
+                </button>
+                <button
+                  onClick={() => handleOAuth("apple")}
+                  disabled={loading !== null}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-black text-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
+                >
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                    <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
+                  </svg>
+                  Apple
                 </button>
               </div>
 

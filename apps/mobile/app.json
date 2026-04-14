@@ -23,6 +23,7 @@
         "NSPhotoLibraryUsageDescription": "후기와 커뮤니티 사진을 올리려면 사진 접근이 필요해요.",
         "NSMicrophoneUsageDescription": "영상 촬영 시 마이크가 필요해요."
       },
+      "usesAppleSignIn": true,
       "associatedDomains": ["applinks:hanbang.ai"]
     },
     "android": {
@@ -50,6 +51,7 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
