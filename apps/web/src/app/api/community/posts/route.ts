@@ -215,7 +215,10 @@ export async function GET(req: NextRequest) {
     const total = count ?? 0;
     const hasMore = offset + limit < total;
 
-    return NextResponse.json({ posts: postsWithVotes, total, hasMore });
+    return NextResponse.json(
+      { posts: postsWithVotes, total, hasMore },
+      { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } }
+    );
   } catch (err) {
     console.error("Community posts error:", err);
     return NextResponse.json(
