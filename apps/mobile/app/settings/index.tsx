@@ -1,5 +1,5 @@
-// 설정 화면 — 프로필/결혼정보 직접 편집
-import { useEffect, useState, useRef } from "react";
+// 설정 화면 — 프로필/결혼정보 직접 편집 + 알림, 계정관리, 앱 정보
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,41 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
-  Animated, Keyboard,
+  Animated,
+  Keyboard,
+  Switch,
+  Modal,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Save, ExternalLink, Check, User, Heart, Smartphone } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Save,
+  ExternalLink,
+  Check,
+  User,
+  Heart,
+  Smartphone,
+  Bell,
+  Shield,
+  Lock,
+  LogOut,
+  Trash2,
+  ChevronRight,
+  FileText,
+  X,
+  Eye,
+  EyeOff,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// AsyncStorage 키
+const NOTIF_PUSH_KEY = "@hanbang/notif_push";
+const NOTIF_COMMUNITY_KEY = "@hanbang/notif_community";
+const NOTIF_PARTNER_KEY = "@hanbang/notif_partner";
 
 interface SettingsData {
   userId: string;
@@ -38,6 +65,54 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const checkScale = useRef(new Animated.Value(0)).current;
+
+  // 알림 설정 상태
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [communityNotifEnabled, setCommunityNotifEnabled] = useState(true);
+  const [partnerNotifEnabled, setPartnerNotifEnabled] = useState(true);
+
+  // 비밀번호 변경 모달
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  // 알림 설정 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const [push, community, partner] = await Promise.all([
+          AsyncStorage.getItem(NOTIF_PUSH_KEY),
+          AsyncStorage.getItem(NOTIF_COMMUNITY_KEY),
+          AsyncStorage.getItem(NOTIF_PARTNER_KEY),
+        ]);
+        // 기본값: 켜짐 (null이면 true)
+        if (push !== null) setPushEnabled(push === "true");
+        if (community !== null) setCommunityNotifEnabled(community === "true");
+        if (partner !== null) setPartnerNotifEnabled(partner === "true");
+      } catch (err) {
+        console.error("알림 설정 로드 오류:", err);
+      }
+    })();
+  }, []);
+
+  // 알림 토글 핸들러
+  const togglePush = useCallback(async (value: boolean) => {
+    setPushEnabled(value);
+    await AsyncStorage.setItem(NOTIF_PUSH_KEY, String(value));
+  }, []);
+
+  const toggleCommunity = useCallback(async (value: boolean) => {
+    setCommunityNotifEnabled(value);
+    await AsyncStorage.setItem(NOTIF_COMMUNITY_KEY, String(value));
+  }, []);
+
+  const togglePartner = useCallback(async (value: boolean) => {
+    setPartnerNotifEnabled(value);
+    await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
+  }, []);
 
   // 현재 데이터 로드
   useEffect(() => {
@@ -189,6 +264,117 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // 비밀번호 변경
+  async function handleChangePassword() {
+    if (!newPassword.trim()) {
+      Alert.alert("오류", "새 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert("오류", "비밀번호는 6자 이상이어야 해요.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("오류", "비밀번호가 일치하지 않아요.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+
+      Alert.alert("완료", "비밀번호가 변경되었어요.");
+      setPasswordModalVisible(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "비밀번호 변경 중 오류가 발생했어요";
+      Alert.alert("오류", message);
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
+  // 로그아웃
+  function handleLogout() {
+    Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
+  }
+
+  // 회원 탈퇴
+  function handleDeleteAccount() {
+    Alert.alert(
+      "회원 탈퇴",
+      "정말 탈퇴하시겠어요?\n모든 데이터가 삭제되며 복구할 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴하기",
+          style: "destructive",
+          onPress: () => {
+            // 2차 확인
+            Alert.alert(
+              "최종 확인",
+              "한번 삭제된 계정은 복구할 수 없습니다.\n정말 탈퇴하시겠어요?",
+              [
+                { text: "취소", style: "cancel" },
+                {
+                  text: "탈퇴 확인",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session?.access_token) {
+                        Alert.alert("오류", "로그인 상태를 확인해주세요.");
+                        return;
+                      }
+
+                      const res = await fetch(
+                        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
+                        {
+                          method: "POST",
+                          headers: {
+                            Authorization: `Bearer ${session.access_token}`,
+                            "Content-Type": "application/json",
+                          },
+                        }
+                      );
+
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({}));
+                        throw new Error(body.message ?? "탈퇴 처리 중 오류가 발생했어요");
+                      }
+
+                      await supabase.auth.signOut();
+                      router.replace("/(auth)/login");
+                    } catch (err) {
+                      const message =
+                        err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
+                      Alert.alert("오류", message);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   }
 
   const roleLabel =
@@ -372,10 +558,97 @@ export default function SettingsScreen() {
           )}
         </Pressable>
 
-        {/* 섹션 3: 앱 */}
+        {/* 섹션 3: 알림 설정 */}
+        <View style={styles.sectionHeader}>
+          <Bell size={16} color={colors.rose[500]} />
+          <Text style={styles.sectionTitle}>알림 설정</Text>
+        </View>
+        <View style={styles.card}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleLabel}>푸시 알림</Text>
+              <Text style={styles.toggleHint}>일정, 예산 알림을 받아요</Text>
+            </View>
+            <Switch
+              value={pushEnabled}
+              onValueChange={togglePush}
+              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
+              thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleLabel}>커뮤니티 알림</Text>
+              <Text style={styles.toggleHint}>댓글, 좋아요 알림을 받아요</Text>
+            </View>
+            <Switch
+              value={communityNotifEnabled}
+              onValueChange={toggleCommunity}
+              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
+              thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleLabel}>파트너 메시지 알림</Text>
+              <Text style={styles.toggleHint}>파트너가 보낸 메시지 알림</Text>
+            </View>
+            <Switch
+              value={partnerNotifEnabled}
+              onValueChange={togglePartner}
+              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
+              thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
+            />
+          </View>
+        </View>
+
+        {/* 섹션 4: 계정 관리 */}
+        <View style={styles.sectionHeader}>
+          <Shield size={16} color={colors.rose[500]} />
+          <Text style={styles.sectionTitle}>계정 관리</Text>
+        </View>
+        <View style={styles.card}>
+          <Pressable
+            style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
+            onPress={() => {
+              setNewPassword("");
+              setConfirmPassword("");
+              setShowNewPassword(false);
+              setShowConfirmPassword(false);
+              setPasswordModalVisible(true);
+            }}
+          >
+            <View style={styles.actionRowLeft}>
+              <Lock size={18} color={colors.noir[800]} />
+              <Text style={styles.actionRowText}>비밀번호 변경</Text>
+            </View>
+            <ChevronRight size={18} color={colors.taupe[400]} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
+            onPress={handleLogout}
+          >
+            <View style={styles.actionRowLeft}>
+              <LogOut size={18} color={colors.noir[800]} />
+              <Text style={styles.actionRowText}>로그아웃</Text>
+            </View>
+            <ChevronRight size={18} color={colors.taupe[400]} />
+          </Pressable>
+        </View>
+
+        {/* 섹션 5: 앱 정보 */}
         <View style={styles.sectionHeader}>
           <Smartphone size={16} color={colors.rose[500]} />
-          <Text style={styles.sectionTitle}>앱</Text>
+          <Text style={styles.sectionTitle}>앱 정보</Text>
         </View>
         <View style={styles.card}>
           <View style={styles.infoRow}>
@@ -402,9 +675,146 @@ export default function SettingsScreen() {
             <Text style={styles.linkText}>개인정보처리방침</Text>
             <ExternalLink size={16} color={colors.taupe[400]} />
           </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+            onPress={() => Linking.openURL("https://hanbang.ai/licenses")}
+          >
+            <View style={styles.actionRowLeft}>
+              <FileText size={16} color={colors.noir[800]} />
+              <Text style={styles.linkText}>오픈소스 라이선스</Text>
+            </View>
+            <ExternalLink size={16} color={colors.taupe[400]} />
+          </Pressable>
         </View>
+
+        {/* 회원 탈퇴 (위험 영역) */}
+        <View style={styles.dangerZone}>
+          <Pressable
+            style={({ pressed }) => [styles.dangerBtn, pressed && { opacity: 0.7 }]}
+            onPress={handleDeleteAccount}
+          >
+            <Trash2 size={16} color={colors.danger} />
+            <Text style={styles.dangerBtnText}>회원 탈퇴</Text>
+          </Pressable>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
       </DismissKeyboard>
+
+      {/* 비밀번호 변경 모달 */}
+      <Modal
+        visible={passwordModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPasswordModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setPasswordModalVisible(false)}
+        >
+          <Pressable
+            style={styles.modalContent}
+            onPress={() => {}}
+          >
+            {/* 모달 헤더 */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>비밀번호 변경</Text>
+              <Pressable
+                onPress={() => setPasswordModalVisible(false)}
+                hitSlop={12}
+              >
+                <X size={22} color={colors.noir[800]} />
+              </Pressable>
+            </View>
+
+            {/* 새 비밀번호 */}
+            <View style={styles.modalField}>
+              <Text style={styles.label}>새 비밀번호</Text>
+              <View style={styles.passwordInputWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="6자 이상 입력"
+                  placeholderTextColor={colors.taupe[400]}
+                  secureTextEntry={!showNewPassword}
+                  autoCapitalize="none"
+                  maxLength={64}
+                />
+                <Pressable
+                  onPress={() => setShowNewPassword(!showNewPassword)}
+                  hitSlop={8}
+                  style={styles.eyeBtn}
+                >
+                  {showNewPassword ? (
+                    <EyeOff size={18} color={colors.taupe[400]} />
+                  ) : (
+                    <Eye size={18} color={colors.taupe[400]} />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+
+            {/* 비밀번호 확인 */}
+            <View style={styles.modalField}>
+              <Text style={styles.label}>비밀번호 확인</Text>
+              <View style={styles.passwordInputWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="다시 한번 입력"
+                  placeholderTextColor={colors.taupe[400]}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  maxLength={64}
+                />
+                <Pressable
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  hitSlop={8}
+                  style={styles.eyeBtn}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} color={colors.taupe[400]} />
+                  ) : (
+                    <Eye size={18} color={colors.taupe[400]} />
+                  )}
+                </Pressable>
+              </View>
+              {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+                <Text style={styles.errorHint}>비밀번호가 일치하지 않아요</Text>
+              )}
+            </View>
+
+            {/* 변경 버튼 */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.modalSaveBtn,
+                (!newPassword.trim() || newPassword.length < 6 || newPassword !== confirmPassword) &&
+                  styles.saveBtnDisabled,
+                pressed && { transform: [{ scale: 0.98 }] },
+              ]}
+              onPress={handleChangePassword}
+              disabled={
+                passwordSaving ||
+                !newPassword.trim() ||
+                newPassword.length < 6 ||
+                newPassword !== confirmPassword
+              }
+            >
+              {passwordSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveBtnText}>변경하기</Text>
+              )}
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -515,6 +925,46 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
 
+  // 알림 토글 행
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.noir[800],
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: colors.taupe[400],
+    marginTop: 2,
+  },
+
+  // 계정 관리 행
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  actionRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  actionRowText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.noir[800],
+  },
+
   // 정보 행
   infoRow: {
     flexDirection: "row",
@@ -537,4 +987,90 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   linkText: { fontSize: 15, color: colors.noir[800] },
+
+  // 위험 영역 (회원 탈퇴)
+  dangerZone: {
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  dangerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: "rgba(239, 68, 68, 0.05)",
+  },
+  dangerBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.danger,
+  },
+
+  // 비밀번호 모달
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  modalField: {
+    marginBottom: 18,
+    gap: 6,
+  },
+  passwordInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.bg,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.noir[800],
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  eyeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: colors.danger,
+    marginTop: 4,
+    marginLeft: 2,
+  },
+  modalSaveBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: colors.rose[500],
+    marginTop: 8,
+  },
 });

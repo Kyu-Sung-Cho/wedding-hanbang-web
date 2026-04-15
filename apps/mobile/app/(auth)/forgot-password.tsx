@@ -1,13 +1,14 @@
 // 비밀번호 찾기 — 이메일로 재설정 링크 발송
 import { useState, useEffect, useRef } from "react";
 import {
-  View, Text, TextInput, Pressable, StyleSheet, Alert,
-  ActivityIndicator, Animated, Keyboard,
+  View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  Animated, Keyboard,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Mail, Check } from "lucide-react-native";
+import { Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
@@ -20,6 +21,7 @@ function isValidEmail(email: string): boolean {
 function translateError(message: string): string {
   if (message.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
   if (message.includes("not found")) return "등록되지 않은 이메일입니다.";
+  if (message.includes("Network")) return "네트워크 연결을 확인해주세요.";
   return "발송에 실패했어요. 다시 시도해주세요.";
 }
 
@@ -65,9 +67,28 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
+  // 로고 페이드인 애니메이션
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(18)).current;
+
   // 발송 완료 화면 페이드인
   const sentFadeAnim = useRef(new Animated.Value(0)).current;
   const sentSlideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   useEffect(() => {
     if (sent) {
@@ -101,7 +122,7 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai"}/reset-password`,
+        redirectTo: "https://hanbang.ai/reset-password",
       });
 
       if (error) {
@@ -117,6 +138,7 @@ export default function ForgotPasswordScreen() {
     }
   }
 
+  // 발송 완료 화면
   if (sent) {
     return (
       <SafeAreaView style={styles.container}>
@@ -130,11 +152,16 @@ export default function ForgotPasswordScreen() {
           ]}
         >
           <CheckmarkAnimation />
-          <Text style={styles.sentTitle}>이메일을 보냈어요</Text>
+          <Text style={styles.sentTitle}>이메일을 확인해주세요</Text>
           <Text style={styles.sentDesc}>
             {email}으로{"\n"}비밀번호 재설정 링크를 보냈어요.{"\n"}이메일을 확인해주세요.
           </Text>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            accessibilityLabel="로그인으로 돌아가기"
+            accessibilityRole="button"
+          >
             <Text style={styles.backBtnText}>로그인으로 돌아가기</Text>
           </Pressable>
         </Animated.View>
@@ -142,57 +169,114 @@ export default function ForgotPasswordScreen() {
     );
   }
 
+  // 이메일 입력 폼
   return (
     <SafeAreaView style={styles.container}>
-      <DismissKeyboard>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.title}>비밀번호 찾기</Text>
-        <Text style={styles.desc}>
-          가입할 때 사용한 이메일을 입력하면{"\n"}비밀번호 재설정 링크를 보내드려요.
-        </Text>
-
-        <Text style={styles.label}>이메일</Text>
-        <TextInput
-          style={[styles.input, emailInvalid && styles.inputError]}
-          value={email}
-          onChangeText={setEmail}
-          onBlur={() => setEmailTouched(true)}
-          placeholder="가입한 이메일 주소"
-          placeholderTextColor={colors.taupe[400]}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {emailInvalid && (
-          <Text style={styles.errorText}>올바른 이메일 형식을 입력해주세요</Text>
-        )}
-
-        <Pressable
-          style={[styles.submitBtn, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
-          onPress={handleReset}
-          disabled={!email.trim() || loading || emailInvalid}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <DismissKeyboard>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          {loading
-            ? <ActivityIndicator color="#FFF" />
-            : <Text style={styles.submitText}>재설정 메일 보내기</Text>
-          }
-        </Pressable>
-      </View>
-      </DismissKeyboard>
+          {/* 로고 — 페이드인 */}
+          <Animated.View
+            style={[
+              styles.brand,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            <Image
+              source={require("../../assets/icon.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.brandTitle}>웨딩한방</Text>
+          </Animated.View>
+
+          {/* 폼 영역 */}
+          <View style={styles.content}>
+            <Text style={styles.title}>비밀번호 찾기</Text>
+            <Text style={styles.desc}>
+              가입할 때 사용한 이메일을 입력하면{"\n"}비밀번호 재설정 링크를 보내드려요.
+            </Text>
+
+            <Text style={styles.label}>이메일</Text>
+            <TextInput
+              style={[styles.input, emailInvalid && styles.inputError]}
+              value={email}
+              onChangeText={setEmail}
+              onBlur={() => setEmailTouched(true)}
+              placeholder="가입한 이메일 주소"
+              placeholderTextColor={colors.taupe[400]}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              onSubmitEditing={handleReset}
+              returnKeyType="go"
+              editable={!loading}
+              accessibilityLabel="이메일 입력"
+            />
+            {emailInvalid && (
+              <Text style={styles.errorText}>올바른 이메일 형식을 입력해주세요</Text>
+            )}
+
+            <Pressable
+              style={[styles.submitBtn, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
+              onPress={handleReset}
+              disabled={!email.trim() || loading || emailInvalid}
+              accessibilityLabel="비밀번호 재설정 링크 보내기"
+              accessibilityRole="button"
+            >
+              {loading
+                ? <ActivityIndicator color="#FFF" />
+                : <Text style={styles.submitText}>비밀번호 재설정 링크 보내기</Text>
+              }
+            </Pressable>
+
+            {/* 로그인으로 돌아가기 */}
+            <Pressable
+              style={styles.loginLink}
+              onPress={() => router.back()}
+              accessibilityLabel="로그인으로 돌아가기"
+              accessibilityRole="button"
+            >
+              <Text style={styles.loginLinkText}>로그인으로 돌아가기</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+        </DismissKeyboard>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { paddingHorizontal: 20, paddingVertical: 14 },
-  content: { paddingHorizontal: 24, paddingTop: 12 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+
+  // 로고
+  brand: { alignItems: "center", paddingTop: 48, marginBottom: 36 },
+  logo: {
+    width: 88,
+    height: 88,
+    marginBottom: 16,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+  },
+  brandTitle: {
+    fontSize: 32,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+  },
+
+  // 폼 영역
+  content: {},
   title: {
     fontSize: 26,
     fontFamily: "NotoSerifKR_500Medium",
@@ -231,23 +315,35 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   submitBtn: {
-    height: 56,
+    height: 52,
     borderRadius: 16,
     backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   submitBtnDisabled: { opacity: 0.4 },
   submitText: {
     fontSize: 16,
     fontFamily: "NotoSansKR_600SemiBold",
     color: "#FFF",
+  },
+
+  // 로그인 돌아가기 링크
+  loginLink: {
+    alignItems: "center",
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  loginLinkText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
   },
 
   // 발송 완료

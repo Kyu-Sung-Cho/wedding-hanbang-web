@@ -1,5 +1,6 @@
 // 업체 탐색 화면 — Supabase 데이터 기반 업체 브라우징
-import { useEffect, useState, useCallback } from "react";
+// 정렬, 즐겨찾기, 별점 표시 포함
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator,
   RefreshControl, TextInput, Linking, Image,
@@ -7,7 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  ArrowLeft, Search, MapPin, Store, Plus, BadgeCheck,
+  ArrowLeft, Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +27,24 @@ interface Vendor {
   website: string | null;
   thumbnail_url: string | null;
   is_verified: boolean;
+  rating: number | null;
+  min_price: number | null;
+  created_at: string | null;
 }
+
+type SortKey = "recommended" | "popular" | "newest" | "price_asc";
+
+interface SortOption {
+  key: SortKey;
+  label: string;
+}
+
+const SORT_OPTIONS: SortOption[] = [
+  { key: "recommended", label: "추천순" },
+  { key: "popular", label: "인기순" },
+  { key: "newest", label: "최신순" },
+  { key: "price_asc", label: "가격낮은순" },
+];
 
 const CATEGORY_FILTERS = [
   "전체", "스튜디오", "드레스", "메이크업", "예식장", "스냅", "한복", "예물", "허니문",
@@ -40,14 +58,96 @@ export default function VendorsScreen() {
   const [error, setError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [selectedSort, setSelectedSort] = useState<SortKey>("recommended");
+
+  // 즐겨찾기 상태 (vendor_id Set)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [userId, setUserId] = useState<string | null>(null);
+  const favoriteSyncing = useRef<Set<string>>(new Set());
+
+  // 현재 유저 ID 가져오기
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    })();
+  }, []);
+
+  // 즐겨찾기 목록 로드
+  const loadFavorites = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data } = await supabase
+        .from("favorites")
+        .select("vendor_id")
+        .eq("user_id", userId);
+      if (data) {
+        setFavoriteIds(new Set(data.map((r) => r.vendor_id)));
+      }
+    } catch (err) {
+      console.error("즐겨찾기 로드 오류:", err);
+    }
+  }, [userId]);
+
+  useEffect(() => { loadFavorites(); }, [loadFavorites]);
+
+  // 즐겨찾기 토글 (optimistic UI)
+  const toggleFavorite = useCallback(async (vendorId: string) => {
+    if (!userId) return;
+    // 중복 요청 방지
+    if (favoriteSyncing.current.has(vendorId)) return;
+    favoriteSyncing.current.add(vendorId);
+
+    const isFav = favoriteIds.has(vendorId);
+
+    // 옵티미스틱 업데이트
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (isFav) {
+        next.delete(vendorId);
+      } else {
+        next.add(vendorId);
+      }
+      return next;
+    });
+
+    try {
+      if (isFav) {
+        await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", userId)
+          .eq("vendor_id", vendorId);
+      } else {
+        await supabase
+          .from("favorites")
+          .insert({ user_id: userId, vendor_id: vendorId });
+      }
+    } catch (err) {
+      console.error("즐겨찾기 동기화 오류:", err);
+      // 실패 시 롤백
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (isFav) {
+          next.add(vendorId);
+        } else {
+          next.delete(vendorId);
+        }
+        return next;
+      });
+    } finally {
+      favoriteSyncing.current.delete(vendorId);
+    }
+  }, [userId, favoriteIds]);
 
   const loadVendors = useCallback(async () => {
     try {
       setError(false);
+
+      // 기본 select에 rating, created_at 추가, 최소 상품가격은 서브쿼리
       let query = supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified")
-        .order("name");
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, rating, created_at, vendor_products(price)");
 
       if (selectedCategory !== "전체") {
         query = query.eq("category", selectedCategory);
@@ -57,17 +157,38 @@ export default function VendorsScreen() {
         query = query.ilike("name", `%${searchQuery.trim()}%`);
       }
 
-      const { data, error } = await query;
+      // 정렬 적용
+      switch (selectedSort) {
+        case "popular":
+          query = query.order("rating", { ascending: false, nullsFirst: false });
+          break;
+        case "newest":
+          query = query.order("created_at", { ascending: false });
+          break;
+        case "recommended":
+        case "price_asc":
+        default:
+          // 추천순/가격순은 name으로 가져온 뒤 클라이언트 정렬
+          query = query.order("name");
+          break;
+      }
 
-      if (error) {
-        console.error("업체 로드 오류:", error);
+      const { data, error: queryError } = await query;
+
+      if (queryError) {
+        console.error("업체 로드 오류:", queryError);
         setVendors([]);
         setError(true);
         return;
       }
 
-      setVendors(
-        (data ?? []).map((r: Record<string, unknown>) => ({
+      let mapped = (data ?? []).map((r: Record<string, unknown>) => {
+        // 상품 최소 가격 계산
+        const products = Array.isArray(r.vendor_products) ? r.vendor_products as Array<{ price: number }> : [];
+        const prices = products.map((p) => p.price).filter((p) => typeof p === "number" && p > 0);
+        const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+
+        return {
           id: String(r.id ?? ""),
           name: String(r.name ?? ""),
           category: r.category ? String(r.category) : null,
@@ -79,8 +200,23 @@ export default function VendorsScreen() {
           website: r.website ? String(r.website) : null,
           thumbnail_url: r.thumbnail_url ? String(r.thumbnail_url) : null,
           is_verified: Boolean(r.is_verified),
-        }))
-      );
+          rating: typeof r.rating === "number" ? r.rating : null,
+          min_price: minPrice,
+          created_at: r.created_at ? String(r.created_at) : null,
+        };
+      });
+
+      // 가격낮은순 클라이언트 정렬 (null은 뒤로)
+      if (selectedSort === "price_asc") {
+        mapped.sort((a, b) => {
+          if (a.min_price === null && b.min_price === null) return 0;
+          if (a.min_price === null) return 1;
+          if (b.min_price === null) return -1;
+          return a.min_price - b.min_price;
+        });
+      }
+
+      setVendors(mapped);
     } catch (err) {
       console.error("업체 로드 오류:", err);
       setError(true);
@@ -88,7 +224,7 @@ export default function VendorsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, selectedSort]);
 
   useEffect(() => { loadVendors(); }, [loadVendors]);
 
@@ -97,6 +233,8 @@ export default function VendorsScreen() {
   }
 
   function renderVendor({ item }: { item: Vendor }) {
+    const isFav = favoriteIds.has(item.id);
+
     return (
       <Pressable
         style={({ pressed }) => [
@@ -105,23 +243,57 @@ export default function VendorsScreen() {
         ]}
         onPress={() => router.push({ pathname: "/vendors/[id]", params: { id: item.id } })}
       >
-        {/* 썸네일 */}
-        {item.thumbnail_url ? (
-          <Image source={{ uri: item.thumbnail_url }} style={s.thumbnail} />
-        ) : (
-          <View style={[s.thumbnail, s.thumbnailPlaceholder]}>
-            <Store size={28} color={colors.textTertiary} />
-          </View>
-        )}
+        {/* 썸네일 + 즐겨찾기 버튼 */}
+        <View>
+          {item.thumbnail_url ? (
+            <Image source={{ uri: item.thumbnail_url }} style={s.thumbnail} />
+          ) : (
+            <View style={[s.thumbnail, s.thumbnailPlaceholder]}>
+              <Store size={28} color={colors.textTertiary} />
+            </View>
+          )}
+
+          {/* 즐겨찾기 하트 버튼 */}
+          <Pressable
+            style={({ pressed }) => [
+              s.heartBtn,
+              pressed && { transform: [{ scale: 0.85 }] },
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              toggleFavorite(item.id);
+            }}
+            hitSlop={8}
+          >
+            <Heart
+              size={20}
+              color={isFav ? colors.rose[500] : colors.surface}
+              fill={isFav ? colors.rose[500] : "transparent"}
+              strokeWidth={isFav ? 0 : 2}
+              style={!isFav ? { opacity: 0.9 } : undefined}
+            />
+          </Pressable>
+        </View>
 
         <View style={s.cardBody}>
-          {/* 상단: 이름 + 카테고리 배지 */}
+          {/* 상단: 이름 + 별점 + 카테고리 배지 */}
           <View style={s.cardTop}>
             <View style={s.nameRow}>
               <Text style={s.vendorName} numberOfLines={1}>{item.name}</Text>
               {item.is_verified && (
                 <BadgeCheck size={16} color={colors.rose[500]} />
               )}
+              {/* 별점 표시 */}
+              <View style={s.ratingBadge}>
+                <Star
+                  size={12}
+                  color={item.rating ? colors.gold.DEFAULT : colors.textTertiary}
+                  fill={item.rating ? colors.gold.DEFAULT : "transparent"}
+                />
+                <Text style={[s.ratingText, !item.rating && s.ratingTextNew]}>
+                  {item.rating ? item.rating.toFixed(1) : "신규"}
+                </Text>
+              </View>
             </View>
             {item.category && (
               <View style={s.catBadge}>
@@ -222,6 +394,32 @@ export default function VendorsScreen() {
         />
       </View>
 
+      {/* 정렬 옵션 칩 */}
+      <View style={s.sortRow}>
+        <FlatList
+          horizontal
+          data={SORT_OPTIONS}
+          keyExtractor={(item) => item.key}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20 }}
+          renderItem={({ item: opt }) => (
+            <Pressable
+              style={[s.sortChip, selectedSort === opt.key && s.sortChipActive]}
+              onPress={() => setSelectedSort(opt.key)}
+            >
+              <Text
+                style={[
+                  s.sortChipText,
+                  selectedSort === opt.key && s.sortChipTextActive,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          )}
+        />
+      </View>
+
       {/* 업체 목록 */}
       {loading ? (
         <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
@@ -235,6 +433,7 @@ export default function VendorsScreen() {
           data={vendors}
           keyExtractor={(item) => item.id}
           renderItem={renderVendor}
+          extraData={favoriteIds}
           contentContainerStyle={s.listContent}
           removeClippedSubviews={true}
           maxToRenderPerBatch={10}
@@ -251,7 +450,7 @@ export default function VendorsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); loadVendors(); }}
+              onRefresh={() => { setRefreshing(true); loadFavorites(); loadVendors(); }}
               tintColor={colors.rose[500]}
             />
           }
@@ -318,7 +517,7 @@ const s = StyleSheet.create({
   },
 
   // 카테고리 필터
-  filterRow: { marginBottom: 12 },
+  filterRow: { marginBottom: 8 },
   filterChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -329,6 +528,31 @@ const s = StyleSheet.create({
   filterChipActive: { backgroundColor: colors.noir[800] },
   filterChipText: { fontSize: 13, color: colors.textSecondary, fontFamily: "NotoSansKR_400Regular" },
   filterChipTextActive: { color: "#fff", fontWeight: "600" },
+
+  // 정렬 옵션
+  sortRow: { marginBottom: 12 },
+  sortChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: 8,
+  },
+  sortChipActive: {
+    borderColor: colors.rose[500],
+    backgroundColor: colors.rose.glow,
+  },
+  sortChipText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: "NotoSansKR_400Regular",
+  },
+  sortChipTextActive: {
+    color: colors.rose[600],
+    fontWeight: "600",
+  },
 
   // 목록
   listContent: { padding: 20, paddingTop: 4, paddingBottom: 100 },
@@ -356,6 +580,20 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+  // 즐겨찾기 하트 버튼
+  heartBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   cardBody: {
     padding: 16,
   },
@@ -378,6 +616,25 @@ const s = StyleSheet.create({
     color: colors.noir[800],
     fontFamily: "NotoSansKR_400Regular",
   },
+
+  // 별점 배지
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginLeft: 2,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.gold.DEFAULT,
+    fontFamily: "NotoSansKR_400Regular",
+  },
+  ratingTextNew: {
+    color: colors.textTertiary,
+    fontWeight: "400",
+  },
+
   catBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,

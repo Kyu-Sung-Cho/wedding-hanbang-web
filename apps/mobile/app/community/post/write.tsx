@@ -1,14 +1,16 @@
-// 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 미리보기
+// 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 이미지 첨부 + 미리보기
 import { useState } from "react";
 import {
-  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Keyboard,
+  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Keyboard, Image,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ChevronDown, Eye, Edit3, Check } from "lucide-react-native";
+import { ArrowLeft, ChevronDown, Eye, Edit3, Check, ImagePlus, X } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import * as ImagePicker from "expo-image-picker";
 
 const CATEGORIES = [
   { key: "is_normal", label: "이거 정상이야?" },
@@ -26,6 +28,14 @@ const AD_OPTIONS = [
 
 const TITLE_MAX = 200;
 const CONTENT_MAX = 50000;
+const MAX_IMAGES = 5;
+const UPLOAD_URL = "https://hanbang.ai/api/community/upload";
+
+interface SelectedImage {
+  uri: string;
+  fileName: string;
+  mimeType: string;
+}
 
 export default function WritePostScreen() {
   const [category, setCategory] = useState("");
@@ -36,6 +46,87 @@ export default function WritePostScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
+  const [images, setImages] = useState<SelectedImage[]>([]);
+  const [uploadProgress, setUploadProgress] = useState("");
+
+  // 갤러리에서 이미지 선택
+  async function pickImages() {
+    if (images.length >= MAX_IMAGES) {
+      Alert.alert("알림", `이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있어요.`);
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "사진 접근 권한을 허용해주세요.");
+      return;
+    }
+
+    const remaining = MAX_IMAGES - images.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.8,
+    });
+
+    if (result.canceled || result.assets.length === 0) return;
+
+    const newImages: SelectedImage[] = result.assets.map((asset) => ({
+      uri: asset.uri,
+      fileName: asset.fileName || `image_${Date.now()}.jpg`,
+      mimeType: asset.mimeType || "image/jpeg",
+    }));
+
+    setImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES));
+  }
+
+  // 선택된 이미지 제거
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // 이미지 업로드 — Bearer 토큰으로 인증, FormData 전송
+  async function uploadImages(): Promise<string[]> {
+    if (images.length === 0) return [];
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("로그인이 필요합니다.");
+
+    const urls: string[] = [];
+
+    for (let i = 0; i < images.length; i++) {
+      setUploadProgress(`${i + 1}/${images.length} 업로드 중...`);
+
+      const img = images[i];
+      const formData = new FormData();
+      formData.append("file", {
+        uri: img.uri,
+        name: img.fileName,
+        type: img.mimeType,
+      } as unknown as Blob);
+
+      const res = await fetch(UPLOAD_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `이미지 업로드 실패 (${i + 1}번째)`);
+      }
+
+      const { url } = await res.json();
+      urls.push(url);
+    }
+
+    setUploadProgress("");
+    return urls;
+  }
 
   async function handleSubmit() {
     if (!category) { Alert.alert("알림", "카테고리를 선택해주세요."); return; }
@@ -47,6 +138,9 @@ export default function WritePostScreen() {
 
     setSubmitting(true);
     try {
+      // 이미지 업로드
+      const imageUrls = await uploadImages();
+
       const res = await apiFetch("/api/community/posts", {
         method: "POST",
         body: JSON.stringify({
@@ -56,6 +150,7 @@ export default function WritePostScreen() {
           visibility: "public",
           ad_disclosure: adDisclosure,
           sponsorship_detail: adDisclosure === "sponsored" ? sponsorDetail.trim() : undefined,
+          ...(imageUrls.length > 0 && { images: imageUrls }),
         }),
       });
 
@@ -142,6 +237,18 @@ export default function WritePostScreen() {
           </View>
           <Text style={styles.previewTitle}>{title || "제목을 입력해주세요"}</Text>
           <Text style={styles.previewBody}>{content || "내용을 입력해주세요"}</Text>
+          {images.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.previewThumbRow}
+              contentContainerStyle={styles.thumbRowContent}
+            >
+              {images.map((img) => (
+                <Image key={img.uri} source={{ uri: img.uri }} style={styles.previewThumb} />
+              ))}
+            </ScrollView>
+          )}
         </ScrollView>
       ) : (
         /* 작성 모드 */
@@ -250,6 +357,52 @@ export default function WritePostScreen() {
           <Text style={styles.charCount}>
             {content.length.toLocaleString()}/{CONTENT_MAX.toLocaleString()}
           </Text>
+
+          {/* 이미지 첨부 */}
+          <Text style={styles.fieldLabel}>사진 첨부</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.imagePickerBtn,
+              pressed && { borderColor: colors.rose[500] },
+            ]}
+            onPress={pickImages}
+          >
+            <ImagePlus size={20} color={colors.rose[500]} />
+            <Text style={styles.imagePickerText}>
+              사진 추가 ({images.length}/{MAX_IMAGES})
+            </Text>
+          </Pressable>
+
+          {/* 선택된 이미지 썸네일 */}
+          {images.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.thumbRow}
+              contentContainerStyle={styles.thumbRowContent}
+            >
+              {images.map((img, idx) => (
+                <View key={img.uri} style={styles.thumbWrapper}>
+                  <Image source={{ uri: img.uri }} style={styles.thumb} />
+                  <Pressable
+                    style={styles.thumbRemove}
+                    onPress={() => removeImage(idx)}
+                    hitSlop={8}
+                  >
+                    <X size={12} color="#FFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* 업로드 진행 상태 */}
+          {uploadProgress !== "" && (
+            <View style={styles.uploadProgressRow}>
+              <ActivityIndicator size="small" color={colors.rose[500]} />
+              <Text style={styles.uploadProgressText}>{uploadProgress}</Text>
+            </View>
+          )}
         </ScrollView>
         </DismissKeyboard>
       )}
@@ -417,6 +570,63 @@ const styles = StyleSheet.create({
     fontFamily: "CormorantGaramond_400Regular",
   },
 
+  // 이미지 첨부
+  imagePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
+  imagePickerText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.rose[500],
+  },
+  thumbRow: {
+    marginTop: 12,
+    flexGrow: 0,
+  },
+  thumbRowContent: {
+    gap: 10,
+  },
+  thumbWrapper: {
+    position: "relative",
+  },
+  thumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
+  },
+  thumbRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uploadProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  uploadProgressText: {
+    fontSize: 13,
+    color: colors.rose[500],
+    fontWeight: "500",
+  },
+
   // 미리보기
   previewContent: { padding: 20, paddingBottom: 40 },
   previewAdBadge: {
@@ -451,5 +661,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.noir[800],
     lineHeight: 28,
+  },
+  previewThumbRow: {
+    marginTop: 20,
+    flexGrow: 0,
+  },
+  previewThumb: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
   },
 });
