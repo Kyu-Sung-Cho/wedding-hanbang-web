@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       room,
       recentMembers: members ?? [],
-      lastMessage: lastMsg ?? null,
+      lastMessage: lastMsg?.content ?? null,
     });
   } catch (err) {
     console.error("Cohort GET error:", err);
