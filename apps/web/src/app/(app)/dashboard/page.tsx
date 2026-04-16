@@ -12,11 +12,136 @@ import {
   Copy,
   Check,
   ChevronRight,
+  AlertCircle,
+  Users,
+  Building2,
+  Camera,
+  Shirt,
+  Palette,
+  Gem,
+  Flower2,
+  Package,
+  Plane,
+  Home,
+  Key,
+  Mail,
+  Video,
+  Sparkles,
+  Flower,
+  Gift,
+  Mic,
+  Box,
+  Heart,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import type { CategoryChecklistTemplate } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+
+// 카테고리 아이콘 매핑
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  meeting: Users,
+  venue: Building2,
+  studio: Camera,
+  dress: Shirt,
+  makeup: Palette,
+  ring: Gem,
+  hanbok: Flower2,
+  yedan: Package,
+  honeymoon: Plane,
+  houseware: Home,
+  housing: Key,
+  invitation: Mail,
+  snap: Video,
+  shoes: Sparkles,
+  bouquet: Flower,
+  gift: Gift,
+  mc: Mic,
+  ham: Box,
+  pyebaek: Heart,
+};
+
+// 긴급도 레벨 타입
+interface UrgentTask {
+  key: string;
+  label: string;
+  ddayDeadline: number;
+  daysUntilDeadline: number;
+  urgency: "overdue" | "soon" | "relaxed";
+  urgencyLabel: string;
+  urgencyColor: string;
+  urgencyBg: string;
+  urgencyBorder: string;
+  deadlineText: string;
+}
+
+// 긴급 태스크 계산 함수
+function getUrgentTasks(
+  dday: number | null,
+  progress: Record<string, { status?: string; checklist?: { id: string; label: string; done: boolean }[] }>,
+  templates: CategoryChecklistTemplate[]
+): UrgentTask[] {
+  if (dday === null || dday <= 0) return [];
+
+  const tasks: UrgentTask[] = [];
+
+  for (const tpl of templates) {
+    const item = progress[tpl.key];
+    const status = item?.status ?? "not_started";
+    if (status === "completed") continue;
+
+    const daysUntilDeadline = dday - tpl.ddayDeadline;
+    let urgency: UrgentTask["urgency"];
+    let urgencyLabel: string;
+    let urgencyColor: string;
+    let urgencyBg: string;
+    let urgencyBorder: string;
+
+    if (daysUntilDeadline < 0) {
+      urgency = "overdue";
+      urgencyLabel = "지금 바로";
+      urgencyColor = "text-red-600";
+      urgencyBg = "bg-red-50";
+      urgencyBorder = "border-red-200";
+    } else if (daysUntilDeadline <= 14) {
+      urgency = "soon";
+      urgencyLabel = "2주 내";
+      urgencyColor = "text-amber-600";
+      urgencyBg = "bg-amber-50";
+      urgencyBorder = "border-amber-200";
+    } else {
+      urgency = "relaxed";
+      urgencyLabel = "여유 있음";
+      urgencyColor = "text-emerald-600";
+      urgencyBg = "bg-emerald-50";
+      urgencyBorder = "border-emerald-200";
+    }
+
+    tasks.push({
+      key: tpl.key,
+      label: tpl.label,
+      ddayDeadline: tpl.ddayDeadline,
+      daysUntilDeadline,
+      urgency,
+      urgencyLabel,
+      urgencyColor,
+      urgencyBg,
+      urgencyBorder,
+      deadlineText: `D-${tpl.ddayDeadline}일 전까지 권장`,
+    });
+  }
+
+  // 긴급한 순서로 정렬: overdue > soon > relaxed, 같은 urgency면 daysUntilDeadline 오름차순
+  const urgencyOrder = { overdue: 0, soon: 1, relaxed: 2 };
+  tasks.sort((a, b) => {
+    const orderDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+    if (orderDiff !== 0) return orderDiff;
+    return a.daysUntilDeadline - b.daysUntilDeadline;
+  });
+
+  return tasks.slice(0, 3);
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -118,6 +243,33 @@ export default function DashboardPage() {
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
     : "날짜 미정";
+
+  // 긴급 태스크 계산
+  const urgentTasks = useMemo(
+    () => getUrgentTasks(dday, progress as Record<string, { status?: string; checklist?: { id: string; label: string; done: boolean }[] }>, CATEGORY_CHECKLISTS),
+    [dday, progress]
+  );
+
+  // 커플 활동 피드 (파트너의 진행 상태 변경 기반)
+  const partnerActivities = useMemo(() => {
+    if (!partner) return [];
+
+    // progress에서 완료/진행중인 카테고리를 파트너 활동으로 표시
+    // 실제 서비스에서는 activity log 테이블이 있겠지만, 현재는 progress 데이터로 추론
+    const activities: { key: string; label: string; status: string; statusLabel: string }[] = [];
+    for (const [key, item] of Object.entries(progress)) {
+      if (key.startsWith("__")) continue; // __events 같은 메타 키 제외
+      const catItem = item as { status?: string };
+      if (!catItem?.status || catItem.status === "not_started") continue;
+      const label = CATEGORY_LABELS[key];
+      if (!label) continue;
+      const statusLabel = catItem.status === "completed" ? "완료" : "진행중";
+      activities.push({ key, label, status: catItem.status, statusLabel });
+    }
+
+    // 최근 3개까지만 표시
+    return activities.slice(0, 3);
+  }, [partner, progress]);
 
   return (
     <div className="max-w-[1100px] mx-auto">
@@ -224,6 +376,97 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* 지금 해야 할 것 + 커플 활동 */}
+      {(urgentTasks.length > 0 || partnerActivities.length > 0) && (
+        <div className="grid grid-cols-5 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
+          {/* 지금 해야 할 것 */}
+          {urgentTasks.length > 0 && (
+            <div className={`${partnerActivities.length > 0 ? "col-span-3" : "col-span-5"} max-lg:col-span-1 bg-white rounded-2xl p-6 border border-black/[0.04]`}>
+              <div className="flex items-center gap-2 mb-5">
+                <AlertCircle className="w-4 h-4 text-rose-500" />
+                <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">지금 해야 할 것</h3>
+              </div>
+              <div className="flex flex-col gap-3">
+                {urgentTasks.map((task) => {
+                  const IconComp = CATEGORY_ICONS[task.key] ?? CalendarCheck;
+                  return (
+                    <div
+                      key={task.key}
+                      onClick={() => setSelectedCategory(task.key)}
+                      className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border cursor-pointer hover:shadow-sm transition-all ${task.urgencyBg} ${task.urgencyBorder}`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        task.urgency === "overdue"
+                          ? "bg-red-100"
+                          : task.urgency === "soon"
+                            ? "bg-amber-100"
+                            : "bg-emerald-100"
+                      }`}>
+                        <IconComp className={`w-5 h-5 ${task.urgencyColor}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[14px] font-medium text-noir-800">{task.label}</span>
+                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${task.urgencyColor} ${
+                            task.urgency === "overdue"
+                              ? "bg-red-100"
+                              : task.urgency === "soon"
+                                ? "bg-amber-100"
+                                : "bg-emerald-100"
+                          }`}>
+                            {task.urgencyLabel}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-taupe-500 mt-0.5">{task.deadlineText}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-taupe-400 flex-shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 커플 활동 */}
+          {partnerActivities.length > 0 && (
+            <div className={`${urgentTasks.length > 0 ? "col-span-2" : "col-span-5"} max-lg:col-span-1 bg-white rounded-2xl p-6 border border-black/[0.04]`}>
+              <div className="flex items-center gap-2 mb-5">
+                <Users className="w-4 h-4 text-rose-500" />
+                <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">커플 활동</h3>
+              </div>
+              <div className="flex flex-col gap-2">
+                {partnerActivities.map((activity) => {
+                  const IconComp = CATEGORY_ICONS[activity.key] ?? CalendarCheck;
+                  return (
+                    <div
+                      key={activity.key}
+                      className="flex items-start gap-3 px-3 py-3 rounded-xl bg-ivory-50 border border-black/[0.02]"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <IconComp className="w-4 h-4 text-rose-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] text-noir-800 font-light leading-snug">
+                          <span className="font-medium">{partner?.name ?? "파트너"}</span>
+                          {activity.status === "completed"
+                            ? <span>가 <span className="font-medium text-[#2E7D5A]">{activity.label}</span>을 <span className="text-[#2E7D5A] font-medium">완료</span>했어요</span>
+                            : <span>가 <span className="font-medium text-rose-500">{activity.label}</span>을 <span className="text-rose-500 font-medium">진행중</span>으로 변경했어요</span>
+                          }
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Clock className="w-3 h-3 text-taupe-400" />
+                          <span className="text-[11px] text-taupe-400">최근 활동</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1">
         {/* 카테고리 현황 */}

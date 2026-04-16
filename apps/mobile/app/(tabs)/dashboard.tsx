@@ -20,10 +20,26 @@ import {
   ClipboardList,
   Store,
   Heart,
+  AlertTriangle,
+  Users,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
+
+interface UrgentTask {
+  categoryKey: string;
+  categoryLabel: string;
+  ddayDeadline: number; // 결혼 며칠 전까지 해야 하는지
+  remainingDays: number; // 현재 기준 마감까지 남은 일수
+  urgency: "overdue" | "soon" | "ontrack";
+}
+
+interface PartnerActivity {
+  partnerName: string;
+  recentCategories: string[]; // 최근 변경된 카테고리 라벨 목록
+}
 
 interface DashboardData {
   name: string | null;
@@ -33,6 +49,8 @@ interface DashboardData {
   progressPercent: number;
   todayTasks: { title: string; categoryKey: string }[];
   dday: number | null;
+  urgentTasks: UrgentTask[];
+  partnerActivity: PartnerActivity | null;
 }
 
 // 매일 바뀌는 동기부여 문구
@@ -96,6 +114,76 @@ function formatDday(d: number | null): string {
   return `D+${Math.abs(d)}`;
 }
 
+// 긴급 할 일 계산: 결혼일 기준 마감이 지났거나 임박한 미완료 카테고리 TOP 3
+function calcUrgentTasks(
+  dday: number | null,
+  progress: Record<string, unknown>
+): UrgentTask[] {
+  if (dday === null || dday <= 0) return [];
+
+  const tasks: UrgentTask[] = [];
+
+  for (const cat of CATEGORY_CHECKLISTS) {
+    // 해당 카테고리의 완료 여부 확인
+    const catData = progress[cat.key] as {
+      status?: string;
+      checklist?: Array<{ id: string; done: boolean }>;
+      [key: string]: unknown;
+    } | undefined;
+
+    // "completed" 상태이면 건너뛰기
+    if (catData?.status === "completed") continue;
+
+    // 체크리스트 전체 완료 여부 (레거시 플랫 구조 호환)
+    let allDone = false;
+    if (catData?.checklist && Array.isArray(catData.checklist)) {
+      allDone = catData.checklist.length > 0 && catData.checklist.every((i) => i.done);
+    } else if (catData && typeof catData === "object") {
+      const boolValues = Object.entries(catData).filter(([, v]) => typeof v === "boolean");
+      if (boolValues.length > 0) {
+        allDone = boolValues.every(([, v]) => v === true);
+      }
+    }
+    if (allDone) continue;
+
+    // 마감까지 남은 일수 = 현재 D-day - 카테고리 마감 D-day
+    // 예: D-day=120, ddayDeadline=150이면 → 이미 30일 지남 (overdue)
+    // 예: D-day=120, ddayDeadline=90이면 → 30일 남음
+    const remainingDays = dday - cat.ddayDeadline;
+
+    let urgency: UrgentTask["urgency"];
+    if (remainingDays < 0) {
+      urgency = "overdue";
+    } else if (remainingDays <= 14) {
+      urgency = "soon";
+    } else {
+      urgency = "ontrack";
+    }
+
+    // ddayStart 기준으로 아직 시작할 시기가 아닌 것은 제외
+    // 예: D-day=200, ddayStart=180 → 아직 시작 안 해도 됨
+    if (dday > cat.ddayStart) continue;
+
+    tasks.push({
+      categoryKey: cat.key,
+      categoryLabel: cat.label,
+      ddayDeadline: cat.ddayDeadline,
+      remainingDays,
+      urgency,
+    });
+  }
+
+  // 긴급도 순 정렬: overdue → soon → ontrack, 같은 레벨이면 남은 일수 적은 순
+  const urgencyOrder = { overdue: 0, soon: 1, ontrack: 2 };
+  tasks.sort((a, b) => {
+    const orderDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+    if (orderDiff !== 0) return orderDiff;
+    return a.remainingDays - b.remainingDays;
+  });
+
+  return tasks.slice(0, 3);
+}
+
 export default function DashboardScreen() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,6 +229,8 @@ export default function DashboardScreen() {
           progressPercent: 0,
           todayTasks: [],
           dday: null,
+          urgentTasks: [],
+          partnerActivity: null,
         });
         return;
       }
@@ -167,6 +257,59 @@ export default function DashboardScreen() {
         .filter((e) => e.date === today)
         .map((e) => ({ title: e.title, categoryKey: e.categoryKey ?? "" }));
 
+      const dday = calcDday(journey?.wedding_date ?? null);
+
+      // 긴급 할 일 계산
+      const urgentTasks = calcUrgentTasks(dday, progress);
+
+      // 파트너 활동 감지
+      let partnerActivity: PartnerActivity | null = null;
+      try {
+        const { data: partners } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("couple_id", profile.couple_id)
+          .neq("id", user.id);
+
+        if (partners && partners.length > 0) {
+          const partnerName = partners[0]?.name ?? "파트너";
+
+          // progress에서 최근 변경된 카테고리 확인
+          // in_progress 상태인 카테고리 = 파트너가 작업 중일 수 있음
+          const recentCategories: string[] = [];
+          for (const cat of CATEGORY_CHECKLISTS) {
+            const catData = progress[cat.key] as {
+              status?: string;
+              updated_by?: string;
+              updated_at?: string;
+              [key: string]: unknown;
+            } | undefined;
+            if (!catData) continue;
+
+            // updated_by 필드가 파트너 ID이거나, 최근 변경된 in_progress 항목
+            if (catData.updated_by && catData.updated_by !== user.id) {
+              // 최근 7일 이내 변경만 표시
+              if (catData.updated_at) {
+                const updatedDate = new Date(catData.updated_at);
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                if (updatedDate >= sevenDaysAgo) {
+                  recentCategories.push(cat.label);
+                }
+              } else {
+                recentCategories.push(cat.label);
+              }
+            }
+          }
+
+          if (recentCategories.length > 0) {
+            partnerActivity = { partnerName, recentCategories };
+          }
+        }
+      } catch {
+        // 파트너 활동 조회 실패 시 무시
+      }
+
       const pct = progressPercent;
       setData({
         name: profile.name,
@@ -175,7 +318,9 @@ export default function DashboardScreen() {
         progress,
         progressPercent: pct,
         todayTasks,
-        dday: calcDday(journey?.wedding_date ?? null),
+        dday,
+        urgentTasks,
+        partnerActivity,
       });
 
       // 진행률 바 애니메이션
@@ -376,6 +521,97 @@ export default function DashboardScreen() {
             <Text style={styles.ddayHint}>결혼 예정일을 설정해보세요</Text>
           )}
         </View>
+
+        {/* 지금 해야 할 것 */}
+        {(data?.urgentTasks?.length ?? 0) > 0 && (
+          <View style={styles.urgentSection}>
+            <View style={styles.urgentHeader}>
+              <AlertTriangle size={18} color={colors.warning} />
+              <Text style={styles.urgentTitle}>지금 해야 할 것</Text>
+            </View>
+            {data?.urgentTasks.map((task) => {
+              const urgencyColor =
+                task.urgency === "overdue"
+                  ? "#EF4444"
+                  : task.urgency === "soon"
+                    ? "#F59E0B"
+                    : "#22C55E";
+              const urgencyLabel =
+                task.urgency === "overdue"
+                  ? "마감 지남"
+                  : task.urgency === "soon"
+                    ? "곧 마감"
+                    : "진행 중";
+              return (
+                <Pressable
+                  key={task.categoryKey}
+                  style={({ pressed }) => [
+                    styles.urgentCard,
+                    pressed && { transform: [{ scale: 0.98 }] },
+                  ]}
+                  onPress={() => router.push("/schedule")}
+                >
+                  <View
+                    style={[
+                      styles.urgentIndicator,
+                      { backgroundColor: urgencyColor },
+                    ]}
+                  />
+                  <View style={styles.urgentContent}>
+                    <View style={styles.urgentTopRow}>
+                      <Text style={styles.urgentCategoryLabel}>
+                        {task.categoryLabel}
+                      </Text>
+                      <View
+                        style={[
+                          styles.urgentBadge,
+                          { backgroundColor: urgencyColor + "1A" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.urgentBadgeText,
+                            { color: urgencyColor },
+                          ]}
+                        >
+                          {urgencyLabel}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.urgentDeadline}>
+                      {task.remainingDays < 0
+                        ? `${Math.abs(task.remainingDays)}일 전까지 완료 권장`
+                        : task.remainingDays === 0
+                          ? "오늘까지 완료 권장"
+                          : `D-${task.ddayDeadline}일 전까지 권장`}
+                    </Text>
+                  </View>
+                  <ChevronRight
+                    size={16}
+                    color={colors.textTertiary}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* 파트너 활동 배너 */}
+        {data?.partnerActivity && (
+          <View style={styles.partnerBanner}>
+            <Users size={16} color={colors.rose[500]} />
+            <Text style={styles.partnerBannerText}>
+              {data.partnerActivity.partnerName}님이{" "}
+              <Text style={styles.partnerBannerHighlight}>
+                {data.partnerActivity.recentCategories.length > 2
+                  ? `${data.partnerActivity.recentCategories.slice(0, 2).join(", ")} 외 ${data.partnerActivity.recentCategories.length - 2}건`
+                  : data.partnerActivity.recentCategories.join(", ")}
+              </Text>
+              을(를) 변경했어요
+            </Text>
+            <ChevronRight size={14} color={colors.textTertiary} />
+          </View>
+        )}
 
         {/* 진행률 */}
         <View style={styles.card}>
@@ -686,6 +922,89 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actionArrow: { position: "absolute", top: 16, right: 16 },
+
+  // 지금 해야 할 것
+  urgentSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    ...CARD_SHADOW,
+  },
+  urgentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  urgentTitle: {
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  urgentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  urgentIndicator: {
+    width: 4,
+    height: 36,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  urgentContent: {
+    flex: 1,
+  },
+  urgentTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  urgentCategoryLabel: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  urgentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  urgentBadgeText: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+  },
+  urgentDeadline: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+
+  // 파트너 활동 배너
+  partnerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.rose.glow,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  partnerBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.noir[800],
+  },
+  partnerBannerHighlight: {
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+  },
 
   // 동기부여 문구
   quoteCard: {

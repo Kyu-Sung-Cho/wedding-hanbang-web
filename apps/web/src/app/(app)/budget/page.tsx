@@ -35,7 +35,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import type { ProgressItem } from "@/types/database.types";
+import type { ProgressItem, PayerType } from "@/types/database.types";
 import Link from "next/link";
 
 const fadeIn = {
@@ -80,6 +80,33 @@ const OTHER_KEYS = CATEGORY_RATIOS.filter((c) => !SDM_KEYS.includes(c.key)).map(
 // 고정 카테고리 키 세트 (커스텀 카테고리 식별용)
 const KNOWN_KEYS = new Set(CATEGORY_RATIOS.map((c) => c.key));
 
+// 숨겨진 추가 비용 경고 데이터
+const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
+  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
+  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
+  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
+  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
+  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
+  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
+  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
+  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
+  ham: { warning: "장식, 기사님 식사, 주차비", extra: "+5~20만원" },
+  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+};
+
+// 분담 옵션
+const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
+  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
+  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
+  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
+  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
+];
+
+function getPayerLabel(payer?: PayerType): { label: string; emoji: string } {
+  const found = PAYER_OPTIONS.find((p) => p.value === payer);
+  return found ? { label: found.label, emoji: found.emoji } : { label: "커플", emoji: "\uD83D\uDC6B" };
+}
+
 function formatWon(n: number): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
   if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만`;
@@ -96,6 +123,99 @@ function formatWonFull(n: number): string {
 function normalizeCost(cost: number | undefined): number {
   if (!cost || cost <= 0) return 0;
   return cost < 100000 ? cost * 10000 : cost;
+}
+
+// 숨겨진 비용 경고 배지 컴포넌트
+function HiddenCostBadge({ catKey }: { catKey: string }) {
+  const [show, setShow] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const data = HIDDEN_COSTS[catKey];
+  if (!data) return null;
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(!show)}
+        className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] bg-amber-50 text-amber-500 hover:bg-amber-100 transition-colors flex-shrink-0"
+        title="추가 비용 주의"
+      >
+        <AlertTriangle className="w-3 h-3" />
+      </button>
+      {show && (
+        <div
+          ref={tooltipRef}
+          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-noir-800 text-white rounded-xl p-3 shadow-lg pointer-events-none"
+        >
+          <div className="text-[11px] font-medium text-amber-300 mb-1.5 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            추가 비용 주의
+          </div>
+          <p className="text-[11px] text-white/80 leading-relaxed mb-1.5">{data.warning}</p>
+          <p className="text-[12px] font-medium text-amber-300">{data.extra}</p>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-noir-800" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 분담(Payer) 선택 컴포넌트
+function PayerSelector({
+  value,
+  onChange,
+}: {
+  value: PayerType;
+  onChange: (v: PayerType) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = getPayerLabel(value);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-taupe-500 hover:bg-ivory-50 border border-transparent hover:border-black/[0.04] transition-colors"
+        title="분담 변경"
+      >
+        <span>{current.emoji}</span>
+        <span>{current.label}</span>
+      </button>
+      {open && (
+        <div className="absolute z-40 top-full right-0 mt-1 w-[130px] bg-white rounded-xl border border-black/[0.06] shadow-lg overflow-hidden">
+          {PAYER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] transition-colors ${
+                value === opt.value
+                  ? "bg-rose-500/5 text-rose-500 font-medium"
+                  : "text-noir-800 hover:bg-ivory-50"
+              }`}
+            >
+              <span>{opt.emoji}</span>
+              <span>{opt.label}</span>
+              {value === opt.value && <Check className="w-3 h-3 ml-auto" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // 인라인 금액 편집 컴포넌트
@@ -204,9 +324,11 @@ function BudgetRow({
   budget,
   spent,
   status,
+  payer,
   onBudgetChange,
   onSpentChange,
   onSpentReset,
+  onPayerChange,
   onDelete,
   delay,
 }: {
@@ -216,9 +338,11 @@ function BudgetRow({
   budget: number;
   spent: number;
   status: string;
+  payer: PayerType;
   onBudgetChange: (key: string, val: number) => void;
   onSpentChange: (key: string, val: number) => void;
   onSpentReset: (key: string) => void;
+  onPayerChange: (key: string, payer: PayerType) => void;
   onDelete?: (key: string) => void;
   delay: number;
 }) {
@@ -233,8 +357,8 @@ function BudgetRow({
       transition={{ delay }}
       className="group flex items-center gap-3 px-5 py-3.5 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
     >
-      {/* 아이콘 + 이름 */}
-      <div className="flex items-center gap-2.5 w-[120px] flex-shrink-0 max-md:w-full">
+      {/* 아이콘 + 이름 + 숨겨진 비용 경고 */}
+      <div className="flex items-center gap-2 w-[140px] flex-shrink-0 max-md:w-full">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
           isOver
             ? "bg-red-50 ring-1 ring-red-200"
@@ -243,6 +367,7 @@ function BudgetRow({
           <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-rose-500"}`} />
         </div>
         <span className="text-[13px] font-medium text-noir-800">{label}</span>
+        <HiddenCostBadge catKey={catKey} />
       </div>
 
       {/* 진행 바 + 퍼센트 */}
@@ -262,6 +387,11 @@ function BudgetRow({
             {percent}%
           </span>
         </div>
+      </div>
+
+      {/* 분담 선택 */}
+      <div className="flex-shrink-0 max-md:w-auto">
+        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
       </div>
 
       {/* 지출 (편집 가능) - 라벨 포함 */}
@@ -500,6 +630,13 @@ export default function BudgetPage() {
     [progress]
   );
 
+  const getCategoryPayer = useCallback(
+    (key: string): PayerType => {
+      return progress[key]?.payer ?? "couple";
+    },
+    [progress]
+  );
+
   // 총합 계산 (고정 + 커스텀 카테고리 모두 포함)
   const allCats = CATEGORY_RATIOS;
   const visibleFixed = allCats.filter((c) => !hiddenKeys.has(c.key));
@@ -515,6 +652,21 @@ export default function BudgetPage() {
   // 스드메 합계
   const sdmBudget = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategoryBudget(k), 0);
   const sdmSpent = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategorySpent(k), 0);
+
+  // 분담별 합계 계산
+  const allVisibleKeys = [
+    ...visibleFixed.map((c) => c.key),
+    ...customCategories.map((c) => c.key),
+  ];
+  const payerSummary = allVisibleKeys.reduce(
+    (acc, key) => {
+      const payer = getCategoryPayer(key);
+      const spent = getCategorySpent(key);
+      acc[payer] = (acc[payer] ?? 0) + spent;
+      return acc;
+    },
+    {} as Record<PayerType, number>
+  );
 
   // 예산/지출 수정 핸들러
   const handleBudgetChange = useCallback(
@@ -558,6 +710,23 @@ export default function BudgetPage() {
       const newProgress = {
         ...progress,
         [key]: { ...rest, category: key },
+      };
+      await updateJourney({ progress: newProgress });
+    },
+    [progress, updateJourney]
+  );
+
+  // 분담(payer) 변경 핸들러
+  const handlePayerChange = useCallback(
+    async (key: string, newPayer: PayerType) => {
+      const existing = progress[key];
+      const newProgress = {
+        ...progress,
+        [key]: {
+          ...(existing ?? { category: key, status: "not_started" as const }),
+          category: key,
+          payer: newPayer,
+        },
       };
       await updateJourney({ progress: newProgress });
     },
@@ -720,6 +889,56 @@ export default function BudgetPage() {
         </motion.div>
       </div>
 
+      {/* 분담 요약 */}
+      {totalSpent > 0 && (
+        <motion.div
+          {...fadeIn}
+          transition={{ duration: 0.5, delay: 0.12 }}
+          className="bg-white rounded-2xl p-5 border border-black/[0.04] mb-6"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="w-4 h-4 text-rose-500" />
+            <h3 className="text-[13px] font-medium text-noir-800">분담 현황</h3>
+          </div>
+          <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
+            {PAYER_OPTIONS.map((opt) => {
+              const amount = payerSummary[opt.value] ?? 0;
+              const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+              return (
+                <div
+                  key={opt.value}
+                  className={`rounded-xl p-3 border transition-colors ${
+                    amount > 0 ? "border-rose-500/10 bg-rose-500/[0.02]" : "border-black/[0.04] bg-ivory-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-[14px]">{opt.emoji}</span>
+                    <span className="text-[11px] text-taupe-500">{opt.label}</span>
+                  </div>
+                  <p className={`font-display text-[18px] font-light ${
+                    amount > 0 ? "text-noir-800" : "text-taupe-400"
+                  }`}>
+                    {amount > 0 ? formatWon(amount) : "0"}
+                    <span className="text-[11px] text-taupe-400">원</span>
+                  </p>
+                  {amount > 0 && (
+                    <div className="mt-1.5">
+                      <div className="h-1 bg-ivory-warm rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-rose-500/60 to-gold/60 rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-taupe-400 mt-0.5">{pct}%</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
       {/* 시세 비교 안내 스트립 */}
       <Link
         href="/market-prices"
@@ -785,9 +1004,11 @@ export default function BudgetPage() {
                 budget={getCategoryBudget(key)}
                 spent={getCategorySpent(key)}
                 status={getStatusLabel(key)}
+                payer={getCategoryPayer(key)}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
+                onPayerChange={handlePayerChange}
                 onDelete={(k) => setDeletingKey(k)}
                 delay={0.2 + i * 0.03}
               />
@@ -821,9 +1042,11 @@ export default function BudgetPage() {
                 budget={getCategoryBudget(key)}
                 spent={getCategorySpent(key)}
                 status={getStatusLabel(key)}
+                payer={getCategoryPayer(key)}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
+                onPayerChange={handlePayerChange}
                 onDelete={(k) => setDeletingKey(k)}
                 delay={0.3 + i * 0.03}
               />
@@ -840,9 +1063,11 @@ export default function BudgetPage() {
                 budget={getCategoryBudget(cat.key)}
                 spent={getCategorySpent(cat.key)}
                 status={getStatusLabel(cat.key)}
+                payer={getCategoryPayer(cat.key)}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
+                onPayerChange={handlePayerChange}
                 onDelete={(k) => setDeletingKey(k)}
                 delay={0.3 + (OTHER_KEYS.length + i) * 0.03}
               />

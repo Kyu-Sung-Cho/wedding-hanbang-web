@@ -44,6 +44,8 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
+
 export interface ProgressItem {
   category?: string;
   label?: string;
@@ -54,6 +56,7 @@ export interface ProgressItem {
   vendor?: string;
   notes?: string;
   checklist?: ChecklistItem[];
+  payer?: PayerType;
 }
 
 export interface ScheduleEvent {
