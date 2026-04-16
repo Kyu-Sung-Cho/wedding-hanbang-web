@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorToInsertRow, categoryToDb } from "@/lib/utils/vendorMapper";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

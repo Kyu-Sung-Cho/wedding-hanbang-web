@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
@@ -12,7 +12,7 @@ function getAdminClient() {
 // 웨딩 여정 업데이트 (예산, 날짜, progress)
 export async function PATCH(request: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

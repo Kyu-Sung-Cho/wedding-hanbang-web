@@ -1,11 +1,11 @@
 // 관리자 전체 정산 목록 조회
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { SettlementRow, settlementRowToModel } from "@/types/contract.types";
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

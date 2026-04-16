@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
@@ -56,8 +56,12 @@ export default function CalendarView({
   onAddEvent,
   onEditEvent,
 }: Props) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // hydration-safe: today는 클라이언트에서만 설정
+  const [today, setToday] = useState<Date | null>(null);
+  useEffect(() => { setToday(new Date()); }, []);
 
   // 마일스톤 계산
   const milestones = useMemo(() => {
@@ -112,8 +116,6 @@ export default function CalendarView({
   const selectedMilestones = selectedDate ? getMilestonesForDate(selectedDate) : [];
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
-  const today = new Date();
-
   const statusColor = (status: ProgressItem["status"]) => {
     switch (status) {
       case "completed":
@@ -164,7 +166,7 @@ export default function CalendarView({
       <div className="grid grid-cols-7 gap-1">
         {calendarDays.map((day) => {
           const inMonth = isSameMonth(day, currentMonth);
-          const isToday = isSameDay(day, today);
+          const isToday = today ? isSameDay(day, today) : false;
           const isWedding = weddingDate && isSameDay(day, weddingDate);
           const isSelected = selectedDate && isSameDay(day, selectedDate);
           const dayMilestones = getMilestonesForDate(day);

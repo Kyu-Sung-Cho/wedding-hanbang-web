@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
@@ -29,9 +29,9 @@ function formatEventDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
 }
 
-function getDaysUntil(dateStr: string): string {
+function getDaysUntil(dateStr: string, now: Date): string {
   const diff = Math.ceil(
-    (new Date(dateStr + "T00:00:00").getTime() - new Date().getTime()) /
+    (new Date(dateStr + "T00:00:00").getTime() - now.getTime()) /
       (1000 * 60 * 60 * 24)
   );
   if (diff === 0) return "오늘";
@@ -45,6 +45,10 @@ export default function UpcomingTab() {
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
 
+  // hydration-safe: now는 클라이언트에서만 설정
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => { setNow(new Date()); }, []);
+
   const imminentCategories = useMemo(
     () => getImminentCategories(progress, weddingDate),
     [progress, weddingDate]
@@ -55,8 +59,9 @@ export default function UpcomingTab() {
     [progress, weddingDate]
   );
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = now ? now.toISOString().slice(0, 10) : "";
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
+    if (!todayStr) return [];
     return getEvents(progress as Record<string, unknown>)
       .filter((e) => e.date >= todayStr)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -169,7 +174,7 @@ export default function UpcomingTab() {
                   </div>
                 </div>
                 <span className="text-[10px] text-taupe-400 flex-shrink-0">
-                  {getDaysUntil(evt.date)}
+                  {now ? getDaysUntil(evt.date, now) : ""}
                 </span>
               </div>
             ))}

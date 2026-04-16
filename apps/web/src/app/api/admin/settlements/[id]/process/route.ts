@@ -1,6 +1,6 @@
 // 관리자 정산 실행
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { SettlementRow, settlementRowToModel } from "@/types/contract.types";
 
 export async function POST(
@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     // 업체 확인
     const { data: vendor } = await supabase

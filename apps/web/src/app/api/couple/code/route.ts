@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function getAdmin() {
   return createAdminClient(
@@ -18,9 +18,9 @@ function generateCode() {
 }
 
 // GET: 현재 커플 코드 조회 + 연동 상태
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -73,9 +73,9 @@ export async function GET() {
 }
 
 // POST: 코드 재발급 (양쪽 다 연동된 경우 불가)
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();

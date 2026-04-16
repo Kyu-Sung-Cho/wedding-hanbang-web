@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 
@@ -41,7 +41,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 
@@ -166,7 +166,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 

@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // 즐겨찾기 토글 (추가/삭제)
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
@@ -44,9 +44,9 @@ export async function POST(req: Request) {
 }
 
 // 내 즐겨찾기 목록 조회
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });

@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 // 사진 좋아요 토글
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 // 내 좋아요 목록 조회 (특정 업체)
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(_req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ likedPhotos: [] });

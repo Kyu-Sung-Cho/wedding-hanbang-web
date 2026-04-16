@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -33,9 +33,9 @@ const TIMELINE_THRESHOLDS = [
   { dDay: 90, items: ["shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
 ];
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();

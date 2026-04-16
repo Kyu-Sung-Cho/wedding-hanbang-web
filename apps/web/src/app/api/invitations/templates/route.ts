@@ -1,8 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const supabase = await createClient();
+export async function GET(req: NextRequest) {
+  const supabase = await createClientFromRequest(req);
   const { data, error } = await supabase
     .from("invitation_templates")
     .select("*")

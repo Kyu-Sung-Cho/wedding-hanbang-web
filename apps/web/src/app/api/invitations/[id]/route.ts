@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 // 청첩장 상세 조회
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(_request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
@@ -42,7 +42,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
@@ -72,7 +72,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(_request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 

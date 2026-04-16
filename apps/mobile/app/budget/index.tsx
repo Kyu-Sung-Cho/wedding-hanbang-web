@@ -8,9 +8,33 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, TrendingDown, TrendingUp, Wallet, Edit3, Check, X } from "lucide-react-native";
+import { ArrowLeft, TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+
+// 분담 타입 (웹과 동일)
+type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
+
+const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
+  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
+  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
+  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
+  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
+];
+
+// 숨겨진 추가 비용 경고 데이터 (웹과 동일)
+const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
+  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
+  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
+  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
+  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
+  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
+  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
+  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
+  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
+  ham: { warning: "함진아비 비용, 이바지 포장", extra: "+20~50만원" },
+  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+};
 
 // 웹과 동일한 카테고리 비율 상수
 const CATEGORY_RATIOS = [
@@ -41,6 +65,7 @@ interface ProgressItem {
   budget?: number;
   spent?: number;
   cost?: number;
+  payer?: PayerType;
   [key: string]: unknown;
 }
 
@@ -68,6 +93,7 @@ export default function BudgetScreen() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [spentInput, setSpentInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
+  const [payerInput, setPayerInput] = useState<PayerType>("couple");
   const [saving, setSaving] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -104,6 +130,20 @@ export default function BudgetScreen() {
     const s = progress[key]?.status ?? "not_started";
     return s === "completed" ? "완료" : s === "in_progress" ? "진행중" : "예정";
   }
+  function getCatPayer(key: string): PayerType {
+    return progress[key]?.payer ?? "couple";
+  }
+
+  // 분담별 지출 합계
+  const payerSummary = CATEGORY_RATIOS.reduce(
+    (acc, c) => {
+      const payer = getCatPayer(c.key);
+      const spent = getCatSpent(c.key);
+      acc[payer] = (acc[payer] ?? 0) + spent;
+      return acc;
+    },
+    {} as Record<PayerType, number>,
+  );
 
   const totalSpent = CATEGORY_RATIOS.reduce((s, c) => s + getCatSpent(c.key), 0);
   const remaining = totalBudget - totalSpent;
@@ -131,7 +171,7 @@ export default function BudgetScreen() {
       const ex = cur[editingKey] ?? {};
       const sv = spentInput ? parseInt(spentInput, 10) * 10000 : undefined;
       const bv = budgetInput ? parseInt(budgetInput, 10) * 10000 : undefined;
-      cur[editingKey] = { ...ex, category: editingKey, ...(sv !== undefined ? { spent: sv } : {}), ...(bv !== undefined ? { budget: bv } : {}) };
+      cur[editingKey] = { ...ex, category: editingKey, ...(sv !== undefined ? { spent: sv } : {}), ...(bv !== undefined ? { budget: bv } : {}), payer: payerInput };
       await supabase.from("wedding_journeys").update({ progress: cur }).eq("couple_id", coupleId);
       setEditingKey(null);
       loadData();
@@ -142,7 +182,19 @@ export default function BudgetScreen() {
   function openEdit(key: string) {
     setBudgetInput(getCatBudget(key) > 0 ? String(Math.round(getCatBudget(key) / 10000)) : "");
     setSpentInput(getCatSpent(key) > 0 ? String(Math.round(getCatSpent(key) / 10000)) : "");
+    setPayerInput(getCatPayer(key));
     setEditingKey(key);
+  }
+
+  function showHiddenCostAlert(key: string) {
+    const data = HIDDEN_COSTS[key];
+    if (!data) return;
+    const label = CATEGORY_RATIOS.find((c) => c.key === key)?.label ?? key;
+    Alert.alert(
+      `⚠️ ${label} 추가 비용 주의`,
+      `${data.warning}\n\n예상 추가금: ${data.extra}`,
+      [{ text: "확인" }],
+    );
   }
 
   if (loading) return <SafeAreaView style={s.container}><ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} /></SafeAreaView>;
@@ -194,16 +246,57 @@ export default function BudgetScreen() {
           <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
         </View>
 
+        {/* 분담 현황 */}
+        {totalSpent > 0 && (
+          <View style={s.payerSection}>
+            <Text style={s.payerTitle}>분담 현황</Text>
+            <View style={s.payerGrid}>
+              {PAYER_OPTIONS.map((opt) => {
+                const amount = payerSummary[opt.value] ?? 0;
+                const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+                return (
+                  <View key={opt.value} style={s.payerCard}>
+                    <Text style={s.payerEmoji}>{opt.emoji}</Text>
+                    <Text style={s.payerLabel}>{opt.label}</Text>
+                    <Text style={s.payerAmount}>{formatWon(amount)}</Text>
+                    {pct > 0 && <Text style={s.payerPct}>{pct}%</Text>}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         {/* 카테고리 목록 */}
         {CATEGORY_RATIOS.map((cat) => {
           const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
           const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
+          const hasHidden = !!HIDDEN_COSTS[cat.key];
+          const payerInfo = PAYER_OPTIONS.find((p) => p.value === getCatPayer(cat.key));
           return (
             <Pressable key={cat.key} style={({ pressed }) => [s.catCard, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => openEdit(cat.key)}>
               <View style={s.catHead}>
-                <Text style={s.catLabel}>{cat.label}</Text>
-                <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
-                  <Text style={[s.badgeText, st === "완료" && s.badgeTextDone, st === "진행중" && s.badgeTextProg]}>{st}</Text>
+                <View style={s.catLabelRow}>
+                  <Text style={s.catLabel}>{cat.label}</Text>
+                  {hasHidden && (
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation?.(); showHiddenCostAlert(cat.key); }}
+                      hitSlop={8}
+                      style={s.hiddenCostBtn}
+                    >
+                      <AlertTriangle size={12} color="#D97706" />
+                    </Pressable>
+                  )}
+                </View>
+                <View style={s.catHeadRight}>
+                  {payerInfo && payerInfo.value !== "couple" && (
+                    <View style={s.payerBadge}>
+                      <Text style={s.payerBadgeText}>{payerInfo.emoji} {payerInfo.label}</Text>
+                    </View>
+                  )}
+                  <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
+                    <Text style={[s.badgeText, st === "완료" && s.badgeTextDone, st === "진행중" && s.badgeTextProg]}>{st}</Text>
+                  </View>
                 </View>
               </View>
               <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b && b > 0 ? "#EF4444" : colors.rose[500] }]} /></View>
@@ -228,6 +321,29 @@ export default function BudgetScreen() {
             <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>지출 (만원)</Text>
             <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <Text style={s.fLabel}>분담</Text>
+            <View style={s.payerRow}>
+              {PAYER_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[s.payerOption, payerInput === opt.value && s.payerOptionActive]}
+                  onPress={() => setPayerInput(opt.value)}
+                >
+                  <Text style={s.payerOptionEmoji}>{opt.emoji}</Text>
+                  <Text style={[s.payerOptionLabel, payerInput === opt.value && s.payerOptionLabelActive]}>{opt.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {editingKey && HIDDEN_COSTS[editingKey] && (
+              <View style={s.hiddenCostBanner}>
+                <AlertTriangle size={14} color="#D97706" />
+                <View style={s.hiddenCostBannerText}>
+                  <Text style={s.hiddenCostTitle}>추가 비용 주의</Text>
+                  <Text style={s.hiddenCostDesc}>{HIDDEN_COSTS[editingKey].warning}</Text>
+                  <Text style={s.hiddenCostExtra}>{HIDDEN_COSTS[editingKey].extra}</Text>
+                </View>
+              </View>
+            )}
             <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>저장</Text>}</Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -282,4 +398,34 @@ const s = StyleSheet.create({
   fInput: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontFamily: "CormorantGaramond_400Regular", color: colors.noir[800] },
   saveBtn: { backgroundColor: colors.noir[800], borderRadius: 16, paddingVertical: 16, alignItems: "center", marginTop: 24 },
   saveTxt: { fontSize: 16, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
+
+  // 숨겨진 비용 경고
+  catLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  catHeadRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  hiddenCostBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(217,119,6,0.1)", alignItems: "center", justifyContent: "center" },
+  hiddenCostBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "rgba(217,119,6,0.08)", borderRadius: 12, padding: 12, marginTop: 16 },
+  hiddenCostBannerText: { flex: 1 },
+  hiddenCostTitle: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginBottom: 2 },
+  hiddenCostDesc: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, lineHeight: 18 },
+  hiddenCostExtra: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginTop: 4 },
+
+  // 분담(Payer) 선택
+  payerRow: { flexDirection: "row", gap: 8 },
+  payerOption: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: colors.ivory[200], borderWidth: 1, borderColor: "transparent" },
+  payerOptionActive: { backgroundColor: "rgba(196,150,126,0.12)", borderColor: colors.rose[500] },
+  payerOptionEmoji: { fontSize: 16, marginBottom: 2 },
+  payerOptionLabel: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  payerOptionLabelActive: { color: colors.rose[500], fontFamily: "NotoSansKR_600SemiBold" },
+  payerBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(196,150,126,0.1)" },
+  payerBadgeText: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
+
+  // 분담 현황 섹션
+  payerSection: { marginBottom: 20 },
+  payerTitle: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800], marginBottom: 10 },
+  payerGrid: { flexDirection: "row", gap: 8 },
+  payerCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
+  payerEmoji: { fontSize: 16 },
+  payerLabel: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
+  payerAmount: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  payerPct: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
 });

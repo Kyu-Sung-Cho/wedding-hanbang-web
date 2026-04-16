@@ -1,6 +1,6 @@
 // 결제 상세 조회
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
 export async function GET(
@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(_req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

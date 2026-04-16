@@ -28,8 +28,8 @@ export default function CohortCard({
 }: CohortCardProps) {
   const { toast } = useToast();
   const [now, setNow] = useState<Date | null>(null);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [year, setYear] = useState<number>(2026);
+  const [month, setMonth] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function CohortCard({
             className="flex-1 rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E]"
           >
             {[0, 1, 2].map((offset) => {
-              const y = (now?.getFullYear() ?? new Date().getFullYear()) + offset;
+              const y = (now?.getFullYear() ?? year) + offset;
               return (
                 <option key={y} value={y}>
                   {y}년

@@ -1,6 +1,6 @@
 // 업체: 예약 상태 전환 API
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 
 // 허용되는 상태 전환
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -15,7 +15,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

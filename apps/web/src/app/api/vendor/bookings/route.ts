@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 import { bookingRowToBooking } from "@/lib/utils/vendorMapper";
 
 // 수동 예약 등록
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -61,9 +61,9 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

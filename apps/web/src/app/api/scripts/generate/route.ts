@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -44,7 +44,7 @@ SNS나 메시지로 보내기 적합한 길이로 작성하세요.`,
 };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 

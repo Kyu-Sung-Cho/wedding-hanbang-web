@@ -1,11 +1,11 @@
 // 결제 사전등록 — 금액 검증 + DB에 pending 레코드 생성 + orderId 발급
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { PaymentRow } from "@/types/contract.types";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

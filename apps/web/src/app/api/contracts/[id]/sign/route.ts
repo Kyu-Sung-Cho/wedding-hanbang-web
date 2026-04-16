@@ -1,6 +1,6 @@
 // 고객 계약 서명
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { ContractRow, contractRowToModel } from "@/types/contract.types";
 
 export async function POST(
@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

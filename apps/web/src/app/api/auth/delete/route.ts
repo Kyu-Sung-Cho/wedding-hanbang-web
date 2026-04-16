@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
@@ -11,7 +11,7 @@ function getAdminClient() {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(request);
     const {
       data: { user },
     } = await supabase.auth.getUser();

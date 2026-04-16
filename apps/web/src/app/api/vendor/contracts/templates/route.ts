@@ -1,13 +1,13 @@
 // 업체 커스텀 계약 템플릿 CRUD
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import {
   VendorContractTemplateRow,
   vendorContractTemplateRowToModel,
 } from "@/types/contract.types";
 
 // 업체 인증 헬퍼
-async function getVendor(supabase: ReturnType<typeof createClient> extends Promise<infer R> ? R : never) {
+async function getVendor(supabase: ReturnType<typeof createClientFromRequest> extends Promise<infer R> ? R : never) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data: vendor } = await supabase
@@ -19,9 +19,9 @@ async function getVendor(supabase: ReturnType<typeof createClient> extends Promi
 }
 
 // GET: 업체의 커스텀 템플릿 목록
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const vendor = await getVendor(supabase);
     if (!vendor) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
@@ -46,7 +46,7 @@ export async function GET() {
 // POST: 새 커스텀 템플릿 생성
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const vendor = await getVendor(supabase);
     if (!vendor) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });

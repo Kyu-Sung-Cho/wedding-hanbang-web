@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 // 게스트용 청첩장 조회 (인증 불필요)
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(_request);
 
   const { data: invitation, error } = await supabase
     .from("invitations")
@@ -54,7 +54,7 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = await createClientFromRequest(request);
 
   // slug로 invitation_id 조회
   const { data: invitation } = await supabase

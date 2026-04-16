@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct } from "@/lib/utils/vendorMapper";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
 
     // 업체 정보
     const { data: vendorRow, error } = await supabase

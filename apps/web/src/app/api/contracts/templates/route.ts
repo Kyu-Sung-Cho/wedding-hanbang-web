@@ -1,11 +1,11 @@
 // 플랫폼 표준 계약 템플릿 조회 (공개)
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { ContractTemplateRow, contractTemplateRowToModel } from "@/types/contract.types";
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
 

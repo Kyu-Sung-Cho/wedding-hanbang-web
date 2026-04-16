@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ hasAdmin: (count ?? 0) > 0 });
     }
 
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       const { email: newEmail, password: newPassword, name: newName } = body;
 
       // 요청한 사람이 기존 관리자인지 확인
-      const supabase = await createClient();
+      const supabase = await createClientFromRequest(req);
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) {
         return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
@@ -179,7 +179,7 @@ export async function POST(req: Request) {
     }
 
     // action === "login": 기존 계정 로그인 + 관리자 확인
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

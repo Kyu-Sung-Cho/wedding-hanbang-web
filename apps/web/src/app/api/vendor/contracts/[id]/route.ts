@@ -1,9 +1,9 @@
 // 업체 계약 상세 조회 + 수정
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { ContractRow, contractRowToModel } from "@/types/contract.types";
 
-async function getVendor(supabase: ReturnType<typeof createClient> extends Promise<infer R> ? R : never) {
+async function getVendor(supabase: ReturnType<typeof createClientFromRequest> extends Promise<infer R> ? R : never) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data: vendor } = await supabase
@@ -21,7 +21,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(_req);
     const vendor = await getVendor(supabase);
     if (!vendor) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
@@ -74,7 +74,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const vendor = await getVendor(supabase);
     if (!vendor) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });

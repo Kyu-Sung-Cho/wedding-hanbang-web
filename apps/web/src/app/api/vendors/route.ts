@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct } from "@/lib/utils/vendorMapper";
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");

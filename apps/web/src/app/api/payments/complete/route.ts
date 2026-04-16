@@ -1,6 +1,6 @@
 // 결제 완료 처리 — 토스 confirm API + DB 업데이트
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { confirmPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
@@ -8,7 +8,7 @@ const COMMISSION_RATE = 0.1; // 기본 수수료율 10%
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
