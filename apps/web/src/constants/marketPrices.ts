@@ -375,11 +375,11 @@ export const SDM_PACKAGES: SdmPackage[] = [
   { periodId: "202601", region: "5대광역시", packageMedian: 300, dmPackageMedian: 170, studioBasic: 140 },
   { periodId: "202601", region: "기타지역", packageMedian: 270, dmPackageMedian: 160, studioBasic: 112 },
   // 202602
-  { periodId: "202602", region: "전체", packageMedian: 280, dmPackageMedian: 155, studioBasic: 137.75 },
-  { periodId: "202602", region: "서울", packageMedian: 330, dmPackageMedian: 148, studioBasic: 150.5 },
-  { periodId: "202602", region: "경기/인천", packageMedian: 238, dmPackageMedian: 138, studioBasic: 120.5 },
-  { periodId: "202602", region: "5대광역시", packageMedian: 295, dmPackageMedian: 168, studioBasic: 140 },
-  { periodId: "202602", region: "기타지역", packageMedian: 268, dmPackageMedian: 158, studioBasic: 112 },
+  { periodId: "202602", region: "전체", packageMedian: 294.5, dmPackageMedian: 170.5, studioBasic: 137.75 },
+  { periodId: "202602", region: "서울", packageMedian: 350.5, dmPackageMedian: 180.5, studioBasic: 150.5 },
+  { periodId: "202602", region: "경기/인천", packageMedian: 230.5, dmPackageMedian: 150.5, studioBasic: 120.5 },
+  { periodId: "202602", region: "5대광역시", packageMedian: 294.5, dmPackageMedian: 175.5, studioBasic: 140.5 },
+  { periodId: "202602", region: "기타지역", packageMedian: 270.5, dmPackageMedian: 160.5, studioBasic: 111.5 },
 ];
 
 // 드레스 가격
@@ -395,7 +395,7 @@ export const DRESS_PRICES: DressPrice[] = [
   { periodId: "202511", scope: "national", photoShoot: 156, ceremony: 145, secondDress: 143 },
   { periodId: "202512", scope: "national", photoShoot: 160, ceremony: 145, secondDress: 143 },
   { periodId: "202601", scope: "national", photoShoot: 159, ceremony: 145, secondDress: 143 },
-  { periodId: "202602", scope: "national", photoShoot: 158, ceremony: 145, secondDress: 143 },
+  { periodId: "202602", scope: "national", photoShoot: 160.25, ceremony: 145.5, secondDress: 140.5 },
   // 서울
   { periodId: "202504", scope: "seoul", photoShoot: 198, ceremony: 167, secondDress: 165 },
   { periodId: "202505", scope: "seoul", photoShoot: 160, ceremony: 145, secondDress: 140 },
@@ -407,7 +407,7 @@ export const DRESS_PRICES: DressPrice[] = [
   { periodId: "202511", scope: "seoul", photoShoot: 172, ceremony: 154, secondDress: 150 },
   { periodId: "202512", scope: "seoul", photoShoot: 176, ceremony: 158, secondDress: 150 },
   { periodId: "202601", scope: "seoul", photoShoot: 172, ceremony: 151, secondDress: 150 },
-  { periodId: "202602", scope: "seoul", photoShoot: 170, ceremony: 150, secondDress: 148 },
+  { periodId: "202602", scope: "seoul", photoShoot: 174, ceremony: 154.5, secondDress: 150.5 },
 ];
 
 // 메이크업 가격
@@ -423,7 +423,7 @@ export const MAKEUP_PRICES: MakeupPrice[] = [
   { periodId: "202511", scope: "national", photoShoot: 77, ceremony: 68, rehearsal: 62 },
   { periodId: "202512", scope: "national", photoShoot: 78, ceremony: 69, rehearsal: 62 },
   { periodId: "202601", scope: "national", photoShoot: 78, ceremony: 69, rehearsal: 63 },
-  { periodId: "202602", scope: "national", photoShoot: 77, ceremony: 69, rehearsal: 62 },
+  { periodId: "202602", scope: "national", photoShoot: 79.5, ceremony: 72.5, rehearsal: 66 },
   // 서울
   { periodId: "202504", scope: "seoul", photoShoot: 96, ceremony: 91, rehearsal: 81 },
   { periodId: "202505", scope: "seoul", photoShoot: 96, ceremony: 88, rehearsal: 77 },
@@ -435,7 +435,7 @@ export const MAKEUP_PRICES: MakeupPrice[] = [
   { periodId: "202511", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
   { periodId: "202512", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
   { periodId: "202601", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
-  { periodId: "202602", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
+  { periodId: "202602", scope: "seoul", photoShoot: 96.5, ceremony: 83.5, rehearsal: 77 },
 ];
 
 // 옵션별 시세 (최신 기간 202601 기준)
