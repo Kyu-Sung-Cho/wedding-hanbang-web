@@ -115,63 +115,44 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
         </button>
       </nav>
 
-      {/* 모바일 풀스크린 메뉴 */}
+      {/* 모바일 백드롭 (클릭 시 메뉴 닫기) */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-[998] md:hidden"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* 모바일 슬라이드 다운 메뉴 */}
       <div
-        className={`fixed inset-0 z-[999] bg-ivory-50/98 backdrop-blur-xl flex flex-col pt-[72px] transition-all duration-400 md:hidden ${
+        className={`fixed top-[72px] left-0 right-0 z-[999] bg-ivory-50/98 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 ease-in-out md:hidden ${
           menuOpen
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none"
+            ? "max-h-[calc(100vh-72px)] opacity-100"
+            : "max-h-0 opacity-0"
         }`}
       >
-        <div className="flex-1 flex flex-col px-8 py-6 overflow-y-auto">
+        <div className="flex flex-col px-6 py-4">
           {/* 메인 링크 */}
-          <div className="flex flex-col gap-1">
-            {navLinks.map((link, i) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={link.scroll ? (e) => handleClick(e, link.href) : () => setMenuOpen(false)}
-                className="flex items-center justify-between py-4 text-[18px] text-noir-800 font-medium no-underline border-b border-platinum/50 hover:text-rose-500 transition-colors"
-                style={{ animationDelay: `${i * 50}ms` }}
-              >
-                {link.label}
-                <svg className="w-4 h-4 text-taupe-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
-              </a>
-            ))}
-          </div>
-
-          {/* 구분선 + 부가 링크 */}
-          <div className="mt-6 flex flex-col gap-1">
+          {navLinks.map((link) => (
             <a
-              href="/vendors"
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 py-3 text-[15px] text-taupe-500 no-underline hover:text-noir-800 transition-colors"
+              key={link.href}
+              href={link.href}
+              onClick={link.scroll ? (e) => handleClick(e, link.href) : () => setMenuOpen(false)}
+              className="flex items-center justify-between py-4 text-[16px] text-noir-800 font-medium no-underline border-b border-platinum/40 hover:text-rose-500 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
+              {link.label}
+              <svg className="w-4 h-4 text-taupe-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
-              업체 탐색
             </a>
-            <a
-              href="/vendor/login"
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 py-3 text-[15px] text-taupe-500 no-underline hover:text-noir-800 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-              업체 회원 로그인
-            </a>
-          </div>
+          ))}
 
           {/* CTA 버튼 */}
-          <div className="mt-auto pt-8 pb-6">
+          <div className="pt-4 pb-2">
             <a
               href={loginHref}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center justify-center gap-2 w-full py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium no-underline hover:bg-noir-soft transition-all"
+              className="flex items-center justify-center gap-2 w-full py-3.5 bg-noir-800 text-white rounded-full text-[14px] font-medium no-underline hover:bg-noir-soft transition-all"
             >
               {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

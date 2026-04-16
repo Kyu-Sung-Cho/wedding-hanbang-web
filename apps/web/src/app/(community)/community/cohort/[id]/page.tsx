@@ -410,7 +410,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
         {message.author?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={message.author.avatar_url}
+            src={message.author?.avatar_url ?? ""}
             alt=""
             className="h-full w-full rounded-full object-cover"
           />
@@ -423,7 +423,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
           <span className="text-sm font-medium text-[#1A1A1F]">{nickname}</span>
           {message.author?.rank && (
             <span className="rounded-full bg-[#F0EFED] px-1.5 py-0.5 text-[10px] text-[#878680]">
-              {message.author.rank}
+              {message.author?.rank}
             </span>
           )}
           <span className="text-[10px] text-[#B5ADA3]">
