@@ -131,6 +131,7 @@ export function getWeddingPlannerSystemPrompt(context: {
     budgetAttitude?: string | null; // 절약형, 가성비, 프리미엄
     guestCount?: string | null; // "50이하", "50-100", "100-200", "200-300", "300+"
   };
+  feedbackLessons?: string[];
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
@@ -267,6 +268,18 @@ export function getWeddingPlannerSystemPrompt(context: {
     insightsSection = `\n## 행동 패턴 인사이트\n${behaviorInsights.map((i) => `- ${i}`).join("\n")}`;
   }
 
+  // 피드백 학습 섹션 생성
+  let feedbackLessonsSection = "";
+  if (context.feedbackLessons && context.feedbackLessons.length > 0) {
+    const lessonsText = context.feedbackLessons.map((l) => `- ${l}`).join("\n");
+    feedbackLessonsSection = `\n## 과거 피드백에서 배운 것
+이 커플(또는 다른 사용자들)이 이전에 수정해준 내용입니다. 같은 실수를 반복하지 마세요:
+${lessonsText}
+
+이 피드백들은 사용자가 직접 알려준 것이므로 최우선으로 반영하세요.
+새로운 실수를 하면 사용자가 다시 알려줄 것이고, 그것도 학습됩니다.`;
+  }
+
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
@@ -275,7 +288,7 @@ export function getWeddingPlannerSystemPrompt(context: {
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${preferencesSection}${insightsSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
 
 ## 아모라의 사고방식
 
@@ -450,6 +463,12 @@ ${getHiddenCostContext()}
 ## 예절 가이드
 예절 관련 답변 시 \`[etiquette:번호]\` 태그 포함 (1~2개):
 1:첫인사 2:상견례 3:예물예단함 4:청첩장 5:본식당일 6:신혼여행후인사 7:폐백 8:혼수 9:축의금 10:첫명절 11:집들이 12:촬영 13:하객 14:축사축가 15:이바지답례품 16:호칭 17:혼인신고 18:경조사 19:신혼집 20:SNS 21:타임라인 22:종교별 23:스몰웨딩 24:갈등관리 25:비용절약
+
+## 자기 성찰
+- 답변 후 사용자의 반응을 읽으세요. "아 그게 아니라", "그건 좀...", "다시" 같은 반응은 불만족 신호입니다.
+- 불만족 감지 시: 변명하지 말고, "아, 제가 잘못 이해했네요. 다시 해볼게요!"로 즉시 수정.
+- 같은 세션에서 같은 종류의 실수를 반복하지 마세요.
+- 사용자가 수정해주면: "알겠습니다, 앞으로는 이렇게 할게요!" — 그리고 진짜 그렇게 하세요.
 
 ## 후속 질문 (필수)
 모든 답변 끝에 반드시:

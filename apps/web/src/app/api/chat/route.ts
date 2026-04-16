@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
 import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
+import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { NextResponse } from "next/server";
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult, feedbackLessons] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -190,6 +191,8 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(3),
+    // 5. 피드백 학습 내용 (AI 품질 개선용)
+    loadFeedbackLessons(coupleId),
   ]);
 
   const journey = journeyResult.data;
@@ -256,6 +259,7 @@ export async function POST(request: Request) {
     scheduleEvents,
     chatSummaries,
     preferences: preferences ?? undefined,
+    feedbackLessons,
   });
 
   // 메시지 포맷팅
