@@ -12,7 +12,8 @@ function getServiceClient() {
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_GIF_SIZE = 10 * 1024 * 1024; // 10MB (애니메이션 GIF 대응)
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
@@ -52,13 +53,15 @@ export async function POST(req: NextRequest) {
 
     // 일일 업로드 쿼터 확인 (유저 폴더 내 최대 50개/일)
     const today = new Date().toISOString().split("T")[0];
-    const { data: existingFiles } = await serviceClient.storage
-      .from("community-images")
-      .list(`community-images/${user.id}`, { limit: 100 });
+    const [{ data: imageFiles }, { data: videoFiles }] = await Promise.all([
+      serviceClient.storage.from("community-images").list(user.id, { limit: 100 }),
+      serviceClient.storage.from("community-videos").list(user.id, { limit: 100 }),
+    ]);
 
     // 파일 수 기반 일일 쿼터 체크 (간이 방식)
-    if (existingFiles && existingFiles.length >= 50) {
-      const todayFiles = existingFiles.filter(
+    const allFiles = [...(imageFiles ?? []), ...(videoFiles ?? [])];
+    if (allFiles.length >= 50) {
+      const todayFiles = allFiles.filter(
         (f) => f.created_at && f.created_at.startsWith(today)
       );
       if (todayFiles.length >= 50) {
@@ -88,12 +91,18 @@ export async function POST(req: NextRequest) {
     }
 
     const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
-    const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+    const isGif = file.type === "image/gif";
+    const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
 
     // 파일 크기 검증
     if (file.size > maxSize) {
+      const sizeMsg = isVideo
+        ? "영상 크기는 50MB 이하여야 합니다."
+        : isGif
+          ? "GIF 크기는 10MB 이하여야 합니다."
+          : "이미지 크기는 5MB 이하여야 합니다.";
       return NextResponse.json(
-        { error: isVideo ? "영상 크기는 100MB 이하여야 합니다." : "이미지 크기는 5MB 이하여야 합니다." },
+        { error: sizeMsg },
         { status: 400 }
       );
     }
@@ -101,8 +110,8 @@ export async function POST(req: NextRequest) {
     const ext = EXT_MAP[file.type] ?? "jpg";
     const timestamp = Date.now();
     const random = crypto.randomUUID();
-    const folder = isVideo ? "community-videos" : "community-images";
-    const filePath = `${folder}/${user.id}/${timestamp}_${random}.${ext}`;
+    const bucket = isVideo ? "community-videos" : "community-images";
+    const filePath = `${user.id}/${timestamp}_${random}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -124,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     // service role 클라이언트로 스토리지 업로드 (RLS 우회) — 이미 위에서 생성됨
     const { error: uploadError } = await serviceClient.storage
-      .from("community-images")
+      .from(bucket)
       .upload(filePath, buffer, {
         contentType: file.type,
         upsert: false,
@@ -142,10 +151,17 @@ export async function POST(req: NextRequest) {
     const {
       data: { publicUrl },
     } = serviceClient.storage
-      .from("community-images")
+      .from(bucket)
       .getPublicUrl(filePath);
 
-    return NextResponse.json({ url: publicUrl });
+    // 파일 타입 정보 포함
+    const fileType: "image" | "video" | "gif" = isVideo
+      ? "video"
+      : isGif
+        ? "gif"
+        : "image";
+
+    return NextResponse.json({ url: publicUrl, type: fileType });
   } catch (err) {
     console.error("Upload error:", err);
     return NextResponse.json(

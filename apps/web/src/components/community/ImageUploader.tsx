@@ -11,7 +11,8 @@ interface ImageUploaderProps {
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_GIF_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const ALL_ACCEPTED = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
@@ -39,9 +40,15 @@ export default function ImageUploader({
         return null;
       }
       const isVideo = ACCEPTED_VIDEO_TYPES.includes(file.type);
-      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      const isGif = file.type === "image/gif";
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
       if (file.size > maxSize) {
-        setError(isVideo ? "영상은 100MB 이하여야 합니다." : "이미지는 5MB 이하여야 합니다.");
+        const msg = isVideo
+          ? "영상은 50MB 이하여야 합니다."
+          : isGif
+            ? "GIF는 10MB 이하여야 합니다."
+            : "이미지는 5MB 이하여야 합니다.";
+        setError(msg);
         return null;
       }
 
@@ -146,7 +153,7 @@ export default function ImageUploader({
                 : "클릭하거나 파일을 드래그하세요"}
             </p>
             <p className="mt-1 text-xs text-[#B5ADA3]">
-              이미지 5MB · 영상 100MB / {images.length}/{max}개
+              이미지 5MB · GIF 10MB · 영상 50MB / {images.length}/{max}개
             </p>
             <p className="mt-0.5 text-xs text-[#B5ADA3]">
               JPG, PNG, GIF, WEBP, MP4, MOV, WebM

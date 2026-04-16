@@ -36,9 +36,13 @@ import {
   X,
   Eye,
   EyeOff,
+  Users,
+  Copy,
 } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // AsyncStorage 키
@@ -78,6 +82,12 @@ export default function SettingsScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+
+  // 파트너 관리
+  const [partnerName, setPartnerName] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   // 알림 설정 로드
   useEffect(() => {
@@ -167,6 +177,32 @@ export default function SettingsScreen() {
             nickname: initialNick,
           }).then(() => {});
           communityNickname = initialNick;
+        }
+
+        // 파트너 정보 로드
+        if (profile?.couple_id) {
+          try {
+            // 파트너 이름 조회
+            const { data: partners } = await supabase
+              .from("profiles")
+              .select("name")
+              .eq("couple_id", profile.couple_id)
+              .neq("id", user.id);
+
+            if (partners && partners.length > 0) {
+              setPartnerName(partners[0]?.name ?? null);
+            }
+
+            // 커플 초대 코드 조회
+            const codeRes = await apiFetch("/api/couple/code");
+            if (codeRes.ok) {
+              const codeData = await codeRes.json();
+              setInviteCode(codeData.inviteCode ?? null);
+              setIsFullyLinked(codeData.isFullyLinked ?? false);
+            }
+          } catch (err) {
+            console.error("파트너 정보 로드 오류:", err);
+          }
         }
 
         const loadedData: SettingsData = {
@@ -298,6 +334,18 @@ export default function SettingsScreen() {
       Alert.alert("오류", message);
     } finally {
       setPasswordSaving(false);
+    }
+  }
+
+  // 초대 코드 복사
+  async function copyInviteCode() {
+    if (!inviteCode) return;
+    try {
+      await Clipboard.setStringAsync(inviteCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      Alert.alert("오류", "코드 복사에 실패했어요.");
     }
   }
 
@@ -608,7 +656,57 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 섹션 4: 계정 관리 */}
+        {/* 섹션 4: 파트너 관리 */}
+        {data?.coupleId && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Users size={16} color={colors.rose[500]} />
+              <Text style={styles.sectionTitle}>파트너 관리</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>파트너</Text>
+                <Text style={styles.infoValue}>
+                  {isFullyLinked
+                    ? partnerName ?? "연동됨"
+                    : "미연동"}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.field}>
+                <Text style={styles.label}>커플 초대 코드</Text>
+                <View style={styles.codeRow}>
+                  <View style={styles.codeBox}>
+                    <Text style={styles.codeText}>{inviteCode ?? "---"}</Text>
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.copyBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    onPress={copyInviteCode}
+                    disabled={!inviteCode}
+                  >
+                    {codeCopied ? (
+                      <Check size={16} color={colors.rose[500]} />
+                    ) : (
+                      <Copy size={16} color={colors.rose[500]} />
+                    )}
+                  </Pressable>
+                </View>
+                <Text style={styles.fieldHint}>
+                  {isFullyLinked
+                    ? "파트너와 연동이 완료되었어요"
+                    : "이 코드를 파트너에게 공유해주세요"}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* 섹션 5: 계정 관리 */}
         <View style={styles.sectionHeader}>
           <Shield size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>계정 관리</Text>
@@ -645,7 +743,7 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        {/* 섹션 5: 앱 정보 */}
+        {/* 섹션 6: 앱 정보 */}
         <View style={styles.sectionHeader}>
           <Smartphone size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>앱 정보</Text>
@@ -945,6 +1043,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.taupe[400],
     marginTop: 2,
+  },
+
+  // 커플 코드
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  codeBox: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.ivory[200],
+    borderRadius: 14,
+  },
+  codeText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.noir[800],
+    fontFamily: "CormorantGaramond_400Regular",
+    letterSpacing: 2,
+  },
+  copyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // 계정 관리 행

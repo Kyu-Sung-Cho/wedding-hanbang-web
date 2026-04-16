@@ -528,10 +528,10 @@ function PostWriteContent() {
             )}
           </section>
 
-          {/* 이미지 업로드 */}
+          {/* 이미지/영상 업로드 */}
           <section>
             <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-              이미지
+              이미지/영상
             </label>
             <ImageUploader images={images} onChange={setImages} max={5} />
           </section>
