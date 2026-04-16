@@ -1,14 +1,147 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check } from "lucide-react";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 
 interface ChatBubbleProps {
   message: ChatMessage;
   isCurrentUser: boolean;
   currentUserRole?: "bride" | "groom" | null;
+  /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
+  isRecentAi?: boolean;
+}
+
+// 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
+const FEEDBACK_STORAGE_KEY = "hanbang_chat_feedback";
+
+function getFeedbackState(): Record<string, "good" | "bad"> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(FEEDBACK_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function setFeedbackState(messageId: string, rating: "good" | "bad") {
+  if (typeof window === "undefined") return;
+  try {
+    const state = getFeedbackState();
+    state[messageId] = rating;
+    localStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage 사용 불가 시 무시
+  }
+}
+
+// 피드백 API 호출
+async function submitFeedback(messageId: string, rating: "good" | "bad", correction?: string) {
+  try {
+    const res = await fetch("/api/chat/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, rating, correction }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// AI 메시지 피드백 UI
+function AiFeedbackRow({ messageId }: { messageId: string }) {
+  const [status, setStatus] = useState<"idle" | "input" | "submitted">(() => {
+    const saved = getFeedbackState();
+    return saved[messageId] ? "submitted" : "idle";
+  });
+  const [correction, setCorrection] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleGood = useCallback(async () => {
+    setIsSubmitting(true);
+    const ok = await submitFeedback(messageId, "good");
+    if (ok) {
+      setFeedbackState(messageId, "good");
+      setStatus("submitted");
+    }
+    setIsSubmitting(false);
+  }, [messageId]);
+
+  const handleBadClick = useCallback(() => {
+    setStatus("input");
+  }, []);
+
+  const handleBadSubmit = useCallback(async () => {
+    if (!correction.trim()) return;
+    setIsSubmitting(true);
+    const ok = await submitFeedback(messageId, "bad", correction.trim());
+    if (ok) {
+      setFeedbackState(messageId, "bad");
+      setStatus("submitted");
+    }
+    setIsSubmitting(false);
+  }, [messageId, correction]);
+
+  if (status === "submitted") {
+    return (
+      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-[#B5ADA3]">
+        <Check className="w-3 h-3" />
+        <span>반영됐어요</span>
+      </div>
+    );
+  }
+
+  if (status === "input") {
+    return (
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="text"
+            value={correction}
+            onChange={(e) => setCorrection(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleBadSubmit(); }}
+            placeholder="어떻게 하면 좋을까요?"
+            className="flex-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-[#E8E0D8] bg-[#FAF8F5] text-[#1A1A1F] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
+            autoFocus
+            disabled={isSubmitting}
+          />
+          <button
+            onClick={handleBadSubmit}
+            disabled={isSubmitting || !correction.trim()}
+            className="p-1.5 rounded-lg bg-[#C4967E]/10 text-[#9A6B62] hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
+          >
+            <Send className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 flex items-center gap-2 opacity-0 group-hover/ai:opacity-100 transition-opacity duration-200">
+      <button
+        onClick={handleGood}
+        disabled={isSubmitting}
+        className="flex items-center gap-1 text-[11px] text-[#B5ADA3] hover:text-[#C4967E] transition-colors disabled:opacity-40"
+        title="도움됐어요"
+      >
+        <ThumbsUp className="w-3 h-3" />
+        <span>도움됐어요</span>
+      </button>
+      <button
+        onClick={handleBadClick}
+        disabled={isSubmitting}
+        className="flex items-center gap-1 text-[11px] text-[#B5ADA3] hover:text-[#928980] transition-colors disabled:opacity-40"
+        title="아쉬워요"
+      >
+        <ThumbsDown className="w-3 h-3" />
+        <span>아쉬워요</span>
+      </button>
+    </div>
+  );
 }
 
 function formatTime(dateStr: string) {
@@ -36,6 +169,7 @@ export default function ChatBubble({
   message,
   isCurrentUser,
   currentUserRole,
+  isRecentAi = false,
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
 
@@ -44,7 +178,7 @@ export default function ChatBubble({
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
 
     return (
-      <div className="flex items-start gap-3 max-w-[85%]">
+      <div className="group/ai flex items-start gap-3 max-w-[85%]">
         {/* AI 아바타 */}
         <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
           <Sparkles className="w-4 h-4 text-white" />
@@ -86,6 +220,10 @@ export default function ChatBubble({
           <span className="text-[10px] text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
+          {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
+          {isRecentAi && (
+            <AiFeedbackRow messageId={message.id} />
+          )}
         </div>
       </div>
     );

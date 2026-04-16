@@ -570,7 +570,15 @@ export default function ChatPage() {
 
       {/* 채팅 영역 */}
       <div className="flex-1 overflow-y-auto pb-4 space-y-4 px-2">
-        {messages.map((msg) => {
+        {(() => {
+          // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
+          const recentAiIds = new Set(
+            messages
+              .filter((m) => m.sender_role === "ai")
+              .slice(-3)
+              .map((m) => m.id)
+          );
+          return messages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
@@ -586,6 +594,7 @@ export default function ChatPage() {
                   message={msg}
                   isCurrentUser={isCurrentUser}
                   currentUserRole={profile?.role}
+                  isRecentAi={recentAiIds.has(msg.id)}
                 />
                 {hasToolResults &&
                   msg.metadata!.toolResults!.map((result, i) =>
@@ -597,7 +606,8 @@ export default function ChatPage() {
                   )}
               </div>
             );
-          })}
+          });
+        })()}
 
         {isStreaming && (
           <div className="animate-fade-in">
