@@ -1,7 +1,7 @@
 /**
  * 한국소비자원 결혼서비스 가격 통계
  * 출처: https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do
- * 데이터 기간: 2025년 4월 ~ 2026년 1월 (10개 기간)
+ * 데이터 기간: 2025년 4월 ~ 2026년 2월 (11개 기간)
  */
 
 // ===== 타입 정의 =====
@@ -123,6 +123,7 @@ export const PRICE_PERIODS: PricePeriod[] = [
   { id: "202511", label: "2025년 11월", year: 2025, month: 11 },
   { id: "202512", label: "2025년 12월", year: 2025, month: 12 },
   { id: "202601", label: "2026년 1월", year: 2026, month: 1 },
+  { id: "202602", label: "2026년 2월", year: 2026, month: 2 },
 ];
 
 // 전국 평균 요약 (기간별)
@@ -137,6 +138,7 @@ export const NATIONAL_TOTALS: Record<string, { meal: number; sdm: number; rental
   "202511": { meal: 1304.6, sdm: 323.9, rental: 396.6, decoration: 81.2 },
   "202512": { meal: 1290.7, sdm: 322.7, rental: 389.1, decoration: 88.8 },
   "202601": { meal: 1281.0, sdm: 314.6, rental: 406.8, decoration: 85.5 },
+  "202602": { meal: 1140.5, sdm: 280.0, rental: 350.5, decoration: 280.0 },
 };
 
 // 지역별 상세 데이터 (14개 지역 × 10개 기간)
@@ -246,6 +248,7 @@ export const VENUE_NECESSARY: VenueNecessary[] = [
   { periodId: "202511", scope: "national", rental: 300, minGuests: 200, perPersonMeal: 5.8, totalFood: 1151 },
   { periodId: "202512", scope: "national", rental: 300, minGuests: 200, perPersonMeal: 5.8, totalFood: 1140 },
   { periodId: "202601", scope: "national", rental: 350, minGuests: 200, perPersonMeal: 5.9, totalFood: 1125 },
+  { periodId: "202602", scope: "national", rental: 350.5, minGuests: 200, perPersonMeal: 5.9, totalFood: 1140.5 },
   // 서울
   { periodId: "202504", scope: "seoul", rental: 600, minGuests: 220, perPersonMeal: 7.7, totalFood: 1760 },
   { periodId: "202505", scope: "seoul", rental: 600, minGuests: 200, perPersonMeal: 7.5, totalFood: 1700 },
@@ -257,6 +260,7 @@ export const VENUE_NECESSARY: VenueNecessary[] = [
   { periodId: "202511", scope: "seoul", rental: 600, minGuests: 200, perPersonMeal: 7.9, totalFood: 1655 },
   { periodId: "202512", scope: "seoul", rental: 600, minGuests: 200, perPersonMeal: 7.9, totalFood: 1700 },
   { periodId: "202601", scope: "seoul", rental: 600, minGuests: 200, perPersonMeal: 8.0, totalFood: 1625 },
+  { periodId: "202602", scope: "seoul", rental: 630.5, minGuests: 200, perPersonMeal: 8.0, totalFood: 1600.5 },
 ];
 
 // 예식장 선택항목 이름 목록 (17개)
@@ -279,6 +283,7 @@ const VENUE_OPT_NATIONAL: Record<string, number[]> = {
   "202511": [250, 25, 30, 30, 16, 30, 10, 16.55, 25.13, 80, 50, 15, 40, 37, 30, 38, 15],
   "202512": [262, 25, 30, 30, 16, 30, 10, 15, 26, 80, 50.5, 15, 40, 37, 29.25, 38, 15],
   "202601": [275, 25, 30, 30, 16, 30, 10, 14, 25, 80, 50, 15, 40, 37, 28, 38, 15],
+  "202602": [280, 25, 30, 30, 16, 30, 11, 14.5, 25, 77, 50, 13.5, 40, 37, 27.25, 38, 15],
 };
 
 // 예식장 선택항목 데이터 (서울)
@@ -293,6 +298,7 @@ const VENUE_OPT_SEOUL: Record<string, number[]> = {
   "202511": [501, 33, 33, 30, 20, 37.75, 15.75, 18, 29, 85, 51, 22, 45, 36, 33, 44.5, 32],
   "202512": [501, 33, 33, 30, 20, 38.5, 16.75, 16.5, 29, 85, 51, 22, 45, 37, 33, 45, 30],
   "202601": [550, 30, 34, 30, 20, 38.75, 15, 14.25, 29, 85, 50, 22, 50, 37, 33, 45, 25.75],
+  "202602": [540, 30, 33, 30, 20, 37, 15, 16.5, 29, 85, 50, 22, 42.5, 37, 33, 44, 32],
 };
 
 export function getVenueOptionalItems(periodId: string, scope: "national" | "seoul"): VenueOptionalItem {
@@ -368,6 +374,12 @@ export const SDM_PACKAGES: SdmPackage[] = [
   { periodId: "202601", region: "경기/인천", packageMedian: 240, dmPackageMedian: 140, studioBasic: 120 },
   { periodId: "202601", region: "5대광역시", packageMedian: 300, dmPackageMedian: 170, studioBasic: 140 },
   { periodId: "202601", region: "기타지역", packageMedian: 270, dmPackageMedian: 160, studioBasic: 112 },
+  // 202602
+  { periodId: "202602", region: "전체", packageMedian: 280, dmPackageMedian: 155, studioBasic: 137.75 },
+  { periodId: "202602", region: "서울", packageMedian: 330, dmPackageMedian: 148, studioBasic: 150.5 },
+  { periodId: "202602", region: "경기/인천", packageMedian: 238, dmPackageMedian: 138, studioBasic: 120.5 },
+  { periodId: "202602", region: "5대광역시", packageMedian: 295, dmPackageMedian: 168, studioBasic: 140 },
+  { periodId: "202602", region: "기타지역", packageMedian: 268, dmPackageMedian: 158, studioBasic: 112 },
 ];
 
 // 드레스 가격
@@ -383,6 +395,7 @@ export const DRESS_PRICES: DressPrice[] = [
   { periodId: "202511", scope: "national", photoShoot: 156, ceremony: 145, secondDress: 143 },
   { periodId: "202512", scope: "national", photoShoot: 160, ceremony: 145, secondDress: 143 },
   { periodId: "202601", scope: "national", photoShoot: 159, ceremony: 145, secondDress: 143 },
+  { periodId: "202602", scope: "national", photoShoot: 158, ceremony: 145, secondDress: 143 },
   // 서울
   { periodId: "202504", scope: "seoul", photoShoot: 198, ceremony: 167, secondDress: 165 },
   { periodId: "202505", scope: "seoul", photoShoot: 160, ceremony: 145, secondDress: 140 },
@@ -394,6 +407,7 @@ export const DRESS_PRICES: DressPrice[] = [
   { periodId: "202511", scope: "seoul", photoShoot: 172, ceremony: 154, secondDress: 150 },
   { periodId: "202512", scope: "seoul", photoShoot: 176, ceremony: 158, secondDress: 150 },
   { periodId: "202601", scope: "seoul", photoShoot: 172, ceremony: 151, secondDress: 150 },
+  { periodId: "202602", scope: "seoul", photoShoot: 170, ceremony: 150, secondDress: 148 },
 ];
 
 // 메이크업 가격
@@ -409,6 +423,7 @@ export const MAKEUP_PRICES: MakeupPrice[] = [
   { periodId: "202511", scope: "national", photoShoot: 77, ceremony: 68, rehearsal: 62 },
   { periodId: "202512", scope: "national", photoShoot: 78, ceremony: 69, rehearsal: 62 },
   { periodId: "202601", scope: "national", photoShoot: 78, ceremony: 69, rehearsal: 63 },
+  { periodId: "202602", scope: "national", photoShoot: 77, ceremony: 69, rehearsal: 62 },
   // 서울
   { periodId: "202504", scope: "seoul", photoShoot: 96, ceremony: 91, rehearsal: 81 },
   { periodId: "202505", scope: "seoul", photoShoot: 96, ceremony: 88, rehearsal: 77 },
@@ -420,6 +435,7 @@ export const MAKEUP_PRICES: MakeupPrice[] = [
   { periodId: "202511", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
   { periodId: "202512", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
   { periodId: "202601", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
+  { periodId: "202602", scope: "seoul", photoShoot: 96, ceremony: 84, rehearsal: 77 },
 ];
 
 // 옵션별 시세 (최신 기간 202601 기준)
@@ -491,6 +507,7 @@ export const SEASONAL_DATA: SeasonalComparison[] = [
   { periodId: "202511", peak: 1640, offPeak: 1170, savings: 470 },
   { periodId: "202512", peak: 1610, offPeak: 1155, savings: 455 },
   { periodId: "202601", peak: 1630, offPeak: 1250, savings: 380 },
+  { periodId: "202602", peak: 1610, offPeak: 1400, savings: 210 },
 ];
 
 // ===== 헬퍼 함수 =====
