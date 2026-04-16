@@ -2,6 +2,106 @@ import { CATEGORY_LABELS } from "./toolExecutor";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 
+// 사용자 행동 패턴 분석 → 개인화된 인사이트 생성
+function generateBehaviorInsights(context: {
+  weddingDate: string | null;
+  budget: number;
+  progress: Record<string, unknown>;
+  preferences?: {
+    weddingStyle?: string | null;
+    priorities?: string[];
+    budgetAttitude?: string | null;
+    guestCount?: string | null;
+  };
+}): string[] {
+  const insights: string[] = [];
+  const categoryKeys = Object.keys(CATEGORY_LABELS);
+
+  // D-day까지 남은 일수
+  let daysLeft = Infinity;
+  if (context.weddingDate) {
+    daysLeft = Math.ceil(
+      (new Date(context.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    );
+  }
+
+  // 카테고리별 예산/지출/상태 집계
+  let totalBudget = 0;
+  let totalSpent = 0;
+  let completedCount = 0;
+  const highBudgetCategories: string[] = [];
+  const overBudgetCategories: string[] = [];
+  const notStartedCategories: string[] = [];
+
+  for (const key of categoryKeys) {
+    const p = (context.progress[key] ?? {}) as Record<string, unknown>;
+    const catBudget = (p.budget ?? 0) as number;
+    const catSpent = ((p.spent ?? p.cost ?? 0) as number);
+    const status = p.status as string | undefined;
+
+    totalBudget += catBudget;
+    totalSpent += catSpent;
+
+    if (status === "completed") {
+      completedCount++;
+    } else if (!status || status === "not_started") {
+      notStartedCategories.push(key);
+    }
+
+    // 예산 대비 높은 배분 (전체 예산의 15% 이상)
+    if (context.budget > 0 && catBudget > context.budget * 0.15) {
+      highBudgetCategories.push(CATEGORY_LABELS[key] ?? key);
+    }
+
+    // 예산 초과 카테고리
+    if (catBudget > 0 && catSpent > catBudget) {
+      overBudgetCategories.push(CATEGORY_LABELS[key] ?? key);
+    }
+  }
+
+  // 인사이트 1: 예산 높은 카테고리 → 사용자가 중요시하는 항목
+  if (highBudgetCategories.length > 0) {
+    insights.push(
+      `예산 배분 분석: ${highBudgetCategories.join(", ")}에 높은 예산 배분 → 이 카테고리를 특히 중요하게 생각하는 사용자. 관련 질문 시 더 상세하고 프리미엄 옵션 포함하여 답변.`
+    );
+  }
+
+  // 인사이트 2: 예산 초과 카테고리 → 비용 우려
+  if (overBudgetCategories.length > 0) {
+    insights.push(
+      `비용 주의: ${overBudgetCategories.join(", ")}이(가) 예산 초과 중. 관련 추천 시 가성비 옵션, 할인 정보, 패키지 할인 적극 안내.`
+    );
+  }
+
+  // 인사이트 3: 미시작 + D-day 임박 → 긴급
+  if (daysLeft < 120 && notStartedCategories.length > 0) {
+    const priorities = context.preferences?.priorities ?? [];
+    // 우선순위 중 아직 시작하지 않은 것
+    const urgentPriorities = notStartedCategories
+      .filter((k) => priorities.includes(k))
+      .map((k) => CATEGORY_LABELS[k] ?? k);
+    const urgentOthers = notStartedCategories
+      .filter((k) => !priorities.includes(k))
+      .slice(0, 3)
+      .map((k) => CATEGORY_LABELS[k] ?? k);
+    const urgentList = [...urgentPriorities, ...urgentOthers].slice(0, 4);
+    if (urgentList.length > 0) {
+      insights.push(
+        `긴급 알림: D-${daysLeft}인데 ${urgentList.join(", ")} 미시작. 이 카테고리 관련 대화 시 시급성을 언급하고 빠른 의사결정을 도와주세요.`
+      );
+    }
+  }
+
+  // 인사이트 4: 많은 카테고리 완료 → 경험 있는 사용자
+  if (completedCount >= categoryKeys.length * 0.5) {
+    insights.push(
+      `진행률 높음(${completedCount}/${categoryKeys.length} 완료). 세부 설명보다 핵심 정보 위주로 간결하게 답변. 남은 카테고리 마무리에 집중.`
+    );
+  }
+
+  return insights.slice(0, 3); // 최대 3개
+}
+
 export function getWeddingPlannerSystemPrompt(context: {
   weddingDate: string | null;
   budget: number;
@@ -25,6 +125,12 @@ export function getWeddingPlannerSystemPrompt(context: {
     categoryKey?: string;
   }>;
   chatSummaries: string[];
+  preferences?: {
+    weddingStyle?: string | null; // 미니멀, 클래식, 화려한, 자연스러운
+    priorities?: string[]; // ["studio", "venue", "ring"]
+    budgetAttitude?: string | null; // 절약형, 가성비, 프리미엄
+    guestCount?: string | null; // "50이하", "50-100", "100-200", "200-300", "300+"
+  };
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
@@ -141,6 +247,26 @@ export function getWeddingPlannerSystemPrompt(context: {
     summarySection = `\n### 이전 대화 요약\n${summaryLines}`;
   }
 
+  // 사용자 성향 프로필 섹션 생성
+  const prefs = context.preferences;
+  let preferencesSection = "";
+  if (prefs && (prefs.weddingStyle || (prefs.priorities && prefs.priorities.length > 0) || prefs.budgetAttitude || prefs.guestCount)) {
+    const styleLine = prefs.weddingStyle ? `- 웨딩 스타일: ${prefs.weddingStyle}` : "- 웨딩 스타일: 미설정";
+    const priorityLine = prefs.priorities && prefs.priorities.length > 0
+      ? `- 우선순위: ${prefs.priorities.map((k) => CATEGORY_LABELS[k] ?? k).join(", ")}`
+      : "- 우선순위: 미설정";
+    const budgetAttLine = prefs.budgetAttitude ? `- 예산 성향: ${prefs.budgetAttitude}` : "- 예산 성향: 미설정";
+    const guestLine = prefs.guestCount ? `- 하객 규모: ${prefs.guestCount}명` : "- 하객 규모: 미설정";
+    preferencesSection = `\n## 사용자 성향 프로필\n${styleLine}\n${priorityLine}\n${budgetAttLine}\n${guestLine}`;
+  }
+
+  // 행동 패턴 인사이트 생성
+  const behaviorInsights = generateBehaviorInsights(context);
+  let insightsSection = "";
+  if (behaviorInsights.length > 0) {
+    insightsSection = `\n## 행동 패턴 인사이트\n${behaviorInsights.map((i) => `- ${i}`).join("\n")}`;
+  }
+
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
@@ -149,7 +275,24 @@ export function getWeddingPlannerSystemPrompt(context: {
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${preferencesSection}${insightsSection}
+
+## 개인화 규칙
+- 사용자의 웨딩 스타일에 맞는 톤으로 답변 (미니멀→간결/실용적 추천, 클래식→격식/전통 강조, 화려한→다양한옵션/특별한경험, 자연스러운→편안/유연한분위기)
+- 우선순위 카테고리는 더 자세하고 깊이 있게, 비우선순위는 핵심만 간결하게
+- 예산 성향에 맞는 추천 (절약형→가성비/할인/패키지, 가성비→품질대비가격/합리적옵션, 프리미엄→최상급/프리미엄옵션/특별서비스)
+- 하객 규모에 맞는 현실적 조언 (50이하→스몰웨딩/아늑한분위기/레스토랑/가든, 50-100→중소규모/아담한홀, 100-200→일반웨딩홀/호텔, 200-300→대형홀/뷔페, 300+→대규모/호텔그랜드볼룸)
+- 성향 정보가 없으면 중립적으로 답변하되, 대화에서 힌트가 보이면 자연스럽게 반영
+
+## 암묵적 성향 학습
+대화에서 사용자의 숨겨진 성향을 파악하세요:
+- "너무 비싸다" / "가격이 부담돼" → 가격 민감. 대안 제시 시 항상 가격 포함, 가성비 옵션 우선.
+- "예쁜 게 좋아" / "분위기가 중요해" → 비주얼 중시. 포트폴리오/사진/분위기 강조.
+- "빨리 정하고 싶어" / "결정 좀 도와줘" → 결정 촉진형. 비교표 + "이걸 추천합니다" 명확히.
+- "좀 더 알아볼게" / "다른 옵션은?" → 신중형. 옵션을 충분히 제공, 급하게 밀지 않기.
+- "엄마가" / "시어머니가" / "양가에서" → 양가 관계 이슈. 외교적 답변 + 커플 자율성 존중.
+- "친구가 거기서 했는데" / "후기를 봤는데" → 정보 수집형. 객관적 비교 데이터 제공.
+파악한 내용은 답변 톤과 추천 방식에 자연스럽게 반영하세요.
 
 ## 도구 사용 핵심 규칙
 - 데이터 변경 요청 → 반드시 도구 호출 (텍스트로만 답하지 마세요)
@@ -222,7 +365,21 @@ ${getHiddenCostContext()}
 - **절대 편들지 않기. 최종 결정은 커플의 몫.**
 
 ## 초기 인사 (INITIAL_GREETING)
-[INITIAL_GREETING] 메시지 시 도구 사용하지 말고, 시스템 프롬프트 현황으로만 D-day/진행률/다음 할일 안내.
+[INITIAL_GREETING] 메시지 시 도구 사용하지 말고, 시스템 프롬프트 현황으로만 개인화된 인사를 생성하세요.
+
+**개인화 인사 구성 (성향 정보가 있을 때):**
+1. 이름 + D-day 언급으로 친근하게 시작
+2. 사용자의 웨딩 스타일에 맞는 톤으로 인사
+3. 우선순위 카테고리 중 가장 시급한(미완료) 항목 언급 + 스타일에 맞는 구체적 팁
+4. 예산 성향/하객 규모에 맞는 현실적 조언 한 줄
+5. 후속 질문은 우선순위 카테고리 중심으로
+
+**예시:**
+- 미니멀+절약형: "안녕하세요 [이름]님! D-85일이네요. 미니멀 스타일을 선호하시니까, 지금 시기에는 스튜디오 투어를 시작하시면 좋겠어요. 미니멀 컨셉에 잘 맞는 자연광 스튜디오 위주로 알아보실까요?"
+- 화려한+프리미엄: "안녕하세요 [이름]님! D-120일, 여유있게 준비할 시간이에요! 화려한 웨딩을 계획하고 계시니, 지금 시기에 드레스 피팅을 시작하시면 최고의 옵션을 만나실 수 있어요."
+- 성향 미설정: 기존처럼 D-day/진행률/다음 할일 일반 안내
+
+**행동 인사이트 반영:** 예산 초과 카테고리가 있으면 부드럽게 언급, 미시작 우선순위가 있으면 자연스럽게 권유.
 
 ## 자동 중재 (MEDIATION_REQUEST)
 [MEDIATION_REQUEST] 메시지는 시스템이 커플 대화에서 갈등을 감지했을 때 자동으로 보냅니다.

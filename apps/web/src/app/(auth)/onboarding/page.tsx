@@ -8,6 +8,7 @@ import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
 import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
+import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 
 export default function OnboardingPage() {
@@ -54,6 +55,8 @@ export default function OnboardingPage() {
       case 3:
         return true;
       case 4:
+        return true; // 스타일 선호도는 선택사항 (스킵 가능)
+      case 5:
         return true;
       default:
         return false;
@@ -65,7 +68,7 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const progress: Record<string, { status: string; cost?: number | null; budget?: number | null }> = {};
+      const progress: Record<string, unknown> = {};
       store.progressChecklist.forEach((item) => {
         // cost는 만원 단위 입력 → 원 단위로 변환 (완료 항목만)
         const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
@@ -76,6 +79,14 @@ export default function OnboardingPage() {
           budget: costInWon,
         };
       });
+
+      // 웨딩 스타일 선호도 저장
+      progress.__preferences = {
+        weddingStyle: store.preferences.weddingStyle,
+        priorities: store.preferences.priorities,
+        budgetTendency: store.preferences.budgetTendency,
+        guestCount: store.preferences.guestCount,
+      };
 
       const res = await fetch("/api/onboarding", {
         method: "POST",
@@ -191,6 +202,15 @@ export default function OnboardingPage() {
                 />
               )}
               {store.currentStep === 4 && (
+                <WeddingStylePreferences
+                  preferences={store.preferences}
+                  onStyleChange={store.setWeddingStyle}
+                  onTogglePriority={store.togglePriority}
+                  onBudgetTendencyChange={store.setBudgetTendency}
+                  onGuestCountChange={store.setGuestCount}
+                />
+              )}
+              {store.currentStep === 5 && (
                 <ProgressChecklist
                   items={store.progressChecklist}
                   onStatusChange={store.setChecklistItemStatus}
@@ -215,23 +235,34 @@ export default function OnboardingPage() {
                 이전
               </button>
             )}
-            {store.currentStep < 4 ? (
-              <button
-                onClick={() => {
-                  // 파트너 코드로 참여 시, step 2 다음에 바로 제출 (3,4 스킵)
-                  if (store.currentStep === 2 && store.coupleAction === "join") {
-                    handleSubmit();
-                    return;
-                  }
-                  store.nextStep();
-                }}
-                disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
-                className="flex-1 py-3 rounded-2xl text-[14px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {store.currentStep === 2 && store.coupleAction === "join"
-                  ? loading ? "연결 중..." : "파트너와 연결하기"
-                  : "다음"}
-              </button>
+            {store.currentStep < 5 ? (
+              <div className="flex-1 flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    // 파트너 코드로 참여 시, step 2 다음에 바로 제출 (3,4,5 스킵)
+                    if (store.currentStep === 2 && store.coupleAction === "join") {
+                      handleSubmit();
+                      return;
+                    }
+                    store.nextStep();
+                  }}
+                  disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {store.currentStep === 2 && store.coupleAction === "join"
+                    ? loading ? "연결 중..." : "파트너와 연결하기"
+                    : "다음"}
+                </button>
+                {/* 스타일 선호도 스킵 버튼 */}
+                {store.currentStep === 4 && (
+                  <button
+                    onClick={() => store.nextStep()}
+                    className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
+                  >
+                    나중에 설정할게요
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="flex-1 flex flex-col gap-2">
                 <button

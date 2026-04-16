@@ -224,6 +224,23 @@ export async function POST(request: Request) {
     categoryKey?: string;
   }>) ?? [];
 
+  // progress에서 사용자 선호도 추출
+  const rawPreferences = (progress as Record<string, unknown>).__preferences as {
+    weddingStyle?: string | null;
+    priorities?: string[];
+    budgetAttitude?: string | null;
+    budgetTendency?: string | null;
+    guestCount?: string | null;
+  } | undefined;
+
+  // budgetTendency → budgetAttitude 호환 (웹 온보딩은 budgetTendency, 프롬프트는 budgetAttitude)
+  const preferences = rawPreferences ? {
+    weddingStyle: rawPreferences.weddingStyle ?? null,
+    priorities: rawPreferences.priorities ?? [],
+    budgetAttitude: rawPreferences.budgetAttitude ?? rawPreferences.budgetTendency ?? null,
+    guestCount: rawPreferences.guestCount ?? null,
+  } : null;
+
   // 대화 요약
   const chatSummaries = (summariesResult.data ?? []).map((s) => s.summary as string);
 
@@ -238,6 +255,7 @@ export async function POST(request: Request) {
     bookings,
     scheduleEvents,
     chatSummaries,
+    preferences: preferences ?? undefined,
   });
 
   // 메시지 포맷팅

@@ -13,7 +13,7 @@ const DEMO_PROFILE: Profile = {
   couple_id: "demo-couple",
   avatar_url: null,
   onboarding_completed: true,
-  onboarding_step: 4,
+  onboarding_step: 5,
   is_admin: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),

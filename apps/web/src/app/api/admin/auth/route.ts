@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         name: initName || "헤드 관리자",
         email: initEmail,
         onboarding_completed: true,
-        onboarding_step: 4,
+        onboarding_step: 5,
         is_admin: true,
       });
 
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
         name: newName || "관리자",
         email: newEmail,
         onboarding_completed: true,
-        onboarding_step: 4,
+        onboarding_step: 5,
         is_admin: true,
       });
 

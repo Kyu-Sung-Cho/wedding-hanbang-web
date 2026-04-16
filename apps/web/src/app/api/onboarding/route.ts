@@ -118,7 +118,7 @@ export async function POST(request: Request) {
           role,
           couple_id: coupleId,
           onboarding_completed: true,
-          onboarding_step: 4,
+          onboarding_step: 5,
         })
         .eq("id", user.id);
 
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
           role,
           couple_id: coupleId,
           onboarding_completed: true,
-          onboarding_step: 4,
+          onboarding_step: 5,
         })
         .eq("id", user.id);
 
