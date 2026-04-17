@@ -36,14 +36,29 @@ export async function GET(request: Request) {
     }
 
     // 최근 멤버 프리뷰 (최대 8명)
-    const { data: members } = await supabase
+    const { data: memberRows } = await supabase
       .from("cohort_members")
-      .select(
-        "id, user_id, joined_at, profile:community_profiles!cohort_members_user_id_fkey(user_id, nickname, avatar_url, rank)"
-      )
+      .select("id, user_id, joined_at")
       .eq("room_id", room.id)
       .order("joined_at", { ascending: false })
       .limit(8);
+
+    // 멤버 프로필 별도 조회
+    const memberUserIds = (memberRows ?? []).map((m) => m.user_id);
+    let memberProfiles: Record<string, { user_id: string; nickname: string; avatar_url: string | null; rank: string }> = {};
+    if (memberUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("community_profiles")
+        .select("user_id, nickname, avatar_url, rank")
+        .in("user_id", memberUserIds);
+      if (profiles) {
+        memberProfiles = Object.fromEntries(profiles.map((p) => [p.user_id, p]));
+      }
+    }
+    const members = (memberRows ?? []).map((m) => ({
+      ...m,
+      profile: memberProfiles[m.user_id] ?? null,
+    }));
 
     // 최근 메시지 프리뷰 1건
     const { data: lastMsg } = await supabase
