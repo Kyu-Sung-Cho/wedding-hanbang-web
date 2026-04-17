@@ -1,0 +1,243 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+// 아모라 서비스 계정 ID (환경변수 또는 고정값)
+const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
+
+function getServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+// 카테고리별 프롬프트 힌트
+const CATEGORY_HINTS: Record<string, string> = {
+  is_normal: "이 글은 가격/상황이 정상인지 묻는 글입니다. 평균 가격 비교나 숨은 비용 관련 조언을 해주세요.",
+  tour_review: "이 글은 업체 투어/이용 후기입니다. 시기별 가격 차이나 패키지 절약 팁을 알려주세요.",
+  tips_v2: "이 글은 웨딩 꿀팁입니다. 관련 추가 정보나 주의사항을 알려주세요.",
+  ama: "이 글은 결혼 선배의 AMA입니다. 공감하며 추가 팁을 살짝 알려주세요.",
+  free: "이 글은 자유게시판 글입니다. 공감하며 따뜻하게 응원해주세요.",
+};
+
+const SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 '아모라'입니다. 커뮤니티 게시글에 짧고 도움이 되는 댓글을 작성합니다.
+
+규칙:
+- 반드시 2-3문장 이내로 작성
+- 따뜻하고 친근한 톤 (도움이 되는 친구처럼)
+- 광고처럼 느껴지면 안 됨
+- 구체적인 숫자/팁이 있으면 포함
+- 마지막에 반드시 자연스러운 CTA를 넣되, [amora_cta] 마커로 끝내기
+- CTA 예시: "더 자세한 상담은 아모라와 대화해보세요 → [amora_cta]"
+- 한국어로만 작성
+
+참고 가격 데이터 (2026년 기준):
+- 스드메 패키지 평균: 520만원 (기본금 346만원 + 추가금 174만원)
+- 예식장 평균: 1,200만원 (식대 포함)
+- 본식 스냅+영상: 평균 180만원
+- 신혼여행: 평균 400만원
+- 예물(반지): 평균 350만원`;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { postId } = (await req.json()) as { postId: string };
+
+    if (!postId) {
+      return NextResponse.json({ error: "postId가 필요합니다." }, { status: 400 });
+    }
+
+    const serviceClient = getServiceClient();
+
+    // 게시글 조회
+    const { data: post, error: postError } = await serviceClient
+      .from("community_posts")
+      .select("id, title, content, category, cost_data, price_data, tags")
+      .eq("id", postId)
+      .single();
+
+    if (postError || !post) {
+      return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    // 이미 아모라 댓글이 있는지 확인
+    const { data: existingComment } = await serviceClient
+      .from("community_comments")
+      .select("id")
+      .eq("post_id", postId)
+      .eq("author_id", AMORA_USER_ID)
+      .maybeSingle();
+
+    if (existingComment) {
+      return NextResponse.json({ error: "이미 AI 댓글이 존재합니다.", commentId: existingComment.id }, { status: 409 });
+    }
+
+    // 카테고리 힌트
+    const categoryHint = CATEGORY_HINTS[post.category] ?? CATEGORY_HINTS.free;
+
+    // 비용 데이터 요약
+    let costSummary = "";
+    if (post.cost_data) {
+      const cd = post.cost_data as { totalCost?: number; region?: string; categories?: Array<{ label: string; cost: number }> };
+      costSummary = `\n비용 데이터: 총 ${cd.totalCost ?? "미상"}만원, 지역: ${cd.region ?? "미상"}`;
+      if (cd.categories && cd.categories.length > 0) {
+        costSummary += "\n항목: " + cd.categories.map((c) => `${c.label} ${c.cost}만원`).join(", ");
+      }
+    }
+    if (post.price_data) {
+      const pd = post.price_data as { vendor_category?: string; base_price?: number; extra_price?: number; vendor_name?: string };
+      costSummary += `\n가격 데이터: ${pd.vendor_category ?? ""} 기본금 ${pd.base_price ?? 0}만원, 추가금 ${pd.extra_price ?? 0}만원`;
+      if (pd.vendor_name) costSummary += `, 업체: ${pd.vendor_name}`;
+    }
+
+    // 본문 축약 (너무 긴 글 방지)
+    const contentPreview = post.content
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500);
+
+    const userContent = `${categoryHint}
+
+제목: ${post.title}
+카테고리: ${post.category}
+태그: ${(post.tags ?? []).join(", ") || "없음"}
+본문: ${contentPreview}${costSummary}
+
+위 게시글에 대한 아모라의 짧은 댓글을 작성해주세요. (2-3문장 + CTA)`;
+
+    // Claude API 호출
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userContent }],
+    });
+
+    const firstBlock = message.content[0];
+    const aiText = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+
+    if (!aiText) {
+      return NextResponse.json({ error: "AI 응답 생성 실패" }, { status: 500 });
+    }
+
+    // 아모라 프로필 자동 생성 (없을 경우)
+    const { data: amoraProfile } = await serviceClient
+      .from("community_profiles")
+      .select("user_id")
+      .eq("user_id", AMORA_USER_ID)
+      .maybeSingle();
+
+    if (!amoraProfile) {
+      await serviceClient.from("community_profiles").upsert({
+        user_id: AMORA_USER_ID,
+        nickname: "아모라 AI",
+        rank: "master",
+        post_count: 0,
+        comment_count: 0,
+        total_upvotes_received: 0,
+        avatar_url: null,
+      }, { onConflict: "user_id" });
+    }
+
+    // 댓글 저장 (is_ai 플래그 포함)
+    const { data: comment, error: commentError } = await serviceClient
+      .from("community_comments")
+      .insert({
+        post_id: postId,
+        parent_id: null,
+        author_id: AMORA_USER_ID,
+        content: aiText,
+        upvote_count: 0,
+        is_deleted: false,
+        is_ai: true,
+      })
+      .select("*")
+      .single();
+
+    if (commentError) {
+      // is_ai 컬럼이 없는 경우 fallback (컬럼 미생성 시)
+      const { data: fallbackComment, error: fallbackError } = await serviceClient
+        .from("community_comments")
+        .insert({
+          post_id: postId,
+          parent_id: null,
+          author_id: AMORA_USER_ID,
+          content: aiText,
+          upvote_count: 0,
+          is_deleted: false,
+        })
+        .select("*")
+        .single();
+
+      if (fallbackError) {
+        console.error("AI comment insert error:", fallbackError);
+        return NextResponse.json({ error: "댓글 저장 실패" }, { status: 500 });
+      }
+
+      // comment_count 증가
+      await serviceClient
+        .from("community_posts")
+        .select("comment_count")
+        .eq("id", postId)
+        .single()
+        .then(({ data }) => {
+          return serviceClient
+            .from("community_posts")
+            .update({ comment_count: (data?.comment_count ?? 0) + 1 })
+            .eq("id", postId);
+        });
+
+      return NextResponse.json({
+        comment: {
+          ...fallbackComment,
+          author: {
+            nickname: "아모라 AI",
+            rank: "master",
+            avatar_url: null,
+            wedding_year: null,
+            wedding_month: null,
+          },
+          is_ai: true,
+        },
+      }, { status: 201 });
+    }
+
+    // comment_count 증가
+    await serviceClient
+      .from("community_posts")
+      .select("comment_count")
+      .eq("id", postId)
+      .single()
+      .then(({ data }) => {
+        return serviceClient
+          .from("community_posts")
+          .update({ comment_count: (data?.comment_count ?? 0) + 1 })
+          .eq("id", postId);
+      });
+
+    return NextResponse.json({
+      comment: {
+        ...comment,
+        author: {
+          nickname: "아모라 AI",
+          rank: "master",
+          avatar_url: null,
+          wedding_year: null,
+          wedding_month: null,
+        },
+        is_ai: true,
+      },
+    }, { status: 201 });
+  } catch (err) {
+    console.error("AI comment generation error:", err);
+    return NextResponse.json(
+      { error: "AI 댓글 생성 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}

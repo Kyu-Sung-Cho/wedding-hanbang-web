@@ -11,6 +11,7 @@ import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyState from "@/components/community/EmptyState";
+import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
@@ -244,8 +245,16 @@ function CommunityFeedContent() {
                   />
                 ) : (
                   <div className="space-y-3">
-                    {searchResults.map((post) => (
-                      <PostCard key={post.id} post={post} />
+                    {searchResults.map((post, idx) => (
+                      <div key={post.id}>
+                        <PostCard post={post} />
+                        {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
+                        {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
+                          <div className="mt-3">
+                            <ServiceBanner index={Math.floor((idx - 4) / 10)} />
+                          </div>
+                        )}
+                      </div>
                     ))}
                     {searchLoading && (
                       <div className="space-y-3">
@@ -274,8 +283,16 @@ function CommunityFeedContent() {
                   />
                 ) : (
                   <div className="space-y-3">
-                    {posts.map((post) => (
-                      <PostCard key={post.id} post={post} />
+                    {posts.map((post, idx) => (
+                      <div key={post.id}>
+                        <PostCard post={post} />
+                        {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
+                        {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
+                          <div className="mt-3">
+                            <ServiceBanner index={Math.floor((idx - 4) / 10)} />
+                          </div>
+                        )}
+                      </div>
                     ))}
                     {isLoading && (
                       <div className="space-y-3">

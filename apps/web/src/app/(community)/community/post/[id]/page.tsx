@@ -31,6 +31,7 @@ import { timeAgo } from "@/utils/timeAgo";
 import { sanitizeHtml } from "@/utils/sanitize";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
+import ServiceCTA from "@/components/community/ServiceCTA";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import type { CommunityRank } from "@/types/community.types";
 
@@ -859,6 +860,13 @@ export default function PostDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* 서비스 CTA (게시글과 댓글 사이) */}
+        {!isMembersOnly && (
+          <div className="mt-3">
+            <ServiceCTA category={post.category} />
+          </div>
+        )}
 
         {/* 목록으로 버튼 */}
         <div className="mt-3 flex">

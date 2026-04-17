@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ChevronUp, ChevronDown, Reply, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { ChevronUp, ChevronDown, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { CommentWithAuthor, CommunityRank } from "@/types/community.types";
+
+// 아모라 서비스 계정 ID
+const AMORA_USER_ID = process.env.NEXT_PUBLIC_AMORA_USER_ID ?? "00000000-0000-0000-0000-000000000000";
 
 interface CommentItemProps {
   comment: CommentWithAuthor;
@@ -54,6 +58,7 @@ export default function CommentItem({
 
   // 아바타 & 랭크 계산
   const nickname = comment.author?.nickname ?? "익명";
+  const isAmoraAI = comment.author_id === AMORA_USER_ID || nickname === "아모라 AI";
   const rank: CommunityRank = (comment.author?.rank as CommunityRank) || "sprout";
   const rankConfig = RANK_CONFIG[rank];
   const gradientIndex = nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
@@ -106,49 +111,114 @@ export default function CommentItem({
     );
   }
 
+  // [amora_cta] 마커 파싱 헬퍼
+  function renderAmoraContent(content: string) {
+    const ctaMarker = "[amora_cta]";
+    const ctaIndex = content.indexOf(ctaMarker);
+    if (ctaIndex === -1) {
+      return (
+        <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+          {content}
+        </p>
+      );
+    }
+    const textBefore = content.slice(0, ctaIndex).trimEnd();
+    // CTA 앞의 텍스트에서 마지막 문장을 링크 텍스트로 분리
+    const lastArrow = textBefore.lastIndexOf("→");
+    const lastNewline = textBefore.lastIndexOf("\n");
+    const splitPoint = Math.max(lastArrow, lastNewline);
+
+    let bodyText: string;
+    let ctaText: string;
+    if (splitPoint > 0 && splitPoint > textBefore.length - 80) {
+      // "→" 가 포함된 마지막 문장을 CTA 텍스트로
+      const lineStart = textBefore.lastIndexOf("\n", splitPoint - 1);
+      bodyText = textBefore.slice(0, lineStart > 0 ? lineStart : splitPoint).trimEnd();
+      ctaText = textBefore.slice(lineStart > 0 ? lineStart + 1 : splitPoint).trim();
+      // "→" 제거
+      ctaText = ctaText.replace(/→/g, "").trim();
+    } else {
+      bodyText = textBefore;
+      ctaText = "아모라와 대화해보세요";
+    }
+
+    return (
+      <>
+        <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+          {bodyText}
+        </p>
+        <Link
+          href="/chat"
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#C4967E] bg-[#C4967E]/5 hover:bg-[#C4967E]/10 rounded-lg transition-colors duration-200"
+        >
+          {ctaText}
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </>
+    );
+  }
+
   return (
     <div
       className={`${
         isReply
           ? "ml-6 pl-4 border-l border-[#F0EFED] hover:border-[#C4967E]/30"
           : ""
+      } ${
+        isAmoraAI ? "bg-[#FAF8F5] rounded-xl -mx-1 px-1" : ""
       } transition-all duration-200`}
     >
       <div className="py-3">
         <div className="flex gap-2">
-          {/* 그래디언트 아바타 */}
-          <div
-            className={`rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 ${
-              isReply ? "w-7 h-7" : "w-8 h-8"
-            }`}
-          >
-            {avatarUrl && !isEmoji ? (
-              <Image
-                src={avatarUrl}
-                alt=""
-                width={isReply ? 28 : 32}
-                height={isReply ? 28 : 32}
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
-                {isEmoji ? avatarUrl : nickname.charAt(0)}
-              </span>
-            )}
-          </div>
+          {/* 아바타: 아모라는 특별 스타일 */}
+          {isAmoraAI ? (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shrink-0 ring-2 ring-[#C4967E]/20">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+          ) : (
+            <div
+              className={`rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 ${
+                isReply ? "w-7 h-7" : "w-8 h-8"
+              }`}
+            >
+              {avatarUrl && !isEmoji ? (
+                <Image
+                  src={avatarUrl}
+                  alt=""
+                  width={isReply ? 28 : 32}
+                  height={isReply ? 28 : 32}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
+                  {isEmoji ? avatarUrl : nickname.charAt(0)}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* 내용 */}
           <div className="flex-1 min-w-0">
             {/* 작성자 정보 */}
             <div className="flex items-center gap-1.5 text-[13px]">
-              <span className="font-medium text-[#1A1A1F]">
+              <span className={`font-medium ${isAmoraAI ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
                 {nickname}
               </span>
 
-              {/* 랭크 배지 (pill) */}
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none ${rankConfig.bg} ${rankConfig.text}`}>
-                Lv.{rankConfig.level} {rankConfig.label}
-              </span>
+              {/* 아모라 AI 배지 */}
+              {isAmoraAI ? (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none bg-[#C4967E]/10 text-[#C4967E]">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  AI
+                </span>
+              ) : (
+                /* 랭크 배지 (pill) */
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none ${rankConfig.bg} ${rankConfig.text}`}>
+                  Lv.{rankConfig.level} {rankConfig.label}
+                </span>
+              )}
 
               <span className="text-[#B5ADA3]">&middot;</span>
               <time className="text-[#B5ADA3]" title={comment.created_at}>
@@ -156,10 +226,14 @@ export default function CommentItem({
               </time>
             </div>
 
-            {/* 댓글 본문 */}
-            <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
-              {comment.content}
-            </p>
+            {/* 댓글 본문: 아모라 AI는 CTA 파싱 포함 */}
+            {isAmoraAI ? (
+              renderAmoraContent(comment.content)
+            ) : (
+              <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+                {comment.content}
+              </p>
+            )}
 
             {/* 액션 행: 투표, 답글, 삭제 */}
             <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
