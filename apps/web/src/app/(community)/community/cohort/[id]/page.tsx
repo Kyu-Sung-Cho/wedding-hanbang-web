@@ -367,7 +367,7 @@ function ChatTab({
   }
 
   return (
-    <div className="flex h-[calc(100vh-180px)] max-h-[600px] flex-col">
+    <div className="flex h-[calc(100vh-140px)] flex-col">
       {/* 필터 pill */}
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         <FilterPill
