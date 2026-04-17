@@ -122,104 +122,110 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      {/* 헤더 */}
-      <header className="sticky top-0 z-10 border-b border-[#F0EFED] bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-4">
-          <h1 className="font-serif text-lg text-[#1A1A1F]">
-            {room?.name ?? "동기방"}
-          </h1>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#878680]">
-            <Users className="h-3 w-3" />
-            <span>{room?.member_count ?? 0}명 참여</span>
-          </div>
-        </div>
-
-        {/* 탭 */}
-        <div className="mx-auto flex max-w-6xl border-t border-[#F0EFED]">
-          <TabButton
-            active={tab === "chat"}
-            onClick={() => setTab("chat")}
-            icon={<MessageCircle className="h-4 w-4" />}
-            label="채팅"
-          />
-          <TabButton
-            active={tab === "info"}
-            onClick={() => setTab("info")}
-            icon={<TrendingUp className="h-4 w-4" />}
-            label="정보판"
-          />
-          <TabButton
-            active={tab === "timeline"}
-            onClick={() => setTab("timeline")}
-            icon={<Calendar className="h-4 w-4" />}
-            label="타임라인"
-          />
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-6xl flex">
-        {/* 왼쪽 사이드바: 동기 인기글 + 서비스 CTA */}
-        <aside className="hidden xl:flex flex-col w-[280px] shrink-0 sticky top-[120px] h-[calc(100vh-120px)] overflow-y-auto py-5 px-3 space-y-4">
-          {/* 동기 인기글 */}
-          <CohortPopularPosts roomId={roomId} />
-
-          {/* 아모라 CTA */}
-          <div className="rounded-2xl bg-[#1A1A1F] p-5 text-white">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-4 h-4 text-[#C9A96E]" />
-              <span className="font-serif text-sm font-medium">AI 아모라</span>
+      <div className="flex w-full">
+        {/* 왼쪽 사이드바 */}
+        <aside className="hidden lg:flex flex-col w-[260px] xl:w-[280px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3 space-y-4">
+          {/* 방 정보 */}
+          <div className="px-2">
+            <h2 className="font-serif text-base text-[#1A1A1F] font-medium">{room?.name ?? "동기방"}</h2>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-[#878680]">
+              <Users className="h-3 w-3" />
+              <span>{room?.member_count ?? 0}명 참여</span>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-3">
-              가격 비교, 견적 분석, 일정 상담까지
-            </p>
-            <a
-              href="/chat"
-              className="block w-full text-center bg-white text-[#1A1A1F] rounded-xl py-2 text-xs font-medium hover:bg-[#FAFAF8] transition-colors"
-            >
-              아모라와 대화하기
-            </a>
           </div>
-        </aside>
 
-        {/* 메인 콘텐츠 */}
-        <main className="flex-1 min-w-0 px-4 py-4">
-          {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
-          {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
-          {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
-        </main>
+          <div className="h-px bg-[#F0EFED]" />
 
-        {/* 오른쪽 사이드바: 멤버 + 주제별 카테고리 */}
-        <aside className="hidden xl:flex flex-col w-[280px] shrink-0 sticky top-[120px] h-[calc(100vh-120px)] overflow-y-auto py-5 px-3 space-y-4">
           {/* 멤버 */}
           <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
 
           {/* 주제별 카테고리 */}
-          <div className="rounded-2xl border border-[#F0EFED] bg-white p-5">
-            <h3 className="text-sm font-medium text-[#1A1A1F] mb-3">주제별 보기</h3>
-            <div className="flex flex-col gap-1.5">
+          <div className="px-2">
+            <h3 className="text-xs font-medium text-[#878680] mb-2 uppercase tracking-wider">주제별 보기</h3>
+            <div className="flex flex-col gap-0.5">
               {COHORT_THREAD_TOPICS.map((t) => (
-                <a
+                <button
                   key={t.key}
-                  href={`#${t.key}`}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-[#878680] hover:bg-[#F5F2ED] hover:text-[#1A1A1F] transition-colors"
+                  type="button"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-[#878680] hover:bg-[#F5F2ED] hover:text-[#1A1A1F] transition-colors text-left"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-[#C4967E]" />
                   {t.label}
-                </a>
+                </button>
               ))}
             </div>
           </div>
 
+          <div className="h-px bg-[#F0EFED]" />
+
           {/* 동기방 규칙 */}
-          <div className="rounded-2xl border border-[#F0EFED] bg-white p-5">
-            <h3 className="text-sm font-medium text-[#1A1A1F] mb-3">동기방 규칙</h3>
-            <div className="space-y-2 text-xs text-[#878680] leading-relaxed">
+          <div className="px-2">
+            <h3 className="text-xs font-medium text-[#878680] mb-2 uppercase tracking-wider">규칙</h3>
+            <div className="space-y-1.5 text-[11px] text-[#B5ADA3] leading-relaxed">
               <p>• 서로 존중하며 대화해주세요</p>
               <p>• 개인정보(실명, 연락처) 공유 주의</p>
               <p>• 광고/홍보성 글은 삭제됩니다</p>
               <p>• 업체 후기는 솔직하게 작성해주세요</p>
             </div>
           </div>
+
+          <div className="mt-auto" />
+
+          {/* 아모라 CTA */}
+          <div className="mx-2 rounded-2xl bg-[#1A1A1F] p-4 text-white">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#C9A96E]" />
+              <span className="text-xs font-medium">AI 아모라</span>
+            </div>
+            <p className="text-[11px] text-white/50 leading-relaxed mb-2.5">
+              가격 비교, 견적 분석, 일정 상담
+            </p>
+            <a
+              href="/chat"
+              className="block w-full text-center bg-white text-[#1A1A1F] rounded-lg py-2 text-xs font-medium hover:bg-[#FAFAF8] transition-colors"
+            >
+              대화하기
+            </a>
+          </div>
+        </aside>
+
+        {/* 가운데: 메인 콘텐츠 */}
+        <main className="flex-1 min-w-0 flex flex-col">
+          {/* 탭 헤더 */}
+          <div className="sticky top-[72px] z-10 bg-white border-b border-[#F0EFED]">
+            <div className="flex">
+              <TabButton
+                active={tab === "chat"}
+                onClick={() => setTab("chat")}
+                icon={<MessageCircle className="h-4 w-4" />}
+                label="채팅"
+              />
+              <TabButton
+                active={tab === "info"}
+                onClick={() => setTab("info")}
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="정보판"
+              />
+              <TabButton
+                active={tab === "timeline"}
+                onClick={() => setTab("timeline")}
+                icon={<Calendar className="h-4 w-4" />}
+                label="타임라인"
+              />
+            </div>
+          </div>
+
+          <div className="px-4 lg:px-6 py-4 flex-1">
+            {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
+            {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
+            {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
+          </div>
+        </main>
+
+        {/* 오른쪽 사이드바 */}
+        <aside className="hidden xl:flex flex-col w-[280px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-l border-[#F0EFED] py-5 px-3 space-y-4">
+          {/* 인기글 */}
+          <CohortPopularPosts roomId={roomId} />
         </aside>
       </div>
     </div>
