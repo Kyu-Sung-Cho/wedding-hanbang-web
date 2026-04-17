@@ -101,6 +101,22 @@ export default function VendorsPage() {
 
   return (
     <div className="max-w-[1100px] mx-auto">
+      {/* 찜한 업체 링크 */}
+      <div className="flex items-center justify-end mb-4 animate-fade-in">
+        <Link
+          href="/vendors/favorites"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-black/[0.06] text-[13px] text-noir-800 hover:border-rose-500 hover:text-rose-500 transition-colors"
+        >
+          <Heart className="w-3.5 h-3.5" />
+          찜한 업체
+          {favoriteIds.size > 0 && (
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-500 text-[11px] font-medium">
+              {favoriteIds.size}
+            </span>
+          )}
+        </Link>
+      </div>
+
       {/* 검색바 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] p-4 mb-6 flex items-center gap-3 animate-fade-in">
         <Search className="w-5 h-5 text-taupe-400 flex-shrink-0" />

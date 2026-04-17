@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const ids = searchParams.get("ids");
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
@@ -19,6 +20,14 @@ export async function GET(req: Request) {
       .order("ai_recommend", { ascending: false })
       .order("rating", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    // ID 목록으로 필터 (찜한 업체 등)
+    if (ids) {
+      const idList = ids.split(",").filter(Boolean);
+      if (idList.length > 0) {
+        query = query.in("id", idList);
+      }
+    }
 
     if (category) {
       query = query.eq("category", category);

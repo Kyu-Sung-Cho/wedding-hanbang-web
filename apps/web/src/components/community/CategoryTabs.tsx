@@ -12,6 +12,8 @@ import {
   MessageSquare,
   ChevronDown,
   BookOpen,
+  Bookmark,
+  ThumbsUp,
 } from "lucide-react";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import { useState } from "react";
@@ -64,6 +66,28 @@ export default function CategoryTabs() {
           >
             <BookOpen className="w-6 h-6 shrink-0" />
             <span className="text-base">내 방명록</span>
+          </Link>
+          <Link
+            href="/community/my/bookmarks"
+            className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 ${
+              isActive("/community/my/bookmarks")
+                ? "bg-[#F0EFED] text-[#1A1A1F] font-medium"
+                : "text-[#1A1A1F] hover:bg-[#F5F2ED]"
+            }`}
+          >
+            <Bookmark className="w-6 h-6 shrink-0" />
+            <span className="text-base">북마크</span>
+          </Link>
+          <Link
+            href="/community/my/upvoted"
+            className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 ${
+              isActive("/community/my/upvoted")
+                ? "bg-[#F0EFED] text-[#1A1A1F] font-medium"
+                : "text-[#1A1A1F] hover:bg-[#F5F2ED]"
+            }`}
+          >
+            <ThumbsUp className="w-6 h-6 shrink-0" />
+            <span className="text-base">좋아요한 글</span>
           </Link>
         </div>
 
