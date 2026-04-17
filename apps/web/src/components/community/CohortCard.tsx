@@ -77,12 +77,11 @@ export default function CohortCard({
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
 
-        <div className="mb-3 flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-[#B5ADA3]" />
+        <div className="mb-3 grid grid-cols-2 gap-2">
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="flex-1 rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+            className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[0, 1, 2].map((offset) => {
               const y = (now?.getFullYear() ?? year) + offset;
@@ -96,13 +95,13 @@ export default function CohortCard({
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="flex-1 rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+            className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[
-              { v: 1, label: "1분기 (1~3월)" },
-              { v: 2, label: "2분기 (4~6월)" },
-              { v: 3, label: "3분기 (7~9월)" },
-              { v: 4, label: "4분기 (10~12월)" },
+              { v: 1, label: "1분기" },
+              { v: 2, label: "2분기" },
+              { v: 3, label: "3분기" },
+              { v: 4, label: "4분기" },
             ].map((q) => (
               <option key={q.v} value={q.v}>
                 {q.label}
