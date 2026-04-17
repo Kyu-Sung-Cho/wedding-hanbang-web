@@ -38,6 +38,7 @@ import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { CategoryChecklistTemplate } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import ServiceGuide from "@/components/app/ServiceGuide";
 
 // 카테고리 아이콘 매핑
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -577,6 +578,9 @@ export default function DashboardPage() {
         isOpen={!!selectedCategory}
         onClose={() => setSelectedCategory(null)}
       />
+
+      {/* 서비스 가이드 (첫 방문 시) */}
+      <ServiceGuide />
     </div>
   );
 }

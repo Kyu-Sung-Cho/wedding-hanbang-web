@@ -8,6 +8,7 @@ import {
   Pressable,
   RefreshControl,
   Animated,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -23,10 +24,14 @@ import {
   AlertTriangle,
   Users,
 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
+import AppGuide from "@/components/AppGuide";
+
+const APP_GUIDE_KEY = "@hanbang/app_guide_seen";
 
 interface UrgentTask {
   categoryKey: string;
@@ -189,6 +194,26 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+
+  // 앱 가이드 (첫 실행 시 1회 표시)
+  const [showGuide, setShowGuide] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(APP_GUIDE_KEY).then((value) => {
+      if (value !== "true") {
+        setShowGuide(true);
+      }
+    });
+  }, []);
+
+  const handleGuideClose = useCallback(async () => {
+    setShowGuide(false);
+    try {
+      await AsyncStorage.setItem(APP_GUIDE_KEY, "true");
+    } catch {
+      // AsyncStorage 저장 실패 시 무시
+    }
+  }, []);
 
   // 진행률 바 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -738,6 +763,16 @@ export default function DashboardScreen() {
           <Text style={styles.quoteText}>{getDailyQuote()}</Text>
         </View>
       </ScrollView>
+
+      {/* 앱 가이드 (첫 실행 시 풀스크린 모달) */}
+      <Modal
+        visible={showGuide}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={handleGuideClose}
+      >
+        <AppGuide onClose={handleGuideClose} />
+      </Modal>
     </SafeAreaView>
   );
 }

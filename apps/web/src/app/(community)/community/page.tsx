@@ -16,6 +16,7 @@ import RightSidebar from "@/components/community/RightSidebar";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
+import CommunityGuide from "@/components/community/CommunityGuide";
 
 const CohortCard = dynamic(() => import("@/components/community/CohortCardContainer"), {
   ssr: false,
@@ -342,6 +343,9 @@ function CommunityFeedContent() {
       >
         <PenSquare className="w-5 h-5" />
       </Link>
+
+      {/* 커뮤니티 가이드 (첫 방문 시) */}
+      <CommunityGuide />
     </div>
   );
 }
