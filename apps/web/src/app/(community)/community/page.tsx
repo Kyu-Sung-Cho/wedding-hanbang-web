@@ -163,8 +163,9 @@ function CommunityFeedContent() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      {/* 모바일 카테고리 */}
-      <div className="lg:hidden px-4 sm:px-6 pt-4">
+      {/* 모바일: 동기방 + 카테고리 */}
+      <div className="lg:hidden px-4 sm:px-6 pt-4 space-y-3">
+        <CohortCard />
         <CategoryTabs />
       </div>
 
