@@ -29,24 +29,25 @@ export default function CohortCard({
   const { toast } = useToast();
   const [now, setNow] = useState<Date | null>(null);
   const [year, setYear] = useState<number>(2026);
-  const [month, setMonth] = useState<number>(1);
+  const [quarter, setQuarter] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const d = new Date();
     setNow(d);
     setYear(d.getFullYear());
-    setMonth(d.getMonth() + 1);
+    setQuarter(Math.ceil((d.getMonth() + 1) / 3));
   }, []);
 
-  // 배정 플로우
+  // 배정 플로우 — 분기의 첫 달로 전달
   async function handleAssign() {
     setLoading(true);
+    const monthFromQuarter = (quarter - 1) * 3 + 1; // Q1→1, Q2→4, Q3→7, Q4→10
     try {
       const res = await fetch("/api/community/profile/wedding-date", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, month }),
+        body: JSON.stringify({ year, month: monthFromQuarter }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -73,7 +74,7 @@ export default function CohortCard({
           </h3>
         </div>
         <p className="mb-4 text-xs leading-relaxed text-[#878680]">
-          같은 달 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
+          같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
 
         <div className="mb-3 flex items-center gap-2">
@@ -93,13 +94,18 @@ export default function CohortCard({
             })}
           </select>
           <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
+            value={quarter}
+            onChange={(e) => setQuarter(Number(e.target.value))}
             className="flex-1 rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E]"
           >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                {m}월
+            {[
+              { v: 1, label: "1분기 (1~3월)" },
+              { v: 2, label: "2분기 (4~6월)" },
+              { v: 3, label: "3분기 (7~9월)" },
+              { v: 4, label: "4분기 (10~12월)" },
+            ].map((q) => (
+              <option key={q.v} value={q.v}>
+                {q.label}
               </option>
             ))}
           </select>
