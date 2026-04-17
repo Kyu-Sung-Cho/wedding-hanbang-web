@@ -54,6 +54,7 @@ export default function GamificationWidget() {
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(true);
   const [xpGain, setXpGain] = useState<number>(0);
+  const [showAchievements, setShowAchievements] = useState(false);
   const [showAllAchievements, setShowAllAchievements] = useState(false);
   const loginRecorded = useRef(false);
 
@@ -244,62 +245,67 @@ export default function GamificationWidget() {
           </div>
         </div>
 
-        {/* 구분선 */}
+        {/* 구분선 + 업적 더보기 토글 */}
         <div className="border-t border-[#F0EFED]" />
 
-        {/* Section 2: 업적 */}
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-medium text-[#1A1A1F]">업적</h3>
-            <span className="text-sm text-[#B5ADA3]">
-              {achievements.length}/{ACHIEVEMENTS.length}
-            </span>
-          </div>
-
-          <div className="space-y-2.5">
-            {displayAchievements.map((ach) => {
-              const isUnlocked = unlockedSet.has(ach.key);
-              const isSecret = ach.isSecret && !isUnlocked;
-
-              return (
-                <div
-                  key={ach.key}
-                  className="flex items-center gap-3"
-                >
-                  <div className="shrink-0">
-                    {isUnlocked ? (
-                      <CheckCircle2 className="w-5 h-5 text-[#C4967E]" />
-                    ) : (
-                      <Circle className="w-5 h-5 text-[#B5ADA3]" />
-                    )}
-                  </div>
-
-                  <span
-                    className={`text-sm shrink-0 ${
-                      isUnlocked ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
-                    }`}
-                  >
-                    {isSecret ? "???" : ach.label}
-                  </span>
-
-                  <span className="text-sm text-[#B5ADA3] truncate">
-                    {isSecret ? "시크릿 업적" : ach.description}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 전체 보기 */}
-          {ACHIEVEMENTS.length > 5 && (
-            <button
-              onClick={() => setShowAllAchievements(!showAllAchievements)}
-              className="mt-3 text-sm text-[#C4967E] hover:opacity-80 transition-opacity duration-200"
-            >
-              {showAllAchievements ? "접기" : "전체 보기"}
-            </button>
-          )}
+        <div className="px-6 py-3">
+          <button
+            onClick={() => setShowAchievements(!showAchievements)}
+            className="flex items-center justify-between w-full text-sm text-[#878680] hover:text-[#C4967E] transition-colors duration-200"
+          >
+            <span>업적 {achievements.length}/{ACHIEVEMENTS.length}</span>
+            <span>{showAchievements ? "접기" : "더보기"}</span>
+          </button>
         </div>
+
+        {/* Section 2: 업적 (접힌 상태가 기본) */}
+        {showAchievements && (
+          <div className="px-6 pb-6">
+            <div className="space-y-2.5">
+              {displayAchievements.map((ach) => {
+                const isUnlocked = unlockedSet.has(ach.key);
+                const isSecret = ach.isSecret && !isUnlocked;
+
+                return (
+                  <div
+                    key={ach.key}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="shrink-0">
+                      {isUnlocked ? (
+                        <CheckCircle2 className="w-5 h-5 text-[#C4967E]" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-[#B5ADA3]" />
+                      )}
+                    </div>
+
+                    <span
+                      className={`text-sm shrink-0 ${
+                        isUnlocked ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
+                      }`}
+                    >
+                      {isSecret ? "???" : ach.label}
+                    </span>
+
+                    <span className="text-sm text-[#B5ADA3] truncate">
+                      {isSecret ? "시크릿 업적" : ach.description}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 전체 보기 */}
+            {ACHIEVEMENTS.length > 5 && (
+              <button
+                onClick={() => setShowAllAchievements(!showAllAchievements)}
+                className="mt-3 text-sm text-[#C4967E] hover:opacity-80 transition-opacity duration-200"
+              >
+                {showAllAchievements ? "접기" : "전체 보기"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Section 3: 리더보드 (별도 카드) */}
@@ -317,7 +323,7 @@ export default function GamificationWidget() {
             {leaderboard.slice(0, 5).map((entry, i) => {
               const rank = i + 1;
               const avatarLetter = entry.nickname?.charAt(0) || "?";
-              const displayXP = entry.weekly_xp ?? entry.total_xp;
+              const displayXP = Math.min(entry.weekly_xp ?? 0, entry.total_xp);
               const isCurrentUser = entry.nickname === profile.nickname;
               const rankColor = RANK_COLORS[rank] || "text-[#B5ADA3]";
 

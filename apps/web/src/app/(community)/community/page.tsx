@@ -13,6 +13,7 @@ import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyState from "@/components/community/EmptyState";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
+import TrendingPosts from "@/components/community/TrendingPosts";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
@@ -294,10 +295,10 @@ function CommunityFeedContent() {
 
         {/* 오른쪽 사이드바: 화면 오른쪽 끝에 붙임 */}
         <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-4 border-l border-[#F0EFED]">
-          {/* 게이미피케이션 */}
-          <GamificationWidget />
+          {/* 1. 오늘의 인기글 */}
+          <TrendingPosts />
 
-          {/* 이번 주 요약 + 많이 찾는 업체 + 원칙 + 아모라 CTA */}
+          {/* 2. 이번 주 요약 + 3. 많이 찾는 업체 + 커뮤니티 원칙 + 아모라 CTA */}
           <RightSidebar
             popularTags={vendorTags}
             weekly={{
@@ -307,7 +308,7 @@ function CommunityFeedContent() {
             }}
           />
 
-          {/* 인기 태그 (해시태그) */}
+          {/* 4. 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
             <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
               <h3 className="font-serif text-lg font-medium text-[#1A1A1F] mb-4">
@@ -326,6 +327,9 @@ function CommunityFeedContent() {
               </div>
             </div>
           )}
+
+          {/* 5. 내 활동 (게이미피케이션 - 하단으로 이동) */}
+          <GamificationWidget />
 
           <div className="text-center py-2">
             <Link href="/" className="text-sm text-[#878680] hover:text-[#C4967E] transition-colors duration-200">
