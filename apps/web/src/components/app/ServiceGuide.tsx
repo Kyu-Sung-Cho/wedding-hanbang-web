@@ -3,119 +3,501 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
-  LayoutDashboard,
-  MessageCircle,
-  Wallet,
-  CalendarCheck,
   X,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  Users,
+  Wallet,
+  MessageCircle,
+  AlertTriangle,
+  Check,
+  RefreshCw,
+  Shield,
+  Heart,
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_service_guide_seen";
+const TOTAL_SLIDES = 6;
 
-interface SlideData {
-  title: string;
-  descriptions: string[];
-  icon: React.ReactNode;
+// ─── Slide 1: Welcome ────────────────────────────────────────────────
+function SlideWelcome() {
+  return (
+    <div className="flex flex-col items-center px-6 pt-4 pb-2">
+      {/* 로고 */}
+      <div className="relative w-20 h-20 mb-5">
+        <Image
+          src="/images/logo-512-transparent.png"
+          alt="웨딩한방"
+          fill
+          className="object-contain"
+        />
+      </div>
+
+      {/* 타이틀 */}
+      <h2 className="font-serif-kr text-[22px] font-normal text-noir-800 text-center leading-snug mb-2">
+        결혼 준비,{"\n"}이제 혼자 고민하지 마세요
+      </h2>
+      <p className="text-[14px] text-taupe-500 text-center mb-7">
+        웨딩한방이 처음부터 끝까지 함께합니다
+      </p>
+
+      {/* 3가지 핵심 가치 */}
+      <div className="flex items-stretch gap-3 w-full max-w-[340px] mb-6">
+        {[
+          { icon: <MessageCircle className="w-5 h-5" />, label: "AI 상담", sub: "24시간 플래너" },
+          { icon: <Users className="w-5 h-5" />, label: "커플 연동", sub: "실시간 동기화" },
+          { icon: <Wallet className="w-5 h-5" />, label: "예산 관리", sub: "숨은 비용 경고" },
+        ].map((item, i) => (
+          <div
+            key={i}
+            className="flex-1 flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl bg-ivory-100 border border-ivory-200"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white">
+              {item.icon}
+            </div>
+            <span className="text-[13px] font-medium text-noir-800">{item.label}</span>
+            <span className="text-[11px] text-taupe-400">{item.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 그라데이션 라인 애니메이션 */}
+      <div className="w-full max-w-[280px] h-[2px] rounded-full overflow-hidden bg-ivory-200">
+        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-rose-500 via-gold to-rose-500 animate-guide-shimmer" />
+      </div>
+    </div>
+  );
 }
 
-const slides: SlideData[] = [
-  {
-    title: "웨딩한방에 오신 것을\n환영해요!",
-    descriptions: [
-      "결혼 준비, 한방에 해결하세요",
-      "AI 아모라가 24시간 함께합니다",
-    ],
-    icon: (
-      <div className="relative w-24 h-24 mx-auto">
-        <Image
-          src="/images/logo-512-transparent.png"
-          alt="웨딩한방"
-          fill
-          className="object-contain"
-        />
-      </div>
-    ),
-  },
-  {
-    title: "대시보드",
-    descriptions: [
-      "D-day와 진행 상황을 한눈에",
-      "지금 해야 할 것을 자동으로 알려드려요",
-    ],
-    icon: (
-      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center mx-auto">
-        <LayoutDashboard className="w-10 h-10 text-white" />
-      </div>
-    ),
-  },
-  {
-    title: "AI 아모라",
-    descriptions: [
-      "궁금한 건 아모라에게 물어보세요",
-      "업체 추천, 예산 상담, 견적 분석까지",
-    ],
-    icon: (
-      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center mx-auto">
-        <MessageCircle className="w-10 h-10 text-white" />
-      </div>
-    ),
-  },
-  {
-    title: "예산 관리",
-    descriptions: [
-      "카테고리별 예산을 한눈에",
-      "숨은 비용 경고, 양가 분담까지",
-    ],
-    icon: (
-      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center mx-auto">
-        <Wallet className="w-10 h-10 text-white" />
-      </div>
-    ),
-  },
-  {
-    title: "일정 & 체크리스트",
-    descriptions: [
-      "D-day 기준으로 할 일을 자동 정리",
-      "파트너와 실시간 동기화",
-    ],
-    icon: (
-      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C9A96E] to-[#DCC9A0] flex items-center justify-center mx-auto">
-        <CalendarCheck className="w-10 h-10 text-white" />
-      </div>
-    ),
-  },
-  {
-    title: "시작해볼까요?",
-    descriptions: [
-      "웨딩한방과 함께 결혼 준비를 시작하세요",
-    ],
-    icon: (
-      <div className="relative w-24 h-24 mx-auto">
-        <Image
-          src="/images/logo-512-transparent.png"
-          alt="웨딩한방"
-          fill
-          className="object-contain"
-        />
-      </div>
-    ),
-  },
-];
+// ─── Slide 2: Dashboard ──────────────────────────────────────────────
+function SlideDashboard() {
+  return (
+    <div className="flex flex-col items-center px-6 pt-2 pb-2">
+      <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 text-center mb-1">
+        대시보드
+      </h2>
+      <p className="text-[13px] text-taupe-500 text-center mb-5">
+        한눈에 보는 결혼 준비 현황
+      </p>
 
+      {/* Mock 대시보드 */}
+      <div className="w-full max-w-[360px] flex flex-col gap-3">
+        {/* D-day 카드 */}
+        <div className="relative">
+          <div className="rounded-2xl bg-noir-800 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] text-taupe-400 mb-0.5">우리의 결혼식</p>
+              <p className="text-[11px] text-ivory-200">2026. 09. 12 (토)</p>
+            </div>
+            <div className="text-right">
+              <span className="font-display text-[36px] font-light leading-none bg-gradient-to-br from-rose-500 to-gold bg-clip-text text-transparent">
+                D-149
+              </span>
+            </div>
+          </div>
+          {/* 어노테이션 */}
+          <div className="absolute -right-1 -top-2 flex items-center gap-1">
+            <span className="text-[10px] text-rose-500 font-medium bg-white/90 rounded-full px-2 py-0.5 shadow-sm border border-rose-500/20">
+              결혼까지 남은 날짜
+            </span>
+          </div>
+        </div>
+
+        {/* 진행률 카드 */}
+        <div className="relative rounded-2xl bg-white border border-ivory-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-medium text-noir-800">전체 진행률</span>
+            <span className="text-[13px] font-medium text-rose-500">35%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-ivory-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-rose-500 to-gold"
+              style={{ width: "35%" }}
+            />
+          </div>
+          {/* 어노테이션 */}
+          <div className="absolute -left-1 -bottom-2 flex items-center gap-1">
+            <span className="text-[10px] text-rose-500 font-medium bg-white/90 rounded-full px-2 py-0.5 shadow-sm border border-rose-500/20">
+              전체 진행 상황
+            </span>
+          </div>
+        </div>
+
+        {/* 카테고리 상태 */}
+        <div className="rounded-2xl bg-white border border-ivory-200 p-4">
+          <p className="text-[12px] text-taupe-500 mb-3">카테고리 현황</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { name: "예식장", status: "done", emoji: "check" },
+              { name: "스드메", status: "progress", emoji: "refresh" },
+              { name: "예물", status: "todo", emoji: "empty" },
+              { name: "신혼여행", status: "todo", emoji: "empty" },
+              { name: "혼수", status: "progress", emoji: "refresh" },
+            ].map((cat, i) => (
+              <span
+                key={i}
+                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-medium ${
+                  cat.status === "done"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : cat.status === "progress"
+                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                    : "bg-ivory-100 text-taupe-400 border border-ivory-200"
+                }`}
+              >
+                {cat.status === "done" && <Check className="w-3 h-3" />}
+                {cat.status === "progress" && <RefreshCw className="w-3 h-3" />}
+                {cat.status === "todo" && <span className="w-3 h-3 rounded-sm border border-taupe-400/40" />}
+                {cat.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Slide 3: AI Amora Chat ─────────────────────────────────────────
+function SlideChat() {
+  return (
+    <div className="flex flex-col items-center px-6 pt-2 pb-2">
+      <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 text-center mb-1">
+        AI 아모라
+      </h2>
+      <p className="text-[13px] text-taupe-500 text-center mb-5">
+        24시간 웨딩 플래너
+      </p>
+
+      {/* Mock 채팅 UI */}
+      <div className="w-full max-w-[360px] flex flex-col gap-3">
+        {/* 유저 메시지 (오른쪽) */}
+        <div className="flex justify-end">
+          <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-noir-800 text-white px-4 py-2.5">
+            <p className="text-[13px] leading-relaxed">스드메 어디가 좋아?</p>
+          </div>
+        </div>
+
+        {/* AI 메시지 (왼쪽) */}
+        <div className="flex justify-start gap-2">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div className="flex flex-col gap-2 max-w-[80%]">
+            <div className="rounded-2xl rounded-tl-md bg-ivory-100 border border-ivory-200 px-4 py-2.5">
+              <p className="text-[13px] text-noir-800 leading-relaxed">
+                예산과 스타일에 맞는 3곳을 찾아봤어요
+              </p>
+            </div>
+
+            {/* 미니 업체 카드 */}
+            <div className="rounded-xl bg-white border border-ivory-200 p-3 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-ivory-200 to-ivory-100 flex items-center justify-center">
+                  <span className="text-[16px]">📸</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-noir-800 truncate">로렌 스튜디오</p>
+                  <p className="text-[11px] text-taupe-400">강남 · 스튜디오/드레스/메이크업</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[12px] font-medium text-rose-500">280만원</p>
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-[10px] text-gold">★</span>
+                    <span className="text-[10px] text-taupe-500">4.8</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 추천 버튼 */}
+            <div className="flex gap-2">
+              <button className="flex-1 text-[11px] text-rose-500 bg-white border border-rose-500/30 rounded-xl py-2 font-medium">
+                가격 비교
+              </button>
+              <button className="flex-1 text-[11px] text-rose-500 bg-white border border-rose-500/30 rounded-xl py-2 font-medium">
+                포트폴리오 보기
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 어노테이션 */}
+        <div className="flex justify-center">
+          <span className="text-[10px] text-rose-500 font-medium bg-white/90 rounded-full px-3 py-1 shadow-sm border border-rose-500/20">
+            업체 추천, 견적 분석, 일정 관리까지
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Slide 4: Budget ─────────────────────────────────────────────────
+function SlideBudget() {
+  return (
+    <div className="flex flex-col items-center px-6 pt-2 pb-2">
+      <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 text-center mb-1">
+        예산 관리
+      </h2>
+      <p className="text-[13px] text-taupe-500 text-center mb-5">
+        숨은 비용까지 관리
+      </p>
+
+      {/* Mock 예산 UI */}
+      <div className="w-full max-w-[360px] flex flex-col gap-3">
+        {/* 총 예산 카드 */}
+        <div className="rounded-2xl bg-noir-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] text-taupe-400">총 예산</span>
+            <span className="text-[14px] font-medium text-ivory-50">3,000만원</span>
+          </div>
+          <div className="w-full h-2.5 rounded-full bg-noir-soft overflow-hidden">
+            <div className="flex h-full">
+              <div className="h-full bg-gradient-to-r from-rose-500 to-rose-light" style={{ width: "36%" }} />
+              <div className="h-full bg-gold/60" style={{ width: "18%" }} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[11px] text-taupe-400">1,080만원 사용</span>
+            <span className="text-[11px] text-gold-light">540만원 진행중</span>
+          </div>
+        </div>
+
+        {/* 카테고리 리스트 */}
+        <div className="rounded-2xl bg-white border border-ivory-200 overflow-hidden divide-y divide-ivory-200">
+          {[
+            {
+              name: "예식장",
+              spent: 600,
+              total: 800,
+              tag: "커플",
+              tagColor: "bg-rose-500/10 text-rose-500",
+              warning: false,
+            },
+            {
+              name: "스드메",
+              spent: 280,
+              total: 350,
+              tag: "신부측",
+              tagColor: "bg-purple-50 text-purple-600",
+              warning: true,
+              warningText: "+50~150만원 추가 예상",
+            },
+            {
+              name: "신혼여행",
+              spent: 200,
+              total: 300,
+              tag: "커플",
+              tagColor: "bg-rose-500/10 text-rose-500",
+              warning: false,
+            },
+          ].map((row, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-noir-800">{row.name}</span>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${row.tagColor}`}>
+                    {row.tag === "커플" ? "👫 " : "👰 "}{row.tag}
+                  </span>
+                </div>
+                <span className="text-[12px] text-taupe-500">
+                  <span className="text-noir-800 font-medium">{row.spent}</span>/{row.total}만원
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-ivory-200 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    row.warning
+                      ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                      : "bg-gradient-to-r from-rose-500 to-gold"
+                  }`}
+                  style={{ width: `${(row.spent / row.total) * 100}%` }}
+                />
+              </div>
+              {row.warning && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  <AlertTriangle className="w-3 h-3 text-amber-500" />
+                  <span className="text-[10px] text-amber-600 font-medium">
+                    {row.warningText}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* 어노테이션 */}
+        <div className="flex justify-center">
+          <span className="text-[10px] text-rose-500 font-medium bg-white/90 rounded-full px-3 py-1 shadow-sm border border-rose-500/20">
+            숨은 비용 경고와 양가 분담 추적
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Slide 5: Couple Sync ────────────────────────────────────────────
+function SlideCouple() {
+  return (
+    <div className="flex flex-col items-center px-6 pt-2 pb-2">
+      <h2 className="font-serif-kr text-[20px] font-normal text-noir-800 text-center mb-1">
+        파트너와 함께
+      </h2>
+      <p className="text-[13px] text-taupe-500 text-center mb-5">
+        모든 변경사항이 실시간으로 동기화
+      </p>
+
+      {/* Mock 커플 동기화 UI */}
+      <div className="w-full max-w-[360px] flex flex-col gap-3">
+        {/* 커플 아바타 */}
+        <div className="flex items-center justify-center gap-6 py-3">
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-rose-light flex items-center justify-center">
+              <span className="text-[22px]">👰</span>
+            </div>
+            <span className="text-[12px] font-medium text-noir-800">신부</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <Heart className="w-5 h-5 text-rose-500 animate-guide-pulse" />
+            <span className="text-[10px] text-taupe-400">연결됨</span>
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6B8EBD] to-[#8EAED3] flex items-center justify-center">
+              <span className="text-[22px]">🤵</span>
+            </div>
+            <span className="text-[12px] font-medium text-noir-800">신랑</span>
+          </div>
+        </div>
+
+        {/* 활동 피드 */}
+        <div className="rounded-2xl bg-white border border-ivory-200 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-ivory-200 bg-ivory-50">
+            <p className="text-[11px] text-taupe-500 font-medium">최근 활동</p>
+          </div>
+          {[
+            {
+              avatar: "🤵",
+              bgColor: "bg-[#6B8EBD]/10",
+              text: "신랑이 예식장을 '진행중'으로 변경했어요",
+              time: "2분 전",
+            },
+            {
+              avatar: "👰",
+              bgColor: "bg-rose-500/10",
+              text: "신부가 스튜디오 예산을 수정했어요",
+              time: "15분 전",
+            },
+            {
+              avatar: "🤵",
+              bgColor: "bg-[#6B8EBD]/10",
+              text: "신랑이 메모를 남겼어요: \"여기 좋은 것 같아!\"",
+              time: "1시간 전",
+            },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-2.5 px-4 py-3 ${
+                i < 2 ? "border-b border-ivory-200" : ""
+              }`}
+            >
+              <div className={`w-7 h-7 rounded-full ${item.bgColor} flex items-center justify-center flex-shrink-0`}>
+                <span className="text-[14px]">{item.avatar}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] text-noir-800 leading-relaxed">{item.text}</p>
+                <p className="text-[10px] text-taupe-400 mt-0.5">{item.time}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Slide 6: Get Started ────────────────────────────────────────────
+function SlideStart({ onStart, neverShow, onNeverShowChange }: {
+  onStart: () => void;
+  neverShow: boolean;
+  onNeverShowChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center px-6 pt-6 pb-2">
+      {/* 로고 */}
+      <div className="relative w-20 h-20 mb-5">
+        <Image
+          src="/images/logo-512-transparent.png"
+          alt="웨딩한방"
+          fill
+          className="object-contain"
+        />
+      </div>
+
+      <h2 className="font-serif-kr text-[22px] font-normal text-noir-800 text-center leading-snug mb-2">
+        준비되셨나요?
+      </h2>
+      <p className="text-[14px] text-taupe-500 text-center mb-7">
+        무료로 모든 기능을 이용할 수 있어요
+      </p>
+
+      {/* CTA 버튼 */}
+      <button
+        onClick={onStart}
+        className="w-full max-w-[300px] py-3.5 bg-noir-800 hover:bg-noir-soft text-white text-[15px] font-medium rounded-2xl transition-colors mb-4"
+      >
+        시작하기
+      </button>
+
+      {/* 다시 보지 않기 */}
+      <label className="flex items-center gap-2 cursor-pointer select-none mb-6">
+        <input
+          type="checkbox"
+          checked={neverShow}
+          onChange={(e) => onNeverShowChange(e.target.checked)}
+          className="w-4 h-4 rounded border-taupe-400 text-rose-500 focus:ring-rose-500/30 accent-[#C4967E]"
+        />
+        <span className="text-[13px] text-taupe-400">다시 보지 않기</span>
+      </label>
+
+      {/* 신뢰 배지 */}
+      <div className="flex items-center justify-center gap-4">
+        {[
+          { icon: <Sparkles className="w-3.5 h-3.5" />, label: "무료" },
+          { icon: <Shield className="w-3.5 h-3.5" />, label: "광고 없음" },
+          { icon: <Check className="w-3.5 h-3.5" />, label: "데이터 보호" },
+        ].map((badge, i) => (
+          <div key={i} className="flex items-center gap-1 text-taupe-400">
+            {badge.icon}
+            <span className="text-[11px]">{badge.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────
 export default function ServiceGuide() {
   const [visible, setVisible] = useState(false);
   const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState<"next" | "prev">("next");
   const [animating, setAnimating] = useState(false);
   const [neverShow, setNeverShow] = useState(false);
+  // 엔트리 애니메이션: 처음 마운트될 때 false → true
+  const [entered, setEntered] = useState(false);
+  // 슬라이드 트랜지션: "visible" | "fading-out" | "fading-in"
+  const [slidePhase, setSlidePhase] = useState<"visible" | "fading-out" | "fading-in">("visible");
 
   useEffect(() => {
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
         setVisible(true);
+        // 약간 딜레이 후 엔트리 애니메이션
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setEntered(true));
+        });
       }
     } catch {
       // localStorage 접근 실패 시 가이드 표시하지 않음
@@ -123,7 +505,8 @@ export default function ServiceGuide() {
   }, []);
 
   const close = useCallback(() => {
-    setVisible(false);
+    setEntered(false);
+    setTimeout(() => setVisible(false), 250);
     if (neverShow) {
       try {
         localStorage.setItem(STORAGE_KEY, "true");
@@ -134,36 +517,40 @@ export default function ServiceGuide() {
   }, [neverShow]);
 
   const goTo = useCallback(
-    (index: number, dir: "next" | "prev") => {
-      if (animating || index < 0 || index >= slides.length) return;
-      setDirection(dir);
+    (index: number) => {
+      if (animating || index < 0 || index >= TOTAL_SLIDES || index === current) return;
       setAnimating(true);
-      // 짧은 딜레이로 CSS 트랜지션 트리거
+      setSlidePhase("fading-out");
       setTimeout(() => {
         setCurrent(index);
-        setTimeout(() => setAnimating(false), 320);
-      }, 10);
+        setSlidePhase("fading-in");
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setSlidePhase("visible");
+            setTimeout(() => setAnimating(false), 280);
+          });
+        });
+      }, 200);
     },
-    [animating]
+    [animating, current]
   );
 
   const next = useCallback(() => {
-    if (current === slides.length - 1) return;
-    goTo(current + 1, "next");
+    if (current < TOTAL_SLIDES - 1) goTo(current + 1);
   }, [current, goTo]);
 
   const prev = useCallback(() => {
-    if (current === 0) return;
-    goTo(current - 1, "prev");
+    if (current > 0) goTo(current - 1);
   }, [current, goTo]);
 
-  const handleLastSlideClick = useCallback(() => {
+  const handleStart = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, "true");
     } catch {
       // 무시
     }
-    setVisible(false);
+    setEntered(false);
+    setTimeout(() => setVisible(false), 250);
   }, []);
 
   // 키보드 네비게이션
@@ -180,21 +567,28 @@ export default function ServiceGuide() {
 
   if (!visible) return null;
 
-  const isLast = current === slides.length - 1;
-  const slide = slides[current];
+  const isLast = current === TOTAL_SLIDES - 1;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
+        entered ? "bg-black/50 backdrop-blur-sm" : "bg-black/0"
+      }`}
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="relative w-full max-w-[480px] mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden">
-        {/* 상단: 건너뛰기 + 페이지 번호 */}
+      <div
+        className={`relative w-full max-w-[520px] mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
+          entered
+            ? "opacity-100 scale-100 translate-y-0"
+            : "opacity-0 scale-95 translate-y-4"
+        }`}
+      >
+        {/* 상단 헤더: 페이지 번호 + 건너뛰기 */}
         <div className="flex items-center justify-between px-6 pt-5 pb-2">
           <span className="text-[13px] text-taupe-400 font-medium">
-            {current + 1}/{slides.length}
+            {current + 1}/{TOTAL_SLIDES}
           </span>
           <button
             onClick={close}
@@ -205,93 +599,68 @@ export default function ServiceGuide() {
           </button>
         </div>
 
-        {/* 슬라이드 컨텐츠 영역 */}
-        <div className="relative overflow-hidden" style={{ minHeight: "360px" }}>
-          <div
-            className="px-8 py-6 flex flex-col items-center text-center transition-all duration-300 ease-out"
-            style={{
-              opacity: animating ? 0 : 1,
-              transform: animating
-                ? direction === "next"
-                  ? "translateX(60px)"
-                  : "translateX(-60px)"
-                : "translateX(0)",
-            }}
-          >
-            {/* 아이콘 */}
-            <div className="mb-8">{slide.icon}</div>
-
-            {/* 제목 */}
-            <h2 className="font-serif-kr text-[24px] font-normal text-noir-800 mb-4 whitespace-pre-line leading-snug">
-              {slide.title}
-            </h2>
-
-            {/* 설명 */}
-            <div className="flex flex-col gap-2">
-              {slide.descriptions.map((desc, i) => (
-                <p
-                  key={i}
-                  className="text-[15px] text-taupe-500 font-light leading-relaxed"
-                >
-                  {desc}
-                </p>
-              ))}
-            </div>
+        {/* 프로그레스 바 */}
+        <div className="px-6 mb-3">
+          <div className="w-full h-[3px] rounded-full bg-ivory-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-rose-500 to-gold transition-all duration-500 ease-out"
+              style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
+            />
           </div>
         </div>
 
-        {/* 하단: 네비게이션 */}
-        <div className="px-6 pb-6 pt-2">
-          {/* 마지막 슬라이드: 시작 버튼 + 다시 보지 않기 */}
-          {isLast ? (
-            <div className="flex flex-col items-center gap-4">
+        {/* 슬라이드 콘텐츠 */}
+        <div
+          className={`min-h-[440px] transition-all duration-200 ease-out ${
+            slidePhase === "fading-out"
+              ? "opacity-0 scale-[0.96]"
+              : slidePhase === "fading-in"
+              ? "opacity-0 scale-[1.02]"
+              : "opacity-100 scale-100"
+          }`}
+        >
+          {current === 0 && <SlideWelcome />}
+          {current === 1 && <SlideDashboard />}
+          {current === 2 && <SlideChat />}
+          {current === 3 && <SlideBudget />}
+          {current === 4 && <SlideCouple />}
+          {current === 5 && (
+            <SlideStart
+              onStart={handleStart}
+              neverShow={neverShow}
+              onNeverShowChange={setNeverShow}
+            />
+          )}
+        </div>
+
+        {/* 하단 네비게이션 */}
+        <div className="px-6 pb-5 pt-2">
+          {!isLast && (
+            <div className="flex items-center justify-between">
               <button
-                onClick={handleLastSlideClick}
-                className="w-full py-3.5 bg-noir-800 hover:bg-noir-soft text-white text-[15px] font-medium rounded-2xl transition-colors"
+                onClick={prev}
+                disabled={current === 0}
+                className="flex items-center gap-1 px-4 py-2.5 text-[14px] text-taupe-500 hover:text-noir-800 disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
               >
-                무료로 시작하기
+                <ChevronLeft className="w-4 h-4" />
+                이전
               </button>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={neverShow}
-                  onChange={(e) => setNeverShow(e.target.checked)}
-                  className="w-4 h-4 rounded border-taupe-400 text-rose-500 focus:ring-rose-500/30 accent-[#C4967E]"
-                />
-                <span className="text-[13px] text-taupe-400">
-                  다시 보지 않기
-                </span>
-              </label>
+              <button
+                onClick={next}
+                className="flex items-center gap-1 px-5 py-2.5 bg-noir-800 hover:bg-noir-soft text-white text-[14px] font-medium rounded-xl transition-colors"
+              >
+                다음
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          ) : (
-            <>
-              {/* 이전 / 다음 버튼 */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={prev}
-                  disabled={current === 0}
-                  className="flex items-center gap-1 px-4 py-2.5 text-[14px] text-taupe-500 hover:text-noir-800 disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  이전
-                </button>
-                <button
-                  onClick={next}
-                  className="flex items-center gap-1 px-5 py-2.5 bg-noir-800 hover:bg-noir-soft text-white text-[14px] font-medium rounded-xl transition-colors"
-                >
-                  다음
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </>
           )}
 
           {/* 도트 인디케이터 */}
-          <div className="flex items-center justify-center gap-2 mt-5">
-            {slides.map((_, i) => (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            {Array.from({ length: TOTAL_SLIDES }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => goTo(i, i > current ? "next" : "prev")}
+                onClick={() => goTo(i)}
                 className={`rounded-full transition-all duration-300 ${
                   i === current
                     ? "w-6 h-2 bg-rose-500"
