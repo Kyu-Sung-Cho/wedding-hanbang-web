@@ -333,21 +333,32 @@ function ChatTab({
 
       {/* 입력 */}
       <div className="mt-3 rounded-2xl border border-[#F0EFED] bg-white p-3">
-        <div className="mb-2 flex gap-2">
-          <select
-            value={thread}
-            onChange={(e) =>
-              setThread(e.target.value as CohortThreadTopic | "")
-            }
-            className="rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-1.5 text-xs text-[#1A1A1F] outline-none"
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setThread("")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              thread === ""
+                ? "bg-[#1A1A1F] text-white"
+                : "bg-[#F5F2ED] text-[#878680] hover:bg-[#F0EFED]"
+            }`}
           >
-            <option value="">주제 없음</option>
-            {COHORT_THREAD_TOPICS.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            주제 없음
+          </button>
+          {COHORT_THREAD_TOPICS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                thread === t.key
+                  ? "bg-[#1A1A1F] text-white"
+                  : "bg-[#F5F2ED] text-[#878680] hover:bg-[#F0EFED]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
         <div className="flex gap-2">
           <textarea
