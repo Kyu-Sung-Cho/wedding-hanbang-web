@@ -1,47 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ArrowLeft,
   Bookmark,
   Share2,
   Flag,
   Lock,
   ImageIcon,
-  ChevronRight,
   X,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  ChevronUp,
+  ChevronDown,
   List,
+  Eye,
+  Wallet,
+  ShieldCheck,
+  AlertTriangle,
+  Sparkles,
+  CheckCircle2,
+  Pin,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import { sanitizeHtml } from "@/utils/sanitize";
-import VoteButtons from "@/components/community/VoteButtons";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
-import type { BadgeType } from "@/types/community.types";
+import type { CommunityRank } from "@/types/community.types";
 
-// 배지 라벨
-function badgeLabel(badge: BadgeType | string | null | undefined): string | null {
-  switch (badge) {
-    case "senior":
-      return "결혼 선배";
-    case "master":
-      return "웨딩 마스터";
-    case "expert":
-      return "결준 고수";
-    case "preparing":
-      return "예비 신부/신랑";
-    default:
-      return null;
+// 아바타 그래디언트 팔레트 (PostCard와 동일)
+const AVATAR_GRADIENTS = [
+  "from-[#C4967E] to-[#C9A96E]",
+  "from-[#A8D8A8] to-[#6BBF6B]",
+  "from-[#7EB8D8] to-[#5A9CC0]",
+  "from-[#C9A96E] to-[#DCC9A0]",
+  "from-[#D88B8B] to-[#C06B6B]",
+  "from-[#B39DDB] to-[#7E57C2]",
+];
+
+// 계급 라벨 + 레벨 (PostCard와 동일)
+const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: string; text: string }> = {
+  sprout:    { label: "새싹",   level: 1, bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]" },
+  preparing: { label: "준비중", level: 2, bg: "bg-[#7EB8D8]/10", text: "text-[#5A9CC0]" },
+  expert:    { label: "전문가", level: 3, bg: "bg-[#C4967E]/10", text: "text-[#C4967E]" },
+  master:    { label: "마스터", level: 4, bg: "bg-[#C9A96E]/10", text: "text-[#C9A96E]" },
+  senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
+};
+
+// 비용 포맷 헬퍼 (PostCard와 동일)
+function formatPrice(value: number): string {
+  if (value >= 10000) {
+    return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}억`;
   }
+  return value.toLocaleString("ko-KR");
 }
 
 // 신고 사유 옵션
@@ -89,6 +106,11 @@ export default function PostDetailPage() {
 
   // 로그인 필요 알림
   const [loginToast, setLoginToast] = useState(false);
+
+  // 낙관적 투표 UI (PostCard 패턴)
+  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticDelta, setOptimisticDelta] = useState(0);
+  const [isVoting, setIsVoting] = useState(false);
 
   // 유저 상태 확인
   useEffect(() => {
@@ -198,6 +220,47 @@ export default function PostDetailPage() {
     }
   }
 
+  // 투표 핸들러 (PostCard 패턴 - 녹색/빨간색)
+  const handleVote = useCallback(
+    async (vote: 1 | -1) => {
+      if (!user) {
+        setLoginToast(true);
+        setTimeout(() => setLoginToast(false), 2000);
+        return;
+      }
+      if (isVoting || !post) return;
+
+      const prevVote = post.user_vote ?? null;
+      let newVote: 1 | -1 | null;
+      let delta = 0;
+
+      if (prevVote === vote) {
+        newVote = null;
+        delta = -vote;
+      } else if (prevVote === null) {
+        newVote = vote;
+        delta = vote;
+      } else {
+        newVote = vote;
+        delta = vote * 2;
+      }
+
+      setOptimisticVote(newVote);
+      setOptimisticDelta(delta);
+      setIsVoting(true);
+
+      try {
+        await votePost(post.id, post.user_vote === vote ? 0 : vote);
+      } catch {
+        setOptimisticVote(undefined);
+        setOptimisticDelta(0);
+      } finally {
+        setIsVoting(false);
+      }
+    },
+    [user, isVoting, post, votePost]
+  );
+
   // 로딩
   if (postLoading) {
     return (
@@ -251,8 +314,18 @@ export default function PostDetailPage() {
   // 멤버전용 & 비로그인
   const isMembersOnly = post.visibility === "members" && !user;
   const categoryInfo = CATEGORY_MAP[post.category];
-  const voteCount = post.upvote_count - post.downvote_count;
   const isAuthor = user && user.id === post.author_id;
+
+  // 투표 표시값 (낙관적 UI)
+  const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote ?? null);
+  const voteCount = post.upvote_count - post.downvote_count + optimisticDelta;
+
+  // 작성자 정보 (PostCard 패턴)
+  const author = post.author ?? { nickname: "익명", rank: "sprout" as CommunityRank, avatar_url: null, wedding_year: null, wedding_month: null };
+  const rankConfig = RANK_CONFIG[author.rank];
+  const gradientIndex = author.nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
+  const avatarGradient = AVATAR_GRADIENTS[gradientIndex];
+  const isEmoji = author.avatar_url ? /\p{Emoji}/u.test(author.avatar_url) : false;
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
@@ -283,67 +356,155 @@ export default function PostDetailPage() {
         {/* 메인 포스트 카드 */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] overflow-hidden">
           <div className="flex">
-            {/* 좌측 투표 스트립 (데스크탑) */}
-            <div className="hidden md:flex flex-col items-center w-11 bg-[#FAFAF8] rounded-l-2xl pt-3 shrink-0">
-              <VoteButtons
-                count={voteCount}
-                userVote={post.user_vote ?? null}
-                onVote={(v) =>
-                  votePost(post.id, post.user_vote === v ? 0 : v)
-                }
-                isLoggedIn={!!user}
-              />
+            {/* 좌측 투표 스트립 (데스크탑) - 녹색 업/빨간색 다운 */}
+            <div className="hidden md:flex flex-col items-center w-14 bg-[#FAFAF8] rounded-l-2xl pt-5 shrink-0 gap-0.5">
+              <button
+                type="button"
+                onClick={() => handleVote(1)}
+                disabled={isVoting}
+                className={`p-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
+                  displayVote === 1
+                    ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
+                    : "text-[#B5ADA3] hover:text-[#2E7D5A]"
+                } disabled:opacity-50`}
+                aria-label="추천"
+              >
+                <ChevronUp className="w-5 h-5" strokeWidth={displayVote === 1 ? 2.5 : 2} />
+              </button>
+              <span
+                className={`text-sm font-semibold min-w-[1.5rem] text-center ${
+                  displayVote === 1
+                    ? "text-[#2E7D5A]"
+                    : displayVote === -1
+                    ? "text-[#D85A5A]"
+                    : "text-[#1A1A1F]"
+                }`}
+              >
+                {voteCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleVote(-1)}
+                disabled={isVoting}
+                className={`p-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
+                  displayVote === -1
+                    ? "text-[#D85A5A] bg-[#D85A5A]/10"
+                    : "text-[#B5ADA3] hover:text-[#D85A5A]"
+                } disabled:opacity-50`}
+                aria-label="비추천"
+              >
+                <ChevronDown className="w-5 h-5" strokeWidth={displayVote === -1 ? 2.5 : 2} />
+              </button>
             </div>
 
             {/* 콘텐츠 영역 */}
-            <div className="flex-1 min-w-0 p-4">
-              {/* 메타: 카테고리 · 작성자 · 시간 */}
-              <div className="flex items-center gap-2 text-sm text-[#878680] mb-3">
-                {categoryInfo && (
-                  <>
-                    <Link
-                      href={`/community/${post.category}`}
-                      className="font-semibold text-[#1A1A1F] hover:text-[#C4967E] transition-all duration-200"
-                    >
-                      {categoryInfo.label}
-                    </Link>
-                    <span>&middot;</span>
-                  </>
-                )}
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-[#F0EFED] ring-1 ring-[#F0EFED] flex items-center justify-center overflow-hidden">
-                    {post.author?.avatar_url ? (
-                      <Image
-                        src={post.author?.avatar_url}
-                        alt=""
-                        width={20}
-                        height={20}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-[#878680]">
-                        {(post.author?.nickname ?? "익명").charAt(0)}
-                      </span>
-                    )}
+            <div className="flex-1 min-w-0 p-5">
+              {/* 작성자 행: 그래디언트 아바타 + 닉네임 + 랭크 배지 + 시간 + 카테고리 */}
+              <div className="flex items-center gap-2.5 mb-4">
+                {/* 그래디언트 아바타 */}
+                <Link
+                  href={`/community?author_id=${post.author_id}`}
+                  className="shrink-0"
+                >
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center ring-2 ring-white shadow-sm`}>
+                    <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
+                      {isEmoji ? author.avatar_url : author.nickname.charAt(0)}
+                    </span>
                   </div>
-                  <span className="hover:underline cursor-pointer font-medium text-[#1A1A1F]">
-                    {(post.author?.nickname ?? "익명")}
+                </Link>
+
+                {/* 닉네임 */}
+                <Link
+                  href={`/community?author_id=${post.author_id}`}
+                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200"
+                >
+                  {author.nickname}
+                </Link>
+
+                {/* 랭크 배지 (pill) */}
+                {rankConfig && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${rankConfig.bg} ${rankConfig.text}`}>
+                    Lv.{rankConfig.level} {rankConfig.label}
                   </span>
-                </div>
-                {badgeLabel(post.author?.rank) && (
+                )}
+
+                {/* 결혼 동기 */}
+                {author.wedding_year && author.wedding_month && (
                   <>
-                    <span>&middot;</span>
-                    <span className="text-[#C4967E] font-medium">
-                      {badgeLabel(post.author?.rank)}
+                    <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
+                    <span className="text-[13px] text-[#878680]">
+                      {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
                     </span>
                   </>
                 )}
-                <span>&middot;</span>
-                <span>{timeAgo(post.created_at)}</span>
+
+                {/* 시간 */}
+                <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
+                <span className="text-[13px] text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
+
+                {/* 카테고리 */}
+                {categoryInfo && (
+                  <>
+                    <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
+                    <Link
+                      href={`/community/${post.category}`}
+                      className="text-[13px] font-medium text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
+                    >
+                      {categoryInfo.label}
+                    </Link>
+                  </>
+                )}
+
+                {/* 광고 표시 배지 */}
+                {post.ad_disclosure === "sponsored" && (
+                  <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-xs font-medium">
+                    협찬
+                  </span>
+                )}
+                {post.ad_disclosure === "ad" && (
+                  <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">
+                    광고
+                  </span>
+                )}
+                {post.is_verified_review && (
+                  <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-xs font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    인증후기
+                  </span>
+                )}
+                {post.under_review && (
+                  <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-xs font-medium">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    검토 중
+                  </span>
+                )}
               </div>
 
               {/* 제목 */}
               <h1 className="text-xl sm:text-2xl font-medium text-[#1A1A1F] leading-snug mb-3">
+                {post.is_pinned && (
+                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                    <Pin className="w-4 h-4" />
+                    PIN
+                  </span>
+                )}
+                {post.is_weekly_best && (
+                  <span className="text-[#C9A96E] text-sm font-medium mr-2 align-middle">
+                    BEST
+                  </span>
+                )}
+                {post.is_resolved && (
+                  <span className="inline-flex items-center gap-1 text-[#22C55E] mr-2 text-sm font-medium align-middle">
+                    <CheckCircle2 className="w-4 h-4" />
+                    해결됨
+                  </span>
+                )}
+                {post.ai_comment && (
+                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                    <Sparkles className="w-4 h-4" />
+                    AI 분석
+                  </span>
+                )}
                 {post.title}
               </h1>
 
@@ -510,9 +671,32 @@ export default function PostDetailPage() {
                 </div>
               )}
 
-              {/* 비용 공유 데이터 (레거시) */}
+              {/* 비용 요약 바 + 상세 비용 데이터 */}
               {!isMembersOnly && post.cost_data && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
+                  {/* 인라인 가격 요약 바 (PostCard 패턴) */}
+                  <div className="bg-[#FDFCFA] rounded-xl px-4 py-3 border border-[#F5F2ED] flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">총 비용</p>
+                      <p className="text-base font-semibold text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</p>
+                    </div>
+                    {post.cost_data.region && (
+                      <div className="ml-4">
+                        <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">지역</p>
+                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.region}</p>
+                      </div>
+                    )}
+                    {post.cost_data.guestCount && (
+                      <div className="ml-4">
+                        <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">하객</p>
+                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.guestCount}명</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* 상세 비용 표시 */}
                   <CostShareDisplay data={post.cost_data} />
                 </div>
               )}
@@ -564,23 +748,57 @@ export default function PostDetailPage() {
                 )}
 
               {/* 액션바 */}
-              <div className="mt-4 pt-3 border-t border-[#F0EFED] flex items-center gap-4 text-sm font-medium text-[#B5ADA3]">
-                {/* 모바일 투표 */}
-                <div className="md:hidden mr-1">
-                  <VoteButtons
-                    count={voteCount}
-                    userVote={post.user_vote ?? null}
-                    onVote={(v) =>
-                      votePost(post.id, post.user_vote === v ? 0 : v)
-                    }
-                    compact
-                    isLoggedIn={!!user}
-                  />
+              <div className="mt-5 pt-4 border-t border-[#F0EFED] flex items-center gap-5 text-[15px] text-[#B5ADA3]">
+                {/* 모바일 투표 - 녹색/빨간색 (PostCard 패턴) */}
+                <div className="md:hidden flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleVote(1)}
+                    disabled={isVoting}
+                    className={`p-1 rounded transition-colors duration-200 ${
+                      displayVote === 1
+                        ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
+                        : "hover:text-[#2E7D5A]"
+                    } disabled:opacity-50`}
+                    aria-label="추천"
+                  >
+                    <ChevronUp className="w-5 h-5" strokeWidth={displayVote === 1 ? 2.5 : 2} />
+                  </button>
+                  <span
+                    className={`text-[15px] font-medium min-w-[1.5rem] text-center ${
+                      displayVote === 1
+                        ? "text-[#2E7D5A]"
+                        : displayVote === -1
+                        ? "text-[#D85A5A]"
+                        : "text-[#1A1A1F]"
+                    }`}
+                  >
+                    {voteCount}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleVote(-1)}
+                    disabled={isVoting}
+                    className={`p-1 rounded transition-colors duration-200 ${
+                      displayVote === -1
+                        ? "text-[#D85A5A] bg-[#D85A5A]/10"
+                        : "hover:text-[#D85A5A]"
+                    } disabled:opacity-50`}
+                    aria-label="비추천"
+                  >
+                    <ChevronDown className="w-5 h-5" strokeWidth={displayVote === -1 ? 2.5 : 2} />
+                  </button>
                 </div>
 
                 {/* 댓글 수 */}
-                <span className="px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] cursor-default transition-all duration-200">
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] cursor-default transition-all duration-200">
                   {post.comment_count ?? 0} 댓글
+                </span>
+
+                {/* 조회수 */}
+                <span className="flex items-center gap-1.5">
+                  <Eye className="w-4 h-4" />
+                  <span>{post.view_count}</span>
                 </span>
 
                 {/* 공유 */}

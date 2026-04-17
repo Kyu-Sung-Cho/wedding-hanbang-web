@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Reply, Trash2, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Reply, Trash2, X } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
-import VoteButtons from "@/components/community/VoteButtons";
-import type { CommentWithAuthor, BadgeType } from "@/types/community.types";
+import type { CommentWithAuthor, CommunityRank } from "@/types/community.types";
 
 interface CommentItemProps {
   comment: CommentWithAuthor;
@@ -17,20 +16,24 @@ interface CommentItemProps {
   onReply: (parentId: string, content: string) => Promise<void>;
 }
 
-function badgeLabel(badge: BadgeType | string | null | undefined): string | null {
-  switch (badge) {
-    case "senior":
-      return "결혼 선배";
-    case "master":
-      return "웨딩 마스터";
-    case "expert":
-      return "결준 고수";
-    case "preparing":
-      return "예비 신부/신랑";
-    default:
-      return null;
-  }
-}
+// 아바타 그래디언트 팔레트 (PostCard 동일)
+const AVATAR_GRADIENTS = [
+  "from-[#C4967E] to-[#C9A96E]",
+  "from-[#A8D8A8] to-[#6BBF6B]",
+  "from-[#7EB8D8] to-[#5A9CC0]",
+  "from-[#C9A96E] to-[#DCC9A0]",
+  "from-[#D88B8B] to-[#C06B6B]",
+  "from-[#B39DDB] to-[#7E57C2]",
+];
+
+// 계급 라벨 + 레벨 (PostCard 동일)
+const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: string; text: string }> = {
+  sprout:    { label: "새싹",   level: 1, bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]" },
+  preparing: { label: "준비중", level: 2, bg: "bg-[#7EB8D8]/10", text: "text-[#5A9CC0]" },
+  expert:    { label: "전문가", level: 3, bg: "bg-[#C4967E]/10", text: "text-[#C4967E]" },
+  master:    { label: "마스터", level: 4, bg: "bg-[#C9A96E]/10", text: "text-[#C9A96E]" },
+  senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
+};
 
 export default function CommentItem({
   comment,
@@ -48,6 +51,15 @@ export default function CommentItem({
 
   const isAuthor = currentUserId === comment.author_id;
   const isLoggedIn = !!currentUserId;
+
+  // 아바타 & 랭크 계산
+  const nickname = comment.author?.nickname ?? "익명";
+  const rank: CommunityRank = (comment.author?.rank as CommunityRank) || "sprout";
+  const rankConfig = RANK_CONFIG[rank];
+  const gradientIndex = nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
+  const avatarGradient = AVATAR_GRADIENTS[gradientIndex];
+  const avatarUrl = comment.author?.avatar_url;
+  const isEmoji = avatarUrl ? /\p{Emoji}/u.test(avatarUrl) : false;
 
   async function handleReplySubmit() {
     if (!replyContent.trim() || submittingReply) return;
@@ -104,25 +116,23 @@ export default function CommentItem({
     >
       <div className="py-3">
         <div className="flex gap-2">
-          {/* 아바타 */}
+          {/* 그래디언트 아바타 */}
           <div
-            className={`rounded-full bg-[#F0EFED] ring-1 ring-[#F0EFED] overflow-hidden flex items-center justify-center text-[#878680] shrink-0 ${
+            className={`rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 ${
               isReply ? "w-7 h-7" : "w-8 h-8"
             }`}
           >
-            {comment.author?.avatar_url ? (
+            {avatarUrl && !isEmoji ? (
               <Image
-                src={comment.author?.avatar_url}
+                src={avatarUrl}
                 alt=""
                 width={isReply ? 28 : 32}
                 height={isReply ? 28 : 32}
-                className="w-full h-full object-cover"
+                className="w-full h-full rounded-full object-cover"
               />
             ) : (
-              <span
-                className="text-xs font-bold"
-              >
-                {(comment.author?.nickname ?? "익명").charAt(0)}
+              <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
+                {isEmoji ? avatarUrl : nickname.charAt(0)}
               </span>
             )}
           </div>
@@ -130,18 +140,16 @@ export default function CommentItem({
           {/* 내용 */}
           <div className="flex-1 min-w-0">
             {/* 작성자 정보 */}
-            <div className="flex items-center gap-1 text-sm">
+            <div className="flex items-center gap-1.5 text-[13px]">
               <span className="font-medium text-[#1A1A1F]">
-                {(comment.author?.nickname ?? "익명")}
+                {nickname}
               </span>
-              {badgeLabel(comment.author?.rank) && (
-                <>
-                  <span className="text-[#B5ADA3]">&middot;</span>
-                  <span className="text-[#C4967E] font-medium">
-                    {badgeLabel(comment.author?.rank)}
-                  </span>
-                </>
-              )}
+
+              {/* 랭크 배지 (pill) */}
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none ${rankConfig.bg} ${rankConfig.text}`}>
+                Lv.{rankConfig.level} {rankConfig.label}
+              </span>
+
               <span className="text-[#B5ADA3]">&middot;</span>
               <time className="text-[#B5ADA3]" title={comment.created_at}>
                 {timeAgo(comment.created_at)}
@@ -154,16 +162,45 @@ export default function CommentItem({
             </p>
 
             {/* 액션 행: 투표, 답글, 삭제 */}
-            <div className="mt-2 flex items-center gap-2 text-sm font-medium text-[#B5ADA3]">
-              <VoteButtons
-                count={comment.upvote_count}
-                userVote={comment.user_vote ?? null}
-                onVote={(v) =>
-                  onVote(comment.id, comment.user_vote === v ? 0 : v)
-                }
-                compact
-                isLoggedIn={isLoggedIn}
-              />
+            <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
+              {/* 인라인 투표 (green/red) */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
+                  className={`p-0.5 rounded transition-colors duration-200 ${
+                    comment.user_vote === 1
+                      ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
+                      : "hover:text-[#2E7D5A]"
+                  }`}
+                  aria-label="추천"
+                >
+                  <ChevronUp className="w-4 h-4" strokeWidth={comment.user_vote === 1 ? 2.5 : 2} />
+                </button>
+                <span
+                  className={`text-[13px] font-medium min-w-[1.25rem] text-center ${
+                    comment.user_vote === 1
+                      ? "text-[#2E7D5A]"
+                      : comment.user_vote === -1
+                      ? "text-[#D85A5A]"
+                      : "text-[#1A1A1F]"
+                  }`}
+                >
+                  {comment.upvote_count}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onVote(comment.id, comment.user_vote === -1 ? 0 : -1)}
+                  className={`p-0.5 rounded transition-colors duration-200 ${
+                    comment.user_vote === -1
+                      ? "text-[#D85A5A] bg-[#D85A5A]/10"
+                      : "hover:text-[#D85A5A]"
+                  }`}
+                  aria-label="비추천"
+                >
+                  <ChevronDown className="w-4 h-4" strokeWidth={comment.user_vote === -1 ? 2.5 : 2} />
+                </button>
+              </div>
 
               {/* 답글 버튼 (최상위 댓글에만) */}
               {!isReply && isLoggedIn && (
@@ -173,18 +210,18 @@ export default function CommentItem({
                     setShowReplyInput(!showReplyInput);
                     if (showReplyInput) setReplyContent("");
                   }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 ${
                     showReplyInput ? "text-[#C4967E]" : ""
                   }`}
                 >
                   {showReplyInput ? (
                     <>
-                      <X className="w-4 h-4" />
-                      답글 취소
+                      <X className="w-3.5 h-3.5" />
+                      취소
                     </>
                   ) : (
                     <>
-                      <Reply className="w-4 h-4" />
+                      <Reply className="w-3.5 h-3.5" />
                       답글
                     </>
                   )}
@@ -196,9 +233,9 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] hover:text-[#C4967E] transition-all duration-200"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] hover:text-[#D85A5A] transition-all duration-200"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   삭제
                 </button>
               )}
