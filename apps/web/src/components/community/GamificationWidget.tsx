@@ -114,7 +114,7 @@ export default function GamificationWidget() {
   // 비로그인 CTA
   if (!loggedIn) {
     return (
-      <div className="rounded-2xl bg-[#FDFCFA] p-7">
+      <div className="rounded-xl bg-[#FDFCFA] p-8">
         <p className="mb-1 text-center font-serif-kr text-lg italic text-[#1A1A1F]">
           커뮤니티에 참여하세요
         </p>
@@ -124,7 +124,7 @@ export default function GamificationWidget() {
         </p>
         <Link
           href="/login"
-          className="block w-full rounded-xl bg-[#1A1A1F] px-5 py-3.5 text-center text-sm font-medium text-white transition-opacity duration-200 hover:opacity-90"
+          className="block w-full rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] px-5 py-3.5 text-center text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200"
         >
           로그인
         </Link>
@@ -135,8 +135,8 @@ export default function GamificationWidget() {
   // 로딩 스켈레톤
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-2xl bg-[#FDFCFA] p-6">
+      <div className="space-y-10">
+        <div className="rounded-xl bg-[#FDFCFA] p-8">
           <div className="h-4 w-16 bg-[#F0EFED] rounded animate-pulse mb-5" />
           <div className="h-3 w-32 bg-[#F0EFED] rounded animate-pulse mb-3" />
           <div className="h-1.5 w-full bg-[#F0EFED] rounded-full animate-pulse mb-5" />
@@ -149,7 +149,7 @@ export default function GamificationWidget() {
             ))}
           </div>
         </div>
-        <div className="rounded-2xl bg-[#FDFCFA] p-6">
+        <div className="rounded-xl bg-[#FDFCFA] p-8">
           <div className="h-4 w-24 bg-[#F0EFED] rounded animate-pulse mb-3" />
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -177,11 +177,11 @@ export default function GamificationWidget() {
     : allAchievements.slice(0, 5);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       {/* 내 활동 + 업적 */}
-      <div className="rounded-2xl bg-[#FDFCFA]">
+      <div className="rounded-xl bg-[#FDFCFA]">
         {/* Section 1: 내 활동 */}
-        <div className="p-7">
+        <div className="p-8">
           <div className="relative">
             <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
               내 활동
@@ -252,7 +252,7 @@ export default function GamificationWidget() {
         {/* 구분: 배경 전환 */}
         <div className="h-px bg-[#F0EFED]/60" />
 
-        <div className="px-7 py-3">
+        <div className="px-8 py-3">
           <button
             onClick={() => setShowAchievements(!showAchievements)}
             className="flex items-center justify-between w-full text-xs text-[#878680] hover:text-[#C4967E] transition-colors duration-200"
@@ -264,7 +264,7 @@ export default function GamificationWidget() {
 
         {/* Section 2: 업적 (접힌 상태가 기본) */}
         {showAchievements && (
-          <div className="px-7 pb-7">
+          <div className="px-8 pb-8">
             <div className="space-y-3">
               {displayAchievements.map((ach) => {
                 const isUnlocked = unlockedSet.has(ach.key);
@@ -313,7 +313,7 @@ export default function GamificationWidget() {
       </div>
 
       {/* Section 3: 리더보드 */}
-      <div className="rounded-2xl bg-[#FDFCFA] p-7">
+      <div className="rounded-xl bg-[#FDFCFA] p-8">
         <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
           이번 주 활동 랭킹
         </h3>
@@ -338,8 +338,8 @@ export default function GamificationWidget() {
                     isCurrentUser ? "bg-[#F6F3F2]" : ""
                   }`}
                 >
-                  {/* 순위: serif italic */}
-                  <span className={`w-6 font-serif-kr text-base italic font-medium shrink-0 text-[#C4967E] tabular-nums ${opacity}`}>
+                  {/* 순위: serif italic 18px */}
+                  <span className={`w-6 font-serif-kr text-lg italic font-medium shrink-0 text-[#C4967E] tabular-nums ${opacity}`}>
                     {String(rank).padStart(2, "0")}
                   </span>
 

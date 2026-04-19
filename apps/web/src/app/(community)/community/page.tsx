@@ -170,11 +170,11 @@ function CommunityFeedContent() {
       </div>
 
       <div className="flex w-full">
-        {/* 왼쪽 사이드바 */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto bg-white py-8 px-3">
+        {/* 왼쪽 사이드바: w-72 = 288px */}
+        <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-white pt-12 pb-8 px-4">
           {/* serif italic 헤더 */}
-          <div className="px-5 mb-8">
-            <h2 className="font-serif-kr text-2xl italic text-[#1A1A1F] leading-tight">
+          <div className="px-4 mb-8">
+            <h2 className="font-serif-kr text-lg italic text-[#1A1A1F] leading-tight">
               커뮤니티
             </h2>
           </div>
@@ -189,13 +189,13 @@ function CommunityFeedContent() {
           <div className="mt-auto pt-6 px-2 space-y-2.5">
             <Link
               href="/community/quick-review"
-              className="flex items-center justify-center gap-2.5 w-full px-5 py-3 text-sm font-medium text-[#504444] bg-transparent hover:bg-[#F6F3F2] rounded-full transition-all duration-200"
+              className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-sm font-medium text-[#504444] bg-transparent hover:bg-[#F6F3F2] rounded-full transition-all duration-200"
             >
               15초 후기
             </Link>
             <Link
               href="/community/post/write"
-              className="flex items-center justify-center gap-2.5 w-full px-5 py-3.5 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full transition-all duration-200"
+              className="flex items-center justify-center gap-2.5 w-full px-4 py-3.5 text-sm font-medium text-white bg-gradient-to-br from-[#C4967E] to-[#9A6B62] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-full transition-all duration-200"
             >
               <PenSquare className="w-4 h-4" />
               글쓰기
@@ -203,9 +203,9 @@ function CommunityFeedContent() {
           </div>
         </aside>
 
-        {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-6 sm:px-8 lg:px-12 py-8">
-          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
+        {/* 가운데: 메인 피드 — px-6 lg:px-12 py-10, max-w-4xl */}
+        <main className="flex-1 min-w-0 px-6 lg:px-12 py-10">
+          <div className="max-w-4xl mx-auto lg:mx-0 lg:max-w-none">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
@@ -228,7 +228,7 @@ function CommunityFeedContent() {
             {/* 피드 헤더: serif title + sort dropdown */}
             {!isSearching && (
               <div className="flex items-center justify-between mb-8 border-b border-[#F0EFED]/60 pb-4">
-                <h2 className="font-serif-kr text-xl text-[#1A1A1F]">
+                <h2 className="font-serif-kr text-2xl text-[#1A1A1F]">
                   최근 대화
                 </h2>
                 <SortSelector
@@ -321,8 +321,8 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-8 pr-8 pl-4 space-y-8">
+        {/* 오른쪽 사이드바: w-80 = 320px, p-8 */}
+        <aside className="hidden xl:flex flex-col w-80 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto p-8 space-y-10">
           {/* 1. 오늘의 인기글 */}
           <TrendingPosts />
 
@@ -338,7 +338,7 @@ function CommunityFeedContent() {
 
           {/* 4. 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div className="bg-[#FDFCFA] rounded-2xl p-6">
+            <div className="bg-[#FDFCFA] rounded-xl p-8">
               <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
                 인기 태그
               </h3>
@@ -360,7 +360,7 @@ function CommunityFeedContent() {
           <GamificationWidget />
 
           <div className="text-center py-4">
-            <Link href="/" className="text-xs text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 tracking-wide">
+            <Link href="/" className="text-[10px] text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 tracking-widest uppercase">
               웨딩한방 서비스 둘러보기 →
             </Link>
           </div>

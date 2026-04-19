@@ -25,9 +25,9 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
   const postTrend = postCount > 50 ? "up" : postCount > 20 ? "steady" : "down";
 
   return (
-    <aside className="space-y-8">
+    <aside className="space-y-10">
       {/* 이번 주 요약 */}
-      <section className="bg-[#FDFCFA] rounded-2xl p-6">
+      <section className="bg-[#FDFCFA] rounded-xl p-8">
         <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
           이번 주 요약
         </h3>
@@ -89,7 +89,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
       {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
-        <section className="bg-[#FDFCFA] rounded-2xl p-6">
+        <section className="bg-[#FDFCFA] rounded-xl p-8">
           <div className="flex items-center gap-2.5 border-b border-[#F0EFED] pb-2 mb-5">
             <Tag className="w-4 h-4 text-[#C4967E]" />
             <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">많이 찾는 업체</h3>
@@ -109,7 +109,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       )}
 
       {/* 커뮤니티 원칙 */}
-      <section className="bg-[#FDFCFA] rounded-2xl p-6">
+      <section className="bg-[#FDFCFA] rounded-xl p-8">
         <div className="flex items-center gap-2.5 border-b border-[#F0EFED] pb-2 mb-5">
           <Shield className="w-4 h-4 text-[#C4967E]" />
           <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">커뮤니티 원칙</h3>
@@ -143,7 +143,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       </section>
 
       {/* 웨딩한방 서비스 */}
-      <section className="bg-[#1A1A1F] rounded-2xl p-7 text-white">
+      <section className="bg-[#1A1A1F] rounded-xl p-8 text-white">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="w-5 h-5 text-[#C9A96E]" />
           <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
@@ -153,7 +153,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </p>
         <Link
           href="/chat"
-          className="block w-full text-center bg-white text-[#1A1A1F] rounded-xl py-3 text-sm font-medium hover:bg-[#FAFAF8] transition-colors"
+          className="block w-full text-center bg-gradient-to-br from-[#C4967E] to-[#9A6B62] text-white rounded-xl py-3 text-sm font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200"
         >
           아모라와 대화하기
         </Link>

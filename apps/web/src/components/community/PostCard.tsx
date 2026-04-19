@@ -145,9 +145,9 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-2xl border border-transparent hover:border-[#F0EFED]/50 p-6 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
+    <article className="bg-white rounded-xl border border-transparent hover:border-[#F0EFED]/50 p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
       {/* 작성자 행: 아바타 + 닉네임 + 랭크 배지 + 시간 */}
-      <div className="flex items-center gap-2.5 mb-4">
+      <div className="flex items-center gap-2.5 mb-4 text-xs">
         {/* 그래디언트 아바타 */}
         <Link
           href={`/community?author_id=${post.author_id}`}
@@ -163,7 +163,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {/* 닉네임 */}
         <Link
           href={`/community?author_id=${post.author_id}`}
-          className="text-[13px] font-medium text-[#504444] hover:text-[#C4967E] transition-colors duration-200"
+          className="text-xs font-medium text-[#504444] hover:text-[#C4967E] transition-colors duration-200"
         >
           {author.nickname}
         </Link>
@@ -174,14 +174,14 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         </span>
 
         {/* 시간 */}
-        <span className="text-[#B5ADA3] text-[12px]">&middot;</span>
-        <span className="text-[12px] text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
+        <span className="text-[#B5ADA3] text-xs">&middot;</span>
+        <span className="text-xs text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
 
         {/* 결혼 동기 */}
         {author.wedding_year && author.wedding_month && (
           <>
-            <span className="text-[#B5ADA3] text-[12px]">&middot;</span>
-            <span className="text-[12px] text-[#B5ADA3]">
+            <span className="text-[#B5ADA3] text-xs">&middot;</span>
+            <span className="text-xs text-[#B5ADA3]">
               {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")}
             </span>
           </>
@@ -214,7 +214,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
       {/* 카테고리 배지 (제목 위) */}
       {categoryInfo && (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium mb-3 ${categoryBadgeStyle}`}>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium mb-3 ${categoryBadgeStyle}`}>
           {categoryInfo.shortLabel}
         </span>
       )}
@@ -258,7 +258,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
       {/* 본문 미리보기 — softer text */}
       {contentPreview && (
-        <p className="mt-2.5 text-sm text-[#504444] leading-relaxed line-clamp-2">
+        <p className="mt-2 text-sm text-[#504444] leading-relaxed line-clamp-2">
           {contentPreview}
         </p>
       )}
@@ -278,7 +278,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             <Link
               key={idx}
               href={`/community/post/${post.id}`}
-              className="relative shrink-0 w-24 h-20 rounded-lg overflow-hidden bg-[#F5F2ED]"
+              className="relative shrink-0 w-24 h-20 rounded-lg overflow-hidden bg-[#F6F3F2]"
             >
               <Image
                 src={src}
@@ -312,8 +312,8 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         </div>
       )}
 
-      {/* 액션 바 — subtle, smaller icons */}
-      <div className="mt-6 flex items-center gap-6 text-[13px] text-[#B5ADA3]">
+      {/* 액션 바 — subtle, 18px icons, 12px counts */}
+      <div className="mt-6 flex items-center gap-6 text-xs text-[#B5ADA3]">
         {/* 투표 그룹 */}
         <div className="flex items-center gap-0.5">
           <button
@@ -327,10 +327,10 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             } disabled:opacity-50`}
             aria-label="추천"
           >
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="w-[18px] h-[18px]" />
           </button>
           <span
-            className={`text-[13px] font-medium min-w-[1.25rem] text-center ${
+            className={`text-xs font-medium min-w-[1.25rem] text-center ${
               displayVote === 1
                 ? "text-[#2E7D5A]"
                 : displayVote === -1
@@ -351,7 +351,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             } disabled:opacity-50`}
             aria-label="비추천"
           >
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-[18px] h-[18px]" />
           </button>
         </div>
 
@@ -360,14 +360,14 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           href={`/community/post/${post.id}#comments`}
           className="flex items-center gap-1.5 hover:text-[#C4967E] transition-colors duration-200"
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>{post.comment_count}</span>
+          <MessageCircle className="w-[18px] h-[18px]" />
+          <span className="text-xs">{post.comment_count}</span>
         </Link>
 
         {/* 조회수 */}
         <span className="flex items-center gap-1.5">
-          <Eye className="w-4 h-4" />
-          <span>{post.view_count}</span>
+          <Eye className="w-[18px] h-[18px]" />
+          <span className="text-xs">{post.view_count}</span>
         </span>
 
         {/* 오른쪽: 북마크 + 공유 */}
@@ -381,7 +381,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             aria-label="저장"
           >
             <Bookmark
-              className="w-4 h-4"
+              className="w-[18px] h-[18px]"
               fill={bookmarked ? "#C4967E" : "none"}
             />
           </button>
@@ -390,7 +390,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             className="p-1 rounded-full hover:text-[#C4967E] transition-colors duration-200"
             aria-label="공유"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-[18px] h-[18px]" />
           </button>
         </div>
       </div>

@@ -100,7 +100,7 @@ export default function TrendingPosts() {
               href={`/community/post/${post.id}`}
               className="flex items-start gap-4 px-1 py-3 rounded-xl hover:bg-[#FDFCFA] transition-colors duration-200 group"
             >
-              {/* 순위: serif italic, primary color, 점차 연해짐 */}
+              {/* 순위: serif italic 18px, primary color, 점차 연해짐 */}
               <span
                 className={`w-7 font-serif-kr text-lg italic font-medium shrink-0 text-[#C4967E] tabular-nums ${opacity}`}
               >
@@ -108,18 +108,18 @@ export default function TrendingPosts() {
               </span>
 
               <div className="flex-1 min-w-0">
-                {/* 제목 */}
+                {/* 제목: 14px */}
                 <span className="block text-sm text-[#1A1A1F] truncate group-hover:text-[#C4967E] transition-colors duration-200">
                   {post.title}
                 </span>
-                {/* 댓글 수 */}
-                <span className="flex items-center gap-1 mt-1 text-[11px] text-[#B5ADA3]">
+                {/* 댓글 수: 12px */}
+                <span className="flex items-center gap-1 mt-1 text-xs text-[#B5ADA3]">
                   <MessageCircle className="w-3 h-3" />
                   {post.comment_count}
                 </span>
               </div>
 
-              <span className="text-[11px] text-[#22C55E] font-medium shrink-0 tabular-nums mt-0.5">
+              <span className="text-xs text-[#22C55E] font-medium shrink-0 tabular-nums mt-0.5">
                 +{post.upvote_count}
               </span>
             </Link>
