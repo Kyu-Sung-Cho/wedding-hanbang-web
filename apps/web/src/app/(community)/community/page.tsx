@@ -2,10 +2,12 @@
 
 import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare } from "lucide-react";
+import { PenSquare, Star } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
+import { CATEGORY_MAP } from "@/constants/communityCategories";
 import CategoryTabs from "@/components/community/CategoryTabs";
 import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
@@ -15,7 +17,6 @@ import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
-import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -35,6 +36,80 @@ interface PopularTag {
 interface VendorTag {
   vendor_name: string;
   mention_count: number;
+}
+
+// 에디터 추천 배너 컴포넌트
+function EditorsPick({ post }: { post: PostWithAuthor }) {
+  const categoryInfo = CATEGORY_MAP[post.category];
+  const contentPreview = post.content
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  const author = post.author ?? { nickname: "익명", avatar_url: null };
+  const images = post.images ?? [];
+
+  return (
+    <Link
+      href={`/community/post/${post.id}`}
+      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden mb-10"
+    >
+      <div className="flex flex-col md:flex-row">
+        {/* 텍스트 영역 */}
+        <div className="flex-1 p-8 md:p-10 flex flex-col justify-center relative">
+          {/* 별 장식 (우상단) */}
+          <Star className="absolute top-6 right-6 w-5 h-5 text-[#C9A96E] opacity-40 md:hidden" />
+
+          <span className="inline-block text-xs font-medium tracking-wider uppercase text-[#C4967E] mb-4">
+            에디터 추천
+          </span>
+
+          <h3 className="font-serif-kr text-3xl lg:text-4xl text-[#1A1A1F] leading-snug mb-4 group-hover:text-[#C4967E] transition-colors duration-300">
+            {post.title}
+          </h3>
+
+          {contentPreview && (
+            <p className="text-[#504444] text-sm leading-relaxed line-clamp-3 mb-6">
+              {contentPreview}
+            </p>
+          )}
+
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center">
+              <span className="text-[9px] font-semibold text-white">
+                {author.nickname.charAt(0)}
+              </span>
+            </div>
+            <span className="text-xs text-[#504444]">{author.nickname}</span>
+            {categoryInfo && (
+              <>
+                <span className="text-[#B5ADA3]">&middot;</span>
+                <span className="text-xs text-[#B5ADA3]">{categoryInfo.shortLabel}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 이미지 영역 */}
+        {images.length > 0 ? (
+          <div className="w-full md:w-1/3 aspect-[4/3] md:aspect-auto relative overflow-hidden">
+            <Image
+              src={images[0]}
+              alt=""
+              fill
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+            {/* 별 장식 (데스크탑) */}
+            <Star className="hidden md:block absolute top-5 right-5 w-5 h-5 text-[#C9A96E] opacity-40" />
+          </div>
+        ) : (
+          <div className="hidden md:flex w-1/3 items-center justify-center bg-[#EDEAE8]">
+            <Star className="w-12 h-12 text-[#C9A96E] opacity-20" />
+          </div>
+        )}
+      </div>
+    </Link>
+  );
 }
 
 export default function CommunityFeedPage() {
@@ -170,13 +245,16 @@ function CommunityFeedContent() {
       </div>
 
       <div className="flex w-full">
-        {/* 왼쪽 사이드바: w-72 = 288px */}
+        {/* 왼쪽 사이드바: w-72 = 288px — 레퍼런스: 흰색 bg, 구분선 없음 */}
         <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-white pt-12 pb-8 px-4">
-          {/* serif italic 헤더 */}
+          {/* serif italic 브랜드 헤더 */}
           <div className="px-4 mb-8">
-            <h2 className="font-serif-kr text-lg italic text-[#1A1A1F] leading-tight">
+            <h2 className="font-serif-kr text-lg italic text-[#C4967E] leading-tight">
               커뮤니티
             </h2>
+            <p className="text-[10px] text-[#B5ADA3] tracking-widest uppercase mt-1.5">
+              웨딩한방 커뮤니티
+            </p>
           </div>
 
           {/* 동기방 카드 */}
@@ -225,9 +303,15 @@ function CommunityFeedContent() {
               </div>
             )}
 
+            {/* 에디터 추천: weekly best 또는 pinned 포스트 */}
+            {!isSearching && posts.length > 0 && (() => {
+              const featured = posts.find((p) => p.is_weekly_best) ?? posts.find((p) => p.is_pinned);
+              return featured ? <EditorsPick post={featured} /> : null;
+            })()}
+
             {/* 피드 헤더: serif title + sort dropdown */}
             {!isSearching && (
-              <div className="flex items-center justify-between mb-8 border-b border-[#F0EFED]/60 pb-4">
+              <div className="flex items-center justify-between mb-8 border-b border-[#F0EFED] pb-4">
                 <h2 className="font-serif-kr text-2xl text-[#1A1A1F]">
                   최근 대화
                 </h2>
@@ -321,7 +405,7 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바: w-80 = 320px, p-8 */}
+        {/* 오른쪽 사이드바: w-80 = 320px — 구분선 없음, champagne bg */}
         <aside className="hidden xl:flex flex-col w-80 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto p-8 space-y-10">
           {/* 1. 오늘의 인기글 */}
           <TrendingPosts />
@@ -338,10 +422,12 @@ function CommunityFeedContent() {
 
           {/* 4. 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div className="bg-[#FDFCFA] rounded-xl p-8">
-              <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
-                인기 태그
-              </h3>
+            <div>
+              <div className="border-b border-[#F0EFED] pb-3 mb-5">
+                <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
+                  인기 태그
+                </h3>
+              </div>
               <div className="flex flex-wrap gap-x-3 gap-y-2.5">
                 {popularTags.slice(0, 15).map((t) => (
                   <Link

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Tag, Shield } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface PopularTag {
   vendor_name: string;
@@ -20,17 +20,19 @@ interface RightSidebarProps {
 }
 
 export default function RightSidebar({ popularTags = [], weekly }: RightSidebarProps) {
-  // 주간 요약 트렌드 계산 (임시 로직 - 실제는 주간 비교 데이터 사용)
+  // 주간 요약 트렌드 계산
   const postCount = weekly?.newPostsThisWeek ?? 0;
   const postTrend = postCount > 50 ? "up" : postCount > 20 ? "steady" : "down";
 
   return (
     <aside className="space-y-10">
-      {/* 이번 주 요약 */}
-      <section className="bg-[#FDFCFA] rounded-xl p-8">
-        <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
-          이번 주 요약
-        </h3>
+      {/* 이번 주 요약 (레퍼런스: "The Weekly Pulse") */}
+      <section>
+        <div className="border-b border-[#F0EFED] pb-3 mb-6">
+          <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
+            이번 주 요약
+          </h3>
+        </div>
 
         <div className="space-y-5">
           {/* 새 글 + 트렌드 바 */}
@@ -89,9 +91,8 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
       {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
-        <section className="bg-[#FDFCFA] rounded-xl p-8">
-          <div className="flex items-center gap-2.5 border-b border-[#F0EFED] pb-2 mb-5">
-            <Tag className="w-4 h-4 text-[#C4967E]" />
+        <section>
+          <div className="border-b border-[#F0EFED] pb-3 mb-5">
             <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">많이 찾는 업체</h3>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-2.5">
@@ -108,10 +109,9 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </section>
       )}
 
-      {/* 커뮤니티 원칙 */}
-      <section className="bg-[#FDFCFA] rounded-xl p-8">
-        <div className="flex items-center gap-2.5 border-b border-[#F0EFED] pb-2 mb-5">
-          <Shield className="w-4 h-4 text-[#C4967E]" />
+      {/* 커뮤니티 원칙 (레퍼런스: "Guidelines" 섹션) */}
+      <section>
+        <div className="border-b border-[#F0EFED] pb-3 mb-5">
           <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">커뮤니티 원칙</h3>
         </div>
         <div className="space-y-4 text-sm">

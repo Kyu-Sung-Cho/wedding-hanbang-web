@@ -81,15 +81,15 @@ export default function TrendingPosts() {
   if (posts.length === 0) return null;
 
   return (
-    <div className="py-2">
-      {/* 헤더: serif italic + subtle bottom border */}
+    <div>
+      {/* 헤더: serif italic + bottom border (레퍼런스: "Today's Discussions") */}
       <div className="border-b border-[#F0EFED] pb-3 mb-6">
         <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
           오늘의 인기글
         </h3>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-0">
         {posts.map((post, i) => {
           const rank = i + 1;
           const opacity = RANK_OPACITY[rank] ?? "opacity-25";
@@ -98,30 +98,26 @@ export default function TrendingPosts() {
             <Link
               key={post.id}
               href={`/community/post/${post.id}`}
-              className="flex items-start gap-4 px-1 py-3 rounded-xl hover:bg-[#FDFCFA] transition-colors duration-200 group"
+              className="flex items-start gap-4 py-3.5 hover:bg-[#FDFCFA] rounded-lg px-1 transition-colors duration-200 group"
             >
-              {/* 순위: serif italic 18px, primary color, 점차 연해짐 */}
+              {/* 순위: serif italic, primary color, 점차 연해짐 */}
               <span
-                className={`w-7 font-serif-kr text-lg italic font-medium shrink-0 text-[#C4967E] tabular-nums ${opacity}`}
+                className={`w-7 font-serif-kr text-lg italic font-medium shrink-0 text-[#C4967E] tabular-nums leading-tight ${opacity}`}
               >
                 {String(rank).padStart(2, "0")}
               </span>
 
               <div className="flex-1 min-w-0">
-                {/* 제목: 14px */}
-                <span className="block text-sm text-[#1A1A1F] truncate group-hover:text-[#C4967E] transition-colors duration-200">
+                {/* 제목 */}
+                <span className="block text-sm text-[#1A1A1F] line-clamp-2 leading-snug group-hover:text-[#C4967E] transition-colors duration-200">
                   {post.title}
                 </span>
-                {/* 댓글 수: 12px */}
-                <span className="flex items-center gap-1 mt-1 text-xs text-[#B5ADA3]">
+                {/* 댓글 수 */}
+                <span className="flex items-center gap-1 mt-1.5 text-xs text-[#B5ADA3]">
                   <MessageCircle className="w-3 h-3" />
                   {post.comment_count}
                 </span>
               </div>
-
-              <span className="text-xs text-[#22C55E] font-medium shrink-0 tabular-nums mt-0.5">
-                +{post.upvote_count}
-              </span>
             </Link>
           );
         })}
