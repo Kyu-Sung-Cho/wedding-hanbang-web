@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { MessageCircle } from "lucide-react";
 
 interface TrendingPost {
   id: string;
@@ -10,11 +11,13 @@ interface TrendingPost {
   comment_count: number;
 }
 
-// 순위별 색상: gold, silver, bronze
-const RANK_COLORS: Record<number, string> = {
-  1: "text-[#C9A96E]",
-  2: "text-[#B5ADA3]",
-  3: "text-[#C4967E]",
+// 순위별 opacity: 1위 가장 진하고, 점차 연해짐
+const RANK_OPACITY: Record<number, string> = {
+  1: "opacity-100",
+  2: "opacity-80",
+  3: "opacity-60",
+  4: "opacity-40",
+  5: "opacity-30",
 };
 
 export default function TrendingPosts() {
@@ -55,17 +58,18 @@ export default function TrendingPosts() {
   // 로딩 스켈레톤
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-lg">🔥</span>
-          <div className="h-5 w-24 bg-[#F0EFED] rounded animate-pulse" />
+      <div className="py-2">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="h-5 w-28 bg-[#F0EFED] rounded animate-pulse" />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-[#F0EFED] rounded animate-pulse shrink-0" />
-              <div className="flex-1 h-4 bg-[#F0EFED] rounded animate-pulse" />
-              <div className="w-8 h-4 bg-[#F0EFED] rounded animate-pulse shrink-0" />
+            <div key={i} className="flex items-start gap-4">
+              <div className="w-6 h-6 bg-[#F0EFED] rounded animate-pulse shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 bg-[#F0EFED] rounded animate-pulse" />
+                <div className="h-3 w-12 bg-[#F0EFED] rounded animate-pulse" />
+              </div>
             </div>
           ))}
         </div>
@@ -77,10 +81,10 @@ export default function TrendingPosts() {
   if (posts.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-lg">🔥</span>
-        <h3 className="font-serif text-lg font-medium text-[#1A1A1F]">
+    <div className="py-2">
+      {/* 헤더: serif italic + subtle bottom border */}
+      <div className="border-b border-[#F0EFED] pb-3 mb-6">
+        <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
           오늘의 인기글
         </h3>
       </div>
@@ -88,26 +92,35 @@ export default function TrendingPosts() {
       <div className="space-y-1">
         {posts.map((post, i) => {
           const rank = i + 1;
-          const rankColor = RANK_COLORS[rank] ?? "text-[#878680]";
+          const opacity = RANK_OPACITY[rank] ?? "opacity-25";
 
           return (
             <Link
               key={post.id}
               href={`/community/post/${post.id}`}
-              className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-[#FAFAF8] transition-colors duration-200 group"
+              className="flex items-start gap-4 px-1 py-3 rounded-xl hover:bg-[#FDFCFA] transition-colors duration-200 group"
             >
+              {/* 순위: serif italic, primary color, 점차 연해짐 */}
               <span
-                className={`w-5 text-base font-semibold shrink-0 tabular-nums ${rankColor}`}
+                className={`w-7 font-serif-kr text-lg italic font-medium shrink-0 text-[#C4967E] tabular-nums ${opacity}`}
               >
-                {rank}
+                {String(rank).padStart(2, "0")}
               </span>
 
-              <span className="flex-1 text-sm text-[#1A1A1F] truncate min-w-0 group-hover:text-[#C4967E] transition-colors duration-200">
-                {post.title}
-              </span>
+              <div className="flex-1 min-w-0">
+                {/* 제목 */}
+                <span className="block text-sm text-[#1A1A1F] truncate group-hover:text-[#C4967E] transition-colors duration-200">
+                  {post.title}
+                </span>
+                {/* 댓글 수 */}
+                <span className="flex items-center gap-1 mt-1 text-[11px] text-[#B5ADA3]">
+                  <MessageCircle className="w-3 h-3" />
+                  {post.comment_count}
+                </span>
+              </div>
 
-              <span className="text-xs text-[#22C55E] font-medium shrink-0 tabular-nums">
-                ▲{post.upvote_count}
+              <span className="text-[11px] text-[#22C55E] font-medium shrink-0 tabular-nums mt-0.5">
+                +{post.upvote_count}
               </span>
             </Link>
           );

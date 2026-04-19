@@ -47,6 +47,15 @@ const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: str
   senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
 };
 
+// 카테고리 배지 배경색 (20% opacity 효과)
+const CATEGORY_BADGE_BG: Record<string, string> = {
+  questions: "bg-[#C4967E]/15 text-[#C4967E]",
+  reviews: "bg-[#C9A96E]/15 text-[#C9A96E]",
+  tips: "bg-[#7EB8D8]/15 text-[#5A9CC0]",
+  daily: "bg-[#B39DDB]/15 text-[#7E57C2]",
+  seniors: "bg-[#A8D8A8]/15 text-[#2E7D5A]",
+};
+
 // 비용 포맷 헬퍼
 function formatPrice(value: number): string {
   if (value >= 10000) {
@@ -87,6 +96,9 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   const imageCount = images.length;
   const displayImages = images.slice(0, 3);
   const extraImageCount = imageCount > 3 ? imageCount - 3 : 0;
+
+  // 카테고리 배지 스타일
+  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#C4967E]/15 text-[#C4967E]";
 
   const handleVote = useCallback(
     async (vote: 1 | -1) => {
@@ -133,16 +145,16 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-2xl border border-[#F0EFED] px-7 py-5 hover:bg-[#FAFAF8] hover:shadow-sm transition-all duration-300 cursor-pointer">
-      {/* 작성자 행: 아바타 + 닉네임 + 랭크 배지 + 시간 + 카테고리 */}
-      <div className="flex items-center gap-2.5 mb-3">
+    <article className="bg-white rounded-2xl border border-transparent hover:border-[#F0EFED]/50 p-6 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
+      {/* 작성자 행: 아바타 + 닉네임 + 랭크 배지 + 시간 */}
+      <div className="flex items-center gap-2.5 mb-4">
         {/* 그래디언트 아바타 */}
         <Link
           href={`/community?author_id=${post.author_id}`}
           className="shrink-0"
         >
-          <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
-            <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
+          <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
+            <span className={`${isEmoji ? "text-xs" : "text-[10px] font-semibold text-white"}`}>
               {isEmoji ? avatarChar : author.nickname.charAt(0)}
             </span>
           </div>
@@ -151,95 +163,92 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {/* 닉네임 */}
         <Link
           href={`/community?author_id=${post.author_id}`}
-          className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200"
+          className="text-[13px] font-medium text-[#504444] hover:text-[#C4967E] transition-colors duration-200"
         >
           {author.nickname}
         </Link>
 
         {/* 랭크 배지 (pill) */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${rankConfig.bg} ${rankConfig.text}`}>
-          Lv.{rankConfig.level} {rankConfig.label}
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rankConfig.bg} ${rankConfig.text}`}>
+          Lv.{rankConfig.level}
         </span>
 
         {/* 시간 */}
-        <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
-        <span className="text-[13px] text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
-
-        {/* 카테고리 */}
-        {categoryInfo && (
-          <>
-            <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
-            <span className="text-[13px] font-medium text-[#C4967E]">
-              {categoryInfo.shortLabel}
-            </span>
-          </>
-        )}
+        <span className="text-[#B5ADA3] text-[12px]">&middot;</span>
+        <span className="text-[12px] text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
 
         {/* 결혼 동기 */}
         {author.wedding_year && author.wedding_month && (
           <>
-            <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
-            <span className="text-[13px] text-[#878680]">
-              {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
+            <span className="text-[#B5ADA3] text-[12px]">&middot;</span>
+            <span className="text-[12px] text-[#B5ADA3]">
+              {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")}
             </span>
           </>
         )}
 
         {/* 광고 표시 배지 */}
         {post.ad_disclosure === "sponsored" && (
-          <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-xs font-medium">
+          <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-[10px] font-medium">
             협찬
           </span>
         )}
         {post.ad_disclosure === "ad" && (
-          <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">
+          <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-[10px] font-medium">
             광고
           </span>
         )}
         {post.is_verified_review && (
-          <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-xs font-medium">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            인증후기
+          <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-[10px] font-medium">
+            <ShieldCheck className="w-3 h-3" />
+            인증
           </span>
         )}
         {post.under_review && (
-          <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-xs font-medium">
-            <AlertTriangle className="w-3.5 h-3.5" />
+          <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-[10px] font-medium">
+            <AlertTriangle className="w-3 h-3" />
             검토 중
           </span>
         )}
       </div>
 
-      {/* 제목 */}
+      {/* 카테고리 배지 (제목 위) */}
+      {categoryInfo && (
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium mb-3 ${categoryBadgeStyle}`}>
+          {categoryInfo.shortLabel}
+        </span>
+      )}
+
+      {/* 제목 — serif, larger */}
       <Link
         href={`/community/post/${post.id}`}
         className="group block"
       >
-        <h3 className="text-xl font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
+        <h3 className="font-serif-kr text-xl font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
           {post.is_pinned && (
             <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
-              <Pin className="w-4 h-4" />
+              <Pin className="w-3.5 h-3.5" />
               PIN
             </span>
           )}
 
           {post.is_weekly_best && (
-            <span className="text-[#C9A96E] text-sm font-medium mr-2 align-middle">
-              BEST
+            <span className="text-[#C9A96E] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
+              Best
             </span>
           )}
 
           {post.is_resolved && (
-            <span className="inline-flex items-center gap-1 text-[#22C55E] mr-2 text-sm font-medium align-middle">
-              <CheckCircle2 className="w-4 h-4" />
-              해결됨
+            <span className="inline-flex items-center gap-1 text-[#22C55E] mr-2 text-xs font-medium align-middle">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              해결
             </span>
           )}
 
           {post.ai_comment && (
-            <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
-              <Sparkles className="w-4 h-4" />
-              AI 분석
+            <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-xs font-medium align-middle">
+              <Sparkles className="w-3.5 h-3.5" />
+              AI
             </span>
           )}
 
@@ -247,29 +256,29 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         </h3>
       </Link>
 
-      {/* 본문 미리보기 */}
+      {/* 본문 미리보기 — softer text */}
       {contentPreview && (
-        <p className="mt-2 text-[15px] text-[#878680] leading-relaxed line-clamp-2">
+        <p className="mt-2.5 text-sm text-[#504444] leading-relaxed line-clamp-2">
           {contentPreview}
         </p>
       )}
 
       {/* 비용 데이터 표시 */}
       {post.cost_data && (
-        <div className="bg-[#FDFCFA] rounded-xl p-2.5 border border-[#F5F2ED] mt-2">
-          <span className="text-[11px] text-[#B5ADA3]">비용: </span>
-          <span className="text-[13px] font-semibold text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
+        <div className="bg-[#FDFCFA] rounded-xl p-2.5 mt-3">
+          <span className="text-[10px] text-[#B5ADA3] tracking-wide uppercase">Cost </span>
+          <span className="text-[13px] font-medium text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
         </div>
       )}
 
       {/* 이미지 갤러리 (최대 3장 가로 배열) */}
       {imageCount > 0 && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-4 flex gap-2.5">
           {displayImages.map((src, idx) => (
             <Link
               key={idx}
               href={`/community/post/${post.id}`}
-              className="relative shrink-0 w-24 h-20 rounded-xl overflow-hidden bg-[#F5F2ED]"
+              className="relative shrink-0 w-24 h-20 rounded-lg overflow-hidden bg-[#F5F2ED]"
             >
               <Image
                 src={src}
@@ -280,8 +289,8 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               />
               {/* 3번째 이미지에 +N 오버레이 */}
               {idx === 2 && extraImageCount > 0 && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
-                  <span className="text-white text-sm font-semibold">+{extraImageCount}</span>
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
+                  <span className="text-white text-sm font-medium">+{extraImageCount}</span>
                 </div>
               )}
             </Link>
@@ -291,11 +300,11 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
       {/* 태그 */}
       {post.tags && post.tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5">
           {post.tags.slice(0, 5).map((tag) => (
             <span
               key={tag}
-              className="text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 cursor-pointer"
+              className="text-xs text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 cursor-pointer"
             >
               #{tag}
             </span>
@@ -303,30 +312,30 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         </div>
       )}
 
-      {/* 액션 바 */}
-      <div className="mt-5 flex items-center gap-7 text-[15px] text-[#B5ADA3]">
+      {/* 액션 바 — subtle, smaller icons */}
+      <div className="mt-6 flex items-center gap-6 text-[13px] text-[#B5ADA3]">
         {/* 투표 그룹 */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => handleVote(1)}
             disabled={isVoting}
-            className={`p-1 rounded transition-colors duration-200 ${
+            className={`p-1 rounded-full transition-colors duration-200 ${
               displayVote === 1
                 ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
                 : "hover:text-[#2E7D5A]"
             } disabled:opacity-50`}
             aria-label="추천"
           >
-            <ChevronUp className="w-5 h-5" />
+            <ChevronUp className="w-4 h-4" />
           </button>
           <span
-            className={`text-[15px] font-medium min-w-[1.5rem] text-center ${
+            className={`text-[13px] font-medium min-w-[1.25rem] text-center ${
               displayVote === 1
                 ? "text-[#2E7D5A]"
                 : displayVote === -1
                 ? "text-[#D85A5A]"
-                : "text-[#1A1A1F]"
+                : "text-[#504444]"
             }`}
           >
             {voteCount}
@@ -335,53 +344,53 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
             type="button"
             onClick={() => handleVote(-1)}
             disabled={isVoting}
-            className={`p-1 rounded transition-colors duration-200 ${
+            className={`p-1 rounded-full transition-colors duration-200 ${
               displayVote === -1
                 ? "text-[#D85A5A] bg-[#D85A5A]/10"
                 : "hover:text-[#D85A5A]"
             } disabled:opacity-50`}
             aria-label="비추천"
           >
-            <ChevronDown className="w-5 h-5" />
+            <ChevronDown className="w-4 h-4" />
           </button>
         </div>
 
         {/* 댓글 */}
         <Link
           href={`/community/post/${post.id}#comments`}
-          className="flex items-center gap-2 hover:text-[#C4967E] transition-colors duration-200"
+          className="flex items-center gap-1.5 hover:text-[#C4967E] transition-colors duration-200"
         >
-          <MessageCircle className="w-5 h-5" />
+          <MessageCircle className="w-4 h-4" />
           <span>{post.comment_count}</span>
         </Link>
 
         {/* 조회수 */}
-        <span className="flex items-center gap-2">
-          <Eye className="w-5 h-5" />
+        <span className="flex items-center gap-1.5">
+          <Eye className="w-4 h-4" />
           <span>{post.view_count}</span>
         </span>
 
         {/* 오른쪽: 북마크 + 공유 */}
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
           <button
             type="button"
             onClick={handleBookmark}
-            className={`p-1 rounded transition-colors duration-200 ${
+            className={`p-1 rounded-full transition-colors duration-200 ${
               bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
             }`}
             aria-label="저장"
           >
             <Bookmark
-              className="w-5 h-5"
+              className="w-4 h-4"
               fill={bookmarked ? "#C4967E" : "none"}
             />
           </button>
           <button
             type="button"
-            className="p-1 rounded hover:text-[#C4967E] transition-colors duration-200"
+            className="p-1 rounded-full hover:text-[#C4967E] transition-colors duration-200"
             aria-label="공유"
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-4 h-4" />
           </button>
         </div>
       </div>

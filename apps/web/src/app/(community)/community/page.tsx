@@ -170,57 +170,67 @@ function CommunityFeedContent() {
       </div>
 
       <div className="flex w-full">
-        {/* 왼쪽 사이드바: 화면 왼쪽 끝에 붙임 */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+        {/* 왼쪽 사이드바 */}
+        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto bg-white py-8 px-3">
+          {/* serif italic 헤더 */}
+          <div className="px-5 mb-8">
+            <h2 className="font-serif-kr text-2xl italic text-[#1A1A1F] leading-tight">
+              커뮤니티
+            </h2>
+          </div>
+
           {/* 동기방 카드 */}
-          <div className="px-2 mb-4">
+          <div className="px-2 mb-6">
             <CohortCard />
           </div>
 
           <CategoryTabs />
 
-          <div className="mt-auto pt-4 px-2 space-y-2">
+          <div className="mt-auto pt-6 px-2 space-y-2.5">
             <Link
               href="/community/quick-review"
-              className="flex items-center justify-center gap-2.5 w-full px-5 py-3 text-sm font-medium text-[#1A1A1F] bg-white border border-[#F0EFED] hover:border-[#C4967E] rounded-full transition-all duration-200"
+              className="flex items-center justify-center gap-2.5 w-full px-5 py-3 text-sm font-medium text-[#504444] bg-transparent hover:bg-[#F6F3F2] rounded-full transition-all duration-200"
             >
               15초 후기
             </Link>
             <Link
               href="/community/post/write"
-              className="flex items-center justify-center gap-2.5 w-full px-5 py-3.5 text-base font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full transition-all duration-200"
+              className="flex items-center justify-center gap-2.5 w-full px-5 py-3.5 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full transition-all duration-200"
             >
-              <PenSquare className="w-5 h-5" />
+              <PenSquare className="w-4 h-4" />
               글쓰기
             </Link>
           </div>
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
+        <main className="flex-1 min-w-0 px-6 sm:px-8 lg:px-12 py-8">
           <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
             {/* 검색 결과 헤더 */}
             {isSearching && (
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2 text-lg text-[#1A1A1F]">
-                  <span className="font-medium">검색 결과</span>
-                  <span>&ldquo;{searchQuery}&rdquo;</span>
+                  <span className="font-serif-kr italic">검색 결과</span>
+                  <span className="text-[#504444]">&ldquo;{searchQuery}&rdquo;</span>
                   {!searchLoading && (
-                    <span className="text-[#B5ADA3] text-base">{searchTotal}건</span>
+                    <span className="text-[#B5ADA3] text-sm">{searchTotal}건</span>
                   )}
                 </div>
                 <button
                   onClick={() => router.push("/community")}
-                  className="text-base text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
+                  className="text-sm text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
                 >
                   초기화
                 </button>
               </div>
             )}
 
-            {/* 정렬 바 */}
+            {/* 피드 헤더: serif title + sort dropdown */}
             {!isSearching && (
-              <div className="flex items-center gap-4 mb-5 px-1">
+              <div className="flex items-center justify-between mb-8 border-b border-[#F0EFED]/60 pb-4">
+                <h2 className="font-serif-kr text-xl text-[#1A1A1F]">
+                  최근 대화
+                </h2>
                 <SortSelector
                   sort={currentSort}
                   period={currentPeriod}
@@ -234,7 +244,7 @@ function CommunityFeedContent() {
             {isSearching ? (
               <>
                 {searchLoading && searchResults.length === 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <PostSkeleton key={i} />
                     ))}
@@ -245,20 +255,20 @@ function CommunityFeedContent() {
                     description="다른 키워드로 검색해 보세요."
                   />
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {searchResults.map((post, idx) => (
                       <div key={post.id}>
                         <PostCard post={post} />
                         {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
                         {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
-                          <div className="mt-3">
+                          <div className="mt-6">
                             <ServiceBanner index={Math.floor((idx - 4) / 10)} />
                           </div>
                         )}
                       </div>
                     ))}
                     {searchLoading && (
-                      <div className="space-y-3">
+                      <div className="space-y-6">
                         {Array.from({ length: 3 }).map((_, i) => (
                           <PostSkeleton key={`more-${i}`} />
                         ))}
@@ -270,7 +280,7 @@ function CommunityFeedContent() {
             ) : (
               <>
                 {isLoading && posts.length === 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <PostSkeleton key={i} />
                     ))}
@@ -283,20 +293,20 @@ function CommunityFeedContent() {
                     ctaHref="/community/post/write"
                   />
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {posts.map((post, idx) => (
                       <div key={post.id}>
                         <PostCard post={post} />
                         {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
                         {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
-                          <div className="mt-3">
+                          <div className="mt-6">
                             <ServiceBanner index={Math.floor((idx - 4) / 10)} />
                           </div>
                         )}
                       </div>
                     ))}
                     {isLoading && (
-                      <div className="space-y-3">
+                      <div className="space-y-6">
                         {Array.from({ length: 3 }).map((_, i) => (
                           <PostSkeleton key={`more-${i}`} />
                         ))}
@@ -311,8 +321,8 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바: 화면 오른쪽 끝에 붙임 */}
-        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-4 border-l border-[#F0EFED]">
+        {/* 오른쪽 사이드바 */}
+        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-8 pr-8 pl-4 space-y-8">
           {/* 1. 오늘의 인기글 */}
           <TrendingPosts />
 
@@ -328,11 +338,11 @@ function CommunityFeedContent() {
 
           {/* 4. 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div className="bg-white rounded-2xl border border-[#F0EFED] p-6">
-              <h3 className="font-serif text-lg font-medium text-[#1A1A1F] mb-4">
+            <div className="bg-[#FDFCFA] rounded-2xl p-6">
+              <h3 className="font-serif-kr text-lg italic text-[#1A1A1F] border-b border-[#F0EFED] pb-2 mb-5">
                 인기 태그
               </h3>
-              <div className="flex flex-wrap gap-x-3 gap-y-2">
+              <div className="flex flex-wrap gap-x-3 gap-y-2.5">
                 {popularTags.slice(0, 15).map((t) => (
                   <Link
                     key={t.tag}
@@ -346,11 +356,11 @@ function CommunityFeedContent() {
             </div>
           )}
 
-          {/* 5. 내 활동 (게이미피케이션 - 하단으로 이동) */}
+          {/* 5. 내 활동 (게이미피케이션) */}
           <GamificationWidget />
 
-          <div className="text-center py-2">
-            <Link href="/" className="text-sm text-[#878680] hover:text-[#C4967E] transition-colors duration-200">
+          <div className="text-center py-4">
+            <Link href="/" className="text-xs text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 tracking-wide">
               웨딩한방 서비스 둘러보기 →
             </Link>
           </div>
