@@ -146,253 +146,122 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
   return (
     <article className="bg-white rounded-xl border border-transparent hover:border-[#F0EFED]/50 p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
-      {/* 작성자 행: 아바타 + 닉네임 + 랭크 배지 + 시간 */}
-      <div className="flex items-center gap-2.5 mb-4 text-xs">
-        {/* 그래디언트 아바타 */}
-        <Link
-          href={`/community?author_id=${post.author_id}`}
-          className="shrink-0"
-        >
-          <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
-            <span className={`${isEmoji ? "text-xs" : "text-[10px] font-semibold text-white"}`}>
-              {isEmoji ? avatarChar : author.nickname.charAt(0)}
-            </span>
-          </div>
-        </Link>
+      <div className={`flex ${imageCount > 0 ? "flex-col-reverse sm:flex-row" : ""} gap-6`}>
+        {/* 텍스트 영역 */}
+        <div className="flex-1 flex flex-col justify-between">
+          <div>
+            {/* 상단: 카테고리 배지 + 시간 */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                {categoryInfo && (
+                  <span className={`text-xs font-medium px-2 py-1 rounded ${categoryBadgeStyle}`}>
+                    {categoryInfo.shortLabel}
+                  </span>
+                )}
+                <span className="text-xs text-[#504444]">{timeAgo(post.created_at)}</span>
 
-        {/* 닉네임 */}
-        <Link
-          href={`/community?author_id=${post.author_id}`}
-          className="text-xs font-medium text-[#504444] hover:text-[#C4967E] transition-colors duration-200"
-        >
-          {author.nickname}
-        </Link>
+                {post.ad_disclosure === "sponsored" && (
+                  <span className="px-2 py-0.5 rounded bg-[#FEFCE8] text-[#A16207] text-xs font-medium">협찬</span>
+                )}
+                {post.ad_disclosure === "ad" && (
+                  <span className="px-2 py-0.5 rounded bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">광고</span>
+                )}
+              </div>
+            </div>
 
-        {/* 랭크 배지 (pill) */}
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rankConfig.bg} ${rankConfig.text}`}>
-          Lv.{rankConfig.level}
-        </span>
-
-        {/* 시간 */}
-        <span className="text-[#B5ADA3] text-xs">&middot;</span>
-        <span className="text-xs text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
-
-        {/* 결혼 동기 */}
-        {author.wedding_year && author.wedding_month && (
-          <>
-            <span className="text-[#B5ADA3] text-xs">&middot;</span>
-            <span className="text-xs text-[#B5ADA3]">
-              {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")}
-            </span>
-          </>
-        )}
-
-        {/* 광고 표시 배지 */}
-        {post.ad_disclosure === "sponsored" && (
-          <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-[10px] font-medium">
-            협찬
-          </span>
-        )}
-        {post.ad_disclosure === "ad" && (
-          <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-[10px] font-medium">
-            광고
-          </span>
-        )}
-        {post.is_verified_review && (
-          <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-[10px] font-medium">
-            <ShieldCheck className="w-3 h-3" />
-            인증
-          </span>
-        )}
-        {post.under_review && (
-          <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-[10px] font-medium">
-            <AlertTriangle className="w-3 h-3" />
-            검토 중
-          </span>
-        )}
-      </div>
-
-      {/* 카테고리 배지 (제목 위) */}
-      {categoryInfo && (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium mb-3 ${categoryBadgeStyle}`}>
-          {categoryInfo.shortLabel}
-        </span>
-      )}
-
-      {/* 제목 — serif, larger */}
-      <Link
-        href={`/community/post/${post.id}`}
-        className="group block"
-      >
-        <h3 className="font-serif-kr text-xl font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200 leading-snug line-clamp-2">
-          {post.is_pinned && (
-            <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
-              <Pin className="w-3.5 h-3.5" />
-              PIN
-            </span>
-          )}
-
-          {post.is_weekly_best && (
-            <span className="text-[#C9A96E] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
-              Best
-            </span>
-          )}
-
-          {post.is_resolved && (
-            <span className="inline-flex items-center gap-1 text-[#22C55E] mr-2 text-xs font-medium align-middle">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              해결
-            </span>
-          )}
-
-          {post.ai_comment && (
-            <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-xs font-medium align-middle">
-              <Sparkles className="w-3.5 h-3.5" />
-              AI
-            </span>
-          )}
-
-          {post.title}
-        </h3>
-      </Link>
-
-      {/* 본문 미리보기 — softer text */}
-      {contentPreview && (
-        <p className="mt-2 text-sm text-[#504444] leading-relaxed line-clamp-2">
-          {contentPreview}
-        </p>
-      )}
-
-      {/* 비용 데이터 표시 */}
-      {post.cost_data && (
-        <div className="bg-[#FDFCFA] rounded-xl p-2.5 mt-3">
-          <span className="text-[10px] text-[#B5ADA3] tracking-wide uppercase">Cost </span>
-          <span className="text-[13px] font-medium text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
-        </div>
-      )}
-
-      {/* 이미지 갤러리 (최대 3장 가로 배열) */}
-      {imageCount > 0 && (
-        <div className="mt-4 flex gap-2.5">
-          {displayImages.map((src, idx) => (
-            <Link
-              key={idx}
-              href={`/community/post/${post.id}`}
-              className="relative shrink-0 w-24 h-20 rounded-lg overflow-hidden bg-[#F6F3F2]"
-            >
-              <Image
-                src={src}
-                alt=""
-                width={96}
-                height={80}
-                className="w-full h-full object-cover"
-              />
-              {/* 3번째 이미지에 +N 오버레이 */}
-              {idx === 2 && extraImageCount > 0 && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
-                  <span className="text-white text-sm font-medium">+{extraImageCount}</span>
-                </div>
-              )}
+            {/* 제목 — serif */}
+            <Link href={`/community/post/${post.id}`} className="group block">
+              <h4 className="font-serif-kr text-xl text-[#1A1A1F] mb-2 group-hover:text-[#C4967E] cursor-pointer transition-colors leading-snug line-clamp-2">
+                {post.is_pinned && (
+                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                    <Pin className="w-3.5 h-3.5" /> PIN
+                  </span>
+                )}
+                {post.is_weekly_best && (
+                  <span className="text-[#C9A96E] text-xs font-medium mr-2 align-middle tracking-wider uppercase">Best</span>
+                )}
+                {post.title}
+              </h4>
             </Link>
-          ))}
+
+            {/* 본문 미리보기 */}
+            {contentPreview && (
+              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-4">
+                {contentPreview}
+              </p>
+            )}
+
+            {/* 비용 데이터 */}
+            {post.cost_data && (
+              <div className="bg-[#F6F3F2] rounded-lg px-3 py-1.5 mb-4 inline-block">
+                <span className="text-xs text-[#504444]">비용: </span>
+                <span className="text-sm font-medium text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
+              </div>
+            )}
+          </div>
+
+          {/* 하단: 작성자 왼쪽 / 댓글·북마크·공유 오른쪽 */}
+          <div className="flex items-center justify-between mt-auto pt-2">
+            <div className="flex items-center space-x-2">
+              <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
+                <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
+                  <span className="text-[8px] font-semibold text-white">
+                    {isEmoji ? avatarChar : author.nickname.charAt(0)}
+                  </span>
+                </div>
+              </Link>
+              <span className="text-xs text-[#504444]">{author.nickname}</span>
+            </div>
+
+            <div className="flex items-center space-x-4 text-[#504444]">
+              {/* 댓글 */}
+              <Link
+                href={`/community/post/${post.id}#comments`}
+                className="flex items-center space-x-1 hover:text-[#C4967E] transition-colors group"
+              >
+                <MessageCircle className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
+                <span className="text-xs">{post.comment_count}</span>
+              </Link>
+
+              {/* 북마크 */}
+              <button
+                type="button"
+                onClick={handleBookmark}
+                className={`flex items-center space-x-1 transition-colors group ${
+                  bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
+                }`}
+                aria-label="저장"
+              >
+                <Bookmark className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" fill={bookmarked ? "#C4967E" : "none"} />
+              </button>
+
+              {/* 공유 */}
+              <button
+                type="button"
+                className="flex items-center space-x-1 hover:text-[#C4967E] transition-colors group"
+                aria-label="공유"
+              >
+                <Share2 className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
+              </button>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* 태그 */}
-      {post.tags && post.tags.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5">
-          {post.tags.slice(0, 5).map((tag) => (
-            <span
-              key={tag}
-              className="text-xs text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 cursor-pointer"
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* 액션 바 — subtle, 18px icons, 12px counts */}
-      <div className="mt-6 flex items-center gap-6 text-xs text-[#B5ADA3]">
-        {/* 투표 그룹 */}
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => handleVote(1)}
-            disabled={isVoting}
-            className={`p-1 rounded-full transition-colors duration-200 ${
-              displayVote === 1
-                ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
-                : "hover:text-[#2E7D5A]"
-            } disabled:opacity-50`}
-            aria-label="추천"
+        {/* 이미지 (있으면 오른쪽) */}
+        {imageCount > 0 && (
+          <Link
+            href={`/community/post/${post.id}`}
+            className="w-full sm:w-32 h-32 rounded-lg overflow-hidden shrink-0 mt-4 sm:mt-0"
           >
-            <ChevronUp className="w-[18px] h-[18px]" />
-          </button>
-          <span
-            className={`text-xs font-medium min-w-[1.25rem] text-center ${
-              displayVote === 1
-                ? "text-[#2E7D5A]"
-                : displayVote === -1
-                ? "text-[#D85A5A]"
-                : "text-[#504444]"
-            }`}
-          >
-            {voteCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => handleVote(-1)}
-            disabled={isVoting}
-            className={`p-1 rounded-full transition-colors duration-200 ${
-              displayVote === -1
-                ? "text-[#D85A5A] bg-[#D85A5A]/10"
-                : "hover:text-[#D85A5A]"
-            } disabled:opacity-50`}
-            aria-label="비추천"
-          >
-            <ChevronDown className="w-[18px] h-[18px]" />
-          </button>
-        </div>
-
-        {/* 댓글 */}
-        <Link
-          href={`/community/post/${post.id}#comments`}
-          className="flex items-center gap-1.5 hover:text-[#C4967E] transition-colors duration-200"
-        >
-          <MessageCircle className="w-[18px] h-[18px]" />
-          <span className="text-xs">{post.comment_count}</span>
-        </Link>
-
-        {/* 조회수 */}
-        <span className="flex items-center gap-1.5">
-          <Eye className="w-[18px] h-[18px]" />
-          <span className="text-xs">{post.view_count}</span>
-        </span>
-
-        {/* 오른쪽: 북마크 + 공유 */}
-        <div className="ml-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleBookmark}
-            className={`p-1 rounded-full transition-colors duration-200 ${
-              bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
-            }`}
-            aria-label="저장"
-          >
-            <Bookmark
-              className="w-[18px] h-[18px]"
-              fill={bookmarked ? "#C4967E" : "none"}
+            <Image
+              src={images[0]}
+              alt=""
+              width={128}
+              height={128}
+              className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
-          </button>
-          <button
-            type="button"
-            className="p-1 rounded-full hover:text-[#C4967E] transition-colors duration-200"
-            aria-label="공유"
-          >
-            <Share2 className="w-[18px] h-[18px]" />
-          </button>
-        </div>
+          </Link>
+        )}
       </div>
     </article>
   );
