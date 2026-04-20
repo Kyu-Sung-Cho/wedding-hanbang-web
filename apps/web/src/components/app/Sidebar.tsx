@@ -80,14 +80,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {/* 로고 영역 */}
         <div className="flex items-center justify-between px-6 h-[72px]">
-          <Link href="/dashboard" className="font-serif-kr italic text-[20px] text-[#795252] font-light tracking-tight">
+          <Link href="/dashboard" className="font-serif-kr italic text-2xl text-[#795252] font-light tracking-tight">
             <Logo size="sm" />
           </Link>
           <button
             onClick={onClose}
-            className="md:hidden w-8 h-8 flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+            className="md:hidden w-10 h-10 flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -101,13 +101,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 pl-4 pr-4 py-3 text-[14px] transition-all duration-200 ${
+                  className={`flex items-center gap-3 pl-5 pr-5 py-3.5 text-lg transition-all duration-200 ${
                     isActive
                       ? "bg-[#F6F3F2] text-[#795252] font-bold rounded-r-full"
                       : "text-[#504444] hover:text-[#795252] hover:bg-[#F6F3F2]/60 rounded-xl mr-3"
                   }`}
                 >
-                  <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <item.icon className="w-6 h-6 flex-shrink-0" />
                   {item.label}
                 </Link>
               );
@@ -117,22 +117,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* 유저 섹션 */}
         <div className="px-3 pb-4">
-          <div className="px-4 py-3 rounded-xl bg-[#F6F3F2]">
+          <div className="px-5 py-4 rounded-xl bg-[#F6F3F2]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-[13px] font-medium">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-base font-medium">
                 {userInitial}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-[#1A1A1F] font-medium truncate">{userName}</div>
-                <div className="text-[11px] text-[#B5ADA3]">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
+                <div className="text-base text-[#1A1A1F] font-medium truncate">{userName}</div>
+                <div className="text-sm text-[#B5ADA3]">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
               </div>
             </div>
           </div>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-3 px-4 py-3 mt-2 rounded-xl text-[13px] text-[#795252] bg-white hover:bg-[#F6F3F2] shadow-[0_4px_14px_0_rgba(121,82,82,0.1)] transition-all w-full"
+            className="flex items-center gap-3 px-5 py-3.5 mt-2 rounded-xl text-base text-[#795252] bg-white hover:bg-[#F6F3F2] shadow-[0_4px_14px_0_rgba(121,82,82,0.1)] transition-all w-full"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-5 h-5" />
             로그아웃
           </button>
         </div>

@@ -642,14 +642,14 @@ function EtiquettePageInner() {
                       isLocked ? "opacity-40 cursor-not-allowed" : isActive ? "bg-[#795252]/10 text-[#795252]" : "hover:bg-white text-noir-800"
                     }`}
                   >
-                    <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className="w-3.5 h-3.5 text-white" />
+                    <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-[13px] font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
+                      <p className={`text-base font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
                         {p.title}
                       </p>
-                      <p className="text-[11px] text-taupe-400 truncate">{p.subtitle}</p>
+                      <p className="text-sm text-taupe-400 truncate">{p.subtitle}</p>
                     </div>
                   </button>
                 );
@@ -703,9 +703,9 @@ function EtiquettePageInner() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-[300px] bg-ivory-50 flex flex-col h-full animate-fade-in">
             <div className="p-4 border-b border-black/[0.04] flex items-center justify-between">
-              <p className="text-[14px] font-medium text-noir-800">전체 목록</p>
+              <p className="text-lg font-medium text-noir-800">전체 목록</p>
               <button onClick={() => setSidebarOpen(false)} className="p-1">
-                <ArrowLeft className="w-5 h-5 text-taupe-500" />
+                <ArrowLeft className="w-6 h-6 text-taupe-500" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto py-2">
@@ -788,24 +788,24 @@ function EtiquettePageInner() {
         <div className="max-w-[800px] mx-auto px-6 max-md:px-4 pt-8 max-md:pt-5 pb-6">
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-4">
-              <div className={`w-12 h-12 max-md:w-10 max-md:h-10 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center`}>
-                <PartIcon className="w-6 h-6 max-md:w-5 max-md:h-5 text-white" />
+              <div className={`w-14 h-14 max-md:w-12 max-md:h-12 rounded-xl bg-gradient-to-br ${part.color} flex items-center justify-center`}>
+                <PartIcon className="w-7 h-7 max-md:w-6 max-md:h-6 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-taupe-400 bg-taupe-400/10 px-2 py-0.5 rounded-full">
+                  <span className="text-sm font-medium text-taupe-400 bg-taupe-400/10 px-2.5 py-0.5 rounded-full">
                     Part {part.number}
                   </span>
                 </div>
-                <h1 className="font-serif-kr text-[28px] max-md:text-[22px] font-light text-[#1A1A1F] leading-tight tracking-tight">
+                <h1 className="font-serif-kr text-4xl max-md:text-2xl font-light text-[#1A1A1F] leading-tight tracking-tight">
                   {part.title}
                 </h1>
               </div>
             </div>
-            <p className="text-[14px] max-md:text-[13px] text-taupe-500 font-light mb-1">
+            <p className="text-lg max-md:text-base text-taupe-500 font-light mb-1">
               {part.subtitle}
             </p>
-            <p className="text-[13px] text-charcoal/70 font-light leading-[1.7]">
+            <p className="text-base text-charcoal/70 font-light leading-[1.7]">
               {part.description}
             </p>
           </div>

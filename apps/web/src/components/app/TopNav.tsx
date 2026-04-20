@@ -67,11 +67,11 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={onMenuToggle}
-            className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[#F6F3F2] transition-colors"
+            className="md:hidden w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[#F6F3F2] transition-colors"
           >
-            <Menu className="w-5 h-5 text-[#504444]" />
+            <Menu className="w-6 h-6 text-[#504444]" />
           </button>
-          <h1 className="font-serif-kr italic text-[22px] font-light text-[#795252] tracking-tight">
+          <h1 className="font-serif-kr italic text-2xl font-light text-[#795252] tracking-tight">
             {title}
           </h1>
         </div>
@@ -79,32 +79,32 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
         <div className="flex items-center gap-3">
           {/* D-day 배지 */}
           {dday !== null && dday > 0 && (
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
+            <div className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#795252] animate-pulse" />
-              <span className="font-display text-[14px] font-medium text-[#795252]">D-{dday}</span>
-              <span className="text-[11px] text-[#B5ADA3] font-light">결혼식까지</span>
+              <span className="font-display text-base font-medium text-[#795252]">D-{dday}</span>
+              <span className="text-sm text-[#B5ADA3] font-light">결혼식까지</span>
             </div>
           )}
           {dday === null && (
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
-              <span className="text-[12px] text-[#B5ADA3]">날짜 미정</span>
+            <div className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
+              <span className="text-base text-[#B5ADA3]">날짜 미정</span>
             </div>
           )}
 
           {/* 검색 */}
-          <button className="w-10 h-10 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors">
-            <Search className="w-[18px] h-[18px]" />
+          <button className="w-11 h-11 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors">
+            <Search className="w-6 h-6" />
           </button>
 
           {/* 알림 */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative w-10 h-10 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
+              className="relative w-11 h-11 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
             >
-              <Bell className="w-[18px] h-[18px]" />
+              <Bell className="w-6 h-6" />
               {newCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#795252] text-white text-[10px] font-medium flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#795252] text-white text-[11px] font-medium flex items-center justify-center">
                   {newCount > 9 ? "9+" : newCount}
                 </span>
               )}

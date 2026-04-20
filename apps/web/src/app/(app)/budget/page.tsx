@@ -131,10 +131,10 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
         onClick={() => setShow(!show)}
-        className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
         title="추가 비용 주의"
       >
-        <AlertTriangle className="w-3 h-3" />
+        <AlertTriangle className="w-4 h-4" />
       </button>
       {show && (
         <div
@@ -182,19 +182,19 @@ function PayerSelector({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-[#504444] hover:bg-[#F6F3F2] transition-colors"
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[#504444] hover:bg-[#F6F3F2] transition-colors"
         title="분담 변경"
       >
         <span>{current.emoji}</span>
         <span>{current.label}</span>
       </button>
       {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[130px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
+        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] transition-colors ${
+              className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                 value === opt.value
                   ? "bg-[#795252]/5 text-[#795252] font-medium"
                   : "text-[#1A1A1F] hover:bg-[#F6F3F2]"
@@ -202,7 +202,7 @@ function PayerSelector({
             >
               <span>{opt.emoji}</span>
               <span>{opt.label}</span>
-              {value === opt.value && <Check className="w-3 h-3 ml-auto" />}
+              {value === opt.value && <Check className="w-4 h-4 ml-auto" />}
             </button>
           ))}
         </div>
@@ -280,29 +280,29 @@ function InlineMoneyEdit({
     <div className="flex items-center gap-1">
       <button
         onClick={startEdit}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
           highlight === "spent"
             ? "hover:bg-[#795252]/5"
             : "hover:bg-[#F6F3F2]"
         }`}
         title={`${label} 수정`}
       >
-        <span className={`text-[13px] font-medium ${
+        <span className={`text-base font-medium ${
           highlight === "spent" ? "text-[#1A1A1F]" : "text-[#504444]"
         }`}>
           {formatWon(value)}
         </span>
-        <Pencil className={`w-3 h-3 ${
+        <Pencil className={`w-4 h-4 ${
           highlight === "spent" ? "text-[#795252]/50" : "text-[#B5ADA3]"
         }`} />
       </button>
       {onReset && value > 0 && (
         <button
           onClick={onReset}
-          className="w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
-          <X className="w-3 h-3" />
+          <X className="w-4 h-4" />
         </button>
       )}
     </div>
@@ -343,18 +343,18 @@ function BudgetRow({
 
   return (
     <div
-      className="group flex items-center gap-3 px-5 py-4 bg-white hover:bg-[#FAFAF8] transition-colors max-md:flex-wrap max-md:gap-2"
+      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#FAFAF8] transition-colors max-md:flex-wrap max-md:gap-2"
     >
       {/* 아이콘 + 이름 + 숨겨진 비용 경고 */}
-      <div className="flex items-center gap-2 w-[150px] flex-shrink-0 max-md:w-full">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+      <div className="flex items-center gap-2 w-[170px] flex-shrink-0 max-md:w-full">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isOver
             ? "bg-red-50"
             : "bg-[#F6F3F2]"
         }`}>
-          <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
+          <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
         </div>
-        <span className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{label}</span>
+        <span className="font-serif-kr text-[17px] font-normal text-[#1A1A1F]">{label}</span>
         <HiddenCostBadge catKey={catKey} />
       </div>
 
@@ -369,7 +369,7 @@ function BudgetRow({
               style={{ width: `${Math.min(percent, 100)}%` }}
             />
           </div>
-          <span className={`text-[10px] font-medium w-[32px] text-right flex-shrink-0 ${
+          <span className={`text-xs font-medium w-[36px] text-right flex-shrink-0 ${
             isOver ? "text-red-400" : percent >= 100 ? "text-[#5a6147]" : "text-[#B5ADA3]"
           }`}>
             {percent}%
@@ -384,7 +384,7 @@ function BudgetRow({
 
       {/* 지출 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[9px] uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
+        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
@@ -395,11 +395,11 @@ function BudgetRow({
       </div>
 
       {/* 구분선 */}
-      <span className="text-[11px] text-[#B5ADA3]/60 flex-shrink-0 self-end mb-1">/</span>
+      <span className="text-sm text-[#B5ADA3]/60 flex-shrink-0 self-end mb-1">/</span>
 
       {/* 예산 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[9px] uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
+        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
           onSave={(v) => onBudgetChange(catKey, v)}
@@ -410,7 +410,7 @@ function BudgetRow({
 
       {/* 상태 + 삭제 */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+        <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
           status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
           status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
           "bg-[#F6F3F2] text-[#B5ADA3]"
@@ -463,14 +463,14 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
     >
       <div className="px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <ShoppingBag className="w-5 h-5 text-[#795252]" />
-          <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">내 예약 내역</h3>
-          {!loading && <span className="text-[11px] text-[#B5ADA3]">{activeBookings.length}건</span>}
+          <ShoppingBag className="w-6 h-6 text-[#795252]" />
+          <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">내 예약 내역</h3>
+          {!loading && <span className="text-sm text-[#B5ADA3]">{activeBookings.length}건</span>}
         </div>
         {cancelledBookings.length > 0 && (
           <button
             onClick={() => setShowCancelled(!showCancelled)}
-            className={`text-[11px] px-2.5 py-1 rounded-lg transition-colors ${
+            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
               showCancelled
                 ? "bg-red-50 text-red-400 font-medium"
                 : "text-[#B5ADA3] hover:bg-[#F6F3F2]"
@@ -482,11 +482,11 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
       </div>
       {loading ? (
         <div className="py-8 flex justify-center">
-          <Loader2 className="w-5 h-5 text-[#B5ADA3] animate-spin" />
+          <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
         </div>
       ) : displayBookings.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-[13px] text-[#B5ADA3]">
+          <p className="text-base text-[#B5ADA3]">
             {showCancelled ? "취소된 예약이 없습니다" : "예약 내역이 없습니다"}
           </p>
         </div>
@@ -495,20 +495,20 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
           {displayBookings.map((b) => {
             const badge = getBookingStatusBadge(b.status);
             return (
-              <div key={b.id} className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF8] transition-colors">
+              <div key={b.id} className="flex items-center gap-4 px-6 py-5 hover:bg-[#FAFAF8] transition-colors">
                 <div className="flex-1 min-w-0">
-                  <p className="font-serif-kr text-[14px] font-normal text-[#1A1A1F] truncate">{b.vendorName}</p>
+                  <p className="font-serif-kr text-[17px] font-normal text-[#1A1A1F] truncate">{b.vendorName}</p>
                   {b.productName && (
-                    <p className="text-[11px] text-[#B5ADA3] truncate">{b.productName}</p>
+                    <p className="text-sm text-[#B5ADA3] truncate">{b.productName}</p>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[12px] text-[#504444]">{b.bookingDate} {b.bookingTime}</p>
+                  <p className="text-sm text-[#504444]">{b.bookingDate} {b.bookingTime}</p>
                   {b.amount > 0 && (
-                    <p className="text-[11px] text-[#795252] font-medium">{formatWon(b.amount)}원</p>
+                    <p className="text-sm text-[#795252] font-medium">{formatWon(b.amount)}원</p>
                   )}
                 </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
                   {badge.label}
                 </span>
               </div>
@@ -773,19 +773,19 @@ export default function BudgetPage() {
     <div className="max-w-[1000px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 타이틀 */}
       <div className="mb-8 animate-fade-in">
-        <p className="text-[10px] uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Budget</p>
-        <h1 className="font-serif-kr text-[32px] font-light text-[#1A1A1F]">예산 관리</h1>
-        <p className="text-[13px] text-[#504444] mt-1 font-light">웨딩 카테고리별로 예산과 지출을 한눈에 관리하세요.</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Budget</p>
+        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F]">예산 관리</h1>
+        <p className="text-base text-[#504444] mt-2 font-light">웨딩 카테고리별로 예산과 지출을 한눈에 관리하세요.</p>
       </div>
 
       {/* 요약 카드 3개 */}
       <div className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1">
         {/* 총 예산 */}
         <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
         >
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">총 예산</p>
+            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">총 예산</p>
             {!editingTotal && (
               <button
                 onClick={() => {
@@ -794,7 +794,7 @@ export default function BudgetPage() {
                 }}
                 className="text-[#B5ADA3] hover:text-[#795252] transition-colors"
               >
-                <Pencil className="w-3 h-3" />
+                <Pencil className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -809,33 +809,33 @@ export default function BudgetPage() {
                   if (e.key === "Enter") handleTotalBudgetSave();
                   if (e.key === "Escape") setEditingTotal(false);
                 }}
-                className="w-[110px] px-3 py-2 rounded-xl border border-[#795252]/40 text-[24px] font-serif-kr font-light text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
+                className="w-[120px] px-3 py-2 rounded-xl border border-[#795252]/40 text-3xl font-serif-kr font-light text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
               />
-              <span className="text-[14px] text-[#B5ADA3]">만원</span>
-              <button onClick={handleTotalBudgetSave} className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
-                <Check className="w-4 h-4" />
+              <span className="text-base text-[#B5ADA3]">만원</span>
+              <button onClick={handleTotalBudgetSave} className="w-9 h-9 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
+                <Check className="w-5 h-5" />
               </button>
-              <button onClick={() => setEditingTotal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]">
-                <X className="w-4 h-4" />
+              <button onClick={() => setEditingTotal(false)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]">
+                <X className="w-5 h-5" />
               </button>
             </div>
           ) : (
-            <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
-              {formatWon(totalBudget)}<span className="text-[16px] text-[#B5ADA3] ml-1">원</span>
+            <p className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
+              {formatWon(totalBudget)}<span className="text-lg text-[#B5ADA3] ml-1">원</span>
             </p>
           )}
         </div>
 
         {/* 사용 금액 */}
         <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
         >
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">사용 금액</p>
-            <TrendingUp className="w-3.5 h-3.5 text-[#795252]" />
+            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">사용 금액</p>
+            <TrendingUp className="w-5 h-5 text-[#795252]" />
           </div>
-          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
-            {formatWon(totalSpent)}<span className="text-[16px] text-[#B5ADA3] ml-1">원</span>
+          <p className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
+            {formatWon(totalSpent)}<span className="text-lg text-[#B5ADA3] ml-1">원</span>
           </p>
           <div className="w-full h-2 bg-[#F6F3F2] rounded-full mt-4 overflow-hidden">
             <div
@@ -843,28 +843,28 @@ export default function BudgetPage() {
               style={{ width: `${Math.min(spentPercent, 100)}%` }}
             />
           </div>
-          <p className="text-[11px] text-[#B5ADA3] mt-2">예산 대비 {spentPercent}% 사용</p>
+          <p className="text-sm text-[#B5ADA3] mt-2">예산 대비 {spentPercent}% 사용</p>
         </div>
 
         {/* 잔여 예산 */}
         <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
         >
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">잔여 예산</p>
-            <TrendingDown className={`w-3.5 h-3.5 ${remaining >= 0 ? "text-[#5a6147]" : "text-red-400"}`} />
+            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">잔여 예산</p>
+            <TrendingDown className={`w-5 h-5 ${remaining >= 0 ? "text-[#5a6147]" : "text-red-400"}`} />
           </div>
-          <p className={`font-serif-kr text-4xl font-light ${remaining >= 0 ? "text-[#1A1A1F]" : "text-red-400"}`}>
-            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-[16px] ml-1 ${remaining >= 0 ? "text-[#B5ADA3]" : "text-red-400/50"}`}>원</span>
+          <p className={`font-serif-kr text-5xl font-light ${remaining >= 0 ? "text-[#1A1A1F]" : "text-red-400"}`}>
+            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-lg ml-1 ${remaining >= 0 ? "text-[#B5ADA3]" : "text-red-400/50"}`}>원</span>
           </p>
           {remaining < 0 && (
-            <p className="text-[11px] text-red-400 mt-2 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
+            <p className="text-sm text-red-400 mt-2 flex items-center gap-1">
+              <AlertTriangle className="w-4 h-4" />
               예산 초과
             </p>
           )}
           {remaining >= 0 && (
-            <p className="text-[11px] text-[#B5ADA3] mt-2">여유 {Math.round((remaining / totalBudget) * 100)}%</p>
+            <p className="text-sm text-[#B5ADA3] mt-2">여유 {Math.round((remaining / totalBudget) * 100)}%</p>
           )}
         </div>
       </div>
@@ -872,11 +872,11 @@ export default function BudgetPage() {
       {/* 분담 요약 */}
       {totalSpent > 0 && (
         <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6 animate-fade-in"
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6 animate-fade-in"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-4 h-4 text-[#795252]" />
-            <h3 className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">분담 현황</h3>
+          <div className="flex items-center gap-2 mb-5">
+            <Users className="w-5 h-5 text-[#795252]" />
+            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">분담 현황</h3>
           </div>
           <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
             {PAYER_OPTIONS.map((opt) => {
@@ -885,29 +885,29 @@ export default function BudgetPage() {
               return (
                 <div
                   key={opt.value}
-                  className={`rounded-xl p-4 transition-colors ${
+                  className={`rounded-xl p-5 transition-colors ${
                     amount > 0 ? "bg-[#795252]/[0.03]" : "bg-[#F6F3F2]"
                   }`}
                 >
                   <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-[14px]">{opt.emoji}</span>
-                    <span className="text-[11px] text-[#504444]">{opt.label}</span>
+                    <span className="text-lg">{opt.emoji}</span>
+                    <span className="text-sm text-[#504444]">{opt.label}</span>
                   </div>
-                  <p className={`font-serif-kr text-[20px] font-light ${
+                  <p className={`font-serif-kr text-2xl font-light ${
                     amount > 0 ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
                   }`}>
                     {amount > 0 ? formatWon(amount) : "0"}
-                    <span className="text-[11px] text-[#B5ADA3] ml-0.5">원</span>
+                    <span className="text-sm text-[#B5ADA3] ml-0.5">원</span>
                   </p>
                   {amount > 0 && (
-                    <div className="mt-2">
-                      <div className="h-1 bg-[#F6F3F2] rounded-full overflow-hidden">
+                    <div className="mt-2.5">
+                      <div className="h-1.5 bg-[#F6F3F2] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <p className="text-[9px] text-[#B5ADA3] mt-1">{pct}%</p>
+                      <p className="text-xs text-[#B5ADA3] mt-1">{pct}%</p>
                     </div>
                   )}
                 </div>
@@ -920,16 +920,16 @@ export default function BudgetPage() {
       {/* 시세 비교 안내 */}
       <Link
         href="/market-prices"
-        className="flex items-center gap-3 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-5 py-4 mb-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow group"
+        className="flex items-center gap-3 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-6 py-5 mb-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow group"
       >
-        <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
-          <TrendingUp className="w-4 h-4 text-[#795252]" />
+        <div className="w-12 h-12 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
+          <TrendingUp className="w-5 h-5 text-[#795252]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-serif-kr text-[14px] text-[#1A1A1F] font-normal">시세 대비 내 예산 확인</p>
-          <p className="text-[11px] text-[#B5ADA3] mt-0.5">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
+          <p className="font-serif-kr text-[17px] text-[#1A1A1F] font-normal">시세 대비 내 예산 확인</p>
+          <p className="text-sm text-[#B5ADA3] mt-1">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
         </div>
-        <span className="text-[12px] text-[#795252] flex-shrink-0 group-hover:underline">자세히 보기 →</span>
+        <span className="text-base text-[#795252] flex-shrink-0 group-hover:underline">자세히 보기 →</span>
       </Link>
 
       {/* 내 예약 내역 */}
@@ -943,26 +943,26 @@ export default function BudgetPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex -space-x-1">
-                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Camera className="w-3.5 h-3.5 text-[#795252]" />
+                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Camera className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Shirt className="w-3.5 h-3.5 text-[#795252]" />
+                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Shirt className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Palette className="w-3.5 h-3.5 text-[#795252]" />
+                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Palette className="w-5 h-5 text-[#795252]" />
                 </div>
               </div>
               <div>
-                <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">스드메 패키지</h3>
-                <p className="text-[11px] text-[#B5ADA3] mt-0.5">스튜디오 + 드레스 + 메이크업</p>
+                <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">스드메 패키지</h3>
+                <p className="text-sm text-[#B5ADA3] mt-0.5">스튜디오 + 드레스 + 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">
+              <p className="font-serif-kr text-xl font-light text-[#1A1A1F]">
                 {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3]">/ {formatWonFull(sdmBudget)}</span>
               </p>
-              <p className="text-[11px] text-[#B5ADA3] mt-0.5">
+              <p className="text-sm text-[#B5ADA3] mt-0.5">
                 {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
               </p>
             </div>
@@ -999,9 +999,9 @@ export default function BudgetPage() {
         className="bg-[#F6F3F2] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden animate-fade-in"
       >
         <div className="px-6 py-5 bg-white flex items-center justify-between">
-          <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">기타 카테고리</h3>
-          <div className="flex items-center gap-1.5 text-[11px] text-[#B5ADA3]">
-            <Pencil className="w-3 h-3 text-[#795252]/50" />
+          <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">기타 카테고리</h3>
+          <div className="flex items-center gap-1.5 text-sm text-[#B5ADA3]">
+            <Pencil className="w-4 h-4 text-[#795252]/50" />
             클릭하여 수정
           </div>
         </div>
@@ -1050,12 +1050,12 @@ export default function BudgetPage() {
             {/* 카테고리 추가 */}
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2.5 w-full px-5 py-4 text-[#B5ADA3] hover:text-[#795252] hover:bg-[#FAFAF8] transition-colors"
+              className="flex items-center gap-2.5 w-full px-6 py-5 text-[#B5ADA3] hover:text-[#795252] hover:bg-[#FAFAF8] transition-colors"
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-dashed border-[#B5ADA3] group-hover:border-[#795252] transition-colors">
-                <Plus className="w-4 h-4" />
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-dashed border-[#B5ADA3] group-hover:border-[#795252] transition-colors">
+                <Plus className="w-5 h-5" />
               </div>
-              <span className="text-[13px]">새 항목 추가</span>
+              <span className="text-base">새 항목 추가</span>
             </button>
           </div>
         </div>

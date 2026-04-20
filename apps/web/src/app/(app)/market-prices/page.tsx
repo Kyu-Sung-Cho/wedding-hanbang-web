@@ -48,10 +48,10 @@ export default function MarketPricesPage() {
     <div className="max-w-[1000px] mx-auto pb-20">
       {/* 헤더 */}
       <div className="mb-6">
-        <h1 className="font-serif-kr text-[30px] font-light text-[#1A1A1F] tracking-tight mb-1">
+        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight mb-2">
           웨딩 시세 정보
         </h1>
-        <p className="text-[13px] text-[#B5ADA3] font-light flex items-center gap-1">
+        <p className="text-base text-[#B5ADA3] font-light flex items-center gap-1">
           한국소비자원 제공
           <a
             href="https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do"
@@ -59,7 +59,7 @@ export default function MarketPricesPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-0.5 text-[#795252] hover:underline"
           >
-            price.go.kr <ExternalLink size={11} />
+            price.go.kr <ExternalLink size={14} />
           </a>
         </p>
       </div>
@@ -70,22 +70,22 @@ export default function MarketPricesPage() {
           <select
             value={periodId}
             onChange={e => setPeriodId(e.target.value)}
-            className="appearance-none bg-white rounded-xl px-4 py-2 pr-8 text-[13px] text-[#1A1A1F] shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="appearance-none bg-white rounded-xl px-5 py-2.5 pr-9 text-base text-[#1A1A1F] shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           >
             {[...PRICE_PERIODS].reverse().map(p => (
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>
-          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B5ADA3] pointer-events-none" />
+          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] pointer-events-none" />
         </div>
 
         {(activeTab === "venue" || activeTab === "sdm" || activeTab === "options") && (
-          <div className="flex bg-[#F6F3F2] rounded-lg p-0.5">
+          <div className="flex bg-[#F6F3F2] rounded-lg p-1">
             {(["national", "seoul"] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
-                className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   scope === s
                     ? "bg-white text-[#795252] shadow-sm"
                     : "text-[#504444] hover:text-[#795252]"
@@ -106,13 +106,13 @@ export default function MarketPricesPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.id
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] hover:text-[#795252]"
               }`}
             >
-              <Icon size={14} />
+              <Icon size={16} />
               {tab.label}
             </button>
           );
@@ -131,7 +131,7 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 출처 */}
-      <div className="mt-8 text-center text-[11px] text-[#B5ADA3] font-light">
+      <div className="mt-8 text-center text-sm text-[#B5ADA3] font-light">
         데이터 출처: 한국소비자원 · {currentPeriod.label} 기준 · 단위: 만원
       </div>
     </div>
@@ -164,7 +164,7 @@ function OverviewTab({ periodId }: { periodId: string }) {
       {/* 비용 구성 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">전국 평균 비용 구성</h3>
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">전국 평균 비용 구성</h3>
         </div>
         <div className="p-5 pt-0">
           <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
@@ -179,7 +179,7 @@ function OverviewTab({ periodId }: { periodId: string }) {
       {/* 서울 vs 전국 비교 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">서울 vs 전국 비교</h3>
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">서울 vs 전국 비교</h3>
         </div>
         <div className="divide-y divide-[#F6F3F2]">
           {(["meal", "rental", "sdm", "decoration"] as const).map(key => {
@@ -189,11 +189,11 @@ function OverviewTab({ periodId }: { periodId: string }) {
             const diff = Math.round(((seoulVal - natVal) / natVal) * 100);
             return (
               <div key={key} className="flex items-center justify-between px-5 py-3">
-                <span className="text-[13px] text-[#1A1A1F]">{labels[key]}</span>
+                <span className="text-base text-[#1A1A1F]">{labels[key]}</span>
                 <div className="flex items-center gap-4">
-                  <span className="text-[12px] text-[#504444]">전국 {natVal.toLocaleString()}</span>
-                  <span className="text-[12px] font-medium text-[#1A1A1F]">서울 {seoulVal.toLocaleString()}</span>
-                  <span className={`text-[11px] font-medium ${diff > 0 ? "text-[#795252]" : "text-[#504444]"}`}>
+                  <span className="text-sm text-[#504444]">전국 {natVal.toLocaleString()}</span>
+                  <span className="text-sm font-medium text-[#1A1A1F]">서울 {seoulVal.toLocaleString()}</span>
+                  <span className={`text-sm font-medium ${diff > 0 ? "text-[#795252]" : "text-[#504444]"}`}>
                     {diff > 0 ? `+${diff}%` : `${diff}%`}
                   </span>
                 </div>
@@ -230,11 +230,11 @@ function TrendTab() {
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
             <TrendingUp size={16} className="text-[#795252]" />
             18개월 비용 추이
           </h3>
-          <p className="text-[11px] text-[#B5ADA3] mt-0.5 font-light">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
+          <p className="text-sm text-[#B5ADA3] mt-1 font-light">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
         </div>
         <div className="p-5 pt-0">
           <TrendChart />
@@ -242,9 +242,9 @@ function TrendTab() {
       </div>
 
       {/* 주요 인사이트 */}
-      <div className="bg-gradient-to-br from-[#795252]/5 to-[#946a6a]/5 rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h4 className="font-serif-kr text-[16px] font-light text-[#1A1A1F] mb-3">주요 인사이트</h4>
-        <ul className="space-y-2 text-[12px] text-[#504444]">
+      <div className="bg-gradient-to-br from-[#795252]/5 to-[#946a6a]/5 rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <h4 className="font-serif-kr text-xl font-light text-[#1A1A1F] mb-3">주요 인사이트</h4>
+        <ul className="space-y-2 text-base text-[#504444]">
           <li className="flex items-start gap-2">
             <span className="text-[#795252] mt-0.5">&#8226;</span>
             <span>성수기(10~11월)와 비수기(2~3월, 8월)의 가격 차이가 400~500만원 수준</span>
@@ -273,7 +273,7 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
       {/* 필수 항목 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
             <Building2 size={16} className="text-[#795252]" />
             필수 항목
           </h3>
@@ -291,13 +291,13 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
       {/* 선택 항목 (17개) */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">선택 항목</h3>
-          <p className="text-[11px] text-[#B5ADA3] mt-0.5 font-light">필수가 아닌 선택 서비스 — 절약 포인트!</p>
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">선택 항목</h3>
+          <p className="text-sm text-[#B5ADA3] mt-1 font-light">필수가 아닌 선택 서비스 — 절약 포인트!</p>
         </div>
         <div className="divide-y divide-[#F6F3F2]">
           {VENUE_OPTIONAL_NAMES.map(name => (
             <div key={name} className="flex items-center justify-between px-5 py-3">
-              <span className="text-[13px] text-[#1A1A1F]">{name}</span>
+              <span className="text-base text-[#1A1A1F]">{name}</span>
               <span className="text-[13px] font-medium text-[#1A1A1F]">
                 {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-[11px] text-[#B5ADA3] ml-0.5">만원</span>
               </span>
@@ -329,19 +329,19 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 패키지 가격 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
             <Camera size={16} className="text-[#795252]" />
             스드메 패키지 지역별 비교
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">지역</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스드메 패키지</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">드메 패키지</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스튜디오 기본</th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">지역</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스드메 패키지</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">드메 패키지</th>
+                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스튜디오 기본</th>
               </tr>
             </thead>
             <tbody>
@@ -361,13 +361,13 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 드레스 상세 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
             <Shirt size={16} className="text-[#946a6a]" />
             드레스 가격
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
                 <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
@@ -401,13 +401,13 @@ function SdmTab({ periodId }: { periodId: string }) {
       {/* 메이크업 상세 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
             <Palette size={16} className="text-[#946a6a]" />
             메이크업 가격
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
                 <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
@@ -457,18 +457,18 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
         return (
           <div key={cat.key} className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
             <div className="px-5 py-4">
-              <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
+              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
                 <Icon size={16} style={{ color: cat.color }} />
                 {cat.label} ({items.length}개)
               </h3>
-              <p className="text-[11px] text-[#B5ADA3] mt-0.5 font-light">2026년 1월 기준 중위 가격</p>
+              <p className="text-sm text-[#B5ADA3] mt-1 font-light">2026년 1월 기준 중위 가격</p>
             </div>
             <div className="divide-y divide-[#F6F3F2]">
               {items.map(item => {
                 const price = scope === "seoul" ? item.seoulPrice : item.nationalPrice;
                 return (
                   <div key={item.name} className="flex items-center justify-between px-5 py-2.5">
-                    <span className="text-[13px] text-[#1A1A1F]">{item.name}</span>
+                    <span className="text-base text-[#1A1A1F]">{item.name}</span>
                     <span className="text-[13px] font-medium text-[#1A1A1F]">
                       {price > 0 ? `${price.toLocaleString()}만원` : "—"}
                     </span>
@@ -489,46 +489,46 @@ function SeasonalTab() {
     <div className="space-y-6">
       {/* 최신 비교 카드 */}
       <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-        <div className="bg-gradient-to-br from-[#795252]/10 to-[#946a6a]/5 rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="bg-gradient-to-br from-[#795252]/10 to-[#946a6a]/5 rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center gap-2 mb-3">
-            <Sun size={18} className="text-[#795252]" />
-            <span className="text-[13px] font-medium text-[#1A1A1F]">성수기</span>
+            <Sun size={22} className="text-[#795252]" />
+            <span className="text-base font-medium text-[#1A1A1F]">성수기</span>
           </div>
-          <p className="text-[10px] text-[#B5ADA3] mb-1 font-light">4~6월, 9~11월</p>
-          <p className="font-serif-kr text-[32px] font-light text-[#1A1A1F]">
+          <p className="text-sm text-[#B5ADA3] mb-1 font-light">4~6월, 9~11월</p>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
             {SEASONAL_DATA[SEASONAL_DATA.length - 1].peak.toLocaleString()}
-            <span className="text-[14px] text-[#B5ADA3] ml-1">만원</span>
+            <span className="text-base text-[#B5ADA3] ml-1">만원</span>
           </p>
         </div>
-        <div className="bg-gradient-to-br from-[#F6F3F2] to-white rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="bg-gradient-to-br from-[#F6F3F2] to-white rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center gap-2 mb-3">
-            <Snowflake size={18} className="text-[#504444]" />
-            <span className="text-[13px] font-medium text-[#1A1A1F]">비수기</span>
+            <Snowflake size={22} className="text-[#504444]" />
+            <span className="text-base font-medium text-[#1A1A1F]">비수기</span>
           </div>
-          <p className="text-[10px] text-[#B5ADA3] mb-1 font-light">1~3월, 7~8월, 12월</p>
-          <p className="font-serif-kr text-[32px] font-light text-[#1A1A1F]">
+          <p className="text-sm text-[#B5ADA3] mb-1 font-light">1~3월, 7~8월, 12월</p>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
             {SEASONAL_DATA[SEASONAL_DATA.length - 1].offPeak.toLocaleString()}
-            <span className="text-[14px] text-[#B5ADA3] ml-1">만원</span>
+            <span className="text-base text-[#B5ADA3] ml-1">만원</span>
           </p>
         </div>
       </div>
 
       {/* 절약 강조 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 text-center">
-        <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">비수기 결혼 시 평균 절약 금액</p>
-        <p className="font-serif-kr text-[44px] font-light text-[#795252]">
+      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 text-center">
+        <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">비수기 결혼 시 평균 절약 금액</p>
+        <p className="font-serif-kr text-6xl font-light text-[#795252]">
           {SEASONAL_DATA[SEASONAL_DATA.length - 1].savings.toLocaleString()}
-          <span className="text-[16px] text-[#B5ADA3] ml-1">만원</span>
+          <span className="text-xl text-[#B5ADA3] ml-1">만원</span>
         </p>
       </div>
 
       {/* 기간별 추이 테이블 */}
       <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">기간별 성수기/비수기 비교</h3>
+          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">기간별 성수기/비수기 비교</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
                 <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">기간</th>
@@ -560,13 +560,13 @@ function SeasonalTab() {
 // ===== 공통 컴포넌트 =====
 function StatCard({ label, value, unit, color, sub }: { label: string; value: number; unit: string; color: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-      <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">{label}</p>
-      <p className="font-serif-kr text-[36px] font-light text-[#1A1A1F] leading-tight">
+    <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+      <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">{label}</p>
+      <p className="font-serif-kr text-5xl font-light text-[#1A1A1F] leading-tight">
         {value.toLocaleString()}
-        <span className="text-[13px] font-light ml-1" style={{ color }}>{unit}</span>
+        <span className="text-base font-light ml-1" style={{ color }}>{unit}</span>
       </p>
-      {sub && <p className="text-[11px] text-[#B5ADA3] mt-2 font-light">{sub}</p>}
+      {sub && <p className="text-sm text-[#B5ADA3] mt-2 font-light">{sub}</p>}
     </div>
   );
 }
@@ -576,22 +576,22 @@ function CostBreakdownItem({ label, value, total, color }: { label: string; valu
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[12px] text-[#504444]">{label}</span>
-        <span className="text-[12px] font-medium" style={{ color }}>{percent}%</span>
+        <span className="text-base text-[#504444]">{label}</span>
+        <span className="text-base font-medium" style={{ color }}>{percent}%</span>
       </div>
-      <div className="h-1.5 bg-[#F6F3F2] rounded-full overflow-hidden mb-1">
+      <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden mb-1">
         <div className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#946a6a]" style={{ width: `${percent}%` }} />
       </div>
-      <p className="text-[14px] font-medium text-[#1A1A1F]">{value.toLocaleString()}<span className="text-[10px] text-[#B5ADA3]">만원</span></p>
+      <p className="text-[17px] font-medium text-[#1A1A1F]">{value.toLocaleString()}<span className="text-sm text-[#B5ADA3]">만원</span></p>
     </div>
   );
 }
 
 function DataCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white p-4">
-      <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-1">{label}</p>
-      <p className="font-serif-kr text-[22px] font-light text-[#1A1A1F]">{value}</p>
+    <div className="bg-white p-5">
+      <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-1">{label}</p>
+      <p className="font-serif-kr text-3xl font-light text-[#1A1A1F]">{value}</p>
     </div>
   );
 }

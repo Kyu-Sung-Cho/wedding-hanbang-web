@@ -103,15 +103,15 @@ export default function VendorsPage() {
     <div className="max-w-[1100px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 제목 + 찜한 업체 링크 */}
       <div className="flex items-center justify-between mb-6 animate-fade-in">
-        <h1 className="font-serif-kr text-3xl font-light text-[#1A1A1F]">업체 탐색</h1>
+        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F]">업체 탐색</h1>
         <Link
           href="/vendors/favorites"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-[13px] text-[#795252] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
+          className="flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-base text-[#795252] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
         >
-          <Heart className="w-3.5 h-3.5" />
+          <Heart className="w-5 h-5" />
           찜한 업체
           {favoriteIds.size > 0 && (
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#795252]/10 text-[#795252] text-[11px] font-medium">
+            <span className="ml-0.5 px-2 py-0.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
               {favoriteIds.size}
             </span>
           )}
@@ -119,28 +119,28 @@ export default function VendorsPage() {
       </div>
 
       {/* 검색바 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 mb-6 flex items-center gap-3 animate-fade-in">
-        <Search className="w-5 h-5 text-[#B5ADA3] flex-shrink-0" />
+      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5 mb-6 flex items-center gap-3 animate-fade-in">
+        <Search className="w-6 h-6 text-[#B5ADA3] flex-shrink-0" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="업체명, 스타일, 지역으로 검색..."
-          className="flex-1 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none"
+          className="flex-1 text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none"
         />
         <button
           onClick={() => { setFilterToast(true); setTimeout(() => setFilterToast(false), 3000); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F6F3F2] text-[12px] text-[#504444] hover:bg-[#EDE7E5] transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#F6F3F2] text-sm text-[#504444] hover:bg-[#EDE7E5] transition-colors"
         >
-          <Filter className="w-3.5 h-3.5" />
+          <Filter className="w-4 h-4" />
           필터
         </button>
       </div>
 
       {/* 필터 준비 중 토스트 */}
       {filterToast && (
-        <div className="bg-amber-50 rounded-xl px-4 py-3 mb-4 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <p className="text-[12px] text-amber-700">상세 필터 기능은 준비 중입니다.</p>
+        <div className="bg-amber-50 rounded-xl px-5 py-3.5 mb-4 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <p className="text-sm text-amber-700">상세 필터 기능은 준비 중입니다.</p>
         </div>
       )}
 
@@ -150,7 +150,7 @@ export default function VendorsPage() {
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-medium transition-all ${
+            className={`flex-shrink-0 px-5 py-2.5 rounded-full text-base font-medium transition-all ${
               activeCategory === cat
                 ? "bg-[#795252] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                 : "bg-white text-[#504444] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:text-[#795252]"
@@ -164,7 +164,7 @@ export default function VendorsPage() {
       {/* 로딩 */}
       {loading && (
         <div className="flex justify-center py-20">
-          <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#B5ADA3] animate-spin" />
         </div>
       )}
 
@@ -180,20 +180,20 @@ export default function VendorsPage() {
                   className="block bg-white rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 hover:shadow-[0_16px_50px_rgba(0,0,0,0.08)] transition-all duration-300 group"
                 >
                   {/* 이미지 플레이스홀더 */}
-                  <div className="h-[160px] bg-gradient-to-br from-[#F6F3F2] to-[#EDE7E5] relative">
+                  <div className="h-[180px] bg-gradient-to-br from-[#F6F3F2] to-[#EDE7E5] relative">
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-[14px] text-[#B5ADA3] font-light">{vendor.category} 사진</span>
+                      <span className="text-base text-[#B5ADA3] font-light">{vendor.category} 사진</span>
                     </div>
                     <div className="absolute top-3 left-3 flex gap-2">
                       {vendor.aiRecommend && (
-                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-[11px] font-medium shadow-sm">
-                          <Sparkles className="w-3 h-3" />
+                        <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-sm">
+                          <Sparkles className="w-4 h-4" />
                           AI 추천
                         </span>
                       )}
                       {hasSlots && (
-                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#2E7D5A] text-white text-[11px] font-medium">
-                          <Clock className="w-3 h-3" />
+                        <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#2E7D5A] text-white text-sm font-medium">
+                          <Clock className="w-4 h-4" />
                           예약 가능
                         </span>
                       )}
@@ -201,37 +201,37 @@ export default function VendorsPage() {
                     {/* 즐겨찾기 버튼 */}
                     <button
                       onClick={(e) => toggleFavorite(e, vendor.id)}
-                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors shadow-sm"
+                      className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors shadow-sm"
                     >
-                      <Heart className={`w-4 h-4 transition-colors ${favoriteIds.has(vendor.id) ? "text-[#946a6a] fill-[#946a6a]" : "text-[#B5ADA3]"}`} />
+                      <Heart className={`w-5 h-5 transition-colors ${favoriteIds.has(vendor.id) ? "text-[#946a6a] fill-[#946a6a]" : "text-[#B5ADA3]"}`} />
                     </button>
                   </div>
 
                   {/* 콘텐츠 */}
-                  <div className="p-5">
+                  <div className="p-6">
                     <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F] group-hover:text-[#795252] transition-colors">
+                      <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] group-hover:text-[#795252] transition-colors">
                         {vendor.name}
                       </h3>
                       <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-[#C9A96E] fill-[#C9A96E]" />
-                        <span className="text-[13px] font-medium text-[#1A1A1F]">{vendor.rating}</span>
-                        <span className="text-[11px] text-[#B5ADA3]">({vendor.reviewCount})</span>
+                        <Star className="w-5 h-5 text-[#C9A96E] fill-[#C9A96E]" />
+                        <span className="text-base font-medium text-[#1A1A1F]">{vendor.rating}</span>
+                        <span className="text-sm text-[#B5ADA3]">({vendor.reviewCount})</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 mb-3">
-                      <MapPin className="w-3.5 h-3.5 text-[#B5ADA3]" />
-                      <span className="text-[12px] text-[#504444]">{vendor.location}</span>
-                      <span className="text-[12px] text-[#B5ADA3] mx-1">·</span>
-                      <span className="text-[12px] text-[#795252] font-medium">{vendor.priceRange}</span>
+                      <MapPin className="w-4 h-4 text-[#B5ADA3]" />
+                      <span className="text-base text-[#504444]">{vendor.location}</span>
+                      <span className="text-base text-[#B5ADA3] mx-1">·</span>
+                      <span className="text-base text-[#795252] font-medium">{vendor.priceRange}</span>
                     </div>
 
                     <div className="flex gap-1.5 flex-wrap">
                       {vendor.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="px-2.5 py-1 rounded-full bg-[#F6F3F2] text-[11px] text-[#504444] font-medium"
+                          className="px-3 py-1.5 rounded-full bg-[#F6F3F2] text-sm text-[#504444] font-medium"
                         >
                           {tag}
                         </span>
@@ -247,7 +247,7 @@ export default function VendorsPage() {
 
       {!loading && vendors.length === 0 && (
         <div className="text-center py-20">
-          <p className="text-[14px] text-[#B5ADA3]">검색 결과가 없습니다</p>
+          <p className="text-base text-[#B5ADA3]">검색 결과가 없습니다</p>
         </div>
       )}
     </div>

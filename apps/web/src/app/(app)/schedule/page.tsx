@@ -220,47 +220,47 @@ export default function SchedulePage() {
     <div className="max-w-[900px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 타이틀 */}
       <div className="mb-8 animate-fade-in">
-        <p className="text-[10px] uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Schedule</p>
-        <h1 className="font-serif-kr text-[32px] font-light text-[#1A1A1F]">일정 관리</h1>
-        <p className="text-[13px] text-[#504444] mt-1 font-light">결혼식까지의 모든 준비 일정을 한 곳에서 관리하세요.</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Schedule</p>
+        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F]">일정 관리</h1>
+        <p className="text-base text-[#504444] mt-2 font-light">결혼식까지의 모든 준비 일정을 한 곳에서 관리하세요.</p>
       </div>
 
       {/* 상단 요약 카드 */}
       <div
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6 animate-fade-in"
+        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6 animate-fade-in"
       >
         <div className="flex items-center justify-between max-md:flex-col max-md:gap-5">
           <div>
-            <p className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-2">전체 체크리스트</p>
-            <p className="text-[14px] text-[#504444]">
-              <span className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
+            <p className="text-sm uppercase tracking-widest text-[#B5ADA3] mb-2">전체 체크리스트</p>
+            <p className="text-base text-[#504444]">
+              <span className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
                 {totalDone}
               </span>
-              <span className="text-[#B5ADA3] mx-1.5 font-serif-kr text-[24px] font-light">/</span>
-              <span className="font-serif-kr text-[28px] font-light text-[#B5ADA3]">
+              <span className="text-[#B5ADA3] mx-1.5 font-serif-kr text-3xl font-light">/</span>
+              <span className="font-serif-kr text-3xl font-light text-[#B5ADA3]">
                 {totalItems}
               </span>
-              <span className="text-[12px] text-[#B5ADA3] ml-2 uppercase tracking-widest">완료</span>
+              <span className="text-sm text-[#B5ADA3] ml-2 uppercase tracking-widest">완료</span>
             </p>
           </div>
           <div className="text-right max-md:text-left max-md:w-full">
             <div className="flex items-center gap-3 mb-3 max-md:justify-between">
-              <span className="text-[11px] uppercase tracking-widest text-[#B5ADA3]">결혼 예정일</span>
-              <span className="font-serif-kr text-[15px] font-normal text-[#1A1A1F]">{dateStr}</span>
+              <span className="text-sm uppercase tracking-widest text-[#B5ADA3]">결혼 예정일</span>
+              <span className="font-serif-kr text-lg font-normal text-[#1A1A1F]">{dateStr}</span>
               {dday !== null && (
-                <span className="text-[11px] text-white bg-[#795252] px-3 py-1 rounded-full font-medium">
+                <span className="text-sm text-white bg-[#795252] px-3 py-1.5 rounded-full font-medium">
                   {dday > 0 ? `D-${dday}` : dday === 0 ? "D-Day" : `D+${Math.abs(dday)}`}
                 </span>
               )}
             </div>
-            <div className="w-[240px] max-md:w-full">
+            <div className="w-[260px] max-md:w-full">
               <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <p className="text-[11px] text-[#B5ADA3] mt-1.5 text-right">
+              <p className="text-sm text-[#B5ADA3] mt-1.5 text-right">
                 {progressPct}% 달성
               </p>
             </div>
@@ -279,17 +279,17 @@ export default function SchedulePage() {
         <div
           className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-6 overflow-hidden animate-fade-in"
         >
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center justify-between px-6 py-5">
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-[#795252]" />
-              <h3 className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">다가오는 일정</h3>
-              <span className="text-[11px] text-[#B5ADA3]">{upcomingEvents.length}건</span>
+              <CalendarDays className="w-5 h-5 text-[#795252]" />
+              <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">다가오는 일정</h3>
+              <span className="text-sm text-[#B5ADA3]">{upcomingEvents.length}건</span>
             </div>
             <button
               onClick={handleAddEventQuick}
-              className="flex items-center gap-1 text-[11px] text-[#795252] hover:text-[#946a6a] transition-colors"
+              className="flex items-center gap-1 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               일정 추가
             </button>
           </div>
@@ -297,37 +297,37 @@ export default function SchedulePage() {
             {upcomingEvents.map((evt) => (
               <div
                 key={evt.id}
-                className="flex items-center gap-3 px-6 py-3.5 hover:bg-[#FAFAF8] transition-colors group"
+                className="flex items-center gap-3 px-6 py-4 hover:bg-[#FAFAF8] transition-colors group"
               >
                 {/* 날짜 */}
-                <div className="flex-shrink-0 w-[60px] text-center">
-                  <p className="font-serif-kr text-[15px] font-normal text-[#1A1A1F]">
+                <div className="flex-shrink-0 w-[68px] text-center">
+                  <p className="font-serif-kr text-lg font-normal text-[#1A1A1F]">
                     {formatEventDate(evt.date).split(" ")[0]}
                   </p>
-                  <p className="text-[10px] text-[#B5ADA3]">
+                  <p className="text-xs text-[#B5ADA3]">
                     {formatEventDate(evt.date).split(" ")[1]}
                   </p>
                 </div>
                 {/* 구분선 */}
-                <div className="w-[3px] h-10 rounded-full bg-[#795252]/30 flex-shrink-0" />
+                <div className="w-[3px] h-12 rounded-full bg-[#795252]/30 flex-shrink-0" />
                 {/* 내용 */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-serif-kr text-[14px] text-[#1A1A1F] font-normal truncate">
+                  <p className="font-serif-kr text-lg text-[#1A1A1F] font-normal truncate">
                     {evt.title}
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-1">
                     {evt.memo && (
-                      <p className="text-[11px] text-[#504444] truncate">{evt.memo}</p>
+                      <p className="text-sm text-[#504444] truncate">{evt.memo}</p>
                     )}
                     {evt.categoryKey && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#795252]/10 text-[#795252] flex-shrink-0">
+                      <span className="text-xs px-2 py-0.5 rounded bg-[#795252]/10 text-[#795252] flex-shrink-0">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
                   </div>
                 </div>
                 {/* D-day */}
-                <span className="text-[11px] text-[#B5ADA3] flex-shrink-0">
+                <span className="text-base text-[#B5ADA3] flex-shrink-0">
                   {getDaysUntil(evt.date)}
                 </span>
                 {/* 편집/삭제 */}
@@ -336,13 +336,13 @@ export default function SchedulePage() {
                     <>
                       <button
                         onClick={() => { handleDeleteEvent(evt.id); setPendingDeleteId(null); }}
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
                       >
                         삭제
                       </button>
                       <button
                         onClick={() => setPendingDeleteId(null)}
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
                       >
                         취소
                       </button>
@@ -351,15 +351,15 @@ export default function SchedulePage() {
                     <>
                       <button
                         onClick={() => handleEditEvent(evt)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
                       >
-                        <Pencil className="w-3 h-3" />
+                        <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setPendingDeleteId(evt.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-red-50 hover:text-red-400 transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-red-50 hover:text-red-400 transition-colors"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </>
                   )}
@@ -374,35 +374,35 @@ export default function SchedulePage() {
       <div
         className="flex items-center justify-between mb-6 animate-fade-in"
       >
-        <div className="flex items-center gap-2 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-1">
+        <div className="flex items-center gap-2 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-1.5">
           <button
             onClick={() => setViewMode("timeline")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-base font-medium transition-all ${
               viewMode === "timeline"
                 ? "bg-[#795252] text-white"
                 : "text-[#504444] hover:bg-[#F6F3F2]"
             }`}
           >
-            <List className="w-4 h-4" />
+            <List className="w-5 h-5" />
             타임라인
           </button>
           <button
             onClick={() => setViewMode("calendar")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-base font-medium transition-all ${
               viewMode === "calendar"
                 ? "bg-[#795252] text-white"
                 : "text-[#504444] hover:bg-[#F6F3F2]"
             }`}
           >
-            <Calendar className="w-4 h-4" />
+            <Calendar className="w-5 h-5" />
             캘린더
           </button>
         </div>
         <button
           onClick={handleAddEventQuick}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
+          className="flex items-center gap-1.5 px-5 py-3 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           일정 추가
         </button>
       </div>

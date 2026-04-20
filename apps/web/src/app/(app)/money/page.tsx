@@ -146,23 +146,23 @@ export default function MoneyPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif-kr text-[30px] font-light text-[#1A1A1F] tracking-tight">축의금 관리</h1>
-          <p className="text-[13px] text-[#B5ADA3] mt-1 font-light">축의금 내역을 기록하고 관리하세요</p>
+          <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight">축의금 관리</h1>
+          <p className="text-base text-[#B5ADA3] mt-2 font-light">축의금 내역을 기록하고 관리하세요</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExportCSV}
             disabled={moneyList.length === 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white rounded-xl text-[13px] font-medium text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
+            className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-5 h-5" />
             CSV
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-[13px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-5 h-5" />
             추가
           </button>
         </div>
@@ -170,43 +170,43 @@ export default function MoneyPage() {
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-          <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">총 축의금</p>
-          <p className="font-serif-kr text-[28px] font-light text-[#1A1A1F] leading-tight">
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">총 축의금</p>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F] leading-tight">
             {stats.total.toLocaleString()}
-            <span className="text-[13px] text-[#B5ADA3] ml-1">원</span>
+            <span className="text-base text-[#B5ADA3] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-          <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">총 인원</p>
-          <p className="font-serif-kr text-[28px] font-light text-[#1A1A1F] leading-tight">
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">총 인원</p>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F] leading-tight">
             {stats.count}
-            <span className="text-[13px] text-[#B5ADA3] ml-1">명</span>
+            <span className="text-base text-[#B5ADA3] ml-1">명</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-          <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">평균</p>
-          <p className="font-serif-kr text-[28px] font-light text-[#1A1A1F] leading-tight">
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">평균</p>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F] leading-tight">
             {stats.avg.toLocaleString()}
-            <span className="text-[13px] text-[#B5ADA3] ml-1">원</span>
+            <span className="text-base text-[#B5ADA3] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-          <p className="text-[10px] text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
-          <p className="text-[11px] text-[#504444] mt-1">신랑 <span className="font-medium text-[#1A1A1F]">{formatMoney(stats.groomTotal)}</span></p>
-          <p className="text-[11px] text-[#795252] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
+          <p className="text-sm text-[#504444] mt-1">신랑 <span className="font-medium text-[#1A1A1F]">{formatMoney(stats.groomTotal)}</span></p>
+          <p className="text-sm text-[#795252] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
         </div>
       </div>
 
       {/* 입력 폼 */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5 mb-6">
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">
+            <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
             <button onClick={resetForm} className="text-[#B5ADA3] hover:text-[#795252]">
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -215,21 +215,21 @@ export default function MoneyPage() {
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
               placeholder="이름"
-              className="px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             />
             <input
               type="number"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="금액"
-              className="px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             />
             <div className="flex gap-2">
               {(["groom", "bride"] as Side[]).map((s) => (
                 <button
                   key={s}
                   onClick={() => setForm({ ...form, side: s })}
-                  className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     form.side === s ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[#504444]"
                   }`}
                 >
@@ -240,7 +240,7 @@ export default function MoneyPage() {
             <select
               value={form.relation}
               onChange={(e) => setForm({ ...form, relation: e.target.value })}
-              className="px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             >
               <option value="">관계 선택</option>
               {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -250,7 +250,7 @@ export default function MoneyPage() {
                 <button
                   key={m.key}
                   onClick={() => setForm({ ...form, method: m.key })}
-                  className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     form.method === m.key ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[#504444]"
                   }`}
                 >
@@ -262,7 +262,7 @@ export default function MoneyPage() {
               type="date"
               value={form.received_at}
               onChange={(e) => setForm({ ...form, received_at: e.target.value })}
-              className="px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             />
           </div>
           <input
@@ -270,14 +270,14 @@ export default function MoneyPage() {
             value={form.memo}
             onChange={(e) => setForm({ ...form, memo: e.target.value })}
             placeholder="메모 (선택)"
-            className="w-full mt-3 px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="w-full mt-3 px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           />
           <button
             onClick={handleSubmit}
             disabled={!form.guest_name.trim() || !form.amount}
-            className="w-full mt-4 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-[14px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+            className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
-            <Check className="w-4 h-4" />
+            <Check className="w-5 h-5" />
             {editId ? "수정 완료" : "추가"}
           </button>
         </div>
@@ -286,13 +286,13 @@ export default function MoneyPage() {
       {/* 검색 & 필터 */}
       <div className="flex gap-2 mb-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#B5ADA3]" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="이름, 관계 검색..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           />
         </div>
         <div className="flex gap-1">
@@ -300,7 +300,7 @@ export default function MoneyPage() {
             <button
               key={key}
               onClick={() => setFilterSide(key)}
-              className={`px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 filterSide === key
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white"
                   : "bg-white text-[#504444] hover:text-[#795252]"
@@ -319,70 +319,70 @@ export default function MoneyPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <Wallet className="w-12 h-12 text-[#B5ADA3] mx-auto mb-4" />
-          <p className="text-[14px] text-[#504444] font-light">축의금 내역이 없습니다</p>
+          <Wallet className="w-14 h-14 text-[#B5ADA3] mx-auto mb-4" />
+          <p className="text-base text-[#504444] font-light">축의금 내역이 없습니다</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           {filtered.map((money, i) => (
             <div
               key={money.id}
-              className={`flex items-center gap-3 px-4 py-3.5 ${
+              className={`flex items-center gap-3 px-5 py-4 ${
                 i > 0 ? "border-t border-[#F6F3F2]" : ""
               }`}
             >
               <div
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                   money.side === "groom" ? "bg-[#504444]" : "bg-[#795252]"
                 }`}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-medium text-[#1A1A1F]">{money.guest_name}</span>
+                  <span className="text-[17px] font-medium text-[#1A1A1F]">{money.guest_name}</span>
                   {money.relation && (
-                    <span className="text-[11px] text-[#795252] px-1.5 py-0.5 bg-[#F6F3F2] rounded">
+                    <span className="text-sm text-[#795252] px-2 py-0.5 bg-[#F6F3F2] rounded">
                       {money.relation}
                     </span>
                   )}
                 </div>
                 {money.memo && (
-                  <p className="text-[11px] text-[#B5ADA3] truncate font-light">{money.memo}</p>
+                  <p className="text-sm text-[#B5ADA3] truncate font-light">{money.memo}</p>
                 )}
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">
+                <div className="font-serif-kr text-xl font-light text-[#1A1A1F]">
                   {formatMoney(money.amount)}
                 </div>
-                <div className="text-[10px] text-[#B5ADA3]">{money.received_at}</div>
+                <div className="text-sm text-[#B5ADA3]">{money.received_at}</div>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button
                   onClick={() => handleEdit(money)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[#B5ADA3] hover:text-[#795252] transition-colors"
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
+                  <Edit3 className="w-5 h-5" />
                 </button>
                 {deleteConfirm === money.id ? (
                   <div className="flex gap-1">
                     <button
                       onClick={() => setDeleteConfirm(null)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-[10px]"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-xs"
                     >
                       취소
                     </button>
                     <button
                       onClick={() => handleDelete(money.id)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-500 text-white"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setDeleteConfirm(money.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 )}
               </div>

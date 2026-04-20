@@ -89,22 +89,22 @@ export default function BookingsPage() {
   return (
     <div className="max-w-[700px] mx-auto">
       <div className="animate-fade-in mb-6">
-        <h1 className="font-serif-kr text-[30px] font-light text-[#1A1A1F] tracking-tight mb-1">내 예약</h1>
-        <p className="text-[14px] text-[#B5ADA3] font-light">
+        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight mb-2">내 예약</h1>
+        <p className="text-base text-[#B5ADA3] font-light">
           예약 현황과 계약 상태를 확인하세요
         </p>
       </div>
 
       {bookings.length === 0 ? (
         <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-12 text-center animate-fade-in">
-          <Calendar className="w-12 h-12 text-[#B5ADA3] mx-auto mb-4" />
-          <p className="text-[15px] text-[#504444] mb-2">아직 예약이 없습니다</p>
-          <p className="text-[13px] text-[#B5ADA3] font-light mb-6">
+          <Calendar className="w-14 h-14 text-[#B5ADA3] mx-auto mb-4" />
+          <p className="text-lg text-[#504444] mb-2">아직 예약이 없습니다</p>
+          <p className="text-base text-[#B5ADA3] font-light mb-6">
             업체를 둘러보고 첫 예약을 잡아보세요
           </p>
           <Link
             href="/vendors"
-            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-[13px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
           >
             업체 둘러보기
           </Link>
@@ -114,7 +114,7 @@ export default function BookingsPage() {
           {/* 진행 중 예약 */}
           {upcoming.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em] mb-3">진행 중</h2>
+              <h2 className="text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em] mb-3">진행 중</h2>
               <div className="space-y-3">
                 {upcoming.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.contractStatus ?? booking.status] ?? STATUS_LABELS[booking.status];
@@ -124,31 +124,31 @@ export default function BookingsPage() {
                     <div key={booking.id} className="animate-fade-in">
                       <Link
                         href={`/bookings/${booking.id}`}
-                        className="block bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-5 py-4 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow"
+                        className="block bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-6 py-5 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow"
                       >
                         <div className="flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
-                              <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] truncate">
+                              <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F] truncate">
                                 {booking.vendorName}
                               </h3>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusConfig?.color ?? ""}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig?.color ?? ""}`}>
                                 {statusConfig?.label ?? booking.status}
                               </span>
                               {needsAction && (
-                                <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[#795252]/10 text-[10px] text-[#795252] font-medium animate-pulse">
-                                  <AlertCircle className="w-2.5 h-2.5" />
+                                <span className="flex items-center gap-0.5 px-2.5 py-0.5 rounded-full bg-[#795252]/10 text-xs text-[#795252] font-medium animate-pulse">
+                                  <AlertCircle className="w-3.5 h-3.5" />
                                   서명 필요
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-[12px] text-[#B5ADA3]">
+                            <div className="flex items-center gap-3 text-base text-[#B5ADA3]">
                               <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
+                                <Calendar className="w-4 h-4" />
                                 {new Date(booking.bookingDate).toLocaleDateString("ko-KR")}
                               </span>
                               <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
+                                <Clock className="w-4 h-4" />
                                 {booking.bookingTime}
                               </span>
                               {booking.productName && <span>{booking.productName}</span>}
@@ -156,7 +156,7 @@ export default function BookingsPage() {
                             </div>
 
                             {/* 진행 바 */}
-                            <div className="flex items-center gap-1.5 mt-2">
+                            <div className="flex items-center gap-1.5 mt-2.5">
                               {[
                                 { label: "예약", done: true, icon: Calendar },
                                 { label: "계약", done: !!booking.contract, icon: FileText },
@@ -165,22 +165,22 @@ export default function BookingsPage() {
                               ].map((step, idx) => (
                                 <div key={idx} className="flex items-center gap-1">
                                   {idx > 0 && (
-                                    <div className={`w-4 h-px ${step.done ? "bg-[#795252]" : "bg-[#B5ADA3]/20"}`} />
+                                    <div className={`w-5 h-px ${step.done ? "bg-[#795252]" : "bg-[#B5ADA3]/20"}`} />
                                   )}
                                   <div
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
                                       step.done ? "bg-[#795252]/15" : "bg-[#F6F3F2]"
                                     }`}
                                   >
                                     <step.icon
-                                      className={`w-2.5 h-2.5 ${step.done ? "text-[#795252]" : "text-[#B5ADA3]"}`}
+                                      className={`w-3.5 h-3.5 ${step.done ? "text-[#795252]" : "text-[#B5ADA3]"}`}
                                     />
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-[#B5ADA3] flex-shrink-0" />
+                          <ChevronRight className="w-5 h-5 text-[#B5ADA3] flex-shrink-0" />
                         </div>
                       </Link>
                     </div>
@@ -193,7 +193,7 @@ export default function BookingsPage() {
           {/* 지난 예약 */}
           {past.length > 0 && (
             <div>
-              <h2 className="text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em] mb-3">지난 예약</h2>
+              <h2 className="text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em] mb-3">지난 예약</h2>
               <div className="space-y-2">
                 {past.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
@@ -201,22 +201,22 @@ export default function BookingsPage() {
                     <Link
                       key={booking.id}
                       href={`/bookings/${booking.id}`}
-                      className="flex items-center gap-4 bg-white/70 rounded-xl px-4 py-3 hover:bg-white hover:shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] transition-all"
+                      className="flex items-center gap-4 bg-white/70 rounded-xl px-5 py-4 hover:bg-white hover:shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] transition-all"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[14px] text-[#504444] truncate">
+                          <span className="text-base text-[#504444] truncate">
                             {booking.vendorName}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusConfig?.color ?? ""}`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig?.color ?? ""}`}>
                             {statusConfig?.label ?? booking.status}
                           </span>
                         </div>
-                        <span className="text-[12px] text-[#B5ADA3]">
+                        <span className="text-sm text-[#B5ADA3]">
                           {new Date(booking.bookingDate).toLocaleDateString("ko-KR")}
                         </span>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-[#B5ADA3]/50" />
+                      <ChevronRight className="w-5 h-5 text-[#B5ADA3]/50" />
                     </Link>
                   );
                 })}
