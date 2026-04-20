@@ -32,6 +32,7 @@ import {
   Loader2,
   Tag,
   Plus,
+  ArrowRight,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, PayerType } from "@/types/database.types";
@@ -182,7 +183,7 @@ function PayerSelector({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[#504444] hover:bg-[#F6F3F2] transition-colors"
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[#504444] hover:bg-[#f6f3f2] transition-colors"
         title="분담 변경"
       >
         <span>{current.emoji}</span>
@@ -197,7 +198,7 @@ function PayerSelector({
               className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                 value === opt.value
                   ? "bg-[#795252]/5 text-[#795252] font-medium"
-                  : "text-[#1A1A1F] hover:bg-[#F6F3F2]"
+                  : "text-[#1b1c1c] hover:bg-[#f6f3f2]"
               }`}
             >
               <span>{opt.emoji}</span>
@@ -263,13 +264,13 @@ function InlineMoneyEdit({
             if (e.key === "Enter") save();
             if (e.key === "Escape") cancel();
           }}
-          className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
+          className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
         />
         <span className="text-[11px] text-[#B5ADA3]">만원</span>
         <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#5a6147] hover:bg-[#5a6147]/10" title="저장">
           <Check className="w-3.5 h-3.5" />
         </button>
-        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]" title="취소">
+        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]" title="취소">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -283,12 +284,12 @@ function InlineMoneyEdit({
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
           highlight === "spent"
             ? "hover:bg-[#795252]/5"
-            : "hover:bg-[#F6F3F2]"
+            : "hover:bg-[#f6f3f2]"
         }`}
         title={`${label} 수정`}
       >
         <span className={`text-base font-medium ${
-          highlight === "spent" ? "text-[#1A1A1F]" : "text-[#504444]"
+          highlight === "spent" ? "text-[#1b1c1c]" : "text-[#504444]"
         }`}>
           {formatWon(value)}
         </span>
@@ -309,7 +310,7 @@ function InlineMoneyEdit({
   );
 }
 
-// 카테고리 행 컴포넌트
+// 카테고리 행 컴포넌트 (리스트 스타일 - 스드메용)
 function BudgetRow({
   catKey,
   label,
@@ -343,25 +344,25 @@ function BudgetRow({
 
   return (
     <div
-      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#FAFAF8] transition-colors max-md:flex-wrap max-md:gap-2"
+      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#fcf9f8] transition-colors max-md:flex-wrap max-md:gap-2"
     >
       {/* 아이콘 + 이름 + 숨겨진 비용 경고 */}
       <div className="flex items-center gap-2 w-[170px] flex-shrink-0 max-md:w-full">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isOver
             ? "bg-red-50"
-            : "bg-[#F6F3F2]"
+            : "bg-[#f6f3f2]"
         }`}>
           <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
         </div>
-        <span className="font-serif-kr text-[17px] font-normal text-[#1A1A1F]">{label}</span>
+        <span className="font-serif-kr text-[17px] font-normal text-[#1b1c1c]">{label}</span>
         <HiddenCostBadge catKey={catKey} />
       </div>
 
       {/* 진행 바 + 퍼센트 */}
       <div className="flex-1 min-w-0 max-md:order-last max-md:w-full">
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-[#f6f3f2] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 isOver ? "bg-red-400" : "bg-gradient-to-r from-[#795252] to-[#946a6a]"
@@ -413,7 +414,7 @@ function BudgetRow({
         <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
           status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
           status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
-          "bg-[#F6F3F2] text-[#B5ADA3]"
+          "bg-[#f6f3f2] text-[#B5ADA3]"
         }`}>
           {status}
         </div>
@@ -426,6 +427,125 @@ function BudgetRow({
             <X className="w-3 h-3" />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// 카테고리 카드 컴포넌트 (그리드 스타일 - 기타 카테고리용)
+function BudgetCard({
+  catKey,
+  label,
+  icon,
+  budget,
+  spent,
+  status,
+  payer,
+  onBudgetChange,
+  onSpentChange,
+  onSpentReset,
+  onPayerChange,
+  onDelete,
+}: {
+  catKey: string;
+  label: string;
+  icon: string;
+  budget: number;
+  spent: number;
+  status: string;
+  payer: PayerType;
+  onBudgetChange: (key: string, val: number) => void;
+  onSpentChange: (key: string, val: number) => void;
+  onSpentReset: (key: string) => void;
+  onPayerChange: (key: string, payer: PayerType) => void;
+  onDelete?: (key: string) => void;
+}) {
+  const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+  const isOver = spent > budget && budget > 0;
+  const Icon = ICON_MAP[icon] ?? Building2;
+
+  return (
+    <div className="group bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow">
+      {/* 상단: 아이콘 + 이름 + 상태 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            isOver ? "bg-red-50" : "bg-[#f6f3f2]"
+          }`}>
+            <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-serif-kr text-[17px] font-normal text-[#1b1c1c] truncate">{label}</span>
+              <HiddenCostBadge catKey={catKey} />
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
+                status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
+                "bg-[#f6f3f2] text-[#B5ADA3]"
+              }`}>
+                {status}
+              </div>
+            </div>
+          </div>
+        </div>
+        {onDelete && (
+          <button
+            onClick={() => onDelete(catKey)}
+            className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+            title={`${label} 삭제`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* 진행 바 */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs text-[#B5ADA3]">진행률</span>
+          <span className={`text-xs font-medium ${
+            isOver ? "text-red-400" : percent >= 100 ? "text-[#5a6147]" : "text-[#504444]"
+          }`}>
+            {percent}%
+          </span>
+        </div>
+        <div className="h-2 bg-[#f6f3f2] rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isOver ? "bg-red-400" : "bg-gradient-to-r from-[#795252] to-[#946a6a]"
+            }`}
+            style={{ width: `${Math.min(percent, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 지출/예산/분담 */}
+      <div className="flex items-end justify-between gap-2">
+        <div className="flex items-end gap-3 min-w-0">
+          <div className="flex flex-col items-start">
+            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
+            <InlineMoneyEdit
+              value={spent}
+              onSave={(v) => onSpentChange(catKey, v)}
+              onReset={() => onSpentReset(catKey)}
+              label={`${label} 지출`}
+              highlight="spent"
+            />
+          </div>
+          <span className="text-sm text-[#B5ADA3]/60 pb-2">/</span>
+          <div className="flex flex-col items-start">
+            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
+            <InlineMoneyEdit
+              value={budget}
+              onSave={(v) => onBudgetChange(catKey, v)}
+              label={`${label} 예산`}
+              highlight="budget"
+            />
+          </div>
+        </div>
+        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
       </div>
     </div>
   );
@@ -444,7 +564,7 @@ interface BookingSummary {
 function getBookingStatusBadge(status: string) {
   switch (status) {
     case "confirmed": return { label: "확정", color: "bg-[#5a6147]/10 text-[#5a6147]" };
-    case "completed": return { label: "완료", color: "bg-[#F6F3F2] text-[#B5ADA3]" };
+    case "completed": return { label: "완료", color: "bg-[#f6f3f2] text-[#B5ADA3]" };
     case "cancelled": return { label: "취소", color: "bg-red-50 text-red-400" };
     default: return { label: "대기중", color: "bg-[#795252]/10 text-[#795252]" };
   }
@@ -459,13 +579,15 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
 
   return (
     <div
-      className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6 animate-fade-in"
+      className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-8 animate-fade-in"
     >
-      <div className="px-6 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+      <div className="px-8 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <ShoppingBag className="w-6 h-6 text-[#795252]" />
-          <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">내 예약 내역</h3>
-          {!loading && <span className="text-sm text-[#B5ADA3]">{activeBookings.length}건</span>}
+          <div>
+            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">내 예약 내역</h3>
+            {!loading && <p className="text-sm text-[#B5ADA3] mt-0.5">{activeBookings.length}건 진행 중</p>}
+          </div>
         </div>
         {cancelledBookings.length > 0 && (
           <button
@@ -473,7 +595,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
             className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
               showCancelled
                 ? "bg-red-50 text-red-400 font-medium"
-                : "text-[#B5ADA3] hover:bg-[#F6F3F2]"
+                : "text-[#B5ADA3] hover:bg-[#f6f3f2]"
             }`}
           >
             {showCancelled ? "예약 중 보기" : `취소 내역 ${cancelledBookings.length}`}
@@ -491,13 +613,13 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-[#F6F3F2]">
+        <div className="divide-y divide-[#f6f3f2]">
           {displayBookings.map((b) => {
             const badge = getBookingStatusBadge(b.status);
             return (
-              <div key={b.id} className="flex items-center gap-4 px-6 py-5 hover:bg-[#FAFAF8] transition-colors">
+              <div key={b.id} className="flex items-center gap-4 px-8 py-5 hover:bg-[#fcf9f8] transition-colors">
                 <div className="flex-1 min-w-0">
-                  <p className="font-serif-kr text-[17px] font-normal text-[#1A1A1F] truncate">{b.vendorName}</p>
+                  <p className="font-serif-kr text-[17px] font-normal text-[#1b1c1c] truncate">{b.vendorName}</p>
                   {b.productName && (
                     <p className="text-sm text-[#B5ADA3] truncate">{b.productName}</p>
                   )}
@@ -648,6 +770,11 @@ export default function BudgetPage() {
     {} as Record<PayerType, number>
   );
 
+  // 숨은 비용(hidden cost) 경고가 있는 카테고리 중 지출이 시작된 것들 — 경고 카드 표시용
+  const hiddenCostWarnings = Object.keys(HIDDEN_COSTS).filter(
+    (k) => !hiddenKeys.has(k) && getCategorySpent(k) > 0
+  );
+
   // 핸들러들
   const handleBudgetChange = useCallback(
     async (key: string, newBudget: number) => {
@@ -769,207 +896,282 @@ export default function BudgetPage() {
     setEditingTotal(false);
   };
 
-  return (
-    <div className="max-w-[1000px] mx-auto bg-[#FAFAF8]">
-      {/* 페이지 타이틀 */}
-      <div className="mb-8 animate-fade-in">
-        <p className="text-sm uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Budget</p>
-        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F]">예산 관리</h1>
-        <p className="text-base text-[#504444] mt-2 font-light">웨딩 카테고리별로 예산과 지출을 한눈에 관리하세요.</p>
-      </div>
+  // 카테고리 세그먼트 (Breakdown 바)
+  const breakdownSegments = visibleFixed
+    .map((c, idx) => ({
+      key: c.key,
+      label: c.label,
+      budget: getCategoryBudget(c.key),
+      color: [
+        "#795252", "#946a6a", "#C9A96E", "#5a6147", "#dee6c4",
+        "#b08968", "#a89b8c", "#8a7f6e", "#c49a8a", "#d4b896",
+      ][idx % 10],
+    }))
+    .filter((s) => s.budget > 0);
+  const breakdownTotal = breakdownSegments.reduce((s, c) => s + c.budget, 0);
 
-      {/* 요약 카드 3개 */}
-      <div className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1">
-        {/* 총 예산 */}
-        <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">총 예산</p>
-            {!editingTotal && (
-              <button
-                onClick={() => {
-                  setTotalText(String(Math.round(totalBudget / 10000)));
-                  setEditingTotal(true);
-                }}
-                className="text-[#B5ADA3] hover:text-[#795252] transition-colors"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
+  return (
+    <div className="min-h-screen bg-[#fcf9f8]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10">
+        {/* Hero Banner */}
+        <section className="relative rounded-2xl overflow-hidden aspect-[16/5] mb-8 animate-fade-in">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `
+                radial-gradient(circle at 30% 50%, rgba(201, 169, 110, 0.3) 0%, transparent 60%),
+                radial-gradient(circle at 70% 60%, rgba(121, 82, 82, 0.35) 0%, transparent 50%),
+                linear-gradient(135deg, #f6f3f2 0%, #dee6c4 50%, #f6f3f2 100%)
+              `,
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent" />
+          <div className="relative h-full flex items-center px-10 lg:px-16">
+            <div>
+              <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
+                BUDGET OVERVIEW
+              </p>
+              <h1 className="font-serif-kr text-5xl lg:text-6xl text-[#1b1c1c] mb-4 leading-tight font-light">
+                예산 관리
+              </h1>
+              <p className="text-xl text-[#504444] font-light italic">
+                우리의 결혼 여정, 현명하게 계획해요.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* 상단 스탯 3개 - Editorial */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          {/* Total Budget */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+            <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs tracking-widest uppercase text-[#795252] font-medium">
+                TOTAL BUDGET
+              </p>
+              {!editingTotal && (
+                <button
+                  onClick={() => {
+                    setTotalText(String(Math.round(totalBudget / 10000)));
+                    setEditingTotal(true);
+                  }}
+                  className="text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                  title="총 예산 수정"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {editingTotal ? (
+              <div className="flex items-end gap-2 mb-3">
+                <input
+                  ref={totalInputRef}
+                  type="number"
+                  value={totalText}
+                  onChange={(e) => setTotalText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleTotalBudgetSave();
+                    if (e.key === "Escape") setEditingTotal(false);
+                  }}
+                  className="w-[180px] px-3 py-2 rounded-xl border border-[#795252]/40 text-5xl font-serif-kr font-light text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
+                />
+                <button onClick={handleTotalBudgetSave} className="w-9 h-9 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
+                  <Check className="w-5 h-5" />
+                </button>
+                <button onClick={() => setEditingTotal(false)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+                {(totalBudget / 10000).toLocaleString()}
+              </p>
+            )}
+            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            <p className="text-base text-[#504444]">전체 예산</p>
+          </div>
+
+          {/* Spent */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+            <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-[#5a6147]/40" />
+            <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
+              SPENT
+            </p>
+            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+              {(totalSpent / 10000).toLocaleString()}
+            </p>
+            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            <p className="text-base text-[#504444]">사용한 금액 ({spentPercent}%)</p>
+            <div className="w-full h-1.5 bg-[#f6f3f2] rounded-full mt-4 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(spentPercent, 100)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Remaining */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+            <TrendingDown className={`absolute top-6 right-6 w-6 h-6 ${remaining >= 0 ? "text-[#C9A96E]/40" : "text-red-400/60"}`} />
+            <p className={`text-xs tracking-widest uppercase mb-4 font-medium ${remaining >= 0 ? "text-[#C9A96E]" : "text-red-400"}`}>
+              REMAINING
+            </p>
+            <p className={`font-serif-kr text-[72px] leading-none mb-2 font-light ${remaining >= 0 ? "text-[#1b1c1c]" : "text-red-400"}`}>
+              {remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString()}
+            </p>
+            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            {remaining >= 0 ? (
+              <p className="text-base text-[#504444]">
+                남은 예산 (여유 {totalBudget > 0 ? Math.round((remaining / totalBudget) * 100) : 0}%)
+              </p>
+            ) : (
+              <p className="text-base text-red-400 flex items-center gap-1">
+                <AlertTriangle className="w-4 h-4" />
+                예산 초과
+              </p>
             )}
           </div>
-          {editingTotal ? (
-            <div className="flex items-center gap-2">
-              <input
-                ref={totalInputRef}
-                type="number"
-                value={totalText}
-                onChange={(e) => setTotalText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleTotalBudgetSave();
-                  if (e.key === "Escape") setEditingTotal(false);
-                }}
-                className="w-[120px] px-3 py-2 rounded-xl border border-[#795252]/40 text-3xl font-serif-kr font-light text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
-              />
-              <span className="text-base text-[#B5ADA3]">만원</span>
-              <button onClick={handleTotalBudgetSave} className="w-9 h-9 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
-                <Check className="w-5 h-5" />
-              </button>
-              <button onClick={() => setEditingTotal(false)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          ) : (
-            <p className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
-              {formatWon(totalBudget)}<span className="text-lg text-[#B5ADA3] ml-1">원</span>
-            </p>
-          )}
         </div>
 
-        {/* 사용 금액 */}
-        <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
+        {/* Budget Breakdown 바 */}
+        {breakdownTotal > 0 && (
+          <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">BUDGET BREAKDOWN</p>
+                <h2 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">카테고리별 배분</h2>
+              </div>
+              <p className="text-sm text-[#504444]">
+                <span className="font-medium text-[#1b1c1c]">{spentPercent}%</span> 사용 /{" "}
+                <span className="font-medium text-[#1b1c1c]">{Math.max(0, 100 - spentPercent)}%</span> 남음
+              </p>
+            </div>
+            <div className="flex w-full h-4 rounded-full overflow-hidden bg-[#f6f3f2]">
+              {breakdownSegments.map((seg) => {
+                const widthPct = (seg.budget / breakdownTotal) * 100;
+                return (
+                  <div
+                    key={seg.key}
+                    className="h-full transition-all"
+                    style={{ width: `${widthPct}%`, backgroundColor: seg.color }}
+                    title={`${seg.label} · ${formatWonFull(seg.budget)}`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4">
+              {breakdownSegments.slice(0, 10).map((seg) => (
+                <div key={seg.key} className="flex items-center gap-1.5 text-xs">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
+                  <span className="text-[#504444]">{seg.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 분담 현황 (Editorial Style) */}
+        {totalSpent > 0 && (
+          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-8 animate-fade-in">
+            <div className="flex items-center gap-3 mb-6">
+              <Users className="w-6 h-6 text-[#795252]" />
+              <div>
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">PAYER SUMMARY</p>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">분담 현황</h3>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
+              {PAYER_OPTIONS.map((opt) => {
+                const amount = payerSummary[opt.value] ?? 0;
+                const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+                return (
+                  <div
+                    key={opt.value}
+                    className={`rounded-xl p-6 transition-colors ${
+                      amount > 0 ? "bg-[#fcf9f8]" : "bg-[#f6f3f2]/60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="text-lg">{opt.emoji}</span>
+                      <span className="text-sm text-[#504444]">{opt.label}</span>
+                    </div>
+                    <p className={`font-serif-kr text-3xl font-light ${
+                      amount > 0 ? "text-[#1b1c1c]" : "text-[#B5ADA3]"
+                    }`}>
+                      {amount > 0 ? formatWon(amount) : "0"}
+                      <span className="text-sm text-[#B5ADA3] ml-0.5">원</span>
+                    </p>
+                    {amount > 0 && (
+                      <div className="mt-3">
+                        <div className="h-1.5 bg-[#f6f3f2] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-[#B5ADA3] mt-1.5">{pct}%</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 시세 비교 안내 */}
+        <Link
+          href="/market-prices"
+          className="flex items-center gap-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-8 py-6 mb-8 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow group animate-fade-in"
         >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">사용 금액</p>
+          <div className="w-12 h-12 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
           </div>
-          <p className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
-            {formatWon(totalSpent)}<span className="text-lg text-[#B5ADA3] ml-1">원</span>
-          </p>
-          <div className="w-full h-2 bg-[#F6F3F2] rounded-full mt-4 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-700"
-              style={{ width: `${Math.min(spentPercent, 100)}%` }}
-            />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">MARKET COMPARISON</p>
+            <p className="font-serif-kr text-[19px] text-[#1b1c1c] font-normal">시세 대비 내 예산 확인</p>
+            <p className="text-sm text-[#504444] mt-1">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
           </div>
-          <p className="text-sm text-[#B5ADA3] mt-2">예산 대비 {spentPercent}% 사용</p>
-        </div>
+          <span className="text-base text-[#795252] flex-shrink-0 group-hover:underline flex items-center gap-1">
+            자세히 보기 <ArrowRight className="w-4 h-4" />
+          </span>
+        </Link>
 
-        {/* 잔여 예산 */}
-        <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 animate-fade-in"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm uppercase tracking-widest text-[#B5ADA3]">잔여 예산</p>
-            <TrendingDown className={`w-5 h-5 ${remaining >= 0 ? "text-[#5a6147]" : "text-red-400"}`} />
-          </div>
-          <p className={`font-serif-kr text-5xl font-light ${remaining >= 0 ? "text-[#1A1A1F]" : "text-red-400"}`}>
-            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-lg ml-1 ${remaining >= 0 ? "text-[#B5ADA3]" : "text-red-400/50"}`}>원</span>
-          </p>
-          {remaining < 0 && (
-            <p className="text-sm text-red-400 mt-2 flex items-center gap-1">
-              <AlertTriangle className="w-4 h-4" />
-              예산 초과
-            </p>
-          )}
-          {remaining >= 0 && (
-            <p className="text-sm text-[#B5ADA3] mt-2">여유 {Math.round((remaining / totalBudget) * 100)}%</p>
-          )}
-        </div>
-      </div>
+        {/* 내 예약 내역 */}
+        <BookingsSection bookings={bookings} loading={bookingsLoading} />
 
-      {/* 분담 요약 */}
-      {totalSpent > 0 && (
-        <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6 animate-fade-in"
-        >
-          <div className="flex items-center gap-2 mb-5">
-            <Users className="w-5 h-5 text-[#795252]" />
-            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">분담 현황</h3>
-          </div>
-          <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
-            {PAYER_OPTIONS.map((opt) => {
-              const amount = payerSummary[opt.value] ?? 0;
-              const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-              return (
-                <div
-                  key={opt.value}
-                  className={`rounded-xl p-5 transition-colors ${
-                    amount > 0 ? "bg-[#795252]/[0.03]" : "bg-[#F6F3F2]"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-lg">{opt.emoji}</span>
-                    <span className="text-sm text-[#504444]">{opt.label}</span>
-                  </div>
-                  <p className={`font-serif-kr text-2xl font-light ${
-                    amount > 0 ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
-                  }`}>
-                    {amount > 0 ? formatWon(amount) : "0"}
-                    <span className="text-sm text-[#B5ADA3] ml-0.5">원</span>
-                  </p>
-                  {amount > 0 && (
-                    <div className="mt-2.5">
-                      <div className="h-1.5 bg-[#F6F3F2] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-[#B5ADA3] mt-1">{pct}%</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 시세 비교 안내 */}
-      <Link
-        href="/market-prices"
-        className="flex items-center gap-3 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-6 py-5 mb-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow group"
-      >
-        <div className="w-12 h-12 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
-          <TrendingUp className="w-5 h-5 text-[#795252]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-serif-kr text-[17px] text-[#1A1A1F] font-normal">시세 대비 내 예산 확인</p>
-          <p className="text-sm text-[#B5ADA3] mt-1">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
-        </div>
-        <span className="text-base text-[#795252] flex-shrink-0 group-hover:underline">자세히 보기 →</span>
-      </Link>
-
-      {/* 내 예약 내역 */}
-      <BookingsSection bookings={bookings} loading={bookingsLoading} />
-
-      {/* 스드메 패키지 */}
-      <div
-        className="bg-[#F6F3F2] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6 animate-fade-in"
-      >
-        <div className="px-6 py-5 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        {/* 스드메 패키지 - Editorial */}
+        <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-8 animate-fade-in">
+          <div className="px-8 py-6 flex items-center justify-between border-b border-[#f6f3f2]">
+            <div className="flex items-center gap-4">
               <div className="flex -space-x-1">
-                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Camera className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Shirt className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-10 h-10 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Palette className="w-5 h-5 text-[#795252]" />
                 </div>
               </div>
               <div>
-                <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">스드메 패키지</h3>
-                <p className="text-sm text-[#B5ADA3] mt-0.5">스튜디오 + 드레스 + 메이크업</p>
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">SDM PACKAGE</p>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">스드메 패키지</h3>
+                <p className="text-sm text-[#504444] mt-0.5">스튜디오 · 드레스 · 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="font-serif-kr text-xl font-light text-[#1A1A1F]">
-                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3]">/ {formatWonFull(sdmBudget)}</span>
+              <p className="font-serif-kr text-2xl font-light text-[#1b1c1c]">
+                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3] text-lg">/ {formatWonFull(sdmBudget)}</span>
               </p>
-              <p className="text-sm text-[#B5ADA3] mt-0.5">
+              <p className="text-sm text-[#504444] mt-1">
                 {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
               </p>
             </div>
           </div>
-        </div>
-        <div className="p-2">
-          <div className="bg-white rounded-lg divide-y divide-[#F6F3F2]">
+          <div className="divide-y divide-[#f6f3f2]">
             {SDM_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
               const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
               return (
@@ -992,236 +1194,300 @@ export default function BudgetPage() {
             })}
           </div>
         </div>
-      </div>
 
-      {/* 기타 카테고리 */}
-      <div
-        className="bg-[#F6F3F2] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden animate-fade-in"
-      >
-        <div className="px-6 py-5 bg-white flex items-center justify-between">
-          <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">기타 카테고리</h3>
+        {/* 기타 카테고리 헤더 */}
+        <div className="flex items-center justify-between mb-4 animate-fade-in">
+          <div>
+            <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">OTHER CATEGORIES</p>
+            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">기타 카테고리</h3>
+          </div>
           <div className="flex items-center gap-1.5 text-sm text-[#B5ADA3]">
             <Pencil className="w-4 h-4 text-[#795252]/50" />
             클릭하여 수정
           </div>
         </div>
-        <div className="p-2">
-          <div className="bg-white rounded-lg divide-y divide-[#F6F3F2]">
-            {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
-              const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
-              return (
-                <BudgetRow
-                  key={key}
-                  catKey={key}
-                  label={cat.label}
-                  icon={cat.icon}
-                  budget={getCategoryBudget(key)}
-                  spent={getCategorySpent(key)}
-                  status={getStatusLabel(key)}
-                  payer={getCategoryPayer(key)}
-                  onBudgetChange={handleBudgetChange}
-                  onSpentChange={handleSpentChange}
-                  onSpentReset={handleSpentReset}
-                  onPayerChange={handlePayerChange}
-                  onDelete={(k) => setDeletingKey(k)}
-                />
-              );
-            })}
 
-            {/* 커스텀 카테고리 */}
-            {customCategories.map((cat) => (
-                <BudgetRow
-                  key={cat.key}
-                  catKey={cat.key}
-                  label={cat.label}
-                  icon={cat.icon}
-                  budget={getCategoryBudget(cat.key)}
-                  spent={getCategorySpent(cat.key)}
-                  status={getStatusLabel(cat.key)}
-                  payer={getCategoryPayer(cat.key)}
-                  onBudgetChange={handleBudgetChange}
-                  onSpentChange={handleSpentChange}
-                  onSpentReset={handleSpentReset}
-                  onPayerChange={handlePayerChange}
-                  onDelete={(k) => setDeletingKey(k)}
-                />
-            ))}
+        {/* 기타 카테고리 - 2열 그리드 카드 */}
+        <div className="grid md:grid-cols-2 gap-4 mb-8 animate-fade-in">
+          {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
+            const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
+            return (
+              <BudgetCard
+                key={key}
+                catKey={key}
+                label={cat.label}
+                icon={cat.icon}
+                budget={getCategoryBudget(key)}
+                spent={getCategorySpent(key)}
+                status={getStatusLabel(key)}
+                payer={getCategoryPayer(key)}
+                onBudgetChange={handleBudgetChange}
+                onSpentChange={handleSpentChange}
+                onSpentReset={handleSpentReset}
+                onPayerChange={handlePayerChange}
+                onDelete={(k) => setDeletingKey(k)}
+              />
+            );
+          })}
 
-            {/* 카테고리 추가 */}
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2.5 w-full px-6 py-5 text-[#B5ADA3] hover:text-[#795252] hover:bg-[#FAFAF8] transition-colors"
-            >
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-dashed border-[#B5ADA3] group-hover:border-[#795252] transition-colors">
-                <Plus className="w-5 h-5" />
-              </div>
-              <span className="text-base">새 항목 추가</span>
-            </button>
-          </div>
-        </div>
-      </div>
+          {/* 커스텀 카테고리 */}
+          {customCategories.map((cat) => (
+            <BudgetCard
+              key={cat.key}
+              catKey={cat.key}
+              label={cat.label}
+              icon={cat.icon}
+              budget={getCategoryBudget(cat.key)}
+              spent={getCategorySpent(cat.key)}
+              status={getStatusLabel(cat.key)}
+              payer={getCategoryPayer(cat.key)}
+              onBudgetChange={handleBudgetChange}
+              onSpentChange={handleSpentChange}
+              onSpentReset={handleSpentReset}
+              onPayerChange={handlePayerChange}
+              onDelete={(k) => setDeletingKey(k)}
+            />
+          ))}
 
-      {/* 배분 안내 */}
-      <div
-        className="mt-4 px-2 animate-fade-in"
-      >
-        <p className="text-[11px] text-[#B5ADA3] text-center">
-          {totalAllocated !== totalBudget && (
-            <span className="text-[#795252]">
-              배분 합계 {formatWonFull(totalAllocated)} (총 예산과 {formatWonFull(Math.abs(totalBudget - totalAllocated))} {totalAllocated > totalBudget ? "초과" : "차이"})
-            </span>
-          )}
-          {totalAllocated === totalBudget && (
-            <span>배분 합계가 총 예산과 일치합니다</span>
-          )}
-        </p>
-      </div>
-
-      {/* 새 항목 추가 모달 */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-white rounded-xl w-[90%] max-w-[420px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">새 항목 추가</h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+          {/* 카테고리 추가 카드 */}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="group flex items-center justify-center gap-3 bg-white/60 rounded-2xl p-6 border-2 border-dashed border-[#B5ADA3]/40 hover:border-[#795252] hover:bg-white transition-colors min-h-[180px]"
+          >
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center border-2 border-dashed border-[#B5ADA3]/60 group-hover:border-[#795252] transition-colors">
+              <Plus className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#795252]" />
             </div>
+            <span className="text-base text-[#B5ADA3] group-hover:text-[#795252] font-serif-kr">새 항목 추가</span>
+          </button>
+        </div>
 
-            <div className="space-y-4">
+        {/* 하단: Hidden Costs + AI Spotlight */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8 animate-fade-in">
+          {/* Hidden Costs 섹션 */}
+          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-[#795252]" />
+              </div>
               <div>
-                <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">카테고리 이름 <span className="text-[#795252]">*</span></label>
-                <input
-                  autoFocus
-                  type="text"
-                  value={newCatLabel}
-                  onChange={(e) => setNewCatLabel(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
-                  placeholder="예: 웨딩카, 답례떡"
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">예산 (만원)</label>
-                  <input
-                    type="number"
-                    value={newCatBudget}
-                    onChange={(e) => setNewCatBudget(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">지출 (만원)</label>
-                  <input
-                    type="number"
-                    value={newCatSpent}
-                    onChange={(e) => setNewCatSpent(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                  />
-                </div>
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">HIDDEN COSTS</p>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">숨은 비용 체크</h3>
+                <p className="text-sm text-[#504444] mt-1">
+                  {hiddenCostWarnings.length > 0
+                    ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에 추가 비용 주의가 필요해요.`
+                    : "예상치 못한 추가 지출을 미리 확인하세요."}
+                </p>
               </div>
             </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleAddCategory}
-                disabled={!newCatLabel.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-[#795252] text-white text-[13px] font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors"
-              >
-                추가
-              </button>
+            <div className="space-y-2.5 max-h-[240px] overflow-y-auto">
+              {(hiddenCostWarnings.length > 0
+                ? hiddenCostWarnings
+                : Object.keys(HIDDEN_COSTS).slice(0, 4)
+              ).map((key) => {
+                const cat = CATEGORY_RATIOS.find((c) => c.key === key);
+                const data = HIDDEN_COSTS[key];
+                if (!cat || !data) return null;
+                const Icon = ICON_MAP[cat.icon] ?? Building2;
+                return (
+                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#fcf9f8]">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-[#795252]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1b1c1c]">{cat.label}</p>
+                      <p className="text-xs text-[#504444] truncate">{data.warning}</p>
+                    </div>
+                    <span className="text-xs font-medium text-[#795252] flex-shrink-0">{data.extra}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
-      )}
 
-      {/* 삭제 확인 모달 */}
-      {deletingKey && (() => {
-        const isFixed = KNOWN_KEYS.has(deletingKey);
-        const catLabel = (() => {
-          const cat = CATEGORY_RATIOS.find((c) => c.key === deletingKey);
-          return cat ? cat.label : (progress[deletingKey]?.label ?? deletingKey);
-        })();
-        return (
+          {/* AI Spotlight */}
+          <div className="relative rounded-2xl overflow-hidden min-h-[280px] bg-gradient-to-br from-[#1a1a1a] to-[#3a2a2a] p-10 flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-[#C9A96E]/10 blur-3xl" />
+            <div className="relative">
+              <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-3 font-medium">
+                AI 예산 분석
+              </p>
+              <h3 className="font-serif-kr text-3xl text-white mb-3 font-light">
+                이 예산, 적정한가요?
+              </h3>
+              <p className="text-base text-white/70 mb-6 max-w-md">
+                AI 아모라가 시세와 비교해서 과잉/절약 포인트를 알려드려요.
+              </p>
+            </div>
+            <Link
+              href="/chat"
+              className="relative inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 hover:border-white pb-1 transition-colors self-start"
+            >
+              아모라에게 물어보기
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+
+        {/* 배분 안내 */}
+        <div className="mt-4 px-2 mb-8 animate-fade-in">
+          <p className="text-[11px] text-[#B5ADA3] text-center">
+            {totalAllocated !== totalBudget && (
+              <span className="text-[#795252]">
+                배분 합계 {formatWonFull(totalAllocated)} (총 예산과 {formatWonFull(Math.abs(totalBudget - totalAllocated))} {totalAllocated > totalBudget ? "초과" : "차이"})
+              </span>
+            )}
+            {totalAllocated === totalBudget && (
+              <span>배분 합계가 총 예산과 일치합니다</span>
+            )}
+          </p>
+        </div>
+
+        {/* 새 항목 추가 모달 */}
+        {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-            <div className="relative bg-white rounded-xl w-[90%] max-w-[380px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                </div>
+            <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+            <div className="relative bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">새 항목 추가</h3>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
                 <div>
-                  <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">
-                    {isFixed ? "항목 관리" : "항목 삭제"}
-                  </h3>
-                  <p className="text-[12px] text-[#B5ADA3] mt-0.5">
-                    <span className="font-medium text-[#504444]">{catLabel}</span>
-                    {isFixed
-                      ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
-                      : " 항목이 완전히 삭제됩니다."}
-                  </p>
+                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">카테고리 이름 <span className="text-[#795252]">*</span></label>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newCatLabel}
+                    onChange={(e) => setNewCatLabel(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
+                    placeholder="예: 웨딩카, 답례떡"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">예산 (만원)</label>
+                    <input
+                      type="number"
+                      value={newCatBudget}
+                      onChange={(e) => setNewCatBudget(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">지출 (만원)</label>
+                    <input
+                      type="number"
+                      value={newCatSpent}
+                      onChange={(e) => setNewCatSpent(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
-                {isFixed ? (
-                  <>
-                    <div className="flex gap-3">
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleAddCategory}
+                  disabled={!newCatLabel.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-[#795252] text-white text-[13px] font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors"
+                >
+                  추가
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 삭제 확인 모달 */}
+        {deletingKey && (() => {
+          const isFixed = KNOWN_KEYS.has(deletingKey);
+          const catLabel = (() => {
+            const cat = CATEGORY_RATIOS.find((c) => c.key === deletingKey);
+            return cat ? cat.label : (progress[deletingKey]?.label ?? deletingKey);
+          })();
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
+              <div className="relative bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif-kr text-[17px] font-light text-[#1b1c1c]">
+                      {isFixed ? "항목 관리" : "항목 삭제"}
+                    </h3>
+                    <p className="text-[12px] text-[#B5ADA3] mt-0.5">
+                      <span className="font-medium text-[#504444]">{catLabel}</span>
+                      {isFixed
+                        ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
+                        : " 항목이 완전히 삭제됩니다."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
+                  {isFixed ? (
+                    <>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleResetCategory(deletingKey)}
+                          className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#795252] font-medium hover:bg-[#795252]/10 transition-colors"
+                        >
+                          데이터 초기화
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(deletingKey)}
+                          className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                        >
+                          항목 삭제
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleResetCategory(deletingKey)}
-                        className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#795252] font-medium hover:bg-[#795252]/10 transition-colors"
+                        onClick={() => setDeletingKey(null)}
+                        className="py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
                       >
-                        데이터 초기화
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setDeletingKey(null)}
+                        className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
+                      >
+                        취소
                       </button>
                       <button
                         onClick={() => handleDeleteCategory(deletingKey)}
                         className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                       >
-                        항목 삭제
+                        삭제
                       </button>
-                    </div>
-                    <button
-                      onClick={() => setDeletingKey(null)}
-                      className="py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                    >
-                      취소
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setDeletingKey(null)}
-                      className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(deletingKey)}
-                      className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
-                    >
-                      삭제
-                    </button>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
     </div>
   );
 }
