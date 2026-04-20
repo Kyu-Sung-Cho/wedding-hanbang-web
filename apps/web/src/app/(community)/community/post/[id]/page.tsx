@@ -32,6 +32,7 @@ import { sanitizeHtml } from "@/utils/sanitize";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import ServiceCTA from "@/components/community/ServiceCTA";
+import Avatar from "@/components/community/Avatar";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import type { CommunityRank } from "@/types/community.types";
 
@@ -407,11 +408,12 @@ export default function PostDetailPage() {
                   href={`/community?author_id=${post.author_id}`}
                   className="shrink-0"
                 >
-                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center ring-2 ring-white shadow-sm`}>
-                    <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
-                      {isEmoji ? author.avatar_url : author.nickname.charAt(0)}
-                    </span>
-                  </div>
+                  <Avatar
+                    nickname={author.nickname}
+                    avatarUrl={author.avatar_url}
+                    size={36}
+                    className="ring-2 ring-white shadow-sm"
+                  />
                 </Link>
 
                 {/* 닉네임 */}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PenSquare, Star, Bookmark, Shield, Archive } from "lucide-react";
+import Avatar from "@/components/community/Avatar";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
 import CategoryTabs from "@/components/community/CategoryTabs";
@@ -68,9 +69,12 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
           <p className="text-[#504444] text-base mb-6 line-clamp-2">{contentPreview}</p>
         )}
         <div className="flex items-center text-base text-[#504444]">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] mr-2 flex items-center justify-center text-white text-xs">
-            {author.nickname.charAt(0)}
-          </div>
+          <Avatar
+            nickname={author.nickname}
+            avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
+            size={28}
+            className="mr-2"
+          />
           <span>By {author.nickname}</span>
           <span className="mx-2">&middot;</span>
           <span>{readMinutes}분 읽기</span>

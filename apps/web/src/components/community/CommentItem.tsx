@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronUp, ChevronDown, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { CommentWithAuthor, CommunityRank } from "@/types/community.types";
+import Avatar from "./Avatar";
 
 // 아모라 서비스 계정 ID
 const AMORA_USER_ID = process.env.NEXT_PUBLIC_AMORA_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -178,25 +179,12 @@ export default function CommentItem({
               <Sparkles className="w-4 h-4 text-white" />
             </div>
           ) : (
-            <div
-              className={`rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 ${
-                isReply ? "w-7 h-7" : "w-8 h-8"
-              }`}
-            >
-              {avatarUrl && !isEmoji ? (
-                <Image
-                  src={avatarUrl}
-                  alt=""
-                  width={isReply ? 28 : 32}
-                  height={isReply ? 28 : 32}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <span className={`${isEmoji ? "text-sm" : "text-xs font-semibold text-white"}`}>
-                  {isEmoji ? avatarUrl : nickname.charAt(0)}
-                </span>
-              )}
-            </div>
+            <Avatar
+              nickname={nickname}
+              avatarUrl={avatarUrl}
+              size={isReply ? 28 : 32}
+              className="shrink-0"
+            />
           )}
 
           {/* 내용 */}

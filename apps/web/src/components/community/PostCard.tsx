@@ -12,6 +12,7 @@ import {
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
+import Avatar from "./Avatar";
 
 interface PostCardProps {
   post: PostWithAuthor;
@@ -121,9 +122,11 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
           <div className="flex items-center justify-between mt-auto pt-2">
             <div className="flex items-center space-x-2">
               <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-[15px] font-medium">
-                  {author.nickname.charAt(0)}
-                </div>
+                <Avatar
+                  nickname={author.nickname}
+                  avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
+                  size={40}
+                />
               </Link>
               <span className="text-[17px] text-[#504444]">{author.nickname}</span>
             </div>
