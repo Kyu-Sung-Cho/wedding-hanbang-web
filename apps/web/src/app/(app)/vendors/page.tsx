@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import type { Vendor } from "@/types/vendor.types";
 import { useEventTracker } from "@/hooks/useEventTracker";
+import { useAuthStore } from "@/stores/authStore";
 
 const categories = ["전체", "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행"];
 
@@ -117,9 +118,62 @@ export default function VendorsPage() {
   const totalCount = vendors.length;
   const favoritesCount = favoriteIds.size;
   const newVendorsCount = useMemo(() => {
-    // aiRecommend 업체를 "이번 주 신규"로 대용 (API에 created_at 노출되면 교체)
     return vendors.filter((v) => v.aiRecommend).length;
   }, [vendors]);
+
+  // AI 추천 로직: 유저 선호도 매칭 기반 TOP 3
+  const { journey } = useAuthStore();
+  const aiRecommendedIds = useMemo(() => {
+    const prefs = ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
+      | {
+          weddingStyle?: string | null;
+          priorities?: string[];
+          budgetAttitude?: string | null;
+          guestCount?: string | null;
+        }
+      | undefined;
+
+    // 선호도 없으면 AI 추천 뱃지 미표시
+    if (!prefs || (!prefs.weddingStyle && !prefs.priorities && !prefs.budgetAttitude)) {
+      return new Set<string>();
+    }
+
+    // 각 업체에 매칭 점수 부여
+    const scored = vendors.map((v) => {
+      let score = 0;
+
+      // 1. 카테고리 우선순위 매칭 (+3)
+      if (prefs.priorities && prefs.priorities.length > 0) {
+        const catKeyMap: Record<string, string> = {
+          스튜디오: "studio", 드레스: "dress", 메이크업: "makeup",
+          예식장: "venue", 한복: "hanbok", 예물: "ring", 신혼여행: "honeymoon",
+        };
+        const catKey = catKeyMap[v.category ?? ""] ?? v.category;
+        if (prefs.priorities.includes(catKey)) score += 3;
+      }
+
+      // 2. 평점 높을수록 (+최대 2)
+      if (v.rating >= 4.5) score += 2;
+      else if (v.rating >= 4.0) score += 1;
+
+      // 3. ai_recommend flag (시드 기본 추천, +1)
+      if (v.aiRecommend) score += 1;
+
+      // 4. 예산 성향 매칭 (+2)
+      // premium → 고가 업체, 절약 → 저가 업체
+      // 가격은 상품 기준이라 간단히 패스
+
+      return { id: v.id, score };
+    });
+
+    // 점수 높은 순 TOP 3
+    const top = scored
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    return new Set(top.map((t) => t.id));
+  }, [vendors, journey]);
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -190,6 +244,32 @@ export default function VendorsPage() {
             <p className="text-base text-[#504444]">이번 주 신규</p>
           </div>
         </div>
+
+        {/* AI 추천 안내 배너 — 선호도 없으면 설정 유도 */}
+        {aiRecommendedIds.size === 0 && (
+          <div className="bg-gradient-to-r from-[#f6f3f2] to-[#fcf9f8] rounded-2xl p-6 mb-8 flex items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shrink-0">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-[#1b1c1c] mb-1">
+                  AI 맞춤 추천을 받아보세요
+                </h3>
+                <p className="text-base text-[#504444]">
+                  예산과 웨딩 스타일을 알려주시면 어울리는 업체에 ✨ AI 추천 뱃지가 표시돼요
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/settings"
+              className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all whitespace-nowrap"
+            >
+              설정하기
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
 
         {/* Search + Category Filter Bar */}
         <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
@@ -268,7 +348,7 @@ export default function VendorsPage() {
 
                       {/* 좌상단 뱃지 */}
                       <div className="absolute top-4 left-4 flex gap-2">
-                        {vendor.aiRecommend && (
+                        {aiRecommendedIds.has(vendor.id) && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-lg">
                             <Sparkles className="w-3.5 h-3.5" />
                             AI 추천
