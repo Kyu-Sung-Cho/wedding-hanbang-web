@@ -227,14 +227,14 @@ function CommunityFeedContent() {
         <CategoryTabs />
       </div>
 
-      <div className="flex-1 flex w-full max-w-[1920px] mx-auto">
-        {/* SideNavBar — 레퍼런스 정확 매칭 */}
-        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-72 sticky top-20 flex-col pt-12 pb-8 px-4 border-r border-[#e4e2e1] z-40 overflow-y-auto">
-          <div className="mb-8 px-4">
-            <h2 className="font-serif-kr text-xl italic text-[#795252] mb-1">
+      <div className="flex-1 flex w-full">
+        {/* SideNavBar — 더 넓게, 꽉 채우기 */}
+        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40 overflow-y-auto">
+          <div className="mb-10 px-4">
+            <h2 className="font-serif-kr text-2xl italic text-[#795252] mb-2">
               커뮤니티
             </h2>
-            <p className="text-sm text-[#504444] tracking-wider uppercase">
+            <p className="text-sm text-[#504444] tracking-widest uppercase">
               웨딩한방 커뮤니티
             </p>
           </div>
@@ -394,7 +394,7 @@ function CommunityFeedContent() {
         </main>
 
         {/* Right Sidebar — 레퍼런스: border-l, w-80 */}
-        <aside className="hidden xl:block w-80 shrink-0 p-8 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8]">
+        <aside className="hidden xl:block w-96 2xl:w-[420px] shrink-0 p-10 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8]">
           <div className="mb-10">
             <TrendingPosts />
           </div>
