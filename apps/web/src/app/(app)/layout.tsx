@@ -26,17 +26,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!isInitialized || isLoading) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-[13px] text-taupe-400">로딩 중...</p>
+          <div className="w-10 h-10 border-2 border-[#795252] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-[13px] text-[#B5ADA3]">로딩 중...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-ivory-50">
+    <div className="min-h-screen bg-[#FAFAF8]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-[260px]">
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {!isChatPage && !chatPanelOpen && (
         <button
           onClick={() => setChatPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white shadow-[0_4px_20px_rgba(196,150,126,0.4)] hover:shadow-[0_6px_28px_rgba(196,150,126,0.5)] hover:scale-105 active:scale-95 transition-all duration-200"
+          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.3)] hover:shadow-[0_6px_28px_rgba(121,82,82,0.4)] hover:scale-105 active:scale-95 transition-all duration-200"
           title="아모라 AI 상담"
         >
           <Sparkles className="w-6 h-6" />

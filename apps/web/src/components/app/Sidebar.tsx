@@ -68,31 +68,31 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* 모바일 오버레이 */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-screen w-[260px] bg-noir-800 flex flex-col z-50 transition-transform duration-300 ${
+        className={`fixed top-0 left-0 h-screen w-[260px] bg-white flex flex-col z-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         {/* 로고 영역 */}
-        <div className="flex items-center justify-between px-6 h-[72px] border-b border-white/[0.06]">
-          <Link href="/dashboard">
-            <Logo size="sm" variant="white" />
+        <div className="flex items-center justify-between px-6 h-[72px]">
+          <Link href="/dashboard" className="font-serif-kr italic text-[20px] text-[#795252] font-light tracking-tight">
+            <Logo size="sm" />
           </Link>
           <button
             onClick={onClose}
-            className="md:hidden w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+            className="md:hidden w-8 h-8 flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 메뉴 */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        <nav className="flex-1 pr-0 pl-3 py-4 overflow-y-auto">
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
               const isActive = pathname === item.href;
@@ -101,10 +101,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] transition-all duration-200 ${
+                  className={`flex items-center gap-3 pl-4 pr-4 py-3 text-[14px] transition-all duration-200 ${
                     isActive
-                      ? "bg-rose-500/15 text-rose-500 font-medium"
-                      : "text-white/50 hover:text-white/80 hover:bg-white/[0.04]"
+                      ? "bg-[#F6F3F2] text-[#795252] font-bold rounded-r-full"
+                      : "text-[#504444] hover:text-[#795252] hover:bg-[#F6F3F2]/60 rounded-xl mr-3"
                   }`}
                 >
                   <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
@@ -117,20 +117,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* 유저 섹션 */}
         <div className="px-3 pb-4">
-          <div className="px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+          <div className="px-4 py-3 rounded-xl bg-[#F6F3F2]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[13px] font-medium">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-[13px] font-medium">
                 {userInitial}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-white font-medium truncate">{userName}</div>
-                <div className="text-[11px] text-white/30">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
+                <div className="text-[13px] text-[#1A1A1F] font-medium truncate">{userName}</div>
+                <div className="text-[11px] text-[#B5ADA3]">{weddingDateStr} {journey?.wedding_date ? "예정" : ""}</div>
               </div>
             </div>
           </div>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-3 px-4 py-3 mt-1 rounded-xl text-[13px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-all w-full"
+            className="flex items-center gap-3 px-4 py-3 mt-2 rounded-xl text-[13px] text-[#795252] bg-white hover:bg-[#F6F3F2] shadow-[0_4px_14px_0_rgba(121,82,82,0.1)] transition-all w-full"
           >
             <LogOut className="w-4 h-4" />
             로그아웃
