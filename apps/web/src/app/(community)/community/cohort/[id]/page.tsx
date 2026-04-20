@@ -9,6 +9,8 @@ import {
   Send,
   Plus,
   Sparkles,
+  Paperclip,
+  ExternalLink,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
@@ -280,7 +282,13 @@ function ChatTab({
   const [input, setInput] = useState("");
   const [thread, setThread] = useState<CohortThreadTopic | "">("");
   const [sending, setSending] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  function insertPostTag(post: { id: string; title: string }) {
+    const tag = `[post:${post.id}|${post.title}]`;
+    setInput((prev) => prev + (prev ? " " : "") + tag + " ");
+  }
 
   // 메시지 로드
   const loadMessages = useCallback(async () => {
@@ -444,6 +452,14 @@ function ChatTab({
           />
           <button
             type="button"
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] transition-colors"
+            title="글 공유"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
             onClick={handleSend}
             disabled={sending || !input.trim()}
             className="flex items-center justify-center rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-5 text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-50"
@@ -452,6 +468,12 @@ function ChatTab({
           </button>
         </div>
       </div>
+
+      <PostPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={insertPostTag}
+      />
     </div>
   );
 }
@@ -478,6 +500,41 @@ function FilterPill({
       {label}
     </button>
   );
+}
+
+function renderMessageContent(text: string): React.ReactNode {
+  const regex = /\[post:([a-f0-9-]+)\|([^\]]+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(
+        <span key={`t${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>
+      );
+    }
+    parts.push(
+      <a
+        key={`p${match.index}`}
+        href={`/community/post/${match[1]}`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 my-1 px-3 py-2 bg-[#f6f3f2] rounded-lg hover:bg-[#e4e2e1] transition-colors group"
+      >
+        <span className="text-xs text-[#504444] uppercase tracking-wider shrink-0">📎 글</span>
+        <span className="font-serif-kr text-base text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
+          {match[2]}
+        </span>
+        <ExternalLink className="w-3.5 h-3.5 text-[#795252] shrink-0" />
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(<span key={`t${lastIndex}`}>{text.slice(lastIndex)}</span>);
+  }
+  return parts.length > 0 ? parts : text;
 }
 
 function MessageBubble({ message }: { message: CohortMessage }) {
@@ -516,8 +573,99 @@ function MessageBubble({ message }: { message: CohortMessage }) {
           )}
         </div>
         <p className="mt-1 whitespace-pre-wrap text-base text-[#1b1c1c] leading-relaxed">
-          {message.content}
+          {renderMessageContent(message.content)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+// 글 공유 모달 (커뮤니티 글 선택)
+// ────────────────────────────────────────
+type PostPickerItem = {
+  id: string;
+  title: string;
+  category?: string;
+  comment_count?: number;
+};
+
+function PostPickerModal({
+  open,
+  onClose,
+  onSelect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (post: { id: string; title: string }) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [posts, setPosts] = useState<PostPickerItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    const url = query
+      ? `/api/community/search?q=${encodeURIComponent(query)}&limit=20`
+      : `/api/community/posts?sort=hot&limit=20`;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : { posts: [] }))
+      .then((d) => setPosts(d.posts ?? []))
+      .finally(() => setLoading(false));
+  }, [open, query]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-[#e4e2e1]">
+          <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4">글 공유하기</h3>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="제목으로 검색하거나 인기글에서 선택"
+            className="w-full px-4 py-3 bg-[#f6f3f2] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#795252]/30"
+            autoFocus
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="text-center text-[#504444] py-8">불러오는 중...</div>
+          ) : posts.length === 0 ? (
+            <div className="text-center text-[#504444] py-8">결과가 없어요</div>
+          ) : (
+            <div className="space-y-2">
+              {posts.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    onSelect({ id: p.id, title: p.title });
+                    onClose();
+                  }}
+                  className="w-full text-left p-4 rounded-xl hover:bg-[#f6f3f2] transition-colors group"
+                >
+                  <div className="font-serif-kr text-lg text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
+                    {p.title}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-[#504444]">
+                    {p.category && <span>{p.category}</span>}
+                    {p.category && <span>·</span>}
+                    <span>💬 {p.comment_count ?? 0}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
