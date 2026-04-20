@@ -123,7 +123,7 @@ export default function StepAccount() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full py-3 bg-noir-800 text-white rounded-xl text-[14px] font-medium hover:bg-noir-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-[#795252] text-white rounded-xl text-[14px] font-medium hover:bg-[#946a6a] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
       >
         <Save className="w-4 h-4" />
         {saving ? "저장 중..." : "계좌 정보 저장"}

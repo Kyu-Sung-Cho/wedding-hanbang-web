@@ -586,7 +586,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
-                      : "bg-noir-800 hover:bg-noir-900"
+                      : "bg-[#795252] hover:bg-[#946a6a]"
                   }`}
                 >
                   <Send className="w-4 h-4" />

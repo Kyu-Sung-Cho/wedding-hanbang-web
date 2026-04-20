@@ -14,7 +14,7 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium transition-all ${
               currentStep === step.step
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : currentStep > step.step
                   ? "bg-rose-500 text-white"
                   : "bg-black/[0.06] text-taupe-400"

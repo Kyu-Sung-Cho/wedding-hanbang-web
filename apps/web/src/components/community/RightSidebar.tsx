@@ -143,17 +143,17 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       </section>
 
       {/* 웨딩한방 서비스 */}
-      <section className="bg-[#1A1A1F] rounded-xl p-8 text-white">
+      <section className="bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-xl p-8 text-white">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="w-5 h-5 text-[#C9A96E]" />
           <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
         </div>
-        <p className="text-sm text-white/60 leading-relaxed mb-5">
+        <p className="text-sm text-white/70 leading-relaxed mb-5">
           가격이 정상인지, 일정은 맞는지, AI 아모라가 답해드려요.
         </p>
         <Link
           href="/chat"
-          className="block w-full text-center bg-gradient-to-br from-[#C4967E] to-[#9A6B62] text-white rounded-xl py-3 text-sm font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200"
+          className="block w-full text-center bg-white text-[#795252] rounded-xl py-3 text-sm font-medium shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-all duration-200"
         >
           아모라와 대화하기
         </Link>

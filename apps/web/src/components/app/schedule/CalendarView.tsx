@@ -183,7 +183,7 @@ export default function CalendarView({
                   : isWedding
                   ? "bg-gradient-to-br from-[#C4967E] to-[#C9A96E] text-white font-medium shadow-md"
                   : isSelected
-                  ? "bg-[#1A1A1F] text-white font-medium"
+                  ? "bg-[#795252] text-white font-medium"
                   : isToday
                   ? "bg-[#C4967E]/10 text-[#C4967E] font-medium ring-1 ring-[#C4967E]/30"
                   : dayNum === 0

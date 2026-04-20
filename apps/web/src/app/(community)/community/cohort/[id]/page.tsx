@@ -172,17 +172,17 @@ function CohortPageInner({ roomId }: { roomId: string }) {
           <div className="mt-auto" />
 
           {/* 아모라 CTA */}
-          <div className="mx-2 rounded-2xl bg-[#1A1A1F] p-4 text-white">
+          <div className="mx-2 rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] p-4 text-white">
             <div className="flex items-center gap-2 mb-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#C9A96E]" />
               <span className="text-xs font-medium">AI 아모라</span>
             </div>
-            <p className="text-[11px] text-white/50 leading-relaxed mb-2.5">
+            <p className="text-[11px] text-white/60 leading-relaxed mb-2.5">
               가격 비교, 견적 분석, 일정 상담
             </p>
             <a
               href="/chat"
-              className="block w-full text-center bg-white text-[#1A1A1F] rounded-lg py-2 text-xs font-medium hover:bg-[#FAFAF8] transition-colors"
+              className="block w-full text-center bg-white text-[#795252] rounded-lg py-2 text-xs font-medium hover:bg-[#FAFAF8] transition-colors"
             >
               대화하기
             </a>
@@ -405,7 +405,7 @@ function ChatTab({
             onClick={() => setThread("")}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               thread === ""
-                ? "bg-[#1A1A1F] text-white"
+                ? "bg-[#795252] text-white"
                 : "bg-[#F5F2ED] text-[#878680] hover:bg-[#F0EFED]"
             }`}
           >
@@ -418,7 +418,7 @@ function ChatTab({
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 thread === t.key
-                  ? "bg-[#1A1A1F] text-white"
+                  ? "bg-[#795252] text-white"
                   : "bg-[#F5F2ED] text-[#878680] hover:bg-[#F0EFED]"
               }`}
             >
@@ -444,7 +444,7 @@ function ChatTab({
             type="button"
             onClick={handleSend}
             disabled={sending || !input.trim()}
-            className="flex items-center justify-center rounded-xl bg-[#1A1A1F] px-4 text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="flex items-center justify-center rounded-xl bg-[#795252] px-4 text-white transition-colors hover:bg-[#946a6a] disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -565,7 +565,7 @@ function InfoTab({
       <button
         type="button"
         onClick={() => setModalOpen(true)}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1A1A1F] px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
       >
         <Plus className="h-4 w-4" />
         내 계약 정보 등록
@@ -787,7 +787,7 @@ function ContractModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-[#1A1A1F] px-4 py-2.5 text-sm text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="flex-1 rounded-xl bg-[#795252] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#946a6a] disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>

@@ -32,6 +32,7 @@ import {
   Mic,
   Box,
   Heart,
+  MoreHorizontal,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -167,9 +168,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, { label: string; color: string }> = {
-  completed: { label: "완료", color: "bg-[#2E7D5A]" },
-  in_progress: { label: "진행중", color: "bg-rose-500" },
-  not_started: { label: "예정", color: "bg-taupe-400" },
+  completed: { label: "완료", color: "bg-[#5a6147]" },
+  in_progress: { label: "진행중", color: "bg-[#795252]" },
+  not_started: { label: "예정", color: "bg-[#B5ADA3]" },
 };
 
 export default function DashboardPage() {
@@ -228,18 +229,17 @@ export default function DashboardPage() {
   );
   const progressPercent = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
-  // 예산 포맷
-  const budget = journey?.total_budget ?? 0;
-  const budgetStr =
-    budget >= 10000
-      ? `₩${(budget / 10000).toLocaleString()}만원`
-      : `₩${budget.toLocaleString()}`;
+  // 예산 계산
+  const totalBudget = journey?.total_budget ?? 0;
+  const spentBudget = Math.round(totalBudget * (progressPercent / 100));
+  const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
+  const formatBudget = (amount: number) =>
+    amount >= 10000
+      ? `₩${(amount / 10000).toLocaleString()}만`
+      : `₩${amount.toLocaleString()}`;
 
   const userName = profile?.name ?? "사용자";
   const partnerName = partner?.name;
-  const coupleStr = partnerName
-    ? `${userName} & ${partnerName}`
-    : userName;
 
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
@@ -251,15 +251,16 @@ export default function DashboardPage() {
     [dday, progress]
   );
 
+  // 다음 주요 마일스톤 (가장 긴급한 태스크)
+  const nextMilestone = urgentTasks[0];
+
   // 커플 활동 피드 (파트너의 진행 상태 변경 기반)
   const partnerActivities = useMemo(() => {
     if (!partner) return [];
 
-    // progress에서 완료/진행중인 카테고리를 파트너 활동으로 표시
-    // 실제 서비스에서는 activity log 테이블이 있겠지만, 현재는 progress 데이터로 추론
     const activities: { key: string; label: string; status: string; statusLabel: string }[] = [];
     for (const [key, item] of Object.entries(progress)) {
-      if (key.startsWith("__")) continue; // __events 같은 메타 키 제외
+      if (key.startsWith("__")) continue;
       const catItem = item as { status?: string };
       if (!catItem?.status || catItem.status === "not_started") continue;
       const label = CATEGORY_LABELS[key];
@@ -268,114 +269,263 @@ export default function DashboardPage() {
       activities.push({ key, label, status: catItem.status, statusLabel });
     }
 
-    // 최근 3개까지만 표시
     return activities.slice(0, 3);
   }, [partner, progress]);
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div className="max-w-[1200px] mx-auto">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
         <div
-          className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in"
+          className="bg-[#F6F3F2] rounded-xl p-5 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
         >
           <div>
-            <p className="text-[14px] font-medium text-noir-800">
+            <p className="text-[14px] font-medium text-[#1A1A1F]">
               파트너에게 초대 코드를 공유하세요
             </p>
-            <p className="text-[12px] text-taupe-400 mt-0.5">
+            <p className="text-[12px] text-[#B5ADA3] mt-0.5">
               파트너가 회원가입 시 이 코드를 입력하면 커플 연동됩니다
             </p>
           </div>
           <button
             onClick={copyCode}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl border border-black/[0.06] hover:border-rose-500/30 transition-all"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl hover:shadow-md transition-all"
           >
-            <span className="font-mono text-[15px] font-bold text-noir-800 tracking-wider">
+            <span className="font-mono text-[15px] font-bold text-[#1A1A1F] tracking-wider">
               {inviteCode}
             </span>
             {copied ? (
-              <Check className="w-4 h-4 text-[#2E7D5A]" />
+              <Check className="w-4 h-4 text-[#5a6147]" />
             ) : (
-              <Copy className="w-4 h-4 text-taupe-400" />
+              <Copy className="w-4 h-4 text-[#B5ADA3]" />
             )}
           </button>
         </div>
       )}
 
-      {/* D-day 히어로 */}
-      <div
-        className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-3xl p-10 max-md:p-6 mb-8 relative overflow-hidden animate-fade-in"
-      >
-        <div className="absolute top-[-20%] right-[-10%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
-        <div className="relative z-10 flex items-center justify-between max-md:flex-col max-md:text-center max-md:gap-6">
-          <div>
-            <p className="text-[12px] tracking-[0.18em] uppercase text-rose-light font-medium mb-3">
-              Wedding Day
-            </p>
-            <div className="flex items-baseline gap-3 max-md:justify-center">
-              <span className="font-display text-[72px] max-md:text-[56px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent leading-none">
-                {dday !== null && dday > 0
-                  ? `D-${dday}`
-                  : dday === 0
-                    ? "D-Day"
-                    : dday !== null && dday < 0
-                      ? `D+${Math.abs(dday)}`
-                      : "미정"}
-              </span>
+      {/* 에디토리얼 히어로 배너 */}
+      <div className="relative h-64 md:h-80 rounded-xl overflow-hidden mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {/* 배경 그라디언트 (웨딩 무드) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#E8DDD5] via-[#D9C5BC] to-[#C9A89D]" />
+        {/* 장식 패턴 */}
+        <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(255,255,255,0.25),transparent_70%)] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[10%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(121,82,82,0.15),transparent_70%)] rounded-full" />
+        {/* 오버레이 */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/10 to-transparent" />
+        {/* 컨텐츠 */}
+        <div className="relative h-full flex flex-col justify-center px-8 md:px-12">
+          <p className="text-xs tracking-[0.25em] uppercase text-white/80 font-medium mb-3">
+            Curated Atelier
+          </p>
+          <h1 className="font-serif-kr text-3xl md:text-5xl text-white font-light leading-tight mb-3">
+            {partnerName
+              ? <>{userName}님 & {partnerName}님</>
+              : <>{userName}님, 환영합니다</>}
+          </h1>
+          <p className="text-white/90 font-serif-kr italic text-base md:text-lg">
+            영원의 시작이 아름답게 펼쳐지고 있어요
+          </p>
+        </div>
+      </div>
+
+      {/* D-day + Budget Overview (2열) */}
+      <div className="grid grid-cols-5 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
+        {/* D-day 카드 */}
+        <div className="col-span-2 max-lg:col-span-1 bg-white rounded-xl p-8 relative overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          {/* 장식 스파클 */}
+          <div className="absolute top-4 right-4 w-8 h-8 opacity-10">
+            <Sparkles className="w-full h-full text-[#795252]" />
+          </div>
+          <div className="absolute bottom-4 left-4 w-6 h-6 opacity-[0.06]">
+            <Sparkles className="w-full h-full text-[#795252]" />
+          </div>
+
+          <p className="text-xs tracking-[0.25em] uppercase text-[#795252] font-medium mb-8 text-center">
+            결혼식 D-DAY
+          </p>
+          <div className="text-center">
+            <div className="font-serif-kr text-7xl font-light text-[#1A1A1F] mb-3 leading-none">
+              {dday !== null && dday > 0
+                ? dday
+                : dday === 0
+                  ? "D"
+                  : dday !== null && dday < 0
+                    ? `+${Math.abs(dday)}`
+                    : "—"}
             </div>
-            <p className="text-white/40 text-[14px] font-light mt-3">
-              {dateStr} · {coupleStr}
+            <p className="font-serif-kr italic text-[#504444] text-lg">
+              {dday !== null && dday > 0
+                ? "일 남았어요"
+                : dday === 0
+                  ? "오늘이에요"
+                  : dday !== null && dday < 0
+                    ? "일 지났어요"
+                    : "날짜 미정"}
             </p>
           </div>
-          <div className="text-center">
-            <div className="relative w-[120px] h-[120px] mx-auto">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
-                <circle
-                  cx="60" cy="60" r="52" fill="none"
-                  stroke="url(#progressGrad)" strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${progressPercent * 3.27} ${327 - progressPercent * 3.27}`}
-                />
-                <defs>
-                  <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#C4967E" />
-                    <stop offset="100%" stopColor="#C9A96E" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-display text-[28px] font-light text-white">{progressPercent}%</span>
-                <span className="text-[10px] text-white/30">진행률</span>
-              </div>
+          <div className="mt-8 pt-6 border-t border-[#F6F3F2]">
+            <p className="text-center text-sm text-[#B5ADA3]">{dateStr}</p>
+          </div>
+        </div>
+
+        {/* Budget Overview 카드 */}
+        <div className="col-span-3 max-lg:col-span-1 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="flex items-start justify-between mb-8">
+            <div>
+              <h3 className="font-serif-kr text-2xl text-[#1A1A1F] mb-1 font-light">예산 현황</h3>
+              <p className="text-sm text-[#B5ADA3]">소중한 투자를 관리해요</p>
             </div>
-            <p className="text-white/40 text-[12px] mt-2">{totalDone}/{totalItems} 항목 완료</p>
+            <Link href="/budget" className="text-[#B5ADA3] hover:text-[#795252] transition-colors">
+              <MoreHorizontal className="w-5 h-5" />
+            </Link>
+          </div>
+
+          <div className="flex items-end justify-between mb-5">
+            <div>
+              <p className="font-serif-kr text-4xl font-light text-[#1A1A1F] leading-none">
+                {formatBudget(spentBudget)}
+              </p>
+              <p className="text-xs text-[#B5ADA3] mt-2 tracking-wider uppercase">사용한 예산</p>
+            </div>
+            <div className="text-right">
+              <p className="font-serif-kr text-2xl text-[#504444] font-light leading-none">
+                {formatBudget(totalBudget)}
+              </p>
+              <p className="text-xs text-[#B5ADA3] mt-2 tracking-wider uppercase">전체 예산</p>
+            </div>
+          </div>
+
+          <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(budgetPercent, 100)}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#B5ADA3]">진행률 {progressPercent}%</p>
+            <p className="text-right text-xs text-[#B5ADA3]">{budgetPercent}% 사용</p>
           </div>
         </div>
       </div>
 
-      {/* 빠른 액션 */}
-      <div
-        className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1 animate-fade-in"
-      >
-        {[
-          { href: "/chat", icon: MessageCircle, label: "아모라에게 물어보기", desc: "결혼 준비 뭐든 상담하세요", accent: "from-rose-500 to-gold" },
-          { href: "/budget", icon: Wallet, label: "예산 현황 보기", desc: `총 예산 ${budgetStr}`, accent: "from-[#2E7D5A] to-[#4CAF80]" },
-          { href: "/schedule", icon: CalendarCheck, label: "일정 관리", desc: "체크리스트를 확인하세요", accent: "from-gold to-[#DCC9A0]" },
-        ].map((action) => (
-          <Link
-            key={action.href}
-            href={action.href}
-            className="group bg-white rounded-2xl p-6 border border-black/[0.04] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] transition-all duration-300"
-          >
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${action.accent} flex items-center justify-center mb-4`}>
-              <action.icon className="w-5 h-5 text-white" />
+      {/* Next Milestone / Quick Actions / Spotlight (3-column) */}
+      <div className="grid grid-cols-3 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
+        {/* Next Milestone */}
+        <div className="bg-white rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+          <p className="text-xs tracking-[0.2em] uppercase text-[#795252] font-medium mb-5">
+            Next Milestone
+          </p>
+          {nextMilestone ? (
+            <>
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#F6F3F2] to-[#E8DDD5] flex items-center justify-center mb-5">
+                {(() => {
+                  const IconComp = CATEGORY_ICONS[nextMilestone.key] ?? CalendarCheck;
+                  return <IconComp className="w-5 h-5 text-[#795252]" />;
+                })()}
+              </div>
+              <h4 className="font-serif-kr text-xl text-[#1A1A1F] font-light mb-3 leading-snug">
+                {nextMilestone.label}
+              </h4>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#795252]/10 text-[#795252] text-xs font-medium tracking-wide">
+                  {nextMilestone.urgency === "overdue"
+                    ? "지금 바로"
+                    : nextMilestone.daysUntilDeadline <= 14
+                      ? `${nextMilestone.daysUntilDeadline}일 내`
+                      : "여유 있음"}
+                </span>
+                <span className="text-xs text-[#B5ADA3]">{nextMilestone.deadlineText}</span>
+              </div>
+              <button
+                onClick={() => setSelectedCategory(nextMilestone.key)}
+                className="mt-6 inline-flex items-center gap-1.5 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
+              >
+                자세히 보기
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#F6F3F2] to-[#E8DDD5] flex items-center justify-center mb-5">
+                <Check className="w-5 h-5 text-[#5a6147]" />
+              </div>
+              <h4 className="font-serif-kr text-xl text-[#1A1A1F] font-light mb-3 leading-snug">
+                모두 순조로워요
+              </h4>
+              <p className="text-sm text-[#504444] leading-relaxed">
+                현재 급한 일정은 없어요. 여유롭게 준비를 이어가세요.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-[#F6F3F2] rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <p className="text-xs tracking-[0.2em] uppercase text-[#795252] font-medium mb-5">
+            Quick Actions
+          </p>
+          <h4 className="font-serif-kr text-xl text-[#1A1A1F] font-light mb-5">
+            빠른 시작
+          </h4>
+          <div className="flex flex-col gap-3">
+            <Link
+              href="/chat"
+              className="group flex items-center justify-between px-4 py-4 bg-white rounded-xl hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
+                  <MessageCircle className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-sm font-medium text-[#1A1A1F]">아모라 상담</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#B5ADA3] group-hover:text-[#795252] group-hover:translate-x-0.5 transition-all" />
+            </Link>
+            <Link
+              href="/community"
+              className="group flex items-center justify-between px-4 py-4 bg-white rounded-xl hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#5a6147] to-[#7a8560] flex items-center justify-center">
+                  <Users className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-sm font-medium text-[#1A1A1F]">최근 커뮤니티 글</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#B5ADA3] group-hover:text-[#795252] group-hover:translate-x-0.5 transition-all" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Spotlight */}
+        <Link
+          href="/fitting"
+          className="group relative rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] min-h-[260px] block"
+        >
+          {/* 배경 그라디언트 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#5a6147] via-[#795252] to-[#3d2e2e]" />
+          <div className="absolute top-[-20%] right-[-10%] w-[200px] h-[200px] bg-[radial-gradient(circle,rgba(255,255,255,0.15),transparent_70%)] rounded-full" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[180px] h-[180px] bg-[radial-gradient(circle,rgba(201,169,110,0.2),transparent_70%)] rounded-full" />
+          {/* 컨텐츠 */}
+          <div className="relative h-full flex flex-col justify-between p-7">
+            <div>
+              <p className="text-xs tracking-[0.2em] uppercase text-white/70 font-medium mb-3">
+                Spotlight
+              </p>
+              <Sparkles className="w-6 h-6 text-white/80 mb-4" />
             </div>
-            <h3 className="text-[15px] font-medium text-noir-800 mb-1">{action.label}</h3>
-            <p className="text-[12px] text-taupe-500 font-light">{action.desc}</p>
-          </Link>
-        ))}
+            <div>
+              <h4 className="font-serif-kr text-2xl text-white font-light mb-2 leading-snug">
+                AI 드레스 피팅
+              </h4>
+              <p className="text-sm text-white/80 mb-5 leading-relaxed">
+                내 사진으로 수백 벌의 드레스를 미리 입어보세요
+              </p>
+              <div className="inline-flex items-center gap-1.5 text-sm text-white font-medium group-hover:gap-2.5 transition-all">
+                지금 시작
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* 지금 해야 할 것 + 커플 활동 */}
@@ -383,10 +533,10 @@ export default function DashboardPage() {
         <div className="grid grid-cols-5 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
           {/* 지금 해야 할 것 */}
           {urgentTasks.length > 0 && (
-            <div className={`${partnerActivities.length > 0 ? "col-span-3" : "col-span-5"} max-lg:col-span-1 bg-white rounded-2xl p-6 border border-black/[0.04]`}>
+            <div className={`${partnerActivities.length > 0 ? "col-span-3" : "col-span-5"} max-lg:col-span-1 bg-white rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
-                <AlertCircle className="w-4 h-4 text-rose-500" />
-                <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">지금 해야 할 것</h3>
+                <AlertCircle className="w-4 h-4 text-[#795252]" />
+                <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">지금 해야 할 것</h3>
               </div>
               <div className="flex flex-col gap-3">
                 {urgentTasks.map((task) => {
@@ -395,7 +545,7 @@ export default function DashboardPage() {
                     <div
                       key={task.key}
                       onClick={() => setSelectedCategory(task.key)}
-                      className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border cursor-pointer hover:shadow-sm transition-all ${task.urgencyBg} ${task.urgencyBorder}`}
+                      className={`flex items-center gap-4 px-4 py-3.5 rounded-xl cursor-pointer hover:shadow-sm transition-all ${task.urgencyBg}`}
                     >
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                         task.urgency === "overdue"
@@ -408,8 +558,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[14px] font-medium text-noir-800">{task.label}</span>
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${task.urgencyColor} ${
+                          <span className="text-[14px] font-medium text-[#1A1A1F]">{task.label}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${task.urgencyColor} ${
                             task.urgency === "overdue"
                               ? "bg-red-100"
                               : task.urgency === "soon"
@@ -419,9 +569,9 @@ export default function DashboardPage() {
                             {task.urgencyLabel}
                           </span>
                         </div>
-                        <p className="text-[12px] text-taupe-500 mt-0.5">{task.deadlineText}</p>
+                        <p className="text-[12px] text-[#504444] mt-0.5">{task.deadlineText}</p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-taupe-400 flex-shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-[#B5ADA3] flex-shrink-0" />
                     </div>
                   );
                 })}
@@ -431,10 +581,10 @@ export default function DashboardPage() {
 
           {/* 커플 활동 */}
           {partnerActivities.length > 0 && (
-            <div className={`${urgentTasks.length > 0 ? "col-span-2" : "col-span-5"} max-lg:col-span-1 bg-white rounded-2xl p-6 border border-black/[0.04]`}>
+            <div className={`${urgentTasks.length > 0 ? "col-span-2" : "col-span-5"} max-lg:col-span-1 bg-white rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
-                <Users className="w-4 h-4 text-rose-500" />
-                <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">커플 활동</h3>
+                <Users className="w-4 h-4 text-[#795252]" />
+                <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">커플 활동</h3>
               </div>
               <div className="flex flex-col gap-2">
                 {partnerActivities.map((activity) => {
@@ -442,22 +592,22 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={activity.key}
-                      className="flex items-start gap-3 px-3 py-3 rounded-xl bg-ivory-50 border border-black/[0.02]"
+                      className="flex items-start gap-3 px-3 py-3 rounded-xl bg-[#F6F3F2]"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <IconComp className="w-4 h-4 text-rose-500" />
+                      <div className="w-8 h-8 rounded-lg bg-[#795252]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <IconComp className="w-4 h-4 text-[#795252]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-noir-800 font-light leading-snug">
+                        <p className="text-[13px] text-[#1A1A1F] font-light leading-snug">
                           <span className="font-medium">{partner?.name ?? "파트너"}</span>
                           {activity.status === "completed"
-                            ? <span>가 <span className="font-medium text-[#2E7D5A]">{activity.label}</span>을 <span className="text-[#2E7D5A] font-medium">완료</span>했어요</span>
-                            : <span>가 <span className="font-medium text-rose-500">{activity.label}</span>을 <span className="text-rose-500 font-medium">진행중</span>으로 변경했어요</span>
+                            ? <span>가 <span className="font-medium text-[#5a6147]">{activity.label}</span>을 <span className="text-[#5a6147] font-medium">완료</span>했어요</span>
+                            : <span>가 <span className="font-medium text-[#795252]">{activity.label}</span>을 <span className="text-[#795252] font-medium">진행중</span>으로 변경했어요</span>
                           }
                         </p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <Clock className="w-3 h-3 text-taupe-400" />
-                          <span className="text-[11px] text-taupe-400">최근 활동</span>
+                          <Clock className="w-3 h-3 text-[#B5ADA3]" />
+                          <span className="text-[11px] text-[#B5ADA3]">최근 활동</span>
                         </div>
                       </div>
                     </div>
@@ -469,14 +619,18 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1">
+      {/* 카테고리별 진행 상태 + 시작 가이드 */}
+      <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1 animate-fade-in">
         {/* 카테고리 현황 */}
-        <div
-          className="col-span-3 bg-white rounded-2xl p-6 border border-black/[0.04] animate-fade-in"
-        >
+        <div className="col-span-3 bg-white rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">카테고리별 진행 상태</h3>
-            <Link href="/schedule" className="text-[12px] text-rose-500 font-medium flex items-center gap-1 hover:gap-2 transition-all">
+            <div>
+              <p className="text-xs tracking-[0.2em] uppercase text-[#795252] font-medium mb-1">
+                Progress
+              </p>
+              <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">카테고리별 진행 상태</h3>
+            </div>
+            <Link href="/schedule" className="text-[12px] text-[#795252] font-medium flex items-center gap-1 hover:gap-2 transition-all">
               전체 보기 <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -490,12 +644,12 @@ export default function DashboardPage() {
               return (
                 <div
                   key={key}
-                  className={`rounded-xl border transition-all ${
+                  className={`rounded-xl transition-all ${
                     status === "completed"
-                      ? "border-[#2E7D5A]/20 bg-[#2E7D5A]/[0.03]"
+                      ? "bg-[#5a6147]/[0.06]"
                       : status === "in_progress"
-                        ? "border-rose-500/20 bg-rose-500/[0.03]"
-                        : "border-black/[0.02] bg-ivory-50"
+                        ? "bg-[#795252]/[0.06]"
+                        : "bg-[#F6F3F2]"
                   }`}
                 >
                   <div
@@ -503,9 +657,9 @@ export default function DashboardPage() {
                     className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] text-noir-800 font-medium">{label}</span>
+                      <span className="text-[13px] text-[#1A1A1F] font-medium">{label}</span>
                       {total > 0 && (
-                        <span className="text-[11px] text-taupe-400">{done}/{total}</span>
+                        <span className="text-[11px] text-[#B5ADA3]">{done}/{total}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -521,14 +675,14 @@ export default function DashboardPage() {
                             className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
                               status === s
                                 ? `${opt.color} text-white`
-                                : "bg-black/[0.04] text-taupe-400 hover:bg-black/[0.08]"
+                                : "bg-white/60 text-[#B5ADA3] hover:bg-white"
                             }`}
                           >
                             {opt.label}
                           </button>
                         );
                       })}
-                      <ChevronRight className="w-3.5 h-3.5 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                      <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
                     </div>
                   </div>
                 </div>
@@ -537,13 +691,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 최근 활동 / 안내 */}
-        <div
-          className="col-span-2 bg-white rounded-2xl p-6 border border-black/[0.04] animate-fade-in"
-        >
+        {/* 시작 가이드 */}
+        <div className="col-span-2 bg-white rounded-xl p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center gap-2 mb-5">
-            <TrendingUp className="w-4 h-4 text-rose-500" />
-            <h3 className="font-serif-kr text-[17px] font-normal text-noir-800">시작 가이드</h3>
+            <TrendingUp className="w-4 h-4 text-[#795252]" />
+            <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
             {[
@@ -554,16 +706,16 @@ export default function DashboardPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-ivory-50 transition-colors"
+                className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-[#F6F3F2] transition-colors"
               >
-                <div className="w-8 h-8 rounded-lg bg-ivory-warm flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <item.icon className="w-4 h-4 text-rose-500" />
+                <div className="w-8 h-8 rounded-lg bg-[#F6F3F2] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <item.icon className="w-4 h-4 text-[#795252]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-noir-800 font-light leading-snug">{item.text}</p>
+                  <p className="text-[13px] text-[#1A1A1F] font-light leading-snug">{item.text}</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <Clock className="w-3 h-3 text-taupe-400" />
-                    <span className="text-[11px] text-taupe-400">시작하기</span>
+                    <Clock className="w-3 h-3 text-[#B5ADA3]" />
+                    <span className="text-[11px] text-[#B5ADA3]">시작하기</span>
                   </div>
                 </div>
               </Link>

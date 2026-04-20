@@ -628,7 +628,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                   <button
                     disabled={paying}
-                    className="w-full py-3.5 rounded-xl bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-[14px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     onClick={handlePayment}
                   >
                     {paying ? (

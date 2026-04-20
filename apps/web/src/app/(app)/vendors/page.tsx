@@ -151,7 +151,7 @@ export default function VendorsPage() {
             onClick={() => setActiveCategory(cat)}
             className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-medium transition-colors ${
               activeCategory === cat
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : "bg-white text-charcoal border border-black/[0.06] hover:border-rose-500 hover:text-rose-500"
             }`}
           >

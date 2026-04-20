@@ -695,7 +695,7 @@ export default function ChatPage() {
                 )}
                 <button
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#1A1A1F] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#795252] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -710,7 +710,7 @@ export default function ChatPage() {
             onClick={() => setMessageTarget("ai")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
               messageTarget === "ai"
-                ? "bg-[#1A1A1F] text-white shadow-sm"
+                ? "bg-[#795252] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
             }`}
           >
@@ -772,7 +772,7 @@ export default function ChatPage() {
             className={`w-11 h-11 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-r from-pink-400 to-rose-400 hover:from-pink-500 hover:to-rose-500"
-                : "bg-[#1A1A1F] hover:bg-[#2A2A2F]"
+                : "bg-[#795252] hover:bg-[#946a6a]"
             }`}
           >
             {messageTarget === "partner" ? <Heart className="w-[18px] h-[18px]" /> : <Send className="w-[18px] h-[18px]" />}

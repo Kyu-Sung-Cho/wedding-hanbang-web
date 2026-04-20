@@ -160,7 +160,7 @@ export default function MoneyPage() {
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-900 transition-colors"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#795252] text-white rounded-xl text-[13px] font-medium hover:bg-[#946a6a] transition-colors"
           >
             <Plus className="w-4 h-4" />
             추가
@@ -225,7 +225,7 @@ export default function MoneyPage() {
                   key={s}
                   onClick={() => setForm({ ...form, side: s })}
                   className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-                    form.side === s ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
+                    form.side === s ? "bg-[#795252] text-white" : "bg-ivory-100 text-taupe-500"
                   }`}
                 >
                   {s === "groom" ? "신랑측" : "신부측"}
@@ -246,7 +246,7 @@ export default function MoneyPage() {
                   key={m.key}
                   onClick={() => setForm({ ...form, method: m.key })}
                   className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-                    form.method === m.key ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
+                    form.method === m.key ? "bg-[#795252] text-white" : "bg-ivory-100 text-taupe-500"
                   }`}
                 >
                   {m.label}
@@ -296,7 +296,7 @@ export default function MoneyPage() {
               key={key}
               onClick={() => setFilterSide(key)}
               className={`px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${
-                filterSide === key ? "bg-noir-800 text-white" : "bg-ivory-100 text-taupe-500"
+                filterSide === key ? "bg-[#795252] text-white" : "bg-ivory-100 text-taupe-500"
               }`}
             >
               {label}

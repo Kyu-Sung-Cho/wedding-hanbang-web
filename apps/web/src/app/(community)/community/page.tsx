@@ -24,7 +24,7 @@ import CommunityGuide from "@/components/community/CommunityGuide";
 const CohortCard = dynamic(() => import("@/components/community/CohortCardContainer"), {
   ssr: false,
   loading: () => (
-    <div className="rounded-2xl bg-[#1A1A1F] h-32 animate-pulse" />
+    <div className="rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] h-32 animate-pulse" />
   ),
 });
 
@@ -456,7 +456,7 @@ function CommunityFeedContent() {
       {/* 모바일 플로팅 글쓰기 */}
       <Link
         href="/community/post/write"
-        className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-[#1A1A1F] hover:bg-[#2d2d30] rounded-full shadow-lg hover:shadow-xl transition-all duration-200"
+        className="lg:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-full transition-all duration-200"
         aria-label="글쓰기"
       >
         <PenSquare className="w-5 h-5" />

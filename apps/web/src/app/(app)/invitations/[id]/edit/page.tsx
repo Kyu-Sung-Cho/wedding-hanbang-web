@@ -103,7 +103,7 @@ export default function InvitationEditPage() {
             onClick={() => setEditorStep(step.key as EditorStep)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
               editorStep === step.key
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : i < currentStepIndex
                 ? "bg-green-50 text-green-600"
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
@@ -132,7 +132,7 @@ export default function InvitationEditPage() {
         {currentStepIndex < EDITOR_STEPS.length - 1 ? (
           <button
             onClick={handleNext}
-            className="inline-flex items-center gap-1.5 px-6 py-2.5 bg-noir-800 text-white text-[13px] font-medium rounded-xl hover:bg-noir-900 transition-colors"
+            className="inline-flex items-center gap-1.5 px-6 py-2.5 bg-[#795252] text-white text-[13px] font-medium rounded-xl hover:bg-[#946a6a] transition-colors"
           >
             다음
             <ChevronRight className="w-4 h-4" />

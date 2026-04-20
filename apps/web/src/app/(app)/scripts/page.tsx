@@ -81,7 +81,7 @@ export default function ScriptsPage() {
         </div>
         <button
           onClick={() => setShowGenerator(true)}
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-900 transition-colors"
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#795252] text-white rounded-xl text-[13px] font-medium hover:bg-[#946a6a] transition-colors"
         >
           <Sparkles className="w-4 h-4" />
           새 대본 생성
@@ -101,7 +101,7 @@ export default function ScriptsPage() {
                 onClick={() => { setSelectedType(type.key); setTitle(type.label); }}
                 className={`flex items-center gap-2 p-3 rounded-xl text-left transition-colors ${
                   selectedType === type.key
-                    ? "bg-noir-800 text-white"
+                    ? "bg-[#795252] text-white"
                     : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
                 }`}
               >

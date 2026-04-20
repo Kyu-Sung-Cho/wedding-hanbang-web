@@ -302,7 +302,7 @@ export default function PostDetailPage() {
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#1A1A1F] hover:bg-[#0D0D0F] rounded-lg transition-all duration-200"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#795252] hover:bg-[#946a6a] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -531,7 +531,7 @@ export default function PostDetailPage() {
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#1A1A1F] hover:bg-[#0D0D0F] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#795252] hover:bg-[#946a6a] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>

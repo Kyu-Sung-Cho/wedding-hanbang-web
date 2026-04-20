@@ -556,7 +556,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                     onClick={() => setSelectedStaff(null)}
                     className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
                       selectedStaff === null
-                        ? "bg-noir-800 text-white"
+                        ? "bg-[#795252] text-white"
                         : "bg-ivory-warm text-charcoal hover:bg-ivory-deep"
                     }`}
                   >
@@ -611,7 +611,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                           onClick={() => { setSelectedDay(di); setSelectedSlot(null); }}
                           className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
                             selectedDay === di
-                              ? "bg-noir-800 text-white"
+                              ? "bg-[#795252] text-white"
                               : hasSlots
                               ? "bg-ivory-warm text-charcoal hover:bg-ivory-deep"
                               : "bg-ivory-warm/50 text-taupe-400/50"
@@ -739,7 +739,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[14px] font-medium transition-all ${
                 messageSent
                   ? "bg-[#2E7D5A] text-white"
-                  : "bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-50"
+                  : "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-50"
               }`}
             >
               {sendingMessage ? (

@@ -57,7 +57,7 @@ export default function InvitationsPage() {
         </div>
         <Link
           href="/invitations/templates"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-900 transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-[13px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
         >
           <Plus className="w-4 h-4" />
           새 청첩장 만들기

@@ -253,7 +253,7 @@ export default function PublicGuestbookPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-[#1A1A1F] text-white rounded-xl py-3 px-6 font-medium hover:bg-[#2d2d30] transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-60 inline-flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />
               {submitting ? "보내는 중..." : "메시지 남기기"}
@@ -315,7 +315,7 @@ export default function PublicGuestbookPage() {
           </p>
           <Link
             href="/community"
-            className="inline-block bg-[#1A1A1F] text-white rounded-xl py-3 px-6 font-medium hover:bg-[#2d2d30] transition"
+            className="inline-block bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
           >
             웨딩한방 커뮤니티 둘러보기
           </Link>

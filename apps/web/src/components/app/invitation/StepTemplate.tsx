@@ -45,7 +45,7 @@ export default function StepTemplate() {
             onClick={() => setCategory(c.value)}
             className={`px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap transition-colors ${
               category === c.value
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
             }`}
           >

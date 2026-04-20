@@ -107,7 +107,7 @@ export default function BookingsPage() {
           </p>
           <Link
             href="/vendors"
-            className="inline-flex items-center gap-2 px-5 py-3 bg-noir-800 text-white rounded-xl text-[13px] font-medium hover:bg-noir-soft transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-[#795252] text-white rounded-xl text-[13px] font-medium hover:bg-[#946a6a] transition-colors"
           >
             업체 둘러보기
           </Link>

@@ -384,7 +384,7 @@ export default function SchedulePage() {
             onClick={() => setViewMode("timeline")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
               viewMode === "timeline"
-                ? "bg-[#1A1A1F] text-white shadow-sm"
+                ? "bg-[#795252] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
             }`}
           >
@@ -395,7 +395,7 @@ export default function SchedulePage() {
             onClick={() => setViewMode("calendar")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
               viewMode === "calendar"
-                ? "bg-[#1A1A1F] text-white shadow-sm"
+                ? "bg-[#795252] text-white shadow-sm"
                 : "bg-white text-[#928980] border border-black/[0.06] hover:border-[#C4967E] hover:text-[#C4967E]"
             }`}
           >

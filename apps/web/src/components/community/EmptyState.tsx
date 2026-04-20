@@ -34,7 +34,7 @@ export default function EmptyState({
       {ctaLabel && ctaHref && (
         <Link
           href={ctaHref}
-          className="mt-7 inline-flex items-center gap-2 px-6 py-3 text-base font-medium text-white bg-[#1A1A1F] hover:bg-[#0D0D0F] rounded-xl transition-all duration-200"
+          className="mt-7 inline-flex items-center gap-2 px-6 py-3 text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-xl transition-all duration-200"
         >
           {ctaLabel}
         </Link>

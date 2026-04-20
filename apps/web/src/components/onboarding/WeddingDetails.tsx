@@ -78,7 +78,7 @@ export default function WeddingDetails({
             }}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               weddingDateUndecided
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
             }`}
           >
@@ -106,7 +106,7 @@ export default function WeddingDetails({
             }}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               venueUndecided
-                ? "bg-noir-800 text-white"
+                ? "bg-[#795252] text-white"
                 : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
             }`}
           >
@@ -137,10 +137,10 @@ export default function WeddingDetails({
               className={`px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
                 opt.value === 50000000
                   ? showCustomBudget
-                    ? "bg-noir-800 text-white"
+                    ? "bg-[#795252] text-white"
                     : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
                   : budget === opt.value && !showCustomBudget
-                    ? "bg-noir-800 text-white"
+                    ? "bg-[#795252] text-white"
                     : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
               }`}
             >

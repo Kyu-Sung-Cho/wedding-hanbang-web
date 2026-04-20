@@ -247,7 +247,7 @@ export default function OnboardingPage() {
                     store.nextStep();
                   }}
                   disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-noir-800 text-white hover:bg-noir-soft disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   {store.currentStep === 2 && store.coupleAction === "join"
                     ? loading ? "연결 중..." : "파트너와 연결하기"
@@ -330,7 +330,7 @@ export default function OnboardingPage() {
                 className={`w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 ${
                   codeCopied
                     ? "bg-green-500 text-white"
-                    : "bg-noir-800 text-white hover:bg-noir-soft"
+                    : "bg-[#795252] text-white hover:bg-[#946a6a]"
                 }`}
               >
                 {codeCopied ? "복사 완료!" : "코드 복사하기"}

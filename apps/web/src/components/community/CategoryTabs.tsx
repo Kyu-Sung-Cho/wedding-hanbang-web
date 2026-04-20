@@ -138,7 +138,7 @@ export default function CategoryTabs() {
             href="/community"
             className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
               pathname === "/community"
-                ? "bg-[#1A1A1F] text-white font-medium"
+                ? "bg-[#795252] text-white font-medium"
                 : "text-[#878680] bg-white border border-[#F0EFED] hover:bg-[#FAFAF8]"
             }`}
           >
@@ -153,7 +153,7 @@ export default function CategoryTabs() {
                 href={href}
                 className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
-                    ? "bg-[#1A1A1F] text-white font-medium"
+                    ? "bg-[#795252] text-white font-medium"
                     : "text-[#878680] bg-white border border-[#F0EFED] hover:bg-[#FAFAF8]"
                 }`}
               >

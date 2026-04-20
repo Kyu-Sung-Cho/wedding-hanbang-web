@@ -6,7 +6,7 @@ export default function CommunityFeedLoading() {
         <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] border-r border-[#F0EFED] bg-white py-5 px-3">
           {/* 동기방 카드 skeleton */}
           <div className="px-2 mb-4">
-            <div className="rounded-2xl bg-[#1A1A1F] h-32 animate-pulse" />
+            <div className="rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] h-32 animate-pulse" />
           </div>
           {/* 카테고리 탭 skeleton */}
           <div className="space-y-2 px-2">

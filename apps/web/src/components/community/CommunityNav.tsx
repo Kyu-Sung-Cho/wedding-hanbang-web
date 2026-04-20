@@ -116,7 +116,7 @@ export default function CommunityNav() {
             ) : (
               <Link
                 href="/login"
-                className="px-5 py-2.5 text-base font-medium text-white bg-[#1A1A1F] rounded-full hover:bg-[#2d2d30] transition-colors"
+                className="px-5 py-2.5 text-base font-medium text-white bg-[#795252] rounded-full hover:bg-[#946a6a] transition-colors"
               >
                 로그인
               </Link>
