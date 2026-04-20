@@ -49,10 +49,10 @@ export default function TrendingPosts() {
   if (loading) {
     return (
       <div>
-        <h3 className="font-serif-kr text-lg text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+        <h3 className="font-serif-kr text-xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
           오늘의 인기글
         </h3>
-        <ul className="space-y-4">
+        <ul className="space-y-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <li key={i} className="flex items-start space-x-3">
               <div className="w-6 h-5 bg-[#f0eded] rounded animate-pulse shrink-0" />
@@ -71,15 +71,15 @@ export default function TrendingPosts() {
 
   return (
     <div>
-      <h3 className="font-serif-kr text-lg text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+      <h3 className="font-serif-kr text-xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
         오늘의 인기글
       </h3>
-      <ul className="space-y-4">
+      <ul className="space-y-5">
         {posts.map((p, i) => (
           <li key={p.id} className="group cursor-pointer">
             <Link href={`/community/post/${p.id}`} className="flex items-start space-x-3">
               <span
-                className={`text-[#795252] font-serif-kr italic text-lg leading-none mt-0.5 ${
+                className={`text-[#795252] font-serif-kr italic text-xl leading-none mt-0.5 ${
                   i === 0
                     ? ""
                     : i === 1
@@ -92,10 +92,10 @@ export default function TrendingPosts() {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div>
-                <h4 className="text-sm text-[#1b1c1c] group-hover:text-[#795252] transition-colors line-clamp-2">
+                <h4 className="text-base text-[#1b1c1c] group-hover:text-[#795252] transition-colors line-clamp-2">
                   {p.title}
                 </h4>
-                <p className="text-xs text-[#504444] mt-1">{p.comment_count} replies</p>
+                <p className="text-sm text-[#504444] mt-1">{p.comment_count} replies</p>
               </div>
             </Link>
           </li>

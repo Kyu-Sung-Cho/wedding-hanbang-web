@@ -44,83 +44,83 @@ export default function CategoryTabs() {
         {/* 주요 네비 */}
         <Link
           href="/community"
-          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community") && pathname === "/community"
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <Home
-            className={`mr-4 w-5 h-5 ${
+            className={`mr-4 w-[22px] h-[22px] ${
               isActive("/community") && pathname === "/community"
                 ? "opacity-80"
                 : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-sm tracking-widest uppercase">전체</span>
+          <span className="text-base tracking-widest uppercase">전체</span>
         </Link>
 
         <Link
           href="/community?sort=hot"
-          className="flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
+          className="flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
         >
-          <Flame className="mr-4 w-5 h-5 opacity-60 group-hover:opacity-100" />
-          <span className="text-sm tracking-widest uppercase">인기</span>
+          <Flame className="mr-4 w-[22px] h-[22px] opacity-60 group-hover:opacity-100" />
+          <span className="text-base tracking-widest uppercase">인기</span>
         </Link>
 
         <Link
           href="/community/guestbook"
-          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/guestbook")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <BookOpen
-            className={`mr-4 w-5 h-5 ${
+            className={`mr-4 w-[22px] h-[22px] ${
               isActive("/community/guestbook") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-sm tracking-widest uppercase">내 방명록</span>
+          <span className="text-base tracking-widest uppercase">내 방명록</span>
         </Link>
 
         <Link
           href="/community/my/bookmarks"
-          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/my/bookmarks")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <Bookmark
-            className={`mr-4 w-5 h-5 ${
+            className={`mr-4 w-[22px] h-[22px] ${
               isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-sm tracking-widest uppercase">북마크</span>
+          <span className="text-base tracking-widest uppercase">북마크</span>
         </Link>
 
         <Link
           href="/community/my/upvoted"
-          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/my/upvoted")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <ThumbsUp
-            className={`mr-4 w-5 h-5 ${
+            className={`mr-4 w-[22px] h-[22px] ${
               isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-sm tracking-widest uppercase">좋아요</span>
+          <span className="text-base tracking-widest uppercase">좋아요</span>
         </Link>
 
         {/* 카테고리 섹션 */}
         <div className="pt-4">
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className="flex items-center justify-between w-full px-4 py-2 text-xs font-medium text-[#504444] uppercase tracking-wider hover:text-[#795252] transition-colors"
+            className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-[#504444] uppercase tracking-wider hover:text-[#795252] transition-colors"
           >
             <span>카테고리</span>
             <ChevronDown
@@ -144,18 +144,18 @@ export default function CategoryTabs() {
                 <Link
                   key={cat.key}
                   href={href}
-                  className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+                  className={`flex items-center px-4 py-3.5 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
                     active
                       ? "bg-[#f6f3f2] text-[#795252] font-bold"
                       : "text-[#504444] hover:bg-white hover:text-[#795252]"
                   }`}
                 >
                   <Icon
-                    className={`mr-4 w-5 h-5 ${
+                    className={`mr-4 w-[22px] h-[22px] ${
                       active ? "opacity-80" : "opacity-60 group-hover:opacity-100"
                     }`}
                   />
-                  <span className="text-sm tracking-widest uppercase">{cat.label}</span>
+                  <span className="text-base tracking-widest uppercase">{cat.label}</span>
                 </Link>
               );
             })}
