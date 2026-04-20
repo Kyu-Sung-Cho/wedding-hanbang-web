@@ -31,13 +31,13 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
     <>
       {/* Pulse Section — 이번 주 요약 */}
       <div className="mb-10">
-        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
+        <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
           이번 주 요약
         </h3>
         <div className="space-y-5">
           {/* 새 글 + 트렌드 바 */}
           <div>
-            <div className="flex justify-between text-base mb-2 text-[#504444]">
+            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
               <span>새 글</span>
               <span className="text-[#5a6147] font-medium">{postTrendLabel}</span>
             </div>
@@ -51,7 +51,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
           {/* 인기 업체 */}
           <div>
-            <div className="flex justify-between text-base mb-2 text-[#504444]">
+            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
               <span>인기 업체</span>
               <span className="text-[#795252] font-medium truncate max-w-[140px]">
                 {weekly?.topVendor ?? "---"}
@@ -67,7 +67,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
           {/* 평균 스튜디오 기본금 */}
           <div>
-            <div className="flex justify-between text-base mb-2 text-[#504444]">
+            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
               <span>스튜디오 평균</span>
               <span className="text-[#625b4d] font-medium">
                 {weekly?.avgStudioPrice ? `${weekly.avgStudioPrice}만원` : "---"}
@@ -86,7 +86,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
         <div className="mb-10">
-          <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+          <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
             많이 찾는 업체
           </h3>
           <div className="flex flex-wrap gap-x-3 gap-y-2.5">
@@ -105,7 +105,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
       {/* Hot Topics — 커뮤니티 원칙 */}
       <div className="mb-10">
-        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+        <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
           커뮤니티 원칙
         </h3>
         <div className="space-y-4 text-base">

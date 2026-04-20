@@ -231,10 +231,10 @@ function CommunityFeedContent() {
         {/* SideNavBar — 더 넓게, 꽉 채우기 */}
         <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <div className="mb-10 px-4">
-            <h2 className="font-serif-kr text-2xl italic text-[#795252] mb-2">
+            <h2 className="font-serif-kr text-3xl italic text-[#795252] mb-2">
               커뮤니티
             </h2>
-            <p className="text-sm text-[#504444] tracking-widest uppercase">
+            <p className="text-base text-[#504444] tracking-widest uppercase">
               웨딩한방 커뮤니티
             </p>
           </div>
@@ -249,9 +249,9 @@ function CommunityFeedContent() {
           <div className="mt-8 mb-8 px-4">
             <Link
               href="/community/post/write"
-              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-3.5 rounded-lg font-medium text-base shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
+              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-4 rounded-lg font-medium text-lg shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
             >
-              <PenSquare className="mr-2 w-5 h-5" />
+              <PenSquare className="mr-2 w-6 h-6" />
               글쓰기
             </Link>
           </div>
@@ -262,14 +262,14 @@ function CommunityFeedContent() {
               className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
             >
               <Shield className="mr-3 w-5 h-5 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm tracking-wider uppercase">가이드라인</span>
+              <span className="text-base tracking-wider uppercase">가이드라인</span>
             </Link>
             <Link
               href="/community/archive"
               className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
             >
               <Archive className="mr-3 w-5 h-5 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm tracking-wider uppercase">아카이브</span>
+              <span className="text-base tracking-wider uppercase">아카이브</span>
             </Link>
           </div>
         </aside>
@@ -302,7 +302,7 @@ function CommunityFeedContent() {
             {/* 피드 헤더 (피드 디바이더) */}
             {!isSearching && (
               <div className="flex items-center justify-between border-b border-[#e4e2e1] pb-4">
-                <h3 className="font-serif-kr text-3xl text-[#1b1c1c]">
+                <h3 className="font-serif-kr text-4xl text-[#1b1c1c]">
                   최근 대화
                 </h3>
                 <SortSelector

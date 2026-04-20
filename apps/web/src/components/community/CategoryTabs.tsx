@@ -51,21 +51,21 @@ export default function CategoryTabs() {
           }`}
         >
           <Home
-            className={`mr-4 w-[22px] h-[22px] ${
+            className={`mr-4 w-6 h-6 ${
               isActive("/community") && pathname === "/community"
                 ? "opacity-80"
                 : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-[17px] tracking-widest uppercase">전체</span>
+          <span className="text-lg tracking-widest uppercase">전체</span>
         </Link>
 
         <Link
           href="/community?sort=hot"
           className="flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
         >
-          <Flame className="mr-4 w-[22px] h-[22px] opacity-60 group-hover:opacity-100" />
-          <span className="text-[17px] tracking-widest uppercase">인기</span>
+          <Flame className="mr-4 w-6 h-6 opacity-60 group-hover:opacity-100" />
+          <span className="text-lg tracking-widest uppercase">인기</span>
         </Link>
 
         <Link
@@ -77,11 +77,11 @@ export default function CategoryTabs() {
           }`}
         >
           <BookOpen
-            className={`mr-4 w-[22px] h-[22px] ${
+            className={`mr-4 w-6 h-6 ${
               isActive("/community/guestbook") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-[17px] tracking-widest uppercase">내 방명록</span>
+          <span className="text-lg tracking-widest uppercase">내 방명록</span>
         </Link>
 
         <Link
@@ -93,11 +93,11 @@ export default function CategoryTabs() {
           }`}
         >
           <Bookmark
-            className={`mr-4 w-[22px] h-[22px] ${
+            className={`mr-4 w-6 h-6 ${
               isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-[17px] tracking-widest uppercase">북마크</span>
+          <span className="text-lg tracking-widest uppercase">북마크</span>
         </Link>
 
         <Link
@@ -109,11 +109,11 @@ export default function CategoryTabs() {
           }`}
         >
           <ThumbsUp
-            className={`mr-4 w-[22px] h-[22px] ${
+            className={`mr-4 w-6 h-6 ${
               isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-[17px] tracking-widest uppercase">좋아요</span>
+          <span className="text-lg tracking-widest uppercase">좋아요</span>
         </Link>
 
         {/* 카테고리 섹션 */}
@@ -151,11 +151,11 @@ export default function CategoryTabs() {
                   }`}
                 >
                   <Icon
-                    className={`mr-4 w-[22px] h-[22px] ${
+                    className={`mr-4 w-6 h-6 ${
                       active ? "opacity-80" : "opacity-60 group-hover:opacity-100"
                     }`}
                   />
-                  <span className="text-[17px] tracking-widest uppercase">{cat.label}</span>
+                  <span className="text-lg tracking-widest uppercase">{cat.label}</span>
                 </Link>
               );
             })}
