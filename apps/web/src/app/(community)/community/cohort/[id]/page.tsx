@@ -145,15 +145,15 @@ function CohortPageInner({ roomId }: { roomId: string }) {
             <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
           </div>
 
-          {/* 주제별 카테고리 */}
+          {/* 주제별 카테고리 — 커뮤니티 CategoryTabs 네비 사이즈 매칭 */}
           <div className="px-2 mb-8">
-            <h3 className="text-sm font-medium text-[#504444] mb-3 uppercase tracking-widest">주제별 보기</h3>
+            <h3 className="text-base font-medium text-[#504444] mb-3 uppercase tracking-widest">주제별 보기</h3>
             <div className="flex flex-col gap-0.5">
               {COHORT_THREAD_TOPICS.map((t) => (
                 <button
                   key={t.key}
                   type="button"
-                  className="flex items-center gap-3 px-4 py-3 rounded-r-full text-base text-[#504444] hover:bg-white hover:text-[#795252] hover:translate-x-1 transition-all duration-200 text-left"
+                  className="flex items-center gap-3 px-4 py-4 rounded-r-full text-lg tracking-widest uppercase text-[#504444] hover:bg-white hover:text-[#795252] hover:translate-x-1 transition-all duration-200 text-left"
                 >
                   <span className="w-2 h-2 rounded-full bg-[#795252]" />
                   {t.label}
@@ -164,8 +164,8 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
           {/* 동기방 규칙 */}
           <div className="px-2">
-            <h3 className="text-sm font-medium text-[#504444] mb-3 uppercase tracking-widest">규칙</h3>
-            <div className="space-y-2 text-sm text-[#504444] leading-relaxed">
+            <h3 className="text-base font-medium text-[#504444] mb-3 uppercase tracking-widest">규칙</h3>
+            <div className="space-y-2.5 text-base text-[#504444] leading-relaxed">
               <p>• 서로 존중하며 대화해주세요</p>
               <p>• 개인정보(실명, 연락처) 공유 주의</p>
               <p>• 광고/홍보성 글은 삭제됩니다</p>
@@ -507,7 +507,7 @@ function ChatTab({
           <button
             type="button"
             onClick={() => setThread("")}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+            className={`px-4 py-2.5 rounded-full text-base font-medium transition-colors ${
               thread === ""
                 ? "bg-[#795252] text-white"
                 : "bg-[#f6f3f2] text-[#504444] hover:bg-[#e4e2e1]"
@@ -520,7 +520,7 @@ function ChatTab({
               key={t.key}
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              className={`px-4 py-2.5 rounded-full text-base font-medium transition-colors ${
                 thread === t.key
                   ? "bg-[#795252] text-white"
                   : "bg-[#f6f3f2] text-[#504444] hover:bg-[#e4e2e1]"
@@ -560,7 +560,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={2}
-              className="w-full resize-none rounded-xl bg-[#f6f3f2] px-4 py-3 text-base text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+              className="w-full resize-none rounded-xl bg-[#f6f3f2] px-4 py-3.5 text-[17px] text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
             />
           </div>
           <input
@@ -621,7 +621,7 @@ function FilterPill({
     <button
       type="button"
       onClick={onClick}
-      className={`whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium transition-colors ${
+      className={`whitespace-nowrap rounded-full px-5 py-2.5 text-base font-medium transition-colors ${
         active
           ? "bg-[#795252] text-white"
           : "bg-white text-[#504444] hover:bg-[#f6f3f2] hover:text-[#1b1c1c]"
@@ -722,9 +722,9 @@ function MessageBubble({ message }: { message: CohortMessage }) {
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-base font-medium text-[#1b1c1c]">{nickname}</span>
+          <span className="text-[17px] font-medium text-[#1b1c1c]">{nickname}</span>
           {message.author?.rank && (
-            <span className="rounded-full bg-[#f6f3f2] px-2 py-0.5 text-xs text-[#504444]">
+            <span className="rounded-full bg-[#f6f3f2] px-2 py-0.5 text-sm text-[#504444]">
               {message.author?.rank}
             </span>
           )}
@@ -732,13 +732,13 @@ function MessageBubble({ message }: { message: CohortMessage }) {
             {relativeTime(message.created_at)}
           </span>
           {message.thread_topic && (
-            <span className="rounded-full bg-[#795252]/10 px-2 py-0.5 text-xs text-[#795252]">
+            <span className="rounded-full bg-[#795252]/10 px-2 py-0.5 text-sm text-[#795252]">
               {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
                 ?.label ?? message.thread_topic}
             </span>
           )}
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-base text-[#1b1c1c] leading-relaxed">
+        <p className="mt-1.5 whitespace-pre-wrap text-[17px] text-[#1b1c1c] leading-relaxed">
           {renderMessageContent(message.content)}
         </p>
       </div>
@@ -898,27 +898,27 @@ function InfoTab({
               key={cat.key}
               className="rounded-xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
             >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-serif-kr text-xl text-[#1b1c1c]">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="font-serif-kr text-[28px] text-[#1b1c1c]">
                   {cat.label}
                 </h3>
-                <span className="text-sm text-[#504444]">
+                <span className="text-base text-[#504444]">
                   {sample}명 등록
                 </span>
               </div>
               {enough && stat ? (
                 <div>
-                  <p className="text-base text-[#504444]">
+                  <p className="text-[17px] text-[#504444]">
                     우리 동기 평균 {cat.label} 기본금
                   </p>
-                  <p className="mt-2 font-serif-kr text-4xl font-light text-[#1b1c1c]">
+                  <p className="mt-2 font-serif-kr text-5xl font-light text-[#1b1c1c]">
                     {stat.avg_base_price.toLocaleString()}만원
-                    <span className="ml-2 text-sm font-sans text-[#504444] font-normal">
+                    <span className="ml-2 text-base font-sans text-[#504444] font-normal">
                       ({sample}명 기준)
                     </span>
                   </p>
                   {stat.avg_extra_price > 0 && (
-                    <p className="mt-1.5 text-sm text-[#504444]">
+                    <p className="mt-2 text-base text-[#504444]">
                       추가금 평균 {stat.avg_extra_price.toLocaleString()}만원
                     </p>
                   )}
@@ -926,14 +926,14 @@ function InfoTab({
               ) : (
                 <div>
                   <div className="mb-3 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-[#C9A96E]" />
-                    <p className="text-sm text-[#504444]">
+                    <Sparkles className="h-5 w-5 text-[#C9A96E]" />
+                    <p className="text-base text-[#504444]">
                       아직 우리 동기 데이터가 부족해요. 정보를 등록하면
                       우리끼리의 평균이 나와요!
                     </p>
                   </div>
                   {NATIONAL_AVG[cat.key as CohortContractCategory] > 0 && (
-                    <p className="text-sm text-[#504444]">
+                    <p className="text-base text-[#504444]">
                       전국 평균:{" "}
                       <span className="font-medium text-[#1b1c1c]">
                         {NATIONAL_AVG[
@@ -1171,13 +1171,13 @@ function TimelineTab({
               )}
             </div>
             <div className="flex-1">
-              <p className="text-base text-[#1b1c1c] leading-relaxed">
+              <p className="text-[17px] text-[#1b1c1c] leading-relaxed">
                 예신{nickname}가{" "}
                 <span className="font-medium text-[#795252]">{label}</span>{" "}
                 완료!
               </p>
               {ev.description && (
-                <p className="mt-1.5 text-sm text-[#504444]">{ev.description}</p>
+                <p className="mt-2 text-base text-[#504444]">{ev.description}</p>
               )}
               <p className="mt-2 text-sm text-[#504444]">
                 {relativeTime(ev.created_at)}
