@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Star } from "lucide-react";
+import { PenSquare, Star, Bookmark } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
@@ -40,7 +40,6 @@ interface VendorTag {
 
 // 에디터 추천 배너 컴포넌트
 function EditorsPick({ post }: { post: PostWithAuthor }) {
-  const categoryInfo = CATEGORY_MAP[post.category];
   const contentPreview = post.content
     .replace(/<[^>]*>/g, "")
     .replace(/\s+/g, " ")
@@ -48,62 +47,63 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
     .slice(0, 200);
   const author = post.author ?? { nickname: "익명", avatar_url: null };
   const images = post.images ?? [];
+  // 대략적인 읽기 시간 (한글 기준 분당 400자)
+  const readMinutes = Math.max(1, Math.round(post.content.replace(/<[^>]*>/g, "").length / 400));
 
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden mb-10"
+      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden mb-10 relative"
     >
-      <div className="flex flex-col md:flex-row">
+      {/* 별 장식 (우상단 절대배치) */}
+      <Star className="absolute top-6 right-6 z-10 w-5 h-5 text-[#C9A96E] opacity-40" />
+
+      <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-10 p-8 md:p-10">
         {/* 텍스트 영역 */}
-        <div className="flex-1 p-8 md:p-10 flex flex-col justify-center relative">
-          {/* 별 장식 (우상단) */}
-          <Star className="absolute top-6 right-6 w-5 h-5 text-[#C9A96E] opacity-40 md:hidden" />
+        <div className="flex-1 flex flex-col justify-center">
+          {/* 에디터 추천 배지 (rounded-full, border, white bg) */}
+          <div className="inline-flex items-center self-start px-3 py-1 rounded-full bg-white border border-[#F0EFED]/50 mb-4">
+            <Bookmark className="w-3.5 h-3.5 mr-1.5 text-[#5a6147]" />
+            <span className="text-xs font-medium tracking-wider uppercase text-[#5a6147]">
+              에디터 추천
+            </span>
+          </div>
 
-          <span className="inline-block text-xs font-medium tracking-wider uppercase text-[#C4967E] mb-4">
-            에디터 추천
-          </span>
-
-          <h3 className="font-serif-kr text-3xl lg:text-4xl text-[#1A1A1F] leading-snug mb-4 group-hover:text-[#C4967E] transition-colors duration-300">
+          <h2 className="text-3xl lg:text-4xl font-serif-kr text-[#1A1A1F] mb-4 leading-tight group-hover:text-[#C4967E] transition-colors line-clamp-2">
             {post.title}
-          </h3>
+          </h2>
 
           {contentPreview && (
-            <p className="text-[#504444] text-sm leading-relaxed line-clamp-3 mb-6">
+            <p className="text-[#504444] mb-6 line-clamp-2">
               {contentPreview}
             </p>
           )}
 
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center">
-              <span className="text-[9px] font-semibold text-white">
+          <div className="flex items-center text-sm text-[#504444]">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center mr-2">
+              <span className="text-[10px] font-semibold text-white">
                 {author.nickname.charAt(0)}
               </span>
             </div>
-            <span className="text-xs text-[#504444]">{author.nickname}</span>
-            {categoryInfo && (
-              <>
-                <span className="text-[#B5ADA3]">&middot;</span>
-                <span className="text-xs text-[#B5ADA3]">{categoryInfo.shortLabel}</span>
-              </>
-            )}
+            <span>By {author.nickname}</span>
+            <span className="mx-2">&middot;</span>
+            <span>{readMinutes}분 읽기</span>
           </div>
         </div>
 
-        {/* 이미지 영역 */}
+        {/* 이미지 영역 — 레퍼런스: w-1/3 aspect-[4/3] */}
         {images.length > 0 ? (
-          <div className="w-full md:w-1/3 aspect-[4/3] md:aspect-auto relative overflow-hidden">
+          <div className="w-full md:w-1/3 aspect-[4/3] rounded-lg overflow-hidden shrink-0">
             <Image
               src={images[0]}
               alt=""
-              fill
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              width={480}
+              height={360}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            {/* 별 장식 (데스크탑) */}
-            <Star className="hidden md:block absolute top-5 right-5 w-5 h-5 text-[#C9A96E] opacity-40" />
           </div>
         ) : (
-          <div className="hidden md:flex w-1/3 items-center justify-center bg-[#EDEAE8]">
+          <div className="hidden md:flex w-1/3 aspect-[4/3] items-center justify-center bg-[#EDEAE8] rounded-lg shrink-0">
             <Star className="w-12 h-12 text-[#C9A96E] opacity-20" />
           </div>
         )}

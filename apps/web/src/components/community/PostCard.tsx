@@ -145,20 +145,20 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
   }
 
   return (
-    <article className="bg-white rounded-xl border border-transparent hover:border-[#F0EFED]/50 p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
-      <div className={`flex ${imageCount > 0 ? "flex-col-reverse sm:flex-row" : ""} gap-6`}>
+    <article className="bg-white rounded-xl border border-[#F0EFED]/60 hover:border-[#E8E5E0] p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 cursor-pointer">
+      <div className={`flex ${imageCount > 0 ? "flex-col-reverse sm:flex-row" : ""} gap-8`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between">
           <div>
             {/* 상단: 카테고리 배지 + 시간 */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 {categoryInfo && (
-                  <span className={`text-xs font-medium px-2 py-1 rounded ${categoryBadgeStyle}`}>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded ${categoryBadgeStyle}`}>
                     {categoryInfo.shortLabel}
                   </span>
                 )}
-                <span className="text-xs text-[#504444]">{timeAgo(post.created_at)}</span>
+                <span className="text-xs text-[#928980]">{timeAgo(post.created_at)}</span>
 
                 {post.ad_disclosure === "sponsored" && (
                   <span className="px-2 py-0.5 rounded bg-[#FEFCE8] text-[#A16207] text-xs font-medium">협찬</span>
@@ -171,7 +171,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
             {/* 제목 — serif */}
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="font-serif-kr text-xl text-[#1A1A1F] mb-2 group-hover:text-[#C4967E] cursor-pointer transition-colors leading-snug line-clamp-2">
+              <h4 className="font-serif-kr text-2xl text-[#1A1A1F] mb-3 group-hover:text-[#C4967E] cursor-pointer transition-colors leading-tight line-clamp-2">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -186,14 +186,14 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
 
             {/* 본문 미리보기 */}
             {contentPreview && (
-              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-4">
+              <p className="text-[#504444] text-[15px] leading-relaxed line-clamp-2 mb-5">
                 {contentPreview}
               </p>
             )}
 
             {/* 비용 데이터 */}
             {post.cost_data && (
-              <div className="bg-[#F6F3F2] rounded-lg px-3 py-1.5 mb-4 inline-block">
+              <div className="bg-[#F6F3F2] rounded-lg px-3 py-1.5 mb-5 inline-block">
                 <span className="text-xs text-[#504444]">비용: </span>
                 <span className="text-sm font-medium text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
               </div>
@@ -201,23 +201,23 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           </div>
 
           {/* 하단: 작성자 왼쪽 / 댓글·북마크·공유 오른쪽 */}
-          <div className="flex items-center justify-between mt-auto pt-2">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between mt-auto pt-3">
+            <div className="flex items-center space-x-2.5">
               <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
-                <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
-                  <span className="text-[8px] font-semibold text-white">
+                <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
+                  <span className="text-[11px] font-semibold text-white">
                     {isEmoji ? avatarChar : author.nickname.charAt(0)}
                   </span>
                 </div>
               </Link>
-              <span className="text-xs text-[#504444]">{author.nickname}</span>
+              <span className="text-sm text-[#504444]">{author.nickname}</span>
             </div>
 
-            <div className="flex items-center space-x-4 text-[#504444]">
+            <div className="flex items-center space-x-5 text-[#504444]">
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
-                className="flex items-center space-x-1 hover:text-[#C4967E] transition-colors group"
+                className="flex items-center space-x-1.5 hover:text-[#C4967E] transition-colors group"
               >
                 <MessageCircle className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
                 <span className="text-xs">{post.comment_count}</span>
@@ -227,7 +227,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               <button
                 type="button"
                 onClick={handleBookmark}
-                className={`flex items-center space-x-1 transition-colors group ${
+                className={`flex items-center transition-colors group ${
                   bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
                 }`}
                 aria-label="저장"
@@ -238,7 +238,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               {/* 공유 */}
               <button
                 type="button"
-                className="flex items-center space-x-1 hover:text-[#C4967E] transition-colors group"
+                className="flex items-center hover:text-[#C4967E] transition-colors group"
                 aria-label="공유"
               >
                 <Share2 className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
@@ -251,13 +251,13 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
         {imageCount > 0 && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full sm:w-32 h-32 rounded-lg overflow-hidden shrink-0 mt-4 sm:mt-0"
+            className="w-full sm:w-36 h-36 rounded-lg overflow-hidden shrink-0 mt-4 sm:mt-0"
           >
             <Image
               src={images[0]}
               alt=""
-              width={128}
-              height={128}
+              width={144}
+              height={144}
               className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
           </Link>
