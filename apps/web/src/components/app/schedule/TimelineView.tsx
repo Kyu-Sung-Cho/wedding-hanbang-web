@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
   ChevronDown,
@@ -49,9 +48,9 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-[#2E7D5A]",
-  in_progress: "bg-rose-500",
-  not_started: "bg-taupe-400",
+  completed: "bg-[#5a6147]",
+  in_progress: "bg-[#795252]",
+  not_started: "bg-[#B5ADA3]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,7 +59,7 @@ const STATUS_LABELS: Record<string, string> = {
   not_started: "시작전",
 };
 
-// 페이즈 정의 (ddayStart 기준)
+// 페이즈 정의
 interface Phase {
   label: string;
   period: string;
@@ -160,12 +159,11 @@ export default function TimelineView({
 
   return (
     <div className="relative">
-      <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-rose-500 via-gold to-platinum max-md:left-[15px]" />
+      <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-[#795252] via-[#946a6a] to-[#C9A96E] max-md:left-[15px]" />
 
       {phases.map((phase, pi) => {
         const isPhaseExpanded = expandedPhase === pi;
 
-        // 페이즈 전체 완료 수
         const phaseStats = phase.categories.reduce(
           (acc, cat) => {
             const data = getCategoryData(cat.key);
@@ -180,212 +178,197 @@ export default function TimelineView({
           phaseStats.total > 0 && phaseStats.done === phaseStats.total;
 
         return (
-          <motion.div
+          <div
             key={phase.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: pi * 0.08 }}
-            className="relative pl-12 mb-4 max-md:pl-10"
+            className="relative pl-12 mb-4 max-md:pl-10 animate-fade-in"
           >
             {/* 타임라인 점 */}
             <div
               className={`absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] ${
                 allPhaseDone
-                  ? "border-[#2E7D5A] bg-[#2E7D5A]"
+                  ? "border-[#5a6147] bg-[#5a6147]"
                   : phaseStats.done > 0
-                  ? "border-rose-500 bg-white"
-                  : "border-taupe-400 bg-white"
+                  ? "border-[#795252] bg-white"
+                  : "border-[#B5ADA3] bg-white"
               } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`}
             />
 
             {/* 페이즈 카드 */}
-            <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow">
+            <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow">
               {/* 페이즈 헤더 */}
               <button
                 onClick={() =>
                   setExpandedPhase(isPhaseExpanded ? null : pi)
                 }
-                className="w-full flex items-center justify-between px-5 py-4"
+                className="w-full flex items-center justify-between px-6 py-5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
+                  <span className="text-[11px] text-[#795252] bg-[#795252]/10 px-2.5 py-1 rounded-full font-medium">
                     {phase.dday}
                   </span>
-                  <span className="text-[14px] font-medium text-noir-800">
+                  <span className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">
                     {phase.label}
                   </span>
-                  <span className="text-[11px] text-taupe-400 font-light">
+                  <span className="text-[11px] text-[#B5ADA3] font-light">
                     {phase.period}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[12px] text-taupe-400">
+                  <span className="text-[12px] text-[#B5ADA3]">
                     {phaseStats.done}/{phaseStats.total}
                   </span>
                   {isPhaseExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-taupe-400" />
+                    <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-taupe-400" />
+                    <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
                   )}
                 </div>
               </button>
 
               {/* 페이즈 내 카테고리들 */}
-              <AnimatePresence>
-                {isPhaseExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="border-t border-black/[0.03] px-4 pb-4">
-                      {/* 이 페이즈 카테고리에 연결된 커스텀 일정 */}
-                      {(() => {
-                        const phaseCatKeys = phase.categories.map(c => c.key);
-                        const phaseEvents = events.filter(e => e.categoryKey && phaseCatKeys.includes(e.categoryKey));
-                        if (phaseEvents.length === 0) return null;
-                        return (
-                          <div className="mt-3 mb-2 px-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CalendarDays className="w-3.5 h-3.5 text-gold" />
-                              <span className="text-[11px] text-taupe-400 font-medium">등록된 일정</span>
-                            </div>
-                            {phaseEvents.map(evt => (
-                              <div key={evt.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-ivory-50 group">
-                                <div className="w-7 h-7 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
-                                  <CalendarDays className="w-3.5 h-3.5 text-gold" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[12px] font-medium text-noir-800">{evt.title}</p>
-                                  <p className="text-[10px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
-                                </div>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}
-                                  {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
-                                </div>
-                              </div>
-                            ))}
+              {isPhaseExpanded && (
+                <div
+                  className="overflow-hidden"
+                >
+                  <div className="border-t border-[#F6F3F2] px-4 pb-4">
+                    {/* 연결된 커스텀 일정 */}
+                    {(() => {
+                      const phaseCatKeys = phase.categories.map(c => c.key);
+                      const phaseEvents = events.filter(e => e.categoryKey && phaseCatKeys.includes(e.categoryKey));
+                      if (phaseEvents.length === 0) return null;
+                      return (
+                        <div className="mt-4 mb-2 px-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E]" />
+                            <span className="text-[11px] uppercase tracking-widest text-[#B5ADA3] font-medium">등록된 일정</span>
                           </div>
-                        );
-                      })()}
-                      {phase.categories.map((cat) => {
-                        const data = getCategoryData(cat.key);
-                        const isCatExpanded = expandedCategory === cat.key;
-                        const Icon = ICON_MAP[cat.icon] ?? Building2;
-                        const percent =
-                          data.total > 0
-                            ? Math.round((data.done / data.total) * 100)
-                            : 0;
-
-                        return (
-                          <div key={cat.key} className="mt-3">
-                            {/* 카테고리 헤더 */}
-                            <button
-                              onClick={() =>
-                                setExpandedCategory(
-                                  isCatExpanded ? null : cat.key
-                                )
-                              }
-                              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-ivory-50 transition-colors"
-                            >
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500/10 to-gold/10 flex items-center justify-center flex-shrink-0">
-                                <Icon className="w-4 h-4 text-rose-500" />
+                          {phaseEvents.map(evt => (
+                            <div key={evt.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#FAFAF8] group">
+                              <div className="w-7 h-7 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
+                                <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E]" />
                               </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-serif-kr text-[13px] font-normal text-[#1A1A1F]">{evt.title}</p>
+                                <p className="text-[10px] text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                              </div>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-3 h-3" /></button>}
+                                {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {phase.categories.map((cat) => {
+                      const data = getCategoryData(cat.key);
+                      const isCatExpanded = expandedCategory === cat.key;
+                      const Icon = ICON_MAP[cat.icon] ?? Building2;
+                      const percent =
+                        data.total > 0
+                          ? Math.round((data.done / data.total) * 100)
+                          : 0;
 
-                              <div className="flex-1 min-w-0 text-left">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-[13px] font-medium text-noir-800">
-                                    {cat.label}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${
-                                      STATUS_COLORS[data.status]
+                      return (
+                        <div key={cat.key} className="mt-3">
+                          {/* 카테고리 헤더 */}
+                          <button
+                            onClick={() =>
+                              setExpandedCategory(
+                                isCatExpanded ? null : cat.key
+                              )
+                            }
+                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#FAFAF8] transition-colors"
+                          >
+                            <div className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center flex-shrink-0">
+                              <Icon className="w-4 h-4 text-[#795252]" />
+                            </div>
+
+                            <div className="flex-1 min-w-0 text-left">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-serif-kr text-[14px] font-semibold text-[#1A1A1F]">
+                                  {cat.label}
+                                </span>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${
+                                    STATUS_COLORS[data.status]
+                                  }`}
+                                >
+                                  {STATUS_LABELS[data.status]}
+                                </span>
+                              </div>
+                              {/* 진행률 바 */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-[#F6F3F2] rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
+                                    style={{ width: `${percent}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-[#B5ADA3] flex-shrink-0">
+                                  {data.done}/{data.total}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex-shrink-0">
+                              {isCatExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
+                              )}
+                            </div>
+                          </button>
+
+                          {/* 인라인 체크리스트 */}
+                          {isCatExpanded && data.merged && (
+                            <div
+                              className="overflow-hidden"
+                            >
+                              <div className="ml-12 mr-2 mt-1 mb-2 border-l-2 border-[#795252]/15 pl-3">
+                                {data.merged.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    onClick={() =>
+                                      handleToggle(cat.key, item.id)
+                                    }
+                                    className={`flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-[#FAFAF8] transition-colors ${
+                                      togglingItem === item.id
+                                        ? "opacity-50 pointer-events-none"
+                                        : ""
                                     }`}
                                   >
-                                    {STATUS_LABELS[data.status]}
-                                  </span>
-                                </div>
-                                {/* 진행률 바 */}
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-1.5 bg-ivory-warm rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all duration-500"
-                                      style={{ width: `${percent}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] text-taupe-400 flex-shrink-0">
-                                    {data.done}/{data.total}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex-shrink-0">
-                                {isCatExpanded ? (
-                                  <ChevronUp className="w-4 h-4 text-taupe-400" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4 text-taupe-400" />
-                                )}
-                              </div>
-                            </button>
-
-                            {/* 인라인 체크리스트 */}
-                            <AnimatePresence>
-                              {isCatExpanded && data.merged && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div className="ml-11 mr-2 mt-1 mb-2 border-l-2 border-rose-500/10 pl-3">
-                                    {data.merged.map((item) => (
-                                      <div
-                                        key={item.id}
-                                        onClick={() =>
-                                          handleToggle(cat.key, item.id)
-                                        }
-                                        className={`flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-ivory-50 transition-colors ${
-                                          togglingItem === item.id
-                                            ? "opacity-50 pointer-events-none"
-                                            : ""
-                                        }`}
-                                      >
-                                        <div className="flex-shrink-0">
-                                          {item.done ? (
-                                            <div className="w-5 h-5 rounded-full bg-[#2E7D5A] flex items-center justify-center">
-                                              <Check className="w-3 h-3 text-white" />
-                                            </div>
-                                          ) : (
-                                            <div className="w-5 h-5 rounded-full border-2 border-taupe-400 hover:border-rose-500 transition-colors" />
-                                          )}
+                                    <div className="flex-shrink-0">
+                                      {item.done ? (
+                                        <div className="w-5 h-5 rounded-full bg-[#795252] flex items-center justify-center">
+                                          <Check className="w-3 h-3 text-white" />
                                         </div>
-                                        <span
-                                          className={`text-[12px] leading-snug ${
-                                            item.done
-                                              ? "text-taupe-400 line-through"
-                                              : "text-noir-800"
-                                          }`}
-                                        >
-                                          {item.label}
-                                        </span>
-                                      </div>
-                                    ))}
+                                      ) : (
+                                        <div className="w-5 h-5 rounded-full border-2 border-[#B5ADA3] hover:border-[#795252] transition-colors" />
+                                      )}
+                                    </div>
+                                    <span
+                                      className={`text-[13px] leading-snug ${
+                                        item.done
+                                          ? "text-[#B5ADA3] line-through"
+                                          : "text-[#504444]"
+                                      }`}
+                                    >
+                                      {item.label}
+                                    </span>
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </motion.div>
+          </div>
         );
       })}
 
@@ -395,24 +378,21 @@ export default function TimelineView({
         const uncategorized = events.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
         if (uncategorized.length === 0 && !onAddEvent) return null;
         return (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
-            className="relative pl-12 mb-4 max-md:pl-10"
+          <div
+            className="relative pl-12 mb-4 max-md:pl-10 animate-fade-in"
           >
-            <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-gold bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
-            <div className="w-full bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4">
+            <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-[#C9A96E] bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
+            <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-gold bg-gold/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
-                  <span className="text-[14px] font-medium text-noir-800">직접 추가한 일정</span>
-                  <span className="text-[11px] text-taupe-400">{uncategorized.length}건</span>
+                  <span className="text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
+                  <span className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">직접 추가한 일정</span>
+                  <span className="text-[11px] text-[#B5ADA3]">{uncategorized.length}건</span>
                 </div>
                 {onAddEvent && (
                   <button
                     onClick={onAddEvent}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-rose-500 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-[#795252] bg-[#795252]/5 hover:bg-[#795252]/10 transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     일정 추가
@@ -420,26 +400,26 @@ export default function TimelineView({
                 )}
               </div>
               {uncategorized.length > 0 && (
-                <div className="border-t border-black/[0.03] px-4 pb-4">
+                <div className="border-t border-[#F6F3F2] px-4 pb-4">
                   {uncategorized.map(evt => (
-                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2 rounded-lg hover:bg-ivory-50 group">
-                      <div className="w-8 h-8 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
-                        <CalendarDays className="w-4 h-4 text-gold" />
+                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2 rounded-lg hover:bg-[#FAFAF8] group">
+                      <div className="w-9 h-9 rounded-xl bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
+                        <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-noir-800">{evt.title}</p>
-                        <p className="text-[11px] text-taupe-400">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                        <p className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{evt.title}</p>
+                        <p className="text-[11px] text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-rose-500"><Pencil className="w-3 h-3" /></button>}
-                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-3 h-3" /></button>}
+                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         );
       })()}
     </div>

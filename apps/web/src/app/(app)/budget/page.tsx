@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
 import {
   TrendingDown,
   TrendingUp,
@@ -37,11 +36,6 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, PayerType } from "@/types/database.types";
 import Link from "next/link";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
@@ -119,7 +113,6 @@ function formatWonFull(n: number): string {
 }
 
 // 이전 버전 호환: cost가 만원 단위로 저장된 경우 원 단위로 변환
-// 10만원(100000) 미만은 만원 단위로 간주 (웨딩 비용이 10만원 미만일 수 없음)
 function normalizeCost(cost: number | undefined): number {
   if (!cost || cost <= 0) return 0;
   return cost < 100000 ? cost * 10000 : cost;
@@ -138,7 +131,7 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
         onClick={() => setShow(!show)}
-        className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] bg-amber-50 text-amber-500 hover:bg-amber-100 transition-colors flex-shrink-0"
+        className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
         title="추가 비용 주의"
       >
         <AlertTriangle className="w-3 h-3" />
@@ -146,16 +139,16 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
       {show && (
         <div
           ref={tooltipRef}
-          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-noir-800 text-white rounded-xl p-3 shadow-lg pointer-events-none"
+          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[#504444] rounded-xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] pointer-events-none"
         >
-          <div className="text-[11px] font-medium text-amber-300 mb-1.5 flex items-center gap-1">
+          <div className="text-[11px] font-medium text-[#795252] mb-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             추가 비용 주의
           </div>
-          <p className="text-[11px] text-white/80 leading-relaxed mb-1.5">{data.warning}</p>
-          <p className="text-[12px] font-medium text-amber-300">{data.extra}</p>
+          <p className="text-[11px] text-[#504444] leading-relaxed mb-1.5">{data.warning}</p>
+          <p className="text-[12px] font-medium text-[#795252]">{data.extra}</p>
           <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
-            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-noir-800" />
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white" />
           </div>
         </div>
       )}
@@ -189,22 +182,22 @@ function PayerSelector({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-taupe-500 hover:bg-ivory-50 border border-transparent hover:border-black/[0.04] transition-colors"
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-[#504444] hover:bg-[#F6F3F2] transition-colors"
         title="분담 변경"
       >
         <span>{current.emoji}</span>
         <span>{current.label}</span>
       </button>
       {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[130px] bg-white rounded-xl border border-black/[0.06] shadow-lg overflow-hidden">
+        <div className="absolute z-40 top-full right-0 mt-1 w-[130px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => { onChange(opt.value); setOpen(false); }}
               className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] transition-colors ${
                 value === opt.value
-                  ? "bg-rose-500/5 text-rose-500 font-medium"
-                  : "text-noir-800 hover:bg-ivory-50"
+                  ? "bg-[#795252]/5 text-[#795252] font-medium"
+                  : "text-[#1A1A1F] hover:bg-[#F6F3F2]"
               }`}
             >
               <span>{opt.emoji}</span>
@@ -270,13 +263,13 @@ function InlineMoneyEdit({
             if (e.key === "Enter") save();
             if (e.key === "Escape") cancel();
           }}
-          className="w-[80px] px-2 py-1 rounded-lg border border-rose-500/30 text-[13px] text-right text-noir-800 focus:outline-none focus:border-rose-500"
+          className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
         />
-        <span className="text-[11px] text-taupe-400">만원</span>
-        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10" title="저장">
+        <span className="text-[11px] text-[#B5ADA3]">만원</span>
+        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#5a6147] hover:bg-[#5a6147]/10" title="저장">
           <Check className="w-3.5 h-3.5" />
         </button>
-        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10" title="취소">
+        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]" title="취소">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -289,24 +282,24 @@ function InlineMoneyEdit({
         onClick={startEdit}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${
           highlight === "spent"
-            ? "hover:bg-rose-500/5 border border-transparent hover:border-rose-500/20"
-            : "hover:bg-gold/5 border border-transparent hover:border-gold/20"
+            ? "hover:bg-[#795252]/5"
+            : "hover:bg-[#F6F3F2]"
         }`}
         title={`${label} 수정`}
       >
         <span className={`text-[13px] font-medium ${
-          highlight === "spent" ? "text-noir-800" : "text-taupe-500"
+          highlight === "spent" ? "text-[#1A1A1F]" : "text-[#504444]"
         }`}>
           {formatWon(value)}
         </span>
         <Pencil className={`w-3 h-3 ${
-          highlight === "spent" ? "text-rose-500/40" : "text-gold/40"
+          highlight === "spent" ? "text-[#795252]/50" : "text-[#B5ADA3]"
         }`} />
       </button>
       {onReset && value > 0 && (
         <button
           onClick={onReset}
-          className="w-5 h-5 rounded flex items-center justify-center text-taupe-400/50 hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
           <X className="w-3 h-3" />
@@ -330,7 +323,6 @@ function BudgetRow({
   onSpentReset,
   onPayerChange,
   onDelete,
-  delay,
 }: {
   catKey: string;
   label: string;
@@ -344,45 +336,41 @@ function BudgetRow({
   onSpentReset: (key: string) => void;
   onPayerChange: (key: string, payer: PayerType) => void;
   onDelete?: (key: string) => void;
-  delay: number;
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay }}
-      className="group flex items-center gap-3 px-5 py-3.5 hover:bg-ivory-50 transition-colors max-md:flex-wrap max-md:gap-2"
+    <div
+      className="group flex items-center gap-3 px-5 py-4 bg-white hover:bg-[#FAFAF8] transition-colors max-md:flex-wrap max-md:gap-2"
     >
       {/* 아이콘 + 이름 + 숨겨진 비용 경고 */}
-      <div className="flex items-center gap-2 w-[140px] flex-shrink-0 max-md:w-full">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+      <div className="flex items-center gap-2 w-[150px] flex-shrink-0 max-md:w-full">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isOver
-            ? "bg-red-50 ring-1 ring-red-200"
-            : "bg-gradient-to-br from-rose-500/10 to-gold/10"
+            ? "bg-red-50"
+            : "bg-[#F6F3F2]"
         }`}>
-          <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-rose-500"}`} />
+          <Icon className={`w-4 h-4 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
         </div>
-        <span className="text-[13px] font-medium text-noir-800">{label}</span>
+        <span className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{label}</span>
         <HiddenCostBadge catKey={catKey} />
       </div>
 
       {/* 진행 바 + 퍼센트 */}
       <div className="flex-1 min-w-0 max-md:order-last max-md:w-full">
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-ivory-warm rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                isOver ? "bg-red-400" : "bg-gradient-to-r from-rose-500 to-gold"
+                isOver ? "bg-red-400" : "bg-gradient-to-r from-[#795252] to-[#946a6a]"
               }`}
               style={{ width: `${Math.min(percent, 100)}%` }}
             />
           </div>
           <span className={`text-[10px] font-medium w-[32px] text-right flex-shrink-0 ${
-            isOver ? "text-red-400" : percent >= 100 ? "text-[#2E7D5A]" : "text-taupe-400"
+            isOver ? "text-red-400" : percent >= 100 ? "text-[#5a6147]" : "text-[#B5ADA3]"
           }`}>
             {percent}%
           </span>
@@ -394,9 +382,9 @@ function BudgetRow({
         <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
       </div>
 
-      {/* 지출 (편집 가능) - 라벨 포함 */}
+      {/* 지출 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[9px] text-taupe-400 mb-0.5">지출</span>
+        <span className="text-[9px] uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
@@ -407,11 +395,11 @@ function BudgetRow({
       </div>
 
       {/* 구분선 */}
-      <span className="text-[11px] text-taupe-300 flex-shrink-0 self-end mb-1">/</span>
+      <span className="text-[11px] text-[#B5ADA3]/60 flex-shrink-0 self-end mb-1">/</span>
 
-      {/* 예산 (편집 가능) - 라벨 포함 */}
+      {/* 예산 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-[9px] text-taupe-400 mb-0.5">예산</span>
+        <span className="text-[9px] uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
           onSave={(v) => onBudgetChange(catKey, v)}
@@ -423,23 +411,23 @@ function BudgetRow({
       {/* 상태 + 삭제 */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-          status === "완료" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
-          status === "진행중" ? "bg-rose-500/10 text-rose-500" :
-          "bg-taupe-400/10 text-taupe-400"
+          status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
+          status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
+          "bg-[#F6F3F2] text-[#B5ADA3]"
         }`}>
           {status}
         </div>
         {onDelete && (
           <button
             onClick={() => onDelete(catKey)}
-            className="w-5 h-5 rounded flex items-center justify-center text-taupe-400/40 hover:text-red-400 hover:bg-red-50 transition-colors max-md:opacity-100 opacity-0 group-hover:opacity-100"
+            className="w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors max-md:opacity-100 opacity-0 group-hover:opacity-100"
             title={`${label} 삭제`}
           >
             <X className="w-3 h-3" />
           </button>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -455,10 +443,10 @@ interface BookingSummary {
 
 function getBookingStatusBadge(status: string) {
   switch (status) {
-    case "confirmed": return { label: "확정", color: "bg-[#2E7D5A]/10 text-[#2E7D5A]" };
-    case "completed": return { label: "완료", color: "bg-taupe-400/10 text-taupe-400" };
-    case "cancelled": return { label: "취소", color: "bg-red-100 text-red-400" };
-    default: return { label: "대기중", color: "bg-gold/10 text-gold" };
+    case "confirmed": return { label: "확정", color: "bg-[#5a6147]/10 text-[#5a6147]" };
+    case "completed": return { label: "완료", color: "bg-[#F6F3F2] text-[#B5ADA3]" };
+    case "cancelled": return { label: "취소", color: "bg-red-50 text-red-400" };
+    default: return { label: "대기중", color: "bg-[#795252]/10 text-[#795252]" };
   }
 }
 
@@ -470,16 +458,14 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
   const displayBookings = showCancelled ? cancelledBookings : activeBookings;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.12 }}
-      className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
+    <div
+      className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6 animate-fade-in"
     >
-      <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
+      <div className="px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <ShoppingBag className="w-5 h-5 text-rose-500" />
-          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">내 예약 내역</h3>
-          {!loading && <span className="text-[11px] text-taupe-400">{activeBookings.length}건</span>}
+          <ShoppingBag className="w-5 h-5 text-[#795252]" />
+          <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">내 예약 내역</h3>
+          {!loading && <span className="text-[11px] text-[#B5ADA3]">{activeBookings.length}건</span>}
         </div>
         {cancelledBookings.length > 0 && (
           <button
@@ -487,7 +473,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
             className={`text-[11px] px-2.5 py-1 rounded-lg transition-colors ${
               showCancelled
                 ? "bg-red-50 text-red-400 font-medium"
-                : "text-taupe-400 hover:bg-ivory-100"
+                : "text-[#B5ADA3] hover:bg-[#F6F3F2]"
             }`}
           >
             {showCancelled ? "예약 중 보기" : `취소 내역 ${cancelledBookings.length}`}
@@ -496,30 +482,30 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
       </div>
       {loading ? (
         <div className="py-8 flex justify-center">
-          <Loader2 className="w-5 h-5 text-taupe-400 animate-spin" />
+          <Loader2 className="w-5 h-5 text-[#B5ADA3] animate-spin" />
         </div>
       ) : displayBookings.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-[13px] text-taupe-400">
+          <p className="text-[13px] text-[#B5ADA3]">
             {showCancelled ? "취소된 예약이 없습니다" : "예약 내역이 없습니다"}
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-black/[0.03]">
+        <div className="divide-y divide-[#F6F3F2]">
           {displayBookings.map((b) => {
             const badge = getBookingStatusBadge(b.status);
             return (
-              <div key={b.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-ivory-50 transition-colors">
+              <div key={b.id} className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF8] transition-colors">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-noir-800 truncate">{b.vendorName}</p>
+                  <p className="font-serif-kr text-[14px] font-normal text-[#1A1A1F] truncate">{b.vendorName}</p>
                   {b.productName && (
-                    <p className="text-[11px] text-taupe-400 truncate">{b.productName}</p>
+                    <p className="text-[11px] text-[#B5ADA3] truncate">{b.productName}</p>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[12px] text-noir-800">{b.bookingDate} {b.bookingTime}</p>
+                  <p className="text-[12px] text-[#504444]">{b.bookingDate} {b.bookingTime}</p>
                   {b.amount > 0 && (
-                    <p className="text-[11px] text-rose-500 font-medium">{formatWon(b.amount)}원</p>
+                    <p className="text-[11px] text-[#795252] font-medium">{formatWon(b.amount)}원</p>
                   )}
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
@@ -530,7 +516,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
           })}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -549,7 +535,7 @@ export default function BudgetPage() {
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
 
-  // progress에서 커스텀 카테고리 추출 (KNOWN_KEYS에 없고 __로 시작하지 않는 키)
+  // progress에서 커스텀 카테고리 추출
   const customCategories = Object.entries(progress)
     .filter(([key]) => !KNOWN_KEYS.has(key) && !key.startsWith("__"))
     .map(([key, item]) => ({
@@ -595,12 +581,9 @@ export default function BudgetPage() {
   const getCategoryBudget = useCallback(
     (key: string) => {
       const item = progress[key];
-      // 1. 저장된 커스텀 예산이 있으면 사용
       if (item?.budget !== undefined && item.budget > 0) return item.budget;
-      // 2. 완료 항목에 cost가 있으면 cost를 예산으로 사용 (이전 데이터 호환)
       const cost = normalizeCost(item?.cost);
       if (cost > 0) return cost;
-      // 3. 없으면 비율 기반 기본값
       const catRatio = CATEGORY_RATIOS.find((c) => c.key === key);
       return catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
     },
@@ -610,12 +593,9 @@ export default function BudgetPage() {
   const getCategorySpent = useCallback(
     (key: string) => {
       const item = progress[key];
-      // 1. 직접 수정한 지출이 있으면 최우선
       if (item?.spent !== undefined) return item.spent;
-      // 2. 온보딩에서 입력한 비용(cost)이 있으면 사용 (이전 데이터 호환)
       const cost = normalizeCost(item?.cost);
       if (cost > 0) return cost;
-      // 3. 없으면 0
       return 0;
     },
     [progress]
@@ -637,7 +617,7 @@ export default function BudgetPage() {
     [progress]
   );
 
-  // 총합 계산 (고정 + 커스텀 카테고리 모두 포함)
+  // 총합 계산
   const allCats = CATEGORY_RATIOS;
   const visibleFixed = allCats.filter((c) => !hiddenKeys.has(c.key));
   const fixedSpent = visibleFixed.reduce((s, c) => s + getCategorySpent(c.key), 0);
@@ -653,7 +633,7 @@ export default function BudgetPage() {
   const sdmBudget = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategoryBudget(k), 0);
   const sdmSpent = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategorySpent(k), 0);
 
-  // 분담별 합계 계산
+  // 분담별 합계
   const allVisibleKeys = [
     ...visibleFixed.map((c) => c.key),
     ...customCategories.map((c) => c.key),
@@ -668,7 +648,7 @@ export default function BudgetPage() {
     {} as Record<PayerType, number>
   );
 
-  // 예산/지출 수정 핸들러
+  // 핸들러들
   const handleBudgetChange = useCallback(
     async (key: string, newBudget: number) => {
       const existing = progress[key];
@@ -705,7 +685,6 @@ export default function BudgetPage() {
     async (key: string) => {
       const existing = progress[key];
       if (!existing) return;
-      // spent를 제거하여 cost(온보딩 입력값)로 폴백되도록
       const { spent: _spent, ...rest } = existing;
       const newProgress = {
         ...progress,
@@ -716,7 +695,6 @@ export default function BudgetPage() {
     [progress, updateJourney]
   );
 
-  // 분담(payer) 변경 핸들러
   const handlePayerChange = useCallback(
     async (key: string, newPayer: PayerType) => {
       const existing = progress[key];
@@ -733,8 +711,6 @@ export default function BudgetPage() {
     [progress, updateJourney]
   );
 
-  // 커스텀 카테고리 추가 핸들러
-  // 카테고리 추가 (모달에서 호출)
   const handleAddCategory = useCallback(
     async () => {
       const trimmed = newCatLabel.trim();
@@ -761,7 +737,6 @@ export default function BudgetPage() {
     [newCatLabel, newCatBudget, newCatSpent, progress, updateJourney]
   );
 
-  // 카테고리 데이터 초기화 (고정 카테고리: progress에서 제거하여 기본값으로 복원)
   const handleResetCategory = useCallback(
     async (key: string) => {
       const { [key]: _removed, ...rest } = progress;
@@ -771,7 +746,6 @@ export default function BudgetPage() {
     [progress, updateJourney]
   );
 
-  // 카테고리 삭제 (커스텀: progress에서 제거, 고정: __hidden 리스트에 추가하여 목록에서 숨김)
   const handleDeleteCategory = useCallback(
     async (key: string) => {
       if (KNOWN_KEYS.has(key)) {
@@ -796,29 +770,34 @@ export default function BudgetPage() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto">
+    <div className="max-w-[1000px] mx-auto bg-[#FAFAF8]">
+      {/* 페이지 타이틀 */}
+      <div className="mb-8 animate-fade-in">
+        <p className="text-[10px] uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Budget</p>
+        <h1 className="font-serif-kr text-[32px] font-light text-[#1A1A1F]">예산 관리</h1>
+        <p className="text-[13px] text-[#504444] mt-1 font-light">웨딩 카테고리별로 예산과 지출을 한눈에 관리하세요.</p>
+      </div>
+
       {/* 요약 카드 3개 */}
       <div className="grid grid-cols-3 gap-4 mb-8 max-md:grid-cols-1">
-        {/* 총 예산 (편집 가능) */}
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.5 }}
-          className="bg-white rounded-2xl p-6 border border-black/[0.04]"
+        {/* 총 예산 */}
+        <div
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
         >
-          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
-            총 예산
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">총 예산</p>
             {!editingTotal && (
               <button
                 onClick={() => {
                   setTotalText(String(Math.round(totalBudget / 10000)));
                   setEditingTotal(true);
                 }}
-                className="text-taupe-400 hover:text-rose-500 transition-colors"
+                className="text-[#B5ADA3] hover:text-[#795252] transition-colors"
               >
                 <Pencil className="w-3 h-3" />
               </button>
             )}
-          </p>
+          </div>
           {editingTotal ? (
             <div className="flex items-center gap-2">
               <input
@@ -830,55 +809,53 @@ export default function BudgetPage() {
                   if (e.key === "Enter") handleTotalBudgetSave();
                   if (e.key === "Escape") setEditingTotal(false);
                 }}
-                className="w-[100px] px-3 py-2 rounded-xl border border-rose-500/30 text-[20px] font-display font-light text-noir-800 focus:outline-none focus:border-rose-500"
+                className="w-[110px] px-3 py-2 rounded-xl border border-[#795252]/40 text-[24px] font-serif-kr font-light text-[#1A1A1F] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
               />
-              <span className="text-[14px] text-taupe-400">만원</span>
-              <button onClick={handleTotalBudgetSave} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#2E7D5A] hover:bg-[#2E7D5A]/10">
+              <span className="text-[14px] text-[#B5ADA3]">만원</span>
+              <button onClick={handleTotalBudgetSave} className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
                 <Check className="w-4 h-4" />
               </button>
-              <button onClick={() => setEditingTotal(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10">
+              <button onClick={() => setEditingTotal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2]">
                 <X className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            <p className="font-display text-[32px] font-light text-noir-800">
-              {formatWon(totalBudget)}<span className="text-[16px] text-taupe-400">원</span>
+            <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
+              {formatWon(totalBudget)}<span className="text-[16px] text-[#B5ADA3] ml-1">원</span>
             </p>
           )}
-        </motion.div>
+        </div>
 
         {/* 사용 금액 */}
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.5, delay: 0.05 }}
-          className="bg-white rounded-2xl p-6 border border-black/[0.04]"
+        <div
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
         >
-          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
-            사용 금액 <TrendingUp className="w-3.5 h-3.5 text-rose-500" />
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">사용 금액</p>
+            <TrendingUp className="w-3.5 h-3.5 text-[#795252]" />
+          </div>
+          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
+            {formatWon(totalSpent)}<span className="text-[16px] text-[#B5ADA3] ml-1">원</span>
           </p>
-          <p className="font-display text-[32px] font-light text-noir-800">
-            {formatWon(totalSpent)}<span className="text-[16px] text-taupe-400">원</span>
-          </p>
-          <div className="w-full h-2 bg-ivory-warm rounded-full mt-3 overflow-hidden">
+          <div className="w-full h-2 bg-[#F6F3F2] rounded-full mt-4 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all duration-700"
+              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-700"
               style={{ width: `${Math.min(spentPercent, 100)}%` }}
             />
           </div>
-          <p className="text-[11px] text-taupe-400 mt-1.5">예산 대비 {spentPercent}% 사용</p>
-        </motion.div>
+          <p className="text-[11px] text-[#B5ADA3] mt-2">예산 대비 {spentPercent}% 사용</p>
+        </div>
 
         {/* 잔여 예산 */}
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-2xl p-6 border border-black/[0.04]"
+        <div
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 animate-fade-in"
         >
-          <p className="text-[12px] text-taupe-500 font-light mb-2 flex items-center gap-1.5">
-            잔여 예산 <TrendingDown className={`w-3.5 h-3.5 ${remaining >= 0 ? "text-[#2E7D5A]" : "text-red-400"}`} />
-          </p>
-          <p className={`font-display text-[32px] font-light ${remaining >= 0 ? "text-[#2E7D5A]" : "text-red-400"}`}>
-            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-[16px] ${remaining >= 0 ? "text-[#2E7D5A]/50" : "text-red-400/50"}`}>원</span>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-widest text-[#B5ADA3]">잔여 예산</p>
+            <TrendingDown className={`w-3.5 h-3.5 ${remaining >= 0 ? "text-[#5a6147]" : "text-red-400"}`} />
+          </div>
+          <p className={`font-serif-kr text-4xl font-light ${remaining >= 0 ? "text-[#1A1A1F]" : "text-red-400"}`}>
+            {remaining < 0 ? "-" : ""}{formatWon(Math.abs(remaining))}<span className={`text-[16px] ml-1 ${remaining >= 0 ? "text-[#B5ADA3]" : "text-red-400/50"}`}>원</span>
           </p>
           {remaining < 0 && (
             <p className="text-[11px] text-red-400 mt-2 flex items-center gap-1">
@@ -886,19 +863,20 @@ export default function BudgetPage() {
               예산 초과
             </p>
           )}
-        </motion.div>
+          {remaining >= 0 && (
+            <p className="text-[11px] text-[#B5ADA3] mt-2">여유 {Math.round((remaining / totalBudget) * 100)}%</p>
+          )}
+        </div>
       </div>
 
       {/* 분담 요약 */}
       {totalSpent > 0 && (
-        <motion.div
-          {...fadeIn}
-          transition={{ duration: 0.5, delay: 0.12 }}
-          className="bg-white rounded-2xl p-5 border border-black/[0.04] mb-6"
+        <div
+          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6 animate-fade-in"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="w-4 h-4 text-rose-500" />
-            <h3 className="text-[13px] font-medium text-noir-800">분담 현황</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-4 h-4 text-[#795252]" />
+            <h3 className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">분담 현황</h3>
           </div>
           <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
             {PAYER_OPTIONS.map((opt) => {
@@ -907,194 +885,189 @@ export default function BudgetPage() {
               return (
                 <div
                   key={opt.value}
-                  className={`rounded-xl p-3 border transition-colors ${
-                    amount > 0 ? "border-rose-500/10 bg-rose-500/[0.02]" : "border-black/[0.04] bg-ivory-50"
+                  className={`rounded-xl p-4 transition-colors ${
+                    amount > 0 ? "bg-[#795252]/[0.03]" : "bg-[#F6F3F2]"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-1.5">
+                  <div className="flex items-center gap-1.5 mb-2">
                     <span className="text-[14px]">{opt.emoji}</span>
-                    <span className="text-[11px] text-taupe-500">{opt.label}</span>
+                    <span className="text-[11px] text-[#504444]">{opt.label}</span>
                   </div>
-                  <p className={`font-display text-[18px] font-light ${
-                    amount > 0 ? "text-noir-800" : "text-taupe-400"
+                  <p className={`font-serif-kr text-[20px] font-light ${
+                    amount > 0 ? "text-[#1A1A1F]" : "text-[#B5ADA3]"
                   }`}>
                     {amount > 0 ? formatWon(amount) : "0"}
-                    <span className="text-[11px] text-taupe-400">원</span>
+                    <span className="text-[11px] text-[#B5ADA3] ml-0.5">원</span>
                   </p>
                   {amount > 0 && (
-                    <div className="mt-1.5">
-                      <div className="h-1 bg-ivory-warm rounded-full overflow-hidden">
+                    <div className="mt-2">
+                      <div className="h-1 bg-[#F6F3F2] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-rose-500/60 to-gold/60 rounded-full transition-all duration-500"
+                          className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <p className="text-[9px] text-taupe-400 mt-0.5">{pct}%</p>
+                      <p className="text-[9px] text-[#B5ADA3] mt-1">{pct}%</p>
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
-        </motion.div>
+        </div>
       )}
 
-      {/* 시세 비교 안내 스트립 */}
+      {/* 시세 비교 안내 */}
       <Link
         href="/market-prices"
-        className="flex items-center gap-3 bg-gradient-to-r from-rose-500/5 to-[#C9A96E]/5 rounded-xl px-4 py-3 mb-6 border border-black/[0.04] hover:border-rose-500/20 transition-colors group"
+        className="flex items-center gap-3 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-5 py-4 mb-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow group"
       >
-        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0">
-          <TrendingUp className="w-4 h-4 text-rose-500" />
+        <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
+          <TrendingUp className="w-4 h-4 text-[#795252]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] text-noir-800 font-medium">시세 대비 내 예산 확인</p>
-          <p className="text-[11px] text-taupe-400">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
+          <p className="font-serif-kr text-[14px] text-[#1A1A1F] font-normal">시세 대비 내 예산 확인</p>
+          <p className="text-[11px] text-[#B5ADA3] mt-0.5">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
         </div>
-        <span className="text-[12px] text-rose-500 flex-shrink-0 group-hover:underline">자세히 보기 →</span>
+        <span className="text-[12px] text-[#795252] flex-shrink-0 group-hover:underline">자세히 보기 →</span>
       </Link>
 
       {/* 내 예약 내역 */}
       <BookingsSection bookings={bookings} loading={bookingsLoading} />
 
       {/* 스드메 패키지 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6"
+      <div
+        className="bg-[#F6F3F2] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6 animate-fade-in"
       >
-        <div className="px-5 py-4 border-b border-black/[0.04] bg-gradient-to-r from-rose-500/5 to-gold/5">
+        <div className="px-6 py-5 bg-white">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <div className="flex -space-x-1">
-                <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center ring-2 ring-white">
-                  <Camera className="w-3 h-3 text-rose-500" />
+                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Camera className="w-3.5 h-3.5 text-[#795252]" />
                 </div>
-                <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center ring-2 ring-white">
-                  <Shirt className="w-3 h-3 text-rose-500" />
+                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Shirt className="w-3.5 h-3.5 text-[#795252]" />
                 </div>
-                <div className="w-6 h-6 rounded-full bg-rose-500/10 flex items-center justify-center ring-2 ring-white">
-                  <Palette className="w-3 h-3 text-rose-500" />
+                <div className="w-8 h-8 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                  <Palette className="w-3.5 h-3.5 text-[#795252]" />
                 </div>
               </div>
               <div>
-                <h3 className="text-[15px] font-medium text-noir-800">스드메 패키지</h3>
-                <p className="text-[11px] text-taupe-400">스튜디오 + 드레스 + 메이크업</p>
+                <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">스드메 패키지</h3>
+                <p className="text-[11px] text-[#B5ADA3] mt-0.5">스튜디오 + 드레스 + 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[13px] font-medium text-noir-800">
-                {formatWonFull(sdmSpent)} <span className="text-taupe-400 font-normal">/ {formatWonFull(sdmBudget)}</span>
+              <p className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">
+                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3]">/ {formatWonFull(sdmBudget)}</span>
               </p>
-              <p className="text-[11px] text-taupe-400">
+              <p className="text-[11px] text-[#B5ADA3] mt-0.5">
                 {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
               </p>
             </div>
           </div>
         </div>
-        <div className="divide-y divide-black/[0.03]">
-          {SDM_KEYS.filter((k) => !hiddenKeys.has(k)).map((key, i) => {
-            const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
-            return (
-              <BudgetRow
-                key={key}
-                catKey={key}
-                label={cat.label}
-                icon={cat.icon}
-                budget={getCategoryBudget(key)}
-                spent={getCategorySpent(key)}
-                status={getStatusLabel(key)}
-                payer={getCategoryPayer(key)}
-                onBudgetChange={handleBudgetChange}
-                onSpentChange={handleSpentChange}
-                onSpentReset={handleSpentReset}
-                onPayerChange={handlePayerChange}
-                onDelete={(k) => setDeletingKey(k)}
-                delay={0.2 + i * 0.03}
-              />
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* 기타 카테고리 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.5, delay: 0.25 }}
-        className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden"
-      >
-        <div className="px-5 py-4 border-b border-black/[0.04] flex items-center justify-between">
-          <h3 className="font-serif-kr text-[15px] font-normal text-noir-800">기타 카테고리</h3>
-          <div className="flex items-center gap-1.5 text-[11px] text-taupe-400">
-            <Pencil className="w-3 h-3 text-rose-500/40" />
-            클릭하여 수정 · <X className="w-3 h-3 text-taupe-400/50" /> 초기화
+        <div className="p-2">
+          <div className="bg-white rounded-lg divide-y divide-[#F6F3F2]">
+            {SDM_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
+              const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
+              return (
+                <BudgetRow
+                  key={key}
+                  catKey={key}
+                  label={cat.label}
+                  icon={cat.icon}
+                  budget={getCategoryBudget(key)}
+                  spent={getCategorySpent(key)}
+                  status={getStatusLabel(key)}
+                  payer={getCategoryPayer(key)}
+                  onBudgetChange={handleBudgetChange}
+                  onSpentChange={handleSpentChange}
+                  onSpentReset={handleSpentReset}
+                  onPayerChange={handlePayerChange}
+                  onDelete={(k) => setDeletingKey(k)}
+                />
+              );
+            })}
           </div>
         </div>
-        <div className="divide-y divide-black/[0.03]">
-          {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key, i) => {
-            const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
-            return (
-              <BudgetRow
-                key={key}
-                catKey={key}
-                label={cat.label}
-                icon={cat.icon}
-                budget={getCategoryBudget(key)}
-                spent={getCategorySpent(key)}
-                status={getStatusLabel(key)}
-                payer={getCategoryPayer(key)}
-                onBudgetChange={handleBudgetChange}
-                onSpentChange={handleSpentChange}
-                onSpentReset={handleSpentReset}
-                onPayerChange={handlePayerChange}
-                onDelete={(k) => setDeletingKey(k)}
-                delay={0.3 + i * 0.03}
-              />
-            );
-          })}
+      </div>
 
-          {/* 커스텀 카테고리 렌더링 */}
-          {customCategories.map((cat, i) => (
-              <BudgetRow
-                key={cat.key}
-                catKey={cat.key}
-                label={cat.label}
-                icon={cat.icon}
-                budget={getCategoryBudget(cat.key)}
-                spent={getCategorySpent(cat.key)}
-                status={getStatusLabel(cat.key)}
-                payer={getCategoryPayer(cat.key)}
-                onBudgetChange={handleBudgetChange}
-                onSpentChange={handleSpentChange}
-                onSpentReset={handleSpentReset}
-                onPayerChange={handlePayerChange}
-                onDelete={(k) => setDeletingKey(k)}
-                delay={0.3 + (OTHER_KEYS.length + i) * 0.03}
-              />
-          ))}
-
-          {/* 카테고리 추가 버튼 */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2.5 w-full px-5 py-3.5 text-taupe-400 hover:text-rose-500 hover:bg-ivory-50 transition-colors"
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-dashed border-taupe-300 group-hover:border-rose-500/40 transition-colors">
-              <Plus className="w-4 h-4" />
-            </div>
-            <span className="text-[13px]">새 항목 추가</span>
-          </button>
+      {/* 기타 카테고리 */}
+      <div
+        className="bg-[#F6F3F2] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden animate-fade-in"
+      >
+        <div className="px-6 py-5 bg-white flex items-center justify-between">
+          <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">기타 카테고리</h3>
+          <div className="flex items-center gap-1.5 text-[11px] text-[#B5ADA3]">
+            <Pencil className="w-3 h-3 text-[#795252]/50" />
+            클릭하여 수정
+          </div>
         </div>
-      </motion.div>
+        <div className="p-2">
+          <div className="bg-white rounded-lg divide-y divide-[#F6F3F2]">
+            {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
+              const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
+              return (
+                <BudgetRow
+                  key={key}
+                  catKey={key}
+                  label={cat.label}
+                  icon={cat.icon}
+                  budget={getCategoryBudget(key)}
+                  spent={getCategorySpent(key)}
+                  status={getStatusLabel(key)}
+                  payer={getCategoryPayer(key)}
+                  onBudgetChange={handleBudgetChange}
+                  onSpentChange={handleSpentChange}
+                  onSpentReset={handleSpentReset}
+                  onPayerChange={handlePayerChange}
+                  onDelete={(k) => setDeletingKey(k)}
+                />
+              );
+            })}
+
+            {/* 커스텀 카테고리 */}
+            {customCategories.map((cat) => (
+                <BudgetRow
+                  key={cat.key}
+                  catKey={cat.key}
+                  label={cat.label}
+                  icon={cat.icon}
+                  budget={getCategoryBudget(cat.key)}
+                  spent={getCategorySpent(cat.key)}
+                  status={getStatusLabel(cat.key)}
+                  payer={getCategoryPayer(cat.key)}
+                  onBudgetChange={handleBudgetChange}
+                  onSpentChange={handleSpentChange}
+                  onSpentReset={handleSpentReset}
+                  onPayerChange={handlePayerChange}
+                  onDelete={(k) => setDeletingKey(k)}
+                />
+            ))}
+
+            {/* 카테고리 추가 */}
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2.5 w-full px-5 py-4 text-[#B5ADA3] hover:text-[#795252] hover:bg-[#FAFAF8] transition-colors"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-dashed border-[#B5ADA3] group-hover:border-[#795252] transition-colors">
+                <Plus className="w-4 h-4" />
+              </div>
+              <span className="text-[13px]">새 항목 추가</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* 배분 안내 */}
-      <motion.div
-        {...fadeIn}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        className="mt-4 px-2"
+      <div
+        className="mt-4 px-2 animate-fade-in"
       >
-        <p className="text-[11px] text-taupe-400 text-center">
+        <p className="text-[11px] text-[#B5ADA3] text-center">
           {totalAllocated !== totalBudget && (
-            <span className="text-rose-500">
+            <span className="text-[#795252]">
               배분 합계 {formatWonFull(totalAllocated)} (총 예산과 {formatWonFull(Math.abs(totalBudget - totalAllocated))} {totalAllocated > totalBudget ? "초과" : "차이"})
             </span>
           )}
@@ -1102,18 +1075,18 @@ export default function BudgetPage() {
             <span>배분 합계가 총 예산과 일치합니다</span>
           )}
         </p>
-      </motion.div>
+      </div>
 
       {/* 새 항목 추가 모달 */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-noir-900/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-white rounded-2xl w-[90%] max-w-[400px] p-6 border border-black/[0.04] shadow-xl">
+          <div className="absolute inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="relative bg-white rounded-xl w-[90%] max-w-[420px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-serif-kr text-[17px] text-noir-800">새 항목 추가</h3>
+              <h3 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">새 항목 추가</h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-taupe-400/10 transition-colors"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1121,7 +1094,7 @@ export default function BudgetPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-[12px] text-taupe-500 mb-1.5 block">카테고리 이름 <span className="text-rose-500">*</span></label>
+                <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">카테고리 이름 <span className="text-[#795252]">*</span></label>
                 <input
                   autoFocus
                   type="text"
@@ -1129,29 +1102,29 @@ export default function BudgetPage() {
                   onChange={(e) => setNewCatLabel(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
                   placeholder="예: 웨딩카, 답례떡"
-                  className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[12px] text-taupe-500 mb-1.5 block">예산 (만원)</label>
+                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">예산 (만원)</label>
                   <input
                     type="number"
                     value={newCatBudget}
                     onChange={(e) => setNewCatBudget(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-gold/40 focus:ring-1 focus:ring-gold/20 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="text-[12px] text-taupe-500 mb-1.5 block">지출 (만원)</label>
+                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">지출 (만원)</label>
                   <input
                     type="number"
                     value={newCatSpent}
                     onChange={(e) => setNewCatSpent(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/[0.08] text-[14px] text-noir-800 placeholder:text-taupe-400/60 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
                   />
                 </div>
               </div>
@@ -1160,14 +1133,14 @@ export default function BudgetPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleAddCategory}
                 disabled={!newCatLabel.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-gold text-white text-[13px] font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
+                className="flex-1 py-2.5 rounded-xl bg-[#795252] text-white text-[13px] font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors"
               >
                 추가
               </button>
@@ -1185,18 +1158,18 @@ export default function BudgetPage() {
         })();
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-noir-900/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-            <div className="relative bg-white rounded-2xl w-[90%] max-w-[360px] p-6 border border-black/[0.04] shadow-xl">
+            <div className="absolute inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
+            <div className="relative bg-white rounded-xl w-[90%] max-w-[380px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
                   <AlertTriangle className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-[15px] font-medium text-noir-800">
+                  <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">
                     {isFixed ? "항목 관리" : "항목 삭제"}
                   </h3>
-                  <p className="text-[12px] text-taupe-400 mt-0.5">
-                    <span className="font-medium text-noir-800">{catLabel}</span>
+                  <p className="text-[12px] text-[#B5ADA3] mt-0.5">
+                    <span className="font-medium text-[#504444]">{catLabel}</span>
                     {isFixed
                       ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
                       : " 항목이 완전히 삭제됩니다."}
@@ -1210,7 +1183,7 @@ export default function BudgetPage() {
                     <div className="flex gap-3">
                       <button
                         onClick={() => handleResetCategory(deletingKey)}
-                        className="flex-1 py-2.5 rounded-xl border border-gold/30 text-[13px] text-gold font-medium hover:bg-gold/5 transition-colors"
+                        className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#795252] font-medium hover:bg-[#795252]/10 transition-colors"
                       >
                         데이터 초기화
                       </button>
@@ -1223,7 +1196,7 @@ export default function BudgetPage() {
                     </div>
                     <button
                       onClick={() => setDeletingKey(null)}
-                      className="py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                      className="py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
                     >
                       취소
                     </button>
@@ -1232,7 +1205,7 @@ export default function BudgetPage() {
                   <>
                     <button
                       onClick={() => setDeletingKey(null)}
-                      className="flex-1 py-2.5 rounded-xl border border-black/[0.08] text-[13px] text-taupe-500 hover:bg-ivory-50 transition-colors"
+                      className="flex-1 py-2.5 rounded-xl bg-[#F6F3F2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
                     >
                       취소
                     </button>

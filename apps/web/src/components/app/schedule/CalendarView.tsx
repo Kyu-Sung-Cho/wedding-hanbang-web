@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   startOfMonth,
@@ -59,11 +58,10 @@ export default function CalendarView({
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // hydration-safe: today는 클라이언트에서만 설정
   const [today, setToday] = useState<Date | null>(null);
   useEffect(() => { setToday(new Date()); }, []);
 
-  // 마일스톤 계산
+  // 마일스톤
   const milestones = useMemo(() => {
     if (!weddingDate) return [];
 
@@ -104,24 +102,21 @@ export default function CalendarView({
     return eachDayOfInterval({ start: calStart, end: calEnd });
   }, [currentMonth]);
 
-  // 특정 날짜의 마일스톤
   const getMilestonesForDate = (date: Date) =>
     milestones.filter((m) => isSameDay(m.date, date));
 
-  // 특정 날짜의 이벤트
   const getEventsForDate = (date: Date) =>
     events.filter((e) => e.date === format(date, "yyyy-MM-dd"));
 
-  // 선택된 날짜의 마일스톤 & 이벤트
   const selectedMilestones = selectedDate ? getMilestonesForDate(selectedDate) : [];
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
   const statusColor = (status: ProgressItem["status"]) => {
     switch (status) {
       case "completed":
-        return "bg-[#2E7D5A]";
+        return "bg-[#5a6147]";
       case "in_progress":
-        return "bg-[#C4967E]";
+        return "bg-[#795252]";
       default:
         return "bg-[#B5ADA3]";
     }
@@ -133,16 +128,16 @@ export default function CalendarView({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="w-9 h-9 rounded-xl border border-black/[0.06] flex items-center justify-center text-[#928980] hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
+          className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="text-[16px] font-medium text-[#1A1A1F]">
+        <h3 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">
           {format(currentMonth, "yyyy년 M월", { locale: ko })}
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="w-9 h-9 rounded-xl border border-black/[0.06] flex items-center justify-center text-[#928980] hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
+          className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -153,8 +148,8 @@ export default function CalendarView({
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className={`text-center text-[11px] font-medium py-1.5 ${
-              day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[#928980]"
+            className={`text-center text-[11px] uppercase tracking-widest font-medium py-1.5 ${
+              day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[#B5ADA3]"
             }`}
           >
             {day}
@@ -181,27 +176,29 @@ export default function CalendarView({
                 !inMonth
                   ? "text-[#B5ADA3]/40"
                   : isWedding
-                  ? "bg-gradient-to-br from-[#C4967E] to-[#C9A96E] text-white font-medium shadow-md"
+                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white font-medium shadow-md"
                   : isSelected
                   ? "bg-[#795252] text-white font-medium"
                   : isToday
-                  ? "bg-[#C4967E]/10 text-[#C4967E] font-medium ring-1 ring-[#C4967E]/30"
+                  ? "ring-2 ring-[#795252] bg-white text-[#795252] font-medium"
                   : dayNum === 0
-                  ? "text-red-400 hover:bg-[#FDFCFA]"
+                  ? "text-red-400 hover:bg-[#FAFAF8]"
                   : dayNum === 6
-                  ? "text-blue-400 hover:bg-[#FDFCFA]"
-                  : "text-[#1A1A1F] hover:bg-[#FDFCFA]"
+                  ? "text-blue-400 hover:bg-[#FAFAF8]"
+                  : "text-[#1A1A1F] hover:bg-[#FAFAF8]"
               }`}
             >
-              <span>{format(day, "d")}</span>
-              {/* 마일스톤 + 이벤트 점 */}
+              <span className={isToday || isWedding || isSelected ? "font-serif-kr" : "font-serif-kr font-light"}>
+                {format(day, "d")}
+              </span>
+              {/* 이벤트/마일스톤 점 */}
               {inMonth && (dayMilestones.length > 0 || dayEvents.length > 0) && (
                 <div className="flex gap-0.5">
                   {dayMilestones.slice(0, 2).map((m, i) => (
                     <div
                       key={`m${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${
-                        isWedding || isSelected ? "bg-white/60" : statusColor(m.status)
+                        isWedding || isSelected ? "bg-white/70" : statusColor(m.status)
                       }`}
                     />
                   ))}
@@ -209,7 +206,7 @@ export default function CalendarView({
                     <div
                       key={`e${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${
-                        isWedding || isSelected ? "bg-white/60" : "bg-[#C9A96E]"
+                        isWedding || isSelected ? "bg-white/70" : "bg-[#795252]"
                       }`}
                     />
                   ))}
@@ -221,119 +218,114 @@ export default function CalendarView({
       </div>
 
       {/* 범례 */}
-      <div className="flex items-center gap-4 mt-4 px-2 flex-wrap">
+      <div className="flex items-center gap-4 mt-5 px-2 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E]" />
-          <span className="text-[11px] text-[#928980]">결혼식</span>
+          <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a]" />
+          <span className="text-[11px] text-[#B5ADA3]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#2E7D5A]" />
-          <span className="text-[11px] text-[#928980]">완료</span>
+          <div className="w-3 h-3 rounded-full bg-[#5a6147]" />
+          <span className="text-[11px] text-[#B5ADA3]">완료</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#C4967E]" />
-          <span className="text-[11px] text-[#928980]">진행중</span>
+          <div className="w-3 h-3 rounded-full bg-[#795252]" />
+          <span className="text-[11px] text-[#B5ADA3]">진행중</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#B5ADA3]" />
-          <span className="text-[11px] text-[#928980]">미시작</span>
+          <span className="text-[11px] text-[#B5ADA3]">미시작</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#C9A96E]" />
-          <span className="text-[11px] text-[#928980]">내 일정</span>
+          <div className="w-3 h-3 rounded-full bg-[#795252]" />
+          <span className="text-[11px] text-[#B5ADA3]">내 일정</span>
         </div>
       </div>
 
       {/* 선택된 날짜 상세 */}
-      <AnimatePresence>
-        {selectedDate && (selectedMilestones.length > 0 || selectedEvents.length > 0 || true) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4 overflow-hidden"
-          >
-            <div className="bg-[#FDFCFA] rounded-2xl border border-black/[0.04] p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[12px] text-[#928980]">
-                  {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
-                </p>
-                <button
-                  onClick={() =>
-                    onAddEvent(format(selectedDate, "yyyy-MM-dd"))
-                  }
-                  className="flex items-center gap-1 text-[11px] text-[#C4967E] hover:text-[#9A6B62] transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  일정 추가
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {/* 마일스톤 */}
-                {selectedMilestones.map((m, i) => (
-                  <button
-                    key={`m${i}`}
-                    onClick={() => onCategoryClick(m.categoryKey)}
-                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-black/[0.04] hover:border-[#C4967E]/30 transition-colors text-left"
-                  >
-                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusColor(m.status)}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#1A1A1F] font-medium">{m.label}</p>
-                      <p className="text-[11px] text-[#928980]">
-                        {m.type === "start" ? "준비 시작 권장일" : "완료 권장일"}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${statusColor(m.status)}`}
-                    >
-                      {m.status === "completed"
-                        ? "완료"
-                        : m.status === "in_progress"
-                        ? "진행중"
-                        : "미시작"}
-                    </span>
-                  </button>
-                ))}
-
-                {/* 이벤트 */}
-                {selectedEvents.map((evt) => (
-                  <button
-                    key={evt.id}
-                    onClick={() => onEditEvent(evt)}
-                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-black/[0.04] hover:border-[#C9A96E]/30 transition-colors text-left"
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#C9A96E]" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#1A1A1F] font-medium">{evt.title}</p>
-                      {evt.memo && (
-                        <p className="text-[11px] text-[#928980] truncate">{evt.memo}</p>
-                      )}
-                    </div>
-                    {evt.categoryKey && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
-                        {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
-                      </span>
-                    )}
-                  </button>
-                ))}
-
-                {/* 빈 날짜 */}
-                {selectedMilestones.length === 0 && selectedEvents.length === 0 && (
-                  <p className="text-[12px] text-[#B5ADA3] text-center py-4">
-                    이 날짜에 등록된 일정이 없습니다
-                  </p>
-                )}
-              </div>
+      {selectedDate && (
+        <div
+          className="mt-5 overflow-hidden animate-fade-in"
+        >
+          <div className="bg-[#F6F3F2] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-serif-kr text-[15px] font-normal text-[#1A1A1F]">
+                {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
+              </p>
+              <button
+                onClick={() =>
+                  onAddEvent(format(selectedDate, "yyyy-MM-dd"))
+                }
+                className="flex items-center gap-1 text-[11px] text-[#795252] hover:text-[#946a6a] transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                일정 추가
+              </button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* 결혼식 날짜 없을 때 안내 */}
+            <div className="flex flex-col gap-2">
+              {/* 마일스톤 */}
+              {selectedMilestones.map((m, i) => (
+                <button
+                  key={`m${i}`}
+                  onClick={() => onCategoryClick(m.categoryKey)}
+                  className="flex items-center gap-3 p-3 bg-white rounded-xl hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)] transition-shadow text-left"
+                >
+                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusColor(m.status)}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif-kr text-[14px] text-[#1A1A1F] font-normal">{m.label}</p>
+                    <p className="text-[11px] text-[#B5ADA3]">
+                      {m.type === "start" ? "준비 시작 권장일" : "완료 권장일"}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${statusColor(m.status)}`}
+                  >
+                    {m.status === "completed"
+                      ? "완료"
+                      : m.status === "in_progress"
+                      ? "진행중"
+                      : "미시작"}
+                  </span>
+                </button>
+              ))}
+
+              {/* 이벤트 */}
+              {selectedEvents.map((evt) => (
+                <button
+                  key={evt.id}
+                  onClick={() => onEditEvent(evt)}
+                  className="flex items-center gap-3 p-3 bg-white rounded-xl hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)] transition-shadow text-left"
+                >
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#795252]" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif-kr text-[14px] text-[#1A1A1F] font-normal">{evt.title}</p>
+                    {evt.memo && (
+                      <p className="text-[11px] text-[#B5ADA3] truncate">{evt.memo}</p>
+                    )}
+                  </div>
+                  {evt.categoryKey && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#795252]/10 text-[#795252] font-medium">
+                      {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                    </span>
+                  )}
+                </button>
+              ))}
+
+              {/* 빈 날짜 */}
+              {selectedMilestones.length === 0 && selectedEvents.length === 0 && (
+                <p className="text-[12px] text-[#B5ADA3] text-center py-4">
+                  이 날짜에 등록된 일정이 없습니다
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 결혼식 날짜 없을 때 */}
       {!weddingDate && (
         <div className="mt-6 text-center py-8">
-          <p className="text-[14px] text-[#928980]">
+          <p className="text-[14px] text-[#504444]">
             결혼 예정일을 설정하면 D-day 기준 일정이 캘린더에 표시됩니다
           </p>
           <p className="text-[12px] text-[#B5ADA3] mt-1">

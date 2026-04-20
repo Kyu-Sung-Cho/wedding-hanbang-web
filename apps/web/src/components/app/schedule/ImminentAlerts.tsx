@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
   ChevronDown,
@@ -35,35 +34,38 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Sparkles, Flower, Heart, Mic, Box,
 };
 
-// 앱 디자인 시스템에 맞춘 urgency 스타일
-// overdue: rose-600(진한 로즈) / urgent: rose-500 / soon: gold
+// Atelier 스타일: 왼쪽 스트립 + 로즈 그라데이션 (긴급도에 따른 농도 차이)
 const URGENCY_STYLES: Record<string, {
+  stripBg: string;
   iconBox: string;
   iconColor: string;
   bar: string;
-  badgeText: string;
   badgeBg: string;
+  badgeText: string;
 }> = {
   overdue: {
-    iconBox: "bg-[#9A6B62]/10 border-[#9A6B62]/20",
-    iconColor: "text-[#9A6B62]",
-    bar: "bg-[#9A6B62]",
+    stripBg: "bg-[#795252]",
+    iconBox: "bg-[#795252]/10",
+    iconColor: "text-[#795252]",
+    bar: "bg-gradient-to-r from-[#795252] to-[#946a6a]",
+    badgeBg: "bg-[#795252]",
     badgeText: "text-white",
-    badgeBg: "bg-[#9A6B62]",
   },
   urgent: {
-    iconBox: "bg-[#C4967E]/10 border-[#C4967E]/20",
-    iconColor: "text-[#C4967E]",
-    bar: "bg-[#C4967E]",
+    stripBg: "bg-[#946a6a]",
+    iconBox: "bg-[#946a6a]/10",
+    iconColor: "text-[#946a6a]",
+    bar: "bg-gradient-to-r from-[#946a6a] to-[#b48585]",
+    badgeBg: "bg-[#946a6a]",
     badgeText: "text-white",
-    badgeBg: "bg-[#C4967E]",
   },
   soon: {
-    iconBox: "bg-[#C9A96E]/10 border-[#C9A96E]/20",
+    stripBg: "bg-[#C9A96E]",
+    iconBox: "bg-[#C9A96E]/10",
     iconColor: "text-[#C9A96E]",
     bar: "bg-[#C9A96E]",
-    badgeText: "text-white",
     badgeBg: "bg-[#C9A96E]",
+    badgeText: "text-white",
   },
 };
 
@@ -81,78 +83,74 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
   const urgentCount = items.filter((i) => i.urgency === "urgent").length;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.02 }}
-      className="bg-white rounded-2xl border border-black/[0.04] mb-6 overflow-hidden"
+    <div
+      className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-6 overflow-hidden animate-fade-in"
     >
       {/* 헤더 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-black/[0.03] hover:bg-ivory-50 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#FAFAF8] transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-[#C4967E]" />
-          <span className="text-[13px] font-medium text-noir-800">임박 체크리스트</span>
-          <span className="text-[11px] text-taupe-400">{items.length}건</span>
+        <div className="flex items-center gap-2.5">
+          <Clock className="w-4 h-4 text-[#795252]" />
+          <h3 className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">임박 체크리스트</h3>
+          <span className="text-[11px] text-[#B5ADA3]">{items.length}건</span>
           {overdueCount > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#9A6B62] text-white font-medium">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#795252] text-white font-medium">
               {overdueCount} 초과
             </span>
           )}
           {urgentCount > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C4967E]/80 text-white font-medium">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#946a6a] text-white font-medium">
               {urgentCount} 긴급
             </span>
           )}
         </div>
         {expanded ? (
-          <ChevronUp className="w-4 h-4 text-taupe-400" />
+          <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-taupe-400" />
+          <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
         )}
       </button>
 
       {/* 항목 목록 */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="divide-y divide-black/[0.02]">
-              {items.map((item) => {
-                const styles = URGENCY_STYLES[item.urgency];
-                const IconComp = ICON_MAP[item.icon] ?? Clock;
-                const pct = item.totalCount > 0
-                  ? Math.round((item.doneCount / item.totalCount) * 100)
-                  : 0;
+      {expanded && (
+        <div
+          className="overflow-hidden"
+        >
+          <div className="divide-y divide-[#F6F3F2]">
+            {items.map((item) => {
+              const styles = URGENCY_STYLES[item.urgency];
+              const IconComp = ICON_MAP[item.icon] ?? Clock;
+              const pct = item.totalCount > 0
+                ? Math.round((item.doneCount / item.totalCount) * 100)
+                : 0;
 
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => onCategoryClick(item.key)}
-                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-ivory-50 transition-colors text-left group"
-                  >
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => onCategoryClick(item.key)}
+                  className="w-full flex items-stretch hover:bg-[#FAFAF8] transition-colors text-left group"
+                >
+                  {/* 좌측 컬러 스트립 */}
+                  <div className={`w-1 flex-shrink-0 ${styles.stripBg}`} />
+
+                  <div className="flex items-center gap-3 px-5 py-4 flex-1">
                     {/* 아이콘 */}
-                    <div className={`w-8 h-8 rounded-lg ${styles.iconBox} border flex items-center justify-center flex-shrink-0`}>
+                    <div className={`w-10 h-10 rounded-xl ${styles.iconBox} flex items-center justify-center flex-shrink-0`}>
                       <IconComp className={`w-4 h-4 ${styles.iconColor}`} />
                     </div>
 
                     {/* 카테고리 정보 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-noir-800">{item.label}</span>
-                        <span className="text-[11px] text-taupe-400">
+                        <span className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{item.label}</span>
+                        <span className="text-[11px] text-[#B5ADA3]">
                           {item.doneCount}/{item.totalCount}
                         </span>
                       </div>
                       {/* 진행률 바 */}
-                      <div className="w-full h-1.5 bg-ivory-warm rounded-full mt-1.5 overflow-hidden">
+                      <div className="w-full h-1.5 bg-[#F6F3F2] rounded-full mt-1.5 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${styles.bar}`}
                           style={{ width: `${pct}%` }}
@@ -168,14 +166,14 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                     </span>
 
                     {/* 화살표 */}
-                    <ChevronRight className="w-3.5 h-3.5 text-taupe-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+                    <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

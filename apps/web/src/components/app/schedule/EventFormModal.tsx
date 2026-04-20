@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, CalendarDays } from "lucide-react";
 import type { ScheduleEvent } from "@/types/database.types";
 
@@ -60,7 +59,6 @@ export default function EventFormModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // 모달 열릴 때 초기화
   useEffect(() => {
     if (!isOpen) return;
     if (mode === "edit" && event) {
@@ -101,144 +99,135 @@ export default function EventFormModal({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/30 z-50"
-          />
+    <>
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
+      />
 
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, scale: 0.97 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-x-4 top-[15%] max-w-[480px] mx-auto bg-white rounded-2xl shadow-xl z-50 overflow-hidden"
-          >
-            {/* 헤더 */}
-            <div className="px-6 pt-6 pb-4 border-b border-black/[0.04]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C9A96E]/20 to-[#C4967E]/20 flex items-center justify-center">
-                    <CalendarDays className="w-5 h-5 text-[#C9A96E]" />
-                  </div>
-                  <h3 className="text-[16px] font-medium text-[#1A1A1F]">
-                    {mode === "edit" ? "일정 수정" : "일정 추가"}
-                  </h3>
-                </div>
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAF8F5] transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      <div
+        className="fixed inset-x-4 top-[12%] max-w-[480px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 overflow-hidden animate-fade-in"
+      >
+        {/* 헤더 */}
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-[#795252]/10 flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-[#795252]" />
               </div>
+              <h3 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">
+                {mode === "edit" ? "일정 수정" : "일정 추가"}
+              </h3>
             </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-            {/* 폼 */}
-            <div className="px-6 py-5 flex flex-col gap-4">
-              {/* 제목 */}
-              <div>
-                <label className="block text-[12px] text-[#928980] mb-1.5">
-                  제목 <span className="text-[#C4967E]">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="예: 드레스 피팅, 친구들과 청첩장 모임, 혼수 쇼핑"
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
-                />
-              </div>
+        {/* 폼 */}
+        <div className="px-6 py-4 flex flex-col gap-4">
+          {/* 제목 */}
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+              제목 <span className="text-[#795252]">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="예: 드레스 피팅, 친구들과 청첩장 모임"
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+            />
+          </div>
 
-              {/* 날짜 */}
-              <div>
-                <label className="block text-[12px] text-[#928980] mb-1.5">
-                  날짜 <span className="text-[#C4967E]">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
-                />
-              </div>
+          {/* 날짜 */}
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+              날짜 <span className="text-[#795252]">*</span>
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+            />
+          </div>
 
-              {/* 메모 */}
-              <div>
-                <label className="block text-[12px] text-[#928980] mb-1.5">
-                  메모
-                </label>
-                <textarea
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  placeholder="예: 강남 드레스샵 오후 2시, 참석자: 지은, 수현"
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
-                />
-              </div>
+          {/* 메모 */}
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+              메모
+            </label>
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="예: 강남 드레스샵 오후 2시, 참석자 지은/수현"
+              rows={2}
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none"
+            />
+          </div>
 
-              {/* 카테고리 */}
-              <div>
-                <label className="block text-[12px] text-[#928980] mb-1.5">
-                  관련 카테고리
-                </label>
-                <select
-                  value={categoryKey}
-                  onChange={(e) => setCategoryKey(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-black/[0.08] text-[13px] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors bg-white"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.key} value={opt.key}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+          {/* 카테고리 */}
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+              관련 카테고리
+            </label>
+            <select
+              value={categoryKey}
+              onChange={(e) => setCategoryKey(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+            >
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-            {/* 하단 버튼 */}
-            <div className="px-6 py-4 border-t border-black/[0.04] bg-[#FDFCFA] flex items-center justify-between">
-              {mode === "edit" && onDelete ? (
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex items-center gap-1.5 text-[12px] text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {deleting ? "삭제중..." : "삭제"}
-                </button>
-              ) : (
-                <div />
-              )}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl text-[13px] text-[#928980] hover:bg-[#FAF8F5] transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={saving || !title.trim() || !date}
-                  className="px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving
-                    ? "저장중..."
-                    : mode === "edit"
-                    ? "수정"
-                    : "추가"}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        {/* 하단 버튼 */}
+        <div className="px-6 py-4 bg-[#FAFAF8] flex items-center justify-between">
+          {mode === "edit" && onDelete ? (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 text-[12px] text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleting ? "삭제중..." : "삭제"}
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-[13px] text-[#504444] hover:bg-[#F6F3F2] transition-colors"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !title.trim() || !date}
+              className="px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
+            >
+              {saving
+                ? "저장중..."
+                : mode === "edit"
+                ? "수정"
+                : "추가"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
