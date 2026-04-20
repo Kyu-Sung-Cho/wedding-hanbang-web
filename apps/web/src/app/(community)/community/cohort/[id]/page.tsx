@@ -12,6 +12,7 @@ import {
   Link2,
   ExternalLink,
   FileText,
+  Paperclip,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
@@ -285,11 +286,103 @@ function ChatTab({
   const [sending, setSending] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // 멘션 관련
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [members, setMembers] = useState<{ user_id: string; nickname: string }[]>([]);
+  const [cursorPos, setCursorPos] = useState(0);
 
   function insertPostTag(post: { id: string; title: string }) {
     const tag = `[post:${post.id}|${post.title}]`;
     setInput((prev) => prev + (prev ? " " : "") + tag + " ");
   }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toastError("이미지는 10MB 이하여야 합니다");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from("community-images")
+        .upload(`cohort/${fileName}`, file);
+
+      if (error || !data) {
+        toastError("이미지 업로드 실패");
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("community-images")
+        .getPublicUrl(data.path);
+
+      setInput((prev) => prev + (prev ? " " : "") + `[img:${urlData.publicUrl}] `);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  // 동기방 멤버 로드 (멘션용)
+  useEffect(() => {
+    (async () => {
+      const { data: memberRows } = await supabase
+        .from("cohort_members")
+        .select("user_id")
+        .eq("room_id", roomId)
+        .eq("is_active", true);
+      if (!memberRows) return;
+      const ids = memberRows.map((m) => m.user_id);
+      if (ids.length === 0) return;
+      const { data: profiles } = await supabase
+        .from("community_profiles")
+        .select("user_id, nickname")
+        .in("user_id", ids);
+      setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
+    })();
+  }, [roomId, supabase]);
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value;
+    setInput(value);
+    const pos = e.target.selectionStart ?? value.length;
+    setCursorPos(pos);
+
+    const textBefore = value.slice(0, pos);
+    const mentionMatch = textBefore.match(/@(\S*)$/);
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1]);
+      setMentionOpen(true);
+    } else {
+      setMentionOpen(false);
+    }
+  }
+
+  function selectMention(member: { user_id: string; nickname: string }) {
+    const textBefore = input.slice(0, cursorPos);
+    const textAfter = input.slice(cursorPos);
+    const newTextBefore = textBefore.replace(
+      /@\S*$/,
+      `@[${member.nickname}|${member.user_id}] `
+    );
+    setInput(newTextBefore + textAfter);
+    setMentionOpen(false);
+  }
+
+  const filteredMembers = members.filter(
+    (m) =>
+      !mentionQuery ||
+      m.nickname.toLowerCase().includes(mentionQuery.toLowerCase())
+  );
 
   // 메시지 로드
   const loadMessages = useCallback(async () => {
@@ -438,19 +531,54 @@ function ChatTab({
           ))}
         </div>
         <div className="flex gap-3">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="메시지 입력..."
-            rows={2}
-            className="flex-1 resize-none rounded-xl bg-[#f6f3f2] px-4 py-3 text-base text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+          <div className="relative flex-1">
+            {mentionOpen && filteredMembers.length > 0 && (
+              <div className="absolute bottom-full mb-2 left-0 w-64 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e4e2e1] z-20">
+                {filteredMembers.slice(0, 5).map((m) => (
+                  <button
+                    key={m.user_id}
+                    type="button"
+                    onClick={() => selectMention(m)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f2] flex items-center gap-2.5 text-base"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-xs">
+                      {m.nickname[0]}
+                    </div>
+                    <span className="text-[#1b1c1c]">{m.nickname}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="메시지 입력... (@멘션 가능)"
+              rows={2}
+              className="w-full resize-none rounded-xl bg-[#f6f3f2] px-4 py-3 text-base text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+            />
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageUpload}
           />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] transition-colors disabled:opacity-50"
+            title="이미지 첨부"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
@@ -505,7 +633,7 @@ function FilterPill({
 }
 
 function renderMessageContent(text: string): React.ReactNode {
-  const regex = /\[post:([a-f0-9-]+)\|([^\]]+)\]/g;
+  const regex = /(\[post:[a-f0-9-]+\|[^\]]+\]|\[img:[^\]]+\]|@\[[^|]+\|[a-f0-9-]+\])/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -516,24 +644,57 @@ function renderMessageContent(text: string): React.ReactNode {
         <span key={`t${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>
       );
     }
-    parts.push(
-      <a
-        key={`p${match.index}`}
-        href={`/community/post/${match[1]}`}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e4e2e1] rounded-lg hover:border-[#795252]/40 hover:bg-[#f6f3f2] transition-colors group max-w-full"
-      >
-        <FileText className="w-4 h-4 text-[#795252] shrink-0" />
-        <span className="flex flex-col min-w-0">
-          <span className="text-[11px] text-[#504444] uppercase tracking-widest font-medium">커뮤니티 글</span>
-          <span className="font-serif-kr text-base text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
-            {match[2]}
+
+    const token = match[0];
+
+    if (token.startsWith("[post:")) {
+      const inner = token.slice(6, -1); // 제거 [post: 와 ]
+      const sepIdx = inner.indexOf("|");
+      const postId = inner.slice(0, sepIdx);
+      const postTitle = inner.slice(sepIdx + 1);
+      parts.push(
+        <a
+          key={`p${match.index}`}
+          href={`/community/post/${postId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e4e2e1] rounded-lg hover:border-[#795252]/40 hover:bg-[#f6f3f2] transition-colors group max-w-full"
+        >
+          <FileText className="w-4 h-4 text-[#795252] shrink-0" />
+          <span className="flex flex-col min-w-0">
+            <span className="text-[11px] text-[#504444] uppercase tracking-widest font-medium">커뮤니티 글</span>
+            <span className="font-serif-kr text-base text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
+              {postTitle}
+            </span>
           </span>
+          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#795252] shrink-0 ml-1" />
+        </a>
+      );
+    } else if (token.startsWith("[img:")) {
+      const url = token.slice(5, -1);
+      parts.push(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={`i${match.index}`}
+          src={url}
+          alt=""
+          className="my-1 max-h-80 rounded-lg"
+        />
+      );
+    } else if (token.startsWith("@[")) {
+      const inner = token.slice(2, -1); // 제거 @[ 와 ]
+      const sepIdx = inner.indexOf("|");
+      const nickname = inner.slice(0, sepIdx);
+      parts.push(
+        <span
+          key={`m${match.index}`}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#795252]/10 text-[#795252] font-medium"
+        >
+          @{nickname}
         </span>
-        <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#795252] shrink-0 ml-1" />
-      </a>
-    );
+      );
+    }
+
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < text.length) {
