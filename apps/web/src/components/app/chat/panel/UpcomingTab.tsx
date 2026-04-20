@@ -77,26 +77,26 @@ export default function UpcomingTab() {
         defaultOpen
       >
         {imminentCategories.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {imminentCategories.map((item) => {
               const colors = URGENCY_COLORS[item.urgency];
               return (
                 <div
                   key={item.key}
-                  className="flex items-center gap-2.5 py-1.5"
+                  className="flex items-center gap-3 py-2"
                 >
-                  <Clock className={`w-3.5 h-3.5 flex-shrink-0 ${colors.text}`} />
+                  <Clock className={`w-5 h-5 flex-shrink-0 ${colors.text}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-noir-800 font-medium truncate">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base text-noir-800 font-medium truncate">
                         {item.label}
                       </span>
-                      <span className="text-[10px] text-taupe-400">
+                      <span className="text-sm text-taupe-400">
                         {item.doneCount}/{item.totalCount}
                       </span>
                     </div>
                   </div>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
                     {item.deadlineDaysLeft <= 0
                       ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
                       : `D-${item.deadlineDaysLeft}`}
@@ -106,7 +106,7 @@ export default function UpcomingTab() {
             })}
           </div>
         ) : (
-          <p className="text-[11px] text-taupe-400 py-2 text-center">
+          <p className="text-sm text-taupe-400 py-2 text-center">
             {weddingDate ? "임박한 항목이 없습니다" : "결혼 날짜를 설정하세요"}
           </p>
         )}
@@ -118,26 +118,26 @@ export default function UpcomingTab() {
         count={completedImminent.length}
       >
         {completedImminent.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {completedImminent.map((item) => (
               <div
                 key={item.key}
-                className="flex items-center gap-2.5 py-1.5 opacity-60"
+                className="flex items-center gap-3 py-2 opacity-60"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7D5A] flex-shrink-0" />
+                <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-[11px] text-noir-800 font-medium truncate block">
+                  <span className="text-base text-noir-800 font-medium truncate block">
                     {item.label}
                   </span>
                 </div>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 bg-[#2E7D5A] text-white">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 bg-[#2E7D5A] text-white">
                   완료
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[11px] text-taupe-400 py-2 text-center">
+          <p className="text-sm text-taupe-400 py-2 text-center">
             아직 완료된 임박 항목이 없습니다
           </p>
         )}
@@ -150,37 +150,37 @@ export default function UpcomingTab() {
         defaultOpen
       >
         {upcomingEvents.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {upcomingEvents.map((evt) => (
               <div
                 key={evt.id}
-                className="flex items-center gap-2.5 py-1.5"
+                className="flex items-center gap-3 py-2"
               >
-                <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E] flex-shrink-0" />
+                <CalendarDays className="w-5 h-5 text-[#C9A96E] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-[11px] text-noir-800 font-medium truncate block">
+                  <span className="text-base text-noir-800 font-medium truncate block">
                     {evt.title}
                   </span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Clock className="w-2.5 h-2.5 text-taupe-400" />
-                    <span className="text-[10px] text-taupe-400">
+                  <div className="flex items-center gap-2 mt-1">
+                    <Clock className="w-3.5 h-3.5 text-taupe-400" />
+                    <span className="text-sm text-taupe-400">
                       {formatEventDate(evt.date)}
                     </span>
                     {evt.categoryKey && (
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
                   </div>
                 </div>
-                <span className="text-[10px] text-taupe-400 flex-shrink-0">
+                <span className="text-sm text-taupe-400 flex-shrink-0">
                   {now ? getDaysUntil(evt.date, now) : ""}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[11px] text-taupe-400 py-2 text-center">
+          <p className="text-sm text-taupe-400 py-2 text-center">
             예정된 일정이 없습니다
           </p>
         )}

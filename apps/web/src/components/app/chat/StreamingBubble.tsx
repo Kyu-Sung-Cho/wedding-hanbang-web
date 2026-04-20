@@ -29,24 +29,24 @@ export default function StreamingBubble({
 
       {/* 스트리밍 텍스트 또는 타이핑 인디케이터 */}
       <div className="flex items-start gap-3 max-w-[85%]">
-        <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
-          <Sparkles className="w-4 h-4 text-white" />
+        <div className="flex-shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
+          <Sparkles className="w-5 h-5 text-white" />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-[#928980]">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-base font-medium text-[#928980]">
             아모라
           </span>
-          <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 border border-black/[0.06] shadow-sm min-w-[60px]">
+          <div className="bg-white rounded-2xl rounded-tl-md px-5 py-4 border border-black/[0.06] shadow-sm min-w-[60px]">
             {content ? (
-              <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+              <p className="text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
                 {content}
-                <span className="inline-block w-1.5 h-4 bg-[#C4967E] ml-0.5 animate-pulse rounded-sm" />
+                <span className="inline-block w-1.5 h-5 bg-[#C4967E] ml-0.5 animate-pulse rounded-sm" />
               </p>
             ) : (
               <div className="flex items-center gap-2 py-0.5">
-                <Loader2 className="w-4 h-4 text-[#C4967E] animate-spin" />
-                <span className="text-xs text-[#B5ADA3]">생각하는 중...</span>
+                <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" />
+                <span className="text-sm text-[#B5ADA3]">생각하는 중...</span>
               </div>
             )}
           </div>

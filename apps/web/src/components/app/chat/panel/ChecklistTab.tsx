@@ -81,7 +81,7 @@ export default function ChecklistTab() {
       <div key={cat.key}>
         <button
           onClick={() => toggleExpand(cat.key)}
-          className={`w-full flex items-center gap-2.5 py-1.5 hover:bg-ivory-50 rounded-lg transition-colors ${dimmed ? "opacity-60" : ""}`}
+          className={`w-full flex items-center gap-3 py-2 hover:bg-ivory-50 rounded-lg transition-colors ${dimmed ? "opacity-60" : ""}`}
         >
           {/* 펼침 화살표 */}
           <motion.div
@@ -89,19 +89,19 @@ export default function ChecklistTab() {
             transition={{ duration: 0.15 }}
             className="flex-shrink-0"
           >
-            <ChevronRight className="w-3 h-3 text-taupe-400" />
+            <ChevronRight className="w-4 h-4 text-taupe-400" />
           </motion.div>
 
-          <div className="w-6 h-6 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
-            <IconComp className={`w-3 h-3 ${cat.status === "completed" ? "text-[#2E7D5A]" : "text-taupe-500"}`} />
+          <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
+            <IconComp className={`w-4 h-4 ${cat.status === "completed" ? "text-[#2E7D5A]" : "text-taupe-500"}`} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-noir-800 truncate text-left">{cat.label}</span>
-              <span className="text-[10px] text-taupe-400 ml-1">{cat.done}/{cat.total}</span>
+              <span className="text-base text-noir-800 truncate text-left">{cat.label}</span>
+              <span className="text-sm text-taupe-400 ml-1">{cat.done}/{cat.total}</span>
             </div>
             {cat.status !== "completed" && (
-              <div className="h-1 bg-ivory-warm rounded-full overflow-hidden mt-1">
+              <div className="h-1.5 bg-ivory-warm rounded-full overflow-hidden mt-1.5">
                 <div
                   className="h-full bg-rose-500 rounded-full"
                   style={{ width: `${pct}%` }}
@@ -109,7 +109,7 @@ export default function ChecklistTab() {
               </div>
             )}
           </div>
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
             {STATUS_LABELS[cat.status]}
           </span>
         </button>
@@ -124,16 +124,16 @@ export default function ChecklistTab() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="ml-[22px] pl-3 border-l border-black/[0.04] py-1">
+              <div className="ml-[26px] pl-3.5 border-l border-black/[0.04] py-1">
                 {cat.checklist.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 py-1">
+                  <div key={item.id} className="flex items-center gap-2 py-1.5">
                     {item.done ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7D5A] flex-shrink-0" />
+                      <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
                     ) : (
-                      <Circle className="w-3.5 h-3.5 text-taupe-400 flex-shrink-0" />
+                      <Circle className="w-5 h-5 text-taupe-400 flex-shrink-0" />
                     )}
                     <span
-                      className={`text-[10px] leading-tight ${
+                      className={`text-sm leading-tight ${
                         item.done
                           ? "text-taupe-400 line-through"
                           : "text-noir-800"
@@ -154,38 +154,38 @@ export default function ChecklistTab() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* 전체 진행률 */}
-      <div className="px-4 py-3 border-b border-black/[0.04]">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] text-taupe-400">전체 진행률</span>
-          <span className="text-[13px] font-medium text-noir-800">{overallPercent}%</span>
+      <div className="px-4 py-3.5 border-b border-black/[0.04]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-taupe-400">전체 진행률</span>
+          <span className="text-base font-medium text-noir-800">{overallPercent}%</span>
         </div>
-        <div className="h-2 bg-ivory-warm rounded-full overflow-hidden">
+        <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all"
             style={{ width: `${overallPercent}%` }}
           />
         </div>
-        <p className="text-[10px] text-taupe-400 mt-1 text-right">
+        <p className="text-xs text-taupe-400 mt-1.5 text-right">
           {totalDone}/{totalItems} 항목 완료
         </p>
       </div>
 
       {/* 미완료 */}
       <CollapsibleSection title="미완료" count={incomplete.length} defaultOpen>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
           {incomplete.map((cat) => renderCategoryRow(cat))}
           {incomplete.length === 0 && (
-            <p className="text-[11px] text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-sm text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
           )}
         </div>
       </CollapsibleSection>
 
       {/* 완료 */}
       <CollapsibleSection title="완료" count={completed.length}>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
           {completed.map((cat) => renderCategoryRow(cat, true))}
           {completed.length === 0 && (
-            <p className="text-[11px] text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-sm text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
         </div>
       </CollapsibleSection>

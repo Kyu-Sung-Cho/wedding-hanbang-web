@@ -452,17 +452,17 @@ export default function ChatPage() {
     return (
       <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center bg-[#FAFAF8]">
         <div className="text-center bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10">
-          <Sparkles className="w-12 h-12 text-[#795252]/30 mx-auto mb-4" />
+          <Sparkles className="w-14 h-14 text-[#795252]/30 mx-auto mb-4" />
           <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] mb-2">
             아모라는 로그인 후 이용할 수 있어요
           </h3>
-          <p className="text-[13px] text-[#504444] mb-6 leading-relaxed">
+          <p className="text-base text-[#504444] mb-6 leading-relaxed">
             로그인하면 맞춤 웨딩 상담, 예산 관리,<br />
             일정 체크리스트 등을 아모라가 도와드려요
           </p>
           <a
             href="/login"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] transition-all"
           >
             로그인하기
           </a>
@@ -476,8 +476,8 @@ export default function ChatPage() {
     return (
       <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center bg-[#FAFAF8]">
         <div className="text-center bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10">
-          <Sparkles className="w-12 h-12 text-[#795252]/30 mx-auto mb-4" />
-          <p className="text-[15px] text-[#504444]">
+          <Sparkles className="w-14 h-14 text-[#795252]/30 mx-auto mb-4" />
+          <p className="text-base text-[#504444]">
             온보딩을 완료하면 아모라와 상담할 수 있어요
           </p>
         </div>
@@ -487,10 +487,10 @@ export default function ChatPage() {
 
   // 첨부 파일 아이콘 결정
   const getFileIcon = (mediaType: string) => {
-    if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-6 h-6 text-[#4285F4]" />;
-    if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-6 h-6 text-[#34A853]" />;
-    if (mediaType === "application/pdf") return <FileText className="w-6 h-6 text-[#795252]" />;
-    return <FileText className="w-6 h-6 text-[#504444]" />;
+    if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-7 h-7 text-[#4285F4]" />;
+    if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-7 h-7 text-[#34A853]" />;
+    if (mediaType === "application/pdf") return <FileText className="w-7 h-7 text-[#795252]" />;
+    return <FileText className="w-7 h-7 text-[#504444]" />;
   };
 
   return (
@@ -504,9 +504,9 @@ export default function ChatPage() {
       {isDragging && (
         <div className="fixed inset-0 z-50 bg-[#795252]/10 border-2 border-dashed border-[#795252] flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-xl px-8 py-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center">
-            <Paperclip className="w-10 h-10 text-[#795252] mx-auto mb-3" />
-            <p className="text-[15px] font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
-            <p className="text-[12px] text-[#504444] mt-1">이미지, PDF, Word, Excel</p>
+            <Paperclip className="w-12 h-12 text-[#795252] mx-auto mb-3" />
+            <p className="text-lg font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
+            <p className="text-sm text-[#504444] mt-1">이미지, PDF, Word, Excel</p>
           </div>
         </div>
       )}
@@ -515,31 +515,31 @@ export default function ChatPage() {
       {/* 상단 툴바 */}
       <div className="flex items-center justify-between px-2 pb-3 pt-1">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#795252]" />
-          <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">아모라 상담</span>
+          <Sparkles className="w-5 h-5 text-[#795252]" />
+          <span className="font-serif-kr text-[22px] font-light text-[#1A1A1F]">아모라 상담</span>
           {messages.length > 0 && (
-            <span className="text-[10px] text-[#B5ADA3]">({messages.length})</span>
+            <span className="text-sm text-[#B5ADA3]">({messages.length})</span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
               infoPanelOpen
                 ? "text-[#795252] bg-[#795252]/10"
                 : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
             }`}
           >
-            <PanelRightOpen className="w-3 h-3" />
+            <PanelRightOpen className="w-4 h-4" />
             정보
           </button>
 
           {messages.length > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="w-4 h-4" />
               새 채팅
             </button>
           )}
@@ -548,22 +548,22 @@ export default function ChatPage() {
 
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
-        <div className="mx-2 mb-2 p-3 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-xs text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
+        <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
-            <button onClick={() => setShowNewChatBanner(false)} className="px-3 py-1 text-xs rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
-            <button onClick={handleNewChat} className="px-3 py-1 text-xs rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
+            <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
+            <button onClick={handleNewChat} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
           </div>
         </div>
       )}
 
       {/* 초기화 확인 */}
       {showClearConfirm && (
-        <div className="mx-2 mb-2 p-3 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-xs text-red-600">대화를 모두 지우고 새로 시작할까요?</p>
+        <div className="mx-2 mb-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <p className="text-sm text-red-600">대화를 모두 지우고 새로 시작할까요?</p>
           <div className="flex gap-2">
-            <button onClick={() => setShowClearConfirm(false)} className="px-3 py-1 text-xs rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">취소</button>
-            <button onClick={handleNewChat} className="px-3 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">새 채팅</button>
+            <button onClick={() => setShowClearConfirm(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">취소</button>
+            <button onClick={handleNewChat} className="px-3.5 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600">새 채팅</button>
           </div>
         </div>
       )}
@@ -620,13 +620,13 @@ export default function ChatPage() {
 
       {/* 에러 메시지 */}
       {error && !isStreaming && (
-        <div className="mx-2 mt-2 p-3 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-xs text-red-600">{error}</p>
+        <div className="mx-2 mt-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <p className="text-sm text-red-600">{error}</p>
           <button
             onClick={() => useChatStore.setState({ error: null })}
             className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -634,29 +634,29 @@ export default function ChatPage() {
       {/* 갈등 중재 제안 배너 */}
       {showMediationBanner && !isStreaming && (
         <div className="px-2 pt-2">
-          <div className="relative bg-white rounded-xl px-4 py-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="relative bg-white rounded-xl px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <button
               onClick={() => { setShowMediationBanner(false); }}
-              className="absolute top-2 right-2 w-5 h-5 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
+              className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
             >
-              <X className="w-3 h-3" />
+              <X className="w-4 h-4" />
             </button>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] text-[#1A1A1F] leading-relaxed font-medium">
+                <p className="text-base text-[#1A1A1F] leading-relaxed font-medium">
                   두 분 사이에 의견 차이가 있는 것 같아요
                 </p>
-                <p className="text-[12px] text-[#504444] leading-relaxed mt-0.5">
+                <p className="text-sm text-[#504444] leading-relaxed mt-1">
                   아모라가 중립적으로 의견 조율을 도와드릴게요
                 </p>
                 <button
                   onClick={handleManualMediation}
-                  className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
                 >
-                  <Sparkles className="w-3 h-3" />
+                  <Sparkles className="w-4 h-4" />
                   아모라에게 도움 요청하기
                 </button>
               </div>
@@ -683,21 +683,21 @@ export default function ChatPage() {
                   <img
                     src={att.previewUrl}
                     alt={att.fileName}
-                    className="w-16 h-16 rounded-lg object-cover shadow-sm"
+                    className="w-20 h-20 rounded-lg object-cover shadow-sm"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-lg bg-[#F6F3F2] flex flex-col items-center justify-center gap-1 px-1 shadow-sm">
+                  <div className="w-20 h-20 rounded-lg bg-[#F6F3F2] flex flex-col items-center justify-center gap-1 px-1 shadow-sm">
                     {getFileIcon(att.mediaType)}
-                    <span className="text-[7px] text-[#504444] truncate max-w-[56px] text-center leading-tight">
+                    <span className="text-[9px] text-[#504444] truncate max-w-[72px] text-center leading-tight">
                       {att.fileName}
                     </span>
                   </div>
                 )}
                 <button
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             ))}
@@ -705,32 +705,32 @@ export default function ChatPage() {
         )}
 
         {/* 대상 토글 */}
-        <div className="flex items-center gap-1.5 mb-2 px-1">
+        <div className="flex items-center gap-2 mb-2.5 px-1">
           <button
             onClick={() => setMessageTarget("ai")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
               messageTarget === "ai"
                 ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                 : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
             }`}
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-4 h-4" />
             아모라에게
           </button>
           <button
             onClick={() => setMessageTarget("partner")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                 : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
             }`}
           >
-            <Heart className="w-3 h-3" />
+            <Heart className="w-4 h-4" />
             상대방에게
           </button>
         </div>
 
-        <div className={`bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-2 p-2 transition-all ${
+        <div className={`bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-2 p-2.5 transition-all ${
           messageTarget === "partner" ? "ring-1 ring-[#D99C9C]/30" : ""
         }`}>
           {/* 파일 첨부 버튼 */}
@@ -745,10 +745,10 @@ export default function ChatPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word, Excel)"
           >
-            <Paperclip className="w-5 h-5" />
+            <Paperclip className="w-6 h-6" />
           </button>
 
           <input
@@ -764,18 +764,18 @@ export default function ChatPage() {
             onPaste={handlePaste}
             placeholder={messageTarget === "partner" ? "상대방에게 메시지를 보내세요..." : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."}
             disabled={isStreaming}
-            className="flex-1 px-2 py-3 text-[14px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
+            className="flex-1 px-2 py-3 text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className={`w-11 h-11 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)]"
             }`}
           >
-            {messageTarget === "partner" ? <Heart className="w-[18px] h-[18px]" /> : <Send className="w-[18px] h-[18px]" />}
+            {messageTarget === "partner" ? <Heart className="w-[22px] h-[22px]" /> : <Send className="w-[22px] h-[22px]" />}
           </button>
         </div>
       </div>

@@ -66,20 +66,20 @@ export default function BudgetTab() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* 총 예산 카드 */}
-      <div className="px-4 py-3 border-b border-black/[0.04]">
+      <div className="px-4 py-3.5 border-b border-black/[0.04]">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-taupe-400">총 예산</span>
-          <span className="text-[15px] font-medium text-noir-800">
+          <span className="text-sm text-taupe-400">총 예산</span>
+          <span className="text-lg font-medium text-noir-800">
             {totalBudget > 0 ? `${formatWon(totalBudget)}원` : "미설정"}
           </span>
         </div>
         {totalBudget > 0 && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-[11px] mb-1">
+          <div className="mt-2.5">
+            <div className="flex items-center justify-between text-sm mb-1.5">
               <span className="text-taupe-400">지출</span>
               <span className="text-rose-500">{formatWon(totalSpent)}원</span>
             </div>
-            <div className="h-2 bg-ivory-warm rounded-full overflow-hidden">
+            <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all"
                 style={{ width: `${Math.min(100, totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0)}%` }}
@@ -91,56 +91,56 @@ export default function BudgetTab() {
 
       {/* 미완료 */}
       <CollapsibleSection title="미완료" count={incomplete.length} defaultOpen>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {incomplete.map((cat) => {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
-              <div key={cat.key} className="flex items-center gap-2.5 py-1.5">
-                <div className="w-6 h-6 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
-                  <IconComp className="w-3 h-3 text-taupe-500" />
+              <div key={cat.key} className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
+                  <IconComp className="w-4 h-4 text-taupe-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[11px] text-noir-800 truncate block">{cat.label}</span>
+                  <span className="text-base text-noir-800 truncate block">{cat.label}</span>
                 </div>
                 {cat.budget > 0 && (
-                  <span className="text-[10px] text-taupe-400 flex-shrink-0">{formatWon(cat.budget)}</span>
+                  <span className="text-sm text-taupe-400 flex-shrink-0">{formatWon(cat.budget)}</span>
                 )}
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
                   {STATUS_LABELS[cat.status]}
                 </span>
               </div>
             );
           })}
           {incomplete.length === 0 && (
-            <p className="text-[11px] text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-sm text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
           )}
         </div>
       </CollapsibleSection>
 
       {/* 완료 */}
       <CollapsibleSection title="완료" count={completed.length}>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {completed.map((cat) => {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
-              <div key={cat.key} className="flex items-center gap-2.5 py-1.5 opacity-60">
-                <div className="w-6 h-6 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
-                  <IconComp className="w-3 h-3 text-[#2E7D5A]" />
+              <div key={cat.key} className="flex items-center gap-3 py-2 opacity-60">
+                <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
+                  <IconComp className="w-4 h-4 text-[#2E7D5A]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[11px] text-noir-800 truncate block">{cat.label}</span>
+                  <span className="text-base text-noir-800 truncate block">{cat.label}</span>
                 </div>
                 {cat.spent > 0 && (
-                  <span className="text-[10px] text-taupe-400 flex-shrink-0">{formatWon(cat.spent)}</span>
+                  <span className="text-sm text-taupe-400 flex-shrink-0">{formatWon(cat.spent)}</span>
                 )}
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full text-white font-medium flex-shrink-0 bg-[#2E7D5A]">
+                <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 bg-[#2E7D5A]">
                   완료
                 </span>
               </div>
             );
           })}
           {completed.length === 0 && (
-            <p className="text-[11px] text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-sm text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
         </div>
       </CollapsibleSection>

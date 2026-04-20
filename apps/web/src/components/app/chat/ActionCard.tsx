@@ -22,21 +22,21 @@ interface ActionCardProps {
 function getIcon(toolName: string) {
   switch (toolName) {
     case "update_budget":
-      return <Wallet className="w-4 h-4" />;
+      return <Wallet className="w-5 h-5" />;
     case "update_wedding_date":
-      return <Calendar className="w-4 h-4" />;
+      return <Calendar className="w-5 h-5" />;
     case "update_task_status":
-      return <CheckCircle2 className="w-4 h-4" />;
+      return <CheckCircle2 className="w-5 h-5" />;
     case "update_venue":
-      return <MapPin className="w-4 h-4" />;
+      return <MapPin className="w-5 h-5" />;
     case "get_budget_summary":
-      return <BarChart3 className="w-4 h-4" />;
+      return <BarChart3 className="w-5 h-5" />;
     case "get_schedule_summary":
-      return <ListChecks className="w-4 h-4" />;
+      return <ListChecks className="w-5 h-5" />;
     case "get_wedding_info":
-      return <Info className="w-4 h-4" />;
+      return <Info className="w-5 h-5" />;
     default:
-      return <Info className="w-4 h-4" />;
+      return <Info className="w-5 h-5" />;
   }
 }
 
@@ -118,23 +118,23 @@ function BudgetMiniCard() {
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
-    <div className="mt-2 pt-2 border-t border-black/[0.06]">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-[#928980]">총 {formatWon(totalSpent)}원 / {formatWon(totalBudget)}원</span>
-        <span className={`text-[10px] font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
+    <div className="mt-3 pt-3 border-t border-black/[0.06]">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-sm text-[#928980]">총 {formatWon(totalSpent)}원 / {formatWon(totalBudget)}원</span>
+        <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {items.map((cat) => (
-          <div key={cat.key} className="flex items-center gap-2 text-[10px]">
-            <span className="text-[#928980] w-[52px] flex-shrink-0 truncate">{cat.label}</span>
-            <div className="flex-1 h-1 bg-black/[0.04] rounded-full overflow-hidden">
+          <div key={cat.key} className="flex items-center gap-2 text-sm">
+            <span className="text-[#928980] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
+            <div className="flex-1 h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
                 style={{ width: `${Math.min(cat.pct, 100)}%` }}
               />
             </div>
-            <span className="text-[#1A1A1F] w-[36px] text-right flex-shrink-0">{formatWon(cat.spent)}</span>
-            <span className={`w-[28px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
+            <span className="text-[#1A1A1F] w-[48px] text-right flex-shrink-0">{formatWon(cat.spent)}</span>
+            <span className={`w-[36px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
           </div>
         ))}
       </div>
@@ -177,12 +177,12 @@ function ScheduleMiniCard() {
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-2 pt-2 border-t border-black/[0.06] space-y-1.5">
+    <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
       {items.map((cat) => (
         <div key={cat.key}>
-          <div className="flex items-center gap-2 text-[10px] mb-0.5">
+          <div className="flex items-center gap-2 text-sm mb-1">
             <span className="text-[#928980] flex-shrink-0">{cat.label}</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
               cat.status === "completed" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
               cat.status === "in_progress" ? "bg-[#C4967E]/10 text-[#C4967E]" :
               "bg-black/[0.04] text-[#928980]"
@@ -195,18 +195,18 @@ function ScheduleMiniCard() {
             <div
               key={item.id}
               onClick={() => handleToggle(cat.key, item.id)}
-              className="flex items-center gap-1.5 py-0.5 pl-2 cursor-pointer hover:bg-black/[0.02] rounded"
+              className="flex items-center gap-2 py-1 pl-2 cursor-pointer hover:bg-black/[0.02] rounded"
             >
               <div className="flex-shrink-0">
                 {item.done ? (
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#2E7D5A] flex items-center justify-center">
-                    <Check className="w-2 h-2 text-white" />
+                  <div className="w-4 h-4 rounded-full bg-[#2E7D5A] flex items-center justify-center">
+                    <Check className="w-2.5 h-2.5 text-white" />
                   </div>
                 ) : (
-                  <div className="w-3.5 h-3.5 rounded-full border border-[#B5ADA3]" />
+                  <div className="w-4 h-4 rounded-full border border-[#B5ADA3]" />
                 )}
               </div>
-              <span className={`text-[10px] ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
+              <span className={`text-sm ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
                 {item.label}
               </span>
             </div>
@@ -229,20 +229,20 @@ export default function ActionCard({ result }: ActionCardProps) {
   const isScheduleTool = result.toolName === "get_schedule_summary" || result.toolName === "update_task_status" || result.toolName === "toggle_checklist_item";
 
   return (
-    <div className="flex justify-start ml-12 my-2">
+    <div className="flex justify-start ml-14 my-2">
       <div
-        className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[360px] w-full shadow-sm`}
+        className={`rounded-xl border ${accentColor} px-5 py-4 max-w-[400px] w-full shadow-sm`}
       >
-        <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex items-center gap-2 mb-2">
           <span className="text-[#C4967E]">{icon}</span>
-          <span className="text-xs font-semibold text-[#1A1A1F]">{title}</span>
+          <span className="text-base font-semibold text-[#1A1A1F]">{title}</span>
           {result.success ? (
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 ml-auto" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto" />
           ) : (
-            <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto" />
+            <XCircle className="w-5 h-5 text-red-400 ml-auto" />
           )}
         </div>
-        <p className="text-xs text-[#928980] leading-relaxed">
+        <p className="text-sm text-[#928980] leading-relaxed">
           {result.displayMessage}
         </p>
 
