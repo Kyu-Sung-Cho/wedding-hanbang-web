@@ -45,54 +45,54 @@ export default function CategoryTabs() {
         <div className="space-y-0.5 mb-6">
           <Link
             href="/community"
-            className={`flex items-center gap-3.5 px-4 py-2.5 transition-all duration-200 ${
+            className={`flex items-center px-4 py-3 transition-all duration-200 ${
               isActive("/community") && pathname === "/community"
                 ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
                 : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
             } transition-transform`}
           >
-            <Home className={`w-[18px] h-[18px] shrink-0 ${isActive("/community") && pathname === "/community" ? "opacity-100" : "opacity-50"}`} />
-            <span className="text-[13px] tracking-wider uppercase">전체</span>
+            <Home className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community") && pathname === "/community" ? "opacity-80" : "opacity-60"}`} />
+            <span className="text-sm tracking-widest uppercase">전체</span>
           </Link>
           <Link
             href="/community?sort=hot"
-            className="flex items-center gap-3.5 px-4 py-2.5 text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1 transition-all duration-200"
+            className="flex items-center px-4 py-3 text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1 transition-all duration-200"
           >
-            <Flame className="w-[18px] h-[18px] shrink-0 opacity-50" />
-            <span className="text-[13px] tracking-wider uppercase">인기</span>
+            <Flame className="w-[20px] h-[20px] shrink-0 mr-4 opacity-60 group-hover:opacity-100" />
+            <span className="text-sm tracking-widest uppercase">인기</span>
           </Link>
           <Link
             href="/community/guestbook"
-            className={`flex items-center gap-3.5 px-4 py-2.5 transition-all duration-200 ${
+            className={`flex items-center px-4 py-3 transition-all duration-200 ${
               isActive("/community/guestbook")
                 ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
                 : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
             } transition-transform`}
           >
-            <BookOpen className={`w-[18px] h-[18px] shrink-0 ${isActive("/community/guestbook") ? "opacity-100" : "opacity-50"}`} />
-            <span className="text-[13px] tracking-wider uppercase">내 방명록</span>
+            <BookOpen className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/guestbook") ? "opacity-80" : "opacity-60"}`} />
+            <span className="text-sm tracking-widest uppercase">내 방명록</span>
           </Link>
           <Link
             href="/community/my/bookmarks"
-            className={`flex items-center gap-3.5 px-4 py-2.5 transition-all duration-200 ${
+            className={`flex items-center px-4 py-3 transition-all duration-200 ${
               isActive("/community/my/bookmarks")
                 ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
                 : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
             } transition-transform`}
           >
-            <Bookmark className={`w-[18px] h-[18px] shrink-0 ${isActive("/community/my/bookmarks") ? "opacity-100" : "opacity-50"}`} />
-            <span className="text-[13px] tracking-wider uppercase">북마크</span>
+            <Bookmark className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60"}`} />
+            <span className="text-sm tracking-widest uppercase">북마크</span>
           </Link>
           <Link
             href="/community/my/upvoted"
-            className={`flex items-center gap-3.5 px-4 py-2.5 transition-all duration-200 ${
+            className={`flex items-center px-4 py-3 transition-all duration-200 ${
               isActive("/community/my/upvoted")
                 ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
                 : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
             } transition-transform`}
           >
-            <ThumbsUp className={`w-[18px] h-[18px] shrink-0 ${isActive("/community/my/upvoted") ? "opacity-100" : "opacity-50"}`} />
-            <span className="text-[13px] tracking-wider uppercase">좋아요</span>
+            <ThumbsUp className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60"}`} />
+            <span className="text-sm tracking-widest uppercase">좋아요</span>
           </Link>
         </div>
 
@@ -100,7 +100,7 @@ export default function CategoryTabs() {
         <div>
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className="flex items-center justify-between w-full px-4 py-2 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-widest hover:text-[#878680] transition-colors"
+            className="flex items-center justify-between w-full px-4 py-2 text-xs font-medium text-[#B5ADA3] uppercase tracking-wider hover:text-[#878680] transition-colors"
           >
             <span>카테고리</span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`} />
@@ -116,14 +116,14 @@ export default function CategoryTabs() {
                 <Link
                   key={cat.key}
                   href={href}
-                  className={`flex items-center gap-3.5 px-4 py-2.5 transition-all duration-200 ${
+                  className={`flex items-center px-4 py-3 transition-all duration-200 ${
                     active
                       ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
                       : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
                   } transition-transform`}
                 >
-                  <Icon className={`w-[18px] h-[18px] shrink-0 ${active ? "opacity-100" : "opacity-50"}`} />
-                  <span className="text-[13px] tracking-wider uppercase">{cat.label}</span>
+                  <Icon className={`w-[20px] h-[20px] shrink-0 mr-4 ${active ? "opacity-80" : "opacity-60"}`} />
+                  <span className="text-sm tracking-widest uppercase">{cat.label}</span>
                 </Link>
               );
             })}

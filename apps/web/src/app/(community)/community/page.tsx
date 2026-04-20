@@ -247,12 +247,12 @@ function CommunityFeedContent() {
       <div className="flex w-full">
         {/* 왼쪽 사이드바: w-72 = 288px — 레퍼런스: 흰색 bg, 구분선 없음 */}
         <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-white pt-12 pb-8 px-4">
-          {/* serif italic 브랜드 헤더 */}
-          <div className="px-4 mb-8">
-            <h2 className="font-serif-kr text-lg italic text-[#C4967E] leading-tight">
+          {/* serif italic 브랜드 헤더 — 레퍼런스 text-lg italic */}
+          <div className="mb-8 px-4">
+            <h2 className="font-serif-kr text-lg italic text-[#C4967E] mb-1">
               커뮤니티
             </h2>
-            <p className="text-[10px] text-[#B5ADA3] tracking-widest uppercase mt-1.5">
+            <p className="text-xs text-[#504444] tracking-wider uppercase">
               웨딩한방 커뮤니티
             </p>
           </div>

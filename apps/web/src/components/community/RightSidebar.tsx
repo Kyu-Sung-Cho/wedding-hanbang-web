@@ -28,11 +28,9 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
     <aside className="space-y-10">
       {/* 이번 주 요약 (레퍼런스: "The Weekly Pulse") */}
       <section>
-        <div className="border-b border-[#F0EFED] pb-3 mb-6">
-          <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
-            이번 주 요약
-          </h3>
-        </div>
+        <h3 className="font-serif-kr text-lg text-[#1A1A1F] mb-6 border-b border-[#F0EFED] pb-2">
+          이번 주 요약
+        </h3>
 
         <div className="space-y-5">
           {/* 새 글 + 트렌드 바 */}
@@ -92,9 +90,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
         <section>
-          <div className="border-b border-[#F0EFED] pb-3 mb-5">
-            <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">많이 찾는 업체</h3>
-          </div>
+          <h3 className="font-serif-kr text-lg text-[#1A1A1F] mb-4 border-b border-[#F0EFED] pb-2">많이 찾는 업체</h3>
           <div className="flex flex-wrap gap-x-3 gap-y-2.5">
             {popularTags.slice(0, 12).map((tag) => (
               <Link
@@ -111,9 +107,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
       {/* 커뮤니티 원칙 (레퍼런스: "Guidelines" 섹션) */}
       <section>
-        <div className="border-b border-[#F0EFED] pb-3 mb-5">
-          <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">커뮤니티 원칙</h3>
-        </div>
+        <h3 className="font-serif-kr text-lg text-[#1A1A1F] mb-4 border-b border-[#F0EFED] pb-2">커뮤니티 원칙</h3>
         <div className="space-y-4 text-sm">
           <div className="flex items-start gap-3">
             <span className="w-2 h-2 rounded-full bg-[#22C55E] mt-1.5 shrink-0" />
