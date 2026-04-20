@@ -121,47 +121,47 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   }, [roomId, supabase]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className="min-h-screen bg-[#fcf9f8]">
       <div className="flex w-full">
-        {/* 왼쪽 사이드바 */}
-        <aside className="hidden lg:flex flex-col w-[260px] xl:w-[280px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3 space-y-4">
-          {/* 방 정보 */}
-          <div className="px-2">
-            <h2 className="font-serif text-base text-[#1A1A1F] font-medium">{room?.name ?? "동기방"}</h2>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-[#878680]">
-              <Users className="h-3 w-3" />
+        {/* 왼쪽 사이드바 — 커뮤니티와 동일 w-80 xl:w-96 */}
+        <aside className="hidden lg:flex flex-col w-80 xl:w-96 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto border-r border-[#e4e2e1] bg-[#fcf9f8] pt-12 pb-8 px-6 z-40">
+          {/* 방 정보 — 브랜드 헤더 스타일 */}
+          <div className="mb-10 px-4">
+            <h2 className="font-serif-kr text-3xl italic text-[#795252] mb-2">
+              {room?.name ?? "동기방"}
+            </h2>
+            <div className="flex items-center gap-1.5 text-base text-[#504444] tracking-widest uppercase">
+              <Users className="h-4 w-4" />
               <span>{room?.member_count ?? 0}명 참여</span>
             </div>
           </div>
 
-          <div className="h-px bg-[#F0EFED]" />
-
           {/* 멤버 */}
-          <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
+          <div className="px-2 mb-8">
+            <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
+          </div>
 
           {/* 주제별 카테고리 */}
-          <div className="px-2">
-            <h3 className="text-xs font-medium text-[#878680] mb-2 uppercase tracking-wider">주제별 보기</h3>
+          <div className="px-2 mb-8">
+            <h3 className="text-sm font-medium text-[#504444] mb-3 uppercase tracking-widest">주제별 보기</h3>
             <div className="flex flex-col gap-0.5">
               {COHORT_THREAD_TOPICS.map((t) => (
                 <button
                   key={t.key}
                   type="button"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-[#878680] hover:bg-[#F5F2ED] hover:text-[#1A1A1F] transition-colors text-left"
+                  className="flex items-center gap-3 px-4 py-3 rounded-r-full text-base text-[#504444] hover:bg-white hover:text-[#795252] hover:translate-x-1 transition-all duration-200 text-left"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C4967E]" />
+                  <span className="w-2 h-2 rounded-full bg-[#795252]" />
                   {t.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="h-px bg-[#F0EFED]" />
-
           {/* 동기방 규칙 */}
           <div className="px-2">
-            <h3 className="text-xs font-medium text-[#878680] mb-2 uppercase tracking-wider">규칙</h3>
-            <div className="space-y-1.5 text-[11px] text-[#B5ADA3] leading-relaxed">
+            <h3 className="text-sm font-medium text-[#504444] mb-3 uppercase tracking-widest">규칙</h3>
+            <div className="space-y-2 text-sm text-[#504444] leading-relaxed">
               <p>• 서로 존중하며 대화해주세요</p>
               <p>• 개인정보(실명, 연락처) 공유 주의</p>
               <p>• 광고/홍보성 글은 삭제됩니다</p>
@@ -169,20 +169,20 @@ function CohortPageInner({ roomId }: { roomId: string }) {
             </div>
           </div>
 
-          <div className="mt-auto" />
+          <div className="mt-auto pt-8" />
 
           {/* 아모라 CTA */}
-          <div className="mx-2 rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] p-4 text-white">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#C9A96E]" />
-              <span className="text-xs font-medium">AI 아모라</span>
+          <div className="mx-2 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] p-6 text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-5 h-5 text-[#dee6c4]" />
+              <span className="font-serif-kr text-lg">AI 아모라</span>
             </div>
-            <p className="text-[11px] text-white/60 leading-relaxed mb-2.5">
+            <p className="text-sm text-white/70 leading-relaxed mb-4">
               가격 비교, 견적 분석, 일정 상담
             </p>
             <a
               href="/chat"
-              className="block w-full text-center bg-white text-[#795252] rounded-lg py-2 text-xs font-medium hover:bg-[#FAFAF8] transition-colors"
+              className="block w-full text-center bg-white text-[#795252] rounded-lg py-3 text-base font-medium hover:bg-[#fcf9f8] transition-colors"
             >
               대화하기
             </a>
@@ -192,38 +192,40 @@ function CohortPageInner({ roomId }: { roomId: string }) {
         {/* 가운데: 메인 콘텐츠 */}
         <main className="flex-1 min-w-0 flex flex-col">
           {/* 탭 헤더 */}
-          <div className="sticky top-[72px] z-10 bg-white border-b border-[#F0EFED]">
-            <div className="flex">
+          <div className="sticky top-20 z-10 bg-white border-b border-[#e4e2e1]">
+            <div className="flex px-6 lg:px-12">
               <TabButton
                 active={tab === "chat"}
                 onClick={() => setTab("chat")}
-                icon={<MessageCircle className="h-4 w-4" />}
+                icon={<MessageCircle className="h-5 w-5" />}
                 label="채팅"
               />
               <TabButton
                 active={tab === "info"}
                 onClick={() => setTab("info")}
-                icon={<TrendingUp className="h-4 w-4" />}
+                icon={<TrendingUp className="h-5 w-5" />}
                 label="정보판"
               />
               <TabButton
                 active={tab === "timeline"}
                 onClick={() => setTab("timeline")}
-                icon={<Calendar className="h-4 w-4" />}
+                icon={<Calendar className="h-5 w-5" />}
                 label="타임라인"
               />
             </div>
           </div>
 
-          <div className="px-4 lg:px-6 py-4 flex-1">
-            {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
-            {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
-            {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
+          <div className="px-6 lg:px-12 py-10 flex-1">
+            <div className="max-w-4xl mx-auto">
+              {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
+              {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
+              {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
+            </div>
           </div>
         </main>
 
-        {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[280px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-l border-[#F0EFED] py-5 px-3 space-y-4">
+        {/* 오른쪽 사이드바 — 커뮤니티와 동일 w-96 2xl:w-[420px] */}
+        <aside className="hidden xl:flex flex-col w-96 2xl:w-[420px] shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto border-l border-[#e4e2e1] p-10 bg-[#fcf9f8]">
           {/* 인기글 */}
           <CohortPopularPosts roomId={roomId} />
         </aside>
@@ -250,10 +252,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 py-3 text-sm transition-colors ${
+      className={`flex flex-1 items-center justify-center gap-2 border-b-2 py-5 text-base font-medium tracking-wider uppercase transition-colors ${
         active
-          ? "border-[#C4967E] text-[#C4967E]"
-          : "border-transparent text-[#878680] hover:text-[#1A1A1F]"
+          ? "border-[#795252] text-[#795252]"
+          : "border-transparent text-[#504444] hover:text-[#795252]"
       }`}
     >
       {icon}
@@ -888,36 +890,34 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
   const RANK_COLORS: Record<number, string> = { 0: "text-[#C9A96E]", 1: "text-[#B5ADA3]", 2: "text-[#C4967E]" };
 
   return (
-    <div className="rounded-2xl border border-[#F0EFED] bg-white p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm">🔥</span>
-        <h3 className="text-sm font-medium text-[#1A1A1F]">인기글</h3>
-      </div>
+    <div>
+      <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
+        🔥 인기글
+      </h3>
       {posts.length === 0 ? (
-        <p className="text-xs text-[#B5ADA3] py-2">아직 인기글이 없어요</p>
+        <p className="text-base text-[#504444] py-2">아직 인기글이 없어요</p>
       ) : (
-        <div className="space-y-1">
+        <ul className="space-y-5">
           {posts.slice(0, 5).map((p, i) => (
-            <a
-              key={p.id}
-              href={`/community/post/${p.id}`}
-              className="flex items-start gap-2.5 px-2 py-2 rounded-xl hover:bg-[#FAFAF8] transition-colors group"
-            >
-              <span className={`text-sm font-semibold tabular-nums shrink-0 w-5 ${RANK_COLORS[i] ?? "text-[#B5ADA3]"}`}>
-                {i + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-[#1A1A1F] truncate group-hover:text-[#C4967E] transition-colors">
-                  {p.title}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-[#B5ADA3]">
-                  <span>▲ {p.upvote_count}</span>
-                  <span>💬 {p.comment_count}</span>
+            <li key={p.id} className="group cursor-pointer">
+              <a href={`/community/post/${p.id}`} className="flex items-start space-x-3">
+                <span className={`font-serif-kr italic text-[28px] leading-none mt-0.5 shrink-0 text-[#795252] ${
+                  i === 0 ? "" : i === 1 ? "opacity-70" : i === 2 ? "opacity-50" : "opacity-30"
+                }`}>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-lg text-[#1b1c1c] group-hover:text-[#795252] transition-colors line-clamp-2 leading-snug">
+                    {p.title}
+                  </h4>
+                  <p className="text-[15px] text-[#504444] mt-1.5">
+                    ▲ {p.upvote_count} &middot; 💬 {p.comment_count}
+                  </p>
                 </div>
-              </div>
-            </a>
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
@@ -961,32 +961,32 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
   }, [roomId]);
 
   return (
-    <div className="rounded-2xl border border-[#F0EFED] bg-white p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-[#1A1A1F]">멤버</h3>
-        <span className="text-xs text-[#B5ADA3]">{memberCount}명</span>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium text-[#504444] uppercase tracking-widest">멤버</h3>
+        <span className="text-sm text-[#504444]">{memberCount}명</span>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         {members.slice(0, 12).map((m, i) => {
           const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
           return (
             <div
               key={m.user_id}
-              className="flex flex-col items-center gap-1 w-[56px]"
+              className="flex flex-col items-center gap-1.5 w-16"
               title={m.nickname}
             >
-              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
+              <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-sm font-medium shadow-sm`}>
                 {m.nickname[0]}
               </div>
-              <span className="text-[10px] text-[#878680] truncate w-full text-center">
+              <span className="text-xs text-[#504444] truncate w-full text-center">
                 {m.nickname}
               </span>
             </div>
           );
         })}
         {memberCount > 12 && (
-          <div className="flex flex-col items-center gap-1 w-[56px]">
-            <div className="w-9 h-9 rounded-full bg-[#F0EFED] flex items-center justify-center text-[10px] text-[#878680] font-medium">
+          <div className="flex flex-col items-center gap-1.5 w-16">
+            <div className="w-11 h-11 rounded-full bg-[#f6f3f2] flex items-center justify-center text-sm text-[#504444] font-medium">
               +{memberCount - 12}
             </div>
           </div>
