@@ -59,7 +59,7 @@ export default function Navigation() {
         <a
           href="#cta"
           onClick={(e) => handleClick(e, "#cta")}
-          className="px-6 py-2.5 bg-noir-800 text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:bg-noir-soft hover:-translate-y-0.5 transition-all"
+          className="px-6 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
         >
           사전 등록하기
         </a>

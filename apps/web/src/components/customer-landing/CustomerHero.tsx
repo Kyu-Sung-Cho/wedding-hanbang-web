@@ -15,7 +15,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-ivory-50">
       {/* 배경 */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(196,150,126,0.08),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(121,82,82,0.08),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_60%_at_80%_100%,rgba(201,169,110,0.06),transparent)]" />
       </div>
 
@@ -63,7 +63,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
         >
           결혼 준비,
           <br />
-          <span className="font-medium bg-gradient-to-r from-[#C4967E] via-[#C9A96E] to-[#B8976A] bg-clip-text text-transparent">
+          <span className="font-medium bg-gradient-to-r from-[#795252] via-[#C9A96E] to-[#B8976A] bg-clip-text text-transparent">
             한방
           </span>
           에
@@ -90,7 +90,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
         >
           <a
             href={loginHref}
-            className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
+            className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
             {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

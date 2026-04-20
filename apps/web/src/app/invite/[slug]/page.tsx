@@ -74,7 +74,7 @@ export default function InvitePage() {
 
   const { invitation, photos, accounts, guestbook } = data;
   const template = invitation.template;
-  const colors = invitation.custom_colors ?? template?.color_palette ?? ["#C4967E", "#FDFCFA", "#1A1A1F"];
+  const colors = invitation.custom_colors ?? template?.color_palette ?? ["#795252", "#fcf9f8", "#1b1c1c"];
   const fonts = invitation.custom_fonts ?? template?.font_pair ?? { heading: "Noto Serif KR", body: "Noto Sans KR" };
 
   const handleRsvpSubmit = async (rsvpData: Record<string, unknown>) => {
@@ -104,8 +104,8 @@ export default function InvitePage() {
       className="min-h-screen max-w-[480px] mx-auto overflow-hidden"
       style={{
         fontFamily: `'${fonts.body}', sans-serif`,
-        background: colors[1] || "#FDFCFA",
-        color: colors[2] || "#1A1A1F",
+        background: colors[1] || "#fcf9f8",
+        color: colors[2] || "#1b1c1c",
       }}
     >
       {/* 오프닝 애니메이션 */}

@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 export default function CTA() {
   return (
     <section id="cta" className="bg-gradient-to-br from-ivory-deep to-ivory-warm py-[140px] px-[60px] text-center relative overflow-hidden max-md:py-20 max-md:px-5">
-      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(196,150,126,0.1),transparent)] rounded-full" />
+      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(121,82,82,0.1),transparent)] rounded-full" />
 
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -35,7 +35,7 @@ export default function CTA() {
 
         <a
           href="/login"
-          className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300 mb-6"
+          className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 mb-6 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
         >
           무료로 시작하기
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

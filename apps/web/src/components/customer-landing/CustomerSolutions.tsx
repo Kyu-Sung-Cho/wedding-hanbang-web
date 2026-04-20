@@ -93,7 +93,7 @@ const solutions = [
             { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", done: false },
           ].map((item) => (
             <div key={item.dday} className="flex items-start gap-4 py-2.5 relative">
-              <div className={`absolute -left-[21px] top-3.5 w-2.5 h-2.5 rounded-full border-2 ${item.done ? "border-rose-500 bg-rose-500 shadow-[0_0_0_4px_rgba(196,150,126,0.2)]" : "border-taupe-400 bg-white"}`} />
+              <div className={`absolute -left-[21px] top-3.5 w-2.5 h-2.5 rounded-full border-2 ${item.done ? "border-rose-500 bg-rose-500 shadow-[0_0_0_4px_rgba(121,82,82,0.2)]" : "border-taupe-400 bg-white"}`} />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
@@ -177,7 +177,7 @@ export default function CustomerSolutions() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6 }}
-            className={`bg-white rounded-3xl overflow-hidden border border-black/[0.04] md:hover:-translate-y-1 md:hover:shadow-[0_24px_64px_rgba(26,26,31,0.08)] transition-all duration-500 grid grid-cols-2 items-stretch max-md:grid-cols-1 ${
+            className={`bg-white rounded-3xl overflow-hidden border border-black/[0.04] md:hover:-translate-y-1 md:hover:shadow-[0_24px_64px_rgba(27,28,28,0.08)] transition-all duration-500 grid grid-cols-2 items-stretch max-md:grid-cols-1 ${
               i % 2 === 1 ? "md:direction-rtl" : ""
             }`}
             style={i % 2 === 1 ? { direction: "rtl" } : undefined}

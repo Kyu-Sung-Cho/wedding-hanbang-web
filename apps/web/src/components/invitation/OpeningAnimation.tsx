@@ -29,9 +29,9 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
     setTimeout(onComplete, 800);
   };
 
-  const bg = colors[1] || "#FDFCFA";
-  const accent = colors[0] || "#C4967E";
-  const text = colors[2] || "#1A1A1F";
+  const bg = colors[1] || "#fcf9f8";
+  const accent = colors[0] || "#795252";
+  const text = colors[2] || "#1b1c1c";
 
   // 퇴장 애니메이션 스타일
   const exitStyle = useMemo((): React.CSSProperties => {

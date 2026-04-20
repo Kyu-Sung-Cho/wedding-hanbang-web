@@ -10,7 +10,7 @@ export default function Hero() {
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,var(--rose-pale),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite]" />
         <div className="absolute -bottom-[15%] -left-[5%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,var(--gold-light),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-7s]" />
-        <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(196,150,126,0.3),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-14s]" />
+        <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(121,82,82,0.3),transparent)] blur-[80px] opacity-40 animate-[orbFloat_20s_ease-in-out_infinite_-14s]" />
       </div>
 
       <div className="relative z-10 text-center max-w-[900px] px-6">
@@ -57,7 +57,7 @@ export default function Hero() {
         >
           <a
             href="/login"
-            className="group inline-flex items-center gap-2.5 px-9 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.2)] transition-all duration-400"
+            className="group inline-flex items-center gap-2.5 px-9 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-400 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
             무료로 시작하기
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

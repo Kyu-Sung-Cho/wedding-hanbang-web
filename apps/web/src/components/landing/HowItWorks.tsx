@@ -44,7 +44,7 @@ export default function HowItWorks() {
             transition={{ duration: 0.8, delay: i * 0.1 }}
             className="text-center relative"
           >
-            <div className="w-24 h-24 rounded-full bg-white mx-auto mb-6 flex items-center justify-center text-[32px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-2 border-ivory-deep relative z-10 hover:border-rose-pale hover:shadow-[0_8px_32px_rgba(196,150,126,0.15)] hover:-translate-y-1 transition-all duration-400">
+            <div className="w-24 h-24 rounded-full bg-white mx-auto mb-6 flex items-center justify-center text-[32px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-2 border-ivory-deep relative z-10 hover:border-rose-pale hover:shadow-[0_8px_32px_rgba(121,82,82,0.15)] hover:-translate-y-1 transition-all duration-400">
               {step.icon}
               <span className="absolute -top-2 -right-2 w-7 h-7 bg-noir-800 text-white rounded-full text-[12px] font-semibold flex items-center justify-center">
                 {step.num}

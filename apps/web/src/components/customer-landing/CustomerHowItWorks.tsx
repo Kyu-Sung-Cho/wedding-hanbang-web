@@ -90,7 +90,7 @@ export default function CustomerHowItWorks() {
               className="text-center relative max-md:flex max-md:items-start max-md:gap-5 max-md:text-left max-md:py-6 max-md:border-l-[1.5px] max-md:border-rose-500/20 max-md:pl-7 max-md:ml-4"
             >
               {/* 모바일 타임라인 점 */}
-              <div className="hidden max-md:block absolute -left-[5px] top-8 w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_0_4px_rgba(196,150,126,0.15)]" />
+              <div className="hidden max-md:block absolute -left-[5px] top-8 w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_0_4px_rgba(121,82,82,0.15)]" />
 
               <div className="w-[52px] h-[52px] rounded-2xl bg-white border border-black/[0.06] flex items-center justify-center text-rose-500 mx-auto mb-5 relative z-10 shadow-[0_4px_16px_rgba(0,0,0,0.04)] max-md:mx-0 max-md:mb-0 max-md:flex-shrink-0">
                 {step.icon}

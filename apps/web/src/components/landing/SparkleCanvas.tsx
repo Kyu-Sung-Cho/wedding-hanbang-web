@@ -45,7 +45,7 @@ export default function SparkleCanvas() {
           vy: (Math.random() - 0.5) * 1 - 0.5,
           color:
             Math.random() > 0.5
-              ? "rgba(196,150,126,"
+              ? "rgba(121,82,82,"
               : "rgba(201,169,110,",
         });
       }

@@ -12,7 +12,7 @@ const painCards = [
 export default function PainPoints() {
   return (
     <section className="bg-noir-800 text-white py-[140px] px-[60px] relative overflow-hidden max-md:py-20 max-md:px-5">
-      <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(196,150,126,0.08),transparent)] rounded-full" />
+      <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(121,82,82,0.08),transparent)] rounded-full" />
 
       <div className="grid grid-cols-2 gap-20 items-center max-w-[1200px] mx-auto max-lg:grid-cols-1 max-lg:gap-12">
         <div>

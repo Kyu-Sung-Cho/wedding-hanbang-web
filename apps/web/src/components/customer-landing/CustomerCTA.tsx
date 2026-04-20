@@ -15,7 +15,7 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
     <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}
       <div className="absolute inset-0 bg-gradient-to-br from-ivory-deep via-ivory-warm to-[#F0E8DD]" />
-      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[min(900px,90vw)] h-[min(900px,90vw)] bg-[radial-gradient(circle,rgba(196,150,126,0.12),transparent)] rounded-full" />
+      <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[min(900px,90vw)] h-[min(900px,90vw)] bg-[radial-gradient(circle,rgba(121,82,82,0.12),transparent)] rounded-full" />
       <div className="absolute bottom-[-200px] right-[-100px] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.08),transparent)] rounded-full" />
 
       <div className="relative z-10 max-w-[640px] mx-auto text-center">
@@ -58,7 +58,7 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
           <div className="flex gap-4 justify-center flex-wrap mb-8">
             <a
               href={loginHref}
-              className="group inline-flex items-center gap-2.5 px-10 py-4 bg-noir-800 text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(26,26,31,0.15)] transition-all duration-300"
+              className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
               {isComingSoon ? "미리 둘러보기" : "무료로 시작하기"}
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
