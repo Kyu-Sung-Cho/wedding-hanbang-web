@@ -74,7 +74,7 @@ export default function BookingsPage() {
     return (
       <div className="max-w-[700px] mx-auto text-center py-20">
         <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-        <p className="text-[14px] text-[#504444]">{error}</p>
+        <p className="text-base text-[#504444]">{error}</p>
       </div>
     );
   }
@@ -132,12 +132,12 @@ export default function BookingsPage() {
                               <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F] truncate">
                                 {booking.vendorName}
                               </h3>
-                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig?.color ?? ""}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${statusConfig?.color ?? ""}`}>
                                 {statusConfig?.label ?? booking.status}
                               </span>
                               {needsAction && (
-                                <span className="flex items-center gap-0.5 px-2.5 py-0.5 rounded-full bg-[#795252]/10 text-xs text-[#795252] font-medium animate-pulse">
-                                  <AlertCircle className="w-3.5 h-3.5" />
+                                <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#795252]/10 text-sm text-[#795252] font-medium animate-pulse">
+                                  <AlertCircle className="w-4 h-4" />
                                   서명 필요
                                 </span>
                               )}
@@ -168,12 +168,12 @@ export default function BookingsPage() {
                                     <div className={`w-5 h-px ${step.done ? "bg-[#795252]" : "bg-[#B5ADA3]/20"}`} />
                                   )}
                                   <div
-                                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
                                       step.done ? "bg-[#795252]/15" : "bg-[#F6F3F2]"
                                     }`}
                                   >
                                     <step.icon
-                                      className={`w-3.5 h-3.5 ${step.done ? "text-[#795252]" : "text-[#B5ADA3]"}`}
+                                      className={`w-4 h-4 ${step.done ? "text-[#795252]" : "text-[#B5ADA3]"}`}
                                     />
                                   </div>
                                 </div>
@@ -208,7 +208,7 @@ export default function BookingsPage() {
                           <span className="text-base text-[#504444] truncate">
                             {booking.vendorName}
                           </span>
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig?.color ?? ""}`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${statusConfig?.color ?? ""}`}>
                             {statusConfig?.label ?? booking.status}
                           </span>
                         </div>

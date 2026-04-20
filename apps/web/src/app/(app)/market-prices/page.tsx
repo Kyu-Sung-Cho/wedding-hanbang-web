@@ -211,11 +211,11 @@ function RegionalTab({ periodId }: { periodId: string }) {
   return (
     <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
       <div className="px-5 py-4">
-        <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F] flex items-center gap-2">
-          <MapPin size={16} className="text-[#795252]" />
+        <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
+          <MapPin size={18} className="text-[#795252]" />
           지역별 결혼 비용
         </h3>
-        <p className="text-[11px] text-[#B5ADA3] mt-0.5 font-light">식대 + 스드메 + 대관료 + 꽃장식 합산 (만원)</p>
+        <p className="text-sm text-[#B5ADA3] mt-1 font-light">식대 + 스드메 + 대관료 + 꽃장식 합산 (만원)</p>
       </div>
       <div className="p-5 pt-0">
         <RegionalCostTable periodId={periodId} />
@@ -298,16 +298,16 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
           {VENUE_OPTIONAL_NAMES.map(name => (
             <div key={name} className="flex items-center justify-between px-5 py-3">
               <span className="text-base text-[#1A1A1F]">{name}</span>
-              <span className="text-[13px] font-medium text-[#1A1A1F]">
-                {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-[11px] text-[#B5ADA3] ml-0.5">만원</span>
+              <span className="text-base font-medium text-[#1A1A1F]">
+                {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-sm text-[#B5ADA3] ml-1">만원</span>
               </span>
             </div>
           ))}
         </div>
         {/* 합계 */}
-        <div className="px-5 py-3 bg-[#F6F3F2] flex items-center justify-between">
-          <span className="text-[13px] font-medium text-[#1A1A1F]">선택항목 전체 합계</span>
-          <span className="font-serif-kr text-[18px] font-light text-[#795252]">
+        <div className="px-5 py-3.5 bg-[#F6F3F2] flex items-center justify-between">
+          <span className="text-base font-medium text-[#1A1A1F]">선택항목 전체 합계</span>
+          <span className="font-serif-kr text-[22px] font-light text-[#795252]">
             {Object.values(optItems.items).reduce((s, v) => s + v, 0).toLocaleString()}만원
           </span>
         </div>
@@ -338,10 +338,10 @@ function SdmTab({ periodId }: { periodId: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">지역</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스드메 패키지</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">드메 패키지</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스튜디오 기본</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">지역</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스드메 패키지</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">드메 패키지</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스튜디오 기본</th>
               </tr>
             </thead>
             <tbody>
@@ -370,10 +370,10 @@ function SdmTab({ periodId }: { periodId: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영용</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식용</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">2부 드레스</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영용</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식용</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">2부 드레스</th>
               </tr>
             </thead>
             <tbody>
@@ -410,10 +410,10 @@ function SdmTab({ periodId }: { periodId: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">리허설</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">리허설</th>
               </tr>
             </thead>
             <tbody>
@@ -467,9 +467,9 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
               {items.map(item => {
                 const price = scope === "seoul" ? item.seoulPrice : item.nationalPrice;
                 return (
-                  <div key={item.name} className="flex items-center justify-between px-5 py-2.5">
+                  <div key={item.name} className="flex items-center justify-between px-5 py-3">
                     <span className="text-base text-[#1A1A1F]">{item.name}</span>
-                    <span className="text-[13px] font-medium text-[#1A1A1F]">
+                    <span className="text-base font-medium text-[#1A1A1F]">
                       {price > 0 ? `${price.toLocaleString()}만원` : "—"}
                     </span>
                   </div>
@@ -531,10 +531,10 @@ function SeasonalTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">기간</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">성수기</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">비수기</th>
-                <th className="text-right py-3 px-4 text-[10px] font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">절약액</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">기간</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">성수기</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">비수기</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">절약액</th>
               </tr>
             </thead>
             <tbody>

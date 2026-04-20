@@ -266,8 +266,8 @@ function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSche
     <div className={`rounded-xl ${style.bg} border ${style.border} p-5 max-md:p-4`}>
       {title && (
         <div className="flex items-center gap-2 mb-3">
-          <Icon className={`w-4 h-4 ${style.iconColor} flex-shrink-0`} />
-          <h4 className={`text-[14px] font-medium ${style.titleColor}`}>{title}</h4>
+          <Icon className={`w-5 h-5 ${style.iconColor} flex-shrink-0`} />
+          <h4 className={`text-base font-medium ${style.titleColor}`}>{title}</h4>
         </div>
       )}
       <div className="space-y-1.5">
@@ -302,7 +302,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "group-title":
       return (
         <div className="pt-2 pb-1 first:pt-0">
-          <p className="text-[13px] font-semibold text-noir-800">{item.text}</p>
+          <p className="text-base font-semibold text-noir-800">{item.text}</p>
         </div>
       );
 
@@ -310,8 +310,8 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       if (blockType === "warning") {
         return (
           <div className="flex gap-2 pl-1">
-            <span className="text-red-400 mt-0.5 text-[12px] flex-shrink-0">&#x2716;</span>
-            <p className="text-[13px] text-charcoal font-light leading-[1.7]">
+            <span className="text-red-400 mt-0.5 text-sm flex-shrink-0">&#x2716;</span>
+            <p className="text-base text-charcoal font-light leading-[1.7]">
               {formatInlineText(item.text)}
             </p>
           </div>
@@ -325,13 +325,13 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
           <div className="flex-shrink-0">
             {isChecked ? (
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
-                <Check className="w-3.5 h-3.5 text-white" />
+                <Check className="w-4 h-4 text-white" />
               </div>
             ) : (
               <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover/item:border-[#795252] transition-colors" />
             )}
           </div>
-          <p className={`text-[13px] leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
+          <p className={`text-base leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
             {formatInlineText(item.text)}
           </p>
           {(blockType === "checklist" || blockType === "steps" || blockType === "paragraph") && (
@@ -340,7 +340,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
               className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
               title="일정에 추가"
             >
-              <CalendarPlus className="w-3.5 h-3.5 text-taupe-400 hover:text-[#795252] transition-colors" />
+              <CalendarPlus className="w-4 h-4 text-taupe-400 hover:text-[#795252] transition-colors" />
             </button>
           )}
         </div>
@@ -351,17 +351,17 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       return (
         <div className="pl-1 py-1.5">
           <div className="flex gap-2">
-            <span className={`text-[12px] font-semibold mt-0.5 flex-shrink-0 ${blockType === "tips" ? "text-amber-500" : blockType === "steps" ? "text-violet-500" : "text-[#795252]"}`}>
+            <span className={`text-sm font-semibold mt-0.5 flex-shrink-0 ${blockType === "tips" ? "text-amber-500" : blockType === "steps" ? "text-violet-500" : "text-[#795252]"}`}>
               {item.subItems ? "•" : "•"}
             </span>
             <div>
-              <p className="text-[13px] text-noir-800 font-medium leading-[1.7]">
+              <p className="text-base text-noir-800 font-medium leading-[1.7]">
                 {formatInlineText(item.text)}
               </p>
               {item.subItems && item.subItems.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {item.subItems.map((sub, i) => (
-                    <p key={i} className={`text-[12px] font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
+                    <p key={i} className={`text-sm font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
                       {formatInlineText(sub)}
                     </p>
                   ))}
@@ -376,15 +376,15 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "dialogue-speaker":
       return (
         <div className="pt-2 first:pt-0">
-          <p className="text-[13px] font-semibold text-sky-600">{item.text}</p>
+          <p className="text-base font-semibold text-sky-600">{item.text}</p>
         </div>
       );
 
     case "dialogue-text":
       return (
-        <div className="bg-white/60 rounded-lg px-3 py-2 ml-0 border-l-2 border-sky-200">
+        <div className="bg-white/60 rounded-lg px-3 py-2.5 ml-0 border-l-2 border-sky-200">
           {item.text.split("\n").map((line, i) => (
-            <p key={i} className="text-[13px] text-charcoal font-light leading-[1.8] italic">
+            <p key={i} className="text-base text-charcoal font-light leading-[1.8] italic">
               {formatInlineText(line)}
             </p>
           ))}
@@ -393,7 +393,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
 
     case "arrow":
       return (
-        <p className="text-[12px] text-taupe-500 font-light pl-4 leading-[1.7]">
+        <p className="text-sm text-taupe-500 font-light pl-4 leading-[1.7]">
           → {formatInlineText(item.text)}
         </p>
       );
@@ -401,7 +401,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
     case "text":
     default:
       return (
-        <p className="text-[13px] text-charcoal font-light leading-[1.8]">
+        <p className="text-base text-charcoal font-light leading-[1.8]">
           {formatInlineText(item.text)}
         </p>
       );
@@ -429,31 +429,31 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   }, [onClose]);
 
   return (
-    <div ref={popoverRef} className="w-[300px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
+    <div ref={popoverRef} className="w-[320px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[13px] font-medium text-noir-800">일정에 추가</p>
+        <p className="text-base font-medium text-noir-800">일정에 추가</p>
         <button onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors">
-          <X className="w-3.5 h-3.5 text-taupe-400" />
+          <X className="w-4 h-4 text-taupe-400" />
         </button>
       </div>
       <div className="space-y-3">
         <div>
-          <label className="block text-[11px] text-taupe-500 mb-1">날짜</label>
+          <label className="block text-sm text-taupe-500 mb-1">날짜</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-base text-noir-800 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
           />
         </div>
         <div>
-          <label className="block text-[11px] text-taupe-500 mb-1">메모</label>
+          <label className="block text-sm text-taupe-500 mb-1">메모</label>
           <input
             type="text"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
             placeholder="메모 (선택)"
-            className="w-full px-3 py-2 rounded-lg border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-base text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
           />
         </div>
         <button
@@ -462,7 +462,7 @@ function SchedulePopover({ itemText, onClose, onSave }: {
             onSave(date, memo);
           }}
           disabled={!date}
-          className="w-full py-2 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-[13px] font-medium hover:bg-[#946a6a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-2.5 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium hover:bg-[#946a6a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           일정에 추가
         </button>
@@ -617,7 +617,7 @@ function EtiquettePageInner() {
               placeholder="검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-black/[0.06] text-[13px] text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+              className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-white border border-black/[0.06] text-base text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
             />
           </div>
         </div>
@@ -628,7 +628,7 @@ function EtiquettePageInner() {
             // 검색 결과
             <div className="px-2">
               {filteredParts.length === 0 && (
-                <p className="text-[13px] text-taupe-400 text-center py-8">검색 결과가 없습니다</p>
+                <p className="text-base text-taupe-400 text-center py-8">검색 결과가 없습니다</p>
               )}
               {filteredParts.map((p) => {
                 const Icon = ICON_MAP[p.icon] || BookOpen;
@@ -659,7 +659,7 @@ function EtiquettePageInner() {
             // 카테고리별 목록
             ETIQUETTE_CATEGORIES.map((cat) => (
               <div key={cat.label} className="mb-2">
-                <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
+                <p className="px-4 py-1.5 text-sm font-semibold text-taupe-400 uppercase tracking-wider">
                   {cat.label}
                 </p>
                 <div className="px-2">
@@ -677,16 +677,16 @@ function EtiquettePageInner() {
                           isLocked ? "opacity-40 cursor-not-allowed" : isActive ? "bg-[#795252]/10 text-[#795252]" : "hover:bg-white text-noir-800"
                         }`}
                       >
-                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
-                          <Icon className="w-3.5 h-3.5 text-white" />
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className="w-4 h-4 text-white" />
                         </div>
                         <div className="min-w-0">
-                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
+                          <p className={`text-base font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
                             {p.title}
                           </p>
                         </div>
-                        {isLocked && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto flex-shrink-0 text-taupe-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
-                        {!isLocked && isActive && <ChevronRight className="w-3.5 h-3.5 text-[#946a6a] ml-auto flex-shrink-0" />}
+                        {isLocked && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto flex-shrink-0 text-taupe-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+                        {!isLocked && isActive && <ChevronRight className="w-4 h-4 text-[#946a6a] ml-auto flex-shrink-0" />}
                       </button>
                     );
                   })}
@@ -711,7 +711,7 @@ function EtiquettePageInner() {
             <div className="flex-1 overflow-y-auto py-2">
               {ETIQUETTE_CATEGORIES.map((cat) => (
                 <div key={cat.label} className="mb-2">
-                  <p className="px-4 py-1.5 text-[11px] font-semibold text-taupe-400 uppercase tracking-wider">
+                  <p className="px-4 py-1.5 text-sm font-semibold text-taupe-400 uppercase tracking-wider">
                     {cat.label}
                   </p>
                   <div className="px-2">
@@ -732,7 +732,7 @@ function EtiquettePageInner() {
                           <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center flex-shrink-0`}>
                             <Icon className="w-3.5 h-3.5 text-white" />
                           </div>
-                          <p className={`text-[13px] font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
+                          <p className={`text-base font-medium truncate ${isActive ? "text-[#795252]" : ""}`}>
                             {p.title}
                           </p>
                         </button>
@@ -768,7 +768,7 @@ function EtiquettePageInner() {
                   <button
                     key={p.number}
                     onClick={() => !isLocked && setSelectedPart(idx)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+                    className={`flex-shrink-0 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                       isLocked
                         ? "bg-white/60 text-taupe-400/50 border border-black/[0.03] cursor-not-allowed"
                         : isActive
@@ -814,7 +814,7 @@ function EtiquettePageInner() {
           {hasSectionNav && selectedSection === null ? (
             /* 섹션 선택 카드 */
             <div className="mt-8 animate-fade-in">
-              <p className="text-[13px] text-taupe-500 font-light mb-4">
+              <p className="text-base text-taupe-500 font-light mb-4">
                 항목을 선택하세요
               </p>
               <div className="grid gap-3">
@@ -839,28 +839,28 @@ function EtiquettePageInner() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[14px] max-md:text-[13px] font-medium text-noir-800 group-hover:text-[#795252] transition-colors">
+                        <p className="text-base max-md:text-sm font-medium text-noir-800 group-hover:text-[#795252] transition-colors">
                           {section.title || `섹션 ${sIdx + 1}`}
                         </p>
-                        <div className="flex gap-2 mt-1 flex-wrap">
+                        <div className="flex gap-2 mt-1.5 flex-wrap">
                           {checklistCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              <CheckCircle2 className="w-3 h-3" />체크리스트
+                            <span className="inline-flex items-center gap-1 text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                              <CheckCircle2 className="w-3.5 h-3.5" />체크리스트
                             </span>
                           )}
                           {tipsCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                              <Lightbulb className="w-3 h-3" />꿀팁
+                            <span className="inline-flex items-center gap-1 text-sm text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                              <Lightbulb className="w-3.5 h-3.5" />꿀팁
                             </span>
                           )}
                           {warningCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
-                              <AlertTriangle className="w-3 h-3" />주의사항
+                            <span className="inline-flex items-center gap-1 text-sm text-red-500 bg-red-50 px-2 py-0.5 rounded">
+                              <AlertTriangle className="w-3.5 h-3.5" />주의사항
                             </span>
                           )}
                           {dialogueCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">
-                              <MessageSquareQuote className="w-3 h-3" />대사
+                            <span className="inline-flex items-center gap-1 text-sm text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                              <MessageSquareQuote className="w-3.5 h-3.5" />대사
                             </span>
                           )}
                         </div>
@@ -879,9 +879,9 @@ function EtiquettePageInner() {
                 <div className="mb-6">
                   <button
                     onClick={() => setSelectedSection(null)}
-                    className="inline-flex items-center gap-1.5 text-[13px] text-taupe-500 hover:text-[#795252] transition-colors mb-4"
+                    className="inline-flex items-center gap-1.5 text-base text-taupe-500 hover:text-[#795252] transition-colors mb-4"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <ArrowLeft className="w-4 h-4" />
                     전체 항목으로
                   </button>
                   {/* 섹션 탭 pills */}
@@ -890,13 +890,13 @@ function EtiquettePageInner() {
                       <button
                         key={sIdx}
                         onClick={() => setSelectedSection(sIdx)}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-base font-medium transition-colors ${
                           selectedSection === sIdx
                             ? "bg-[#795252]/10 text-[#795252] border border-[#795252]/20"
                             : "bg-white text-[#504444] hover:text-[#795252]"
                         }`}
                       >
-                        {sec.emoji && <span className="text-[14px]">{sec.emoji}</span>}
+                        {sec.emoji && <span className="text-base">{sec.emoji}</span>}
                         {sec.title || `섹션 ${sIdx + 1}`}
                       </button>
                     ))}
@@ -912,8 +912,8 @@ function EtiquettePageInner() {
                 <div key={sIdx} className="mb-8 last:mb-0">
                   {section.title && (
                     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
-                      {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
-                      <h2 className="font-serif-kr text-[18px] max-md:text-[16px] font-light text-noir-800">
+                      {section.emoji && <span className="text-xl">{section.emoji}</span>}
+                      <h2 className="font-serif-kr text-2xl max-md:text-xl font-light text-noir-800">
                         {section.title}
                       </h2>
                     </div>
@@ -971,11 +971,11 @@ function EtiquettePageInner() {
                 >
                   <ArrowLeft className="w-4 h-4 text-taupe-400 group-hover:text-[#795252] transition-colors flex-shrink-0" />
                   <div className="text-left min-w-0">
-                    <p className="text-[11px] text-taupe-400">이전</p>
-                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-[#795252] transition-colors truncate">
+                    <p className="text-sm text-taupe-400">이전</p>
+                    <p className="text-base font-medium text-noir-800 group-hover:text-[#795252] transition-colors truncate">
                       {prevLabel}
                     </p>
-                    {prevSub && <p className="text-[11px] text-taupe-400 truncate">{prevSub}</p>}
+                    {prevSub && <p className="text-sm text-taupe-400 truncate">{prevSub}</p>}
                   </div>
                 </button>
               ) : <div />;
@@ -1023,11 +1023,11 @@ function EtiquettePageInner() {
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white border border-black/[0.04] transition-colors group max-w-[45%]"
                 >
                   <div className="text-right min-w-0">
-                    <p className="text-[11px] text-taupe-400">다음</p>
-                    <p className="text-[13px] font-medium text-noir-800 group-hover:text-[#795252] transition-colors truncate">
+                    <p className="text-sm text-taupe-400">다음</p>
+                    <p className="text-base font-medium text-noir-800 group-hover:text-[#795252] transition-colors truncate">
                       {nextLabel}
                     </p>
-                    {nextSub && <p className="text-[11px] text-taupe-400 truncate">{nextSub}</p>}
+                    {nextSub && <p className="text-sm text-taupe-400 truncate">{nextSub}</p>}
                   </div>
                   <ChevronRight className="w-4 h-4 text-taupe-400 group-hover:text-[#795252] transition-colors flex-shrink-0" />
                 </button>
@@ -1057,8 +1057,8 @@ function EtiquettePageInner() {
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-            <Check className="w-4 h-4 text-[#795252]" />
-            <p className="text-[13px] font-medium text-[#1A1A1F]">{toast}</p>
+            <Check className="w-5 h-5 text-[#795252]" />
+            <p className="text-base font-medium text-[#1A1A1F]">{toast}</p>
           </div>
         </div>
       )}

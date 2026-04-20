@@ -92,24 +92,24 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
         className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#FAFAF8] transition-colors"
       >
         <div className="flex items-center gap-2.5">
-          <Clock className="w-4 h-4 text-[#795252]" />
-          <h3 className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">임박 체크리스트</h3>
-          <span className="text-[11px] text-[#B5ADA3]">{items.length}건</span>
+          <Clock className="w-5 h-5 text-[#795252]" />
+          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">임박 체크리스트</h3>
+          <span className="text-sm text-[#B5ADA3]">{items.length}건</span>
           {overdueCount > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#795252] text-white font-medium">
+            <span className="text-sm px-2 py-0.5 rounded-full bg-[#795252] text-white font-medium">
               {overdueCount} 초과
             </span>
           )}
           {urgentCount > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#946a6a] text-white font-medium">
+            <span className="text-sm px-2 py-0.5 rounded-full bg-[#946a6a] text-white font-medium">
               {urgentCount} 긴급
             </span>
           )}
         </div>
         {expanded ? (
-          <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
+          <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
+          <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
         )}
       </button>
 
@@ -137,15 +137,15 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
 
                   <div className="flex items-center gap-3 px-5 py-4 flex-1">
                     {/* 아이콘 */}
-                    <div className={`w-10 h-10 rounded-xl ${styles.iconBox} flex items-center justify-center flex-shrink-0`}>
-                      <IconComp className={`w-4 h-4 ${styles.iconColor}`} />
+                    <div className={`w-11 h-11 rounded-xl ${styles.iconBox} flex items-center justify-center flex-shrink-0`}>
+                      <IconComp className={`w-5 h-5 ${styles.iconColor}`} />
                     </div>
 
                     {/* 카테고리 정보 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{item.label}</span>
-                        <span className="text-[11px] text-[#B5ADA3]">
+                        <span className="font-serif-kr text-base font-normal text-[#1A1A1F]">{item.label}</span>
+                        <span className="text-sm text-[#B5ADA3]">
                           {item.doneCount}/{item.totalCount}
                         </span>
                       </div>
@@ -159,14 +159,14 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                     </div>
 
                     {/* D-day 뱃지 */}
-                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${styles.badgeBg} ${styles.badgeText}`}>
+                    <span className={`text-sm px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${styles.badgeBg} ${styles.badgeText}`}>
                       {item.deadlineDaysLeft <= 0
                         ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
                         : `D-${item.deadlineDaysLeft}`}
                     </span>
 
                     {/* 화살표 */}
-                    <ChevronRight className="w-3.5 h-3.5 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                   </div>
                 </button>
               );

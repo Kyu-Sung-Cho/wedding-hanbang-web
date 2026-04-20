@@ -83,12 +83,12 @@ export default function InvitationEditPage() {
           <ArrowLeft className="w-5 h-5 text-noir-800" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-[18px] font-semibold text-noir-800">청첩장 편집</h1>
+          <h1 className="text-2xl font-semibold text-noir-800">청첩장 편집</h1>
         </div>
         {editorDirty && (
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-rose-500 text-white text-[13px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
+            className="px-4 py-2.5 bg-rose-500 text-white text-base font-medium rounded-xl hover:bg-rose-600 transition-colors"
           >
             저장
           </button>
@@ -96,12 +96,12 @@ export default function InvitationEditPage() {
       </div>
 
       {/* 스텝 네비게이션 */}
-      <div className="flex items-center gap-1 mb-8 overflow-x-auto scrollbar-hide pb-1">
+      <div className="flex items-center gap-1.5 mb-8 overflow-x-auto scrollbar-hide pb-1">
         {EDITOR_STEPS.map((step, i) => (
           <button
             key={step.key}
             onClick={() => setEditorStep(step.key as EditorStep)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               editorStep === step.key
                 ? "bg-[#795252] text-white"
                 : i < currentStepIndex
@@ -109,7 +109,7 @@ export default function InvitationEditPage() {
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
             }`}
           >
-            {i < currentStepIndex && <Check className="w-3 h-3" />}
+            {i < currentStepIndex && <Check className="w-4 h-4" />}
             <span>{i + 1}. {step.label}</span>
           </button>
         ))}
@@ -125,22 +125,22 @@ export default function InvitationEditPage() {
         <button
           onClick={handlePrev}
           disabled={currentStepIndex === 0}
-          className="px-5 py-2.5 text-[13px] font-medium text-taupe-500 hover:text-noir-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-3 text-base font-medium text-taupe-500 hover:text-noir-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           이전
         </button>
         {currentStepIndex < EDITOR_STEPS.length - 1 ? (
           <button
             onClick={handleNext}
-            className="inline-flex items-center gap-1.5 px-6 py-2.5 bg-[#795252] text-white text-[13px] font-medium rounded-xl hover:bg-[#946a6a] transition-colors"
+            className="inline-flex items-center gap-1.5 px-6 py-3 bg-[#795252] text-white text-base font-medium rounded-xl hover:bg-[#946a6a] transition-colors"
           >
             다음
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
           <button
             onClick={() => router.push("/invitations")}
-            className="px-6 py-2.5 bg-rose-500 text-white text-[13px] font-medium rounded-xl hover:bg-rose-600 transition-colors"
+            className="px-6 py-3 bg-rose-500 text-white text-base font-medium rounded-xl hover:bg-rose-600 transition-colors"
           >
             완료
           </button>

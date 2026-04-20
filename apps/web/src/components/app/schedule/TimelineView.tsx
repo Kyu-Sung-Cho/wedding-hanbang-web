@@ -203,24 +203,24 @@ export default function TimelineView({
                 className="w-full flex items-center justify-between px-6 py-5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-[#795252] bg-[#795252]/10 px-2.5 py-1 rounded-full font-medium">
+                  <span className="text-sm text-[#795252] bg-[#795252]/10 px-2.5 py-1 rounded-full font-medium">
                     {phase.dday}
                   </span>
-                  <span className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">
+                  <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">
                     {phase.label}
                   </span>
-                  <span className="text-[11px] text-[#B5ADA3] font-light">
+                  <span className="text-sm text-[#B5ADA3] font-light">
                     {phase.period}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[12px] text-[#B5ADA3]">
+                  <span className="text-sm text-[#B5ADA3]">
                     {phaseStats.done}/{phaseStats.total}
                   </span>
                   {isPhaseExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
+                    <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
+                    <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
                   )}
                 </div>
               </button>
@@ -239,21 +239,21 @@ export default function TimelineView({
                       return (
                         <div className="mt-4 mb-2 px-3">
                           <div className="flex items-center gap-2 mb-2">
-                            <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E]" />
-                            <span className="text-[11px] uppercase tracking-widest text-[#B5ADA3] font-medium">등록된 일정</span>
+                            <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
+                            <span className="text-sm uppercase tracking-widest text-[#B5ADA3] font-medium">등록된 일정</span>
                           </div>
                           {phaseEvents.map(evt => (
-                            <div key={evt.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#FAFAF8] group">
-                              <div className="w-7 h-7 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
-                                <CalendarDays className="w-3.5 h-3.5 text-[#C9A96E]" />
+                            <div key={evt.id} className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-[#FAFAF8] group">
+                              <div className="w-8 h-8 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
+                                <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-serif-kr text-[13px] font-normal text-[#1A1A1F]">{evt.title}</p>
-                                <p className="text-[10px] text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                                <p className="font-serif-kr text-base font-normal text-[#1A1A1F]">{evt.title}</p>
+                                <p className="text-sm text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                               </div>
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-3 h-3" /></button>}
-                                {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                                {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
+                                {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                               </div>
                             </div>
                           ))}
@@ -280,17 +280,17 @@ export default function TimelineView({
                             }
                             className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#FAFAF8] transition-colors"
                           >
-                            <div className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center flex-shrink-0">
-                              <Icon className="w-4 h-4 text-[#795252]" />
+                            <div className="w-10 h-10 rounded-xl bg-[#F6F3F2] flex items-center justify-center flex-shrink-0">
+                              <Icon className="w-5 h-5 text-[#795252]" />
                             </div>
 
                             <div className="flex-1 min-w-0 text-left">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-serif-kr text-[14px] font-semibold text-[#1A1A1F]">
+                                <span className="font-serif-kr text-base font-semibold text-[#1A1A1F]">
                                   {cat.label}
                                 </span>
                                 <span
-                                  className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium ${
+                                  className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${
                                     STATUS_COLORS[data.status]
                                   }`}
                                 >
@@ -305,7 +305,7 @@ export default function TimelineView({
                                     style={{ width: `${percent}%` }}
                                   />
                                 </div>
-                                <span className="text-[10px] text-[#B5ADA3] flex-shrink-0">
+                                <span className="text-sm text-[#B5ADA3] flex-shrink-0">
                                   {data.done}/{data.total}
                                 </span>
                               </div>
@@ -313,9 +313,9 @@ export default function TimelineView({
 
                             <div className="flex-shrink-0">
                               {isCatExpanded ? (
-                                <ChevronUp className="w-4 h-4 text-[#B5ADA3]" />
+                                <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
                               ) : (
-                                <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />
+                                <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
                               )}
                             </div>
                           </button>
@@ -340,15 +340,15 @@ export default function TimelineView({
                                   >
                                     <div className="flex-shrink-0">
                                       {item.done ? (
-                                        <div className="w-5 h-5 rounded-full bg-[#795252] flex items-center justify-center">
-                                          <Check className="w-3 h-3 text-white" />
+                                        <div className="w-6 h-6 rounded-full bg-[#795252] flex items-center justify-center">
+                                          <Check className="w-4 h-4 text-white" />
                                         </div>
                                       ) : (
-                                        <div className="w-5 h-5 rounded-full border-2 border-[#B5ADA3] hover:border-[#795252] transition-colors" />
+                                        <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] hover:border-[#795252] transition-colors" />
                                       )}
                                     </div>
                                     <span
-                                      className={`text-[13px] leading-snug ${
+                                      className={`text-[17px] leading-snug ${
                                         item.done
                                           ? "text-[#B5ADA3] line-through"
                                           : "text-[#504444]"
@@ -385,16 +385,16 @@ export default function TimelineView({
             <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
               <div className="flex items-center justify-between px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-[#C9A96E] bg-[#C9A96E]/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
-                  <span className="font-serif-kr text-[16px] font-light text-[#1A1A1F]">직접 추가한 일정</span>
-                  <span className="text-[11px] text-[#B5ADA3]">{uncategorized.length}건</span>
+                  <span className="text-sm text-[#C9A96E] bg-[#C9A96E]/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
+                  <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">직접 추가한 일정</span>
+                  <span className="text-sm text-[#B5ADA3]">{uncategorized.length}건</span>
                 </div>
                 {onAddEvent && (
                   <button
                     onClick={onAddEvent}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-[#795252] bg-[#795252]/5 hover:bg-[#795252]/10 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#795252] bg-[#795252]/5 hover:bg-[#795252]/10 transition-colors"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-4 h-4" />
                     일정 추가
                   </button>
                 )}
@@ -402,17 +402,17 @@ export default function TimelineView({
               {uncategorized.length > 0 && (
                 <div className="border-t border-[#F6F3F2] px-4 pb-4">
                   {uncategorized.map(evt => (
-                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2 rounded-lg hover:bg-[#FAFAF8] group">
-                      <div className="w-9 h-9 rounded-xl bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
-                        <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
+                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2.5 rounded-lg hover:bg-[#FAFAF8] group">
+                      <div className="w-10 h-10 rounded-xl bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
+                        <CalendarDays className="w-5 h-5 text-[#C9A96E]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-serif-kr text-[14px] font-normal text-[#1A1A1F]">{evt.title}</p>
-                        <p className="text-[11px] text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                        <p className="font-serif-kr text-base font-normal text-[#1A1A1F]">{evt.title}</p>
+                        <p className="text-sm text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-3 h-3" /></button>}
-                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-3 h-3" /></button>}
+                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
+                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                       </div>
                     </div>
                   ))}

@@ -64,8 +64,8 @@ export default function TemplateSelectPage() {
           <ArrowLeft className="w-5 h-5 text-noir-800" />
         </Link>
         <div>
-          <h1 className="text-[20px] font-semibold text-noir-800">템플릿 선택</h1>
-          <p className="text-[13px] text-taupe-500">마음에 드는 디자인을 눌러 미리보기 하세요</p>
+          <h1 className="text-2xl font-semibold text-noir-800">템플릿 선택</h1>
+          <p className="text-base text-taupe-500">마음에 드는 디자인을 눌러 미리보기 하세요</p>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export default function TemplateSelectPage() {
           <button
             key={cat.key}
             onClick={() => setCategory(cat.key)}
-            className={`px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 rounded-full text-base font-medium whitespace-nowrap transition-colors ${
               category === cat.key
                 ? "bg-[#795252] text-white"
                 : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
@@ -129,19 +129,19 @@ export default function TemplateSelectPage() {
             </div>
 
             {/* 정보 */}
-            <div className="p-3 bg-white">
+            <div className="p-3.5 bg-white">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-medium text-noir-800">{template.name}</span>
+                <span className="text-base font-medium text-noir-800">{template.name}</span>
                 {template.is_premium && (
-                  <Crown className="w-3.5 h-3.5 text-gold" />
+                  <Crown className="w-4 h-4 text-gold" />
                 )}
               </div>
-              <span className="text-[11px] text-taupe-500 capitalize">{template.category}</span>
+              <span className="text-sm text-taupe-500 capitalize">{template.category}</span>
             </div>
 
             {/* 미리보기 아이콘 */}
-            <div className="absolute top-3 right-3 w-7 h-7 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <Eye className="w-3.5 h-3.5 text-noir-800" />
+            <div className="absolute top-3 right-3 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Eye className="w-4 h-4 text-noir-800" />
             </div>
           </button>
         ))}
@@ -395,10 +395,10 @@ export default function TemplateSelectPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[16px] font-semibold text-noir-800">{preview.name}</h3>
-                    {preview.is_premium && <Crown className="w-4 h-4 text-gold" />}
+                    <h3 className="text-xl font-semibold text-noir-800">{preview.name}</h3>
+                    {preview.is_premium && <Crown className="w-5 h-5 text-gold" />}
                   </div>
-                  <p className="text-[12px] text-taupe-500 capitalize mt-0.5">
+                  <p className="text-sm text-taupe-500 capitalize mt-0.5">
                     {preview.category} · {preview.opening_animation} 오프닝
                   </p>
                 </div>
@@ -416,7 +416,7 @@ export default function TemplateSelectPage() {
               <button
                 onClick={handleConfirm}
                 disabled={creating}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-[14px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {creating ? (
                   <>

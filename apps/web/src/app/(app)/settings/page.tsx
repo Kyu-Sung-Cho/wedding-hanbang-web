@@ -503,10 +503,10 @@ export default function SettingsPage() {
                 <Trash2 className="w-6 h-6 text-red-400" />
               </div>
 
-              <h3 className="font-serif-kr text-[22px] font-light text-[#1A1A1F] text-center mb-2">
+              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
                 정말 탈퇴하시겠어요?
               </h3>
-              <p className="text-[13px] text-[#B5ADA3] text-center leading-relaxed mb-6">
+              <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
                 탈퇴하면 모든 데이터가 영구 삭제되며
                 <br />
                 복구할 수 없습니다.
@@ -514,10 +514,10 @@ export default function SettingsPage() {
 
               {/* 탈퇴 사유 */}
               <div className="mb-5">
-                <p className="text-[12px] text-[#504444] mb-3">탈퇴 사유를 선택해주세요</p>
+                <p className="text-sm text-[#504444] mb-3">탈퇴 사유를 선택해주세요</p>
                 <div className="space-y-2">
                   {DELETE_REASONS.map((r) => (
-                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
+                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
                       deleteReason === r.value ? "bg-[#795252]/5 ring-1 ring-[#795252]/20" : "bg-[#F6F3F2] hover:bg-[#EDE7E5]"
                     }`}>
                       <input
@@ -528,7 +528,7 @@ export default function SettingsPage() {
                         onChange={() => setDeleteReason(r.value)}
                         className="w-4 h-4 accent-[#795252]"
                       />
-                      <span className="text-[13px] text-[#1A1A1F]">{r.label}</span>
+                      <span className="text-base text-[#1A1A1F]">{r.label}</span>
                     </label>
                   ))}
                 </div>
@@ -538,13 +538,13 @@ export default function SettingsPage() {
                     onChange={(e) => setDeleteReasonOther(e.target.value)}
                     placeholder="탈퇴 사유를 알려주세요..."
                     rows={2}
-                    className="w-full mt-2 px-3 py-2 rounded-xl bg-[#F6F3F2] text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#795252]/30"
+                    className="w-full mt-2 px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-base outline-none resize-none focus:ring-2 focus:ring-[#795252]/30"
                   />
                 )}
               </div>
 
               <div className="mb-5">
-                <p className="text-[12px] text-[#504444] mb-2">
+                <p className="text-sm text-[#504444] mb-2">
                   확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
                 </p>
                 <input
@@ -552,18 +552,18 @@ export default function SettingsPage() {
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="탈퇴합니다"
-                  className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-[14px] text-[#1A1A1F] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[#B5ADA3]"
+                  className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[#B5ADA3]"
                 />
               </div>
 
               {deleteError && (
-                <p className="text-[12px] text-red-500 text-center mb-4">{deleteError}</p>
+                <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
               )}
 
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || (deleteReason === "other" && !deleteReasonOther.trim()) || deleting}
-                className="w-full py-3 rounded-xl text-[14px] font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {deleting ? "삭제 중..." : "계정 영구 삭제"}
               </button>
@@ -576,7 +576,7 @@ export default function SettingsPage() {
                   setDeleteReason("");
                   setDeleteReasonOther("");
                 }}
-                className="w-full py-3 rounded-xl text-[14px] font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
+                className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
               >
                 취소
               </button>

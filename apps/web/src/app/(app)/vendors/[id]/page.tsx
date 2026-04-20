@@ -49,58 +49,58 @@ function ProductCard({ product, category, isSelected, onSelect }: {
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <h4 className="text-[14px] font-medium text-[#1A1A1F]">{product.name}</h4>
+              <h4 className="text-base font-medium text-[#1A1A1F]">{product.name}</h4>
               {product.isPopular && (
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#C9A96E]/10 text-[10px] text-[#C9A96E] font-medium">
-                  <Star className="w-2.5 h-2.5 fill-[#C9A96E]" />인기
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-sm text-[#C9A96E] font-medium">
+                  <Star className="w-3 h-3 fill-[#C9A96E]" />인기
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3">
               {product.discountPrice ? (
                 <>
-                  <span className="text-[15px] font-medium text-[#795252]">{formatPrice(product.discountPrice)}</span>
-                  <span className="text-[12px] text-[#B5ADA3] line-through">{formatPrice(product.price)}</span>
+                  <span className="text-[17px] font-medium text-[#795252]">{formatPrice(product.discountPrice)}</span>
+                  <span className="text-sm text-[#B5ADA3] line-through">{formatPrice(product.price)}</span>
                 </>
               ) : (
-                <span className="text-[15px] font-medium text-[#1A1A1F]">{formatPrice(product.price)}</span>
+                <span className="text-[17px] font-medium text-[#1A1A1F]">{formatPrice(product.price)}</span>
               )}
-              <span className="text-[11px] text-[#B5ADA3] flex items-center gap-0.5">
-                <Timer className="w-3 h-3" />{formatDuration(product.duration)}
+              <span className="text-sm text-[#B5ADA3] flex items-center gap-1">
+                <Timer className="w-4 h-4" />{formatDuration(product.duration)}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {hasSlots && <span className="px-1.5 py-0.5 rounded-full bg-[#2E7D5A]/10 text-[10px] text-[#2E7D5A] font-medium">예약가능</span>}
+            {hasSlots && <span className="px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-sm text-[#2E7D5A] font-medium">예약가능</span>}
             {isSelected && (
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
-                <Check className="w-3.5 h-3.5 text-white" />
+                <Check className="w-4 h-4 text-white" />
               </div>
             )}
           </div>
         </div>
 
         {product.includes.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {product.includes.slice(0, 4).map((item, idx) => (
-              <span key={idx} className="px-2 py-0.5 rounded-full bg-[#F6F3F2] text-[10px] text-[#504444] font-medium">{item}</span>
+              <span key={idx} className="px-2 py-0.5 rounded-full bg-[#F6F3F2] text-sm text-[#504444] font-medium">{item}</span>
             ))}
             {product.includes.length > 4 && (
-              <span className="px-2 py-0.5 rounded-full bg-[#F6F3F2] text-[10px] text-[#B5ADA3]">+{product.includes.length - 4}</span>
+              <span className="px-2 py-0.5 rounded-full bg-[#F6F3F2] text-sm text-[#B5ADA3]">+{product.includes.length - 4}</span>
             )}
           </div>
         )}
       </div>
 
-      <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="w-full flex items-center justify-center gap-1 py-2 text-[11px] text-[#B5ADA3] hover:text-[#795252] transition-colors">
+      <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm text-[#B5ADA3] hover:text-[#795252] transition-colors">
         {expanded ? "접기" : "상세 보기"}
-        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
 
       {expanded && (
         <div className="px-4 pb-4">
           {product.description && (
-            <p className="text-[12px] text-[#504444] font-light mt-3 mb-3">{product.description}</p>
+            <p className="text-base text-[#504444] font-light mt-3 mb-3">{product.description}</p>
           )}
           <div className="space-y-1.5">
             {config?.fields.map((field) => {
@@ -108,8 +108,8 @@ function ProductCard({ product, category, isSelected, onSelect }: {
               if (val === undefined || val === null || val === "" || val === false) return null;
               return (
                 <div key={field.key} className="flex items-center justify-between">
-                  <span className="text-[11px] text-[#B5ADA3]">{field.label}</span>
-                  <span className="text-[11px] text-[#1A1A1F] font-medium">{renderFieldValue(field, val)}</span>
+                  <span className="text-sm text-[#B5ADA3]">{field.label}</span>
+                  <span className="text-sm text-[#1A1A1F] font-medium">{renderFieldValue(field, val)}</span>
                 </div>
               );
             })}
@@ -186,8 +186,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   if (!vendor) {
     return (
       <div className="max-w-[800px] mx-auto text-center py-20">
-        <p className="text-[14px] text-[#B5ADA3]">업체를 찾을 수 없습니다</p>
-        <Link href="/vendors" className="text-[14px] text-[#795252] mt-2 inline-block">
+        <p className="text-base text-[#B5ADA3]">업체를 찾을 수 없습니다</p>
+        <Link href="/vendors" className="text-base text-[#795252] mt-2 inline-block">
           목록으로 돌아가기
         </Link>
       </div>
@@ -328,7 +328,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="max-w-[900px] mx-auto bg-[#FAFAF8]">
-      <Link href="/vendors" className="inline-flex items-center gap-1.5 text-[13px] text-[#B5ADA3] hover:text-[#795252] transition-colors mb-6">
+      <Link href="/vendors" className="inline-flex items-center gap-1.5 text-base text-[#B5ADA3] hover:text-[#795252] transition-colors mb-6">
         <ArrowLeft className="w-4 h-4" />
         업체 목록
       </Link>
@@ -338,11 +338,11 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         <div className="col-span-3 space-y-6">
           <div className="animate-fade-in">
             <div className="h-[220px] bg-gradient-to-br from-[#F6F3F2] to-[#EDE7E5] rounded-xl flex items-center justify-center relative mb-5 overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <span className="text-[14px] text-[#B5ADA3] font-light">{vendor.category} 대표 사진</span>
+              <span className="text-base text-[#B5ADA3] font-light">{vendor.category} 대표 사진</span>
               <div className="absolute top-3 left-3 flex gap-2">
                 {vendor.aiRecommend && (
-                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-[11px] font-medium shadow-sm">
-                    <Sparkles className="w-3 h-3" />AI 추천
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-sm">
+                    <Sparkles className="w-4 h-4" />AI 추천
                   </span>
                 )}
               </div>
@@ -360,30 +360,30 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${isFavorite ? "fill-[#795252]" : ""}`} />
-                  <span className="text-[13px] font-medium">{isFavorite ? "찜" : "찜하기"}</span>
+                  <span className="text-base font-medium">{isFavorite ? "찜" : "찜하기"}</span>
                 </button>
               </div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 text-[#C9A96E] fill-[#C9A96E]" />
-                  <span className="text-[14px] font-medium text-[#1A1A1F]">{vendor.rating}</span>
-                  <span className="text-[12px] text-[#B5ADA3]">({vendor.reviewCount}개 리뷰)</span>
+                  <Star className="w-5 h-5 text-[#C9A96E] fill-[#C9A96E]" />
+                  <span className="text-base font-medium text-[#1A1A1F]">{vendor.rating}</span>
+                  <span className="text-sm text-[#B5ADA3]">({vendor.reviewCount}개 리뷰)</span>
                 </div>
                 <span className="text-[#B5ADA3]">·</span>
-                <span className="text-[13px] text-[#795252] font-medium">{vendor.priceRange}</span>
+                <span className="text-base text-[#795252] font-medium">{vendor.priceRange}</span>
               </div>
-              <div className="flex items-center gap-4 mb-3 text-[13px] text-[#504444]">
+              <div className="flex items-center gap-4 mb-3 text-base text-[#504444]">
                 <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#B5ADA3]" />{vendor.address}</span>
               </div>
-              <div className="flex items-center gap-4 mb-5 text-[13px] text-[#504444]">
+              <div className="flex items-center gap-4 mb-5 text-base text-[#504444]">
                 <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#B5ADA3]" />{vendor.phone}</span>
               </div>
               <div className="flex gap-1.5 flex-wrap mb-5">
                 {vendor.tags.map((tag) => (
-                  <span key={tag} className="px-3 py-1 rounded-full bg-[#F6F3F2] text-[12px] text-[#504444] font-medium">{tag}</span>
+                  <span key={tag} className="px-3 py-1.5 rounded-full bg-[#F6F3F2] text-sm text-[#504444] font-medium">{tag}</span>
                 ))}
               </div>
-              <p className="text-[14px] text-[#504444] font-light leading-[1.8]">{vendor.description}</p>
+              <p className="text-[17px] text-[#504444] font-light leading-[1.8]">{vendor.description}</p>
             </div>
           </div>
 
@@ -393,10 +393,10 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-5 h-5 text-[#795252]" />
-                  <h2 className="font-serif-kr text-xl font-light text-[#1A1A1F]">{config?.productLabel ?? "상품"}</h2>
-                  <span className="text-[12px] text-[#B5ADA3] ml-1">{activeProducts.length}개</span>
+                  <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{config?.productLabel ?? "상품"}</h2>
+                  <span className="text-sm text-[#B5ADA3] ml-1">{activeProducts.length}개</span>
                 </div>
-                <p className="text-[12px] text-[#B5ADA3] font-light mb-5">상품을 선택하면 해당 상품의 예약 가능 시간이 표시됩니다</p>
+                <p className="text-sm text-[#B5ADA3] font-light mb-5">상품을 선택하면 해당 상품의 예약 가능 시간이 표시됩니다</p>
                 <div className="space-y-3">
                   {activeProducts.map((product) => (
                     <ProductCard
@@ -421,8 +421,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <ImageIcon className="w-5 h-5 text-[#795252]" />
-                    <h2 className="font-serif-kr text-xl font-light text-[#1A1A1F]">포트폴리오</h2>
-                    <span className="text-[12px] text-[#B5ADA3] ml-1">{allImages.length}장</span>
+                    <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">포트폴리오</h2>
+                    <span className="text-sm text-[#B5ADA3] ml-1">{allImages.length}장</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {allImages.slice(0, 9).map((src, idx) => (
@@ -443,7 +443,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                     ))}
                   </div>
                   {allImages.length > 9 && (
-                    <p className="text-center text-[12px] text-[#B5ADA3] mt-3">+{allImages.length - 9}장 더보기</p>
+                    <p className="text-center text-sm text-[#B5ADA3] mt-3">+{allImages.length - 9}장 더보기</p>
                   )}
                 </div>
               </div>
@@ -456,8 +456,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                 <div className="flex items-center gap-2 mb-1">
                   <MessageCircle className="w-5 h-5 text-[#795252]" />
-                  <h2 className="font-serif-kr text-xl font-light text-[#1A1A1F]">고객 리뷰</h2>
-                  <span className="text-[12px] text-[#B5ADA3] ml-1">{reviews.length}개</span>
+                  <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">고객 리뷰</h2>
+                  <span className="text-sm text-[#B5ADA3] ml-1">{reviews.length}개</span>
                 </div>
                 {/* 평균 별점 */}
                 <div className="flex items-center gap-2 mb-5">
@@ -473,7 +473,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                       />
                     ))}
                   </div>
-                  <span className="text-[14px] font-medium text-[#1A1A1F]">
+                  <span className="text-base font-medium text-[#1A1A1F]">
                     {(reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1)}
                   </span>
                 </div>
@@ -485,16 +485,16 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                           {[1, 2, 3, 4, 5].map((s) => (
                             <Star
                               key={s}
-                              className={`w-3 h-3 ${s <= review.rating ? "text-[#C9A96E] fill-[#C9A96E]" : "text-[#B5ADA3]/30"}`}
+                              className={`w-4 h-4 ${s <= review.rating ? "text-[#C9A96E] fill-[#C9A96E]" : "text-[#B5ADA3]/30"}`}
                             />
                           ))}
                         </div>
-                        <span className="text-[11px] text-[#B5ADA3]">
+                        <span className="text-sm text-[#B5ADA3]">
                           {new Date(review.created_at).toLocaleDateString("ko-KR")}
                         </span>
                       </div>
                       {review.content && (
-                        <p className="text-[13px] text-[#504444] font-light leading-relaxed mb-2">{review.content}</p>
+                        <p className="text-base text-[#504444] font-light leading-relaxed mb-2">{review.content}</p>
                       )}
                       {/* 리뷰 이미지 */}
                       {review.images && review.images.length > 0 && (
@@ -509,8 +509,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                       {/* 업체 답변 */}
                       {review.reply && (
                         <div className="ml-4 mt-2 px-3 py-2.5 bg-[#F6F3F2] rounded-xl">
-                          <p className="text-[11px] text-[#795252] font-medium mb-1">업체 답변</p>
-                          <p className="text-[12px] text-[#504444] font-light leading-relaxed">{review.reply}</p>
+                          <p className="text-sm text-[#795252] font-medium mb-1">업체 답변</p>
+                          <p className="text-base text-[#504444] font-light leading-relaxed">{review.reply}</p>
                         </div>
                       )}
                     </div>
@@ -529,15 +529,15 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(121,82,82,0.08)] ring-1 ring-[#795252]/10 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Tag className="w-4 h-4 text-[#795252]" />
-                  <span className="text-[12px] text-[#795252] font-medium">선택한 상품</span>
+                  <span className="text-sm text-[#795252] font-medium">선택한 상품</span>
                 </div>
-                <h4 className="text-[14px] font-medium text-[#1A1A1F] mb-1">{currentProduct.name}</h4>
+                <h4 className="text-base font-medium text-[#1A1A1F] mb-1">{currentProduct.name}</h4>
                 <div className="flex items-center gap-3">
-                  <p className="text-[15px] font-medium text-[#795252]">
+                  <p className="text-[17px] font-medium text-[#795252]">
                     {currentProduct.discountPrice ? formatPrice(currentProduct.discountPrice) : formatPrice(currentProduct.price)}
                   </p>
-                  <span className="text-[11px] text-[#B5ADA3] flex items-center gap-0.5">
-                    <Timer className="w-3 h-3" />{formatDuration(currentProduct.duration)}
+                  <span className="text-sm text-[#B5ADA3] flex items-center gap-1">
+                    <Timer className="w-4 h-4" />{formatDuration(currentProduct.duration)}
                   </span>
                 </div>
               </div>
@@ -548,13 +548,13 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="w-5 h-5 text-[#795252]" />
-                  <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">담당자 선택</h3>
-                  <span className="text-[11px] text-[#B5ADA3]">(선택사항)</span>
+                  <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">담당자 선택</h3>
+                  <span className="text-sm text-[#B5ADA3]">(선택사항)</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedStaff(null)}
-                    className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       selectedStaff === null
                         ? "bg-[#795252] text-white"
                         : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE7E5]"
@@ -566,14 +566,14 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                     <button
                       key={staff.id}
                       onClick={() => setSelectedStaff(staff.id)}
-                      className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         selectedStaff === staff.id
                           ? "bg-[#795252] text-white"
                           : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE7E5] hover:text-[#795252]"
                       }`}
                     >
                       {staff.name}
-                      {staff.role && <span className="text-[10px] opacity-70 ml-1">({staff.role})</span>}
+                      {staff.role && <span className="text-sm opacity-70 ml-1">({staff.role})</span>}
                     </button>
                   ))}
                 </div>
@@ -584,7 +584,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarCheck className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-[17px] font-light text-[#1A1A1F]">
+                <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">
                   {currentProduct ? `${currentProduct.name} 예약` : "예약 가능 시간"}
                 </h3>
               </div>
@@ -593,8 +593,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               {activeProducts.length > 0 && !currentProduct && (
                 <div className="py-6 text-center">
                   <Package className="w-8 h-8 text-[#B5ADA3]/30 mx-auto mb-2" />
-                  <p className="text-[13px] text-[#B5ADA3] mb-1">상품을 먼저 선택해주세요</p>
-                  <p className="text-[11px] text-[#B5ADA3]/70 font-light">상품마다 예약 가능 시간이 다릅니다</p>
+                  <p className="text-base text-[#B5ADA3] mb-1">상품을 먼저 선택해주세요</p>
+                  <p className="text-sm text-[#B5ADA3]/70 font-light">상품마다 예약 가능 시간이 다릅니다</p>
                 </div>
               )}
 
@@ -609,7 +609,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                         <button
                           key={day}
                           onClick={() => { setSelectedDay(di); setSelectedSlot(null); }}
-                          className={`flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors ${
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                             selectedDay === di
                               ? "bg-[#795252] text-white"
                               : hasSlots
@@ -635,7 +635,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                             key={`${slot.day}-${slot.hour}`}
                             onClick={() => !isFull && setSelectedSlot(slot.hour)}
                             disabled={isFull}
-                            className={`py-2.5 rounded-lg text-[13px] font-medium transition-colors relative ${
+                            className={`py-2.5 rounded-lg text-base font-medium transition-colors relative ${
                               isFull
                                 ? "bg-[#B5ADA3]/10 text-[#B5ADA3]/50 cursor-not-allowed"
                                 : isSelected
@@ -643,12 +643,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                                 : "bg-white text-[#795252] ring-1 ring-[#795252]/20 hover:bg-[#795252]/5"
                             }`}
                           >
-                            <Clock className="w-3 h-3 inline mr-1" />
+                            <Clock className="w-4 h-4 inline mr-1" />
                             {String(slot.hour).padStart(2, "0")}:00
                             {isFull ? (
-                              <span className="block text-[10px] mt-0.5 opacity-70">마감</span>
+                              <span className="block text-sm mt-0.5 opacity-70">마감</span>
                             ) : remaining <= 2 && slot.maxBookings > 1 ? (
-                              <span className={`block text-[10px] mt-0.5 ${
+                              <span className={`block text-sm mt-0.5 ${
                                 isSelected ? "text-white/80" : "text-[#795252]"
                               }`}>
                                 잔여 {remaining}석
@@ -660,7 +660,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                   ) : (
                     <div className="py-6 text-center">
-                      <p className="text-[13px] text-[#B5ADA3]">이 요일에는 예약 가능 시간이 없습니다</p>
+                      <p className="text-base text-[#B5ADA3]">이 요일에는 예약 가능 시간이 없습니다</p>
                     </div>
                   )}
 
@@ -668,7 +668,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   <button
                     onClick={handleBook}
                     disabled={selectedSlot === null || booked || booking}
-                    className={`w-full py-3.5 rounded-xl text-[14px] font-medium transition-all flex items-center justify-center gap-2 ${
+                    className={`w-full py-3.5 rounded-xl text-base font-medium transition-all flex items-center justify-center gap-2 ${
                       booked
                         ? "bg-[#2E7D5A] text-white"
                         : selectedSlot !== null
@@ -688,7 +688,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   </button>
 
                   {booked && (
-                    <p className="text-[12px] text-[#2E7D5A] text-center mt-2">
+                    <p className="text-sm text-[#2E7D5A] text-center mt-2">
                       업체에서 확인 후 연락드릴 예정입니다
                     </p>
                   )}
@@ -697,7 +697,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             </div>
 
             <div className="bg-[#F6F3F2] rounded-xl p-4">
-              <p className="text-[12px] text-[#504444] font-light leading-relaxed">
+              <p className="text-sm text-[#504444] font-light leading-relaxed">
                 예약은 업체 확인 후 확정됩니다. 확정 시 등록하신 연락처로 안내해드립니다. 예약 변경/취소는 방문일 1일 전까지 가능합니다.
               </p>
             </div>
@@ -705,9 +705,9 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             {/* 문의하기 */}
             <button
               onClick={() => setShowMessageBox(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-[13px] text-[#795252] font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white text-base text-[#795252] font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-5 h-5" />
               업체에 문의하기
             </button>
           </div>
@@ -721,7 +721,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">{vendor.name}에 문의</h3>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{vendor.name}에 문의</h3>
               </div>
               <button onClick={() => setShowMessageBox(false)} className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
                 <X className="w-5 h-5 text-[#B5ADA3]" />
@@ -732,12 +732,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="궁금한 점을 자유롭게 작성해주세요..."
               rows={4}
-              className="w-full px-4 py-3 bg-[#F6F3F2] rounded-xl text-[14px] outline-none focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none mb-4"
+              className="w-full px-4 py-3 bg-[#F6F3F2] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none mb-4"
             />
             <button
               onClick={handleSendMessage}
               disabled={!messageText.trim() || sendingMessage || messageSent}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[14px] font-medium transition-all ${
+              className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-medium transition-all ${
                 messageSent
                   ? "bg-[#2E7D5A] text-white"
                   : "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] disabled:opacity-50"

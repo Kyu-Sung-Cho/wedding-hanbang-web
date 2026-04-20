@@ -366,7 +366,7 @@ export default function MoneyPage() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => setDeleteConfirm(null)}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-xs"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm"
                     >
                       취소
                     </button>
