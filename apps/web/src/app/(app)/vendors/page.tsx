@@ -18,6 +18,7 @@ import Link from "next/link";
 import type { Vendor } from "@/types/vendor.types";
 import { useEventTracker } from "@/hooks/useEventTracker";
 import { useAuthStore } from "@/stores/authStore";
+import AmoraDirector from "@/components/app/AmoraDirector";
 
 const categories = ["전체", "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행"];
 
@@ -459,6 +460,14 @@ export default function VendorsPage() {
           </div>
         </div>
       </div>
+
+      {/* 아모라 플로팅 디렉터 */}
+      <AmoraDirector
+        context="vendors"
+        categoryName={activeCategory}
+        favoriteCount={favoritesCount}
+        hasPreferences={aiRecommendedIds.size > 0}
+      />
     </div>
   );
 }
