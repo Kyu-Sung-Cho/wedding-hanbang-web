@@ -53,7 +53,7 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden mb-10 relative"
+      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden relative"
     >
       {/* 별 장식 (우상단 절대배치) */}
       <Star className="absolute top-6 right-6 z-10 w-5 h-5 text-[#C9A96E] opacity-40" />
@@ -244,9 +244,9 @@ function CommunityFeedContent() {
         <CategoryTabs />
       </div>
 
-      <div className="flex w-full">
-        {/* 왼쪽 사이드바: w-72 = 288px — 레퍼런스: 흰색 bg, 구분선 없음 */}
-        <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-white pt-12 pb-8 px-4">
+      <div className="flex w-full max-w-[1920px] mx-auto">
+        {/* 왼쪽 사이드바: w-72 = 288px — 레퍼런스 정확 매칭 */}
+        <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-[#FAFAF8] pt-12 pb-8 px-4 z-40">
           {/* serif italic 브랜드 헤더 — 레퍼런스 text-lg italic */}
           <div className="mb-8 px-4">
             <h2 className="font-serif-kr text-lg italic text-[#C4967E] mb-1">
@@ -281,9 +281,9 @@ function CommunityFeedContent() {
           </div>
         </aside>
 
-        {/* 가운데: 메인 피드 — px-6 lg:px-12 py-10, max-w-4xl */}
-        <main className="flex-1 min-w-0 px-6 lg:px-12 py-10">
-          <div className="max-w-4xl mx-auto lg:mx-0 lg:max-w-none">
+        {/* 가운데: 메인 피드 — 레퍼런스: flex-1 min-w-0 px-6 lg:px-12 py-10, 내부 max-w-4xl mx-auto */}
+        <main className="flex-1 min-w-0 px-6 lg:px-12 py-10 overflow-y-auto">
+          <div className="max-w-4xl mx-auto space-y-12">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
@@ -309,12 +309,12 @@ function CommunityFeedContent() {
               return featured ? <EditorsPick post={featured} /> : null;
             })()}
 
-            {/* 피드 헤더: serif title + sort dropdown */}
+            {/* 피드 헤더 — 레퍼런스: flex items-center justify-between border-b border-surface-variant pb-4 */}
             {!isSearching && (
-              <div className="flex items-center justify-between mb-8 border-b border-[#F0EFED] pb-4">
-                <h2 className="font-serif-kr text-2xl text-[#1A1A1F]">
+              <div className="flex items-center justify-between border-b border-[#F0EFED] pb-4">
+                <h3 className="font-serif-kr text-2xl text-[#1A1A1F]">
                   최근 대화
-                </h2>
+                </h3>
                 <SortSelector
                   sort={currentSort}
                   period={currentPeriod}
@@ -423,11 +423,9 @@ function CommunityFeedContent() {
           {/* 4. 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
             <div>
-              <div className="border-b border-[#F0EFED] pb-3 mb-5">
-                <h3 className="font-serif-kr text-lg italic text-[#1A1A1F]">
-                  인기 태그
-                </h3>
-              </div>
+              <h3 className="font-serif-kr text-lg text-[#1A1A1F] mb-4 border-b border-[#F0EFED] pb-2">
+                인기 태그
+              </h3>
               <div className="flex flex-wrap gap-x-3 gap-y-2.5">
                 {popularTags.slice(0, 15).map((t) => (
                   <Link
