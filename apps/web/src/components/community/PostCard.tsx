@@ -1,25 +1,17 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ChevronUp,
-  ChevronDown,
   MessageCircle,
   Share2,
   Bookmark,
-  Eye,
   Pin,
-  Sparkles,
-  CheckCircle2,
-  ShieldCheck,
-  AlertTriangle,
 } from "lucide-react";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
-import type { PostWithAuthor, CommunityRank } from "@/types/community.types";
+import type { PostWithAuthor } from "@/types/community.types";
 
 interface PostCardProps {
   post: PostWithAuthor;
@@ -28,32 +20,13 @@ interface PostCardProps {
   onBookmark?: (postId: string) => void;
 }
 
-// 아바타 그래디언트 팔레트
-const AVATAR_GRADIENTS = [
-  "from-[#C4967E] to-[#C9A96E]",
-  "from-[#A8D8A8] to-[#6BBF6B]",
-  "from-[#7EB8D8] to-[#5A9CC0]",
-  "from-[#C9A96E] to-[#DCC9A0]",
-  "from-[#D88B8B] to-[#C06B6B]",
-  "from-[#B39DDB] to-[#7E57C2]",
-];
-
-// 계급 라벨 + 레벨
-const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: string; text: string }> = {
-  sprout:    { label: "새싹",   level: 1, bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]" },
-  preparing: { label: "준비중", level: 2, bg: "bg-[#7EB8D8]/10", text: "text-[#5A9CC0]" },
-  expert:    { label: "전문가", level: 3, bg: "bg-[#C4967E]/10", text: "text-[#C4967E]" },
-  master:    { label: "마스터", level: 4, bg: "bg-[#C9A96E]/10", text: "text-[#C9A96E]" },
-  senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
-};
-
-// 카테고리 배지 배경색 (20% opacity 효과)
+// 카테고리별 배지 색상 (sage/rose/tertiary 변주)
 const CATEGORY_BADGE_BG: Record<string, string> = {
-  questions: "bg-[#C4967E]/15 text-[#C4967E]",
-  reviews: "bg-[#C9A96E]/15 text-[#C9A96E]",
-  tips: "bg-[#7EB8D8]/15 text-[#5A9CC0]",
-  daily: "bg-[#B39DDB]/15 text-[#7E57C2]",
-  seniors: "bg-[#A8D8A8]/15 text-[#2E7D5A]",
+  is_normal: "bg-[#dee6c4]/30 text-[#5a6147]", // sage (secondary-container)
+  tour_review: "bg-[#d4c2c2]/30 text-[#795252]", // rose (outline-variant + primary)
+  tips_v2: "bg-[#625b4d]/15 text-[#625b4d]", // tertiary
+  ama: "bg-[#795252]/10 text-[#795252]", // primary
+  free: "bg-[#dee6c4]/30 text-[#5a6147]", // sage
 };
 
 // 비용 포맷 헬퍼
@@ -64,17 +37,9 @@ function formatPrice(value: number): string {
   return value.toLocaleString("ko-KR");
 }
 
-export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark }: PostCardProps) {
-  const router = useRouter();
+export default function PostCard({ post, onBookmark }: PostCardProps) {
   const categoryInfo = CATEGORY_MAP[post.category];
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
-
-  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
-  const [optimisticDelta, setOptimisticDelta] = useState(0);
-  const [isVoting, setIsVoting] = useState(false);
-
-  const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote ?? null);
-  const voteCount = post.upvote_count - post.downvote_count + optimisticDelta;
 
   const contentPreview = post.content
     .replace(/<[^>]*>/g, "")
@@ -82,75 +47,29 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
     .trim()
     .slice(0, 180);
 
-  const author = post.author ?? { nickname: "익명", rank: "sprout" as CommunityRank, avatar_url: null, wedding_year: null, wedding_month: null };
-  const rankConfig = RANK_CONFIG[author.rank];
-
-  // 아바타 그래디언트 결정 (닉네임 첫 글자 해시)
-  const gradientIndex = author.nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
-  const avatarGradient = AVATAR_GRADIENTS[gradientIndex];
-  const avatarChar = author.avatar_url || author.nickname.charAt(0);
-  const isEmoji = author.avatar_url ? /\p{Emoji}/u.test(author.avatar_url) : false;
+  const author = post.author ?? { nickname: "익명" };
 
   // 이미지 처리
   const images = post.images ?? [];
   const imageCount = images.length;
-  const displayImages = images.slice(0, 3);
-  const extraImageCount = imageCount > 3 ? imageCount - 3 : 0;
+  const hasImage = imageCount > 0;
 
   // 카테고리 배지 스타일
-  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#C4967E]/15 text-[#C4967E]";
+  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-[#5a6147]";
 
-  const handleVote = useCallback(
-    async (vote: 1 | -1) => {
-      if (!isLoggedIn) {
-        router.push("/login");
-        return;
-      }
-      if (isVoting) return;
-
-      const prevVote = post.user_vote ?? null;
-      let newVote: 1 | -1 | null;
-      let delta = 0;
-
-      if (prevVote === vote) {
-        newVote = null;
-        delta = -vote;
-      } else if (prevVote === null) {
-        newVote = vote;
-        delta = vote;
-      } else {
-        newVote = vote;
-        delta = vote * 2;
-      }
-
-      setOptimisticVote(newVote);
-      setOptimisticDelta(delta);
-      setIsVoting(true);
-
-      try {
-        onVote?.(post.id, vote);
-      } catch {
-        setOptimisticVote(undefined);
-        setOptimisticDelta(0);
-      } finally {
-        setIsVoting(false);
-      }
-    },
-    [isLoggedIn, isVoting, post.user_vote, post.id, onVote, router]
-  );
-
-  function handleBookmark() {
+  function handleBookmark(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     setBookmarked((prev) => !prev);
     onBookmark?.(post.id);
   }
 
   return (
-    <article className="bg-white rounded-xl p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#F0EFED]/50 cursor-pointer">
-      <div className={`flex ${imageCount > 0 ? "flex-col-reverse sm:flex-row" : ""} gap-6`}>
+    <article className="bg-white rounded-xl p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-6`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between">
           <div>
-            {/* 상단: 카테고리 배지 + 시간 — 레퍼런스 mb-3 */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
                 {categoryInfo && (
@@ -169,45 +88,41 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               </div>
             </div>
 
-            {/* 제목 — 레퍼런스: text-xl font-headline mb-2 */}
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-xl font-serif-kr text-[#1A1A1F] mb-2 group-hover:text-[#C4967E] cursor-pointer transition-colors leading-snug line-clamp-2">
+              <h4 className="text-xl font-serif-kr text-[#1b1c1c] mb-2 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
                   </span>
                 )}
                 {post.is_weekly_best && (
-                  <span className="text-[#C9A96E] text-xs font-medium mr-2 align-middle tracking-wider uppercase">Best</span>
+                  <span className="text-[#625b4d] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
+                    Best
+                  </span>
                 )}
                 {post.title}
               </h4>
             </Link>
 
-            {/* 본문 — 레퍼런스 text-sm line-clamp-2 mb-4 */}
             {contentPreview && (
-              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-4">
-                {contentPreview}
-              </p>
+              <p className="text-[#504444] text-sm line-clamp-2 mb-4">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 */}
             {post.cost_data && (
-              <div className="bg-[#F6F3F2] rounded-lg px-3 py-1.5 mb-5 inline-block">
+              <div className="bg-[#f6f3f2] rounded-lg px-3 py-1.5 mb-4 inline-block">
                 <span className="text-xs text-[#504444]">비용: </span>
-                <span className="text-sm font-medium text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</span>
+                <span className="text-sm font-medium text-[#1b1c1c]">{formatPrice(post.cost_data.totalCost)}만원</span>
               </div>
             )}
           </div>
 
-          {/* 하단 — 레퍼런스: mt-auto pt-2 */}
+          {/* 하단 */}
           <div className="flex items-center justify-between mt-auto pt-2">
             <div className="flex items-center space-x-2">
               <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
-                <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center`}>
-                  <span className="text-[9px] font-semibold text-white">
-                    {isEmoji ? avatarChar : author.nickname.charAt(0)}
-                  </span>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-[8px]">
+                  {author.nickname.charAt(0)}
                 </div>
               </Link>
               <span className="text-xs text-[#504444]">{author.nickname}</span>
@@ -217,7 +132,7 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
-                className="flex items-center space-x-1 hover:text-[#C4967E] transition-colors group"
+                className="flex items-center space-x-1 hover:text-[#795252] group"
               >
                 <MessageCircle className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
                 <span className="text-xs">{post.comment_count}</span>
@@ -227,18 +142,21 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
               <button
                 type="button"
                 onClick={handleBookmark}
-                className={`flex items-center transition-colors group ${
-                  bookmarked ? "text-[#C4967E]" : "hover:text-[#C4967E]"
+                className={`flex items-center space-x-1 group ${
+                  bookmarked ? "text-[#795252]" : "hover:text-[#795252]"
                 }`}
                 aria-label="저장"
               >
-                <Bookmark className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" fill={bookmarked ? "#C4967E" : "none"} />
+                <Bookmark
+                  className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100"
+                  fill={bookmarked ? "#795252" : "none"}
+                />
               </button>
 
               {/* 공유 */}
               <button
                 type="button"
-                className="flex items-center hover:text-[#C4967E] transition-colors group"
+                className="flex items-center space-x-1 hover:text-[#795252] group"
                 aria-label="공유"
               >
                 <Share2 className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
@@ -247,18 +165,18 @@ export default function PostCard({ post, isLoggedIn = false, onVote, onBookmark 
           </div>
         </div>
 
-        {/* 이미지 (있으면 오른쪽) */}
-        {imageCount > 0 && (
+        {/* 이미지 (있으면 오른쪽) — 레퍼런스: sm:w-32 h-32 */}
+        {hasImage && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full sm:w-36 h-36 rounded-lg overflow-hidden shrink-0 mt-4 sm:mt-0"
+            className="w-full sm:w-32 h-32 rounded-lg overflow-hidden shrink-0 mt-4 sm:mt-0"
           >
             <Image
               src={images[0]}
               alt=""
-              width={144}
-              height={144}
-              className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+              width={128}
+              height={128}
+              className="w-full h-full object-cover"
             />
           </Link>
         )}

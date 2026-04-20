@@ -28,7 +28,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default function CategoryTabs() {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(true);
 
   function isActive(href: string) {
     if (href === "/community") {
@@ -39,74 +39,102 @@ export default function CategoryTabs() {
 
   return (
     <>
-      {/* 데스크탑: 에디토리얼 세로 네비게이션 (Atelier Hub 레퍼런스) */}
-      <nav className="hidden lg:flex flex-col h-full">
+      {/* 데스크탑: Atelier Hub 레퍼런스 세로 네비게이션 */}
+      <nav className="hidden lg:flex flex-col flex-1 space-y-1 pr-2">
         {/* 주요 네비 */}
-        <div className="space-y-0.5 mb-6">
-          <Link
-            href="/community"
-            className={`flex items-center px-4 py-3 transition-all duration-200 ${
+        <Link
+          href="/community"
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+            isActive("/community") && pathname === "/community"
+              ? "bg-[#f6f3f2] text-[#795252] font-bold"
+              : "text-[#504444] hover:bg-white hover:text-[#795252]"
+          }`}
+        >
+          <Home
+            className={`mr-4 w-5 h-5 ${
               isActive("/community") && pathname === "/community"
-                ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
-                : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
-            } transition-transform`}
-          >
-            <Home className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community") && pathname === "/community" ? "opacity-80" : "opacity-60"}`} />
-            <span className="text-sm tracking-widest uppercase">전체</span>
-          </Link>
-          <Link
-            href="/community?sort=hot"
-            className="flex items-center px-4 py-3 text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1 transition-all duration-200"
-          >
-            <Flame className="w-[20px] h-[20px] shrink-0 mr-4 opacity-60 group-hover:opacity-100" />
-            <span className="text-sm tracking-widest uppercase">인기</span>
-          </Link>
-          <Link
-            href="/community/guestbook"
-            className={`flex items-center px-4 py-3 transition-all duration-200 ${
-              isActive("/community/guestbook")
-                ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
-                : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
-            } transition-transform`}
-          >
-            <BookOpen className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/guestbook") ? "opacity-80" : "opacity-60"}`} />
-            <span className="text-sm tracking-widest uppercase">내 방명록</span>
-          </Link>
-          <Link
-            href="/community/my/bookmarks"
-            className={`flex items-center px-4 py-3 transition-all duration-200 ${
-              isActive("/community/my/bookmarks")
-                ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
-                : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
-            } transition-transform`}
-          >
-            <Bookmark className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60"}`} />
-            <span className="text-sm tracking-widest uppercase">북마크</span>
-          </Link>
-          <Link
-            href="/community/my/upvoted"
-            className={`flex items-center px-4 py-3 transition-all duration-200 ${
-              isActive("/community/my/upvoted")
-                ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
-                : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
-            } transition-transform`}
-          >
-            <ThumbsUp className={`w-[20px] h-[20px] shrink-0 mr-4 ${isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60"}`} />
-            <span className="text-sm tracking-widest uppercase">좋아요</span>
-          </Link>
-        </div>
+                ? "opacity-80"
+                : "opacity-60 group-hover:opacity-100"
+            }`}
+          />
+          <span className="text-sm tracking-widest uppercase">전체</span>
+        </Link>
 
-        {/* 카테고리 섹션 구분 */}
-        <div>
+        <Link
+          href="/community?sort=hot"
+          className="flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
+        >
+          <Flame className="mr-4 w-5 h-5 opacity-60 group-hover:opacity-100" />
+          <span className="text-sm tracking-widest uppercase">인기</span>
+        </Link>
+
+        <Link
+          href="/community/guestbook"
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+            isActive("/community/guestbook")
+              ? "bg-[#f6f3f2] text-[#795252] font-bold"
+              : "text-[#504444] hover:bg-white hover:text-[#795252]"
+          }`}
+        >
+          <BookOpen
+            className={`mr-4 w-5 h-5 ${
+              isActive("/community/guestbook") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+            }`}
+          />
+          <span className="text-sm tracking-widest uppercase">내 방명록</span>
+        </Link>
+
+        <Link
+          href="/community/my/bookmarks"
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+            isActive("/community/my/bookmarks")
+              ? "bg-[#f6f3f2] text-[#795252] font-bold"
+              : "text-[#504444] hover:bg-white hover:text-[#795252]"
+          }`}
+        >
+          <Bookmark
+            className={`mr-4 w-5 h-5 ${
+              isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+            }`}
+          />
+          <span className="text-sm tracking-widest uppercase">북마크</span>
+        </Link>
+
+        <Link
+          href="/community/my/upvoted"
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+            isActive("/community/my/upvoted")
+              ? "bg-[#f6f3f2] text-[#795252] font-bold"
+              : "text-[#504444] hover:bg-white hover:text-[#795252]"
+          }`}
+        >
+          <ThumbsUp
+            className={`mr-4 w-5 h-5 ${
+              isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+            }`}
+          />
+          <span className="text-sm tracking-widest uppercase">좋아요</span>
+        </Link>
+
+        {/* 카테고리 섹션 */}
+        <div className="pt-4">
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className="flex items-center justify-between w-full px-4 py-2 text-xs font-medium text-[#B5ADA3] uppercase tracking-wider hover:text-[#878680] transition-colors"
+            className="flex items-center justify-between w-full px-4 py-2 text-xs font-medium text-[#504444] uppercase tracking-wider hover:text-[#795252] transition-colors"
           >
             <span>카테고리</span>
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                moreOpen ? "" : "rotate-180"
+              }`}
+            />
           </button>
 
-          <div className={`space-y-0.5 overflow-hidden transition-all duration-200 ${moreOpen ? "max-h-0" : "max-h-[600px]"}`}>
+          <div
+            className={`space-y-1 overflow-hidden transition-all duration-200 ${
+              moreOpen ? "max-h-[600px]" : "max-h-0"
+            }`}
+          >
             {COMMUNITY_CATEGORIES.map((cat) => {
               const href = `/community/${cat.key}`;
               const active = isActive(href);
@@ -116,13 +144,17 @@ export default function CategoryTabs() {
                 <Link
                   key={cat.key}
                   href={href}
-                  className={`flex items-center px-4 py-3 transition-all duration-200 ${
+                  className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
                     active
-                      ? "bg-[#F6F3F2] text-[#C4967E] font-bold rounded-r-full"
-                      : "text-[#504444] hover:text-[#C4967E] rounded-r-full hover:translate-x-1"
-                  } transition-transform`}
+                      ? "bg-[#f6f3f2] text-[#795252] font-bold"
+                      : "text-[#504444] hover:bg-white hover:text-[#795252]"
+                  }`}
                 >
-                  <Icon className={`w-[20px] h-[20px] shrink-0 mr-4 ${active ? "opacity-80" : "opacity-60"}`} />
+                  <Icon
+                    className={`mr-4 w-5 h-5 ${
+                      active ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+                    }`}
+                  />
                   <span className="text-sm tracking-widest uppercase">{cat.label}</span>
                 </Link>
               );
@@ -139,7 +171,7 @@ export default function CategoryTabs() {
             className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
               pathname === "/community"
                 ? "bg-[#795252] text-white font-medium"
-                : "text-[#878680] bg-white border border-[#F0EFED] hover:bg-[#FAFAF8]"
+                : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"
             }`}
           >
             전체
@@ -154,7 +186,7 @@ export default function CategoryTabs() {
                 className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
                     ? "bg-[#795252] text-white font-medium"
-                    : "text-[#878680] bg-white border border-[#F0EFED] hover:bg-[#FAFAF8]"
+                    : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"
                 }`}
               >
                 {cat.shortLabel}

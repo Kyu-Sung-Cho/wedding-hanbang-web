@@ -4,10 +4,9 @@ import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Star, Bookmark } from "lucide-react";
+import { PenSquare, Star, Bookmark, Shield, Archive } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
-import { CATEGORY_MAP } from "@/constants/communityCategories";
 import CategoryTabs from "@/components/community/CategoryTabs";
 import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
@@ -38,7 +37,7 @@ interface VendorTag {
   mention_count: number;
 }
 
-// 에디터 추천 배너 컴포넌트
+// 에디터 추천 배너 컴포넌트 — Atelier Hub 레퍼런스 정확 매칭
 function EditorsPick({ post }: { post: PostWithAuthor }) {
   const contentPreview = post.content
     .replace(/<[^>]*>/g, "")
@@ -47,74 +46,54 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
     .slice(0, 200);
   const author = post.author ?? { nickname: "익명", avatar_url: null };
   const images = post.images ?? [];
-  // 대략적인 읽기 시간 (한글 기준 분당 400자)
   const readMinutes = Math.max(1, Math.round(post.content.replace(/<[^>]*>/g, "").length / 400));
 
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="group block rounded-xl bg-[#F6F3F2] hover:bg-[#F0EDEB] transition-all duration-300 overflow-hidden relative"
+      className="relative rounded-xl overflow-hidden bg-[#f6f3f2] border border-[#e4e2e1] p-8 lg:p-10 flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:bg-[#f0eded] transition-colors duration-300"
     >
-      {/* 별 장식 (우상단 절대배치) */}
-      <Star className="absolute top-6 right-6 z-10 w-5 h-5 text-[#C9A96E] opacity-40" />
-
-      <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-10 p-8 md:p-10">
-        {/* 텍스트 영역 */}
-        <div className="flex-1 flex flex-col justify-center">
-          {/* 에디터 추천 배지 (rounded-full, border, white bg) */}
-          <div className="inline-flex items-center self-start px-3 py-1 rounded-full bg-white border border-[#F0EFED]/50 mb-4">
-            <Bookmark className="w-3.5 h-3.5 mr-1.5 text-[#5a6147]" />
-            <span className="text-xs font-medium tracking-wider uppercase text-[#5a6147]">
-              에디터 추천
-            </span>
-          </div>
-
-          <h2 className="text-3xl lg:text-4xl font-serif-kr text-[#1A1A1F] mb-4 leading-tight group-hover:text-[#C4967E] transition-colors line-clamp-2">
-            {post.title}
-          </h2>
-
-          {contentPreview && (
-            <p className="text-[#504444] mb-6 line-clamp-2">
-              {contentPreview}
-            </p>
-          )}
-
-          <div className="flex items-center text-sm text-[#504444]">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center mr-2">
-              <span className="text-[10px] font-semibold text-white">
-                {author.nickname.charAt(0)}
-              </span>
-            </div>
-            <span>By {author.nickname}</span>
-            <span className="mx-2">&middot;</span>
-            <span>{readMinutes}분 읽기</span>
-          </div>
-        </div>
-
-        {/* 이미지 영역 — 레퍼런스: w-1/3 aspect-[4/3] */}
-        {images.length > 0 ? (
-          <div className="w-full md:w-1/3 aspect-[4/3] rounded-lg overflow-hidden shrink-0">
-            <Image
-              src={images[0]}
-              alt=""
-              width={480}
-              height={360}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            />
-          </div>
-        ) : (
-          <div className="hidden md:flex w-1/3 aspect-[4/3] items-center justify-center bg-[#EDEAE8] rounded-lg shrink-0">
-            <Star className="w-12 h-12 text-[#C9A96E] opacity-20" />
-          </div>
-        )}
+      <div className="absolute top-0 right-0 p-4">
+        <Star className="text-[#795252]/40 w-8 h-8" />
       </div>
+      <div className="flex-1 z-10">
+        <div className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-[#d4c2c2]/30 text-[#5a6147] text-xs tracking-wider uppercase mb-4">
+          <Bookmark className="w-[14px] h-[14px] mr-1.5" />
+          에디터 추천
+        </div>
+        <h2 className="text-3xl lg:text-4xl font-serif-kr text-[#1b1c1c] mb-4 leading-tight group-hover:text-[#795252] transition-colors">
+          {post.title}
+        </h2>
+        {contentPreview && (
+          <p className="text-[#504444] mb-6 line-clamp-2">{contentPreview}</p>
+        )}
+        <div className="flex items-center text-sm text-[#504444]">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] mr-2 flex items-center justify-center text-white text-xs">
+            {author.nickname.charAt(0)}
+          </div>
+          <span>By {author.nickname}</span>
+          <span className="mx-2">&middot;</span>
+          <span>{readMinutes}분 읽기</span>
+        </div>
+      </div>
+      {images.length > 0 && (
+        <div className="w-full md:w-1/3 aspect-[4/3] rounded-lg overflow-hidden shrink-0">
+          <Image
+            src={images[0]}
+            alt=""
+            width={480}
+            height={360}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        </div>
+      )}
     </Link>
   );
 }
 
 export default function CommunityFeedPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#FAFAF8]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#fcf9f8]" />}>
       <CommunityFeedContent />
     </Suspense>
   );
@@ -236,20 +215,23 @@ function CommunityFeedContent() {
     return () => observer.disconnect();
   }, [handleObserver]);
 
+  const featured = !isSearching && posts.length > 0
+    ? (posts.find((p) => p.is_weekly_best) ?? posts.find((p) => p.is_pinned))
+    : null;
+
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
       {/* 모바일: 동기방 + 카테고리 */}
       <div className="lg:hidden px-4 sm:px-6 pt-4 space-y-3">
         <CohortCard />
         <CategoryTabs />
       </div>
 
-      <div className="flex w-full max-w-[1920px] mx-auto">
-        {/* 왼쪽 사이드바: w-72 = 288px — 레퍼런스 정확 매칭 */}
-        <aside className="hidden lg:flex flex-col w-72 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto bg-[#FAFAF8] pt-12 pb-8 px-4 z-40">
-          {/* serif italic 브랜드 헤더 — 레퍼런스 text-lg italic */}
+      <div className="flex-1 flex w-full max-w-[1920px] mx-auto">
+        {/* SideNavBar — 레퍼런스 정확 매칭 */}
+        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-72 sticky top-20 flex-col pt-12 pb-8 px-4 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <div className="mb-8 px-4">
-            <h2 className="font-serif-kr text-lg italic text-[#C4967E] mb-1">
+            <h2 className="font-serif-kr text-lg italic text-[#795252] mb-1">
               커뮤니티
             </h2>
             <p className="text-xs text-[#504444] tracking-wider uppercase">
@@ -264,55 +246,63 @@ function CommunityFeedContent() {
 
           <CategoryTabs />
 
-          <div className="mt-auto pt-6 px-2 space-y-2.5">
-            <Link
-              href="/community/quick-review"
-              className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-sm font-medium text-[#504444] bg-transparent hover:bg-[#F6F3F2] rounded-full transition-all duration-200"
-            >
-              15초 후기
-            </Link>
+          <div className="mt-8 mb-8 px-4">
             <Link
               href="/community/post/write"
-              className="flex items-center justify-center gap-2.5 w-full px-4 py-3.5 text-sm font-medium text-white bg-gradient-to-br from-[#C4967E] to-[#9A6B62] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-full transition-all duration-200"
+              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-3 rounded-lg font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
             >
-              <PenSquare className="w-4 h-4" />
+              <PenSquare className="mr-2 w-5 h-5" />
               글쓰기
+            </Link>
+          </div>
+
+          <div className="mt-auto space-y-1 pt-6 border-t border-[#e4e2e1]/50 pr-2">
+            <Link
+              href="/community/guidelines"
+              className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
+            >
+              <Shield className="mr-3 w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
+              <span className="text-xs tracking-wider uppercase">가이드라인</span>
+            </Link>
+            <Link
+              href="/community/archive"
+              className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
+            >
+              <Archive className="mr-3 w-[18px] h-[18px] opacity-60 group-hover:opacity-100" />
+              <span className="text-xs tracking-wider uppercase">아카이브</span>
             </Link>
           </div>
         </aside>
 
-        {/* 가운데: 메인 피드 — 레퍼런스: flex-1 min-w-0 px-6 lg:px-12 py-10, 내부 max-w-4xl mx-auto */}
+        {/* 가운데: 메인 피드 */}
         <main className="flex-1 min-w-0 px-6 lg:px-12 py-10 overflow-y-auto">
           <div className="max-w-4xl mx-auto space-y-12">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-2 text-lg text-[#1A1A1F]">
+                <div className="flex items-center gap-2 text-lg text-[#1b1c1c]">
                   <span className="font-serif-kr italic">검색 결과</span>
                   <span className="text-[#504444]">&ldquo;{searchQuery}&rdquo;</span>
                   {!searchLoading && (
-                    <span className="text-[#B5ADA3] text-sm">{searchTotal}건</span>
+                    <span className="text-[#504444] text-sm">{searchTotal}건</span>
                   )}
                 </div>
                 <button
                   onClick={() => router.push("/community")}
-                  className="text-sm text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
+                  className="text-sm text-[#795252] hover:text-[#946a6a] transition-colors duration-200"
                 >
                   초기화
                 </button>
               </div>
             )}
 
-            {/* 에디터 추천: weekly best 또는 pinned 포스트 */}
-            {!isSearching && posts.length > 0 && (() => {
-              const featured = posts.find((p) => p.is_weekly_best) ?? posts.find((p) => p.is_pinned);
-              return featured ? <EditorsPick post={featured} /> : null;
-            })()}
+            {/* 에디터 추천 배너 */}
+            {featured && <EditorsPick post={featured} />}
 
-            {/* 피드 헤더 — 레퍼런스: flex items-center justify-between border-b border-surface-variant pb-4 */}
+            {/* 피드 헤더 (피드 디바이더) */}
             {!isSearching && (
-              <div className="flex items-center justify-between border-b border-[#F0EFED] pb-4">
-                <h3 className="font-serif-kr text-2xl text-[#1A1A1F]">
+              <div className="flex items-center justify-between border-b border-[#e4e2e1] pb-4">
+                <h3 className="font-serif-kr text-2xl text-[#1b1c1c]">
                   최근 대화
                 </h3>
                 <SortSelector
@@ -324,7 +314,7 @@ function CommunityFeedContent() {
               </div>
             )}
 
-            {/* 피드 */}
+            {/* 피드 리스트 */}
             {isSearching ? (
               <>
                 {searchLoading && searchResults.length === 0 ? (
@@ -343,7 +333,6 @@ function CommunityFeedContent() {
                     {searchResults.map((post, idx) => (
                       <div key={post.id}>
                         <PostCard post={post} />
-                        {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
                         {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
                           <div className="mt-6">
                             <ServiceBanner index={Math.floor((idx - 4) / 10)} />
@@ -381,7 +370,6 @@ function CommunityFeedContent() {
                     {posts.map((post, idx) => (
                       <div key={post.id}>
                         <PostCard post={post} />
-                        {/* 4번째, 14번째, 24번째 글 뒤에 서비스 배너 삽입 */}
                         {(idx === 4 || (idx > 4 && (idx - 4) % 10 === 0)) && (
                           <div className="mt-6">
                             <ServiceBanner index={Math.floor((idx - 4) / 10)} />
@@ -405,12 +393,11 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바: w-80 = 320px — 구분선 없음, champagne bg */}
-        <aside className="hidden xl:flex flex-col w-80 shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto p-8 space-y-10">
-          {/* 1. 오늘의 인기글 */}
-          <TrendingPosts />
-
-          {/* 2. 이번 주 요약 + 3. 많이 찾는 업체 + 커뮤니티 원칙 + 아모라 CTA */}
+        {/* Right Sidebar — 레퍼런스: border-l, w-80 */}
+        <aside className="hidden xl:block w-80 shrink-0 p-8 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8]">
+          <div className="mb-10">
+            <TrendingPosts />
+          </div>
           <RightSidebar
             popularTags={vendorTags}
             weekly={{
@@ -420,10 +407,10 @@ function CommunityFeedContent() {
             }}
           />
 
-          {/* 4. 인기 태그 (해시태그) */}
+          {/* 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div>
-              <h3 className="font-serif-kr text-lg text-[#1A1A1F] mb-4 border-b border-[#F0EFED] pb-2">
+            <div className="mt-10">
+              <h3 className="font-serif-kr text-lg text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
                 인기 태그
               </h3>
               <div className="flex flex-wrap gap-x-3 gap-y-2.5">
@@ -431,7 +418,7 @@ function CommunityFeedContent() {
                   <Link
                     key={t.tag}
                     href={`/community?tag=${encodeURIComponent(t.tag)}`}
-                    className="text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200"
+                    className="text-sm text-[#504444] hover:text-[#795252] transition-colors duration-200"
                   >
                     #{t.tag}
                   </Link>
@@ -440,11 +427,16 @@ function CommunityFeedContent() {
             </div>
           )}
 
-          {/* 5. 내 활동 (게이미피케이션) */}
-          <GamificationWidget />
+          {/* 내 활동 (게이미피케이션) */}
+          <div className="mt-10">
+            <GamificationWidget />
+          </div>
 
-          <div className="text-center py-4">
-            <Link href="/" className="text-[10px] text-[#B5ADA3] hover:text-[#C4967E] transition-colors duration-200 tracking-widest uppercase">
+          <div className="text-center py-4 mt-6">
+            <Link
+              href="/"
+              className="text-[10px] text-[#504444] hover:text-[#795252] transition-colors duration-200 tracking-widest uppercase"
+            >
               웨딩한방 서비스 둘러보기 →
             </Link>
           </div>
