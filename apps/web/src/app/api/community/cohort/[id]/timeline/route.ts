@@ -2,7 +2,8 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortEventType } from "@/types/community.types";
 
-async function assertMember(
+// 멤버 확인 + 없으면 자동 가입 (메시지 API와 동일 패턴)
+async function ensureMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
   userId: string
@@ -13,7 +14,11 @@ async function assertMember(
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .maybeSingle();
-  return !!data;
+  if (data) return true;
+  const { error } = await supabase
+    .from("cohort_members")
+    .upsert({ room_id: roomId, user_id: userId, is_active: true }, { onConflict: "room_id,user_id" });
+  return !error;
 }
 
 // GET: 최근 30개 타임라인 이벤트
@@ -35,7 +40,7 @@ export async function GET(
       );
     }
 
-    const member = await assertMember(supabase, roomId, user.id);
+    const member = await ensureMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
         { error: "이 동기방 멤버가 아닙니다." },
@@ -45,9 +50,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from("cohort_timeline_events")
-      .select(
-        "*, user:community_profiles!cohort_timeline_events_user_id_fkey(user_id, nickname, avatar_url, rank)"
-      )
+      .select("*")
       .eq("room_id", roomId)
       .order("created_at", { ascending: false })
       .limit(30);
@@ -60,7 +63,27 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ events: data ?? [] });
+    const events = data ?? [];
+
+    // 유저 프로필 별도 조회 (FK 조인 문제 회피)
+    const userIds = [...new Set(events.map((e) => e.user_id))];
+    let userMap: Record<string, { user_id: string; nickname: string; avatar_url: string | null; rank: string }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("community_profiles")
+        .select("user_id, nickname, avatar_url, rank")
+        .in("user_id", userIds);
+      if (profiles) {
+        userMap = Object.fromEntries(profiles.map((p) => [p.user_id, p]));
+      }
+    }
+
+    const eventsWithUser = events.map((e) => ({
+      ...e,
+      user: userMap[e.user_id] ?? { user_id: e.user_id, nickname: "익명", avatar_url: null, rank: "sprout" },
+    }));
+
+    return NextResponse.json({ events: eventsWithUser });
   } catch (err) {
     console.error("Timeline GET error:", err);
     return NextResponse.json(
@@ -89,7 +112,7 @@ export async function POST(
       );
     }
 
-    const member = await assertMember(supabase, roomId, user.id);
+    const member = await ensureMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
         { error: "이 동기방 멤버가 아닙니다." },
