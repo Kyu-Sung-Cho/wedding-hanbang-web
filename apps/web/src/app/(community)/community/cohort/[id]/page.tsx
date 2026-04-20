@@ -9,8 +9,9 @@ import {
   Send,
   Plus,
   Sparkles,
-  Paperclip,
+  Link2,
   ExternalLink,
+  FileText,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
@@ -453,10 +454,11 @@ function ChatTab({
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] transition-colors"
-            title="글 공유"
+            className="flex items-center gap-2 justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] text-sm font-medium transition-colors whitespace-nowrap"
+            title="커뮤니티 글 공유"
           >
-            <Paperclip className="h-5 w-5" />
+            <Link2 className="h-5 w-5" />
+            <span className="hidden sm:inline">글 공유</span>
           </button>
           <button
             type="button"
@@ -520,13 +522,16 @@ function renderMessageContent(text: string): React.ReactNode {
         href={`/community/post/${match[1]}`}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-2 my-1 px-3 py-2 bg-[#f6f3f2] rounded-lg hover:bg-[#e4e2e1] transition-colors group"
+        className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e4e2e1] rounded-lg hover:border-[#795252]/40 hover:bg-[#f6f3f2] transition-colors group max-w-full"
       >
-        <span className="text-xs text-[#504444] uppercase tracking-wider shrink-0">📎 글</span>
-        <span className="font-serif-kr text-base text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
-          {match[2]}
+        <FileText className="w-4 h-4 text-[#795252] shrink-0" />
+        <span className="flex flex-col min-w-0">
+          <span className="text-[11px] text-[#504444] uppercase tracking-widest font-medium">커뮤니티 글</span>
+          <span className="font-serif-kr text-base text-[#1b1c1c] group-hover:text-[#795252] line-clamp-1">
+            {match[2]}
+          </span>
         </span>
-        <ExternalLink className="w-3.5 h-3.5 text-[#795252] shrink-0" />
+        <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#795252] shrink-0 ml-1" />
       </a>
     );
     lastIndex = match.index + match[0].length;
