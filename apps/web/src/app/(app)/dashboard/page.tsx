@@ -272,271 +272,262 @@ export default function DashboardPage() {
     return activities.slice(0, 3);
   }, [partner, progress]);
 
+  // D-day 표시 값
+  const ddayDisplay =
+    dday !== null && dday > 0
+      ? dday
+      : dday === 0
+        ? "D"
+        : dday !== null && dday < 0
+          ? `+${Math.abs(dday)}`
+          : "—";
+  const ddayLabel =
+    dday !== null && dday > 0
+      ? "일 남았어요"
+      : dday === 0
+        ? "오늘이에요"
+        : dday !== null && dday < 0
+          ? "일 지났어요"
+          : "날짜 미정";
+
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 bg-[#fcf9f8]">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
-        <div
-          className="bg-[#F6F3F2] rounded-xl p-6 mb-6 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
-        >
+        <div className="bg-white rounded-2xl p-6 mb-8 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div>
-            <p className="text-[17px] font-medium text-[#1A1A1F]">
+            <p className="text-[17px] font-medium text-[#1b1c1c]">
               파트너에게 초대 코드를 공유하세요
             </p>
-            <p className="text-base text-[#B5ADA3] mt-1">
+            <p className="text-base text-[#504444] mt-1">
               파트너가 회원가입 시 이 코드를 입력하면 커플 연동됩니다
             </p>
           </div>
           <button
             onClick={copyCode}
-            className="flex items-center gap-2 px-6 py-3 bg-white rounded-xl hover:shadow-md transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-[#f6f3f2] rounded-xl hover:shadow-md transition-all"
           >
-            <span className="font-mono text-lg font-bold text-[#1A1A1F] tracking-wider">
+            <span className="font-mono text-lg font-bold text-[#1b1c1c] tracking-wider">
               {inviteCode}
             </span>
             {copied ? (
               <Check className="w-5 h-5 text-[#5a6147]" />
             ) : (
-              <Copy className="w-5 h-5 text-[#B5ADA3]" />
+              <Copy className="w-5 h-5 text-[#504444]" />
             )}
           </button>
         </div>
       )}
 
-      {/* 에디토리얼 히어로 배너 */}
-      <div className="relative h-64 md:h-80 rounded-xl overflow-hidden mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        {/* 배경 그라디언트 (웨딩 무드) */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#E8DDD5] via-[#D9C5BC] to-[#C9A89D]" />
+      {/* 1. 에디토리얼 히어로 배너 */}
+      <section className="relative rounded-2xl overflow-hidden aspect-[16/7] lg:aspect-[16/6] mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {/* 배경 그라디언트 (CSS 폴백) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#E8DDD5] via-[#D9C5BC] to-[#946a6a]" />
         {/* 장식 패턴 */}
-        <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(255,255,255,0.25),transparent_70%)] rounded-full" />
-        <div className="absolute bottom-[-20%] left-[10%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(121,82,82,0.15),transparent_70%)] rounded-full" />
-        {/* 오버레이 */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/10 to-transparent" />
-        {/* 컨텐츠 */}
-        <div className="relative h-full flex flex-col justify-center px-8 md:px-12">
-          <p className="text-sm tracking-[0.25em] uppercase text-white/80 font-medium mb-3">
-            Curated Atelier
-          </p>
-          <h1 className="font-serif-kr text-4xl md:text-5xl text-white font-light leading-tight mb-3">
-            {partnerName
-              ? <>{userName}님 & {partnerName}님</>
-              : <>{userName}님, 환영합니다</>}
-          </h1>
-          <p className="text-white/90 font-serif-kr italic text-lg md:text-xl">
-            영원의 시작이 아름답게 펼쳐지고 있어요
-          </p>
-        </div>
-      </div>
+        <div className="absolute top-[-15%] right-[-10%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(255,255,255,0.3),transparent_70%)] rounded-full" />
+        <div className="absolute bottom-[-25%] left-[5%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.25),transparent_70%)] rounded-full" />
+        <div className="absolute top-[20%] left-[40%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(121,82,82,0.2),transparent_70%)] rounded-full" />
+        {/* 어두운 오버레이 (가독성) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
 
-      {/* D-day + Budget Overview (2열) */}
-      <div className="grid grid-cols-5 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
-        {/* D-day 카드 */}
-        <div className="col-span-2 max-lg:col-span-1 bg-white rounded-xl p-8 relative overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          {/* 장식 스파클 */}
-          <div className="absolute top-4 right-4 w-8 h-8 opacity-10">
-            <Sparkles className="w-full h-full text-[#795252]" />
-          </div>
-          <div className="absolute bottom-4 left-4 w-6 h-6 opacity-[0.06]">
-            <Sparkles className="w-full h-full text-[#795252]" />
-          </div>
-
-          <p className="text-sm tracking-[0.25em] uppercase text-[#795252] font-medium mb-8 text-center">
-            결혼식 D-DAY
-          </p>
-          <div className="text-center">
-            <div className="font-serif-kr text-7xl md:text-[112px] font-light text-[#1A1A1F] mb-3 leading-none">
-              {dday !== null && dday > 0
-                ? dday
-                : dday === 0
-                  ? "D"
-                  : dday !== null && dday < 0
-                    ? `+${Math.abs(dday)}`
-                    : "—"}
-            </div>
-            <p className="font-serif-kr italic text-[#504444] text-xl">
-              {dday !== null && dday > 0
-                ? "일 남았어요"
-                : dday === 0
-                  ? "오늘이에요"
-                  : dday !== null && dday < 0
-                    ? "일 지났어요"
-                    : "날짜 미정"}
+        {/* 텍스트 컨텐츠 */}
+        <div className="relative h-full flex items-center px-10 lg:px-16">
+          <div>
+            <p className="text-xs lg:text-sm tracking-[0.3em] uppercase text-white/75 font-medium mb-5">
+              The Curated Atelier
+            </p>
+            <h1 className="font-serif-kr text-4xl lg:text-6xl text-white mb-4 leading-tight font-light">
+              환영해요,<br />
+              {partnerName
+                ? <>{userName} & {partnerName}</>
+                : <>{userName ?? "예비 부부"}님</>}
+            </h1>
+            <p className="text-lg lg:text-xl text-white/90 font-light italic font-serif-kr">
+              결혼 준비가 아름답게 시작됐어요.
             </p>
           </div>
-          <div className="mt-8 pt-6 border-t border-[#F6F3F2]">
-            <p className="text-center text-base text-[#B5ADA3]">{dateStr}</p>
-          </div>
+        </div>
+      </section>
+
+      {/* 2. D-day + Budget Overview (2-column) */}
+      <div className="grid lg:grid-cols-2 gap-8 mb-8 animate-fade-in">
+        {/* D-day 카드 */}
+        <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[300px] relative overflow-hidden">
+          {/* 장식 스파클 */}
+          <Sparkles className="absolute top-6 right-6 w-8 h-8 text-[#C9A96E]/30" />
+          <Sparkles className="absolute bottom-8 left-8 w-6 h-6 text-[#C9A96E]/15" />
+
+          <p className="text-xs text-[#795252] tracking-[0.25em] uppercase mb-4 font-medium">
+            결혼식 D-Day
+          </p>
+          <p className="font-serif-kr text-[96px] leading-none text-[#1b1c1c] mb-2 font-light">
+            {ddayDisplay}
+          </p>
+          <p className="text-2xl text-[#504444] font-serif-kr italic mb-6">
+            {ddayLabel}
+          </p>
+          <p className="text-base text-[#504444]">
+            {dateStr}
+          </p>
         </div>
 
-        {/* Budget Overview 카드 */}
-        <div className="col-span-3 max-lg:col-span-1 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {/* Budget Overview */}
+        <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h3 className="font-serif-kr text-3xl text-[#1A1A1F] mb-1 font-light">예산 현황</h3>
-              <p className="text-base text-[#B5ADA3]">소중한 투자를 관리해요</p>
+              <h2 className="font-serif-kr text-3xl text-[#1b1c1c] mb-2 font-light">예산 현황</h2>
+              <p className="text-base text-[#504444]">소중한 투자를 관리해요</p>
             </div>
-            <Link href="/budget" className="text-[#B5ADA3] hover:text-[#795252] transition-colors">
-              <MoreHorizontal className="w-6 h-6" />
+            <Link href="/budget" className="text-[#504444] hover:text-[#795252] transition-colors">
+              <MoreHorizontal className="w-5 h-5" />
             </Link>
           </div>
 
-          <div className="flex items-end justify-between mb-5">
+          <div className="flex justify-between items-end mb-6">
             <div>
-              <p className="font-serif-kr text-5xl font-light text-[#1A1A1F] leading-none">
+              <p className="font-serif-kr text-4xl text-[#1b1c1c] font-light mb-1">
                 {formatBudget(spentBudget)}
               </p>
-              <p className="text-sm text-[#B5ADA3] mt-2 tracking-wider uppercase">사용한 예산</p>
+              <p className="text-sm text-[#504444]">사용한 금액</p>
             </div>
             <div className="text-right">
-              <p className="font-serif-kr text-3xl text-[#504444] font-light leading-none">
+              <p className="font-serif-kr text-4xl text-[#1b1c1c] font-light mb-1">
                 {formatBudget(totalBudget)}
               </p>
-              <p className="text-sm text-[#B5ADA3] mt-2 tracking-wider uppercase">전체 예산</p>
+              <p className="text-sm text-[#504444]">전체 예산</p>
             </div>
           </div>
 
-          <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden mb-2">
+          {/* Progress bar */}
+          <div className="w-full h-2 bg-[#f6f3f2] rounded-full overflow-hidden mb-3">
             <div
-              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-700"
               style={{ width: `${Math.min(budgetPercent, 100)}%` }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[#B5ADA3]">진행률 {progressPercent}%</p>
-            <p className="text-right text-sm text-[#B5ADA3]">{budgetPercent}% 사용</p>
+            <p className="text-sm text-[#504444]">진행률 {progressPercent}%</p>
+            <p className="text-sm text-[#504444]">{budgetPercent}% 배분됨</p>
           </div>
         </div>
       </div>
 
-      {/* Next Milestone / Quick Actions / Spotlight (3-column) */}
-      <div className="grid grid-cols-3 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
-        {/* Next Milestone */}
-        <div className="bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-          <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-5">
-            Next Milestone
-          </p>
-          {nextMilestone ? (
-            <>
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#F6F3F2] to-[#E8DDD5] flex items-center justify-center mb-5">
-                {(() => {
-                  const IconComp = CATEGORY_ICONS[nextMilestone.key] ?? CalendarCheck;
-                  return <IconComp className="w-6 h-6 text-[#795252]" />;
-                })()}
-              </div>
-              <h4 className="font-serif-kr text-2xl text-[#1A1A1F] font-light mb-3 leading-snug">
-                {nextMilestone.label}
-              </h4>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium tracking-wide">
-                  {nextMilestone.urgency === "overdue"
-                    ? "지금 바로"
-                    : nextMilestone.daysUntilDeadline <= 14
-                      ? `${nextMilestone.daysUntilDeadline}일 내`
-                      : "여유 있음"}
-                </span>
-                <span className="text-sm text-[#B5ADA3]">{nextMilestone.deadlineText}</span>
-              </div>
+      {/* 3. Bottom Row: Milestone + Quick Actions (2/3) + Spotlight (1/3) */}
+      <div className="grid lg:grid-cols-3 gap-8 mb-8 animate-fade-in">
+        {/* 다가오는 일정 + 빠른 실행 — 2 cols */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          {/* 다가오는 일정 */}
+          <div className="mb-8">
+            <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 font-light">다가오는 일정</h3>
+
+            {nextMilestone ? (
               <button
                 onClick={() => setSelectedCategory(nextMilestone.key)}
-                className="mt-6 inline-flex items-center gap-1.5 text-base text-[#795252] hover:text-[#946a6a] transition-colors"
+                className="w-full flex items-center gap-5 p-5 rounded-xl hover:bg-[#f6f3f2] transition-colors group text-left"
               >
-                자세히 보기
-                <ArrowRight className="w-4 h-4" />
+                <div className="w-14 h-14 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
+                  {(() => {
+                    const IconComp = CATEGORY_ICONS[nextMilestone.key] ?? CalendarCheck;
+                    return <IconComp className="w-7 h-7 text-[#5a6147]" />;
+                  })()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xl font-serif-kr text-[#1b1c1c] mb-1 font-light">{nextMilestone.label}</p>
+                  <p className="text-base text-[#504444]">{nextMilestone.deadlineText}</p>
+                  <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
+                    <Clock className="w-3.5 h-3.5" />
+                    {nextMilestone.urgency === "overdue"
+                      ? "지금 바로"
+                      : nextMilestone.daysUntilDeadline <= 14
+                        ? `${nextMilestone.daysUntilDeadline}일 뒤`
+                        : "여유 있음"}
+                  </span>
+                </div>
+                <ArrowRight className="w-5 h-5 text-[#504444] group-hover:translate-x-1 transition-transform" />
               </button>
-            </>
-          ) : (
-            <>
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#F6F3F2] to-[#E8DDD5] flex items-center justify-center mb-5">
-                <Check className="w-6 h-6 text-[#5a6147]" />
+            ) : (
+              <div className="flex items-center gap-5 p-5 rounded-xl bg-[#f6f3f2]">
+                <div className="w-14 h-14 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
+                  <Check className="w-7 h-7 text-[#5a6147]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xl font-serif-kr text-[#1b1c1c] mb-1 font-light">모두 순조로워요</p>
+                  <p className="text-base text-[#504444]">현재 급한 일정은 없어요</p>
+                </div>
               </div>
-              <h4 className="font-serif-kr text-2xl text-[#1A1A1F] font-light mb-3 leading-snug">
-                모두 순조로워요
-              </h4>
-              <p className="text-base text-[#504444] leading-relaxed">
-                현재 급한 일정은 없어요. 여유롭게 준비를 이어가세요.
-              </p>
-            </>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Quick Actions */}
-        <div className="bg-[#F6F3F2] rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-5">
-            Quick Actions
-          </p>
-          <h4 className="font-serif-kr text-2xl text-[#1A1A1F] font-light mb-5">
-            빠른 시작
-          </h4>
-          <div className="flex flex-col gap-3">
-            <Link
-              href="/chat"
-              className="group flex items-center justify-between px-5 py-4 bg-white rounded-xl hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
-                  <MessageCircle className="w-5 h-5 text-white" />
+          {/* 빠른 실행 */}
+          <div>
+            <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 font-light">빠른 실행</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Link
+                href="/chat"
+                className="group flex items-center justify-between p-5 rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-[#795252]" />
+                  <span className="text-lg font-medium text-[#1b1c1c]">AI 아모라 상담</span>
                 </div>
-                <span className="text-base font-medium text-[#1A1A1F]">아모라 상담</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#795252] group-hover:translate-x-0.5 transition-all" />
-            </Link>
-            <Link
-              href="/community"
-              className="group flex items-center justify-between px-5 py-4 bg-white rounded-xl hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#5a6147] to-[#7a8560] flex items-center justify-center">
-                  <Users className="w-5 h-5 text-white" />
+                <ArrowRight className="w-5 h-5 text-[#504444] group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                href="/community"
+                className="group flex items-center justify-between p-5 rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="w-5 h-5 text-[#795252]" />
+                  <span className="text-lg font-medium text-[#1b1c1c]">커뮤니티 글</span>
                 </div>
-                <span className="text-base font-medium text-[#1A1A1F]">최근 커뮤니티 글</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#795252] group-hover:translate-x-0.5 transition-all" />
-            </Link>
+                <ArrowRight className="w-5 h-5 text-[#504444] group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* Spotlight */}
+        {/* Spotlight — 다크 테마 */}
         <Link
           href="/fitting"
-          className="group relative rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] min-h-[260px] block"
+          className="relative rounded-2xl overflow-hidden min-h-[400px] group cursor-pointer block"
         >
-          {/* 배경 그라디언트 */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#5a6147] via-[#795252] to-[#3d2e2e]" />
-          <div className="absolute top-[-20%] right-[-10%] w-[200px] h-[200px] bg-[radial-gradient(circle,rgba(255,255,255,0.15),transparent_70%)] rounded-full" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[180px] h-[180px] bg-[radial-gradient(circle,rgba(201,169,110,0.2),transparent_70%)] rounded-full" />
+          {/* 배경 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] via-[#3a2a2a] to-[#5a4040]" />
+          <div className="absolute top-[-20%] right-[-10%] w-[250px] h-[250px] bg-[radial-gradient(circle,rgba(201,169,110,0.35),transparent_70%)] rounded-full" />
+          <div className="absolute bottom-[-10%] left-[-15%] w-[200px] h-[200px] bg-[radial-gradient(circle,rgba(148,106,106,0.4),transparent_70%)] rounded-full" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+          {/* 상단 아이콘 */}
+          <div className="absolute top-8 right-8">
+            <Sparkles className="w-7 h-7 text-[#C9A96E]/70" />
+          </div>
+
           {/* 컨텐츠 */}
-          <div className="relative h-full flex flex-col justify-between p-8">
-            <div>
-              <p className="text-sm tracking-[0.2em] uppercase text-white/70 font-medium mb-3">
-                Spotlight
-              </p>
-              <Sparkles className="w-7 h-7 text-white/80 mb-4" />
-            </div>
-            <div>
-              <h4 className="font-serif-kr text-3xl text-white font-light mb-2 leading-snug">
-                AI 드레스 피팅
-              </h4>
-              <p className="text-base text-white/80 mb-5 leading-relaxed">
-                내 사진으로 수백 벌의 드레스를 미리 입어보세요
-              </p>
-              <div className="inline-flex items-center gap-1.5 text-base text-white font-medium group-hover:gap-2.5 transition-all">
-                지금 시작
-                <ArrowRight className="w-5 h-5" />
-              </div>
+          <div className="relative h-full flex flex-col justify-end p-8 text-white">
+            <p className="text-xs tracking-[0.25em] uppercase text-[#C9A96E] mb-3 font-medium">
+              Spotlight
+            </p>
+            <h3 className="font-serif-kr text-3xl mb-3 font-light">AI 드레스 피팅</h3>
+            <p className="text-base text-white/80 mb-5 line-clamp-2 leading-relaxed">
+              내 사진으로 수백 벌의 드레스를 미리 입어보세요
+            </p>
+            <div className="inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 group-hover:border-white self-start pb-1 transition-colors">
+              지금 시작
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </Link>
       </div>
 
-      {/* 지금 해야 할 것 + 커플 활동 */}
+      {/* 4. 지금 해야 할 것 + 커플 활동 */}
       {(urgentTasks.length > 0 || partnerActivities.length > 0) && (
-        <div className="grid grid-cols-5 gap-6 mb-8 max-lg:grid-cols-1 animate-fade-in">
+        <div className="grid lg:grid-cols-5 gap-8 mb-8 animate-fade-in">
           {/* 지금 해야 할 것 */}
           {urgentTasks.length > 0 && (
-            <div className={`${partnerActivities.length > 0 ? "col-span-3" : "col-span-5"} max-lg:col-span-1 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
+            <div className={`${partnerActivities.length > 0 ? "lg:col-span-3" : "lg:col-span-5"} bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <AlertCircle className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">지금 해야 할 것</h3>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">지금 해야 할 것</h3>
               </div>
               <div className="flex flex-col gap-3">
                 {urgentTasks.map((task) => {
@@ -558,7 +549,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[17px] font-medium text-[#1A1A1F]">{task.label}</span>
+                          <span className="text-[17px] font-medium text-[#1b1c1c]">{task.label}</span>
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${task.urgencyColor} ${
                             task.urgency === "overdue"
                               ? "bg-red-100"
@@ -571,7 +562,7 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-sm text-[#504444] mt-1">{task.deadlineText}</p>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-[#B5ADA3] flex-shrink-0" />
+                      <ChevronRight className="w-5 h-5 text-[#504444] flex-shrink-0" />
                     </div>
                   );
                 })}
@@ -581,10 +572,10 @@ export default function DashboardPage() {
 
           {/* 커플 활동 */}
           {partnerActivities.length > 0 && (
-            <div className={`${urgentTasks.length > 0 ? "col-span-2" : "col-span-5"} max-lg:col-span-1 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
+            <div className={`${urgentTasks.length > 0 ? "lg:col-span-2" : "lg:col-span-5"} bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <Users className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">커플 활동</h3>
+                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">커플 활동</h3>
               </div>
               <div className="flex flex-col gap-2">
                 {partnerActivities.map((activity) => {
@@ -592,13 +583,13 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={activity.key}
-                      className="flex items-start gap-3 px-4 py-4 rounded-xl bg-[#F6F3F2]"
+                      className="flex items-start gap-3 px-4 py-4 rounded-xl bg-[#f6f3f2]"
                     >
                       <div className="w-10 h-10 rounded-lg bg-[#795252]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <IconComp className="w-5 h-5 text-[#795252]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base text-[#1A1A1F] font-light leading-snug">
+                        <p className="text-base text-[#1b1c1c] font-light leading-snug">
                           <span className="font-medium">{partner?.name ?? "파트너"}</span>
                           {activity.status === "completed"
                             ? <span>가 <span className="font-medium text-[#5a6147]">{activity.label}</span>을 <span className="text-[#5a6147] font-medium">완료</span>했어요</span>
@@ -606,8 +597,8 @@ export default function DashboardPage() {
                           }
                         </p>
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <Clock className="w-4 h-4 text-[#B5ADA3]" />
-                          <span className="text-sm text-[#B5ADA3]">최근 활동</span>
+                          <Clock className="w-4 h-4 text-[#504444]" />
+                          <span className="text-sm text-[#504444]">최근 활동</span>
                         </div>
                       </div>
                     </div>
@@ -619,16 +610,16 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 카테고리별 진행 상태 + 시작 가이드 */}
-      <div className="grid grid-cols-5 gap-6 max-lg:grid-cols-1 animate-fade-in">
+      {/* 5. 카테고리별 진행 상태 + 시작 가이드 */}
+      <div className="grid lg:grid-cols-5 gap-8 animate-fade-in">
         {/* 카테고리 현황 */}
-        <div className="col-span-3 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="lg:col-span-3 bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center justify-between mb-5">
             <div>
               <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-1">
                 Progress
               </p>
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">카테고리별 진행 상태</h3>
+              <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">카테고리별 진행 상태</h3>
             </div>
             <Link href="/schedule" className="text-base text-[#795252] font-medium flex items-center gap-1 hover:gap-2 transition-all">
               전체 보기 <ArrowRight className="w-4 h-4" />
@@ -649,7 +640,7 @@ export default function DashboardPage() {
                       ? "bg-[#5a6147]/[0.06]"
                       : status === "in_progress"
                         ? "bg-[#795252]/[0.06]"
-                        : "bg-[#F6F3F2]"
+                        : "bg-[#f6f3f2]"
                   }`}
                 >
                   <div
@@ -657,9 +648,9 @@ export default function DashboardPage() {
                     className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-base text-[#1A1A1F] font-medium">{label}</span>
+                      <span className="text-base text-[#1b1c1c] font-medium">{label}</span>
                       {total > 0 && (
-                        <span className="text-sm text-[#B5ADA3]">{done}/{total}</span>
+                        <span className="text-sm text-[#504444]">{done}/{total}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -675,14 +666,14 @@ export default function DashboardPage() {
                             className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                               status === s
                                 ? `${opt.color} text-white`
-                                : "bg-white/60 text-[#B5ADA3] hover:bg-white"
+                                : "bg-white/60 text-[#504444] hover:bg-white"
                             }`}
                           >
                             {opt.label}
                           </button>
                         );
                       })}
-                      <ChevronRight className="w-4 h-4 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                      <ChevronRight className="w-4 h-4 text-[#504444] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
                     </div>
                   </div>
                 </div>
@@ -692,10 +683,10 @@ export default function DashboardPage() {
         </div>
 
         {/* 시작 가이드 */}
-        <div className="col-span-2 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
-            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">시작 가이드</h3>
+            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
             {[
@@ -706,16 +697,16 @@ export default function DashboardPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-start gap-3 px-4 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors"
+                className="flex items-start gap-3 px-4 py-4 rounded-xl hover:bg-[#f6f3f2] transition-colors"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#F6F3F2] flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-10 h-10 rounded-lg bg-[#f6f3f2] flex items-center justify-center flex-shrink-0 mt-0.5">
                   <item.icon className="w-5 h-5 text-[#795252]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-base text-[#1A1A1F] font-light leading-snug">{item.text}</p>
+                  <p className="text-base text-[#1b1c1c] font-light leading-snug">{item.text}</p>
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <Clock className="w-4 h-4 text-[#B5ADA3]" />
-                    <span className="text-sm text-[#B5ADA3]">시작하기</span>
+                    <Clock className="w-4 h-4 text-[#504444]" />
+                    <span className="text-sm text-[#504444]">시작하기</span>
                   </div>
                 </div>
               </Link>
