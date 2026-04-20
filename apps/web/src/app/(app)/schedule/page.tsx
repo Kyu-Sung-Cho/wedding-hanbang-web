@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { List, Calendar, Plus, Pencil, Trash2, CalendarDays } from "lucide-react";
+import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
@@ -78,9 +78,6 @@ export default function SchedulePage() {
   const dday = weddingDate
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
-  const dateStr = weddingDate
-    ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
-    : "날짜 미정";
 
   const handleCategoryClick = useCallback((key: string) => {
     setSelectedCategory(key);
@@ -217,242 +214,280 @@ export default function SchedulePage() {
   const progressPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
   return (
-    <div className="max-w-[900px] mx-auto bg-[#FAFAF8]">
-      {/* 페이지 타이틀 */}
-      <div className="mb-8 animate-fade-in">
-        <p className="text-sm uppercase tracking-[0.3em] text-[#B5ADA3] mb-2">Atelier · Schedule</p>
-        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F]">일정 관리</h1>
-        <p className="text-base text-[#504444] mt-2 font-light">결혼식까지의 모든 준비 일정을 한 곳에서 관리하세요.</p>
-      </div>
-
-      {/* 상단 요약 카드 */}
-      <div
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6 animate-fade-in"
-      >
-        <div className="flex items-center justify-between max-md:flex-col max-md:gap-5">
-          <div>
-            <p className="text-sm uppercase tracking-widest text-[#B5ADA3] mb-2">전체 체크리스트</p>
-            <p className="text-base text-[#504444]">
-              <span className="font-serif-kr text-5xl font-light text-[#1A1A1F]">
-                {totalDone}
-              </span>
-              <span className="text-[#B5ADA3] mx-1.5 font-serif-kr text-3xl font-light">/</span>
-              <span className="font-serif-kr text-3xl font-light text-[#B5ADA3]">
-                {totalItems}
-              </span>
-              <span className="text-sm text-[#B5ADA3] ml-2 uppercase tracking-widest">완료</span>
-            </p>
-          </div>
-          <div className="text-right max-md:text-left max-md:w-full">
-            <div className="flex items-center gap-3 mb-3 max-md:justify-between">
-              <span className="text-sm uppercase tracking-widest text-[#B5ADA3]">결혼 예정일</span>
-              <span className="font-serif-kr text-lg font-normal text-[#1A1A1F]">{dateStr}</span>
-              {dday !== null && (
-                <span className="text-sm text-white bg-[#795252] px-3 py-1.5 rounded-full font-medium">
-                  {dday > 0 ? `D-${dday}` : dday === 0 ? "D-Day" : `D+${Math.abs(dday)}`}
-                </span>
-              )}
-            </div>
-            <div className="w-[260px] max-md:w-full">
-              <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-              <p className="text-sm text-[#B5ADA3] mt-1.5 text-right">
-                {progressPct}% 달성
+    <div className="min-h-screen bg-[#fcf9f8]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10">
+        {/* Hero Banner */}
+        <section className="relative rounded-2xl overflow-hidden aspect-[16/5] mb-8 animate-fade-in">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `
+                radial-gradient(circle at 25% 50%, rgba(201, 169, 110, 0.35) 0%, transparent 55%),
+                radial-gradient(circle at 75% 50%, rgba(121, 82, 82, 0.3) 0%, transparent 55%),
+                linear-gradient(135deg, #f6f3f2 0%, #fcf9f8 50%, #dee6c4 100%)
+              `,
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
+          <div className="relative h-full flex items-center px-10 lg:px-16">
+            <div>
+              <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
+                SCHEDULE
+              </p>
+              <h1 className="font-serif-kr text-5xl lg:text-6xl text-[#1b1c1c] mb-4 leading-tight">
+                일정 관리
+              </h1>
+              <p className="text-xl text-[#504444] font-light italic">
+                결혼식까지의 여정을 한눈에
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* 임박 체크리스트 */}
-      <ImminentAlerts
-        items={imminentCategories}
-        onCategoryClick={handleCategoryClick}
-      />
-
-      {/* 다가오는 일정 */}
-      {upcomingEvents.length > 0 && (
-        <div
-          className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-6 overflow-hidden animate-fade-in"
-        >
-          <div className="flex items-center justify-between px-6 py-5">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-[#795252]" />
-              <h3 className="font-serif-kr text-xl font-light text-[#1A1A1F]">다가오는 일정</h3>
-              <span className="text-sm text-[#B5ADA3]">{upcomingEvents.length}건</span>
-            </div>
-            <button
-              onClick={handleAddEventQuick}
-              className="flex items-center gap-1 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              일정 추가
-            </button>
+        {/* 3-column Stat Row */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8 animate-fade-in">
+          {/* D-day */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+            <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
+            <p className="text-xs tracking-widest uppercase text-[#795252] mb-4 font-medium">
+              D-DAY
+            </p>
+            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+              {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
+            </p>
+            <p className="text-base text-[#504444]">
+              {dday === null
+                ? "날짜 미정"
+                : dday > 0
+                ? "일 남음"
+                : dday === 0
+                ? "결혼식 당일"
+                : "일 지남"}
+            </p>
           </div>
-          <div className="divide-y divide-[#F6F3F2]">
-            {upcomingEvents.map((evt) => (
+
+          {/* Progress */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
+              PROGRESS
+            </p>
+            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+              {progressPct}%
+            </p>
+            <div className="w-full h-2 bg-[#f6f3f2] rounded-full overflow-hidden mt-4">
               <div
-                key={evt.id}
-                className="flex items-center gap-3 px-6 py-4 hover:bg-[#FAFAF8] transition-colors group"
-              >
-                {/* 날짜 */}
-                <div className="flex-shrink-0 w-[68px] text-center">
-                  <p className="font-serif-kr text-lg font-normal text-[#1A1A1F]">
-                    {formatEventDate(evt.date).split(" ")[0]}
-                  </p>
-                  <p className="text-xs text-[#B5ADA3]">
-                    {formatEventDate(evt.date).split(" ")[1]}
-                  </p>
-                </div>
-                {/* 구분선 */}
-                <div className="w-[3px] h-12 rounded-full bg-[#795252]/30 flex-shrink-0" />
-                {/* 내용 */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-serif-kr text-lg text-[#1A1A1F] font-normal truncate">
-                    {evt.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {evt.memo && (
-                      <p className="text-sm text-[#504444] truncate">{evt.memo}</p>
-                    )}
-                    {evt.categoryKey && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-[#795252]/10 text-[#795252] flex-shrink-0">
-                        {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* D-day */}
-                <span className="text-base text-[#B5ADA3] flex-shrink-0">
-                  {getDaysUntil(evt.date)}
-                </span>
-                {/* 편집/삭제 */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  {pendingDeleteId === evt.id ? (
-                    <>
-                      <button
-                        onClick={() => { handleDeleteEvent(evt.id); setPendingDeleteId(null); }}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
-                      >
-                        삭제
-                      </button>
-                      <button
-                        onClick={() => setPendingDeleteId(null)}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                      >
-                        취소
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleEditEvent(evt)}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setPendingDeleteId(evt.id)}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-red-50 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </div>
+                className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="text-base text-[#504444] mt-2">
+              {totalDone}/{totalItems} 완료
+            </p>
+          </div>
+
+          {/* Upcoming count */}
+          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-4 font-medium">
+              UPCOMING
+            </p>
+            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+              {upcomingEvents.length}
+            </p>
+            <p className="text-base text-[#504444]">다가오는 일정</p>
+          </div>
+        </div>
+
+        {/* Main content: left view + right sidebar */}
+        <div className="grid lg:grid-cols-3 gap-8 animate-fade-in">
+          {/* Left: View toggle + Timeline/Calendar (2 cols) */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+            {/* View toggle header */}
+            <div className="flex items-center justify-between px-8 py-6 border-b border-[#e4e2e1]">
+              <div className="inline-flex bg-[#f6f3f2] rounded-xl p-1">
+                <button
+                  onClick={() => setViewMode("timeline")}
+                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors ${
+                    viewMode === "timeline"
+                      ? "bg-white text-[#1b1c1c] shadow-sm"
+                      : "text-[#504444]"
+                  }`}
+                >
+                  <List className="inline w-5 h-5 mr-2" />
+                  타임라인
+                </button>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors ${
+                    viewMode === "calendar"
+                      ? "bg-white text-[#1b1c1c] shadow-sm"
+                      : "text-[#504444]"
+                  }`}
+                >
+                  <Calendar className="inline w-5 h-5 mr-2" />
+                  캘린더
+                </button>
               </div>
-            ))}
+              <button
+                onClick={handleAddEventQuick}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
+              >
+                <Plus className="w-5 h-5" />
+                일정 추가
+              </button>
+            </div>
+
+            {/* Timeline or Calendar content */}
+            <div className="p-8">
+              {viewMode === "timeline" ? (
+                <TimelineView
+                  progress={progress}
+                  onToggleChecklistItem={handleToggleChecklistItem}
+                  events={events}
+                  onEditEvent={handleEditEvent}
+                  onDeleteEvent={handleDeleteEvent}
+                  onAddEvent={handleAddEventQuick}
+                />
+              ) : (
+                <CalendarView
+                  weddingDate={weddingDate}
+                  progress={progress}
+                  events={events}
+                  onCategoryClick={handleCategoryClick}
+                  onAddEvent={handleAddEvent}
+                  onEditEvent={handleEditEvent}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Right sidebar */}
+          <div className="space-y-6">
+            {/* Imminent Alerts */}
+            {imminentCategories.length > 0 && (
+              <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5">
+                  긴급 확인
+                </h3>
+                <ImminentAlerts
+                  items={imminentCategories}
+                  onCategoryClick={handleCategoryClick}
+                />
+              </div>
+            )}
+
+            {/* Upcoming Events */}
+            <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-serif-kr text-2xl text-[#1b1c1c]">
+                  다가오는 일정
+                </h3>
+                <button
+                  onClick={handleAddEventQuick}
+                  className="flex items-center gap-1 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  추가
+                </button>
+              </div>
+
+              {upcomingEvents.length === 0 ? (
+                <p className="text-base text-[#504444]">예정된 일정이 없어요</p>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingEvents.map((evt) => (
+                    <div
+                      key={evt.id}
+                      className="flex items-center gap-4 p-4 rounded-xl hover:bg-[#f6f3f2] transition-colors group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
+                        <CalendarDays className="w-6 h-6 text-[#5a6147]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-[#1b1c1c] truncate">
+                          {evt.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-sm text-[#504444] truncate">
+                            {formatEventDate(evt.date)}
+                          </p>
+                          {evt.categoryKey && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-[#795252]/10 text-[#795252] flex-shrink-0">
+                              {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
+                          {getDaysUntil(evt.date)}
+                        </span>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {pendingDeleteId === evt.id ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  handleDeleteEvent(evt.id);
+                                  setPendingDeleteId(null);
+                                }}
+                                className="px-2 py-1 rounded-md text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                              >
+                                삭제
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteId(null)}
+                                className="px-2 py-1 rounded-md text-xs font-medium bg-[#f6f3f2] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
+                              >
+                                취소
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleEditEvent(evt)}
+                                className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-[#f6f3f2] hover:text-[#795252] transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteId(evt.id)}
+                                className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-red-50 hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* 탭 전환 + 일정 추가 */}
-      <div
-        className="flex items-center justify-between mb-6 animate-fade-in"
-      >
-        <div className="flex items-center gap-2 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-1.5">
-          <button
-            onClick={() => setViewMode("timeline")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-base font-medium transition-all ${
-              viewMode === "timeline"
-                ? "bg-[#795252] text-white"
-                : "text-[#504444] hover:bg-[#F6F3F2]"
-            }`}
-          >
-            <List className="w-5 h-5" />
-            타임라인
-          </button>
-          <button
-            onClick={() => setViewMode("calendar")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-base font-medium transition-all ${
-              viewMode === "calendar"
-                ? "bg-[#795252] text-white"
-                : "text-[#504444] hover:bg-[#F6F3F2]"
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            캘린더
-          </button>
-        </div>
-        <button
-          onClick={handleAddEventQuick}
-          className="flex items-center gap-1.5 px-5 py-3 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
-        >
-          <Plus className="w-5 h-5" />
-          일정 추가
-        </button>
+        {/* 체크리스트 모달 */}
+        <CategoryChecklistModal
+          categoryKey={selectedCategory ?? ""}
+          isOpen={!!selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+
+        {/* 이벤트 추가/수정 모달 */}
+        <EventFormModal
+          isOpen={eventFormMode !== null}
+          mode={eventFormMode ?? "add"}
+          event={editingEvent}
+          defaultDate={selectedDateForAdd}
+          onSave={handleSaveEvent}
+          onDelete={editingEvent ? () => handleDeleteEvent(editingEvent.id) : undefined}
+          onClose={() => {
+            setEventFormMode(null);
+            setEditingEvent(null);
+            setSelectedDateForAdd(null);
+          }}
+        />
       </div>
-
-      {/* 뷰 */}
-      <div className="animate-fade-in">
-        {viewMode === "timeline" ? (
-          <TimelineView
-            progress={progress}
-            onToggleChecklistItem={handleToggleChecklistItem}
-            events={events}
-            onEditEvent={handleEditEvent}
-            onDeleteEvent={handleDeleteEvent}
-            onAddEvent={handleAddEventQuick}
-          />
-        ) : (
-          <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
-            <CalendarView
-              weddingDate={weddingDate}
-              progress={progress}
-              events={events}
-              onCategoryClick={handleCategoryClick}
-              onAddEvent={handleAddEvent}
-              onEditEvent={handleEditEvent}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 체크리스트 모달 */}
-      <CategoryChecklistModal
-        categoryKey={selectedCategory ?? ""}
-        isOpen={!!selectedCategory}
-        onClose={() => setSelectedCategory(null)}
-      />
-
-      {/* 이벤트 추가/수정 모달 */}
-      <EventFormModal
-        isOpen={eventFormMode !== null}
-        mode={eventFormMode ?? "add"}
-        event={editingEvent}
-        defaultDate={selectedDateForAdd}
-        onSave={handleSaveEvent}
-        onDelete={editingEvent ? () => handleDeleteEvent(editingEvent.id) : undefined}
-        onClose={() => {
-          setEventFormMode(null);
-          setEditingEvent(null);
-          setSelectedDateForAdd(null);
-        }}
-      />
     </div>
   );
 }
