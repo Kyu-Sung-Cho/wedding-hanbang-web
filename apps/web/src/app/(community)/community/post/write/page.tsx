@@ -62,7 +62,7 @@ function getIcon(name: string) {
 
 export default function PostWritePage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-[#6B7280] animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-[#504444] animate-spin" /></div>}>
       <PostWriteContent />
     </Suspense>
   );
@@ -376,8 +376,8 @@ function PostWriteContent() {
   // 인증 확인 전 로딩
   if (!authChecked) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#2563EB] animate-spin" />
+      <div className="min-h-[60vh] flex items-center justify-center bg-[#fcf9f8]">
+        <Loader2 className="w-8 h-8 text-[#795252] animate-spin" />
       </div>
     );
   }
@@ -385,8 +385,8 @@ function PostWriteContent() {
   // 수정 모드 글 로딩
   if (loadingPost) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#2563EB] animate-spin" />
+      <div className="min-h-[60vh] flex items-center justify-center bg-[#fcf9f8]">
+        <Loader2 className="w-8 h-8 text-[#795252] animate-spin" />
       </div>
     );
   }
@@ -396,339 +396,341 @@ function PostWriteContent() {
     ? "text-red-500"
     : title.length >= TITLE_MAX_LENGTH * 0.9
       ? "text-amber-500"
-      : "text-[#6B7280]";
+      : "text-[#504444]";
 
   const contentCountColor = content.length >= CONTENT_MAX_LENGTH
     ? "text-red-500"
     : content.length >= CONTENT_MAX_LENGTH * 0.9
       ? "text-amber-500"
-      : "text-[#6B7280]";
+      : "text-[#504444]";
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-6 pb-32 sm:pb-10">
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="p-2 text-[#6B7280] hover:text-[#1c1c1e] hover:bg-[#F4F6F8] rounded-lg transition-colors"
-          aria-label="뒤로 가기"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-lg font-bold text-[#1c1c1e]">
-          {isEditMode ? "글 수정" : "글쓰기"}
-        </h1>
-        <div className="ml-auto flex items-center gap-2">
-          {draftRestored && !isEditMode && (
-            <span className="text-xs text-[#2563EB]">
-              임시저장 복원됨
-            </span>
-          )}
-          {/* 자동 저장 표시 */}
-          {autoSaveFlash && (
-            <span className="flex items-center gap-1 text-xs text-emerald-500 animate-pulse">
-              <Check className="w-3 h-3" />
-              자동 저장됨
-            </span>
-          )}
+    <div className="min-h-screen bg-[#fcf9f8]">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 pb-32 sm:pb-12">
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 mb-8">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="p-2 text-[#504444] hover:text-[#1b1c1c] hover:bg-[#f6f3f2] rounded-lg transition-colors"
+            aria-label="뒤로 가기"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="font-serif-kr text-3xl font-light text-[#1b1c1c]">
+            {isEditMode ? "글 수정" : "글쓰기"}
+          </h1>
+          <div className="ml-auto flex items-center gap-2">
+            {draftRestored && !isEditMode && (
+              <span className="text-sm text-[#795252]">
+                임시저장 복원됨
+              </span>
+            )}
+            {/* 자동 저장 표시 */}
+            {autoSaveFlash && (
+              <span className="flex items-center gap-1 text-sm text-emerald-500 animate-pulse">
+                <Check className="w-3 h-3" />
+                자동 저장됨
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* 에러 메시지 */}
-      {error && (
-        <div className="mb-6 px-4 py-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
-          {error}
-        </div>
-      )}
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="mb-6 px-4 py-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
+            {error}
+          </div>
+        )}
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* 메인 영역: 제목 + 본문 */}
-        <div className="flex-1 space-y-6">
-          {/* 제목 */}
-          <section>
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-              제목 <span className="text-[#2563EB]">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
-              placeholder="제목을 입력하세요"
-              maxLength={TITLE_MAX_LENGTH}
-              className="w-full px-4 py-3 text-lg text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors"
-            />
-            <p className={`mt-2 text-xs text-right ${titleCountColor}`}>
-              {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
-            </p>
-          </section>
-
-          {/* 작성/미리보기 탭 */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-[#1c1c1e]">
-                내용 <span className="text-[#2563EB]">*</span>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* 메인 영역: 제목 + 본문 */}
+          <div className="flex-1 space-y-8">
+            {/* 제목 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-2">
+                제목 <span className="text-[#795252]">*</span>
               </label>
-              <div className="flex bg-[#E5E7EB] rounded-lg p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("write")}
-                  className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                    activeTab === "write"
-                      ? "bg-[#2563EB] text-white shadow-sm"
-                      : "text-[#6B7280] hover:text-[#1c1c1e]"
-                  }`}
-                >
-                  <Pencil className="w-3 h-3" />
-                  작성
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("preview")}
-                  className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                    activeTab === "preview"
-                      ? "bg-[#2563EB] text-white shadow-sm"
-                      : "text-[#6B7280] hover:text-[#1c1c1e]"
-                  }`}
-                >
-                  <Eye className="w-3 h-3" />
-                  미리보기
-                </button>
-              </div>
-            </div>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+                placeholder="제목을 입력하세요"
+                maxLength={TITLE_MAX_LENGTH}
+                className="w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors"
+              />
+              <p className={`mt-2 text-sm text-right ${titleCountColor}`}>
+                {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
+              </p>
+            </section>
 
-            {activeTab === "write" ? (
-              <>
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => {
-                    setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
-                    autoResize();
-                  }}
-                  placeholder="내용을 입력하세요..."
-                  maxLength={CONTENT_MAX_LENGTH}
-                  className="w-full px-4 py-3 text-base text-[#1c1c1e] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg placeholder:text-[#6B7280] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
-                />
-                <p className={`mt-2 text-xs text-right ${contentCountColor}`}>
-                  {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
-                </p>
-              </>
-            ) : (
-              <div className="w-full px-4 py-3 bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg min-h-[200px]">
-                {content.trim() ? (
-                  <div
-                    className="prose prose-sm max-w-none text-[#1c1c1e] leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: renderPreviewHtml() }}
+            {/* 작성/미리보기 탭 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-base font-medium text-[#1b1c1c]">
+                  내용 <span className="text-[#795252]">*</span>
+                </label>
+                <div className="flex bg-[#e4e2e1] rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("write")}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      activeTab === "write"
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "text-[#504444] hover:text-[#1b1c1c]"
+                    }`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                    작성
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("preview")}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      activeTab === "preview"
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "text-[#504444] hover:text-[#1b1c1c]"
+                    }`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    미리보기
+                  </button>
+                </div>
+              </div>
+
+              {activeTab === "write" ? (
+                <>
+                  <textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => {
+                      setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
+                      autoResize();
+                    }}
+                    placeholder="내용을 입력하세요..."
+                    maxLength={CONTENT_MAX_LENGTH}
+                    className="w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
                   />
-                ) : (
-                  <p className="text-[#6B7280] text-sm">미리볼 내용이 없습니다.</p>
-                )}
+                  <p className={`mt-2 text-sm text-right ${contentCountColor}`}>
+                    {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
+                  </p>
+                </>
+              ) : (
+                <div className="w-full px-4 py-3 bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg min-h-[200px]">
+                  {content.trim() ? (
+                    <div
+                      className="prose prose-sm max-w-none text-[#1b1c1c] leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: renderPreviewHtml() }}
+                    />
+                  ) : (
+                    <p className="text-[#504444] text-sm">미리볼 내용이 없습니다.</p>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* 이미지/영상 업로드 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                이미지/영상
+              </label>
+              <ImageUploader images={images} onChange={setImages} max={5} />
+            </section>
+          </div>
+
+          {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
+          <div className="lg:w-72 shrink-0 space-y-6">
+            {/* 카테고리 선택 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                카테고리 <span className="text-[#795252]">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {COMMUNITY_CATEGORIES.map((cat) => {
+                  const Icon = getIcon(cat.icon);
+                  const isSelected = category === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => setCategory(cat.key)}
+                      className={`flex items-center gap-2 px-3 py-2 text-base font-medium rounded-lg border transition-all ${
+                        isSelected
+                          ? "border-[#795252] bg-[#795252] text-white shadow-sm"
+                          : "border-[#e4e2e1] bg-white text-[#504444] hover:border-[#795252] hover:text-[#1b1c1c]"
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 shrink-0" />
+                      <span className="truncate">{cat.shortLabel}</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </section>
+            </section>
 
-          {/* 이미지/영상 업로드 */}
-          <section>
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-              이미지/영상
-            </label>
-            <ImageUploader images={images} onChange={setImages} max={5} />
-          </section>
+            {/* 공개 범위 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                공개 범위
+              </label>
+              <div className="space-y-2">
+                {[
+                  { key: "public" as PostVisibility, label: "전체 공개", icon: Globe },
+                  { key: "members" as PostVisibility, label: "회원 공개", icon: Users },
+                  { key: "draft" as PostVisibility, label: "임시저장", icon: FileText },
+                ].map((opt) => {
+                  const isSelected = visibility === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setVisibility(opt.key)}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-base font-medium rounded-lg border transition-all ${
+                        isSelected
+                          ? "border-[#795252] bg-[#795252] text-white shadow-sm"
+                          : "border-[#e4e2e1] bg-white text-[#504444] hover:border-[#795252]"
+                      }`}
+                    >
+                      <opt.icon className="w-5 h-5" />
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 태그 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                태그
+              </label>
+              <TagInput tags={tags} onChange={setTags} max={10} />
+            </section>
+
+            {/* 업체 태그 (카테고리가 허용하는 경우) */}
+            {categoryInfo?.allowVendorTags && (
+              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                  업체 태그
+                </label>
+                <VendorTagPicker vendorIds={vendorTags} onChange={setVendorTags} />
+              </section>
+            )}
+
+            {/* 광고 표시 */}
+            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                광고 표시 <span className="text-[#C4967E]">*</span>
+              </label>
+              {adDisclosure ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAdModal(true)}
+                  className="flex items-center justify-between w-full px-3 py-2 text-left bg-[#FAFAF8] border border-[#F0EFED] rounded-xl hover:border-[#C4967E] transition-colors"
+                >
+                  <AdDisclosureBadge adDisclosure={adDisclosure} sponsorshipDetail={sponsorshipDetail} />
+                  <span className="text-sm text-[#878680]">변경</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowAdModal(true)}
+                  className="w-full px-3 py-2 text-base text-[#878680] bg-[#FAFAF8] border border-dashed border-[#F0EFED] rounded-xl hover:border-[#C4967E] hover:text-[#1A1A1F] transition-colors"
+                >
+                  유형을 선택해주세요
+                </button>
+              )}
+            </section>
+
+            {/* "이거 정상이야?" 가격 폼 */}
+            {category === "is_normal" && (
+              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                  가격 질문 (선택)
+                </label>
+                <PriceQuestionForm onChange={setPriceData} />
+              </section>
+            )}
+          </div>
         </div>
 
-        {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
-        <div className="lg:w-72 shrink-0 space-y-6">
-          {/* 카테고리 선택 */}
-          <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-3">
-              카테고리 <span className="text-[#2563EB]">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {COMMUNITY_CATEGORIES.map((cat) => {
-                const Icon = getIcon(cat.icon);
-                const isSelected = category === cat.key;
-                return (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    onClick={() => setCategory(cat.key)}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
-                      isSelected
-                        ? "border-[#2563EB] bg-[#2563EB] text-white shadow-sm"
-                        : "border-[#E5E7EB] bg-white text-[#6B7280] hover:border-[#D1D5DB] hover:text-[#1c1c1e]"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{cat.shortLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+        {/* 광고 표시 모달 */}
+        {showAdModal && (
+          <AdDisclosureModal
+            onSelect={({ adDisclosure: d, sponsorshipDetail: detail }) => {
+              setAdDisclosure(d);
+              setSponsorshipDetail(detail ?? "");
+              setShowAdModal(false);
+            }}
+          />
+        )}
 
-          {/* 공개 범위 */}
-          <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-3">
-              공개 범위
-            </label>
-            <div className="space-y-2">
-              {[
-                { key: "public" as PostVisibility, label: "전체 공개", icon: Globe },
-                { key: "members" as PostVisibility, label: "회원 공개", icon: Users },
-                { key: "draft" as PostVisibility, label: "임시저장", icon: FileText },
-              ].map((opt) => {
-                const isSelected = visibility === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setVisibility(opt.key)}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
-                      isSelected
-                        ? "border-[#2563EB] bg-[#2563EB] text-white shadow-sm"
-                        : "border-[#E5E7EB] bg-white text-[#6B7280] hover:border-[#D1D5DB]"
-                    }`}
-                  >
-                    <opt.icon className="w-4 h-4" />
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* 태그 */}
-          <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-              태그
-            </label>
-            <TagInput tags={tags} onChange={setTags} max={10} />
-          </section>
-
-          {/* 업체 태그 (카테고리가 허용하는 경우) */}
-          {categoryInfo?.allowVendorTags && (
-            <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-              <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-                업체 태그
-              </label>
-              <VendorTagPicker vendorIds={vendorTags} onChange={setVendorTags} />
-            </section>
-          )}
-
-          {/* 광고 표시 */}
-          <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-            <label className="block text-sm font-medium text-[#1c1c1e] mb-2">
-              광고 표시 <span className="text-[#C4967E]">*</span>
-            </label>
-            {adDisclosure ? (
+        {/* 하단 버튼 - 데스크탑 */}
+        <div className="hidden sm:flex items-center justify-between gap-3 mt-10 pt-6 border-t border-[#e4e2e1]">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="px-6 py-2.5 text-base font-medium text-[#504444] bg-white border border-[#e4e2e1] rounded-lg hover:bg-[#f6f3f2] transition-colors"
+          >
+            취소
+          </button>
+          <div className="flex items-center gap-3">
+            {!isEditMode && (
               <button
                 type="button"
-                onClick={() => setShowAdModal(true)}
-                className="flex items-center justify-between w-full px-3 py-2 text-left bg-[#FAFAF8] border border-[#F0EFED] rounded-xl hover:border-[#C4967E] transition-colors"
+                onClick={() => handleSubmit(true)}
+                disabled={isSubmitting || !category || !title.trim()}
+                className="flex items-center gap-2 px-6 py-2.5 text-base font-medium text-[#504444] bg-white border border-[#e4e2e1] rounded-lg hover:bg-[#f6f3f2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <AdDisclosureBadge adDisclosure={adDisclosure} sponsorshipDetail={sponsorshipDetail} />
-                <span className="text-xs text-[#878680]">변경</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAdModal(true)}
-                className="w-full px-3 py-2 text-sm text-[#878680] bg-[#FAFAF8] border border-dashed border-[#F0EFED] rounded-xl hover:border-[#C4967E] hover:text-[#1A1A1F] transition-colors"
-              >
-                유형을 선택해주세요
+                <Save className="w-4 h-4" />
+                임시저장
               </button>
             )}
-          </section>
-
-          {/* "이거 정상이야?" 가격 폼 */}
-          {category === "is_normal" && (
-            <section className="bg-white border border-[#E5E7EB] rounded-xl p-4">
-              <label className="block text-sm font-medium text-[#1c1c1e] mb-3">
-                가격 질문 (선택)
-              </label>
-              <PriceQuestionForm onChange={setPriceData} />
-            </section>
-          )}
+            <button
+              type="button"
+              onClick={() => handleSubmit(false)}
+              disabled={isSubmitting || !isValid}
+              className="flex items-center justify-center gap-2 px-8 py-3.5 text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-lg hover:from-[#946a6a] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : null}
+              {isEditMode ? "수정하기" : "발행하기"}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* 광고 표시 모달 */}
-      {showAdModal && (
-        <AdDisclosureModal
-          onSelect={({ adDisclosure: d, sponsorshipDetail: detail }) => {
-            setAdDisclosure(d);
-            setSponsorshipDetail(detail ?? "");
-            setShowAdModal(false);
-          }}
-        />
-      )}
-
-      {/* 하단 버튼 - 데스크탑 */}
-      <div className="hidden sm:flex items-center justify-between gap-3 mt-8 pt-6 border-t border-[#E5E7EB]">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-6 py-2 text-sm font-medium text-[#6B7280] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] transition-colors"
-        >
-          취소
-        </button>
-        <div className="flex items-center gap-3">
+        {/* 하단 버튼 - 모바일 고정 */}
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#e4e2e1] px-4 py-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="px-4 py-2 text-sm font-medium text-[#504444] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg transition-colors"
+          >
+            취소
+          </button>
           {!isEditMode && (
             <button
               type="button"
               onClick={() => handleSubmit(true)}
               disabled={isSubmitting || !category || !title.trim()}
-              className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-[#6B7280] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F4F6F8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm font-medium text-[#504444] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-4 h-4" />
-              임시저장
             </button>
           )}
           <button
             type="button"
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting || !isValid}
-            className="flex items-center justify-center gap-2 px-10 py-3 text-base font-semibold text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="flex-1 flex items-center justify-center gap-2 py-3 text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-lg hover:from-[#946a6a] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
             {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : null}
             {isEditMode ? "수정하기" : "발행하기"}
           </button>
         </div>
-      </div>
-
-      {/* 하단 버튼 - 모바일 고정 */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E5E7EB] px-4 py-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-4 py-2 text-sm font-medium text-[#6B7280] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg transition-colors"
-        >
-          취소
-        </button>
-        {!isEditMode && (
-          <button
-            type="button"
-            onClick={() => handleSubmit(true)}
-            disabled={isSubmitting || !category || !title.trim()}
-            className="px-4 py-2 text-sm font-medium text-[#6B7280] bg-[#F4F6F8] border border-[#E5E7EB] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <Save className="w-4 h-4" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => handleSubmit(false)}
-          disabled={isSubmitting || !isValid}
-          className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {isSubmitting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : null}
-          {isEditMode ? "수정하기" : "발행하기"}
-        </button>
       </div>
     </div>
   );
