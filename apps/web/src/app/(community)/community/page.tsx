@@ -303,7 +303,7 @@ function CommunityFeedContent() {
             {!isSearching && (
               <div className="flex items-center justify-between border-b border-[#e4e2e1] pb-4">
                 <h3 className="font-serif-kr text-4xl text-[#1b1c1c]">
-                  최근 대화
+                  최신 글
                 </h3>
                 <SortSelector
                   sort={currentSort}
