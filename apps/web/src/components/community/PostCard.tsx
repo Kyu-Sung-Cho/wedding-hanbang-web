@@ -66,19 +66,19 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
   }
 
   return (
-    <article className="bg-white rounded-2xl p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-8`}>
+    <article className="bg-white rounded-2xl p-5 sm:p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-8`}>
         {/* 텍스트 영역 */}
-        <div className="flex-1 flex flex-col justify-between">
+        <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-2 sm:space-x-3 flex-wrap">
                 {categoryInfo && (
-                  <span className={`text-sm font-medium px-2.5 py-1 rounded ${categoryBadgeStyle}`}>
+                  <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded ${categoryBadgeStyle}`}>
                     {categoryInfo.shortLabel}
                   </span>
                 )}
-                <span className="text-sm text-[#504444]">{timeAgo(post.created_at)}</span>
+                <span className="text-xs sm:text-sm text-[#504444]">{timeAgo(post.created_at)}</span>
 
                 {post.ad_disclosure === "sponsored" && (
                   <span className="px-2 py-0.5 rounded bg-[#FEFCE8] text-[#A16207] text-xs font-medium">협찬</span>
@@ -90,7 +90,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-[28px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2">
+              <h4 className="text-xl sm:text-2xl lg:text-[28px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -106,7 +106,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#504444] text-[17px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
+              <p className="text-[#504444] text-sm sm:text-[17px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 */}
@@ -119,8 +119,8 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
           </div>
 
           {/* 하단 */}
-          <div className="flex items-center justify-between mt-auto pt-2">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between gap-3 mt-auto pt-2">
+            <div className="flex items-center space-x-2 min-w-0">
               <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
                 <Avatar
                   nickname={author.nickname}
@@ -128,17 +128,17 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
                   size={40}
                 />
               </Link>
-              <span className="text-[17px] text-[#504444]">{author.nickname}</span>
+              <span className="text-sm sm:text-[17px] text-[#504444] truncate">{author.nickname}</span>
             </div>
 
-            <div className="flex items-center space-x-5 text-[#504444]">
+            <div className="flex items-center gap-3 sm:space-x-5 text-[#504444] flex-shrink-0">
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
                 className="flex items-center space-x-1 hover:text-[#795252] group"
               >
-                <MessageCircle className="w-6 h-6 opacity-60 group-hover:opacity-100" />
-                <span className="text-[17px]">{post.comment_count}</span>
+                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
+                <span className="text-sm sm:text-[17px]">{post.comment_count}</span>
               </Link>
 
               {/* 북마크 */}
@@ -151,7 +151,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
                 aria-label="저장"
               >
                 <Bookmark
-                  className="w-6 h-6 opacity-60 group-hover:opacity-100"
+                  className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100"
                   fill={bookmarked ? "#795252" : "none"}
                 />
               </button>
@@ -162,7 +162,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
                 className="flex items-center space-x-1 hover:text-[#795252] group"
                 aria-label="공유"
               >
-                <Share2 className="w-6 h-6 opacity-60 group-hover:opacity-100" />
+                <Share2 className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
               </button>
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
         {hasImage && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full sm:w-48 h-48 rounded-xl overflow-hidden shrink-0 mt-4 sm:mt-0"
+            className="w-full sm:w-48 h-40 sm:h-48 rounded-xl overflow-hidden shrink-0"
           >
             <Image
               src={images[0]}

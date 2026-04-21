@@ -291,7 +291,7 @@ export default function DashboardPage() {
           : "날짜 미정";
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 bg-[#fcf9f8]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10 bg-[#fcf9f8]">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
         <div className="bg-white rounded-2xl p-6 mb-8 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -320,7 +320,7 @@ export default function DashboardPage() {
       )}
 
       {/* 1. 에디토리얼 히어로 배너 */}
-      <section className="relative rounded-2xl overflow-hidden aspect-[16/7] lg:aspect-[16/6] mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/7] lg:aspect-[16/6] mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         {/* 배경 그라디언트 (CSS 폴백) */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#E8DDD5] via-[#D9C5BC] to-[#946a6a]" />
         {/* 장식 패턴 */}
@@ -331,18 +331,18 @@ export default function DashboardPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
 
         {/* 텍스트 컨텐츠 */}
-        <div className="relative h-full flex items-center px-10 lg:px-16">
-          <div>
-            <p className="text-xs lg:text-sm tracking-[0.3em] uppercase text-white/75 font-medium mb-5">
+        <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
+          <div className="min-w-0">
+            <p className="text-xs lg:text-sm tracking-[0.3em] uppercase text-white/75 font-medium mb-3 sm:mb-5">
               The Curated Atelier
             </p>
-            <h1 className="font-serif-kr text-4xl lg:text-6xl text-white mb-4 leading-tight font-light">
+            <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-white mb-3 sm:mb-4 leading-tight font-light break-words">
               환영해요,<br />
               {partnerName
                 ? <>{userName} & {partnerName}</>
                 : <>{userName ?? "예비 부부"}님</>}
             </h1>
-            <p className="text-lg lg:text-xl text-white/90 font-light italic font-serif-kr">
+            <p className="text-base sm:text-lg lg:text-xl text-white/90 font-light italic font-serif-kr">
               결혼 준비가 아름답게 시작됐어요.
             </p>
           </div>
@@ -350,9 +350,9 @@ export default function DashboardPage() {
       </section>
 
       {/* 2. D-day + Budget Overview (2-column) */}
-      <div className="grid lg:grid-cols-2 gap-8 mb-8 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 animate-fade-in">
         {/* D-day 카드 */}
-        <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[300px] relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[240px] sm:min-h-[300px] relative overflow-hidden">
           {/* 장식 스파클 */}
           <Sparkles className="absolute top-6 right-6 w-8 h-8 text-[#C9A96E]/30" />
           <Sparkles className="absolute bottom-8 left-8 w-6 h-6 text-[#C9A96E]/15" />
@@ -360,10 +360,10 @@ export default function DashboardPage() {
           <p className="text-xs text-[#795252] tracking-[0.25em] uppercase mb-4 font-medium">
             결혼식 D-Day
           </p>
-          <p className="font-serif-kr text-[96px] leading-none text-[#1b1c1c] mb-2 font-light">
+          <p className="font-serif-kr text-6xl sm:text-7xl lg:text-[96px] leading-none text-[#1b1c1c] mb-2 font-light">
             {ddayDisplay}
           </p>
-          <p className="text-2xl text-[#504444] font-serif-kr italic mb-6">
+          <p className="text-xl sm:text-2xl text-[#504444] font-serif-kr italic mb-4 sm:mb-6">
             {ddayLabel}
           </p>
           <p className="text-base text-[#504444]">
@@ -372,26 +372,26 @@ export default function DashboardPage() {
         </div>
 
         {/* Budget Overview */}
-        <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="flex items-start justify-between mb-8">
-            <div>
-              <h2 className="font-serif-kr text-3xl text-[#1b1c1c] mb-2 font-light">예산 현황</h2>
+        <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="flex items-start justify-between mb-6 sm:mb-8">
+            <div className="min-w-0">
+              <h2 className="font-serif-kr text-2xl sm:text-3xl text-[#1b1c1c] mb-2 font-light">예산 현황</h2>
               <p className="text-base text-[#504444]">소중한 투자를 관리해요</p>
             </div>
-            <Link href="/budget" className="text-[#504444] hover:text-[#795252] transition-colors">
+            <Link href="/budget" className="text-[#504444] hover:text-[#795252] transition-colors flex-shrink-0">
               <MoreHorizontal className="w-5 h-5" />
             </Link>
           </div>
 
-          <div className="flex justify-between items-end mb-6">
-            <div>
-              <p className="font-serif-kr text-4xl text-[#1b1c1c] font-light mb-1">
+          <div className="flex justify-between items-end gap-3 mb-6">
+            <div className="min-w-0">
+              <p className="font-serif-kr text-3xl sm:text-4xl text-[#1b1c1c] font-light mb-1 break-words">
                 {formatBudget(spentBudget)}
               </p>
               <p className="text-sm text-[#504444]">사용한 금액</p>
             </div>
-            <div className="text-right">
-              <p className="font-serif-kr text-4xl text-[#1b1c1c] font-light mb-1">
+            <div className="text-right min-w-0">
+              <p className="font-serif-kr text-3xl sm:text-4xl text-[#1b1c1c] font-light mb-1 break-words">
                 {formatBudget(totalBudget)}
               </p>
               <p className="text-sm text-[#504444]">전체 예산</p>
@@ -413,12 +413,12 @@ export default function DashboardPage() {
       </div>
 
       {/* 3. Bottom Row: Milestone + Quick Actions (2/3) + Spotlight (1/3) */}
-      <div className="grid lg:grid-cols-3 gap-8 mb-8 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 mb-8 animate-fade-in">
         {/* 다가오는 일정 + 빠른 실행 — 2 cols */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           {/* 다가오는 일정 */}
           <div className="mb-8">
-            <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 font-light">다가오는 일정</h3>
+            <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5 font-light">다가오는 일정</h3>
 
             {nextMilestone ? (
               <button
@@ -460,8 +460,8 @@ export default function DashboardPage() {
 
           {/* 빠른 실행 */}
           <div>
-            <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 font-light">빠른 실행</h3>
-            <div className="grid md:grid-cols-2 gap-4">
+            <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5 font-light">빠른 실행</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Link
                 href="/chat"
                 className="group flex items-center justify-between p-5 rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] transition-colors"
@@ -489,7 +489,7 @@ export default function DashboardPage() {
         {/* Spotlight — 다크 테마 */}
         <Link
           href="/fitting"
-          className="relative rounded-2xl overflow-hidden min-h-[400px] group cursor-pointer block"
+          className="relative rounded-2xl overflow-hidden min-h-[320px] sm:min-h-[400px] group cursor-pointer block"
         >
           {/* 배경 */}
           <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] via-[#3a2a2a] to-[#5a4040]" />
@@ -503,11 +503,11 @@ export default function DashboardPage() {
           </div>
 
           {/* 컨텐츠 */}
-          <div className="relative h-full flex flex-col justify-end p-8 text-white">
+          <div className="relative h-full flex flex-col justify-end p-6 sm:p-8 text-white">
             <p className="text-xs tracking-[0.25em] uppercase text-[#C9A96E] mb-3 font-medium">
               Spotlight
             </p>
-            <h3 className="font-serif-kr text-3xl mb-3 font-light">AI 드레스 피팅</h3>
+            <h3 className="font-serif-kr text-2xl sm:text-3xl mb-3 font-light">AI 드레스 피팅</h3>
             <p className="text-base text-white/80 mb-5 line-clamp-2 leading-relaxed">
               내 사진으로 수백 벌의 드레스를 미리 입어보세요
             </p>
@@ -521,13 +521,13 @@ export default function DashboardPage() {
 
       {/* 4. 지금 해야 할 것 + 커플 활동 */}
       {(urgentTasks.length > 0 || partnerActivities.length > 0) && (
-        <div className="grid lg:grid-cols-5 gap-8 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 mb-8 animate-fade-in">
           {/* 지금 해야 할 것 */}
           {urgentTasks.length > 0 && (
-            <div className={`${partnerActivities.length > 0 ? "lg:col-span-3" : "lg:col-span-5"} bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
+            <div className={`${partnerActivities.length > 0 ? "lg:col-span-3" : "lg:col-span-5"} bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <AlertCircle className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">지금 해야 할 것</h3>
+                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">지금 해야 할 것</h3>
               </div>
               <div className="flex flex-col gap-3">
                 {urgentTasks.map((task) => {
@@ -572,10 +572,10 @@ export default function DashboardPage() {
 
           {/* 커플 활동 */}
           {partnerActivities.length > 0 && (
-            <div className={`${urgentTasks.length > 0 ? "lg:col-span-2" : "lg:col-span-5"} bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
+            <div className={`${urgentTasks.length > 0 ? "lg:col-span-2" : "lg:col-span-5"} bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <Users className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">커플 활동</h3>
+                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">커플 활동</h3>
               </div>
               <div className="flex flex-col gap-2">
                 {partnerActivities.map((activity) => {
@@ -611,21 +611,21 @@ export default function DashboardPage() {
       )}
 
       {/* 5. 카테고리별 진행 상태 + 시작 가이드 */}
-      <div className="grid lg:grid-cols-5 gap-8 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 animate-fade-in">
         {/* 카테고리 현황 */}
-        <div className="lg:col-span-3 bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="flex items-center justify-between mb-5">
-            <div>
+        <div className="lg:col-span-3 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="min-w-0">
               <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-1">
                 Progress
               </p>
-              <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">카테고리별 진행 상태</h3>
+              <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">카테고리별 진행 상태</h3>
             </div>
-            <Link href="/schedule" className="text-base text-[#795252] font-medium flex items-center gap-1 hover:gap-2 transition-all">
+            <Link href="/schedule" className="text-sm sm:text-base text-[#795252] font-medium flex items-center gap-1 hover:gap-2 transition-all flex-shrink-0 whitespace-nowrap">
               전체 보기 <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
               const item = progress[key] as { status: string; checklist?: { id: string; label: string; done: boolean }[] } | undefined;
               const status = item?.status ?? "not_started";
@@ -683,10 +683,10 @@ export default function DashboardPage() {
         </div>
 
         {/* 시작 가이드 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
-            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">시작 가이드</h3>
+            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
             {[

@@ -52,23 +52,23 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative rounded-xl overflow-hidden bg-[#f6f3f2] border border-[#e4e2e1] p-8 lg:p-10 flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:bg-[#f0eded] transition-colors duration-300"
+      className="relative rounded-xl overflow-hidden bg-[#f6f3f2] border border-[#e4e2e1] p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-start md:items-center gap-6 sm:gap-8 group cursor-pointer hover:bg-[#f0eded] transition-colors duration-300"
     >
       <div className="absolute top-0 right-0 p-4">
-        <Star className="text-[#795252]/40 w-8 h-8" />
+        <Star className="text-[#795252]/40 w-7 h-7 sm:w-8 sm:h-8" />
       </div>
-      <div className="flex-1 z-10">
+      <div className="flex-1 z-10 min-w-0">
         <div className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-[#d4c2c2]/30 text-[#5a6147] text-xs tracking-wider uppercase mb-4">
           <Bookmark className="w-[14px] h-[14px] mr-1.5" />
           에디터 추천
         </div>
-        <h2 className="text-3xl lg:text-4xl font-serif-kr text-[#1b1c1c] mb-4 leading-tight group-hover:text-[#795252] transition-colors">
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif-kr text-[#1b1c1c] mb-4 leading-tight group-hover:text-[#795252] transition-colors break-words line-clamp-3">
           {post.title}
         </h2>
         {contentPreview && (
-          <p className="text-[#504444] text-base mb-6 line-clamp-2">{contentPreview}</p>
+          <p className="text-[#504444] text-sm sm:text-base mb-6 line-clamp-2">{contentPreview}</p>
         )}
-        <div className="flex items-center text-base text-[#504444]">
+        <div className="flex items-center text-sm sm:text-base text-[#504444] flex-wrap">
           <Avatar
             nickname={author.nickname}
             avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
@@ -226,7 +226,7 @@ function CommunityFeedContent() {
   return (
     <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
       {/* 모바일: 동기방 + 카테고리 */}
-      <div className="lg:hidden px-4 sm:px-6 pt-4 space-y-3">
+      <div className="lg:hidden px-4 sm:px-6 pt-4 space-y-3 overflow-x-auto">
         <CohortCard />
         <CategoryTabs />
       </div>
@@ -279,8 +279,8 @@ function CommunityFeedContent() {
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-6 lg:px-12 py-10 overflow-y-auto">
-          <div className="max-w-4xl mx-auto space-y-12">
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-12 py-6 sm:py-10 overflow-y-auto">
+          <div className="max-w-4xl mx-auto space-y-8 sm:space-y-12">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
@@ -305,8 +305,8 @@ function CommunityFeedContent() {
 
             {/* 피드 헤더 (피드 디바이더) */}
             {!isSearching && (
-              <div className="flex items-center justify-between border-b border-[#e4e2e1] pb-4">
-                <h3 className="font-serif-kr text-4xl text-[#1b1c1c]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#e4e2e1] pb-4">
+                <h3 className="font-serif-kr text-2xl sm:text-3xl lg:text-4xl text-[#1b1c1c]">
                   최신 글
                 </h3>
                 <SortSelector

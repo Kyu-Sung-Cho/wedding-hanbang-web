@@ -195,9 +195,20 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
         {/* 가운데: 메인 콘텐츠 */}
         <main className="flex-1 min-w-0 flex flex-col">
+          {/* 모바일용 방 이름 헤더 */}
+          <div className="lg:hidden px-4 sm:px-6 pt-4 pb-2 bg-[#fcf9f8]">
+            <h2 className="font-serif-kr text-2xl sm:text-3xl italic text-[#795252] mb-1 break-words">
+              {room?.name ?? "동기방"}
+            </h2>
+            <div className="flex items-center gap-1.5 text-sm text-[#504444] tracking-widest uppercase">
+              <Users className="h-4 w-4" />
+              <span>{room?.member_count ?? 0}명 참여</span>
+            </div>
+          </div>
+
           {/* 탭 헤더 */}
           <div className="sticky top-20 z-10 bg-white border-b border-[#e4e2e1]">
-            <div className="flex px-6 lg:px-12">
+            <div className="flex px-4 sm:px-6 lg:px-12">
               <TabButton
                 active={tab === "chat"}
                 onClick={() => setTab("chat")}
@@ -219,7 +230,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
             </div>
           </div>
 
-          <div className="px-6 lg:px-12 py-10 flex-1">
+          <div className="px-4 sm:px-6 lg:px-12 py-6 sm:py-10 flex-1">
             <div className="max-w-4xl mx-auto">
               {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
               {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
@@ -530,8 +541,8 @@ function ChatTab({
             </button>
           ))}
         </div>
-        <div className="flex gap-3">
-          <div className="relative flex-1">
+        <div className="flex gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+          <div className="relative flex-1 min-w-0 w-full sm:w-auto">
             {mentionOpen && filteredMembers.length > 0 && (
               <div className="absolute bottom-full mb-2 left-0 w-64 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e4e2e1] z-20">
                 {filteredMembers.slice(0, 5).map((m) => (
@@ -896,24 +907,24 @@ function InfoTab({
           return (
             <div
               key={cat.key}
-              className="rounded-xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+              className="rounded-xl bg-white p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
             >
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-serif-kr text-[28px] text-[#1b1c1c]">
+              <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+                <h3 className="font-serif-kr text-2xl sm:text-[28px] text-[#1b1c1c]">
                   {cat.label}
                 </h3>
-                <span className="text-base text-[#504444]">
+                <span className="text-sm sm:text-base text-[#504444]">
                   {sample}명 등록
                 </span>
               </div>
               {enough && stat ? (
                 <div>
-                  <p className="text-[17px] text-[#504444]">
+                  <p className="text-base sm:text-[17px] text-[#504444]">
                     우리 동기 평균 {cat.label} 기본금
                   </p>
-                  <p className="mt-2 font-serif-kr text-5xl font-light text-[#1b1c1c]">
+                  <p className="mt-2 font-serif-kr text-3xl sm:text-5xl font-light text-[#1b1c1c] break-words">
                     {stat.avg_base_price.toLocaleString()}만원
-                    <span className="ml-2 text-base font-sans text-[#504444] font-normal">
+                    <span className="ml-2 text-sm sm:text-base font-sans text-[#504444] font-normal">
                       ({sample}명 기준)
                     </span>
                   </p>
@@ -1207,7 +1218,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 
   return (
     <div>
-      <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
+      <h3 className="font-serif-kr text-2xl sm:text-[28px] text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
         🔥 인기글
       </h3>
       {posts.length === 0 ? (
@@ -1217,7 +1228,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group cursor-pointer">
               <a href={`/community/post/${p.id}`} className="flex items-start space-x-3">
-                <span className={`font-serif-kr italic text-[28px] leading-none mt-0.5 shrink-0 text-[#795252] ${
+                <span className={`font-serif-kr italic text-2xl sm:text-[28px] leading-none mt-0.5 shrink-0 text-[#795252] ${
                   i === 0 ? "" : i === 1 ? "opacity-70" : i === 2 ? "opacity-50" : "opacity-30"
                 }`}>
                   {String(i + 1).padStart(2, "0")}

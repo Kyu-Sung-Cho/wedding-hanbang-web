@@ -581,11 +581,11 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
     <div
       className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-8 animate-fade-in"
     >
-      <div className="px-8 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
           <ShoppingBag className="w-6 h-6 text-[#795252]" />
-          <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">내 예약 내역</h3>
+          <div className="min-w-0">
+            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">내 예약 내역</h3>
             {!loading && <p className="text-sm text-[#B5ADA3] mt-0.5">{activeBookings.length}건 진행 중</p>}
           </div>
         </div>
@@ -617,7 +617,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
           {displayBookings.map((b) => {
             const badge = getBookingStatusBadge(b.status);
             return (
-              <div key={b.id} className="flex items-center gap-4 px-8 py-5 hover:bg-[#fcf9f8] transition-colors">
+              <div key={b.id} className="flex items-center gap-3 sm:gap-4 px-5 sm:px-8 py-4 sm:py-5 hover:bg-[#fcf9f8] transition-colors">
                 <div className="flex-1 min-w-0">
                   <p className="font-serif-kr text-[17px] font-normal text-[#1b1c1c] truncate">{b.vendorName}</p>
                   {b.productName && (
@@ -912,9 +912,9 @@ export default function BudgetPage() {
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
-      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10">
         {/* Hero Banner */}
-        <section className="relative rounded-2xl overflow-hidden aspect-[16/5] mb-8 animate-fade-in">
+        <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
           <div
             className="absolute inset-0"
             style={{
@@ -926,15 +926,15 @@ export default function BudgetPage() {
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent" />
-          <div className="relative h-full flex items-center px-10 lg:px-16">
-            <div>
+          <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
+            <div className="min-w-0">
               <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
                 BUDGET OVERVIEW
               </p>
-              <h1 className="font-serif-kr text-5xl lg:text-6xl text-[#1b1c1c] mb-4 leading-tight font-light">
+              <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight font-light break-words">
                 예산 관리
               </h1>
-              <p className="text-xl text-[#504444] font-light italic">
+              <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
                 우리의 결혼 여정, 현명하게 계획해요.
               </p>
             </div>
@@ -942,9 +942,9 @@ export default function BudgetPage() {
         </section>
 
         {/* 상단 스탯 3개 - Editorial */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
           {/* Total Budget */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
             <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs tracking-widest uppercase text-[#795252] font-medium">
@@ -964,7 +964,7 @@ export default function BudgetPage() {
               )}
             </div>
             {editingTotal ? (
-              <div className="flex items-end gap-2 mb-3">
+              <div className="flex items-end gap-2 mb-3 flex-wrap">
                 <input
                   ref={totalInputRef}
                   type="number"
@@ -974,7 +974,7 @@ export default function BudgetPage() {
                     if (e.key === "Enter") handleTotalBudgetSave();
                     if (e.key === "Escape") setEditingTotal(false);
                   }}
-                  className="w-[180px] px-3 py-2 rounded-xl border border-[#795252]/40 text-5xl font-serif-kr font-light text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
+                  className="w-full sm:w-[180px] max-w-full px-3 py-2 rounded-xl border border-[#795252]/40 text-4xl sm:text-5xl font-serif-kr font-light text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
                 />
                 <button onClick={handleTotalBudgetSave} className="w-9 h-9 rounded-lg flex items-center justify-center text-white bg-[#795252] hover:bg-[#946a6a]">
                   <Check className="w-5 h-5" />
@@ -984,24 +984,24 @@ export default function BudgetPage() {
                 </button>
               </div>
             ) : (
-              <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+              <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
                 {(totalBudget / 10000).toLocaleString()}
               </p>
             )}
-            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            <p className="text-lg sm:text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
             <p className="text-base text-[#504444]">전체 예산</p>
           </div>
 
           {/* Spent */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
             <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-[#5a6147]/40" />
             <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
               SPENT
             </p>
-            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
               {(totalSpent / 10000).toLocaleString()}
             </p>
-            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            <p className="text-lg sm:text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
             <p className="text-base text-[#504444]">사용한 금액 ({spentPercent}%)</p>
             <div className="w-full h-1.5 bg-[#f6f3f2] rounded-full mt-4 overflow-hidden">
               <div
@@ -1012,15 +1012,15 @@ export default function BudgetPage() {
           </div>
 
           {/* Remaining */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in sm:col-span-2 md:col-span-1">
             <TrendingDown className={`absolute top-6 right-6 w-6 h-6 ${remaining >= 0 ? "text-[#C9A96E]/40" : "text-red-400/60"}`} />
             <p className={`text-xs tracking-widest uppercase mb-4 font-medium ${remaining >= 0 ? "text-[#C9A96E]" : "text-red-400"}`}>
               REMAINING
             </p>
-            <p className={`font-serif-kr text-[72px] leading-none mb-2 font-light ${remaining >= 0 ? "text-[#1b1c1c]" : "text-red-400"}`}>
+            <p className={`font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none mb-2 font-light break-words ${remaining >= 0 ? "text-[#1b1c1c]" : "text-red-400"}`}>
               {remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString()}
             </p>
-            <p className="text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
+            <p className="text-lg sm:text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
             {remaining >= 0 ? (
               <p className="text-base text-[#504444]">
                 남은 예산 (여유 {totalBudget > 0 ? Math.round((remaining / totalBudget) * 100) : 0}%)
@@ -1036,11 +1036,11 @@ export default function BudgetPage() {
 
         {/* Budget Breakdown 바 */}
         {breakdownTotal > 0 && (
-          <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
+            <div className="flex items-start sm:items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">BUDGET BREAKDOWN</p>
-                <h2 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">카테고리별 배분</h2>
+                <h2 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">카테고리별 배분</h2>
               </div>
               <p className="text-sm text-[#504444]">
                 <span className="font-medium text-[#1b1c1c]">{spentPercent}%</span> 사용 /{" "}
@@ -1073,22 +1073,22 @@ export default function BudgetPage() {
 
         {/* 분담 현황 (Editorial Style) */}
         {totalSpent > 0 && (
-          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-8 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8 mb-8 animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <Users className="w-6 h-6 text-[#795252]" />
               <div>
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">PAYER SUMMARY</p>
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">분담 현황</h3>
+                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">분담 현황</h3>
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {PAYER_OPTIONS.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
                   <div
                     key={opt.value}
-                    className={`rounded-xl p-6 transition-colors ${
+                    className={`rounded-xl p-4 sm:p-6 transition-colors ${
                       amount > 0 ? "bg-[#fcf9f8]" : "bg-[#f6f3f2]/60"
                     }`}
                   >
@@ -1096,7 +1096,7 @@ export default function BudgetPage() {
                       <span className="text-lg">{opt.emoji}</span>
                       <span className="text-sm text-[#504444]">{opt.label}</span>
                     </div>
-                    <p className={`font-serif-kr text-3xl font-light ${
+                    <p className={`font-serif-kr text-2xl sm:text-3xl font-light break-words ${
                       amount > 0 ? "text-[#1b1c1c]" : "text-[#B5ADA3]"
                     }`}>
                       {amount > 0 ? formatWon(amount) : "0"}
@@ -1123,19 +1123,20 @@ export default function BudgetPage() {
         {/* 시세 비교 안내 */}
         <Link
           href="/market-prices"
-          className="flex items-center gap-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-8 py-6 mb-8 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow group animate-fade-in"
+          className="flex items-center gap-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-5 sm:px-8 py-5 sm:py-6 mb-8 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow group animate-fade-in"
         >
           <div className="w-12 h-12 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">MARKET COMPARISON</p>
-            <p className="font-serif-kr text-[19px] text-[#1b1c1c] font-normal">시세 대비 내 예산 확인</p>
-            <p className="text-sm text-[#504444] mt-1">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
+            <p className="font-serif-kr text-base sm:text-[19px] text-[#1b1c1c] font-normal">시세 대비 내 예산 확인</p>
+            <p className="text-sm text-[#504444] mt-1 line-clamp-2">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
           </div>
-          <span className="text-base text-[#795252] flex-shrink-0 group-hover:underline flex items-center gap-1">
+          <span className="hidden sm:flex text-base text-[#795252] flex-shrink-0 group-hover:underline items-center gap-1 whitespace-nowrap">
             자세히 보기 <ArrowRight className="w-4 h-4" />
           </span>
+          <ArrowRight className="sm:hidden w-5 h-5 text-[#795252] flex-shrink-0" />
         </Link>
 
         {/* 내 예약 내역 */}
@@ -1143,8 +1144,8 @@ export default function BudgetPage() {
 
         {/* 스드메 패키지 - Editorial */}
         <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-8 animate-fade-in">
-          <div className="px-8 py-6 flex items-center justify-between border-b border-[#f6f3f2]">
-            <div className="flex items-center gap-4">
+          <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="flex -space-x-1">
                 <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Camera className="w-5 h-5 text-[#795252]" />
@@ -1156,15 +1157,15 @@ export default function BudgetPage() {
                   <Palette className="w-5 h-5 text-[#795252]" />
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">SDM PACKAGE</p>
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">스드메 패키지</h3>
+                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">스드메 패키지</h3>
                 <p className="text-sm text-[#504444] mt-0.5">스튜디오 · 드레스 · 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="font-serif-kr text-2xl font-light text-[#1b1c1c]">
-                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3] text-lg">/ {formatWonFull(sdmBudget)}</span>
+              <p className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c] break-words">
+                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3] text-base sm:text-lg">/ {formatWonFull(sdmBudget)}</span>
               </p>
               <p className="text-sm text-[#504444] mt-1">
                 {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
@@ -1196,10 +1197,10 @@ export default function BudgetPage() {
         </div>
 
         {/* 기타 카테고리 헤더 */}
-        <div className="flex items-center justify-between mb-4 animate-fade-in">
-          <div>
+        <div className="flex items-center justify-between gap-3 mb-4 animate-fade-in flex-wrap">
+          <div className="min-w-0">
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">OTHER CATEGORIES</p>
-            <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">기타 카테고리</h3>
+            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">기타 카테고리</h3>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-[#B5ADA3]">
             <Pencil className="w-4 h-4 text-[#795252]/50" />
@@ -1208,7 +1209,7 @@ export default function BudgetPage() {
         </div>
 
         {/* 기타 카테고리 - 2열 그리드 카드 */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
           {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
             const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
             return (
@@ -1262,16 +1263,16 @@ export default function BudgetPage() {
         </div>
 
         {/* 하단: Hidden Costs + AI Spotlight */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
           {/* Hidden Costs 섹션 */}
-          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8">
+          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8">
             <div className="flex items-start gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-[#795252]" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">HIDDEN COSTS</p>
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">숨은 비용 체크</h3>
+                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">숨은 비용 체크</h3>
                 <p className="text-sm text-[#504444] mt-1">
                   {hiddenCostWarnings.length > 0
                     ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에 추가 비용 주의가 필요해요.`
@@ -1305,13 +1306,13 @@ export default function BudgetPage() {
           </div>
 
           {/* AI Spotlight */}
-          <div className="relative rounded-2xl overflow-hidden min-h-[280px] bg-gradient-to-br from-[#1a1a1a] to-[#3a2a2a] p-10 flex flex-col justify-between">
+          <div className="relative rounded-2xl overflow-hidden min-h-[240px] sm:min-h-[280px] bg-gradient-to-br from-[#1a1a1a] to-[#3a2a2a] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
             <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-[#C9A96E]/10 blur-3xl" />
             <div className="relative">
               <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-3 font-medium">
                 AI 예산 분석
               </p>
-              <h3 className="font-serif-kr text-3xl text-white mb-3 font-light">
+              <h3 className="font-serif-kr text-2xl sm:text-3xl text-white mb-3 font-light break-words">
                 이 예산, 적정한가요?
               </h3>
               <p className="text-base text-white/70 mb-6 max-w-md">

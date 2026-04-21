@@ -147,10 +147,10 @@ export default function AmoraDirector({
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 animate-fade-in">
+    <div className="fixed bottom-6 right-4 sm:right-6 z-40 animate-fade-in max-w-[calc(100vw-2rem)]">
       {/* 확장된 메시지 패널 */}
       {expanded && currentMsg ? (
-        <div className="bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] w-[340px] overflow-hidden border border-[#e4e2e1]/50">
+        <div className="bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden border border-[#e4e2e1]/50">
           {/* 헤더 */}
           <div className="flex items-start justify-between p-5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white">
             <div className="flex items-center gap-2.5">
@@ -211,7 +211,7 @@ export default function AmoraDirector({
         // 접힌 상태 — 플로팅 버블
         <button
           onClick={() => setExpanded(true)}
-          className="group relative flex items-center gap-3 pl-3 pr-5 py-3 rounded-full bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.16)] transition-all max-w-[300px]"
+          className="group relative flex items-center gap-3 pl-3 pr-4 sm:pr-5 py-3 rounded-full bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.16)] transition-all max-w-[calc(100vw-2rem)] sm:max-w-[300px]"
         >
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shrink-0 relative">
             <Sparkles className="w-5 h-5 text-[#dee6c4]" />

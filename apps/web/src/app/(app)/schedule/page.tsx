@@ -215,9 +215,9 @@ export default function SchedulePage() {
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
-      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10">
         {/* Hero Banner */}
-        <section className="relative rounded-2xl overflow-hidden aspect-[16/5] mb-8 animate-fade-in">
+        <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
           <div
             className="absolute inset-0"
             style={{
@@ -229,15 +229,15 @@ export default function SchedulePage() {
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
-          <div className="relative h-full flex items-center px-10 lg:px-16">
-            <div>
+          <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
+            <div className="min-w-0">
               <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
                 SCHEDULE
               </p>
-              <h1 className="font-serif-kr text-5xl lg:text-6xl text-[#1b1c1c] mb-4 leading-tight">
+              <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight break-words">
                 일정 관리
               </h1>
-              <p className="text-xl text-[#504444] font-light italic">
+              <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
                 결혼식까지의 여정을 한눈에
               </p>
             </div>
@@ -245,14 +245,14 @@ export default function SchedulePage() {
         </section>
 
         {/* 3-column Stat Row */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
           {/* D-day */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
             <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-4 font-medium">
               D-DAY
             </p>
-            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
             </p>
             <p className="text-base text-[#504444]">
@@ -267,11 +267,11 @@ export default function SchedulePage() {
           </div>
 
           {/* Progress */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
               PROGRESS
             </p>
-            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {progressPct}%
             </p>
             <div className="w-full h-2 bg-[#f6f3f2] rounded-full overflow-hidden mt-4">
@@ -286,11 +286,11 @@ export default function SchedulePage() {
           </div>
 
           {/* Upcoming count */}
-          <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:col-span-2 md:col-span-1">
             <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-4 font-medium">
               UPCOMING
             </p>
-            <p className="font-serif-kr text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {upcomingEvents.length}
             </p>
             <p className="text-base text-[#504444]">다가오는 일정</p>
@@ -298,11 +298,11 @@ export default function SchedulePage() {
         </div>
 
         {/* Main content: left view + right sidebar */}
-        <div className="grid lg:grid-cols-3 gap-8 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 animate-fade-in">
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
             {/* View toggle header */}
-            <div className="flex items-center justify-between px-8 py-6 border-b border-[#e4e2e1]">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-8 py-4 sm:py-6 border-b border-[#e4e2e1] flex-wrap">
               <div className="inline-flex bg-[#f6f3f2] rounded-xl p-1">
                 <button
                   onClick={() => setViewMode("timeline")}
@@ -337,7 +337,7 @@ export default function SchedulePage() {
             </div>
 
             {/* Timeline or Calendar content */}
-            <div className="p-8">
+            <div className="p-4 sm:p-6 lg:p-8">
               {viewMode === "timeline" ? (
                 <TimelineView
                   progress={progress}
@@ -364,8 +364,8 @@ export default function SchedulePage() {
           <div className="space-y-6">
             {/* Imminent Alerts */}
             {imminentCategories.length > 0 && (
-              <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5">
+              <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5">
                   긴급 확인
                 </h3>
                 <ImminentAlerts
@@ -376,9 +376,9 @@ export default function SchedulePage() {
             )}
 
             {/* Upcoming Events */}
-            <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-serif-kr text-2xl text-[#1b1c1c]">
+                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c]">
                   다가오는 일정
                 </h3>
                 <button
