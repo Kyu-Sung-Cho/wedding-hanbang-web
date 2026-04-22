@@ -220,6 +220,11 @@ export default function ChatBubble({
           <span className="text-sm text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
+          {/* AI 생성 배지 — AI 기본법 고지 (원칙 P6) */}
+          <div className="inline-flex items-center gap-1 text-[10px] text-[#504444]/60 ml-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/40" />
+            AI 생성
+          </div>
           {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
           {isRecentAi && (
             <AiFeedbackRow messageId={message.id} />

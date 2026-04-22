@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import CommunityNav from "@/components/community/CommunityNav";
 import { ToastContainer } from "@/components/community/Toast";
+import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import Link from "next/link";
 
 export default function CommunityLayout({
@@ -40,6 +41,9 @@ export default function CommunityLayout({
               </Link>
             </div>
           </div>
+          {/* AI 기본법 고지 — 원칙 P6 실체화 */}
+          <AiNoticeFooter variant="light" />
+
           <p className="mt-5 text-center text-sm text-[#B5ADA3]">
             &copy; {new Date().getFullYear()} 웨딩한방. All rights reserved.
           </p>

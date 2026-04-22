@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Logo from "@/components/ui/Logo";
+import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 
 const infoLinks = [
   { label: "웨딩한방 소개", href: "/" },
@@ -65,6 +66,11 @@ export default function Footer() {
             )
           )}
         </div>
+      </div>
+
+      {/* AI 기본법 고지 — 원칙 P6 실체화 */}
+      <div className="max-w-[1200px] mx-auto">
+        <AiNoticeFooter variant="dark" />
       </div>
 
       <div className="max-w-[1200px] mx-auto pt-10 border-t border-white/[0.06] flex justify-between items-center max-md:flex-col max-md:gap-4 max-md:text-center">

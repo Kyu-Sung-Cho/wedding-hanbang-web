@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
+import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="md:ml-[260px]">
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
         <main className="p-8 max-md:p-5">{children}</main>
+
+        {/* AI 기본법 고지 — 원칙 P6 실체화 */}
+        <div className="px-8 pb-10 max-md:px-5">
+          <AiNoticeFooter variant="light" />
+        </div>
       </div>
 
       {/* AI 채팅 사이드 패널 */}
