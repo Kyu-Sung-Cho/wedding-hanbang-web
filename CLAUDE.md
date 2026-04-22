@@ -1,3 +1,11 @@
+## 최상위 규칙
+모든 작업은 PRINCIPLES.md의 6개 원칙을 따른다.
+충돌 시 우선순위: P1 > P3 > P2 > P4 > P5 > P6.
+모든 AI 호출은 ai_interactions_log에 기록되며,
+모든 커플 의사결정은 decision_nodes에 기록된다.
+
+---
+
 # 웨딩한방 웹 (hanbang.ai) - Claude Code 가이드
 
 ## 🎯 프로젝트 개요
