@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { recordDecision } from "@/lib/memory/record-decision";
 
 export async function POST(req: Request) {
   try {
@@ -108,6 +109,40 @@ export async function POST(req: Request) {
     if (error) {
       console.error("Booking create error:", error);
       return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });
+    }
+
+    // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
+    if (booking && profile?.couple_id) {
+      void (async () => {
+        try {
+          const { data: vendor } = await supabase
+            .from("vendors")
+            .select("name, category")
+            .eq("id", vendorId)
+            .maybeSingle();
+          const v = vendor as { name: string; category: string } | null;
+
+          await recordDecision({
+            coupleId: profile.couple_id!,
+            userId: user.id,
+            category: v?.category ?? "vendor",
+            title: `예약: ${v?.name ?? "업체"}`,
+            chosenValue: {
+              vendor_id: vendorId,
+              vendor_name: v?.name ?? null,
+              booking_date: date,
+              booking_time: time,
+              amount,
+            },
+            decisionType: "booked",
+            source: "vendor_booking",
+            sourceRefId: (booking as { id: string }).id,
+            metadata: { hook: "bookings", booking_type: "consultation" },
+          });
+        } catch (err) {
+          console.error("[bookings recordDecision] 실패 (무시):", err);
+        }
+      })();
     }
 
     return NextResponse.json({ booking, message: "예약이 접수되었습니다." });

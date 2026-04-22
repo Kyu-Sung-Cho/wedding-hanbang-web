@@ -1,6 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { recordDecision } from "@/lib/memory/record-decision";
+import { determineStage } from "@/lib/ai/stage-router";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -255,6 +257,62 @@ export async function POST(request: Request) {
 
       console.log("[온보딩 조인] 완료! coupleId:", coupleId);
     }
+
+    // D2 Hook 3: 온보딩 완료 시 decision_nodes 기록 (fire-and-forget)
+    // wedding_date/venue/total_budget 중 실제로 저장된 필드만 기록
+    void (async () => {
+      try {
+        const stageTag = determineStage(weddingDate ?? null);
+        const baseMeta = { hook: "onboarding", role, coupleAction };
+
+        if (weddingDate) {
+          await recordDecision({
+            coupleId,
+            userId: user.id,
+            category: "timeline",
+            title: "예식일 확정",
+            chosenValue: { wedding_date: weddingDate },
+            decisionType: "decided",
+            stageTag,
+            source: "onboarding",
+            confidence: 0.95,
+            metadata: baseMeta,
+          });
+        }
+
+        if (venue) {
+          await recordDecision({
+            coupleId,
+            userId: user.id,
+            category: "venue",
+            title: String(venue),
+            chosenValue: { venue },
+            decisionType: "considering",
+            stageTag,
+            source: "onboarding",
+            confidence: 0.7,
+            metadata: baseMeta,
+          });
+        }
+
+        if (totalBudget && totalBudget > 0) {
+          await recordDecision({
+            coupleId,
+            userId: user.id,
+            category: "budget",
+            title: "총 예산 설정",
+            chosenValue: { total_budget: totalBudget },
+            decisionType: "decided",
+            stageTag,
+            source: "onboarding",
+            confidence: 0.9,
+            metadata: baseMeta,
+          });
+        }
+      } catch (err) {
+        console.error("[onboarding recordDecision] 실패 (무시):", err);
+      }
+    })();
 
     return NextResponse.json({
       success: true,

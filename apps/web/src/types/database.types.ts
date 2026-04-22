@@ -85,6 +85,9 @@ export interface ChatMessageMetadata {
   toolResults?: ToolExecutionResult[];
   imageUrls?: string[];
   target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게
+  // D3 — 서버가 계산한 stage/specialist를 SSE로 클라이언트에 전달
+  stageTag?: import("./moat.types").StageTag;
+  specialistType?: import("./moat.types").SpecialistType;
 }
 
 export interface ChatMessage {

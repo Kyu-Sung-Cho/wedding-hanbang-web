@@ -10,6 +10,7 @@ import type {
   ChatMessageTarget,
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
+import { determineStage } from "@/lib/ai/stage-router";
 import { useAuthStore } from "./authStore";
 
 interface ChatStoreState {
@@ -301,6 +302,10 @@ async function saveAiMessage(
   if (!isDemo) {
     try {
       const supabase = createClient();
+      // D3: 서버가 SSE metadata로 내려준 stage/specialist 사용
+      const aiStageTag = aiMetadata?.stageTag ?? null;
+      const aiSpecialistType = aiMetadata?.specialistType ?? null;
+
       const { data: aiInserted } = await supabase
         .from("chat_messages")
         .insert({
@@ -310,6 +315,8 @@ async function saveAiMessage(
           role: "assistant",
           content: fullContent,
           metadata: aiMetadata,
+          stage_tag: aiStageTag,
+          specialist_type: aiSpecialistType,
         })
         .select()
         .single();
@@ -410,6 +417,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       : msgMetadata;
 
     if (!isDemo) {
+      // D3: 클라이언트 측 stage_tag 계산 (wedding_date 기반 순수 함수)
+      const userStageTag = determineStage(weddingContext?.weddingDate ?? null);
+
       const { data: inserted, error: insertErr } = await supabase
         .from("chat_messages")
         .insert({
@@ -419,6 +429,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           role: "user",
           content,
           metadata: finalMetadata,
+          stage_tag: userStageTag,
+          specialist_type: null, // 유저 메시지는 specialist 없음
         })
         .select()
         .single();

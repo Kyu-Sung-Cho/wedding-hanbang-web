@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 
 export const maxDuration = 60;
 
@@ -45,6 +46,7 @@ SNS나 메시지로 보내기 적합한 길이로 작성하세요.`,
 
 export async function POST(request: Request) {
   let supabase;
+  let userId: string | null = null;
   let coupleId: string;
   let scriptType: string;
   let title: string;
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
     supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+    userId = user.id;
 
     const body = await request.json();
     coupleId = body.coupleId;
@@ -90,16 +93,20 @@ export async function POST(request: Request) {
     : `"${title}" 대본을 작성해주세요.`;
 
   const anthropic = new Anthropic();
+  const model = "claude-sonnet-4-20250514";
 
   // SSE 스트리밍 응답
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      try {
-        let fullContent = "";
+      const startedAt = startLatencyClock();
+      let fullContent = "";
+      let tokensIn: number | undefined;
+      let tokensOut: number | undefined;
 
+      try {
         const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model,
           max_tokens: 4096,
           system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
@@ -107,7 +114,11 @@ export async function POST(request: Request) {
         });
 
         for await (const event of response) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          if (event.type === "message_start") {
+            tokensIn = event.message.usage?.input_tokens;
+          } else if (event.type === "message_delta") {
+            tokensOut = event.usage?.output_tokens ?? tokensOut;
+          } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             fullContent += event.delta.text;
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ type: "text_delta", content: event.delta.text })}\n\n`)
@@ -131,11 +142,48 @@ export async function POST(request: Request) {
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "done", script: saved })}\n\n`)
         );
+
+        // D1: 호출 로깅 (fire-and-forget)
+        void logAIInteraction({
+          userId,
+          coupleId,
+          interactionType: "chat_turn",
+          userInput: userMessage,
+          aiOutput: fullContent,
+          latencyMs: elapsedMs(startedAt),
+          success: true,
+          model,
+          tokensInput: tokensIn ?? null,
+          tokensOutput: tokensOut ?? null,
+          metadata: {
+            endpoint: "scripts/generate",
+            script_type: scriptType,
+            title,
+          },
+        });
       } catch (err) {
         console.error("대본 생성 에러:", err);
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "error", message: "대본 생성에 실패했습니다." })}\n\n`)
         );
+        void logAIInteraction({
+          userId,
+          coupleId,
+          interactionType: "chat_turn",
+          userInput: userMessage,
+          aiOutput: fullContent || null,
+          latencyMs: elapsedMs(startedAt),
+          success: false,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          model,
+          tokensInput: tokensIn ?? null,
+          tokensOutput: tokensOut ?? null,
+          metadata: {
+            endpoint: "scripts/generate",
+            script_type: scriptType,
+            title,
+          },
+        });
       } finally {
         controller.close();
       }

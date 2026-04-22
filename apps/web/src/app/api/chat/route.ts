@@ -6,6 +6,8 @@ import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
+import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
+import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -375,8 +377,14 @@ export async function POST(request: Request) {
     ? "[CONTEXT: 이 세션에서 사용자가 2번 이상 수정했습니다. 더 신중하게, 확인하며 답변하세요.]\n\n"
     : "";
 
+  // D3: stage + specialist 계산
+  const weddingDateForStage = journey?.wedding_date ?? weddingContext?.weddingDate ?? null;
+  const stageTag = determineStage(weddingDateForStage);
+  const specialistType = routeSpecialist(lastUserText, stageTag);
+  const specialistAddon = getSpecialistPromptAddon(specialistType);
+
   const systemPrompt = cautionPrefix + getWeddingPlannerSystemPrompt({
-    weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
+    weddingDate: weddingDateForStage,
     budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
     venue: journey?.venue ?? weddingContext?.venue ?? null,
     progress,
@@ -388,7 +396,7 @@ export async function POST(request: Request) {
     chatSummaries,
     preferences: preferences ?? undefined,
     feedbackLessons,
-  });
+  }) + specialistAddon;
 
   // 메시지 포맷팅
   const formattedMessages: MessageParam[] = messages.map(
@@ -452,6 +460,12 @@ export async function POST(request: Request) {
         }
       };
 
+      // D1: 로깅 집계 버퍼 (한 turn = 1 row)
+      const turnStartedAt = startLatencyClock();
+      let totalTokensIn = 0;
+      let totalTokensOut = 0;
+      let lastModel: string | undefined;
+
       try {
         let currentMessages = [...formattedMessages];
         const toolResults: ToolExecutionResult[] = [];
@@ -469,6 +483,13 @@ export async function POST(request: Request) {
             },
           });
 
+          // 라운드별 토큰/모델 집계
+          if (result.usage) {
+            totalTokensIn += result.usage.input_tokens ?? 0;
+            totalTokensOut += result.usage.output_tokens ?? 0;
+          }
+          if (result.model) lastModel = result.model;
+
           // tool use가 없으면 최종 응답 (이미 토큰별로 스트리밍됨)
           if (result.toolUseBlocks.length === 0) {
             const { cleanText, suggestions } = extractSuggestions(
@@ -482,7 +503,28 @@ export async function POST(request: Request) {
             send({
               type: "done",
               fullContent: cleanText,
-              metadata: { toolResults, toolsUsed, senderName },
+              metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
+            });
+
+            // D1: 성공 turn 로깅 (fire-and-forget)
+            void logAIInteraction({
+              userId: user.id,
+              coupleId,
+              interactionType: "chat_turn",
+              specialistType,
+              userInput: lastUserText,
+              aiOutput: cleanText,
+              latencyMs: elapsedMs(turnStartedAt),
+              success: true,
+              model: lastModel,
+              tokensInput: totalTokensIn || null,
+              tokensOutput: totalTokensOut || null,
+              metadata: {
+                stage_tag: stageTag,
+                tools_used: toolsUsed,
+                tool_rounds: round + 1,
+                correction_count: correctionCount,
+              },
             });
 
             clearInterval(heartbeat);
@@ -503,13 +545,13 @@ export async function POST(request: Request) {
           const toolResultContents: ContentBlockParam[] = [];
           let hasUIRenderedTool = false;
           // 유저 메시지에 [quote_analysis] 태그가 있는지 확인
-          const lastUserMsg = currentMessages.filter((m) => m.role === "user").pop();
-          const lastUserText = typeof lastUserMsg?.content === "string"
-            ? lastUserMsg.content
-            : Array.isArray(lastUserMsg?.content)
-              ? (lastUserMsg.content as ContentBlockParam[]).filter((b) => (b as { type: string }).type === "text").map((b) => (b as { text: string }).text).join("")
+          const roundLastUserMsg = currentMessages.filter((m) => m.role === "user").pop();
+          const roundLastUserText = typeof roundLastUserMsg?.content === "string"
+            ? roundLastUserMsg.content
+            : Array.isArray(roundLastUserMsg?.content)
+              ? (roundLastUserMsg.content as ContentBlockParam[]).filter((b) => (b as { type: string }).type === "text").map((b) => (b as { text: string }).text).join("")
               : "";
-          const hasQuoteAnalysisTag = lastUserText.includes("[quote_analysis]");
+          const hasQuoteAnalysisTag = roundLastUserText.includes("[quote_analysis]");
 
           for (const toolUse of result.toolUseBlocks) {
             toolsUsed.push(toolUse.name);
@@ -560,6 +602,13 @@ export async function POST(request: Request) {
           },
         });
 
+        // 마지막 호출 토큰/모델 집계
+        if (finalResult.usage) {
+          totalTokensIn += finalResult.usage.input_tokens ?? 0;
+          totalTokensOut += finalResult.usage.output_tokens ?? 0;
+        }
+        if (finalResult.model) lastModel = finalResult.model;
+
         const { cleanText, suggestions } = extractSuggestions(
           finalResult.fullText
         );
@@ -571,7 +620,29 @@ export async function POST(request: Request) {
         send({
           type: "done",
           fullContent: cleanText,
-          metadata: { toolResults, toolsUsed, senderName },
+          metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
+        });
+
+        // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
+        void logAIInteraction({
+          userId: user.id,
+          coupleId,
+          interactionType: "chat_turn",
+          specialistType,
+          userInput: lastUserText,
+          aiOutput: cleanText,
+          latencyMs: elapsedMs(turnStartedAt),
+          success: true,
+          model: lastModel,
+          tokensInput: totalTokensIn || null,
+          tokensOutput: totalTokensOut || null,
+          metadata: {
+            stage_tag: stageTag,
+            tools_used: toolsUsed,
+            tool_rounds: MAX_TOOL_ROUNDS,
+            exceeded_max_rounds: true,
+            correction_count: correctionCount,
+          },
         });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -581,6 +652,25 @@ export async function POST(request: Request) {
           message: errMsg.includes("timeout") || errMsg.includes("abort")
             ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
             : `AI 응답 생성에 실패했습니다: ${errMsg}`,
+        });
+
+        // D1: 실패 turn 로깅 (fire-and-forget)
+        void logAIInteraction({
+          userId: user.id,
+          coupleId,
+          interactionType: "chat_turn",
+          specialistType,
+          userInput: lastUserText,
+          aiOutput: null,
+          latencyMs: elapsedMs(turnStartedAt),
+          success: false,
+          errorMessage: errMsg,
+          model: lastModel,
+          tokensInput: totalTokensIn || null,
+          tokensOutput: totalTokensOut || null,
+          metadata: {
+            stage_tag: stageTag,
+          },
         });
       }
 

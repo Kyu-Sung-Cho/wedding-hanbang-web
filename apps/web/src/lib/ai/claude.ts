@@ -15,6 +15,11 @@ export interface ChatWithToolsResult {
   fullText: string;
   toolUseBlocks: ToolUseBlock[];
   stopReason: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+  model?: string;
 }
 
 // 첨부파일 정보 (이미지 + PDF)
@@ -110,6 +115,13 @@ export async function chatWithToolsStream(options: {
     fullText,
     toolUseBlocks,
     stopReason: finalMessage.stop_reason || "end_turn",
+    usage: finalMessage.usage
+      ? {
+          input_tokens: finalMessage.usage.input_tokens,
+          output_tokens: finalMessage.usage.output_tokens,
+        }
+      : undefined,
+    model: finalMessage.model,
   };
 }
 
