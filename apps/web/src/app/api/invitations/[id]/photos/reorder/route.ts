@@ -5,22 +5,26 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+  try {
+    const { id } = await params;
+    const supabase = await createClientFromRequest(request);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
-  const { photoIds } = await request.json();
+    const { photoIds } = await request.json();
 
-  // 각 사진의 sort_order를 순서대로 업데이트
-  const updates = (photoIds as string[]).map((photoId, index) =>
-    supabase
-      .from("invitation_photos")
-      .update({ sort_order: index })
-      .eq("id", photoId)
-      .eq("invitation_id", id)
-  );
+    const updates = (photoIds as string[]).map((photoId, index) =>
+      supabase
+        .from("invitation_photos")
+        .update({ sort_order: index })
+        .eq("id", photoId)
+        .eq("invitation_id", id)
+    );
 
-  await Promise.all(updates);
-  return NextResponse.json({ success: true });
+    await Promise.all(updates);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[invitation photos reorder POST]", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  }
 }

@@ -44,19 +44,36 @@ SNS나 메시지로 보내기 적합한 길이로 작성하세요.`,
 };
 
 export async function POST(request: Request) {
-  const supabase = await createClientFromRequest(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+  let supabase;
+  let coupleId: string;
+  let scriptType: string;
+  let title: string;
+  let context: Record<string, string>;
+  let systemPrompt: string;
 
-  const { coupleId, scriptType, title, context } = await request.json();
+  try {
+    supabase = await createClientFromRequest(request);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
-  if (!coupleId || !scriptType || !title) {
-    return NextResponse.json({ error: "필수 필드 누락" }, { status: 400 });
-  }
+    const body = await request.json();
+    coupleId = body.coupleId;
+    scriptType = body.scriptType;
+    title = body.title;
+    context = body.context ?? {};
 
-  const systemPrompt = SCRIPT_PROMPTS[scriptType];
-  if (!systemPrompt) {
-    return NextResponse.json({ error: "잘못된 대본 타입" }, { status: 400 });
+    if (!coupleId || !scriptType || !title) {
+      return NextResponse.json({ error: "필수 필드 누락" }, { status: 400 });
+    }
+
+    const prompt = SCRIPT_PROMPTS[scriptType];
+    if (!prompt) {
+      return NextResponse.json({ error: "잘못된 대본 타입" }, { status: 400 });
+    }
+    systemPrompt = prompt;
+  } catch (err) {
+    console.error("[scripts generate POST init]", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 
   // 컨텍스트 정보를 사용자 메시지로 구성

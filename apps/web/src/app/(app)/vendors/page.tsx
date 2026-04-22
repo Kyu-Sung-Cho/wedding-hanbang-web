@@ -124,8 +124,8 @@ export default function VendorsPage() {
 
   // AI 추천 로직: 유저 선호도 매칭 기반 TOP 3
   const { journey } = useAuthStore();
-  const aiRecommendedIds = useMemo(() => {
-    const prefs = ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
+  const userPrefs = useMemo(() => {
+    return ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
       | {
           weddingStyle?: string | null;
           priorities?: string[];
@@ -133,9 +133,16 @@ export default function VendorsPage() {
           guestCount?: string | null;
         }
       | undefined;
+  }, [journey]);
 
-    // 선호도 없으면 AI 추천 뱃지 미표시
-    if (!prefs || (!prefs.weddingStyle && !prefs.priorities && !prefs.budgetAttitude)) {
+  const hasUserPreferences = useMemo(() => {
+    return !!(userPrefs && (userPrefs.weddingStyle || (userPrefs.priorities && userPrefs.priorities.length > 0) || userPrefs.budgetAttitude));
+  }, [userPrefs]);
+
+  const aiRecommendedIds = useMemo(() => {
+    const prefs = userPrefs;
+
+    if (!hasUserPreferences || !prefs) {
       return new Set<string>();
     }
 
@@ -174,7 +181,7 @@ export default function VendorsPage() {
       .slice(0, 3);
 
     return new Set(top.map((t) => t.id));
-  }, [vendors, journey]);
+  }, [vendors, userPrefs, hasUserPreferences]);
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -466,7 +473,7 @@ export default function VendorsPage() {
         context="vendors"
         categoryName={activeCategory}
         favoriteCount={favoritesCount}
-        hasPreferences={aiRecommendedIds.size > 0}
+        hasPreferences={hasUserPreferences}
       />
     </div>
   );
