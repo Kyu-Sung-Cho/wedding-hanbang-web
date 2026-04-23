@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import SectionLabel from "./SectionLabel";
 
 interface Row {
   label: string;
@@ -19,90 +20,92 @@ const ROWS: Row[] = [
 
 export default function CompareToHumanPlanner() {
   return (
-    <section className="py-[clamp(60px,10vw,120px)] px-[clamp(20px,5vw,60px)] bg-ivory-50">
-      <div className="max-w-[960px] mx-auto">
-        {/* 헤더 */}
+    <section className="py-[clamp(80px,12vw,160px)] px-[clamp(20px,5vw,60px)] bg-ivory-50">
+      <div className="max-w-[1240px] mx-auto">
+        {/* 섹션 헤더 */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
+          viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="mb-16 md:mb-20 max-w-3xl"
         >
-          <h2 className="font-serif-kr text-[clamp(28px,4vw,44px)] font-light text-noir-800 tracking-tight">
-            사람 플래너 <span className="text-taupe-400 font-light">vs</span> 아모라
+          <SectionLabel number="04" label="Comparison" />
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.15] tracking-tight">
+            사람 플래너 <span className="text-taupe-400 font-light italic">versus</span>
+            <br />
+            <em className="not-italic text-rose-500">아모라.</em>
           </h2>
         </motion.div>
 
-        {/* 데스크톱 표 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.6 }}
-          className="hidden md:block bg-white rounded-2xl overflow-hidden shadow-[0_8px_30px_rgba(26,26,31,0.06)]"
-        >
-          <table className="w-full">
-            <thead>
-              <tr className="bg-noir-800 text-white">
-                <th className="text-left px-6 py-4 text-sm font-medium tracking-wide w-[28%]">
-                  구분
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium tracking-wide w-[36%]">
-                  사람 플래너
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium tracking-wide w-[36%]">
-                  아모라
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {ROWS.map((row, idx) => (
-                <tr
-                  key={row.label}
-                  className={idx % 2 === 0 ? "bg-white" : "bg-ivory-50"}
-                >
-                  <td className="px-6 py-4 text-sm text-noir-800 font-medium border-t border-platinum/60">
-                    {row.label}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-charcoal border-t border-platinum/60">
-                    {row.human}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-rose-500 font-medium border-t border-platinum/60">
-                    {row.amora}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </motion.div>
+        {/* 에디토리얼 비교: 상단 라벨 + 6행 */}
+        <div className="border-t border-b border-platinum/80">
+          {/* 헤더 행 */}
+          <div className="hidden md:grid md:grid-cols-[240px_1fr_1fr] gap-8 py-6 border-b border-platinum/60">
+            <span className="text-[10px] tracking-[0.22em] uppercase text-taupe-400 font-medium" />
+            <span className="text-[10px] tracking-[0.22em] uppercase text-taupe-400 font-medium">
+              Human Planner
+            </span>
+            <span className="text-[10px] tracking-[0.22em] uppercase text-rose-500 font-medium">
+              Amora
+            </span>
+          </div>
 
-        {/* 모바일 카드 */}
-        <div className="md:hidden space-y-3">
-          {ROWS.map((row, idx) => (
-            <motion.div
-              key={row.label}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.4, delay: idx * 0.05 }}
-              className="bg-white rounded-2xl p-5 shadow-[0_4px_14px_rgba(26,26,31,0.04)]"
-            >
-              <p className="text-xs tracking-widest uppercase text-taupe-400 mb-3 font-medium">
-                {row.label}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] text-taupe-400 mb-1">사람 플래너</p>
-                  <p className="text-sm text-charcoal">{row.human}</p>
+          {/* 데스크톱 행 */}
+          <div className="hidden md:block divide-y divide-platinum/60">
+            {ROWS.map((row, idx) => (
+              <motion.div
+                key={row.label}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: idx * 0.06 }}
+                className="grid grid-cols-[240px_1fr_1fr] gap-8 py-7 group"
+              >
+                <span className="font-serif-kr text-base text-noir-800 font-medium">
+                  {row.label}
+                </span>
+                <span className="text-[15px] text-charcoal font-light tracking-wide">
+                  {row.human}
+                </span>
+                <span className="text-[15px] text-rose-500 font-medium tracking-wide">
+                  {row.amora}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* 모바일 행 */}
+          <div className="md:hidden divide-y divide-platinum/60">
+            {ROWS.map((row, idx) => (
+              <motion.div
+                key={row.label}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.5, delay: idx * 0.05 }}
+                className="py-6"
+              >
+                <p className="font-serif-kr text-base text-noir-800 font-medium mb-3">
+                  {row.label}
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[9px] tracking-[0.2em] uppercase text-taupe-400 mb-1.5 font-medium">
+                      Human
+                    </p>
+                    <p className="text-[14px] text-charcoal font-light">{row.human}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] tracking-[0.2em] uppercase text-rose-500 mb-1.5 font-medium">
+                      Amora
+                    </p>
+                    <p className="text-[14px] text-rose-500 font-medium">{row.amora}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-rose-500 mb-1 font-medium">아모라</p>
-                  <p className="text-sm text-rose-500 font-medium">{row.amora}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

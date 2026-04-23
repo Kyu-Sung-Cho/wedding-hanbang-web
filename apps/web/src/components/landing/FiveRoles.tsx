@@ -1,66 +1,57 @@
 "use client";
 
 import { motion } from "framer-motion";
+import SectionLabel from "./SectionLabel";
 
 interface Role {
-  emoji: string;
+  number: string;
   title: string;
   body: React.ReactNode;
 }
 
 const ROLES: Role[] = [
   {
-    emoji: "🔍",
+    number: "01",
     title: "선호 발굴자",
     body: (
       <>
-        &ldquo;예쁜 거&rdquo;가 아니라
-        <br />
-        &ldquo;왜 그게 좋은지&rdquo;까지.
+        &ldquo;예쁜 거&rdquo;가 아니라 <em className="not-italic text-noir-800 font-normal">왜 그게 좋은지</em>까지.
       </>
     ),
   },
   {
-    emoji: "🤝",
+    number: "02",
     title: "커플 중재자",
     body: (
       <>
-        신부·신랑이 따로 대화한 후
-        <br />
-        함께 합의로 갑니다.
+        신부 &middot; 신랑이 <em className="not-italic text-noir-800 font-normal">따로 대화한 후</em> 함께 합의로.
       </>
     ),
   },
   {
-    emoji: "🧩",
+    number: "03",
     title: "제약 해결사",
     body: (
       <>
-        예산·시간·지역·가족
-        <br />
-        모두 만족하는 길만 보여요.
+        예산 &middot; 시간 &middot; 지역 &middot; 가족 <em className="not-italic text-noir-800 font-normal">모두 만족하는 길</em>만.
       </>
     ),
   },
   {
-    emoji: "📚",
+    number: "04",
     title: "기억 지킴이",
     body: (
       <>
-        6개월 전 결정과 지금 결정을
-        <br />
-        연결해서 일관성 유지.
+        6개월 전 결정과 지금 결정을 <em className="not-italic text-noir-800 font-normal">연결해 일관성</em> 유지.
       </>
     ),
   },
   {
-    emoji: "⚖️",
+    number: "05",
     title: "정보 격차 해소자",
     body: (
       <>
-        업체가 아는 모든 걸
-        <br />
-        당신도 알 수 있게.
+        업체가 아는 모든 걸 <em className="not-italic text-noir-800 font-normal">당신도 알 수 있게</em>.
       </>
     ),
   },
@@ -68,42 +59,53 @@ const ROLES: Role[] = [
 
 export default function FiveRoles() {
   return (
-    <section id="features" className="py-[clamp(60px,10vw,120px)] px-[clamp(20px,5vw,60px)] bg-ivory-50">
-      <div className="max-w-[1200px] mx-auto">
-        {/* 헤더 */}
+    <section id="features" className="py-[clamp(80px,12vw,160px)] px-[clamp(20px,5vw,60px)] bg-ivory-warm">
+      <div className="max-w-[1240px] mx-auto">
+        {/* 에디토리얼 섹션 헤더 */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
+          viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-14"
+          className="mb-16 md:mb-24 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 md:gap-16 items-end"
         >
-          <h2 className="font-serif-kr text-[clamp(28px,4vw,44px)] font-light text-noir-800 tracking-tight mb-3">
-            다른 챗봇과 다른 5가지 역할
-          </h2>
-          <p className="text-charcoal text-sm md:text-base">
-            단순 정보 검색 아니라 의사결정 동반자
+          <div>
+            <SectionLabel number="02" label="Five Roles" />
+            <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.15] tracking-tight">
+              다른 챗봇과 다른
+              <br />
+              <em className="not-italic text-rose-500">다섯 가지 역할.</em>
+            </h2>
+          </div>
+          <p className="text-charcoal text-[15px] leading-[1.9] font-light md:pb-3 max-w-md">
+            단순 정보 검색이 아닌, 의사결정의 동반자.
+            아모라는 당신 곁에서 다섯 가지 역할을 수행합니다.
           </p>
         </motion.div>
 
-        {/* 5카드 그리드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 5 카드 — 가로 구분선 + 여백 중심 */}
+        <div className="divide-y divide-platinum/80 border-t border-b border-platinum/80">
           {ROLES.map((role, idx) => (
             <motion.article
-              key={role.title}
-              initial={{ opacity: 0, y: 20 }}
+              key={role.number}
+              initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: idx * 0.08 }}
-              className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgba(26,26,31,0.04)] hover:shadow-[0_16px_48px_rgba(26,26,31,0.08)] hover:-translate-y-0.5 transition-all"
+              transition={{ duration: 0.6, delay: idx * 0.08 }}
+              className="group grid grid-cols-[auto_1fr] md:grid-cols-[80px_auto_1fr] gap-x-6 md:gap-x-10 gap-y-2 py-8 md:py-10 items-baseline hover:bg-white/60 transition-colors"
             >
-              <div className="text-4xl mb-4" aria-hidden>
-                {role.emoji}
-              </div>
-              <h3 className="font-serif-kr text-lg text-noir-800 font-medium mb-2">
+              {/* 넘버 */}
+              <span className="font-display text-2xl md:text-3xl text-rose-500 font-light tracking-tight">
+                {role.number}
+              </span>
+
+              {/* 제목 */}
+              <h3 className="font-serif-kr text-xl md:text-2xl text-noir-800 font-medium tracking-tight col-span-1 md:col-span-1">
                 {role.title}
               </h3>
-              <p className="text-charcoal text-sm leading-relaxed">
+
+              {/* 설명 */}
+              <p className="text-charcoal text-[15px] leading-[1.85] font-light col-span-2 md:col-span-1 md:text-right md:max-w-md md:ml-auto">
                 {role.body}
               </p>
             </motion.article>
