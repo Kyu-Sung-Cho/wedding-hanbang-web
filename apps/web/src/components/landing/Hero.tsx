@@ -22,20 +22,13 @@ export default function Hero() {
             transition={{ duration: 0.9, ease: "easeOut" }}
             className="text-center md:text-left"
           >
-            {/* 은은한 서브 라벨 */}
-            <p className="text-[12px] tracking-[0.28em] text-rose-500 mb-8 font-medium">
-              아&nbsp;·&nbsp;모&nbsp;·&nbsp;라
-            </p>
-
             {/* Display H1 */}
             <h1 className="font-serif-kr text-[clamp(36px,6.5vw,76px)] text-noir-800 leading-[1.1] tracking-[-0.015em] font-light">
-              새벽 세 시,
+              당신만의
               <br />
-              결혼 카페에서
+              AI 웨딩 플래너,
               <br />
-              답을 <em className="not-italic text-rose-500">못 찾았던</em>
-              <br />
-              적이 있다면.
+              <em className="not-italic text-rose-500">아모라.</em>
             </h1>
 
             {/* 얇은 rose 구분선 */}
@@ -43,13 +36,11 @@ export default function Hero() {
 
             {/* Sub */}
             <p className="text-charcoal text-[15px] md:text-[17px] leading-[2] font-light max-w-[520px] mx-auto md:mx-0">
-              결혼은 평생 한 번, 1,500개의 결정.
-              <br />
               당신도 모르는 당신의 선호를 끌어내고,
               <br />
               파트너와 합의로 가도록 중재하고,
               <br />
-              6개월 전 결정도 기억하는 AI 웨딩 플래너.
+              6개월 전 결정까지 기억합니다.
             </p>
 
             {/* CTA — 단일 primary + 부드러운 secondary */}
