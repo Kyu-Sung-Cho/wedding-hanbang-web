@@ -32,12 +32,12 @@ export default function NumbersAnchor() {
         >
           <SectionLabel label="숫자로 먼저" />
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
-            모든 숫자엔
+            숫자 뒤에는
             <br />
-            <em className="not-italic text-rose-500">출처</em>가 있습니다.
+            언제나 <em className="not-italic text-rose-500">출처</em>가 있습니다.
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            정부 공식 데이터 기반. 자체 집계가 아닌, 검증 가능한 수치만.
+            자체 집계가 아닌, 검증 가능한 정부 공식 수치만 인용합니다.
           </p>
         </motion.div>
 
