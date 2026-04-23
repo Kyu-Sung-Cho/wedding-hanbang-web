@@ -1,35 +1,29 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
-import CustomerHero from "@/components/customer-landing/CustomerHero";
-import CustomerPainPoints from "@/components/customer-landing/CustomerPainPoints";
-import CustomerSolutions from "@/components/customer-landing/CustomerSolutions";
-import CustomerFeatures from "@/components/customer-landing/CustomerFeatures";
-import CustomerComparison from "@/components/customer-landing/CustomerComparison";
-import CustomerHowItWorks from "@/components/customer-landing/CustomerHowItWorks";
-import CustomerStats from "@/components/customer-landing/CustomerStats";
-import CustomerTestimonials from "@/components/customer-landing/CustomerTestimonials";
-import CustomerCTA from "@/components/customer-landing/CustomerCTA";
+import Hero from "@/components/landing/Hero";
+import ProblemReframe from "@/components/landing/ProblemReframe";
+import FiveRoles from "@/components/landing/FiveRoles";
+import NumbersAnchor from "@/components/landing/NumbersAnchor";
+import CompareToHumanPlanner from "@/components/landing/CompareToHumanPlanner";
+import ForBetaCouples from "@/components/landing/ForBetaCouples";
 import Footer from "@/components/landing/Footer";
 
 export const metadata = {
-  title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
+  title: "웨딩한방 — 당신만을 위한 AI 웨딩 플래너",
   description:
-    "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
+    "당신도 모르는 선호를 끌어내고, 파트너와 합의로 가도록 중재하고, 6개월 전 결정도 기억하는 AI 웨딩 플래너 아모라. 한국소비자원·기획재정부 데이터 기반.",
 };
 
 export default function Home() {
   return (
-    <>
+    <main className="min-h-screen bg-ivory-50">
       <CustomerNav />
-      <CustomerHero />
-      <CustomerPainPoints />
-      <CustomerSolutions />
-      <CustomerFeatures />
-      <CustomerComparison />
-      <CustomerHowItWorks />
-      <CustomerStats />
-      <CustomerTestimonials />
-      <CustomerCTA />
+      <Hero />
+      <ProblemReframe />
+      <FiveRoles />
+      <NumbersAnchor />
+      <CompareToHumanPlanner />
+      <ForBetaCouples />
       <Footer />
-    </>
+    </main>
   );
 }

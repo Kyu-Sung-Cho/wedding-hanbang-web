@@ -1,106 +1,125 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 
-const infoLinks = [
-  { label: "웨딩한방 소개", href: "/" },
-  { label: "자주 묻는 질문", href: null },
-  { label: "이용약관", href: null },
-  { label: "개인정보처리방침", href: null },
-  { label: "제휴 문의", href: "mailto:contact@hanbang.ai" },
+const SERVICE_LINKS = [
+  { label: "아모라 채팅", href: "/chat" },
+  { label: "업체 탐색", href: "/vendors" },
+  { label: "시세 정보", href: "/market-prices" },
+  { label: "커뮤니티", href: "/community" },
+];
+
+const POLICY_LINKS = [
+  { label: "운영원칙", href: "/principles" },
+  { label: "AI 정책", href: "/ai-policy" },
+  { label: "개인정보처리방침", href: "/privacy" },
+  { label: "이용약관", href: "/terms" },
+];
+
+const CONTACT_LINKS = [
+  { label: "ceo@hanbang.ai", href: "mailto:ceo@hanbang.ai", external: true },
+  { label: "010-5067-6279", href: "tel:01050676279", external: true },
+  { label: "Instagram @wedding_hanbang", href: "https://instagram.com/wedding_hanbang", external: true },
 ];
 
 export default function Footer() {
-  const [toast, setToast] = useState("");
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 2000);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-  function handleComingSoon(e: React.MouseEvent) {
-    e.preventDefault();
-    setToast("준비 중인 페이지입니다");
-  }
-
   return (
-    <footer className="bg-noir-800 text-white pt-20 pb-10 px-[60px] max-md:px-5">
-      <div className="grid grid-cols-[2fr_1fr] gap-[60px] max-w-[1200px] mx-auto mb-[60px] max-md:grid-cols-1 max-md:gap-8">
-        {/* 브랜드 */}
-        <div>
-          <a href="/" className="no-underline">
-            <Logo size="sm" variant="white" />
-          </a>
-          <p className="text-[14px] text-white/40 leading-relaxed mt-4 font-light max-w-[300px]">
-            AI가 이끄는 새로운 결혼 준비의 시작.
-            <br />
-            웨딩 플래너 없이도 완벽한 결혼을 준비하세요.
+    <footer className="bg-noir-800 text-ivory-50 pt-20 pb-10 px-[clamp(20px,5vw,60px)]">
+      <div className="max-w-[1200px] mx-auto">
+        {/* 브랜드 + 링크 그리드 */}
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1.2fr] gap-10 lg:gap-12 mb-12">
+          {/* 브랜드 */}
+          <div>
+            <Link href="/" className="inline-block">
+              <Logo size="sm" variant="white" />
+            </Link>
+            <p className="text-ivory-50/60 text-sm leading-relaxed mt-5 font-light max-w-[320px]">
+              한국 결혼 시장의 unique winner.
+              <br />
+              광고가 추천을 흔들지 않는
+              <br />
+              AI 웨딩 플래너 &apos;아모라&apos;가 있는 곳.
+            </p>
+            <p className="text-ivory-50/40 text-xs mt-4">
+              웨딩한방 · 한방그룹
+            </p>
+          </div>
+
+          {/* 서비스 */}
+          <div>
+            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+              서비스
+            </h5>
+            <ul className="space-y-3">
+              {SERVICE_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-ivory-50/80 hover:text-white text-sm font-light transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* 정책 */}
+          <div>
+            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+              정책
+            </h5>
+            <ul className="space-y-3">
+              {POLICY_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-ivory-50/80 hover:text-white text-sm font-light transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* 연락 */}
+          <div>
+            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+              연락
+            </h5>
+            <ul className="space-y-3">
+              {CONTACT_LINKS.map((link) => (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    target={link.href.startsWith("http") ? "_blank" : undefined}
+                    rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    className="text-ivory-50/80 hover:text-white text-sm font-light transition-colors break-all"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* AI 고지 */}
+        <AiNoticeFooter variant="dark" />
+
+        {/* 카피라이트 + 법령 준수 */}
+        <div className="pt-8 mt-8 border-t border-white/10 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+          <p className="text-ivory-50/60 text-xs">
+            &copy; 2026 Hanbang Group. All rights reserved.
+          </p>
+          <p className="text-ivory-50/50 text-xs leading-relaxed">
+            AI 기본법 (2026.1.22) · 가격표시제 (2025.11) · 표준계약서 (2025.4) 준수
           </p>
         </div>
-
-        {/* 정보 */}
-        <div>
-          <h5 className="text-[12px] tracking-[0.15em] uppercase text-white/30 mb-5 font-medium">
-            정보
-          </h5>
-          {infoLinks.map((link) =>
-            link.href ? (
-              <a
-                key={link.label}
-                href={link.href}
-                className="block text-white/60 no-underline text-[14px] mb-3 font-light hover:text-rose-light transition-colors"
-              >
-                {link.label}
-              </a>
-            ) : (
-              <button
-                key={link.label}
-                onClick={handleComingSoon}
-                className="block text-white/60 text-[14px] mb-3 font-light hover:text-rose-light transition-colors cursor-pointer bg-transparent border-none p-0 text-left"
-              >
-                {link.label}
-              </button>
-            )
-          )}
-        </div>
       </div>
-
-      {/* AI 기본법 고지 — 원칙 P6 실체화 */}
-      <div className="max-w-[1200px] mx-auto">
-        <AiNoticeFooter variant="dark" />
-      </div>
-
-      <div className="max-w-[1200px] mx-auto pt-10 border-t border-white/[0.06] flex justify-between items-center max-md:flex-col max-md:gap-4 max-md:text-center">
-        <span className="text-[13px] text-white/30 font-light">
-          &copy; 2026 웨딩한방. All rights reserved.
-        </span>
-        <div className="flex gap-4">
-          {[
-            { label: "IG", title: "Instagram" },
-            { label: "KT", title: "KakaoTalk" },
-            { label: "BL", title: "Blog" },
-          ].map((social) => (
-            <button
-              key={social.label}
-              title={social.title}
-              onClick={handleComingSoon}
-              className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/40 text-[14px] hover:bg-rose-500/15 hover:text-rose-light transition-all cursor-pointer border-none"
-            >
-              {social.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 bg-noir-800 text-white text-[14px] rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 animate-fade-in">
-          {toast}
-        </div>
-      )}
     </footer>
   );
 }
