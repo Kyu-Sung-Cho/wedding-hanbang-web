@@ -147,7 +147,11 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
     const result = await generateSummary(conversation);
     if (!result) return;
 
-    // INSERT
+    // INSERT — 기존 chat_summaries 스키마의 NOT NULL 필드 충족 필수
+    //   summary_type: NOT NULL + CHECK (decision/preference/budget/schedule/concern/info/progress)
+    //   title: NOT NULL
+    //   content: NOT NULL
+    //   summary: Bucket A 때 추가한 컬럼 — 시스템 프롬프트가 읽는 곳 (redundant fill)
     const admin = getAdminClient();
     const fromMsgId = input.lastToMessageId ?? null;
     const toMsgId = input.messages[input.messages.length - 1]?.id ?? null;
@@ -155,10 +159,14 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
     const { error } = await admin.from("chat_summaries").insert({
       couple_id: input.coupleId,
       user_id: input.userId ?? null,
-      summary: result.summary,
+      summary_type: "info",                          // 혼합 요약은 'info' 분류
+      title: "AI 대화 요약",
+      content: result.summary,                       // 기존 스키마의 canonical 텍스트 필드
+      summary: result.summary,                       // Bucket A 추가 컬럼 (system prompt fetch 대상)
       message_count: totalCount,
       from_message_id: fromMsgId,
       to_message_id: toMsgId,
+      importance: 1,
     });
 
     if (error) {
