@@ -9,6 +9,7 @@ import { executeTool } from "@/lib/ai/toolExecutor";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
+import { maybeExtractDecision } from "@/lib/ai/extract-decision";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -540,15 +541,25 @@ export async function POST(request: Request) {
             });
 
             // Memory Step A: 10 메시지+ 누적 시 요약 생성 (fire-and-forget)
+            const messagesWithLatest = [
+              ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
+              { role: "assistant" as const, content: cleanText },
+            ];
             void maybeSummarize({
               coupleId,
               userId: user.id,
-              messages: [
-                ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
-                { role: "assistant" as const, content: cleanText },
-              ],
+              messages: messagesWithLatest,
               lastCoveredCount,
               lastToMessageId,
+            });
+
+            // Memory Step B: 이번 턴 decision/preference 추출 (fire-and-forget)
+            void maybeExtractDecision({
+              coupleId,
+              userId: user.id,
+              messages: messagesWithLatest,
+              stageTag,
+              lastUserText,
             });
 
             clearInterval(heartbeat);
@@ -647,16 +658,24 @@ export async function POST(request: Request) {
           metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
         });
 
-        // Memory Step A: 요약 생성 (fire-and-forget)
+        // Memory Step A + B: 요약 생성 + decision/preference 추출 (fire-and-forget)
+        const messagesWithLatest = [
+          ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
+          { role: "assistant" as const, content: cleanText },
+        ];
         void maybeSummarize({
           coupleId,
           userId: user.id,
-          messages: [
-            ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
-            { role: "assistant" as const, content: cleanText },
-          ],
+          messages: messagesWithLatest,
           lastCoveredCount,
           lastToMessageId,
+        });
+        void maybeExtractDecision({
+          coupleId,
+          userId: user.id,
+          messages: messagesWithLatest,
+          stageTag,
+          lastUserText,
         });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
