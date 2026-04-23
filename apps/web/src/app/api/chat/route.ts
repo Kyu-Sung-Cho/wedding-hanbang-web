@@ -8,6 +8,7 @@ import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { maybeSummarize } from "@/lib/ai/summarize";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -270,9 +271,9 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
-    // 4. 대화 요약 (최근 3개)
+    // 4. 대화 요약 (최근 3개) — message_count + to_message_id도 함께 (Memory Step A trigger용)
     supabase.from("chat_summaries")
-      .select("summary, created_at")
+      .select("summary, created_at, message_count, to_message_id")
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(3),
@@ -330,7 +331,18 @@ export async function POST(request: Request) {
   } : null;
 
   // 대화 요약
-  const chatSummaries = (summariesResult.data ?? []).map((s) => s.summary as string);
+  const summariesData = (summariesResult.data ?? []) as Array<{
+    summary: string;
+    created_at: string;
+    message_count: number | null;
+    to_message_id: string | null;
+  }>;
+  const chatSummaries = summariesData.map((s) => s.summary);
+
+  // Memory Step A: 마지막 요약 watermark (trigger용)
+  const lastSummary = summariesData[0] ?? null;
+  const lastCoveredCount = lastSummary?.message_count ?? 0;
+  const lastToMessageId = lastSummary?.to_message_id ?? null;
 
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
   // 현재 사용자 메시지 (마지막 user 메시지)
@@ -527,6 +539,18 @@ export async function POST(request: Request) {
               },
             });
 
+            // Memory Step A: 10 메시지+ 누적 시 요약 생성 (fire-and-forget)
+            void maybeSummarize({
+              coupleId,
+              userId: user.id,
+              messages: [
+                ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
+                { role: "assistant" as const, content: cleanText },
+              ],
+              lastCoveredCount,
+              lastToMessageId,
+            });
+
             clearInterval(heartbeat);
             controller.close();
             return;
@@ -621,6 +645,18 @@ export async function POST(request: Request) {
           type: "done",
           fullContent: cleanText,
           metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
+        });
+
+        // Memory Step A: 요약 생성 (fire-and-forget)
+        void maybeSummarize({
+          coupleId,
+          userId: user.id,
+          messages: [
+            ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
+            { role: "assistant" as const, content: cleanText },
+          ],
+          lastCoveredCount,
+          lastToMessageId,
         });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
