@@ -267,7 +267,7 @@ function InlineMoneyEdit({
           className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
         />
         <span className="text-[11px] text-[#B5ADA3]">만원</span>
-        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-[#5a6147] hover:bg-[#5a6147]/10" title="저장">
+        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10" title="저장">
           <Check className="w-3.5 h-3.5" />
         </button>
         <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]" title="취소">
@@ -371,7 +371,7 @@ function BudgetRow({
             />
           </div>
           <span className={`text-xs font-medium w-[36px] text-right flex-shrink-0 ${
-            isOver ? "text-red-400" : percent >= 100 ? "text-[#5a6147]" : "text-[#B5ADA3]"
+            isOver ? "text-red-400" : percent >= 100 ? "text-sage-500" : "text-[#B5ADA3]"
           }`}>
             {percent}%
           </span>
@@ -412,7 +412,7 @@ function BudgetRow({
       {/* 상태 + 삭제 */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
+          status === "완료" ? "bg-sage-500/10 text-sage-500" :
           status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
           "bg-[#f6f3f2] text-[#B5ADA3]"
         }`}>
@@ -481,7 +481,7 @@ function BudgetCard({
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                status === "완료" ? "bg-[#5a6147]/10 text-[#5a6147]" :
+                status === "완료" ? "bg-sage-500/10 text-sage-500" :
                 status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
                 "bg-[#f6f3f2] text-[#B5ADA3]"
               }`}>
@@ -506,7 +506,7 @@ function BudgetCard({
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-[#B5ADA3]">진행률</span>
           <span className={`text-xs font-medium ${
-            isOver ? "text-red-400" : percent >= 100 ? "text-[#5a6147]" : "text-[#504444]"
+            isOver ? "text-red-400" : percent >= 100 ? "text-sage-500" : "text-[#504444]"
           }`}>
             {percent}%
           </span>
@@ -563,7 +563,7 @@ interface BookingSummary {
 
 function getBookingStatusBadge(status: string) {
   switch (status) {
-    case "confirmed": return { label: "확정", color: "bg-[#5a6147]/10 text-[#5a6147]" };
+    case "confirmed": return { label: "확정", color: "bg-sage-500/10 text-sage-500" };
     case "completed": return { label: "완료", color: "bg-[#f6f3f2] text-[#B5ADA3]" };
     case "cancelled": return { label: "취소", color: "bg-red-50 text-red-400" };
     default: return { label: "대기중", color: "bg-[#795252]/10 text-[#795252]" };
@@ -994,8 +994,8 @@ export default function BudgetPage() {
 
           {/* Spent */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
-            <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-[#5a6147]/40" />
-            <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
+            <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-sage-500/40" />
+            <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               SPENT
             </p>
             <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">

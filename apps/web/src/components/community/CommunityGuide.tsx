@@ -82,13 +82,13 @@ function SlideRealReview() {
       {/* Mock 포스트 카드 — 실제 후기처럼 */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6f3f2] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-[#5a6147] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-sage-500 flex items-center justify-center">
             <span className="text-base">🌿</span>
           </div>
           <div className="flex flex-col items-start">
             <div className="flex items-center gap-1.5">
               <span className="text-base text-[#1b1c1c] font-medium">가을의신부</span>
-              <span className="text-sm px-1.5 py-0.5 bg-[#5a6147]/10 text-[#5a6147] rounded-full font-semibold">Lv.4</span>
+              <span className="text-sm px-1.5 py-0.5 bg-sage-500/10 text-sage-500 rounded-full font-semibold">Lv.4</span>
             </div>
             <span className="text-sm text-[#B5ADA3] font-light">어제 · 후기</span>
           </div>
@@ -113,8 +113,8 @@ function SlideRealReview() {
               </div>
               <div>
                 <div className="text-sm text-[#B5ADA3] mb-1">B 스튜디오</div>
-                <div className="text-base font-semibold text-[#5a6147]">350만</div>
-                <div className="text-sm text-[#5a6147]">추천 ✓</div>
+                <div className="text-base font-semibold text-sage-500">350만</div>
+                <div className="text-sm text-sage-500">추천 ✓</div>
               </div>
               <div>
                 <div className="text-sm text-[#B5ADA3] mb-1">C 스튜디오</div>
@@ -132,13 +132,13 @@ function SlideRealReview() {
           <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#C9A96E]/15 to-[#C9A96E]/5 border border-[#C9A96E]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[#C9A96E]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#5a6147]/15 to-[#5a6147]/5 border border-[#5a6147]/10 flex items-center justify-center">
-            <Camera className="w-4 h-4 text-[#5a6147]/40" />
+          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
+            <Camera className="w-4 h-4 text-sage-500/40" />
           </div>
         </div>
         <div className="px-4 py-2.5 border-t border-[#f6f3f2] flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 text-[#5a6147]">
+            <div className="flex items-center gap-1 text-sage-500">
               <ChevronUp className="w-5 h-5" />
               <span className="text-base font-semibold">47</span>
               <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
@@ -184,14 +184,14 @@ function SlideCohort() {
             <div className="text-[17px] text-white font-semibold">2026 2분기 동기방</div>
             <div className="text-sm text-white/50 font-light mt-0.5">4~6월 결혼 예정 커플</div>
           </div>
-          <div className="px-2.5 py-1 rounded-full bg-[#5a6147]/30 text-sm text-[#A8D8A8] font-medium">
+          <div className="px-2.5 py-1 rounded-full bg-sage-500/30 text-sm text-[#A8D8A8] font-medium">
             248명 활동 중
           </div>
         </div>
         <div className="flex items-center mb-3">
           {[
             "from-[#795252] to-[#C9A96E]",
-            "from-[#A8D8A8] to-[#5a6147]",
+            "from-[#A8D8A8] to-sage-500",
             "from-[#7EB8D8] to-[#5A9CC0]",
             "from-[#C9A96E] to-[#DCC9A0]",
             "from-[#D88B8B] to-[#946a6a]",
@@ -279,8 +279,8 @@ function SlideHowToUse() {
 
         {/* 2. 투표 */}
         <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fcf9f8] border border-[#f6f3f2]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#5a6147]/20 to-[#5a6147]/5 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-[#5a6147]" />
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-5 h-5 text-sage-500" />
           </div>
           <div className="text-left">
             <div className="text-base text-[#1b1c1c] font-semibold mb-1">좋은 글은 투표로</div>
@@ -335,7 +335,7 @@ function SlideRankSystem() {
 
       <div className="w-full max-w-[360px] flex flex-col gap-2.5">
         {[
-          { rank: "🌱", name: "새싹", level: "Lv.1", desc: "가입하면 바로", color: "from-[#A8D8A8] to-[#5a6147]", xp: "0 XP" },
+          { rank: "🌱", name: "새싹", level: "Lv.1", desc: "가입하면 바로", color: "from-[#A8D8A8] to-sage-500", xp: "0 XP" },
           { rank: "🌿", name: "준비중", level: "Lv.2", desc: "첫 글 작성", color: "from-[#7EB8D8] to-[#5A9CC0]", xp: "100 XP" },
           { rank: "💐", name: "전문가", level: "Lv.3", desc: "후기 5개 이상", color: "from-[#795252] to-[#C9A96E]", xp: "500 XP" },
           { rank: "👑", name: "마스터", level: "Lv.4", desc: "BEST 글 선정", color: "from-[#C9A96E] to-[#DCC9A0]", xp: "1,500 XP" },
@@ -389,7 +389,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
       <div className="w-full max-w-[360px] flex flex-col gap-2.5 mb-6">
         {[
-          { color: "bg-[#5a6147]", label: "일반", desc: "직접 경험한 솔직한 글" },
+          { color: "bg-sage-500", label: "일반", desc: "직접 경험한 솔직한 글" },
           { color: "bg-[#C9A96E]", label: "협찬", desc: "혜택 받았지만 솔직하게" },
           { color: "bg-[#795252]", label: "광고", desc: "광고는 표시하고, 추천에서 제외" },
         ].map((rule, i) => (

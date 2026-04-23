@@ -268,7 +268,7 @@ export default function SchedulePage() {
 
           {/* Progress */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
+            <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               PROGRESS
             </p>
             <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
@@ -400,7 +400,7 @@ export default function SchedulePage() {
                       className="flex items-center gap-4 p-4 rounded-xl hover:bg-[#f6f3f2] transition-colors group"
                     >
                       <div className="w-12 h-12 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
-                        <CalendarDays className="w-6 h-6 text-[#5a6147]" />
+                        <CalendarDays className="w-6 h-6 text-sage-500" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-base font-medium text-[#1b1c1c] truncate">

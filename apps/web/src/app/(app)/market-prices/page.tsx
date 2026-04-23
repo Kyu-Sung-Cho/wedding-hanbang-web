@@ -65,9 +65,9 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 가격표시제 안내 배너 — 원칙 P5 실체화 */}
-      <div className="bg-[#5a6147]/5 border border-[#5a6147]/10 rounded-xl p-4 mb-8 text-sm">
+      <div className="bg-sage-500/5 border border-sage-500/10 rounded-xl p-4 mb-8 text-sm">
         <div className="flex items-start gap-3">
-          <div className="shrink-0 text-[#5a6147] text-base leading-none" aria-hidden>📋</div>
+          <div className="shrink-0 text-sage-500 text-base leading-none" aria-hidden>📋</div>
           <div className="flex-1">
             <div className="font-medium mb-1 text-[#1b1c1c]">
               정부 가격표시제 시행 중
@@ -215,7 +215,7 @@ export default function MarketPricesPage() {
 
       {/* Give-to-Get CTA — 실거래가 공유 유도 (베타) */}
       <section className="mt-16 mb-8">
-        <div className="bg-gradient-to-br from-[#795252]/5 to-[#5a6147]/5 rounded-3xl p-8 sm:p-12">
+        <div className="bg-gradient-to-br from-[#795252]/5 to-sage-500/5 rounded-3xl p-8 sm:p-12">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 text-xs text-[#795252] bg-[#795252]/10 px-3 py-1 rounded-full mb-4">
               🔒 Give-to-Get 베타

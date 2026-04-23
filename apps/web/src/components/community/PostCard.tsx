@@ -23,11 +23,11 @@ interface PostCardProps {
 
 // 카테고리별 배지 색상 (sage/rose/tertiary 변주)
 const CATEGORY_BADGE_BG: Record<string, string> = {
-  is_normal: "bg-[#dee6c4]/30 text-[#5a6147]", // sage (secondary-container)
+  is_normal: "bg-[#dee6c4]/30 text-sage-500", // sage (secondary-container)
   tour_review: "bg-[#d4c2c2]/30 text-[#795252]", // rose (outline-variant + primary)
   tips_v2: "bg-[#625b4d]/15 text-[#625b4d]", // tertiary
   ama: "bg-[#795252]/10 text-[#795252]", // primary
-  free: "bg-[#dee6c4]/30 text-[#5a6147]", // sage
+  free: "bg-[#dee6c4]/30 text-sage-500", // sage
 };
 
 // 비용 포맷 헬퍼
@@ -56,7 +56,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
   const hasImage = imageCount > 0;
 
   // 카테고리 배지 스타일
-  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-[#5a6147]";
+  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
 
   function handleBookmark(e: React.MouseEvent) {
     e.preventDefault();

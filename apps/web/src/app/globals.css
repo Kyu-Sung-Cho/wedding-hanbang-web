@@ -25,6 +25,10 @@
   --taupe-400: #B5ADA3;
   --taupe-500: #504444;
 
+  /* Sage (Atelier secondary) */
+  --sage-500: #5a6147;
+  --sage-pale: #aab59f;
+
   /* Gold */
   --gold: #C9A96E;
   --gold-light: #DCC9A0;
@@ -53,6 +57,9 @@
 
   --color-taupe-400: #B5ADA3;
   --color-taupe-500: #504444;
+
+  --color-sage-500: #5a6147;
+  --color-sage-pale: #aab59f;
 
   --color-gold: #C9A96E;
   --color-gold-light: #DCC9A0;

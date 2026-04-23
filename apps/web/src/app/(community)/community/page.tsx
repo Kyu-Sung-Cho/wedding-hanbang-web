@@ -58,7 +58,7 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
         <Star className="text-[#795252]/40 w-7 h-7 sm:w-8 sm:h-8" />
       </div>
       <div className="flex-1 z-10 min-w-0">
-        <div className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-[#d4c2c2]/30 text-[#5a6147] text-xs tracking-wider uppercase mb-4">
+        <div className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-[#d4c2c2]/30 text-sage-500 text-xs tracking-wider uppercase mb-4">
           <Bookmark className="w-[14px] h-[14px] mr-1.5" />
           에디터 추천
         </div>

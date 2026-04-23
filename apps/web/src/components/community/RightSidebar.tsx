@@ -39,11 +39,11 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
           <div>
             <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
               <span>새 글</span>
-              <span className="text-[#5a6147] font-medium">{postTrendLabel}</span>
+              <span className="text-sage-500 font-medium">{postTrendLabel}</span>
             </div>
             <div className="w-full bg-[#f0eded] h-2 rounded-full overflow-hidden">
               <div
-                className="bg-[#5a6147] h-full rounded-full transition-all duration-700"
+                className="bg-sage-500 h-full rounded-full transition-all duration-700"
                 style={{ width: postTrendWidth }}
               />
             </div>
@@ -110,7 +110,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </h3>
         <div className="space-y-4 text-base">
           <div className="flex items-start gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#5a6147] mt-1.5 shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-sage-500 mt-1.5 shrink-0" />
             <div>
               <span className="text-[#1b1c1c] font-medium">일반</span>
               <span className="text-[#504444]"> --- 직접 쓴 글</span>

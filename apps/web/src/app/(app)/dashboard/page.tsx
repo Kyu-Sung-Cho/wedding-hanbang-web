@@ -168,7 +168,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, { label: string; color: string }> = {
-  completed: { label: "완료", color: "bg-[#5a6147]" },
+  completed: { label: "완료", color: "bg-sage-500" },
   in_progress: { label: "진행중", color: "bg-[#795252]" },
   not_started: { label: "예정", color: "bg-[#B5ADA3]" },
 };
@@ -311,7 +311,7 @@ export default function DashboardPage() {
               {inviteCode}
             </span>
             {copied ? (
-              <Check className="w-5 h-5 text-[#5a6147]" />
+              <Check className="w-5 h-5 text-sage-500" />
             ) : (
               <Copy className="w-5 h-5 text-[#504444]" />
             )}
@@ -428,7 +428,7 @@ export default function DashboardPage() {
                 <div className="w-14 h-14 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
                   {(() => {
                     const IconComp = CATEGORY_ICONS[nextMilestone.key] ?? CalendarCheck;
-                    return <IconComp className="w-7 h-7 text-[#5a6147]" />;
+                    return <IconComp className="w-7 h-7 text-sage-500" />;
                   })()}
                 </div>
                 <div className="flex-1">
@@ -448,7 +448,7 @@ export default function DashboardPage() {
             ) : (
               <div className="flex items-center gap-5 p-5 rounded-xl bg-[#f6f3f2]">
                 <div className="w-14 h-14 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
-                  <Check className="w-7 h-7 text-[#5a6147]" />
+                  <Check className="w-7 h-7 text-sage-500" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xl font-serif-kr text-[#1b1c1c] mb-1 font-light">모두 순조로워요</p>
@@ -592,7 +592,7 @@ export default function DashboardPage() {
                         <p className="text-base text-[#1b1c1c] font-light leading-snug">
                           <span className="font-medium">{partner?.name ?? "파트너"}</span>
                           {activity.status === "completed"
-                            ? <span>가 <span className="font-medium text-[#5a6147]">{activity.label}</span>을 <span className="text-[#5a6147] font-medium">완료</span>했어요</span>
+                            ? <span>가 <span className="font-medium text-sage-500">{activity.label}</span>을 <span className="text-sage-500 font-medium">완료</span>했어요</span>
                             : <span>가 <span className="font-medium text-[#795252]">{activity.label}</span>을 <span className="text-[#795252] font-medium">진행중</span>으로 변경했어요</span>
                           }
                         </p>
@@ -637,7 +637,7 @@ export default function DashboardPage() {
                   key={key}
                   className={`rounded-xl transition-all ${
                     status === "completed"
-                      ? "bg-[#5a6147]/[0.06]"
+                      ? "bg-sage-500/[0.06]"
                       : status === "in_progress"
                         ? "bg-[#795252]/[0.06]"
                         : "bg-[#f6f3f2]"

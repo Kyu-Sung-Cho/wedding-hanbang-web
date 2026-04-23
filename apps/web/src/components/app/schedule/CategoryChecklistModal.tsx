@@ -58,7 +58,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-[#5a6147]",
+  completed: "bg-sage-500",
   in_progress: "bg-[#795252]",
   not_started: "bg-[#B5ADA3]",
 };

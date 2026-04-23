@@ -226,7 +226,7 @@ export default function VendorsPage() {
 
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
             <Heart className="absolute top-6 right-6 w-6 h-6 text-[#795252]/30" />
-            <p className="text-xs tracking-widest uppercase text-[#5a6147] mb-4 font-medium">
+            <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               FAVORITES
             </p>
             <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
@@ -363,7 +363,7 @@ export default function VendorsPage() {
                           </span>
                         )}
                         {hasSlots && (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#5a6147] text-white text-sm font-medium shadow-lg">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-sage-500 text-white text-sm font-medium shadow-lg">
                             <Clock className="w-3.5 h-3.5" />
                             예약 가능
                           </span>

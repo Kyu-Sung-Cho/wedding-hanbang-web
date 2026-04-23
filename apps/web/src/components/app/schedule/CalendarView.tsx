@@ -114,7 +114,7 @@ export default function CalendarView({
   const statusColor = (status: ProgressItem["status"]) => {
     switch (status) {
       case "completed":
-        return "bg-[#5a6147]";
+        return "bg-sage-500";
       case "in_progress":
         return "bg-[#795252]";
       default:
@@ -224,7 +224,7 @@ export default function CalendarView({
           <span className="text-sm text-[#B5ADA3]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#5a6147]" />
+          <div className="w-3 h-3 rounded-full bg-sage-500" />
           <span className="text-sm text-[#B5ADA3]">완료</span>
         </div>
         <div className="flex items-center gap-1.5">
