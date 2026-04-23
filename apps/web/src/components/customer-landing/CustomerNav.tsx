@@ -40,10 +40,9 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
 
   const navLinks = [
     { href: "#features", label: "주요 기능", scroll: true },
-    { href: "#reviews", label: "이용 사례", scroll: true },
     { href: "/community", label: "커뮤니티", scroll: false },
     { href: "/market-prices", label: "시세 정보", scroll: false },
-    { href: "/etiquette", label: "예절 가이드", scroll: false },
+    { href: "/etiquette", label: "결혼 예절", scroll: false },
     { href: "#cta", label: "시작하기", scroll: true },
   ];
 

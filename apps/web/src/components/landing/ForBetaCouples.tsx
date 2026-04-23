@@ -26,11 +26,12 @@ export default function ForBetaCouples() {
   return (
     <section
       id="cta"
-      className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden bg-gradient-to-br from-rose-500 to-sage-500"
+      className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden bg-gradient-to-br from-rose-500 via-rose-600 to-rose-500"
     >
-      {/* 배경 장식 */}
-      <div className="absolute top-0 right-0 w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(255,255,255,0.12),transparent_60%)] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(255,255,255,0.08),transparent_60%)] rounded-full pointer-events-none" />
+      {/* 배경 장식 — 화이트 glow로 깊이감 */}
+      <div className="absolute -top-[150px] left-1/2 -translate-x-1/2 w-[min(700px,90vw)] h-[min(700px,90vw)] bg-[radial-gradient(circle,rgba(255,255,255,0.18),transparent_65%)] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-120px] right-[-80px] w-[min(500px,80vw)] h-[min(500px,80vw)] bg-[radial-gradient(circle,rgba(201,169,110,0.15),transparent_60%)] rounded-full pointer-events-none" />
+      <div className="absolute top-[40%] left-[-100px] w-[min(400px,70vw)] h-[min(400px,70vw)] bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_60%)] rounded-full pointer-events-none" />
 
       <div className="relative z-10 max-w-[720px] mx-auto text-center">
         <motion.div

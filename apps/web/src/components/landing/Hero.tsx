@@ -23,6 +23,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
+          className="flex flex-col items-center text-center md:items-start md:text-left"
         >
           {/* Eyebrow */}
           <div className="inline-flex items-center gap-2 bg-rose-500/10 text-rose-500 text-xs tracking-widest uppercase px-3 py-1.5 rounded-full font-medium mb-6">
@@ -56,7 +57,7 @@ export default function Hero() {
           </p>
 
           {/* CTA Group */}
-          <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex flex-wrap gap-3 mb-6 justify-center md:justify-start">
             <Link
               href="/beta"
               className="group inline-flex items-center gap-2 px-7 py-3.5 bg-gradient-to-r from-rose-500 to-rose-600 text-white rounded-xl text-[15px] font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.25)] hover:shadow-[0_10px_30px_rgba(121,82,82,0.35)] hover:-translate-y-0.5 transition-all"
