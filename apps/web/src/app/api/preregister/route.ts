@@ -13,7 +13,15 @@ function getServiceClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const body = await request.json();
+    const { email, name, weddingDate, role, message, isBetaCandidate } = body as {
+      email?: string;
+      name?: string;
+      weddingDate?: string;
+      role?: "bride" | "groom";
+      message?: string;
+      isBetaCandidate?: boolean;
+    };
 
     // 이메일 유효성 검사
     if (!email || !email.includes("@")) {
@@ -28,11 +36,25 @@ export async function POST(request: NextRequest) {
     // 중복 이메일 체크
     const { data: existing } = await supabase
       .from("preregistrations")
-      .select("id")
+      .select("id, is_beta_candidate")
       .eq("email", email)
-      .single();
+      .maybeSingle();
 
     if (existing) {
+      // 기존 사전등록자가 베타 신청 → is_beta_candidate만 업데이트 (upgrade)
+      if (isBetaCandidate && !existing.is_beta_candidate) {
+        await supabase
+          .from("preregistrations")
+          .update({
+            is_beta_candidate: true,
+            name: name ?? undefined,
+            wedding_date: weddingDate ?? undefined,
+            role: role ?? undefined,
+            message: message ?? undefined,
+          })
+          .eq("id", existing.id);
+        return NextResponse.json({ success: true, upgraded: true });
+      }
       return NextResponse.json(
         { error: "이미 등록된 이메일입니다." },
         { status: 409 }
@@ -50,7 +72,12 @@ export async function POST(request: NextRequest) {
       .from("preregistrations")
       .insert({
         email,
-        source: "web",
+        name: name ?? null,
+        wedding_date: weddingDate ?? null,
+        role: role ?? null,
+        message: message ?? null,
+        is_beta_candidate: isBetaCandidate ?? false,
+        source: isBetaCandidate ? "beta" : "web",
         utm_source,
         utm_medium,
         utm_campaign,
