@@ -10,6 +10,7 @@ import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
 import { maybeExtractDecision } from "@/lib/ai/extract-decision";
+import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -592,6 +593,15 @@ export async function POST(request: Request) {
               lastUserText,
             });
 
+            // Excavation 기법 사용 분류 (fire-and-forget)
+            void maybeClassifyExcavation({
+              coupleId,
+              userId: user.id,
+              lastUserText,
+              aiResponseText: cleanText,
+              stageTag,
+            });
+
             clearInterval(heartbeat);
             controller.close();
             return;
@@ -706,6 +716,13 @@ export async function POST(request: Request) {
           messages: messagesWithLatest,
           stageTag,
           lastUserText,
+        });
+        void maybeClassifyExcavation({
+          coupleId,
+          userId: user.id,
+          lastUserText,
+          aiResponseText: cleanText,
+          stageTag,
         });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
