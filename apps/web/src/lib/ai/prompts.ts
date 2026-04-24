@@ -132,6 +132,21 @@ export function getWeddingPlannerSystemPrompt(context: {
     guestCount?: string | null; // "50이하", "50-100", "100-200", "200-300", "300+"
   };
   feedbackLessons?: string[];
+  /**
+   * Memory Step C: 이 커플의 과거 결정·선호 히스토리 (최근 15개).
+   * AI 대화 추출 + favorites/bookings/onboarding 전부 통합.
+   * 시스템 프롬프트에 주입되어 이전 결정과 현재 답변의 일관성을 유지.
+   */
+  pastDecisions?: Array<{
+    category: string;
+    decisionType: string;
+    title: string;
+    value: string | null;
+    reasoning: string | null;
+    confidence: number;
+    source: string;
+    createdAt: string;
+  }>;
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
@@ -280,6 +295,44 @@ ${lessonsText}
 새로운 실수를 하면 사용자가 다시 알려줄 것이고, 그것도 학습됩니다.`;
   }
 
+  // Memory Step C: 이 커플의 과거 결정 히스토리 섹션
+  // decision_nodes (최근 15개) 기반. AI 추출 + favorites + bookings + onboarding 통합.
+  let pastDecisionsSection = "";
+  if (context.pastDecisions && context.pastDecisions.length > 0) {
+    // 결정 / 고려 분리
+    const decidedItems = context.pastDecisions.filter((d) => d.decisionType === "decided" || d.decisionType === "booked");
+    const consideringItems = context.pastDecisions.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
+
+    const formatItem = (d: typeof context.pastDecisions[number]): string => {
+      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const categoryLabel = CATEGORY_LABELS[d.category] ?? d.category;
+      const sourceTag = d.source === "chat" ? "" : ` [${d.source}]`;
+      const valueText = d.value ? `: ${d.value}` : "";
+      const reasonText = d.reasoning ? ` — ${d.reasoning}` : "";
+      return `  - [${categoryLabel}]${sourceTag} ${d.title}${valueText}${reasonText} (${dateStr})`;
+    };
+
+    const sections: string[] = [];
+    if (decidedItems.length > 0) {
+      sections.push(`**이미 결정한 것 (변경 제안 시 주의):**\n${decidedItems.map(formatItem).join("\n")}`);
+    }
+    if (consideringItems.length > 0) {
+      sections.push(`**고려 중 / 드러난 선호 (연속성 확보용):**\n${consideringItems.map(formatItem).join("\n")}`);
+    }
+
+    pastDecisionsSection = `\n## 이 커플의 결정 히스토리 (최근 15)
+아래는 이 커플이 과거에 결정·선호 표현한 내용입니다.
+
+${sections.join("\n\n")}
+
+**활용 원칙:**
+1. **일관성 유지**: 이미 결정한 것은 존중. "드레스샵 A로 하셨죠? 오늘은 관련 투어 준비 얘기해볼까요?"
+2. **변화 감지**: 과거 선호와 지금 발언이 다르면 자연스럽게 확인. "지난번엔 미니멀 좋다 하셨는데, 지금은 화려한 쪽이 끌리시나 봐요. 어떤 변화가 있었어요?"
+3. **맥락 이어가기**: 사용자가 짧게 말해도 과거 맥락으로 추론. "1500만원 얘기 이어가는 건가요?"
+4. **번복 금지**: 결정한 것을 다시 권유하지 마세요. "스튜디오 결정하셨잖아요"라고 말로 지적 X — 자연스럽게 그 결정에 맞춰 답변만.
+5. **리셋 시그널**: 사용자가 "다시 정할래", "생각이 바뀌었어" 명시하면 그때만 이전 결정 재검토.`;
+  }
+
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
@@ -288,7 +341,7 @@ ${lessonsText}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDecisionsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
 
 ## 아모라의 사고방식
 

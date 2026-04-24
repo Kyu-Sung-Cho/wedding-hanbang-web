@@ -261,7 +261,7 @@ export async function POST(request: Request) {
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult, feedbackLessons] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, feedbackLessons] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -278,7 +278,13 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(3),
-    // 5. 피드백 학습 내용 (AI 품질 개선용)
+    // 5. Memory Step C: 의사결정 히스토리 (최근 15개, AI 추출 + manual/booking/onboarding 포함)
+    supabase.from("decision_nodes")
+      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, created_at")
+      .eq("couple_id", coupleId)
+      .order("created_at", { ascending: false })
+      .limit(15),
+    // 6. 피드백 학습 내용 (AI 품질 개선용)
     loadFeedbackLessons(coupleId),
   ]);
 
@@ -345,6 +351,29 @@ export async function POST(request: Request) {
   const lastCoveredCount = lastSummary?.message_count ?? 0;
   const lastToMessageId = lastSummary?.to_message_id ?? null;
 
+  // Memory Step C: 의사결정 히스토리 정리
+  const decisionsData = (decisionsResult.data ?? []) as Array<{
+    category: string;
+    decision_type: string;
+    title: string;
+    chosen_value: { value?: string } | null;
+    reasoning: string | null;
+    confidence: number | null;
+    stage_tag: string | null;
+    source: string;
+    created_at: string;
+  }>;
+  const pastDecisions = decisionsData.map((d) => ({
+    category: d.category,
+    decisionType: d.decision_type,
+    title: d.title,
+    value: d.chosen_value?.value ?? null,
+    reasoning: d.reasoning,
+    confidence: d.confidence ?? 0.5,
+    source: d.source,
+    createdAt: d.created_at,
+  }));
+
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
   // 현재 사용자 메시지 (마지막 user 메시지)
   const typedMessages = messages as Array<{ role: string; content: string; id?: string }>;
@@ -409,6 +438,7 @@ export async function POST(request: Request) {
     chatSummaries,
     preferences: preferences ?? undefined,
     feedbackLessons,
+    pastDecisions,
   }) + specialistAddon;
 
   // 메시지 포맷팅
