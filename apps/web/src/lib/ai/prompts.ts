@@ -147,6 +147,18 @@ export function getWeddingPlannerSystemPrompt(context: {
     source: string;
     createdAt: string;
   }>;
+  /**
+   * Mediation 강화: 이 커플의 과거 갈등→합의 history (최근 5개).
+   * decision_nodes where category='conflict_resolution'.
+   * 시스템 프롬프트에 주입되어 재발 패턴 인지 + 변화 감지에 활용.
+   */
+  pastConflicts?: Array<{
+    title: string;
+    resolution: string | null;
+    reasoning: string | null;
+    stageTag: string | null;
+    createdAt: string;
+  }>;
 }) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${context.weddingDate}`
@@ -333,6 +345,32 @@ ${sections.join("\n\n")}
 5. **리셋 시그널**: 사용자가 "다시 정할래", "생각이 바뀌었어" 명시하면 그때만 이전 결정 재검토.`;
   }
 
+  // Mediation 강화: 이 커플의 과거 갈등→합의 history 섹션
+  // decision_nodes where category='conflict_resolution' (최근 5개) 기반.
+  // 재발 패턴 인지 + 변화 감지 + 새 종류 구분에 활용.
+  let pastConflictsSection = "";
+  if (context.pastConflicts && context.pastConflicts.length > 0) {
+    const formatConflict = (c: NonNullable<typeof context.pastConflicts>[number], i: number): string => {
+      const dateStr = new Date(c.createdAt).toISOString().slice(0, 10);
+      const resolutionText = c.resolution ? ` → ${c.resolution}` : "";
+      const reasonText = c.reasoning ? ` (배경: ${c.reasoning})` : "";
+      const stageText = c.stageTag ? ` [${c.stageTag}]` : "";
+      return `  ${i + 1}. ${c.title}${resolutionText}${reasonText} (${dateStr})${stageText}`;
+    };
+
+    pastConflictsSection = `\n## 이 커플의 갈등·합의 히스토리 (최근 ${context.pastConflicts.length}개)
+이전에 두 분이 의견 대립 후 합의한 내용입니다.
+
+${context.pastConflicts.map(formatConflict).join("\n")}
+
+**중재 시 history 활용 원칙:**
+1. **같은 패턴 재발 감지**: 위 history에서 비슷한 주제(예산/스타일/양가)가 또 등장하면 자연스럽게 연결. "지난번에 X로 합의하셨었는데, 이번엔 어떤 게 다른가요?" — 비난 X, 궁금증으로.
+2. **패턴 변화 감지**: 한쪽이 늘 양보했는데 이번엔 반대면 "최근엔 OO님이 의견 더 명확히 표현하시네요" 정도로 긍정적 인지.
+3. **새 종류 갈등**: history에 없는 새 카테고리면 "이건 두 분이 처음 부딪히는 부분이네요" — 기존 4단계 중재(공감→통역→니즈→해결)를 더 신중하게 적용.
+4. **합의 일관성**: 과거 합의의 가치관(예: 가격 vs 화려함 타협)을 기억해 새 갈등에서도 같은 축으로 제안. "지난번 예식장 합의가 '평일 할인' 패턴이었으니, 신혼여행도 비슷한 접근 어떠세요?"
+5. **금지**: "또 같은 거로 싸우시네요", "메모 보고 있어요", "system에서 기록된 갈등이 있습니다" 같은 기계적 표현 절대 금지. 자연스럽게 기억하는 친구처럼.`;
+  }
+
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
@@ -341,7 +379,7 @@ ${sections.join("\n\n")}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDecisionsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
 
 ## 아모라의 사고방식
 

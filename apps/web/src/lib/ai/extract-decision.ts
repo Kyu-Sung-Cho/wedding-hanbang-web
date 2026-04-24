@@ -29,7 +29,8 @@ const MAX_EXTRACTIONS_PER_TURN = 5; // 방어적 상한
 // decision_nodes.category로 허용되는 범주
 const ALLOWED_CATEGORIES = [
   "studio", "dress", "makeup", "venue", "hanbok", "ring", "honeymoon",
-  "budget", "timeline", "style", "guestcount", "preference", "other",
+  "budget", "timeline", "style", "guestcount", "preference",
+  "conflict_resolution", "other",
 ] as const;
 type AllowedCategory = (typeof ALLOWED_CATEGORIES)[number];
 
@@ -84,6 +85,16 @@ const EXTRACT_SYSTEM_PROMPT = `당신은 웨딩 대화에서 사용자의 [의�
 예: "1500만원으로 화려한 스타일 예산 짜줘"
   → 2건: budget decision (1500만원) + preference (화려한 스타일)
 
+**갈등 합의 (conflict_resolution) 감지:**
+대화 맥락에서 두 사람이 의견 대립을 보이다가 합의·조정한 결정이면 category="conflict_resolution" 로 추출.
+신호: 직전 맥락에 "비싸", "나는 X 좋은데 너는 Y", "양보", "그럼 이렇게 하자" 등 대립→조율 흐름.
+예:
+  - 신부 "호텔 가자" / 신랑 "비싸" → 합의 "호텔 평일 할인으로 하자"
+    → conflict_resolution: "예식장 호텔 평일 할인 합의" (reasoning: 가격 vs 화려함 타협)
+  - 부모님 호칭 갈등 → 합의 "양가 모두 OO님으로 통일"
+    → conflict_resolution
+category 선택 우선순위: 명확히 갈등 조율 맥락이면 conflict_resolution, 아니면 원래 도메인 카테고리(venue/budget 등).
+
 없거나 일반 대화/질문/감정 표현이면 빈 배열 반환.
 
 JSON으로만 응답 (설명·코드블록 금지):
@@ -91,10 +102,10 @@ JSON으로만 응답 (설명·코드블록 금지):
   "extractions": [
     {
       "type": "decision" | "preference",
-      "category": "studio"|"dress"|"makeup"|"venue"|"hanbok"|"ring"|"honeymoon"|"budget"|"timeline"|"style"|"guestcount"|"preference"|"other",
+      "category": "studio"|"dress"|"makeup"|"venue"|"hanbok"|"ring"|"honeymoon"|"budget"|"timeline"|"style"|"guestcount"|"preference"|"conflict_resolution"|"other",
       "title": "짧은 한국어 제목 (최대 30자)",
       "value": "내용 (간결히, 50자 이내)",
-      "reasoning": "이유 (없으면 null)",
+      "reasoning": "이유 (없으면 null) — conflict_resolution이면 대립 축 요약",
       "confidence": 0.0
     }
   ]
@@ -105,6 +116,7 @@ JSON으로만 응답 (설명·코드블록 금지):
 - 없으면 "extractions": []
 - category는 가장 적합한 것. 모호하면 "other".
 - preference 타입은 category="preference"로 명시.
+- conflict_resolution은 type="decision" 과 함께 사용 (preference 아님).
 - confidence는 0.0~1.0. 애매하면 0.5 이하.`;
 
 interface ExtractionItem {

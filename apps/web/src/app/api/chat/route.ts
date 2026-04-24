@@ -262,7 +262,7 @@ export async function POST(request: Request) {
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, feedbackLessons] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, feedbackLessons] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -285,7 +285,14 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(15),
-    // 6. 피드백 학습 내용 (AI 품질 개선용)
+    // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개)
+    supabase.from("decision_nodes")
+      .select("title, chosen_value, reasoning, stage_tag, created_at")
+      .eq("couple_id", coupleId)
+      .eq("category", "conflict_resolution")
+      .order("created_at", { ascending: false })
+      .limit(5),
+    // 7. 피드백 학습 내용 (AI 품질 개선용)
     loadFeedbackLessons(coupleId),
   ]);
 
@@ -375,6 +382,22 @@ export async function POST(request: Request) {
     createdAt: d.created_at,
   }));
 
+  // Mediation 강화: 갈등→합의 히스토리 정리
+  const conflictsData = (conflictsResult.data ?? []) as Array<{
+    title: string;
+    chosen_value: { value?: string } | null;
+    reasoning: string | null;
+    stage_tag: string | null;
+    created_at: string;
+  }>;
+  const pastConflicts = conflictsData.map((c) => ({
+    title: c.title,
+    resolution: c.chosen_value?.value ?? null,
+    reasoning: c.reasoning,
+    stageTag: c.stage_tag,
+    createdAt: c.created_at,
+  }));
+
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
   // 현재 사용자 메시지 (마지막 user 메시지)
   const typedMessages = messages as Array<{ role: string; content: string; id?: string }>;
@@ -440,6 +463,7 @@ export async function POST(request: Request) {
     preferences: preferences ?? undefined,
     feedbackLessons,
     pastDecisions,
+    pastConflicts,
   }) + specialistAddon;
 
   // 메시지 포맷팅
