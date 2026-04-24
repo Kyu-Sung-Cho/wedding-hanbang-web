@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, Loader2 } from "lucide-react";
+import DatePickerPopover from "./DatePickerPopover";
 
 interface BetaFormProps {
   current: number;
@@ -167,14 +168,13 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         </Field>
 
         <Field label="예식 예정일">
-          <input
-            type="date"
+          <DatePickerPopover
             value={weddingDate}
-            onChange={(e) => setWeddingDate(e.target.value)}
+            onChange={setWeddingDate}
             min="2026-06-01"
             max="2026-12-31"
-            className="input-base"
             disabled={submitting}
+            placeholder="날짜 선택"
           />
           <p className="text-[11px] text-white/40 mt-1.5">2026년 6~12월 (미정이면 비워두셔도 됩니다)</p>
         </Field>
