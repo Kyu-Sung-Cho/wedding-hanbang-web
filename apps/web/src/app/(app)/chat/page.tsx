@@ -53,6 +53,7 @@ export default function ChatPage() {
     requestMediation,
     clearMessages,
     subscribeToMessages,
+    pollNewMessages,
   } = useChatStore();
   const [input, setInput] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -92,6 +93,18 @@ export default function ChatPage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [coupleId, isDemo, loadMessages]);
+
+  // Realtime 폴링 안전망 — 3초마다 새 메시지 fetch
+  // (Realtime 구독이 작동 안 할 경우 최대 3초 딜레이로 동기화 보장)
+  useEffect(() => {
+    if (!coupleId || isDemo) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        pollNewMessages(coupleId);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [coupleId, isDemo, pollNewMessages]);
 
   // 메시지가 threshold 넘으면 새 채팅 안내
   useEffect(() => {

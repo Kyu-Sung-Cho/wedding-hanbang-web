@@ -24,6 +24,7 @@ interface ChatStoreState {
   initialLoadDone: boolean;
 
   loadMessages: (coupleId: string) => Promise<void>;
+  pollNewMessages: (coupleId: string) => Promise<void>;
   sendMessage: (params: {
     content: string;
     senderId: string;
@@ -371,6 +372,45 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       set({ error: "채팅을 불러오지 못했습니다." });
     } finally {
       set({ isLoading: false, initialLoadDone: true });
+    }
+  },
+
+  // Realtime 안전망: 마지막 메시지 이후 새 메시지만 append-fetch (폴링용)
+  // - 스트리밍 중 스킵 (race condition 방지)
+  // - id 기준 dedup → Realtime이 작동해도 중복 안 됨
+  pollNewMessages: async (coupleId: string) => {
+    const state = get();
+    if (state.isStreaming) return;
+    if (!state.initialLoadDone) return; // 최초 로드 완료 전엔 스킵
+
+    const lastMsg = state.messages[state.messages.length - 1];
+    const since = lastMsg?.created_at ?? "1970-01-01T00:00:00Z";
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("couple_id", coupleId)
+        .gt("created_at", since)
+        .order("created_at", { ascending: true })
+        .limit(50);
+
+      if (error || !data?.length) return;
+      if (get().isStreaming) return; // fetch 사이 스트리밍 시작됐으면 스킵
+
+      const fetched = data.map((m) => dbRowToMessage(m as Record<string, unknown>));
+      set((s) => {
+        const existing = new Set(s.messages.map((m) => m.id));
+        const toAdd = fetched.filter((m) => !existing.has(m.id));
+        if (toAdd.length === 0) return s;
+        return { messages: [...s.messages, ...toAdd] };
+      });
+    } catch (err) {
+      // 폴링 실패는 silent — 다음 tick에 재시도
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[poll] 실패 (무시):", err);
+      }
     }
   },
 
