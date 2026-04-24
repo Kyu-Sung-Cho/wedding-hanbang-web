@@ -16,6 +16,7 @@ import {
   isAfter,
   isBefore,
   isValid,
+  startOfDay,
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -44,15 +45,16 @@ export default function DatePickerPopover({
 }: DatePickerPopoverProps) {
   const [open, setOpen] = useState(false);
 
-  // 선택된 값 파싱 (없으면 min 또는 오늘로 기준 month 잡기)
+  // 선택된 값 파싱
   const selectedDate = value && isValid(parseISO(value)) ? parseISO(value) : null;
   const minDate = min && isValid(parseISO(min)) ? parseISO(min) : null;
   const maxDate = max && isValid(parseISO(max)) ? parseISO(max) : null;
+  const today = startOfDay(new Date());
 
-  // 표시 중인 month
+  // 표시 중인 month — 기본값: 선택된 날짜 > 오늘 월
+  // (min/max는 선택만 제한하고 네비게이션은 자유롭게)
   const [viewMonth, setViewMonth] = useState<Date>(() => {
     if (selectedDate) return startOfMonth(selectedDate);
-    if (minDate) return startOfMonth(minDate);
     return startOfMonth(new Date());
   });
 
@@ -84,8 +86,12 @@ export default function DatePickerPopover({
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
-  const canGoPrev = !minDate || !isSameMonth(viewMonth, minDate);
-  const canGoNext = !maxDate || !isSameMonth(viewMonth, maxDate);
+  // 네비게이션은 자유 (min/max는 "선택"만 제한)
+  // 단 과도한 탐색 방지: 오늘 기준 앞뒤 2년 범위
+  const navMin = subMonths(today, 24);
+  const navMax = addMonths(today, 24);
+  const canGoPrev = isAfter(viewMonth, startOfMonth(navMin));
+  const canGoNext = isBefore(viewMonth, startOfMonth(navMax));
 
   function isDateDisabled(d: Date): boolean {
     if (minDate && isBefore(d, minDate)) return true;
@@ -192,6 +198,7 @@ export default function DatePickerPopover({
               const selected = selectedDate && isSameDay(d, selectedDate);
               const disabledCell = isDateDisabled(d);
               const isSunday = d.getDay() === 0;
+              const isToday = isSameDay(d, today);
 
               return (
                 <button
@@ -199,15 +206,16 @@ export default function DatePickerPopover({
                   type="button"
                   onClick={() => handleSelect(d)}
                   disabled={disabledCell}
-                  className={`aspect-square rounded-lg text-[13px] font-light tabular-nums transition-colors ${
+                  aria-label={isToday ? `${format(d, "M월 d일")} (오늘)` : undefined}
+                  className={`aspect-square rounded-lg text-[13px] font-light tabular-nums transition-colors relative ${
                     selected
                       ? "bg-rose-light text-noir-800 font-medium"
                       : disabledCell
-                        ? "text-white/15 cursor-not-allowed"
+                        ? `${isToday ? "text-white/50" : "text-white/15"} cursor-not-allowed`
                         : inMonth
                           ? `${isSunday ? "text-rose-light/80" : "text-white/80"} hover:bg-white/5 hover:text-white`
                           : "text-white/25 hover:bg-white/5"
-                  }`}
+                  } ${isToday && !selected ? "ring-1 ring-white/30" : ""}`}
                 >
                   {d.getDate()}
                 </button>
@@ -217,9 +225,13 @@ export default function DatePickerPopover({
 
           {/* 도움말 */}
           <p className="mt-4 pt-3 border-t border-white/10 text-[10px] text-white/40 tracking-wide leading-relaxed">
-            {min && max
-              ? `${format(parseISO(min), "yyyy년 M월", { locale: ko })} ~ ${format(parseISO(max), "yyyy년 M월", { locale: ko })} 범위`
-              : ""}
+            <span className="inline-block w-1.5 h-1.5 rounded-full ring-1 ring-white/30 align-middle mr-1.5" aria-hidden />
+            오늘
+            {min && max && (
+              <span className="ml-3">
+                선택 가능: {format(parseISO(min), "yyyy년 M월", { locale: ko })} ~ {format(parseISO(max), "yyyy년 M월", { locale: ko })}
+              </span>
+            )}
           </p>
         </div>
       )}
