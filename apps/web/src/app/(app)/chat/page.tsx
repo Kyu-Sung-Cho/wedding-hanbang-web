@@ -80,6 +80,19 @@ export default function ChatPage() {
     };
   }, [coupleId, isDemo, loadMessages, subscribeToMessages]);
 
+  // 탭 복귀 시 놓친 메시지 safety-net fetch
+  // (Realtime 구독이 백그라운드에서 끊겼을 때 커버)
+  useEffect(() => {
+    if (!coupleId || isDemo) return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadMessages(coupleId);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [coupleId, isDemo, loadMessages]);
+
   // 메시지가 threshold 넘으면 새 채팅 안내
   useEffect(() => {
     if (messages.length >= NEW_CHAT_THRESHOLD && !showNewChatBanner) {

@@ -714,40 +714,71 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   subscribeToMessages: (coupleId: string) => {
     const supabase = createClient();
-    const channel = supabase
-      .channel(`chat:${coupleId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `couple_id=eq.${coupleId}`,
-        },
-        (payload) => {
-          const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
-          // 스트리밍 중이면 무시 (AI 응답은 로컬에서 직접 추가)
-          if (get().isStreaming && newMsg.sender_role === "ai") return;
-          set((s) => {
-            const exists = s.messages.some((m) => m.id === newMsg.id);
-            if (exists) return s;
-            return { messages: [...s.messages, newMsg] };
-          });
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let cancelled = false;
+    const isDev = process.env.NODE_ENV !== "production";
+
+    const scheduleReconnect = (reason: string) => {
+      if (cancelled || retryTimeout) return;
+      // 1s → 2s → 4s → 8s → max 10s 지수 백오프
+      const delay = Math.min(1000 * 2 ** retryCount, 10000);
+      if (isDev) {
+        console.warn(`[realtime] chat:${coupleId} ${reason} → ${delay}ms 후 재연결 (attempt ${retryCount + 1})`);
+      }
+      retryCount++;
+      retryTimeout = setTimeout(() => {
+        retryTimeout = null;
+        if (currentChannel) {
+          supabase.removeChannel(currentChannel);
+          currentChannel = null;
         }
-      )
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.error("Realtime 구독 에러 - 재연결 시도");
-          // 5초 후 재연결
-          setTimeout(() => {
-            supabase.removeChannel(channel);
-            get().subscribeToMessages(coupleId);
-          }, 5000);
-        }
-      });
+        connect();
+      }, delay);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      currentChannel = supabase
+        .channel(`chat:${coupleId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "chat_messages",
+            filter: `couple_id=eq.${coupleId}`,
+          },
+          (payload) => {
+            const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
+            // 스트리밍 중이면 무시 (AI 응답은 로컬에서 직접 추가)
+            if (get().isStreaming && newMsg.sender_role === "ai") return;
+            set((s) => {
+              const exists = s.messages.some((m) => m.id === newMsg.id);
+              if (exists) return s;
+              return { messages: [...s.messages, newMsg] };
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (isDev) console.log(`[realtime] chat:${coupleId} status: ${status}`);
+          if (status === "SUBSCRIBED") {
+            retryCount = 0; // 재연결 성공 시 카운터 리셋
+            return;
+          }
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            scheduleReconnect(status);
+          }
+        });
+    };
+
+    connect();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (currentChannel) supabase.removeChannel(currentChannel);
     };
   },
 
