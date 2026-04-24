@@ -49,10 +49,10 @@ export default function BetaCTA() {
           {/* 우측: 진척 + CTA */}
           <div>
             <div className="flex items-baseline gap-3 mb-3">
-              <span className="font-display text-white text-[60px] md:text-[80px] font-light leading-none tracking-[-0.02em]">
+              <span className="font-sans tabular-nums text-white text-[60px] md:text-[80px] font-light leading-none tracking-[-0.02em]">
                 {BETA_CURRENT}
               </span>
-              <span className="text-white/40 text-xl font-light">
+              <span className="text-white/40 text-xl font-light tabular-nums">
                 / {BETA_TOTAL}
               </span>
             </div>

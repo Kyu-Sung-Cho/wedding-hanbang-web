@@ -29,6 +29,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
       setError("유효한 이메일을 입력해주세요.");
       return;
     }
+    if (!role) {
+      setError("신부 또는 신랑을 선택해주세요.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/preregister", {
@@ -65,10 +69,13 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-[-0.005em]">
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
-        <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-8">
+        <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
           감사합니다. 2~3일 이내 참여 확정 메일을 보내드릴게요.
           <br />
           <span className="text-white/60">{email}</span>
+        </p>
+        <p className="text-[12px] text-white/50 leading-relaxed mb-8">
+          진척도 표시는 약 1분 후 반영됩니다.
         </p>
 
         <div className="h-px w-full bg-white/10 mb-8" aria-hidden />
@@ -93,12 +100,12 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         베타 50쌍 한정
       </p>
 
-      {/* 진척 */}
+      {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
       <div className="flex items-baseline gap-3 mb-3">
-        <span className="font-display text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
+        <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
           {current}
         </span>
-        <span className="text-white/40 text-lg font-light">/ {total}</span>
+        <span className="text-white/40 text-lg font-light tabular-nums">/ {total}</span>
       </div>
       <p className="text-[11px] tracking-[0.22em] text-white/50 mb-6 font-medium">
         현재 신청 · 명
@@ -136,7 +143,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        <Field label="역할">
+        <Field label="역할" required>
           <div className="flex gap-3">
             {([
               { value: "bride" as const, label: "신부" },
@@ -145,7 +152,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setRole(role === opt.value ? "" : opt.value)}
+                onClick={() => setRole(opt.value)}
                 disabled={submitting}
                 className={`flex-1 py-3 text-sm font-medium rounded-xl border transition-colors ${
                   role === opt.value
