@@ -30,6 +30,64 @@ function getServiceClient() {
   );
 }
 
+// AI 메시지를 chat_messages에 INSERT — 10초 idempotency 포함
+// (모바일 retry / 중복 fetch / Vercel cold start 재시도 시 같은 내용 중복 방지)
+async function insertAiMessageWithIdempotency(params: {
+  isDemo: boolean;
+  coupleId: string;
+  cleanText: string;
+  metadata: Record<string, unknown>;
+  stageTag: string | null;
+  specialistType: string | null;
+}): Promise<{ id: string | null; createdAt: string | null }> {
+  if (params.isDemo || !params.cleanText) {
+    return { id: null, createdAt: null };
+  }
+  try {
+    const admin = getServiceClient();
+    // 1) 최근 10초 내 동일 내용 AI 메시지 있으면 그걸 재사용 (중복 INSERT 방지)
+    const since = new Date(Date.now() - 10_000).toISOString();
+    const { data: recent } = await admin
+      .from("chat_messages")
+      .select("id, created_at")
+      .eq("couple_id", params.coupleId)
+      .eq("sender_type", "ai")
+      .eq("content", params.cleanText)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (recent && recent.length > 0) {
+      return {
+        id: recent[0].id as string,
+        createdAt: recent[0].created_at as string,
+      };
+    }
+    // 2) 없으면 새로 INSERT
+    const { data: inserted } = await admin
+      .from("chat_messages")
+      .insert({
+        couple_id: params.coupleId,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: params.cleanText,
+        metadata: params.metadata,
+        stage_tag: params.stageTag,
+        specialist_type: params.specialistType,
+      })
+      .select("id, created_at")
+      .single();
+    if (!inserted) return { id: null, createdAt: null };
+    return {
+      id: inserted.id as string,
+      createdAt: inserted.created_at as string,
+    };
+  } catch (err) {
+    console.error("AI 메시지 서버 INSERT 실패:", err);
+    return { id: null, createdAt: null };
+  }
+}
+
 // --- Part 2: 불만족 자동 감지 ---
 interface DissatisfactionResult {
   detected: boolean;
@@ -569,36 +627,18 @@ export async function POST(request: Request) {
               send({ type: "suggestions", suggestions });
             }
 
-            // 서버 사이드 INSERT: 클라이언트 연결 끊겨도 DB에 보장
-            // (모바일 백그라운드/네트워크 단절 시 client-side INSERT 누락 방지)
-            let serverMessageId: string | null = null;
-            let serverCreatedAt: string | null = null;
-            if (!isDemo && cleanText) {
-              try {
-                const admin = getServiceClient();
-                const aiMetadataForDb = { toolResults, toolsUsed, senderName };
-                const { data: inserted } = await admin
-                  .from("chat_messages")
-                  .insert({
-                    couple_id: coupleId,
-                    sender_id: null,
-                    sender_type: "ai",
-                    role: "assistant",
-                    content: cleanText,
-                    metadata: aiMetadataForDb,
-                    stage_tag: stageTag,
-                    specialist_type: specialistType,
-                  })
-                  .select("id, created_at")
-                  .single();
-                if (inserted) {
-                  serverMessageId = inserted.id as string;
-                  serverCreatedAt = inserted.created_at as string;
-                }
-              } catch (err) {
-                console.error("AI 메시지 서버 INSERT 실패:", err);
-              }
-            }
+            // 서버 사이드 INSERT (with 10s idempotency)
+            // 모바일 retry / 중복 fetch 시 동일 내용을 또 INSERT하지 않음.
+            const insertResult = await insertAiMessageWithIdempotency({
+              isDemo,
+              coupleId,
+              cleanText,
+              metadata: { toolResults, toolsUsed, senderName },
+              stageTag,
+              specialistType,
+            });
+            const serverMessageId: string | null = insertResult.id;
+            const serverCreatedAt: string | null = insertResult.createdAt;
 
             send({
               type: "done",
@@ -756,35 +796,15 @@ export async function POST(request: Request) {
           send({ type: "suggestions", suggestions });
         }
 
-        // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기에도 동일 적용)
-        let serverMessageId2: string | null = null;
-        let serverCreatedAt2: string | null = null;
-        if (!isDemo && cleanText) {
-          try {
-            const admin = getServiceClient();
-            const aiMetadataForDb = { toolResults, toolsUsed, senderName };
-            const { data: inserted } = await admin
-              .from("chat_messages")
-              .insert({
-                couple_id: coupleId,
-                sender_id: null,
-                sender_type: "ai",
-                role: "assistant",
-                content: cleanText,
-                metadata: aiMetadataForDb,
-                stage_tag: stageTag,
-                specialist_type: specialistType,
-              })
-              .select("id, created_at")
-              .single();
-            if (inserted) {
-              serverMessageId2 = inserted.id as string;
-              serverCreatedAt2 = inserted.created_at as string;
-            }
-          } catch (err) {
-            console.error("AI 메시지 서버 INSERT 실패:", err);
-          }
-        }
+        // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기 — idempotency 포함)
+        const insertResult2 = await insertAiMessageWithIdempotency({
+          isDemo,
+          coupleId,
+          cleanText,
+          metadata: { toolResults, toolsUsed, senderName },
+          stageTag,
+          specialistType,
+        });
 
         send({
           type: "done",
@@ -795,8 +815,8 @@ export async function POST(request: Request) {
             senderName,
             stageTag,
             specialistType,
-            serverMessageId: serverMessageId2,
-            serverCreatedAt: serverCreatedAt2,
+            serverMessageId: insertResult2.id,
+            serverCreatedAt: insertResult2.createdAt,
           },
         });
 
