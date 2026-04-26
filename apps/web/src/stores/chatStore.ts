@@ -285,9 +285,32 @@ async function saveAiMessage(
   }
 ) {
   const { coupleId, fullContent, aiMetadata, isDemo } = params;
-  const tempId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  // 1) 로컬 state에 즉시 추가 (화면에 바로 보임)
+  // 서버에서 이미 INSERT 했으면 그 id/created_at 사용 (모바일 백그라운드 안전)
+  const serverMessageId = (aiMetadata as { serverMessageId?: string })?.serverMessageId ?? null;
+  const serverCreatedAt = (aiMetadata as { serverCreatedAt?: string })?.serverCreatedAt ?? null;
+
+  if (serverMessageId) {
+    // 1) 서버 INSERT 성공 — 그 id로 로컬 추가 (dedup 자동 — 폴링/Realtime이 같은 id 가져와도 중복 안 됨)
+    const localMsg: ChatMessage = {
+      id: serverMessageId,
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      content: fullContent,
+      metadata: aiMetadata,
+      created_at: serverCreatedAt ?? new Date().toISOString(),
+    };
+    set((s) => {
+      const exists = s.messages.some((m) => m.id === serverMessageId);
+      if (exists) return s;
+      return { messages: [...s.messages, localMsg] };
+    });
+    return;
+  }
+
+  // 2) 서버 INSERT 실패 또는 demo 모드 — fallback: 클라이언트에서 처리
+  const tempId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const localMsg: ChatMessage = {
     id: tempId,
     couple_id: coupleId,
@@ -299,11 +322,9 @@ async function saveAiMessage(
   };
   set((s) => ({ messages: [...s.messages, localMsg] }));
 
-  // 2) DB에 저장 시도 (실패해도 로컬 메시지는 유지)
   if (!isDemo) {
     try {
       const supabase = createClient();
-      // D3: 서버가 SSE metadata로 내려준 stage/specialist 사용
       const aiStageTag = aiMetadata?.stageTag ?? null;
       const aiSpecialistType = aiMetadata?.specialistType ?? null;
 
@@ -322,7 +343,6 @@ async function saveAiMessage(
         .select()
         .single();
 
-      // DB 저장 성공 시 tempId를 실제 ID로 교체
       if (aiInserted) {
         set((s) => ({
           messages: s.messages.map((m) =>
@@ -541,6 +561,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           senderName,
           senderRole,
           weddingContext,
+          isDemo,
           ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         }),
         signal: abortController.signal,
@@ -604,12 +625,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     try {
       const roleLabel = senderRole === "bride" ? "신부" : "신랑";
+      const isDemo = document.cookie.includes("demo_mode=true");
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
-          coupleId, senderName, senderRole, weddingContext,
+          coupleId, senderName, senderRole, weddingContext, isDemo,
         }),
         signal: abortController.signal,
       });
@@ -686,12 +708,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         content: `[${roleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등/의견 차이가 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${conflictContext}`,
       });
 
+      const isDemo = document.cookie.includes("demo_mode=true");
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: recentMessages,
-          coupleId, senderName, senderRole, weddingContext,
+          coupleId, senderName, senderRole, weddingContext, isDemo,
         }),
         signal: abortController.signal,
       });

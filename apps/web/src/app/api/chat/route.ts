@@ -238,7 +238,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const { messages, coupleId, senderName, weddingContext, attachments } = body;
+  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo } = body;
+  const isDemo = bodyIsDemo === true;
 
   if (!messages || !coupleId) {
     return NextResponse.json(
@@ -568,10 +569,49 @@ export async function POST(request: Request) {
               send({ type: "suggestions", suggestions });
             }
 
+            // 서버 사이드 INSERT: 클라이언트 연결 끊겨도 DB에 보장
+            // (모바일 백그라운드/네트워크 단절 시 client-side INSERT 누락 방지)
+            let serverMessageId: string | null = null;
+            let serverCreatedAt: string | null = null;
+            if (!isDemo && cleanText) {
+              try {
+                const admin = getServiceClient();
+                const aiMetadataForDb = { toolResults, toolsUsed, senderName };
+                const { data: inserted } = await admin
+                  .from("chat_messages")
+                  .insert({
+                    couple_id: coupleId,
+                    sender_id: null,
+                    sender_type: "ai",
+                    role: "assistant",
+                    content: cleanText,
+                    metadata: aiMetadataForDb,
+                    stage_tag: stageTag,
+                    specialist_type: specialistType,
+                  })
+                  .select("id, created_at")
+                  .single();
+                if (inserted) {
+                  serverMessageId = inserted.id as string;
+                  serverCreatedAt = inserted.created_at as string;
+                }
+              } catch (err) {
+                console.error("AI 메시지 서버 INSERT 실패:", err);
+              }
+            }
+
             send({
               type: "done",
               fullContent: cleanText,
-              metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
+              metadata: {
+                toolResults,
+                toolsUsed,
+                senderName,
+                stageTag,
+                specialistType,
+                serverMessageId,
+                serverCreatedAt,
+              },
             });
 
             // D1: 성공 turn 로깅 (fire-and-forget)
@@ -716,10 +756,48 @@ export async function POST(request: Request) {
           send({ type: "suggestions", suggestions });
         }
 
+        // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기에도 동일 적용)
+        let serverMessageId2: string | null = null;
+        let serverCreatedAt2: string | null = null;
+        if (!isDemo && cleanText) {
+          try {
+            const admin = getServiceClient();
+            const aiMetadataForDb = { toolResults, toolsUsed, senderName };
+            const { data: inserted } = await admin
+              .from("chat_messages")
+              .insert({
+                couple_id: coupleId,
+                sender_id: null,
+                sender_type: "ai",
+                role: "assistant",
+                content: cleanText,
+                metadata: aiMetadataForDb,
+                stage_tag: stageTag,
+                specialist_type: specialistType,
+              })
+              .select("id, created_at")
+              .single();
+            if (inserted) {
+              serverMessageId2 = inserted.id as string;
+              serverCreatedAt2 = inserted.created_at as string;
+            }
+          } catch (err) {
+            console.error("AI 메시지 서버 INSERT 실패:", err);
+          }
+        }
+
         send({
           type: "done",
           fullContent: cleanText,
-          metadata: { toolResults, toolsUsed, senderName, stageTag, specialistType },
+          metadata: {
+            toolResults,
+            toolsUsed,
+            senderName,
+            stageTag,
+            specialistType,
+            serverMessageId: serverMessageId2,
+            serverCreatedAt: serverCreatedAt2,
+          },
         });
 
         // Memory Step A + B: 요약 생성 + decision/preference 추출 (fire-and-forget)
