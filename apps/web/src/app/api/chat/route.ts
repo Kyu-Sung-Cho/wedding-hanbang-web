@@ -30,12 +30,15 @@ function getServiceClient() {
   );
 }
 
-// AI 메시지를 chat_messages에 INSERT — 10초 idempotency 포함
-// (모바일 retry / 중복 fetch / Vercel cold start 재시도 시 같은 내용 중복 방지)
+// AI 메시지를 chat_messages에 INSERT — client_request_id 기반 idempotency
+// 모바일 retry / 중복 fetch 시 동일 클라이언트 요청 ID 사용.
+// UNIQUE INDEX (couple_id, metadata->>'client_request_id') 가 race도 막아줌.
+// 중복 INSERT는 unique violation 발생 → catch 후 SELECT로 기존 row 반환.
 async function insertAiMessageWithIdempotency(params: {
   isDemo: boolean;
   coupleId: string;
   cleanText: string;
+  clientRequestId: string | null;
   metadata: Record<string, unknown>;
   stageTag: string | null;
   specialistType: string | null;
@@ -43,27 +46,36 @@ async function insertAiMessageWithIdempotency(params: {
   if (params.isDemo || !params.cleanText) {
     return { id: null, createdAt: null };
   }
-  try {
-    const admin = getServiceClient();
-    // 1) 최근 10초 내 동일 내용 AI 메시지 있으면 그걸 재사용 (중복 INSERT 방지)
-    const since = new Date(Date.now() - 10_000).toISOString();
-    const { data: recent } = await admin
-      .from("chat_messages")
-      .select("id, created_at")
-      .eq("couple_id", params.coupleId)
-      .eq("sender_type", "ai")
-      .eq("content", params.cleanText)
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (recent && recent.length > 0) {
-      return {
-        id: recent[0].id as string,
-        createdAt: recent[0].created_at as string,
-      };
+  const admin = getServiceClient();
+
+  // client_request_id를 metadata에 포함하여 UNIQUE INDEX가 작동하게 함
+  const metadataWithRid = params.clientRequestId
+    ? { ...params.metadata, client_request_id: params.clientRequestId }
+    : params.metadata;
+
+  // 1) clientRequestId 있으면 먼저 조회 (race 전 빠른 path)
+  if (params.clientRequestId) {
+    try {
+      const { data: existing } = await admin
+        .from("chat_messages")
+        .select("id, created_at")
+        .eq("couple_id", params.coupleId)
+        .eq("metadata->>client_request_id", params.clientRequestId)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        return {
+          id: existing[0].id as string,
+          createdAt: existing[0].created_at as string,
+        };
+      }
+    } catch {
+      // SELECT 실패는 무시 — 아래 INSERT 시도로 진행
     }
-    // 2) 없으면 새로 INSERT
-    const { data: inserted } = await admin
+  }
+
+  // 2) INSERT 시도
+  try {
+    const { data: inserted, error: insertErr } = await admin
       .from("chat_messages")
       .insert({
         couple_id: params.coupleId,
@@ -71,19 +83,40 @@ async function insertAiMessageWithIdempotency(params: {
         sender_type: "ai",
         role: "assistant",
         content: params.cleanText,
-        metadata: params.metadata,
+        metadata: metadataWithRid,
         stage_tag: params.stageTag,
         specialist_type: params.specialistType,
       })
       .select("id, created_at")
       .single();
-    if (!inserted) return { id: null, createdAt: null };
-    return {
-      id: inserted.id as string,
-      createdAt: inserted.created_at as string,
-    };
+
+    if (inserted) {
+      return {
+        id: inserted.id as string,
+        createdAt: inserted.created_at as string,
+      };
+    }
+
+    // 3) UNIQUE 충돌 — race로 다른 요청이 먼저 INSERT 했음. 그 row를 가져옴.
+    if (insertErr && (insertErr.code === "23505" || /duplicate|unique/i.test(insertErr.message)) && params.clientRequestId) {
+      const { data: conflicted } = await admin
+        .from("chat_messages")
+        .select("id, created_at")
+        .eq("couple_id", params.coupleId)
+        .eq("metadata->>client_request_id", params.clientRequestId)
+        .limit(1);
+      if (conflicted && conflicted.length > 0) {
+        return {
+          id: conflicted[0].id as string,
+          createdAt: conflicted[0].created_at as string,
+        };
+      }
+    }
+
+    console.error("AI 메시지 서버 INSERT 실패:", insertErr);
+    return { id: null, createdAt: null };
   } catch (err) {
-    console.error("AI 메시지 서버 INSERT 실패:", err);
+    console.error("AI 메시지 서버 INSERT 예외:", err);
     return { id: null, createdAt: null };
   }
 }
@@ -296,8 +329,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo } = body;
+  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo, clientRequestId: bodyClientRequestId } = body;
   const isDemo = bodyIsDemo === true;
+  const clientRequestId: string | null = typeof bodyClientRequestId === "string" && bodyClientRequestId.length > 0
+    ? bodyClientRequestId
+    : null;
 
   if (!messages || !coupleId) {
     return NextResponse.json(
@@ -633,6 +669,7 @@ export async function POST(request: Request) {
               isDemo,
               coupleId,
               cleanText,
+              clientRequestId,
               metadata: { toolResults, toolsUsed, senderName },
               stageTag,
               specialistType,
@@ -801,6 +838,7 @@ export async function POST(request: Request) {
           isDemo,
           coupleId,
           cleanText,
+          clientRequestId,
           metadata: { toolResults, toolsUsed, senderName },
           stageTag,
           specialistType,

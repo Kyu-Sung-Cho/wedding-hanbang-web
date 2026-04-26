@@ -437,11 +437,26 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai",
   }) => {
+    // 중복 발사 가드 (모바일 더블탭, 짧은 시간 내 재시도 방지)
+    if (get().isStreaming) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[sendMessage] 이미 스트리밍 중 — 무시");
+      }
+      return;
+    }
+
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
 
     // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
     const msgMetadata = target === "partner" ? { target: "partner" as const } : null;
+
+    // Idempotency용 UUID — 같은 sendMessage 호출의 모든 fetch (browser retry 포함)는
+    // 동일한 ID를 사용. 서버는 이걸로 chat_messages dedup.
+    const clientRequestId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
     const imageUrls: string[] = [];
@@ -562,6 +577,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           senderRole,
           weddingContext,
           isDemo,
+          clientRequestId,
           ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         }),
         signal: abortController.signal,
