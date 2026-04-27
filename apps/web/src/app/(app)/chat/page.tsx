@@ -62,8 +62,9 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
-  // 나만 보기 모드 (아모라와 1:1 비공개 대화). messageTarget="ai"일 때만 의미 있음.
-  const [isPrivate, setIsPrivate] = useState(false);
+  // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
+  const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
+  const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -581,6 +582,35 @@ export default function ChatPage() {
         </div>
       </div>
 
+      {/* 채팅 탭 — 함께 / 나만 */}
+      <div className="flex items-center gap-1 mx-2 mb-3 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
+        <button
+          onClick={() => { setActiveTab("shared"); setMessageTarget("ai"); }}
+          disabled={isStreaming}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            activeTab === "shared"
+              ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+              : "text-[#928980] hover:text-[#504444]"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          함께 대화
+        </button>
+        <button
+          onClick={() => { setActiveTab("private"); setMessageTarget("ai"); }}
+          disabled={isStreaming}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            activeTab === "private"
+              ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+              : "text-[#928980] hover:text-[#504444]"
+          }`}
+          title="아모라와 1:1 — 상대방에게 보이지 않습니다"
+        >
+          <Lock className="w-4 h-4" />
+          나만 (상담)
+        </button>
+      </div>
+
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
         <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
@@ -605,15 +635,32 @@ export default function ChatPage() {
 
       {/* 채팅 영역 */}
       <div className="flex-1 overflow-y-auto pb-4 space-y-4 px-4 py-4 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
+        {activeTab === "private" && (
+          <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
+            <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" />
+            <span>
+              비공개 상담 — 이 탭의 대화는 <strong>상대방에게 보이지 않아요</strong>. 아모라와 1:1로 솔직하게 털어놓으세요.
+            </span>
+          </div>
+        )}
+
         {(() => {
+          // 탭별 메시지 필터링: shared 탭은 visibility=shared, private 탭은 본인 private만
+          // (RLS가 이미 본인 private만 SELECT 허용하므로 클라이언트는 visibility로만 분기)
+          const tabMessages = messages.filter((m) => {
+            if (activeTab === "shared") return m.visibility === "shared";
+            return m.visibility === "bride_private" || m.visibility === "groom_private";
+          });
+
           // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
           const recentAiIds = new Set(
-            messages
+            tabMessages
               .filter((m) => m.sender_role === "ai")
               .slice(-3)
               .map((m) => m.id)
           );
-          return messages.map((msg) => {
+          return tabMessages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
@@ -739,49 +786,31 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* 대상 토글 — 3 mode: 아모라(공유) / 상대방 / 나만(아모라 1:1) */}
-        <div className="flex items-center gap-2 mb-2.5 px-1 flex-wrap">
-          <button
-            onClick={() => { setMessageTarget("ai"); setIsPrivate(false); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              messageTarget === "ai" && !isPrivate
-                ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
-                : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            아모라에게
-          </button>
-          <button
-            onClick={() => { setMessageTarget("partner"); setIsPrivate(false); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              messageTarget === "partner"
-                ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
-                : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
-            }`}
-          >
-            <Heart className="w-4 h-4" />
-            상대방에게
-          </button>
-          <button
-            onClick={() => { setMessageTarget("ai"); setIsPrivate(true); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              messageTarget === "ai" && isPrivate
-                ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] text-white shadow-[0_4px_14px_rgba(90,97,71,0.25)]"
-                : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#5a6147]"
-            }`}
-            title="아모라와 1:1 — 상대방은 볼 수 없습니다"
-          >
-            <Lock className="w-4 h-4" />
-            나만 (Private)
-          </button>
-        </div>
-
-        {/* Private 모드 안내 배너 */}
-        {messageTarget === "ai" && isPrivate && (
-          <div className="mb-2.5 mx-1 px-3 py-2 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-center gap-2 text-[12.5px] text-[#5a6147]">
-            <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>비공개 모드 — 이 대화는 상대방에게 보이지 않아요. 아모라와 1:1로 고민을 털어놓으세요.</span>
+        {/* 대상 토글 — 함께 탭에서만 (아모라/상대방). 나만 탭은 자동 아모라 1:1 */}
+        {activeTab === "shared" && (
+          <div className="flex items-center gap-2 mb-2.5 px-1 flex-wrap">
+            <button
+              onClick={() => setMessageTarget("ai")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                messageTarget === "ai"
+                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
+                  : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              아모라에게
+            </button>
+            <button
+              onClick={() => setMessageTarget("partner")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                messageTarget === "partner"
+                  ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
+                  : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              상대방에게
+            </button>
           </div>
         )}
 
