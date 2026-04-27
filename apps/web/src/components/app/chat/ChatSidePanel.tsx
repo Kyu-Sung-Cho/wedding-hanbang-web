@@ -286,7 +286,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleClearChat = async () => {
     if (!coupleId) return;
     greetingRequested.current = false;
-    await clearMessages(coupleId);
+    // SidePanel에서는 가장 안전한 default — "내 화면만 정리 (함께 대화)"
+    // 진짜 삭제는 메인 채팅 modal에서만 가능
+    await clearMessages(coupleId, "view_reset_shared");
     setShowClearConfirm(false);
   };
 

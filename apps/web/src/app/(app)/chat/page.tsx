@@ -56,7 +56,10 @@ export default function ChatPage() {
     pollNewMessages,
   } = useChatStore();
   const [input, setInput] = useState("");
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  // 새 채팅 modal 단계 — closed | shared 옵션 선택 | shared 둘 다 추가확인 | private 확인
+  const [clearStep, setClearStep] = useState<
+    "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
+  >("closed");
   const [showNewChatBanner, setShowNewChatBanner] = useState(false);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -475,13 +478,26 @@ export default function ChatPage() {
     handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
   }, [messages, handleSend]);
 
-  const handleNewChat = async () => {
-    if (!coupleId) return;
-    greetingRequested.current = false;
-    await clearMessages(coupleId);
-    setShowClearConfirm(false);
-    setShowNewChatBanner(false);
-  };
+  // "새 채팅" 버튼 클릭 — activeTab 따라 적절한 modal 단계로
+  const openNewChatModal = useCallback(() => {
+    if (activeTab === "private") {
+      setClearStep("private_confirm");
+    } else {
+      setClearStep("shared_choose");
+    }
+  }, [activeTab]);
+
+  // 실제 clear 수행 — mode는 명시적으로 전달
+  const performClear = useCallback(
+    async (mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private") => {
+      if (!coupleId) return;
+      greetingRequested.current = false;
+      await clearMessages(coupleId, mode);
+      setClearStep("closed");
+      setShowNewChatBanner(false);
+    },
+    [coupleId, clearMessages]
+  );
 
   // 데모 모드
   if (isDemo) {
@@ -572,7 +588,7 @@ export default function ChatPage() {
 
           {messages.length > 0 && (
             <button
-              onClick={() => setShowClearConfirm(true)}
+              onClick={openNewChatModal}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
@@ -617,18 +633,127 @@ export default function ChatPage() {
           <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
-            <button onClick={handleNewChat} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
+            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
           </div>
         </div>
       )}
 
-      {/* 초기화 확인 */}
-      {showClearConfirm && (
-        <div className="mx-2 mb-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-red-600">대화를 모두 지우고 새로 시작할까요?</p>
-          <div className="flex gap-2">
-            <button onClick={() => setShowClearConfirm(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">취소</button>
-            <button onClick={handleNewChat} className="px-3.5 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600">새 채팅</button>
+      {/* 새 채팅 confirm modal — multi-step + 실수 방지 */}
+      {clearStep !== "closed" && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setClearStep("closed")}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Step 1a: 함께 대화 — 옵션 선택 */}
+            {clearStep === "shared_choose" && (
+              <>
+                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 새 채팅</h3>
+                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                  지금 대화를 정리하고 싶으세요? 두 가지 방법 중 골라주세요.
+                  <br />
+                  <span className="text-[#928980] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => performClear("view_reset_shared")}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
+                  >
+                    <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
+                    <div className="text-[12px] text-[#504444]">
+                      상대방 화면은 그대로. 내 화면에서만 새로 시작합니다. 데이터 보존됨.
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setClearStep("shared_confirm_both")}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
+                  >
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">둘 다 새로 시작</div>
+                    <div className="text-[12px] text-[#504444]">
+                      두 분 모두의 함께 대화 기록을 영구 삭제합니다. <strong>복구 불가</strong>.
+                    </div>
+                  </button>
+                </div>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => setClearStep("closed")}
+                    autoFocus
+                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 1b: 함께 대화 둘 다 — 추가 확인 */}
+            {clearStep === "shared_confirm_both" && (
+              <>
+                <h3 className="text-lg font-semibold text-red-600 mb-2">정말 둘 다 삭제할까요?</h3>
+                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                  두 분의 함께 대화 기록 전부가 사라지고 <strong>복구할 수 없어요</strong>.
+                  <br />
+                  상대방은 영문도 모르고 빈 화면을 보게 됩니다.
+                  <br />
+                  <span className="text-[#928980] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setClearStep("shared_choose")}
+                    autoFocus
+                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                  >
+                    돌아가기
+                  </button>
+                  <button
+                    onClick={() => performClear("delete_shared")}
+                    className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+                  >
+                    네, 둘 다 삭제
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: 나만 (상담) — 단순 확인 */}
+            {clearStep === "private_confirm" && (
+              <>
+                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 기록</h3>
+                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                  지금까지의 비공개 상담 기록을 정리하시겠어요?
+                  <br />
+                  <span className="text-[#928980] text-[12.5px]">상대방은 영향받지 않습니다 (애초에 못 봤음).</span>
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => performClear("view_reset_private")}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
+                  >
+                    <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
+                    <div className="text-[12px] text-[#504444]">데이터는 보존. 화면만 새로 시작.</div>
+                  </button>
+                  <button
+                    onClick={() => performClear("delete_private")}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
+                  >
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">영구 삭제</div>
+                    <div className="text-[12px] text-[#504444]">DB에서 완전히 삭제. <strong>복구 불가</strong>.</div>
+                  </button>
+                </div>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => setClearStep("closed")}
+                    autoFocus
+                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

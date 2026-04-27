@@ -2,23 +2,31 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-// 사용자가 해당 커플에 속하는지 검증
-async function verifyCoupleOwnership(userId: string, coupleId: string): Promise<boolean> {
+// 사용자가 해당 커플에 속하는지 + role 반환
+async function verifyCoupleOwnership(
+  userId: string,
+  coupleId: string
+): Promise<{ ok: boolean; role: string | null }> {
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-
   const { data: profile } = await admin
     .from("profiles")
-    .select("couple_id")
+    .select("couple_id, role")
     .eq("id", userId)
     .single();
-
-  return profile?.couple_id === coupleId;
+  if (profile?.couple_id !== coupleId) return { ok: false, role: null };
+  return { ok: true, role: (profile?.role as string | null) ?? null };
 }
 
-// 커플의 전체 채팅 메시지 삭제
+type ClearMode =
+  | "view_reset_shared"     // 본인 화면만 정리 (함께 대화 탭) — 안전
+  | "delete_shared"         // 둘 다 새로 시작 (함께 대화) — 양쪽 영향
+  | "view_reset_private"    // 본인 화면만 정리 (나만 상담)
+  | "delete_private";       // 비공개 기록 삭제 (본인만)
+
+// "새 채팅" — clearMode 따라 분기
 export async function DELETE(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -37,15 +45,18 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
-    const { coupleId } = await request.json();
+    const body = await request.json();
+    const { coupleId, mode: rawMode } = body as { coupleId?: string; mode?: ClearMode };
 
     if (!coupleId) {
       return NextResponse.json({ error: "coupleId가 필요합니다." }, { status: 400 });
     }
 
-    // 해당 커플에 속하는지 검증
-    const isOwner = await verifyCoupleOwnership(user!.id, coupleId);
-    if (!isOwner) {
+    // Backward compat: mode 없으면 옛 방식 (본인 화면만 정리 — 가장 안전한 default)
+    const mode: ClearMode = rawMode ?? "view_reset_shared";
+
+    const { ok, role } = await verifyCoupleOwnership(user!.id, coupleId);
+    if (!ok) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
@@ -54,12 +65,57 @@ export async function DELETE(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { count } = await admin
-      .from("chat_messages")
-      .delete({ count: "exact" })
-      .eq("couple_id", coupleId);
+    const now = new Date().toISOString();
 
-    return NextResponse.json({ success: true, deleted: count ?? 0 });
+    switch (mode) {
+      case "view_reset_shared": {
+        // 본인 프로필의 timestamp만 업데이트. DB의 메시지는 그대로.
+        const { error } = await admin
+          .from("profiles")
+          .update({ shared_chat_cleared_at: now })
+          .eq("id", user!.id);
+        if (error) throw error;
+        return NextResponse.json({ success: true, mode, clearedAt: now });
+      }
+
+      case "view_reset_private": {
+        const { error } = await admin
+          .from("profiles")
+          .update({ private_chat_cleared_at: now })
+          .eq("id", user!.id);
+        if (error) throw error;
+        return NextResponse.json({ success: true, mode, clearedAt: now });
+      }
+
+      case "delete_shared": {
+        // 둘 다 새로 시작 — 양쪽 영향. shared 메시지만 삭제 (private은 보존).
+        const { count, error } = await admin
+          .from("chat_messages")
+          .delete({ count: "exact" })
+          .eq("couple_id", coupleId)
+          .eq("visibility", "shared");
+        if (error) throw error;
+        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
+      }
+
+      case "delete_private": {
+        // 본인 private만 삭제. 상대방 private은 절대 못 건드림.
+        if (role !== "bride" && role !== "groom") {
+          return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
+        }
+        const myVisibility = role === "bride" ? "bride_private" : "groom_private";
+        const { count, error } = await admin
+          .from("chat_messages")
+          .delete({ count: "exact" })
+          .eq("couple_id", coupleId)
+          .eq("visibility", myVisibility);
+        if (error) throw error;
+        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
+      }
+
+      default:
+        return NextResponse.json({ error: "잘못된 mode 값입니다." }, { status: 400 });
+    }
   } catch (err) {
     console.error("메시지 삭제 에러:", err);
     return NextResponse.json(

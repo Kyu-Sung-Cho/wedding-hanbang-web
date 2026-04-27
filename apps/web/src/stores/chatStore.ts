@@ -49,7 +49,10 @@ interface ChatStoreState {
     weddingContext: WeddingContext;
     conflictContext: string;
   }) => Promise<void>;
-  clearMessages: (coupleId: string) => Promise<void>;
+  clearMessages: (
+    coupleId: string,
+    mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private"
+  ) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
   reset: () => void;
 }
@@ -383,19 +386,47 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     set({ isLoading: true, error: null, initialLoadDone: false });
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("couple_id", coupleId)
-        .order("created_at", { ascending: true })
-        .limit(500);
 
-      if (error) throw error;
+      // 본인 프로필의 view-reset timestamp 조회 (병렬)
+      const [{ data: profileData }, { data: messagesData, error: messagesErr }] = await Promise.all([
+        supabase.auth.getUser().then(async ({ data: { user } }) => {
+          if (!user) return { data: null };
+          return supabase
+            .from("profiles")
+            .select("shared_chat_cleared_at, private_chat_cleared_at")
+            .eq("id", user.id)
+            .single();
+        }),
+        supabase
+          .from("chat_messages")
+          .select("*")
+          .eq("couple_id", coupleId)
+          .order("created_at", { ascending: true })
+          .limit(500),
+      ]);
 
-      // 스트리밍이 시작되었으면 결과 무시 (race condition 방지)
+      if (messagesErr) throw messagesErr;
       if (get().isStreaming) return;
 
-      const allMessages = (data ?? []).map((m) => dbRowToMessage(m as Record<string, unknown>));
+      const sharedClearedAt = (profileData as { shared_chat_cleared_at?: string | null })?.shared_chat_cleared_at ?? null;
+      const privateClearedAt = (profileData as { private_chat_cleared_at?: string | null })?.private_chat_cleared_at ?? null;
+
+      const allMessages = (messagesData ?? [])
+        .map((m) => dbRowToMessage(m as Record<string, unknown>))
+        .filter((m) => {
+          // 본인의 view-reset timestamp 적용
+          if (m.visibility === "shared" && sharedClearedAt) {
+            return new Date(m.created_at) > new Date(sharedClearedAt);
+          }
+          if (
+            (m.visibility === "bride_private" || m.visibility === "groom_private") &&
+            privateClearedAt
+          ) {
+            return new Date(m.created_at) > new Date(privateClearedAt);
+          }
+          return true;
+        });
+
       set({ messages: allMessages });
     } catch (err) {
       console.error("채팅 로드 에러:", err);
@@ -796,16 +827,28 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   // 대화 초기화
-  clearMessages: async (coupleId: string) => {
+  clearMessages: async (coupleId, mode) => {
     const isDemo = document.cookie.includes("demo_mode=true");
     if (!isDemo) {
       await fetch("/api/chat/messages", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupleId }),
+        body: JSON.stringify({ coupleId, mode }),
       });
     }
-    set({ messages: [], suggestions: [] });
+    // 로컬 state에서 영향받는 메시지만 제거 (탭별)
+    set((s) => {
+      const filtered = s.messages.filter((m) => {
+        if (mode === "view_reset_shared" || mode === "delete_shared") {
+          return m.visibility !== "shared";
+        }
+        if (mode === "view_reset_private" || mode === "delete_private") {
+          return m.visibility !== "bride_private" && m.visibility !== "groom_private";
+        }
+        return true;
+      });
+      return { messages: filtered, suggestions: [] };
+    });
   },
 
   subscribeToMessages: (coupleId: string) => {
