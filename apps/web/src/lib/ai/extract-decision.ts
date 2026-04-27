@@ -186,6 +186,8 @@ export interface MaybeExtractDecisionInput {
   messages: MessageInput[];
   stageTag?: StageTag | null;
   lastUserText: string;
+  /** 추출된 결정의 visibility (현재 채팅 turn의 visibility와 동일) */
+  visibility?: "shared" | "bride_private" | "groom_private";
 }
 
 export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Promise<void> {
@@ -249,6 +251,7 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
         source: "chat",
         reasoning: ext.reasoning,
         confidence,
+        visibility: input.visibility ?? "shared",
         metadata: {
           extracted_by: "haiku",
           extraction_type: ext.type,

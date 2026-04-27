@@ -78,6 +78,8 @@ export interface ToolExecutionResult {
 }
 
 export type ChatMessageTarget = "ai" | "partner";
+// 메시지 가시성: shared = 둘 다 볼 수 있음 / bride_private = 신부 단독 / groom_private = 신랑 단독
+export type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
 
 export interface ChatMessageMetadata {
   roomId?: string;
@@ -97,6 +99,7 @@ export interface ChatMessage {
   sender_role: MessageSenderType;  // 내부용: "bride" | "groom" | "ai" (DB의 sender_type에서 매핑)
   content: string;
   metadata: ChatMessageMetadata | null;
+  visibility: ChatMessageVisibility;
   created_at: string;
 }
 

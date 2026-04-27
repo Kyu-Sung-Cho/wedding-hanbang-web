@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock } from "lucide-react";
 import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -62,6 +62,8 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  // 나만 보기 모드 (아모라와 1:1 비공개 대화). messageTarget="ai"일 때만 의미 있음.
+  const [isPrivate, setIsPrivate] = useState(false);
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -430,10 +432,16 @@ export default function ChatPage() {
         else defaultMsg = "이 이미지를 분석해주세요.";
       }
 
+      // private mode + AI 대상일 때만 visibility 분리. 그 외는 shared.
+      const role = profile.role ?? "bride";
+      const visibility = isPrivate && messageTarget === "ai"
+        ? (role === "groom" ? "groom_private" : "bride_private")
+        : "shared";
+
       await sendMessage({
         content: content || defaultMsg,
         senderId: profile.id,
-        senderRole: profile.role ?? "bride",
+        senderRole: role,
         coupleId,
         senderName: profile.name ?? "사용자",
         weddingContext: {
@@ -444,9 +452,10 @@ export default function ChatPage() {
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
         target: messageTarget,
+        visibility,
       });
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
+    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
   );
 
   // 배너에서 수동 중재 요청
@@ -730,12 +739,12 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* 대상 토글 */}
-        <div className="flex items-center gap-2 mb-2.5 px-1">
+        {/* 대상 토글 — 3 mode: 아모라(공유) / 상대방 / 나만(아모라 1:1) */}
+        <div className="flex items-center gap-2 mb-2.5 px-1 flex-wrap">
           <button
-            onClick={() => setMessageTarget("ai")}
+            onClick={() => { setMessageTarget("ai"); setIsPrivate(false); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              messageTarget === "ai"
+              messageTarget === "ai" && !isPrivate
                 ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                 : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
             }`}
@@ -744,7 +753,7 @@ export default function ChatPage() {
             아모라에게
           </button>
           <button
-            onClick={() => setMessageTarget("partner")}
+            onClick={() => { setMessageTarget("partner"); setIsPrivate(false); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
@@ -754,10 +763,34 @@ export default function ChatPage() {
             <Heart className="w-4 h-4" />
             상대방에게
           </button>
+          <button
+            onClick={() => { setMessageTarget("ai"); setIsPrivate(true); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              messageTarget === "ai" && isPrivate
+                ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] text-white shadow-[0_4px_14px_rgba(90,97,71,0.25)]"
+                : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#5a6147]"
+            }`}
+            title="아모라와 1:1 — 상대방은 볼 수 없습니다"
+          >
+            <Lock className="w-4 h-4" />
+            나만 (Private)
+          </button>
         </div>
 
+        {/* Private 모드 안내 배너 */}
+        {messageTarget === "ai" && isPrivate && (
+          <div className="mb-2.5 mx-1 px-3 py-2 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-center gap-2 text-[12.5px] text-[#5a6147]">
+            <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>비공개 모드 — 이 대화는 상대방에게 보이지 않아요. 아모라와 1:1로 고민을 털어놓으세요.</span>
+          </div>
+        )}
+
         <div className={`bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-2 p-2.5 transition-all ${
-          messageTarget === "partner" ? "ring-1 ring-[#D99C9C]/30" : ""
+          messageTarget === "partner"
+            ? "ring-1 ring-[#D99C9C]/30"
+            : isPrivate
+              ? "ring-1 ring-[#5a6147]/30"
+              : ""
         }`}>
           {/* 파일 첨부 버튼 */}
           <input
@@ -788,7 +821,13 @@ export default function ChatPage() {
               }
             }}
             onPaste={handlePaste}
-            placeholder={messageTarget === "partner" ? "상대방에게 메시지를 보내세요..." : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."}
+            placeholder={
+              messageTarget === "partner"
+                ? "상대방에게 메시지를 보내세요..."
+                : isPrivate
+                  ? "비공개 — 아모라에게만 털어놓으세요..."
+                  : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."
+            }
             disabled={isStreaming}
             className="flex-1 px-2 py-3 text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
@@ -798,10 +837,17 @@ export default function ChatPage() {
             className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
-                : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)]"
+                : isPrivate
+                  ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] shadow-[0_4px_14px_rgba(90,97,71,0.25)] hover:shadow-[0_6px_20px_rgba(90,97,71,0.3)]"
+                  : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)]"
             }`}
           >
-            {messageTarget === "partner" ? <Heart className="w-[22px] h-[22px]" /> : <Send className="w-[22px] h-[22px]" />}
+            {messageTarget === "partner"
+              ? <Heart className="w-[22px] h-[22px]" />
+              : isPrivate
+                ? <Lock className="w-[22px] h-[22px]" />
+                : <Send className="w-[22px] h-[22px]" />
+            }
           </button>
         </div>
       </div>

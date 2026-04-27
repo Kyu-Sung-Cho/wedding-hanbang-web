@@ -1,4 +1,4 @@
-import type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget } from "./database.types";
+import type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget, ChatMessageVisibility } from "./database.types";
 
 // 스토어 상태
 export interface ChatStoreState {
@@ -31,6 +31,7 @@ export interface SendMessageParams {
   weddingContext: WeddingContext;
   images?: ImageAttachmentData[];
   target?: ChatMessageTarget; // "ai" (기본) | "partner"
+  visibility?: ChatMessageVisibility; // "shared" (기본) | "bride_private" | "groom_private"
 }
 
 export interface WeddingContext {
@@ -59,4 +60,4 @@ export type SSEEvent =
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
   | { type: "error"; message: string };
 
-export type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget };
+export type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget, ChatMessageVisibility };

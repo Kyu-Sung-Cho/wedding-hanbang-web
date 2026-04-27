@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock } from "lucide-react";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 
 interface ChatBubbleProps {
@@ -176,6 +176,8 @@ export default function ChatBubble({
   // AI 메시지
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
+    const aiIsPrivate =
+      message.visibility === "bride_private" || message.visibility === "groom_private";
 
     return (
       <div className="group/ai flex items-start gap-3 max-w-[85%]">
@@ -185,10 +187,18 @@ export default function ChatBubble({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-base font-medium text-[#928980]">
+          <span className="text-base font-medium text-[#928980] flex items-center gap-1.5">
             아모라
+            {aiIsPrivate && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-[#5a6147] font-normal">
+                <Lock className="w-3 h-3" />
+                나만 보기
+              </span>
+            )}
           </span>
-          <div className="bg-white rounded-2xl rounded-tl-md px-5 py-4 border border-black/[0.06] shadow-sm">
+          <div className={`bg-white rounded-2xl rounded-tl-md px-5 py-4 border shadow-sm ${
+            aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
+          }`}>
             <p className="text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
               {cleanText}
             </p>
@@ -259,6 +269,9 @@ export default function ChatBubble({
 
   // 상대방에게 보낸 직접 메시지 여부
   const isPartnerMsg = message.metadata?.target === "partner";
+  // 비공개 메시지 (RLS로 본인+아모라만 SELECT됨 — 여기 도달했으면 본인이 볼 권한 있음)
+  const isPrivateMsg =
+    message.visibility === "bride_private" || message.visibility === "groom_private";
 
   if (isCurrentUser) {
     // 내 메시지: 오른쪽 정렬
@@ -270,6 +283,13 @@ export default function ChatBubble({
             <div className="flex items-center gap-1.5 mr-1">
               <Heart className="w-4 h-4 text-pink-400" />
               <span className="text-sm text-pink-400 font-medium">상대방에게</span>
+            </div>
+          )}
+          {/* 비공개 메시지 표시 */}
+          {isPrivateMsg && !isPartnerMsg && (
+            <div className="flex items-center gap-1.5 mr-1">
+              <Lock className="w-3.5 h-3.5 text-[#5a6147]" />
+              <span className="text-xs text-[#5a6147] font-medium tracking-wide">나만 보기</span>
             </div>
           )}
           {/* 첨부 파일 (이미지 + PDF) */}

@@ -41,6 +41,8 @@ export interface RecordDecisionInput {
   confidence?: number;
   parents?: DecisionParent[];
   metadata?: Record<string, unknown> | null;
+  /** 메모리 격리: 'shared' (default) | 'bride_private' | 'groom_private' */
+  visibility?: "shared" | "bride_private" | "groom_private";
   /**
    * 중복 방지 — 같은 (couple_id, source_ref_id, source, decision_type) 조합이 이미 있으면
    * 새로 만들지 않고 기존 nodeId 반환. 현재는 찜(favorites) hook에서 활용.
@@ -119,6 +121,7 @@ export async function recordDecision(
         source: input.source,
         source_ref_id: input.sourceRefId ?? null,
         metadata: input.metadata ?? {},
+        visibility: input.visibility ?? "shared",
       })
       .select("id")
       .single();

@@ -42,6 +42,7 @@ async function insertAiMessageWithIdempotency(params: {
   metadata: Record<string, unknown>;
   stageTag: string | null;
   specialistType: string | null;
+  visibility: "shared" | "bride_private" | "groom_private";
 }): Promise<{ id: string | null; createdAt: string | null }> {
   if (params.isDemo || !params.cleanText) {
     return { id: null, createdAt: null };
@@ -86,6 +87,7 @@ async function insertAiMessageWithIdempotency(params: {
         metadata: metadataWithRid,
         stage_tag: params.stageTag,
         specialist_type: params.specialistType,
+        visibility: params.visibility,
       })
       .select("id, created_at")
       .single();
@@ -329,11 +331,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo, clientRequestId: bodyClientRequestId } = body;
+  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo, clientRequestId: bodyClientRequestId, visibility: bodyVisibility } = body;
   const isDemo = bodyIsDemo === true;
   const clientRequestId: string | null = typeof bodyClientRequestId === "string" && bodyClientRequestId.length > 0
     ? bodyClientRequestId
     : null;
+  const visibility: "shared" | "bride_private" | "groom_private" =
+    bodyVisibility === "bride_private" || bodyVisibility === "groom_private" ? bodyVisibility : "shared";
 
   if (!messages || !coupleId) {
     return NextResponse.json(
@@ -375,8 +379,9 @@ export async function POST(request: Request) {
       .order("created_at", { ascending: false })
       .limit(3),
     // 5. Memory Step C: 의사결정 히스토리 (최근 15개, AI 추출 + manual/booking/onboarding 포함)
+    //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
     supabase.from("decision_nodes")
-      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, created_at")
+      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at")
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(15),
@@ -544,7 +549,16 @@ export async function POST(request: Request) {
   const specialistType = routeSpecialist(lastUserText, stageTag);
   const specialistAddon = getSpecialistPromptAddon(specialistType);
 
-  const systemPrompt = cautionPrefix + getWeddingPlannerSystemPrompt({
+  // Private 모드 안내 (신부/신랑이 단독으로 아모라에게 털어놓는 채팅)
+  const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
+    ? `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n` +
+      `- 상대방을 비난하거나 편드는 발언 금지. 객관적·공감적으로.\n` +
+      `- 이 대화 내용은 절대 상대방의 채팅(shared/상대방의 private)에서 언급·인용하지 마세요. 시스템이 격리하지만 아모라도 의식적으로 분리.\n` +
+      `- 그러나 이 대화에서 드러난 인사이트는 본인의 향후 private 대화에서는 자연스럽게 이어가도 됩니다.\n` +
+      `- 답변은 평소처럼 따뜻하고 실용적으로. 비공개라고 톤을 어둡게 하지 마세요.\n\n`
+    : "";
+
+  const systemPrompt = cautionPrefix + privacyPrefix + getWeddingPlannerSystemPrompt({
     weddingDate: weddingDateForStage,
     budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
     venue: journey?.venue ?? weddingContext?.venue ?? null,
@@ -673,6 +687,7 @@ export async function POST(request: Request) {
               metadata: { toolResults, toolsUsed, senderName },
               stageTag,
               specialistType,
+              visibility,
             });
             const serverMessageId: string | null = insertResult.id;
             const serverCreatedAt: string | null = insertResult.createdAt;
@@ -732,6 +747,7 @@ export async function POST(request: Request) {
               messages: messagesWithLatest,
               stageTag,
               lastUserText,
+              visibility,
             });
 
             // Excavation 기법 사용 분류 (fire-and-forget)
@@ -842,6 +858,7 @@ export async function POST(request: Request) {
           metadata: { toolResults, toolsUsed, senderName },
           stageTag,
           specialistType,
+          visibility,
         });
 
         send({
@@ -876,6 +893,7 @@ export async function POST(request: Request) {
           messages: messagesWithLatest,
           stageTag,
           lastUserText,
+          visibility,
         });
         void maybeClassifyExcavation({
           coupleId,

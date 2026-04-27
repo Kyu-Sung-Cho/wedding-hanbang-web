@@ -34,6 +34,7 @@ interface ChatStoreState {
     weddingContext: WeddingContext;
     images?: Array<{ base64: string; mediaType: string; previewUrl: string }>;
     target?: ChatMessageTarget;
+    visibility?: "shared" | "bride_private" | "groom_private";
   }) => Promise<void>;
   requestInitialGreeting: (params: {
     coupleId: string;
@@ -263,6 +264,9 @@ async function parseSSEStream(
 
 // DB row → 내부 ChatMessage 변환 (sender_type → sender_role)
 function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
+  const rawVisibility = row.visibility;
+  const visibility: ChatMessage["visibility"] =
+    rawVisibility === "bride_private" || rawVisibility === "groom_private" ? rawVisibility : "shared";
   return {
     id: row.id as string,
     couple_id: row.couple_id as string,
@@ -270,6 +274,7 @@ function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
     sender_role: (row.sender_type as MessageSenderRole) ?? (row.sender_role as MessageSenderRole) ?? "ai",
     content: row.content as string,
     metadata: (row.metadata as ChatMessageMetadata) ?? null,
+    visibility,
     created_at: row.created_at as string,
   };
 }
@@ -282,9 +287,11 @@ async function saveAiMessage(
     fullContent: string;
     aiMetadata: ChatMessageMetadata;
     isDemo: boolean;
+    visibility?: ChatMessage["visibility"];
   }
 ) {
   const { coupleId, fullContent, aiMetadata, isDemo } = params;
+  const visibility: ChatMessage["visibility"] = params.visibility ?? "shared";
 
   // 서버에서 이미 INSERT 했으면 그 id/created_at 사용 (모바일 백그라운드 안전)
   const serverMessageId = (aiMetadata as { serverMessageId?: string })?.serverMessageId ?? null;
@@ -299,6 +306,7 @@ async function saveAiMessage(
       sender_role: "ai",
       content: fullContent,
       metadata: aiMetadata,
+      visibility,
       created_at: serverCreatedAt ?? new Date().toISOString(),
     };
     set((s) => {
@@ -318,6 +326,7 @@ async function saveAiMessage(
     sender_role: "ai",
     content: fullContent,
     metadata: aiMetadata,
+    visibility,
     created_at: new Date().toISOString(),
   };
   set((s) => ({ messages: [...s.messages, localMsg] }));
@@ -339,6 +348,7 @@ async function saveAiMessage(
           metadata: aiMetadata,
           stage_tag: aiStageTag,
           specialist_type: aiSpecialistType,
+          visibility,
         })
         .select()
         .single();
@@ -435,7 +445,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   sendMessage: async ({
-    content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai",
+    content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
   }) => {
     // 중복 발사 가드 (모바일 더블탭, 짧은 시간 내 재시도 방지)
     if (get().isStreaming) {
@@ -491,6 +501,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       ? { ...msgMetadata, imageUrls }
       : msgMetadata;
 
+    // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)
+    // 기본은 'shared' — 사용자가 명시적으로 private 모드 선택 시에만 다른 값
+    const finalVisibility = visibility ?? "shared";
+
     if (!isDemo) {
       // D3: 클라이언트 측 stage_tag 계산 (wedding_date 기반 순수 함수)
       const userStageTag = determineStage(weddingContext?.weddingDate ?? null);
@@ -506,6 +520,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           metadata: finalMetadata,
           stage_tag: userStageTag,
           specialist_type: null, // 유저 메시지는 specialist 없음
+          visibility: finalVisibility,
         })
         .select()
         .single();
@@ -523,6 +538,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const demoMsg: ChatMessage = {
         id: `demo-${Date.now()}`,
         couple_id: coupleId,
+        visibility: finalVisibility,
         sender_id: senderId,
         sender_role: senderRole,
         content,
@@ -578,6 +594,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           weddingContext,
           isDemo,
           clientRequestId,
+          visibility: finalVisibility,
           ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         }),
         signal: abortController.signal,
@@ -614,7 +631,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       if (fullContent) {
         const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
-        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
+        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo, visibility: finalVisibility });
       }
     } catch (err) {
       console.error("AI 응답 에러:", err);
