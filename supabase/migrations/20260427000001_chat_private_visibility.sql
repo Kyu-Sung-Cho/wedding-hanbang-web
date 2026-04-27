@@ -33,8 +33,10 @@ CREATE INDEX IF NOT EXISTS idx_decision_nodes_couple_visibility
   ON decision_nodes(couple_id, visibility);
 
 -- 3. chat_messages SELECT RLS — visibility 반영
+-- 기존 SELECT 정책 모두 제거 (RLS는 OR로 합쳐지므로 옛 정책이 살아있으면 visibility 우회됨)
 DROP POLICY IF EXISTS "chat_select_couple" ON chat_messages;
 DROP POLICY IF EXISTS "chat_select_with_privacy" ON chat_messages;
+DROP POLICY IF EXISTS "couple_members_can_view_messages" ON chat_messages;
 CREATE POLICY "chat_select_with_privacy" ON chat_messages FOR SELECT
 USING (
   couple_id IN (
@@ -65,6 +67,8 @@ USING (
 DROP POLICY IF EXISTS "decision_nodes_select" ON decision_nodes;
 DROP POLICY IF EXISTS "decision_select_couple" ON decision_nodes;
 DROP POLICY IF EXISTS "decision_nodes_select_with_privacy" ON decision_nodes;
+DROP POLICY IF EXISTS "couple_members_can_view_decisions" ON decision_nodes;
+DROP POLICY IF EXISTS "decisions_select_couple" ON decision_nodes;
 CREATE POLICY "decision_nodes_select_with_privacy" ON decision_nodes FOR SELECT
 USING (
   couple_id IN (
