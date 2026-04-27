@@ -1,6 +1,7 @@
 import { CATEGORY_LABELS } from "./toolExecutor";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
+import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
 
 // 사용자 행동 패턴 분석 → 개인화된 인사이트 생성
 function generateBehaviorInsights(context: {
@@ -308,14 +309,23 @@ ${lessonsText}
   }
 
   // Memory Step C: 이 커플의 과거 결정 히스토리 섹션
-  // decision_nodes (최근 15개) 기반. AI 추출 + favorites + bookings + onboarding 통합.
+  // decision_nodes (최근 50개) 기반. AI 추출 + favorites + bookings + onboarding 통합.
+  // 토큰 효율을 위해 최근 14일 = 상세, 그 이전 = 압축 형태로 split.
   let pastDecisionsSection = "";
   if (context.pastDecisions && context.pastDecisions.length > 0) {
-    // 결정 / 고려 분리
-    const decidedItems = context.pastDecisions.filter((d) => d.decisionType === "decided" || d.decisionType === "booked");
-    const consideringItems = context.pastDecisions.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
+    const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - FOURTEEN_DAYS_MS;
+    const isRecent = (d: typeof context.pastDecisions[number]) =>
+      new Date(d.createdAt).getTime() >= cutoff;
 
-    const formatItem = (d: typeof context.pastDecisions[number]): string => {
+    const recent = context.pastDecisions.filter(isRecent);
+    const older = context.pastDecisions.filter((d) => !isRecent(d));
+
+    // 최근 14일: 결정 / 고려 분리 + 상세
+    const recentDecided = recent.filter((d) => d.decisionType === "decided" || d.decisionType === "booked");
+    const recentConsidering = recent.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
+
+    const formatDetailed = (d: typeof context.pastDecisions[number]): string => {
       const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
       const categoryLabel = CATEGORY_LABELS[d.category] ?? d.category;
       const sourceTag = d.source === "chat" ? "" : ` [${d.source}]`;
@@ -324,16 +334,47 @@ ${lessonsText}
       return `  - [${categoryLabel}]${sourceTag} ${d.title}${valueText}${reasonText} (${dateStr})`;
     };
 
+    // 오래된 결정: 압축 (날짜 + 카테고리 + 제목만, reasoning 생략)
+    const formatCompact = (d: typeof context.pastDecisions[number]): string => {
+      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const categoryLabel = CATEGORY_LABELS[d.category] ?? d.category;
+      const valueText = d.value ? `: ${d.value}` : "";
+      return `  - [${categoryLabel}] ${d.title}${valueText} (${dateStr})`;
+    };
+
     const sections: string[] = [];
-    if (decidedItems.length > 0) {
-      sections.push(`**이미 결정한 것 (변경 제안 시 주의):**\n${decidedItems.map(formatItem).join("\n")}`);
-    }
-    if (consideringItems.length > 0) {
-      sections.push(`**고려 중 / 드러난 선호 (연속성 확보용):**\n${consideringItems.map(formatItem).join("\n")}`);
+
+    // ─ 가치관 프로필 (#1 선호 발굴자 핵심): preference 카테고리 + reasoning 있는 것들
+    //   "예쁜 거가 아니라 왜 그게 좋은지까지" 약속 실현 — AI가 의식적으로 활용
+    const preferences = context.pastDecisions
+      .filter((d) => d.category === "preference" && d.reasoning)
+      .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+      .slice(0, 5);
+    if (preferences.length > 0) {
+      const formatPref = (d: typeof context.pastDecisions[number]): string => {
+        const valueText = d.value ? `**${d.value}**` : "";
+        return `  - ${valueText} — *왜?* ${d.reasoning}`;
+      };
+      sections.push(
+        `**🪞 드러난 가치관 (top ${preferences.length}, 추천 시 가중치 높게):**\n${preferences.map(formatPref).join("\n")}`
+      );
     }
 
-    pastDecisionsSection = `\n## 이 커플의 결정 히스토리 (최근 15)
+    if (recentDecided.length > 0) {
+      sections.push(`**최근 2주 — 이미 결정한 것 (변경 제안 시 주의):**\n${recentDecided.map(formatDetailed).join("\n")}`);
+    }
+    if (recentConsidering.length > 0) {
+      sections.push(`**최근 2주 — 고려 중 / 드러난 선호 (연속성 확보용):**\n${recentConsidering.map(formatDetailed).join("\n")}`);
+    }
+    if (older.length > 0) {
+      // confidence 높은 결정 위주로 정렬 (중요도 우선)
+      const olderSorted = [...older].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+      sections.push(`**과거 (2주 이전, 중요도 순) — "혹시 아직도..." 톤으로 회상:**\n${olderSorted.slice(0, 30).map(formatCompact).join("\n")}`);
+    }
+
+    pastDecisionsSection = `\n## 이 커플의 결정 히스토리 (최근 ${context.pastDecisions.length}개)
 아래는 이 커플이 과거에 결정·선호 표현한 내용입니다.
+"6개월 전 결정도 기억해 일관성을 지킨다"는 마케팅 약속의 핵심 데이터.
 
 ${sections.join("\n\n")}
 
@@ -465,6 +506,11 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDeci
 - 현재 메시지 (방금 명시한 것)
 - pastDecisions (이미 결정 = hard 제약, 절대 위배 금지)
 - preferences / customer_insights (드러난 가치관 = soft 제약)
+- **wedding_venue 위치** — 예식장 정해졌으면 같은 지역 업체 우선. search_vendors의 location 파라미터에 자동 사용.
+  예: 예식장이 "강남"이면 "스튜디오 추천해줘" → search_vendors(category="스튜디오", location="강남")으로 호출.
+- **양가 제약** — 사용자가 "엄마/아빠/시어머니가 X 원해" 류 발언했으면 이것도 제약.
+  명시 안 했어도 가족 갈등 history 있으면 신중하게 양가 영향 고려.
+  예: 신부가 "엄마가 호텔 원해"라고 했으면 → 호텔 = 가족 hard 제약. 스타일 협상 시 여기 위배 금지.
 - 시장 감각 (성수기/평일 할인/패키지 할인)
 - hiddenCostContext (숨은 추가금 — 견적에 반영)
 
@@ -596,10 +642,39 @@ ${getMarketPriceContext()}
 
 ${getHiddenCostContext()}
 
+${getVendorAsymmetryContext()}
+
 ## 할루시네이션 방지
 - DB에 없는 업체 정보 절대 지어내지 마세요. 업체 언급 전 반드시 도구 호출.
 - 가격/통계는 도구 조회 또는 시세 데이터에서만. 출처 없는 수치 금지.
 - 모르면 솔직하게: "정확한 정보를 갖고 있지 않아서 확인 후 안내드릴게요"
+
+## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심
+
+**숫자·통계·가격 정보를 인용할 땐 반드시 출처를 명시하세요.** 출처 없는 수치는 "그냥 들은 얘기"로 들립니다. 출처가 있으면 같은 정보가 "이건 검증된 데이터"로 들려요.
+
+**필수 출처 표기 패턴:**
+- 시세 인용 시: "**한국소비자원 2025년 4월 기준** 서울 호텔 웨딩 평균 5500만원..."
+- 평균/통계 시: "**한국소비자원 2025년 조사**에 따르면 스튜디오 평균 150만원이에요"
+- 숨은 비용 시: "**한국소비자원 추가금 발생 사례** 기준 원본 USB는 별도 38.5만원이 일반적이에요"
+- 업체 정보 (도구로 받은 것): "방금 검색한 업체 데이터 기준..."
+- 사용자가 직접 말한 정보: "**아까 말씀하신 4000만원** 기준으로..."
+- 시기 정보: "**3~6월/9~11월은 성수기**예요 (예식 업계 일반)"
+
+**표기 위치:**
+- 숫자 바로 앞 또는 직후 1줄. 답변 끝에 모아두지 마세요.
+- 같은 답변 내 같은 출처 반복 인용 시 첫 번째만 명시, 이후는 생략.
+
+**금지:**
+- "평균 5천만원이에요" (출처 없음)
+- "다들 그렇게 해요" (근거 없음)
+- "보통 150만원 정도..." (모호함)
+- 출처 지어내기 — 모르면 차라리 "정확한 출처는 모르지만 일반적으로..."
+
+**예외 — 출처 없어도 OK:**
+- 일반 상식 ("주말이 평일보다 비쌈")
+- 사용자 질문 다시 정리 ("그러니까 호텔로 정하신 거죠?")
+- 정성적 조언 ("미니멀 스타일이면 자연광 스튜디오가 잘 어울려요")
 
 ## 대화 규칙
 한국어 존댓말. 간결하되 필요한 정보는 빠짐없이. 이모지 적절히.

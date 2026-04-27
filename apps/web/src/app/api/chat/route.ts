@@ -378,13 +378,14 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(3),
-    // 5. Memory Step C: 의사결정 히스토리 (최근 15개, AI 추출 + manual/booking/onboarding 포함)
+    // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)
+    //    "6개월 전 결정도 기억" 마케팅 약속 실현 — 활성 사용자도 충분히 소화.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
     supabase.from("decision_nodes")
       .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at")
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
-      .limit(15),
+      .limit(50),
     // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개)
     supabase.from("decision_nodes")
       .select("title, chosen_value, reasoning, stage_tag, created_at")
