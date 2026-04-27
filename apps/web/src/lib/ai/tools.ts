@@ -583,3 +583,25 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
 ];
+
+// =============================================
+// 베타 단계: 개별 업체 추천/예약 도구 비활성
+// =============================================
+// 이유: 현재 vendors 테이블에 진짜 업체 데이터 없음. 가짜 업체를 AI가 자신만만하게
+//       추천하면 사용자 신뢰 망가짐 + 표시광고법 리스크.
+// 정식 출시 시: 진짜 vendor onboarding 후 이 배열을 비우면 자동 활성화.
+// 영향받지 않는 도구: analyze_quote, search_nearby_places, 예산/일정/진행률 도구는 모두 정상.
+export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "search_vendors",
+  "recommend_vendors",
+  "get_vendor_detail",
+  "get_available_slots",
+  "create_booking",
+  "get_my_bookings",
+  "cancel_booking",
+]);
+
+/** 베타용: 비활성 도구를 제외한 안전한 도구 목록 */
+export const BETA_SAFE_TOOLS: Tool[] = WEDDING_TOOLS.filter(
+  (t) => !BETA_DISABLED_TOOL_NAMES.has(t.name)
+);

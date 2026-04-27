@@ -4,7 +4,7 @@ import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } f
 import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
-import { WEDDING_TOOLS } from "@/lib/ai/tools";
+import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
@@ -655,7 +655,7 @@ export async function POST(request: Request) {
           const result = await chatWithToolsStream({
             systemPrompt,
             messages: currentMessages,
-            tools: WEDDING_TOOLS,
+            tools: BETA_SAFE_TOOLS,
             onTextDelta: (token) => {
               send({ type: "text_delta", content: token });
             },
@@ -829,7 +829,7 @@ export async function POST(request: Request) {
         const finalResult = await chatWithToolsStream({
           systemPrompt,
           messages: currentMessages,
-          tools: WEDDING_TOOLS,
+          tools: BETA_SAFE_TOOLS,
           onTextDelta: (token) => {
             send({ type: "text_delta", content: token });
           },

@@ -27,6 +27,10 @@ const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
 const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
 
+// 베타 단계: 진짜 업체 데이터가 없으므로 업체 탐색·예약 메뉴 숨김.
+// 정식 출시(vendor onboarding 완료) 시 이 배열을 비우면 자동 노출.
+const BETA_HIDDEN_VENDOR_PATHS = ["/vendors", "/bookings"];
+
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
   { href: "/chat", icon: MessageCircle, label: "아모라 상담" },
@@ -42,7 +46,9 @@ const menuItems = [
   { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/settings", icon: Settings, label: "설정" },
-].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href));
+]
+  .filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href))
+  .filter((item) => !BETA_HIDDEN_VENDOR_PATHS.includes(item.href));
 
 interface SidebarProps {
   isOpen: boolean;
