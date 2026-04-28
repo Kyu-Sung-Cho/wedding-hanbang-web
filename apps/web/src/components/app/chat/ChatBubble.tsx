@@ -190,7 +190,7 @@ export default function ChatBubble({
           <span className="text-base font-medium text-[#928980] flex items-center gap-1.5">
             아모라
             {aiIsPrivate && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-[#5a6147] font-normal">
+              <span className="inline-flex items-center gap-1 text-[12px] text-[#5a6147] font-normal">
                 <Lock className="w-3 h-3" />
                 나만 보기
               </span>
@@ -231,7 +231,7 @@ export default function ChatBubble({
             {formatTime(created_at)}
           </span>
           {/* AI 생성 배지 — AI 기본법 고지 (원칙 P6) */}
-          <div className="inline-flex items-center gap-1 text-[10px] text-[#504444]/60 ml-1">
+          <div className="inline-flex items-center gap-1 text-[11px] text-[#504444]/60 ml-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/40" />
             AI 생성
           </div>

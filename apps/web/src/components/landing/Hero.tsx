@@ -23,7 +23,7 @@ export default function Hero() {
             className="flex flex-col items-center text-center md:items-start md:text-left"
           >
             {/* Display H1 */}
-            <h1 className="font-serif-kr text-[clamp(36px,6.5vw,76px)] text-noir-800 leading-[1.1] tracking-[-0.015em] font-light">
+            <h1 className="font-serif-kr text-[clamp(34px,6vw,68px)] text-noir-800 leading-[1.2] tracking-[-0.015em] font-light">
               당신만의
               <br />
               AI 웨딩 플래너,
@@ -35,7 +35,7 @@ export default function Hero() {
             <div className="w-12 h-px bg-rose-500 my-10 md:my-14 mx-auto md:mx-0" aria-hidden />
 
             {/* Sub */}
-            <p className="text-charcoal text-[15px] md:text-[17px] leading-[2] font-light max-w-[520px] mx-auto md:mx-0">
+            <p className="text-charcoal text-[15px] md:text-[17px] leading-[1.85] font-light max-w-[520px] mx-auto md:mx-0">
               당신도 모르는 당신의 선호를 끌어내고,
               <br />
               파트너와 합의로 가도록 중재하고,
@@ -47,14 +47,14 @@ export default function Hero() {
             <div className="flex flex-col sm:flex-row gap-5 sm:gap-10 mt-12 items-center md:items-start">
               <Link
                 href="/beta"
-                className="group inline-flex items-center gap-2 text-[14px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
+                className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
               >
                 베타 50쌍 한정 모집
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
               <Link
                 href="/chat"
-                className="inline-flex items-center text-[14px] text-taupe-500 font-light tracking-[0.02em] hover:text-noir-800 transition-colors"
+                className="inline-flex items-center text-[14px] md:text-[15px] text-taupe-500 font-light tracking-[0.02em] hover:text-noir-800 transition-colors"
               >
                 아모라와 먼저 대화해보기
               </Link>
@@ -81,16 +81,16 @@ export default function Hero() {
 
             <div className="relative bg-white rounded-[32px] px-8 py-10 shadow-[0_40px_80px_-30px_rgba(26,26,31,0.2)]">
               <div className="flex items-center gap-2.5 mb-10">
-                <span className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[10px] font-display leading-none">
+                <span className="w-7 h-7 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center text-white text-[12px] font-display leading-none">
                   A
                 </span>
-                <span className="font-serif-kr text-sm text-noir-800 font-medium">아모라</span>
-                <span className="text-[10px] text-taupe-400 tracking-[0.15em] ml-auto">
+                <span className="font-serif-kr text-[15px] text-noir-800 font-medium">아모라</span>
+                <span className="text-[12px] text-taupe-400 tracking-[0.15em] ml-auto">
                   · 24시간
                 </span>
               </div>
 
-              <p className="font-serif-kr text-[22px] md:text-[26px] text-noir-800 leading-[1.55] font-light mb-3">
+              <p className="font-serif-kr text-[20px] md:text-[24px] text-noir-800 leading-[1.55] font-light mb-3">
                 지난주에
                 <br />
                 <em className="not-italic text-rose-500">&ldquo;양가 상견례 부담&rdquo;</em>
@@ -98,13 +98,13 @@ export default function Hero() {
                 말씀하셨죠.
               </p>
 
-              <p className="font-serif-kr text-[17px] md:text-[18px] text-charcoal leading-[1.7] font-light">
+              <p className="font-serif-kr text-[16px] md:text-[18px] text-charcoal leading-[1.7] font-light">
                 오늘 그 이야기,
                 <br />
                 이어가 볼까요?
               </p>
 
-              <p className="mt-10 pt-6 border-t border-platinum/60 text-[10px] tracking-[0.22em] text-taupe-400 font-medium">
+              <p className="mt-10 pt-6 border-t border-platinum/60 text-[11px] md:text-[12px] tracking-[0.22em] text-taupe-400 font-medium">
                 AI 생성
               </p>
             </div>

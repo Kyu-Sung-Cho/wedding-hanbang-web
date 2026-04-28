@@ -36,15 +36,15 @@ export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
         >
           {/* 좌측: 헤드라인 */}
           <div className="max-w-2xl">
-            <p className="text-[11px] tracking-[0.3em] text-rose-light mb-8 font-medium">
+            <p className="text-[12px] md:text-[13px] tracking-[0.28em] text-rose-light mb-8 font-medium">
               초대
             </p>
-            <h2 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.12] tracking-[-0.015em] mb-8">
+            <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em] mb-8">
               6주간 함께해 주실
               <br />
               <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
             </h2>
-            <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-lg">
+            <p className="text-white/70 text-[15px] md:text-[16px] leading-[1.75] font-light max-w-lg">
               실거래가와 아모라 전 기능을 먼저 경험하고,
               <br />
               정식 출시 후에도 6개월 무료로 연장됩니다.
@@ -54,14 +54,14 @@ export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
           {/* 우측: 진척 + CTA */}
           <div>
             <div className="flex items-baseline gap-3 mb-3">
-              <span className="font-sans tabular-nums text-white text-[60px] md:text-[80px] font-light leading-none tracking-[-0.02em]">
+              <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,64px)] font-light leading-none tracking-[-0.02em]">
                 {BETA_CURRENT}
               </span>
-              <span className="text-white/40 text-xl font-light tabular-nums">
+              <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
                 / {BETA_TOTAL}
               </span>
             </div>
-            <p className="text-[11px] tracking-[0.22em] text-white/50 mb-6 font-medium">
+            <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-6 font-medium">
               현재 신청 · 명
             </p>
 
@@ -77,14 +77,14 @@ export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
             <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
               <Link
                 href="/beta"
-                className="group inline-flex items-center gap-2 text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
+                className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
               >
                 베타 신청하기
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
               <Link
                 href="/about"
-                className="inline-flex items-center text-[14px] text-white/60 font-light tracking-[0.02em] hover:text-white transition-colors"
+                className="inline-flex items-center text-[14px] md:text-[15px] text-white/60 font-light tracking-[0.02em] hover:text-white transition-colors"
               >
                 자세한 이야기 보기
               </Link>

@@ -43,10 +43,10 @@ export default function CompareToHumanPlanner() {
           {/* 헤더 라벨 — 데스크톱 */}
           <div className="hidden md:grid md:grid-cols-[240px_1fr_1fr] gap-10 py-7 border-b border-platinum/60">
             <span />
-            <span className="text-[11px] tracking-[0.22em] text-taupe-400 font-medium">
+            <span className="text-[12px] md:text-[13px] tracking-[0.22em] text-taupe-400 font-medium">
               사람 플래너
             </span>
-            <span className="text-[11px] tracking-[0.22em] text-rose-500 font-medium">
+            <span className="text-[12px] md:text-[13px] tracking-[0.22em] text-rose-500 font-medium">
               아모라
             </span>
           </div>
@@ -91,16 +91,16 @@ export default function CompareToHumanPlanner() {
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] tracking-[0.2em] text-taupe-400 mb-2 font-medium">
+                    <p className="text-[11px] tracking-[0.2em] text-taupe-400 mb-2 font-medium">
                       사람 플래너
                     </p>
-                    <p className="text-[14px] text-charcoal font-light">{row.human}</p>
+                    <p className="text-[14px] text-charcoal font-light leading-relaxed">{row.human}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] tracking-[0.2em] text-rose-500 mb-2 font-medium">
+                    <p className="text-[11px] tracking-[0.2em] text-rose-500 mb-2 font-medium">
                       아모라
                     </p>
-                    <p className="text-[14px] text-rose-500 font-medium">{row.amora}</p>
+                    <p className="text-[14px] text-rose-500 font-medium leading-relaxed">{row.amora}</p>
                   </div>
                 </div>
               </motion.div>

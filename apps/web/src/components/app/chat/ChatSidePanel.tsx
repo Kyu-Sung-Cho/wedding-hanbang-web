@@ -347,7 +347,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
             <div>
               <h3 className="text-[14px] font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[10px] text-taupe-400">웨딩 플래너</p>
+              <p className="text-[11px] text-taupe-400">웨딩 플래너</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -395,7 +395,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-[11px] text-red-600">대화를 모두 삭제할까요?</p>
+                <p className="text-[12px] text-red-600">대화를 모두 삭제할까요?</p>
                 <div className="flex gap-1.5">
                   <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[11px] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
                   <button onClick={handleClearChat} className="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
@@ -406,7 +406,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 에러 표시 */}
             {error && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-[11px] text-red-600">{error}</p>
+                <p className="text-[12px] text-red-600">{error}</p>
               </div>
             )}
 

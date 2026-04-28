@@ -131,11 +131,11 @@ export default async function CommunityFeed() {
                 >
                   {/* 카테고리 + 아모라 답변 뱃지 */}
                   <div className="flex items-center gap-3 mb-5">
-                    <span className="text-[10px] tracking-[0.22em] uppercase text-rose-500 font-medium">
+                    <span className="text-[11px] md:text-[12px] tracking-[0.22em] uppercase text-rose-500 font-medium">
                       {categoryLabel}
                     </span>
                     {hasAmoraComment && (
-                      <span className="inline-flex items-center gap-1 text-[10px] tracking-[0.18em] text-sage-500 font-medium">
+                      <span className="inline-flex items-center gap-1 text-[11px] md:text-[12px] tracking-[0.18em] text-sage-500 font-medium">
                         <Sparkles className="w-3 h-3" />
                         아모라 답변
                       </span>

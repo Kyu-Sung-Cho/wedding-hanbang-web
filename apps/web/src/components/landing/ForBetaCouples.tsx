@@ -54,7 +54,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="초대" tone="light" />
-          <h2 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em]">
+          <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
             6주간 함께해 주실
             <br />
             <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
@@ -73,14 +73,14 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           >
             {/* Benefits */}
             <div>
-              <p className="text-[11px] tracking-[0.22em] text-rose-light/80 mb-7 font-medium">
+              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-rose-light/80 mb-7 font-medium">
                 베타 참여 혜택
               </p>
               <ul className="space-y-6">
                 {BENEFITS.map((benefit, idx) => (
                   <li
                     key={benefit}
-                    className="flex items-baseline gap-6 text-[16px] md:text-[18px] text-white/90 font-light leading-[1.65]"
+                    className="flex items-baseline gap-6 text-[15px] md:text-[17px] text-white/90 font-light leading-[1.7]"
                   >
                     <span className="font-display text-rose-light/70 text-sm shrink-0 w-7">
                       0{idx + 1}
@@ -93,10 +93,10 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
 
             {/* Conditions */}
             <div className="pt-10 border-t border-white/10">
-              <p className="text-[11px] tracking-[0.22em] text-rose-light/80 mb-6 font-medium">
+              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-rose-light/80 mb-6 font-medium">
                 참여 조건
               </p>
-              <ul className="space-y-4 text-[14px] md:text-[15px] text-white/60 font-light leading-[1.85]">
+              <ul className="space-y-4 text-[14px] md:text-[15px] text-white/70 font-light leading-[1.8]">
                 {CONDITIONS.map((cond) => (
                   <li key={cond} className="flex items-baseline gap-5">
                     <span className="text-rose-light/40">·</span>
@@ -115,21 +115,21 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
             transition={{ duration: 0.8, delay: 0.2 }}
             className="lg:sticky lg:top-24"
           >
-            <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
-              <p className="text-[11px] tracking-[0.28em] text-rose-light font-medium mb-8">
+            <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
+              <p className="text-[12px] md:text-[13px] tracking-[0.28em] text-rose-light font-medium mb-8">
                 베타 50쌍 한정
               </p>
 
               {/* 진척 수치 — sans-serif + tabular-nums (Cormorant "1" Roman numeral 혼동 방지) */}
               <div className="flex items-baseline gap-3 mb-3">
-                <span className="font-sans tabular-nums text-white text-[60px] md:text-[72px] font-light leading-none tracking-[-0.02em]">
+                <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
                   {BETA_CURRENT}
                 </span>
-                <span className="text-white/40 text-xl font-light tabular-nums">
+                <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
                   / {BETA_TOTAL}
                 </span>
               </div>
-              <p className="text-[11px] tracking-[0.22em] text-white/50 mb-8 font-medium">
+              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-8 font-medium">
                 현재 신청 · 명
               </p>
 
@@ -145,7 +145,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
               {/* CTA */}
               <Link
                 href="/beta"
-                className="group inline-flex items-center gap-2 text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
+                className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
               >
                 베타 신청하기
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

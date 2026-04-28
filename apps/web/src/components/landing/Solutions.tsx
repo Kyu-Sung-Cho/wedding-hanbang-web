@@ -112,7 +112,7 @@ export default function Solutions() {
                   <div className="flex-1 h-2 bg-white/60 rounded overflow-hidden">
                     <div className={`h-full rounded ${item.color}`} style={{ width: item.width }} />
                   </div>
-                  <span className="text-[11px] text-taupe-500 w-9 font-medium">{item.pct}</span>
+                  <span className="text-[12px] text-taupe-500 w-9 font-medium">{item.pct}</span>
                 </div>
               ))}
             </div>
@@ -147,7 +147,7 @@ export default function Solutions() {
                 <div key={item.dday} className="flex items-start gap-4 py-3 relative">
                   <div className={`absolute -left-[21px] top-4 w-2.5 h-2.5 rounded-full border-2 border-rose-500 ${item.active ? "bg-rose-500 shadow-[0_0_0_4px_rgba(121,82,82,0.2)]" : "bg-white"}`} />
                   <div>
-                    <span className="text-[11px] text-rose-500 font-medium">{item.dday}</span>
+                    <span className="text-[12px] text-rose-500 font-medium">{item.dday}</span>
                     <h5 className="text-[14px] font-medium mb-[3px]">{item.title}</h5>
                     <p className="text-[12px] text-taupe-500">{item.desc}</p>
                   </div>

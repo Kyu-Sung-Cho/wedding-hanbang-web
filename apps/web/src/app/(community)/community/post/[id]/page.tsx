@@ -683,18 +683,18 @@ export default function PostDetailPage() {
                       <Wallet className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">총 비용</p>
+                      <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">총 비용</p>
                       <p className="text-base font-semibold text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</p>
                     </div>
                     {post.cost_data.region && (
                       <div className="ml-4">
-                        <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">지역</p>
+                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">지역</p>
                         <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.region}</p>
                       </div>
                     )}
                     {post.cost_data.guestCount && (
                       <div className="ml-4">
-                        <p className="text-[11px] text-[#B5ADA3] leading-none mb-0.5">하객</p>
+                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">하객</p>
                         <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.guestCount}명</p>
                       </div>
                     )}

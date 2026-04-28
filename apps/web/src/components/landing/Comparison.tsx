@@ -80,15 +80,15 @@ export default function Comparison() {
             transition={{ duration: 0.6, delay: i * 0.08 }}
             className="rounded-2xl border border-platinum overflow-hidden"
           >
-            <div className="bg-ivory-warm px-5 py-3 text-[13px] font-medium text-charcoal">
+            <div className="bg-ivory-warm px-5 py-3 text-[14px] md:text-[15px] font-medium text-charcoal">
               {row.label}
             </div>
-            <div className="px-5 py-3 text-[13px] text-taupe-500 font-light border-b border-black/[0.04]">
-              <span className="text-[11px] text-taupe-400 block mb-1">기존 방식</span>
+            <div className="px-5 py-3 text-[14px] md:text-[15px] text-taupe-500 font-light border-b border-black/[0.04] leading-relaxed">
+              <span className="text-[12px] text-taupe-400 block mb-1">기존 방식</span>
               {row.old}
             </div>
-            <div className="px-5 py-3 text-[13px] text-noir-800 font-normal bg-rose-500/[0.04]">
-              <span className="text-[11px] text-rose-500 block mb-1">웨딩한방</span>
+            <div className="px-5 py-3 text-[14px] md:text-[15px] text-noir-800 font-normal bg-rose-500/[0.04] leading-relaxed">
+              <span className="text-[12px] text-rose-500 block mb-1">웨딩한방</span>
               <span className="text-rose-500 font-semibold mr-1.5">✓</span>
               {row.new}
             </div>

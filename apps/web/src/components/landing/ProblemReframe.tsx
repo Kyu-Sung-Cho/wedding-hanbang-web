@@ -92,7 +92,7 @@ export default function ProblemReframe() {
               </p>
 
               {/* 출처 */}
-              <p className="text-[11px] tracking-[0.18em] text-taupe-400 font-medium">
+              <p className="text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium">
                 출처 &nbsp; {card.source}
               </p>
             </motion.article>
