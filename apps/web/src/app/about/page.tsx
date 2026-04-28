@@ -5,6 +5,10 @@ import NumbersAnchor from "@/components/landing/NumbersAnchor";
 import CompareToHumanPlanner from "@/components/landing/CompareToHumanPlanner";
 import ForBetaCouples from "@/components/landing/ForBetaCouples";
 import Footer from "@/components/landing/Footer";
+import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+
+// ISR: 60초마다 베타 카운트 새로고침
+export const revalidate = 60;
 
 export const metadata = {
   title: "이 브랜드의 이야기 — 웨딩한방",
@@ -12,7 +16,8 @@ export const metadata = {
     "결혼 준비가 진짜 힘든 이유, 아모라의 다섯 가지 역할, 정부 공식 데이터로 보는 시세, 사람 플래너와의 차이.",
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const current = await getBetaCount();
   return (
     <main className="min-h-screen bg-ivory-50">
       <CustomerNav />
@@ -35,7 +40,7 @@ export default function AboutPage() {
       <FiveRoles />
       <NumbersAnchor />
       <CompareToHumanPlanner />
-      <ForBetaCouples />
+      <ForBetaCouples current={current} total={BETA_TOTAL} />
       <Footer />
     </main>
   );

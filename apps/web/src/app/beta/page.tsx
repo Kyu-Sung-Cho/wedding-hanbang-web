@@ -1,29 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
 import { Check } from "lucide-react";
+import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
 
-// 서버 페치 — 실제 신청 수
+// 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
-
-const BETA_TOTAL = 50;
-
-async function getBetaCount(): Promise<number> {
-  try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return 0;
-    const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { count } = await admin
-      .from("preregistrations")
-      .select("id", { count: "exact", head: true })
-      .eq("is_beta_candidate", true);
-    return count ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 export const metadata = {
   title: "베타 신청 · 웨딩한방",

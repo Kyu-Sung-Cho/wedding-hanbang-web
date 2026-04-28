@@ -4,10 +4,15 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
-const BETA_TOTAL = 50;
-const BETA_CURRENT = 0;
+interface BetaCTAProps {
+  /** 실시간 신청자 수 (server fetch). 미전달 시 0. */
+  current?: number;
+  total?: number;
+}
 
-export default function BetaCTA() {
+export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
+  const BETA_CURRENT = current;
+  const BETA_TOTAL = total;
   const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
 
   return (

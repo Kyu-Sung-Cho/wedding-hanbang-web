@@ -18,10 +18,15 @@ const CONDITIONS = [
   "주 1회 짧은 피드백",
 ];
 
-const BETA_TOTAL = 50;
-const BETA_CURRENT = 0;
+interface ForBetaCouplesProps {
+  /** 실시간 신청자 수 (server fetch). 미전달 시 0. */
+  current?: number;
+  total?: number;
+}
 
-export default function ForBetaCouples() {
+export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCouplesProps) {
+  const BETA_CURRENT = current;
+  const BETA_TOTAL = total;
   const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
 
   return (
