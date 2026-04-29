@@ -11,13 +11,27 @@ export async function GET(request: Request) {
     const coupleId = searchParams.get("coupleId");
     if (!coupleId) return NextResponse.json({ error: "coupleId 필요" }, { status: 400 });
 
+    // 본인 couple만 조회 가능
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.couple_id !== coupleId) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
     const { data, error } = await supabase
       .from("ai_scripts")
       .select("*")
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[scripts GET] supabase:", error);
+      return NextResponse.json({ error: "스크립트를 불러올 수 없습니다." }, { status: 500 });
+    }
     return NextResponse.json({ scripts: data ?? [] });
   } catch (err) {
     console.error("[scripts GET]", err);

@@ -33,6 +33,27 @@ export async function PUT(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
+    // 소유권 검증: invitation → couple → bride_id/groom_id 중 하나여야 함
+    const { data: invitation } = await supabase
+      .from("invitations")
+      .select("couple_id")
+      .eq("id", id)
+      .single();
+
+    if (!invitation) {
+      return NextResponse.json({ error: "청첩장을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const { data: couple } = await supabase
+      .from("couples")
+      .select("bride_id, groom_id")
+      .eq("id", invitation.couple_id)
+      .single();
+
+    if (!couple || (couple.bride_id !== user.id && couple.groom_id !== user.id)) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
     const { accounts } = await request.json();
 
     await supabase.from("invitation_accounts").delete().eq("invitation_id", id);

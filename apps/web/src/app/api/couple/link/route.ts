@@ -1,5 +1,9 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+
+// 초대 코드 brute force 방어: 사용자당 10분 내 10회 시도 제한
+const COUPLE_LINK_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +15,13 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    // Rate limit
+    const limited = checkRateLimit(
+      rateLimitKey("couple_link", request, user.id),
+      COUPLE_LINK_RATE,
+    );
+    if (limited) return limited;
 
     const { inviteCode } = await request.json();
 
