@@ -106,8 +106,24 @@ export default function Footer() {
         {/* AI 고지 */}
         <AiNoticeFooter variant="dark" />
 
+        {/* 사업자 정보 + 통신판매중개자 고지 (전자상거래법 제20조) */}
+        <div className="pt-8 mt-8 border-t border-white/10 space-y-3">
+          <p className="text-ivory-50/70 text-xs leading-relaxed">
+            <span className="text-rose-light font-medium">사업자 정보</span> ·
+            상호 주식회사 웨딩한방 · 대표 조규성 · 사업자등록번호 사업 개시 후 등록 예정 ·
+            통신판매업 신고 사업 개시 후 신고 예정 ·
+            주소 사업장 등록 후 게시 ·
+            대표 이메일 <a href="mailto:ceo@hanbang.ai" className="underline hover:text-white">ceo@hanbang.ai</a> ·
+            대표 전화 <a href="tel:01050676279" className="underline hover:text-white">010-5067-6279</a>
+          </p>
+          <p className="text-ivory-50/50 text-xs leading-relaxed">
+            웨딩한방은 「전자상거래 등에서의 소비자보호에 관한 법률」 제20조에 따른 <strong className="text-ivory-50/70">통신판매중개자</strong>로서, 회원과 파트너 업체 간 거래의 당사자가 아닙니다.
+            개별 거래에 관한 책임은 해당 파트너 업체에 있으며, 분쟁 발생 시 회사는 합리적 조정을 위해 노력합니다.
+          </p>
+        </div>
+
         {/* 카피라이트 + 법령 준수 */}
-        <div className="pt-8 mt-8 border-t border-white/10 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+        <div className="pt-6 mt-6 border-t border-white/5 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
           <p className="text-ivory-50/60 text-xs">
             &copy; 2026 Hanbang Group. All rights reserved.
           </p>
