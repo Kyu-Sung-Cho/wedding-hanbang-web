@@ -70,6 +70,9 @@ export default function ChatPage() {
   const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const lastMsgCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const greetingRequested = useRef(false);
@@ -147,9 +150,27 @@ export default function ChatPage() {
     });
   }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
-  // 스크롤 자동 이동
+  // 스크롤 컨테이너에서 사용자가 바닥 근처에 있는지 추적
+  // (사용자가 위로 올려서 이전 대화 읽고 있으면 자동 스크롤 멈춤)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      isNearBottomRef.current = distanceFromBottom < 120;
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // 자동 스크롤: 새 메시지가 추가되면 항상, 스트리밍 토큰 갱신은 바닥 근처일 때만
+  useEffect(() => {
+    const isNewMessage = messages.length !== lastMsgCountRef.current;
+    lastMsgCountRef.current = messages.length;
+
+    if (isNewMessage || isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, isStreaming, streamingContent]);
 
   // 갈등 감지: 새 메시지가 추가될 때만 + 최근 5분 이내 메시지만 분석
@@ -759,7 +780,7 @@ export default function ChatPage() {
       )}
 
       {/* 채팅 영역 */}
-      <div className="flex-1 overflow-y-auto pb-4 space-y-4 px-4 py-4 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-4 py-4 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
