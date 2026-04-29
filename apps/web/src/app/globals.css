@@ -15,11 +15,13 @@
   --rose-glow: rgba(121, 82, 82, 0.15);
 
   /* Background - Atelier Warm Ivory */
-  --ivory-50: #fcf9f8;
+  --ivory-50: #fcf9f8;          /* Champagne Base (PRD) */
   --ivory-100: #fcf9f8;
   --ivory-200: #f6f3f2;
   --ivory-warm: #FAF7F2;
   --ivory-deep: #F5F0E8;
+  --surface-low: #F5F0EE;       /* Nesting (PRD: 사이드바·카드 배경) */
+  --stone-900: #1C1917;         /* PRD 기본 텍스트 */
 
   /* Taupe */
   --taupe-400: #B5ADA3;
@@ -54,6 +56,8 @@
   --color-ivory-200: #f6f3f2;
   --color-ivory-warm: #FAF7F2;
   --color-ivory-deep: #F5F0E8;
+  --color-surface-low: #F5F0EE;
+  --color-stone-900: #1C1917;
 
   --color-taupe-400: #B5ADA3;
   --color-taupe-500: #504444;
@@ -70,6 +74,20 @@
   --font-serif-kr: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
   --font-sans-kr: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
   --font-display: 'Cormorant Garamond', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-jakarta: 'Plus Jakarta Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+}
+
+/* PRD: Editorial headline utility — Noto Serif Italic 혼용 */
+.headline-italic {
+  font-family: 'Noto Serif KR', serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+/* PRD: 영문/숫자 본문 — Plus Jakarta Sans (한글은 Noto Sans KR fallback) */
+.font-jakarta {
+  font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
 }
 
 html {

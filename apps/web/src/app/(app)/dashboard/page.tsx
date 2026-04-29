@@ -336,11 +336,15 @@ export default function DashboardPage() {
             <p className="text-xs lg:text-sm tracking-[0.3em] uppercase text-white/75 font-medium mb-3 sm:mb-5">
               The Curated Atelier
             </p>
-            <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-white mb-3 sm:mb-4 leading-tight font-light break-words">
-              환영해요,<br />
-              {partnerName
-                ? <>{userName} & {partnerName}</>
-                : <>{userName ?? "예비 부부"}님</>}
+            <h1 className="text-white mb-3 sm:mb-4 leading-[1.05] break-words">
+              <span className="block headline-italic text-4xl sm:text-5xl lg:text-7xl">
+                Welcome,
+              </span>
+              <span className="block font-serif-kr font-light text-2xl sm:text-3xl lg:text-5xl mt-1 sm:mt-2">
+                {partnerName
+                  ? <>{userName} & {partnerName}</>
+                  : <>{userName ?? "예비 부부"}님</>}
+              </span>
             </h1>
             <p className="text-base sm:text-lg lg:text-xl text-white/90 font-light italic font-serif-kr">
               결혼 준비가 아름답게 시작됐어요.
@@ -358,12 +362,12 @@ export default function DashboardPage() {
           <Sparkles className="absolute bottom-8 left-8 w-6 h-6 text-[#C9A96E]/15" />
 
           <p className="text-xs text-[#795252] tracking-[0.25em] uppercase mb-4 font-medium">
-            결혼식 D-Day
+            The Big Day
           </p>
-          <p className="font-serif-kr text-6xl sm:text-7xl lg:text-[96px] leading-none text-[#1b1c1c] mb-2 font-light">
+          <p className="font-serif-kr text-6xl sm:text-7xl lg:text-[96px] leading-none text-[#795252] mb-2 font-light">
             {ddayDisplay}
           </p>
-          <p className="text-xl sm:text-2xl text-[#504444] font-serif-kr italic mb-4 sm:mb-6">
+          <p className="headline-italic text-xl sm:text-2xl text-[#504444] mb-4 sm:mb-6">
             {ddayLabel}
           </p>
           <p className="text-base text-[#504444]">

@@ -39,7 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="md:ml-[260px]">
+      <div className="md:ml-[280px]">
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
         <main className="p-8 max-md:p-5">{children}</main>
 

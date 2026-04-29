@@ -80,7 +80,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-screen w-[260px] bg-white flex flex-col z-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-transform duration-300 ${
+        className={`fixed top-0 left-0 h-screen w-[280px] bg-[#F5F0EE] flex flex-col z-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -109,8 +109,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   onClick={onClose}
                   className={`flex items-center gap-3 pl-5 pr-5 py-3.5 text-lg transition-all duration-200 ${
                     isActive
-                      ? "bg-[#F6F3F2] text-[#795252] font-bold rounded-r-full"
-                      : "text-[#504444] hover:text-[#795252] hover:bg-[#F6F3F2]/60 rounded-xl mr-3"
+                      ? "bg-[#795252]/10 text-[#795252] font-bold rounded-xl mr-3"
+                      : "text-[#504444] hover:text-[#795252] hover:bg-white/60 rounded-xl mr-3"
                   }`}
                 >
                   <item.icon className="w-6 h-6 flex-shrink-0" />
@@ -123,7 +123,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* 유저 섹션 */}
         <div className="px-3 pb-4">
-          <div className="px-5 py-4 rounded-xl bg-[#F6F3F2]">
+          <div className="px-5 py-4 rounded-xl bg-white shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white text-base font-medium">
                 {userInitial}
@@ -136,7 +136,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-3 px-5 py-3.5 mt-2 rounded-xl text-base text-[#795252] bg-white hover:bg-[#F6F3F2] shadow-[0_4px_14px_0_rgba(121,82,82,0.1)] transition-all w-full"
+            className="flex items-center gap-3 px-5 py-3.5 mt-2 rounded-xl text-base text-[#795252] bg-white hover:bg-[#795252]/5 shadow-sm transition-all w-full"
           >
             <LogOut className="w-5 h-5" />
             로그아웃
