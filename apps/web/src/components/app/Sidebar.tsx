@@ -31,6 +31,10 @@ const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
 // 등록 업체 0개여도 페이지에서 카테고리 칩 + 빈 상태 안내가 보이도록 메뉴 노출.
 const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 
+// 사이드바에서만 숨김 (페이지/라우트는 살아있음 — 직접 URL 접근 가능).
+// invitations·scripts는 운영 안정화 후 노출 예정.
+const SIDEBAR_HIDDEN: string[] = ["/invitations", "/scripts"];
+
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
   { href: "/chat", icon: MessageCircle, label: "아모라 상담" },
@@ -48,7 +52,8 @@ const menuItems = [
   { href: "/settings", icon: Settings, label: "설정" },
 ]
   .filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href))
-  .filter((item) => !BETA_HIDDEN_VENDOR_PATHS.includes(item.href));
+  .filter((item) => !BETA_HIDDEN_VENDOR_PATHS.includes(item.href))
+  .filter((item) => !SIDEBAR_HIDDEN.includes(item.href));
 
 interface SidebarProps {
   isOpen: boolean;
