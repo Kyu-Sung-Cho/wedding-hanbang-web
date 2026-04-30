@@ -27,9 +27,9 @@ const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
 const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
 
-// 베타 단계: 진짜 업체 데이터가 없으므로 업체 탐색·예약 메뉴 숨김.
-// 정식 출시(vendor onboarding 완료) 시 이 배열을 비우면 자동 노출.
-const BETA_HIDDEN_VENDOR_PATHS = ["/vendors", "/bookings"];
+// 베타 단계 업체 메뉴 숨김 — 런칭 D-30 진입으로 해제 (2026-04-30).
+// 등록 업체 0개여도 페이지에서 카테고리 칩 + 빈 상태 안내가 보이도록 메뉴 노출.
+const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },

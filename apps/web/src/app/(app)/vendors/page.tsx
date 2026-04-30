@@ -434,8 +434,26 @@ export default function VendorsPage() {
         {/* 빈 상태 */}
         {!loading && vendors.length === 0 && (
           <div className="bg-white rounded-2xl p-16 shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center mb-8 animate-fade-in">
-            <p className="font-serif-kr text-2xl text-[#1b1c1c] mb-2 font-light">검색 결과가 없습니다</p>
-            <p className="text-base text-[#504444]">다른 키워드나 카테고리를 시도해보세요</p>
+            {searchQuery.trim() || activeCategory !== "전체" ? (
+              <>
+                <p className="font-serif-kr text-2xl text-[#1b1c1c] mb-2 font-light">검색 결과가 없습니다</p>
+                <p className="text-base text-[#504444]">다른 키워드나 카테고리를 시도해보세요</p>
+              </>
+            ) : (
+              <>
+                <p className="font-serif-kr text-2xl text-[#1b1c1c] mb-2 font-light">곧 만날 수 있어요</p>
+                <p className="text-base text-[#504444] mb-4">
+                  믿을 수 있는 업체만 엄선해서 모시는 중이에요. 등록 직후 알려드릴게요.
+                </p>
+                <Link
+                  href="/chat"
+                  className="inline-flex items-center gap-2 text-base text-[#795252] font-medium hover:gap-3 transition-all"
+                >
+                  아모라에게 미리 추천 요청하기
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
         )}
 
