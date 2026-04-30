@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  /* Primary - Noir (Atelier) */
-  --noir-800: #1b1c1c;
+  /* Primary - Noir (Atelier, PRD: Stone 900 #1C1917) */
+  --noir-800: #1C1917;
   --noir-900: #0D0D0F;
   --noir-soft: #2D2D33;
   --charcoal: #4A4A52;
@@ -41,7 +41,7 @@
 
 @theme inline {
   /* Colors */
-  --color-noir-800: #1b1c1c;
+  --color-noir-800: #1C1917;
   --color-noir-900: #0D0D0F;
   --color-noir-soft: #2D2D33;
   --color-charcoal: #4A4A52;
