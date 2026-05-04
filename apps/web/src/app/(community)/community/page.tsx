@@ -249,6 +249,11 @@ function CommunityFeedContent() {
             <CohortCard />
           </div>
 
+          {/* 내 도구 위젯 (아모라/예산/일정 + 잠금 게이트) */}
+          <div className="px-2">
+            <MyToolsWidget />
+          </div>
+
           <CategoryTabs />
 
           <div className="mt-8 mb-8 px-4">
@@ -400,7 +405,6 @@ function CommunityFeedContent() {
 
         {/* Right Sidebar — 레퍼런스: border-l, w-80 */}
         <aside className="hidden xl:block w-96 2xl:w-[420px] shrink-0 p-10 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8]">
-          <MyToolsWidget />
           <div className="mb-10">
             <TrendingPosts />
           </div>
