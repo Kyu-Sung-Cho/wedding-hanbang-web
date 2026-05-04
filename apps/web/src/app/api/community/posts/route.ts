@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
@@ -505,6 +506,10 @@ export async function POST(req: NextRequest) {
         console.error("AI comment generation failed:", aiErr);
       }
     }
+
+    // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록
+    revalidatePath("/");
+    revalidatePath("/community");
 
     return NextResponse.json({ post: finalPost }, { status: 201 });
   } catch (err) {

@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import type { UpdatePostInput } from "@/types/community.types";
 
@@ -228,6 +229,10 @@ export async function PATCH(
       );
     }
 
+    // 제목/본문/카테고리 변경 시 랜딩에서도 즉시 반영
+    revalidatePath("/");
+    revalidatePath("/community");
+
     return NextResponse.json({ post: updatedPost });
   } catch (err) {
     console.error("Update post error:", err);
@@ -305,6 +310,10 @@ export async function DELETE(
       p_user_id: user.id,
       p_field: "post_count",
     });
+
+    // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 삭제 즉시 반영
+    revalidatePath("/");
+    revalidatePath("/community");
 
     return NextResponse.json({ success: true });
   } catch (err) {
