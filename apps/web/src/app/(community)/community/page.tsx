@@ -17,6 +17,7 @@ import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
+import MyToolsWidget from "@/components/community/MyToolsWidget";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -399,6 +400,7 @@ function CommunityFeedContent() {
 
         {/* Right Sidebar — 레퍼런스: border-l, w-80 */}
         <aside className="hidden xl:block w-96 2xl:w-[420px] shrink-0 p-10 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8]">
+          <MyToolsWidget />
           <div className="mb-10">
             <TrendingPosts />
           </div>
