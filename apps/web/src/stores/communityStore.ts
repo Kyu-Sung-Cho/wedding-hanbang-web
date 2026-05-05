@@ -149,27 +149,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      // 진단용 로깅 — 이슈 해결 후 제거
-      let data: unknown = null;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        console.error("[createPost] JSON parse failed:", parseErr);
-      }
-      console.log("[createPost] status=", res.status, "ok=", res.ok, "data=", data);
-
-      if (!res.ok) {
-        console.error("[createPost] non-OK response:", data);
-        return null;
-      }
-      const d = data as { post?: { id?: string }; id?: string } | null;
-      const postId = d?.post?.id ?? d?.id ?? null;
-      if (!postId) {
-        console.error("[createPost] post id missing in response:", data);
-      }
-      return postId;
-    } catch (err) {
-      console.error("[createPost] fetch threw:", err);
+      if (!res.ok) return null;
+      const data = (await res.json()) as { post?: { id?: string }; id?: string };
+      // API 응답 형식: { post: { id, ... } }
+      return data.post?.id ?? data.id ?? null;
+    } catch {
       return null;
     }
   },
