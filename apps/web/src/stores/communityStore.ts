@@ -151,7 +151,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       });
       if (!res.ok) return null;
       const data = await res.json();
-      return data.id ?? null;
+      // API 응답 형식: { post: { id, ... } } — data.id는 항상 undefined였음
+      return data.post?.id ?? data.id ?? null;
     } catch {
       return null;
     }
