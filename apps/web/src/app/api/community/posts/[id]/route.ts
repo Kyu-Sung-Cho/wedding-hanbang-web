@@ -229,9 +229,13 @@ export async function PATCH(
       );
     }
 
-    // 제목/본문/카테고리 변경 시 랜딩에서도 즉시 반영
-    revalidatePath("/");
-    revalidatePath("/community");
+    // 제목/본문/카테고리 변경 시 랜딩에서도 즉시 반영 — 실패해도 응답은 성공
+    try {
+      revalidatePath("/");
+      revalidatePath("/community");
+    } catch (e) {
+      console.error("[posts.PATCH] revalidatePath failed (non-fatal):", e);
+    }
 
     return NextResponse.json({ post: updatedPost });
   } catch (err) {
@@ -311,9 +315,13 @@ export async function DELETE(
       p_field: "post_count",
     });
 
-    // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 삭제 즉시 반영
-    revalidatePath("/");
-    revalidatePath("/community");
+    // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 실패해도 응답은 성공
+    try {
+      revalidatePath("/");
+      revalidatePath("/community");
+    } catch (e) {
+      console.error("[posts.DELETE] revalidatePath failed (non-fatal):", e);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

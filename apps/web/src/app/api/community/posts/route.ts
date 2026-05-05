@@ -420,24 +420,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // post_count 증가
-    await serviceClient.rpc("community_increment_profile_count", {
-      p_user_id: user.id,
-      p_field: "post_count",
-    }).then(({ error: rpcError }) => {
-      // RPC 없으면 직접 업데이트
-      if (rpcError) {
-        return serviceClient
-          .from("community_profiles")
-          .update({
-            post_count: (existingProfile as Record<string, number>)
-              ?.post_count
-              ? (existingProfile as Record<string, number>).post_count + 1
-              : 1,
-          })
-          .eq("user_id", user.id);
-      }
-    });
+    // post_count 증가 — 실패해도 INSERT 응답에 영향 없도록 격리
+    try {
+      await serviceClient
+        .rpc("community_increment_profile_count", {
+          p_user_id: user.id,
+          p_field: "post_count",
+        })
+        .then(({ error: rpcError }) => {
+          if (rpcError) {
+            return serviceClient
+              .from("community_profiles")
+              .update({
+                post_count: (existingProfile as Record<string, number>)
+                  ?.post_count
+                  ? (existingProfile as Record<string, number>).post_count + 1
+                  : 1,
+              })
+              .eq("user_id", user.id);
+          }
+        });
+    } catch (e) {
+      console.error("[posts.POST] post_count increment failed (non-fatal):", e);
+    }
 
     // 게이미피케이션: XP 지급 및 업적 확인 (비차단)
     try {
@@ -450,12 +455,12 @@ export async function POST(req: NextRequest) {
         })
         .then(() => {}, () => {});
 
-      // 업적 확인
+      // 업적 확인 — maybeSingle: 프로필 row 없을 때 throw 방지
       const { data: profileData } = await serviceClient
         .from("community_profiles")
         .select("post_count")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profileData) {
         const count = profileData.post_count;
@@ -507,9 +512,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록
-    revalidatePath("/");
-    revalidatePath("/community");
+    // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
+    try {
+      revalidatePath("/");
+      revalidatePath("/community");
+    } catch (e) {
+      console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
+    }
 
     return NextResponse.json({ post: finalPost }, { status: 201 });
   } catch (err) {
