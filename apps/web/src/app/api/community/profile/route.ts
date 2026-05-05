@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
+// post_count 정확도 위해 캐시 차단 — 매 요청마다 actualPostCount 재계산
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -45,7 +45,7 @@ const TOOLS: ToolCard[] = [
  */
 export default function MyToolsWidget() {
   const router = useRouter();
-  const { postCount, unlocked, isDemo, loading } = usePostCount();
+  const { postCount, unlocked, isDemo, loading, refetch } = usePostCount();
   const [modalTool, setModalTool] = useState<ToolCard | null>(null);
 
   const remaining = postCount !== null
@@ -56,6 +56,8 @@ export default function MyToolsWidget() {
     : 0;
 
   const handleClick = (tool: ToolCard) => {
+    // 클릭 시 항상 fresh count 재조회 — 글 작성/삭제 직후 정확한 상태 반영
+    refetch();
     if (unlocked || isDemo) {
       router.push(tool.href);
     } else {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuthStore } from "@/stores/authStore";
 
 export const REQUIRED_POSTS_FOR_TOOLS = 5;
@@ -14,6 +14,8 @@ interface UsePostCountResult {
   isDemo: boolean;
   /** 로딩 중 여부 */
   loading: boolean;
+  /** 강제 재조회 — 모달 열기 등 시점에 호출 */
+  refetch: () => void;
 }
 
 /**
@@ -29,52 +31,55 @@ export function usePostCount(): UsePostCountResult {
   const [postCount, setPostCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const fetchCount = useCallback(async () => {
     if (isDemo) {
-      // 데모는 fetch 안 함, 잠금 우회
       setPostCount(null);
       return;
     }
-
     if (!profile?.id) {
       setPostCount(null);
       return;
     }
 
-    let cancelled = false;
     setLoading(true);
-
-    fetch("/api/community/profile")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        // actualPostCount 우선 (community_posts 직접 COUNT) →
-        // 캐시 컬럼(post_count)이 어긋나도 historical 글 정확히 반영.
-        const actual = data?.actualPostCount;
-        const cached = data?.profile?.post_count;
-        const count =
-          typeof actual === "number"
-            ? actual
-            : typeof cached === "number"
-              ? cached
-              : 0;
-        setPostCount(count);
-      })
-      .catch(() => {
-        if (!cancelled) setPostCount(0);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    try {
+      // cache: no-store — 글 작성 직후 즉시 반영되도록 stale 응답 차단
+      const res = await fetch("/api/community/profile", { cache: "no-store" });
+      const data = res.ok ? await res.json() : null;
+      // actualPostCount 우선 (community_posts 직접 COUNT) →
+      // 캐시 컬럼(post_count)이 어긋나도 historical 글 정확히 반영.
+      const actual = data?.actualPostCount;
+      const cached = data?.profile?.post_count;
+      const count =
+        typeof actual === "number"
+          ? actual
+          : typeof cached === "number"
+            ? cached
+            : 0;
+      setPostCount(count);
+    } catch {
+      setPostCount(0);
+    } finally {
+      setLoading(false);
+    }
   }, [profile?.id, isDemo]);
+
+  useEffect(() => {
+    fetchCount();
+  }, [fetchCount]);
+
+  // 탭 포커스 돌아올 때 자동 refetch — 다른 탭/창에서 글 작성 후 복귀 시 반영
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchCount();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [fetchCount]);
 
   const unlocked = isDemo
     ? true
     : postCount !== null && postCount >= REQUIRED_POSTS_FOR_TOOLS;
 
-  return { postCount, unlocked, isDemo, loading };
+  return { postCount, unlocked, isDemo, loading, refetch: fetchCount };
 }
