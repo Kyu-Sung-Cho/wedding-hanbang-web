@@ -40,7 +40,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 프로필이 없으면 자동 생성
+    // 실제 작성 글 수 — RPC 카운터(post_count)가 어긋났을 수 있으니
+    // community_posts에서 author_id 기준 직접 COUNT (단일 진실 소스)
+    const { count: actualPostCount } = await supabase
+      .from("community_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("author_id", user.id);
+
+    // 프로필이 없으면 자동 생성 — 단 historical 글이 있을 수 있으므로
+    // post_count 초기값을 actualPostCount로 동기화
     if (!profile) {
       const { data: userProfile } = await supabase
         .from("profiles")
@@ -55,7 +63,7 @@ export async function GET(req: NextRequest) {
           user_id: user.id,
           nickname: userProfile?.name ?? "익명",
           badge: "member",
-          post_count: 0,
+          post_count: actualPostCount ?? 0,
           comment_count: 0,
           total_upvotes_received: 0,
         })
@@ -70,10 +78,16 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      return NextResponse.json({ profile: newProfile });
+      return NextResponse.json({
+        profile: newProfile,
+        actualPostCount: actualPostCount ?? 0,
+      });
     }
 
-    return NextResponse.json({ profile });
+    return NextResponse.json({
+      profile,
+      actualPostCount: actualPostCount ?? 0,
+    });
   } catch (err) {
     console.error("Get community profile error:", err);
     return NextResponse.json(

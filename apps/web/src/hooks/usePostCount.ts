@@ -48,8 +48,17 @@ export function usePostCount(): UsePostCountResult {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
-        const count = data?.profile?.post_count;
-        setPostCount(typeof count === "number" ? count : 0);
+        // actualPostCount 우선 (community_posts 직접 COUNT) →
+        // 캐시 컬럼(post_count)이 어긋나도 historical 글 정확히 반영.
+        const actual = data?.actualPostCount;
+        const cached = data?.profile?.post_count;
+        const count =
+          typeof actual === "number"
+            ? actual
+            : typeof cached === "number"
+              ? cached
+              : 0;
+        setPostCount(count);
       })
       .catch(() => {
         if (!cancelled) setPostCount(0);
