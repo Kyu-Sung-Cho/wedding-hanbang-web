@@ -400,9 +400,9 @@ export default function PostDetailPage() {
             </div>
 
             {/* 콘텐츠 영역 */}
-            <div className="flex-1 min-w-0 p-5">
+            <div className="flex-1 min-w-0 p-4 sm:p-5">
               {/* 작성자 행: 그래디언트 아바타 + 닉네임 + 랭크 배지 + 시간 + 카테고리 */}
-              <div className="flex items-center gap-2.5 mb-4">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-4">
                 {/* 그래디언트 아바타 */}
                 <Link
                   href={`/community?author_id=${post.author_id}`}
@@ -419,14 +419,14 @@ export default function PostDetailPage() {
                 {/* 닉네임 */}
                 <Link
                   href={`/community?author_id=${post.author_id}`}
-                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200"
+                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200 whitespace-nowrap"
                 >
                   {author.nickname}
                 </Link>
 
                 {/* 랭크 배지 (pill) */}
                 {rankConfig && (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${rankConfig.bg} ${rankConfig.text}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${rankConfig.bg} ${rankConfig.text}`}>
                     Lv.{rankConfig.level} {rankConfig.label}
                   </span>
                 )}
@@ -434,24 +434,24 @@ export default function PostDetailPage() {
                 {/* 결혼 동기 */}
                 {author.wedding_year && author.wedding_month && (
                   <>
-                    <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
-                    <span className="text-[13px] text-[#878680]">
+                    <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
+                    <span className="text-[13px] text-[#878680] whitespace-nowrap">
                       {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
                     </span>
                   </>
                 )}
 
                 {/* 시간 */}
-                <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
-                <span className="text-[13px] text-[#B5ADA3]">{timeAgo(post.created_at)}</span>
+                <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
+                <span className="text-[13px] text-[#B5ADA3] whitespace-nowrap">{timeAgo(post.created_at)}</span>
 
                 {/* 카테고리 */}
                 {categoryInfo && (
                   <>
-                    <span className="text-[#B5ADA3] text-[13px]">&middot;</span>
+                    <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
                       href={`/community/${post.category}`}
-                      className="text-[13px] font-medium text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200"
+                      className="text-[13px] font-medium text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
                     </Link>
@@ -750,15 +750,15 @@ export default function PostDetailPage() {
                   </div>
                 )}
 
-              {/* 액션바 */}
-              <div className="mt-5 pt-4 border-t border-[#F0EFED] flex items-center gap-5 text-[15px] text-[#B5ADA3]">
+              {/* 액션바 — 모바일: wrap 허용 / 데스크탑: 한 줄 */}
+              <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[#B5ADA3]">
                 {/* 모바일 투표 - 녹색/빨간색 (PostCard 패턴) */}
-                <div className="md:hidden flex items-center gap-1">
+                <div className="md:hidden flex items-center gap-0.5 mr-1">
                   <button
                     type="button"
                     onClick={() => handleVote(1)}
                     disabled={isVoting}
-                    className={`p-1 rounded transition-colors duration-200 ${
+                    className={`p-1.5 rounded transition-colors duration-200 ${
                       displayVote === 1
                         ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
                         : "hover:text-[#2E7D5A]"
@@ -768,7 +768,7 @@ export default function PostDetailPage() {
                     <ChevronUp className="w-5 h-5" strokeWidth={displayVote === 1 ? 2.5 : 2} />
                   </button>
                   <span
-                    className={`text-[15px] font-medium min-w-[1.5rem] text-center ${
+                    className={`text-[14px] font-medium min-w-[1.25rem] text-center ${
                       displayVote === 1
                         ? "text-[#2E7D5A]"
                         : displayVote === -1
@@ -782,7 +782,7 @@ export default function PostDetailPage() {
                     type="button"
                     onClick={() => handleVote(-1)}
                     disabled={isVoting}
-                    className={`p-1 rounded transition-colors duration-200 ${
+                    className={`p-1.5 rounded transition-colors duration-200 ${
                       displayVote === -1
                         ? "text-[#D85A5A] bg-[#D85A5A]/10"
                         : "hover:text-[#D85A5A]"
@@ -794,12 +794,12 @@ export default function PostDetailPage() {
                 </div>
 
                 {/* 댓글 수 */}
-                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] cursor-default transition-all duration-200">
+                <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg cursor-default whitespace-nowrap">
                   {post.comment_count ?? 0} 댓글
                 </span>
 
                 {/* 조회수 */}
-                <span className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 whitespace-nowrap">
                   <Eye className="w-4 h-4" />
                   <span>{post.view_count}</span>
                 </span>
@@ -808,7 +808,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
                 >
                   <Share2 className="w-4 h-4" />
                   공유
@@ -825,7 +825,7 @@ export default function PostDetailPage() {
                     }
                     toggleBookmark(post.id);
                   }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 ${
+                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
                     post.user_bookmarked ? "text-[#C4967E]" : ""
                   }`}
                 >
@@ -842,7 +842,7 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={handleReportClick}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
                 >
                   <Flag className="w-4 h-4" />
                   신고
@@ -853,7 +853,7 @@ export default function PostDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto"
+                    className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto whitespace-nowrap"
                   >
                     삭제
                   </button>
