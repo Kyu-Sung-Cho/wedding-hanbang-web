@@ -180,13 +180,13 @@ export default function ChatBubble({
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
     return (
-      <div className="group/ai flex items-start gap-3 max-w-[85%]">
-        {/* AI 아바타 */}
-        <div className="flex-shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
-          <Sparkles className="w-5 h-5 text-white" />
+      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[85%]">
+        {/* AI 아바타 — 모바일에선 작게 */}
+        <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
+          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <span className="text-base font-medium text-[#928980] flex items-center gap-1.5">
             아모라
             {aiIsPrivate && (
@@ -196,10 +196,10 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          <div className={`bg-white rounded-2xl rounded-tl-md px-5 py-4 border shadow-sm ${
+          <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <p className="text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+            <p className="text-[15px] sm:text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
               {cleanText}
             </p>
             {partNumbers.length > 0 && (
@@ -277,7 +277,7 @@ export default function ChatBubble({
     // 내 메시지: 오른쪽 정렬
     return (
       <div className="flex justify-end">
-        <div className="flex flex-col items-end gap-1.5 max-w-[75%]">
+        <div className="flex flex-col items-end gap-1.5 max-w-[88%] sm:max-w-[75%]">
           {/* 상대방에게 보낸 메시지 표시 */}
           {isPartnerMsg && (
             <div className="flex items-center gap-1.5 mr-1">
@@ -335,10 +335,10 @@ export default function ChatBubble({
 
   // 상대방 메시지: 왼쪽 정렬
   return (
-    <div className="flex items-start gap-3 max-w-[85%]">
-      {/* 아바타 */}
+    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[85%]">
+      {/* 아바타 — 모바일 작게 */}
       <div
-        className={`flex-shrink-0 w-11 h-11 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}
+        className={`flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}
       >
         {isPartnerMsg ? (
           <Heart className="w-5 h-5 text-white" />

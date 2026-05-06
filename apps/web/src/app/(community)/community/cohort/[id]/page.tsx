@@ -513,12 +513,12 @@ function ChatTab({
       </div>
 
       {/* 입력 */}
-      <div className="mt-5 rounded-xl bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mt-5 rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="mb-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             type="button"
             onClick={() => setThread("")}
-            className={`px-4 py-2.5 rounded-full text-base font-medium transition-colors ${
+            className={`whitespace-nowrap flex-shrink-0 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full text-sm sm:text-base font-medium transition-colors ${
               thread === ""
                 ? "bg-[#795252] text-white"
                 : "bg-[#f6f3f2] text-[#504444] hover:bg-[#e4e2e1]"
@@ -531,7 +531,7 @@ function ChatTab({
               key={t.key}
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
-              className={`px-4 py-2.5 rounded-full text-base font-medium transition-colors ${
+              className={`whitespace-nowrap flex-shrink-0 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full text-sm sm:text-base font-medium transition-colors ${
                 thread === t.key
                   ? "bg-[#795252] text-white"
                   : "bg-[#f6f3f2] text-[#504444] hover:bg-[#e4e2e1]"
@@ -541,8 +541,8 @@ function ChatTab({
             </button>
           ))}
         </div>
-        <div className="flex gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
-          <div className="relative flex-1 min-w-0 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-0 w-full">
             {mentionOpen && filteredMembers.length > 0 && (
               <div className="absolute bottom-full mb-2 left-0 w-64 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e4e2e1] z-20">
                 {filteredMembers.slice(0, 5).map((m) => (
@@ -571,7 +571,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={2}
-              className="w-full resize-none rounded-xl bg-[#f6f3f2] px-4 py-3.5 text-[17px] text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+              className="w-full resize-none rounded-xl bg-[#f6f3f2] px-4 py-3 sm:py-3.5 text-[16px] sm:text-[17px] text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
             />
           </div>
           <input
@@ -581,32 +581,36 @@ function ChatTab({
             className="hidden"
             onChange={handleImageUpload}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] transition-colors disabled:opacity-50"
-            title="이미지 첨부"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-2 justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] px-4 text-[#504444] text-sm font-medium transition-colors whitespace-nowrap"
-            title="커뮤니티 글 공유"
-          >
-            <Link2 className="h-5 w-5" />
-            <span className="hidden sm:inline">글 공유</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={sending || !input.trim()}
-            className="flex items-center justify-center rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-5 text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-50"
-          >
-            <Send className="h-5 w-5" />
-          </button>
+          {/* 액션 버튼들: 모바일에선 한 줄에, 데스크탑에선 textarea 옆에 */}
+          <div className="flex gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex-1 sm:flex-none flex items-center justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] py-3 sm:py-0 px-4 text-[#504444] transition-colors disabled:opacity-50"
+              title="이미지 첨부"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex-1 sm:flex-none flex items-center gap-2 justify-center rounded-xl bg-[#f6f3f2] hover:bg-[#e4e2e1] py-3 sm:py-0 px-4 text-[#504444] text-sm font-medium transition-colors whitespace-nowrap"
+              title="커뮤니티 글 공유"
+            >
+              <Link2 className="h-5 w-5" />
+              <span className="sm:inline">글 공유</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={sending || !input.trim()}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] py-3 sm:py-0 px-5 text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-50"
+            >
+              <Send className="h-5 w-5" />
+              <span className="sm:hidden text-sm font-medium">전송</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -632,7 +636,7 @@ function FilterPill({
     <button
       type="button"
       onClick={onClick}
-      className={`whitespace-nowrap rounded-full px-5 py-2.5 text-base font-medium transition-colors ${
+      className={`whitespace-nowrap flex-shrink-0 rounded-full px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium transition-colors ${
         active
           ? "bg-[#795252] text-white"
           : "bg-white text-[#504444] hover:bg-[#f6f3f2] hover:text-[#1b1c1c]"
