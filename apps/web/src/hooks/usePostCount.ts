@@ -52,13 +52,6 @@ export function usePostCount(): UsePostCountResult {
         }
       );
       const data = res.ok ? await res.json() : null;
-      // 진단 로깅 — 이슈 해결 후 제거
-      console.log("[usePostCount]", {
-        status: res.status,
-        ok: res.ok,
-        actualPostCount: data?.actualPostCount,
-        profilePostCount: data?.profile?.post_count,
-      });
       // actualPostCount 우선 (community_posts 직접 COUNT) →
       // 캐시 컬럼(post_count)이 어긋나도 historical 글 정확히 반영.
       const actual = data?.actualPostCount;
@@ -70,8 +63,7 @@ export function usePostCount(): UsePostCountResult {
             ? cached
             : 0;
       setPostCount(count);
-    } catch (err) {
-      console.error("[usePostCount] fetch threw:", err);
+    } catch {
       setPostCount(0);
     } finally {
       setLoading(false);
