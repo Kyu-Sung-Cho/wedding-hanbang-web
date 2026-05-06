@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Wallet, CalendarCheck, Lock, ArrowRight, Sparkles, X, MessageSquarePlus } from "lucide-react";
@@ -219,10 +220,26 @@ interface LockModalProps {
 
 function LockModal({ tool, postCount, remaining, progressPct, onClose }: LockModalProps) {
   const Icon = tool.icon;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  // Portal 마운트 가드 — SSR/하이드레이션 안전
+  useEffect(() => {
+    setMounted(true);
+    // 모달 열린 동안 body 스크롤 잠금
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  // CommunityNav header의 backdrop-blur가 fixed positioning을 가두므로
+  // document.body에 Portal로 렌더 → viewport 기준 정중앙 표시
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -297,6 +314,7 @@ function LockModal({ tool, postCount, remaining, progressPct, onClose }: LockMod
           ※ 베타 단계 정책. 정식 출시 시 잠금이 해제될 수 있습니다.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
