@@ -57,7 +57,7 @@ const LIMIT = 20;
 export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
   currentCategory: null,
-  currentSort: "hot",
+  currentSort: "new",
   currentPeriod: "week",
   currentPage: 1,
   hasMore: true,
@@ -309,7 +309,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   reset: () => {
     set({
-      posts: [], currentCategory: null, currentSort: "hot", currentPeriod: "week",
+      posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentPage: 1, hasMore: true, isLoading: true, total: 0,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
     });
