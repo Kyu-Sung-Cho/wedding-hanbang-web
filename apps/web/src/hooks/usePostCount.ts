@@ -43,9 +43,22 @@ export function usePostCount(): UsePostCountResult {
 
     setLoading(true);
     try {
-      // cache: no-store — 글 작성 직후 즉시 반영되도록 stale 응답 차단
-      const res = await fetch("/api/community/profile", { cache: "no-store" });
+      // 캐시 무력화 — URL timestamp + header + cache 옵션 3중 차단
+      const res = await fetch(
+        `/api/community/profile?_t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+        }
+      );
       const data = res.ok ? await res.json() : null;
+      // 진단 로깅 — 이슈 해결 후 제거
+      console.log("[usePostCount]", {
+        status: res.status,
+        ok: res.ok,
+        actualPostCount: data?.actualPostCount,
+        profilePostCount: data?.profile?.post_count,
+      });
       // actualPostCount 우선 (community_posts 직접 COUNT) →
       // 캐시 컬럼(post_count)이 어긋나도 historical 글 정확히 반영.
       const actual = data?.actualPostCount;
@@ -57,7 +70,8 @@ export function usePostCount(): UsePostCountResult {
             ? cached
             : 0;
       setPostCount(count);
-    } catch {
+    } catch (err) {
+      console.error("[usePostCount] fetch threw:", err);
       setPostCount(0);
     } finally {
       setLoading(false);
