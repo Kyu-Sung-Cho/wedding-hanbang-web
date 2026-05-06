@@ -780,7 +780,7 @@ export default function ChatPage() {
       )}
 
       {/* 채팅 영역 */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-4 py-4 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-3 sm:px-4 py-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
@@ -901,10 +901,10 @@ export default function ChatPage() {
       )}
 
       {/* 입력창 */}
-      <div className="px-2 pt-3 pb-2">
+      <div className="px-0 sm:px-2 pt-3 pb-2">
         {/* 첨부 미리보기 */}
         {attachments.length > 0 && (
-          <div className="flex gap-2 mb-2 px-2 flex-wrap">
+          <div className="flex gap-2 mb-2 px-1 sm:px-2 flex-wrap">
             {attachments.map((att, i) => (
               <div key={i} className="relative group">
                 {att.previewUrl.startsWith("blob:") ? (
@@ -934,33 +934,33 @@ export default function ChatPage() {
 
         {/* 대상 토글 — 함께 탭에서만 (아모라/상대방). 나만 탭은 자동 아모라 1:1 */}
         {activeTab === "shared" && (
-          <div className="flex items-center gap-2 mb-2.5 px-1 flex-wrap">
+          <div className="flex items-center gap-2 mb-2.5 px-0.5 sm:px-1 flex-wrap">
             <button
               onClick={() => setMessageTarget("ai")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               아모라에게
             </button>
             <button
               onClick={() => setMessageTarget("partner")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
               }`}
             >
-              <Heart className="w-4 h-4" />
+              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               상대방에게
             </button>
           </div>
         )}
 
-        <div className={`bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-2 p-2.5 transition-all ${
+        <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-all ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
             : isPrivate
@@ -979,10 +979,10 @@ export default function ChatPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word, Excel)"
           >
-            <Paperclip className="w-6 h-6" />
+            <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
           <input
@@ -998,18 +998,18 @@ export default function ChatPage() {
             onPaste={handlePaste}
             placeholder={
               messageTarget === "partner"
-                ? "상대방에게 메시지를 보내세요..."
+                ? "상대방에게 메시지…"
                 : isPrivate
-                  ? "비공개 — 아모라에게만 털어놓으세요..."
-                  : "예산, 일정, 준비 현황 등 무엇이든 물어보세요..."
+                  ? "아모라에게 솔직히…"
+                  : "무엇이든 물어보세요…"
             }
             disabled={isStreaming}
-            className="flex-1 px-2 py-3 text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[16px] sm:text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : isPrivate
@@ -1018,10 +1018,10 @@ export default function ChatPage() {
             }`}
           >
             {messageTarget === "partner"
-              ? <Heart className="w-[22px] h-[22px]" />
+              ? <Heart className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
               : isPrivate
-                ? <Lock className="w-[22px] h-[22px]" />
-                : <Send className="w-[22px] h-[22px]" />
+                ? <Lock className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
+                : <Send className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
             }
           </button>
         </div>
