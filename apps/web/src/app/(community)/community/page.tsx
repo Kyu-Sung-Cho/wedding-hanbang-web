@@ -279,8 +279,8 @@ function CommunityFeedContent() {
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-10 xl:py-12 overflow-y-auto">
-          <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto space-y-8 sm:space-y-12">
+        <main className="flex-1 min-w-0 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 xl:py-12 overflow-y-auto">
+          <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto space-y-6 sm:space-y-8 md:space-y-12">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">

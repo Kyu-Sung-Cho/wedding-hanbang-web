@@ -66,8 +66,8 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
   }
 
   return (
-    <article className="bg-white rounded-2xl p-5 sm:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-8 xl:gap-10`}>
+    <article className="bg-white rounded-2xl p-5 sm:p-6 md:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-6 md:gap-8 xl:gap-10`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
