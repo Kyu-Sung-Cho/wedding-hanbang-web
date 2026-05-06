@@ -586,7 +586,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
 
     try {
-      const recentMessages = get().messages.slice(-20).map((m) => {
+      // 프라이버시 critical: visibility별로 컨텍스트 격리
+      // - shared 응답 → shared 메시지만 (AI가 private 내용 노출 금지)
+      // - private 응답 → 본인 private + shared (AI는 둘 다 참조 가능)
+      const allMessages = get().messages;
+      const scopedMessages =
+        finalVisibility === "shared"
+          ? allMessages.filter((m) => m.visibility === "shared")
+          : allMessages.filter(
+              (m) => m.visibility === "shared" || m.visibility === finalVisibility
+            );
+      const recentMessages = scopedMessages.slice(-20).map((m) => {
         if (m.sender_role === "ai") {
           return { role: "assistant" as const, content: m.content };
         }
@@ -754,8 +764,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
     try {
-      // 최근 메시지를 포함해서 AI가 맥락을 이해할 수 있도록
-      const recentMessages = get().messages.slice(-20).map((m) => {
+      // mediation은 항상 shared 컨텍스트 — private 메시지 절대 포함 금지
+      const sharedMessages = get().messages.filter((m) => m.visibility === "shared");
+      const recentMessages = sharedMessages.slice(-20).map((m) => {
         if (m.sender_role === "ai") {
           return { role: "assistant" as const, content: m.content };
         }

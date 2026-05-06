@@ -446,13 +446,18 @@ export async function POST(request: Request) {
     guestCount: rawPreferences.guestCount ?? null,
   } : null;
 
-  // 대화 요약
-  const summariesData = (summariesResult.data ?? []) as Array<{
-    summary: string;
-    created_at: string;
-    message_count: number | null;
-    to_message_id: string | null;
-  }>;
+  // 대화 요약 — 프라이버시 가드: chat_summaries 테이블에 visibility 컬럼이 없으므로
+  // shared/private 혼합 가능성. private 응답에는 summary 사용 안 함 (절대 누설 금지).
+  // shared 응답엔 일단 사용 (대부분 shared 대화 위주로 요약된 것으로 가정).
+  // TODO: chat_summaries에 visibility 컬럼 추가 후 정확히 분리.
+  const summariesData = visibility === "shared"
+    ? ((summariesResult.data ?? []) as Array<{
+        summary: string;
+        created_at: string;
+        message_count: number | null;
+        to_message_id: string | null;
+      }>)
+    : [];
   const chatSummaries = summariesData.map((s) => s.summary);
 
   // Memory Step A: 마지막 요약 watermark (trigger용)
