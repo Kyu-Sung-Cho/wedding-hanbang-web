@@ -45,22 +45,42 @@ const TOOLS: ToolCard[] = [
  */
 export default function MyToolsWidget() {
   const router = useRouter();
-  const { postCount, unlocked, isDemo, loading, refetch } = usePostCount();
+  const { postCount, unlocked, isDemo, loading } = usePostCount();
   const [modalTool, setModalTool] = useState<ToolCard | null>(null);
+  // 모달에 보여줄 정확한 시점의 카운트 (handleClick에서 fresh fetch 결과)
+  const [modalCount, setModalCount] = useState<number | null>(null);
 
-  const remaining = postCount !== null
-    ? Math.max(0, REQUIRED_POSTS_FOR_TOOLS - postCount)
-    : REQUIRED_POSTS_FOR_TOOLS;
-  const progressPct = postCount !== null
-    ? Math.min(100, Math.round((postCount / REQUIRED_POSTS_FOR_TOOLS) * 100))
-    : 0;
+  const displayCount = modalCount ?? postCount ?? 0;
+  const remaining = Math.max(0, REQUIRED_POSTS_FOR_TOOLS - displayCount);
+  const progressPct = Math.min(100, Math.round((displayCount / REQUIRED_POSTS_FOR_TOOLS) * 100));
 
-  const handleClick = (tool: ToolCard) => {
-    // 클릭 시 항상 fresh count 재조회 — 글 작성/삭제 직후 정확한 상태 반영
-    refetch();
-    if (unlocked || isDemo) {
+  const handleClick = async (tool: ToolCard) => {
+    if (isDemo) {
+      router.push(tool.href);
+      return;
+    }
+    // 직접 fetch — refetch 비동기 race 회피, 진짜 최신 카운트로 분기
+    let freshCount = postCount ?? 0;
+    try {
+      const res = await fetch(`/api/community/profile?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const actual = data?.actualPostCount;
+        const cached = data?.profile?.post_count;
+        if (typeof actual === "number") freshCount = actual;
+        else if (typeof cached === "number") freshCount = cached;
+      }
+    } catch {
+      /* 네트워크 실패 시 마지막 알려진 값 사용 */
+    }
+
+    if (freshCount >= REQUIRED_POSTS_FOR_TOOLS) {
       router.push(tool.href);
     } else {
+      setModalCount(freshCount);
       setModalTool(tool);
     }
   };
@@ -117,14 +137,17 @@ export default function MyToolsWidget() {
         </div>
       </div>
 
-      {/* 잠금 모달 — 카드 클릭 시 표시 */}
+      {/* 잠금 모달 — 카드 클릭 시 표시. handleClick에서 fresh fetch한 modalCount 사용 */}
       {modalTool && (
         <LockModal
           tool={modalTool}
-          postCount={postCount ?? 0}
+          postCount={displayCount}
           remaining={remaining}
           progressPct={progressPct}
-          onClose={() => setModalTool(null)}
+          onClose={() => {
+            setModalTool(null);
+            setModalCount(null);
+          }}
         />
       )}
     </>
