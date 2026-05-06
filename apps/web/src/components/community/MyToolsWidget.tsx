@@ -34,8 +34,13 @@ const TOOLS: ToolCard[] = [
   },
 ];
 
+interface MyToolsWidgetProps {
+  /** sidebar: 세로 카드 + 헤더 / nav: 가로 텍스트 링크 (TopNav 글쓰기 옆) */
+  variant?: "sidebar" | "nav";
+}
+
 /**
- * 커뮤니티 좌측 사이드바 "내 도구" 위젯.
+ * "내 도구" 위젯 — 변형 2종.
  *
  * 동작:
  * - 잠금 풀린 카드 클릭 → 해당 도구 페이지로 이동
@@ -43,7 +48,7 @@ const TOOLS: ToolCard[] = [
  * - 5개 작성 후 삭제로 다시 5개 미만이 되면 잠금 자동 복귀 → 다시 모달
  * - 데모 모드: 항상 잠금 해제
  */
-export default function MyToolsWidget() {
+export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProps = {}) {
   const router = useRouter();
   const { postCount, unlocked, isDemo, loading } = usePostCount();
   const [modalTool, setModalTool] = useState<ToolCard | null>(null);
@@ -103,6 +108,55 @@ export default function MyToolsWidget() {
     }
   };
 
+  // ── nav variant: TopNav 글쓰기 옆 가로 인라인 ──
+  if (variant === "nav") {
+    return (
+      <>
+        <div className="hidden md:flex items-center gap-1.5">
+          {TOOLS.map((tool) => {
+            const Icon = tool.icon;
+            const enabled = unlocked || isDemo;
+            return (
+              <button
+                key={tool.href}
+                type="button"
+                onClick={() => handleClick(tool)}
+                disabled={loading}
+                title={tool.label}
+                className={`group flex items-center gap-1.5 px-3 py-2 rounded-full text-sm transition-all ${
+                  enabled
+                    ? "text-[#1C1917] hover:bg-[#F5F0EE]"
+                    : "text-[#504444] hover:bg-[#F5F0EE]/70"
+                } ${loading ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
+              >
+                {enabled ? (
+                  <Icon className="w-4 h-4 text-[#795252]" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5 text-[#B5ADA3]" />
+                )}
+                <span className="hidden lg:inline">{tool.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {modalTool && (
+          <LockModal
+            tool={modalTool}
+            postCount={displayCount}
+            remaining={remaining}
+            progressPct={progressPct}
+            onClose={() => {
+              setModalTool(null);
+              setModalCount(null);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── sidebar variant (기본): 세로 카드 ──
   return (
     <>
       <div className="mb-10">

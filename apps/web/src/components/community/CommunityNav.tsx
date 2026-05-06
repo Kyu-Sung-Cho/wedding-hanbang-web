@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Search, PenSquare, Menu, X, User } from "lucide-react";
+import MyToolsWidget from "@/components/community/MyToolsWidget";
 
 export default function CommunityNav() {
   const router = useRouter();
@@ -96,8 +97,11 @@ export default function CommunityNav() {
             </div>
           </form>
 
-          {/* 오른쪽: 글쓰기, 유저/로그인 */}
+          {/* 오른쪽: 내 도구 + 글쓰기 + 유저/로그인 */}
           <div className="flex items-center gap-3 shrink-0">
+            {/* 내 도구 — 아모라/예산/일정 (잠금 게이트 포함) */}
+            {user && <MyToolsWidget variant="nav" />}
+
             <Link
               href="/community/post/write"
               className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"

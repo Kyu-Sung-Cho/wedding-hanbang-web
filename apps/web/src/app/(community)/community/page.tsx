@@ -17,7 +17,6 @@ import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
-import MyToolsWidget from "@/components/community/MyToolsWidget";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -247,11 +246,6 @@ function CommunityFeedContent() {
           {/* 동기방 카드 */}
           <div className="px-2 mb-6">
             <CohortCard />
-          </div>
-
-          {/* 내 도구 위젯 (아모라/예산/일정 + 잠금 게이트) */}
-          <div className="px-2">
-            <MyToolsWidget />
           </div>
 
           <CategoryTabs />
