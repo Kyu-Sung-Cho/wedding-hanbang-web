@@ -123,8 +123,34 @@ export async function GET(req: NextRequest) {
       query = query.eq("visibility", "public");
     }
 
-    // 정렬
-    if (sort === "new") {
+    // 정렬 + my_cohort 필터
+    if (sort === "my_cohort") {
+      // 비로그인은 빈 결과
+      if (!user) {
+        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      // 1. 본인이 속한 cohort room ids
+      const { data: myRooms } = await supabase
+        .from("cohort_members")
+        .select("room_id")
+        .eq("user_id", user.id);
+      const roomIds = (myRooms ?? []).map((r) => r.room_id as string);
+      if (roomIds.length === 0) {
+        // 동기방 미가입 → 빈 결과 (UI에서 가입 유도)
+        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      // 2. 같은 cohort room의 모든 멤버 user_ids
+      const { data: cohortMembers } = await supabase
+        .from("cohort_members")
+        .select("user_id")
+        .in("room_id", roomIds);
+      const memberIds = [...new Set((cohortMembers ?? []).map((m) => m.user_id as string))];
+      if (memberIds.length === 0) {
+        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      // 3. 동기들이 작성한 글만 + 최신순
+      query = query.in("author_id", memberIds).order("created_at", { ascending: false });
+    } else if (sort === "new") {
       query = query.order("created_at", { ascending: false });
     } else if (sort === "top") {
       // 기간 필터
