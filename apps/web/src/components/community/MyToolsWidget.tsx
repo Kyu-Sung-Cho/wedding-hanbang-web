@@ -61,21 +61,39 @@ export default function MyToolsWidget() {
     }
     // 직접 fetch — refetch 비동기 race 회피, 진짜 최신 카운트로 분기
     let freshCount = postCount ?? 0;
+    const debug: Record<string, unknown> = { initialPostCount: postCount };
     try {
       const res = await fetch(`/api/community/profile?_t=${Date.now()}`, {
         cache: "no-store",
+        credentials: "include",
         headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
       });
+      debug.status = res.status;
+      debug.ok = res.ok;
       if (res.ok) {
         const data = await res.json();
         const actual = data?.actualPostCount;
         const cached = data?.profile?.post_count;
+        debug.actualPostCount = actual;
+        debug.profilePostCount = cached;
+        debug.dataKeys = Object.keys(data ?? {});
         if (typeof actual === "number") freshCount = actual;
         else if (typeof cached === "number") freshCount = cached;
+      } else {
+        try {
+          debug.body = await res.text();
+        } catch {
+          debug.body = "(read failed)";
+        }
       }
-    } catch {
-      /* 네트워크 실패 시 마지막 알려진 값 사용 */
+    } catch (err) {
+      debug.error = err instanceof Error ? err.message : String(err);
     }
+    console.log("[MyToolsWidget.handleClick]", {
+      ...debug,
+      freshCount,
+      willOpenModal: freshCount < REQUIRED_POSTS_FOR_TOOLS,
+    });
 
     if (freshCount >= REQUIRED_POSTS_FOR_TOOLS) {
       router.push(tool.href);
