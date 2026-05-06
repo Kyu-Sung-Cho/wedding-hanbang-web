@@ -160,6 +160,66 @@ function parseEtiquetteTags(text: string): { cleanText: string; partNumbers: num
   return { cleanText, partNumbers };
 }
 
+// 인라인 마크다운: **bold**
+function renderInlineMd(text: string, prefix: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={`${prefix}-${i}`} className="font-semibold text-[#1A1A1F]">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={`${prefix}-${i}`}>{part}</span>;
+  });
+}
+
+// AI 메시지 라이트 마크다운 렌더 (### 헤더, **bold**, - 불릿)
+function renderAiMarkdown(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    // 헤더 (###, ##, #)
+    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      blocks.push(
+        <div
+          key={idx}
+          className="font-serif-kr font-semibold text-[16px] sm:text-[18px] text-[#1A1A1F] mt-3 first:mt-0 mb-1"
+        >
+          {renderInlineMd(headingMatch[2], `h-${idx}`)}
+        </div>
+      );
+      return;
+    }
+    // 불릿 (-, *)
+    const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      blocks.push(
+        <div key={idx} className="flex gap-2 my-0.5">
+          <span className="text-[#C4967E] flex-shrink-0">•</span>
+          <span className="flex-1">{renderInlineMd(bulletMatch[1], `b-${idx}`)}</span>
+        </div>
+      );
+      return;
+    }
+    // 빈 줄 → 간격
+    if (trimmed === "") {
+      blocks.push(<div key={idx} className="h-2" />);
+      return;
+    }
+    // 일반 라인
+    blocks.push(
+      <div key={idx} className="leading-relaxed">
+        {renderInlineMd(line, `p-${idx}`)}
+      </div>
+    );
+  });
+  return blocks;
+}
+
 // 사용자 메시지에서 선택 태그 제거 [vendor:...], [product:...], [staff:...], [date:...], [time:...]
 function stripSelectionTags(text: string): string {
   return text.replace(/\[(?:vendor|product|staff|date|time):[^\]]*\]/g, "").trim();
@@ -199,9 +259,9 @@ export default function ChatBubble({
           <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <p className="text-[15px] sm:text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
-              {cleanText}
-            </p>
+            <div className="text-[15px] sm:text-[17px] text-[#1A1A1F] leading-relaxed break-words">
+              {renderAiMarkdown(cleanText)}
+            </div>
             {partNumbers.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
                 {partNumbers.map((num) => {
