@@ -97,8 +97,8 @@ export default function CommunityNav() {
             </div>
           </form>
 
-          {/* 오른쪽: 내 도구 + 글쓰기 + 유저/로그인 */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* 오른쪽: 내 도구 + 글쓰기 + 유저/로그인 (모바일에선 검색바 hidden으로 spacer 없어 ml-auto로 강제 우측 정렬) */}
+          <div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
             {/* 내 도구 — 아모라/예산/일정 (잠금 게이트 포함) */}
             {user && <MyToolsWidget variant="nav" />}
 
