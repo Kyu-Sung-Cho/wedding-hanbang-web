@@ -71,12 +71,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ triggered: false });
     }
 
-    // 최근 메시지 확인 (중복 알림 방지)
+    // 최근 메시지 확인 (중복 알림 방지) — shared 채널 cooldown만 의미 있음
     const { data: recentMessages } = await admin
       .from("chat_messages")
       .select("id, created_at, sender_type")
       .eq("couple_id", profile.couple_id)
       .eq("sender_type", "ai")
+      .eq("visibility", "shared")
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -136,7 +137,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ triggered: false });
     }
 
-    // 프로액티브 메시지 저장
+    // 프로액티브 메시지 저장 — shared 채널로만 발송 (양쪽 모두 봄)
     const { data: inserted } = await admin
       .from("chat_messages")
       .insert({
@@ -145,6 +146,7 @@ export async function GET(req: NextRequest) {
         sender_type: "ai",
         role: "assistant",
         content: proactiveMessage,
+        visibility: "shared",
         metadata: {
           suggestions: ["예산 설정하기", "일정 확인하기", "준비 현황 보기"],
         },

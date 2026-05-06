@@ -123,6 +123,12 @@ export interface MaybeSummarizeInput {
   lastCoveredCount: number;
   /** 마지막 요약의 to_message_id — 새 요약의 from_message_id로 사용 */
   lastToMessageId?: string | null;
+  /**
+   * 이번 turn의 visibility — chat_summaries.visibility로 저장.
+   * shared turn: 공유 대화 요약 (양쪽 회상)
+   * private turn: 본인만 회상 (mixed shared+private 컨텍스트라도 본인 시점)
+   */
+  visibility?: "shared" | "bride_private" | "groom_private";
 }
 
 /**
@@ -167,6 +173,7 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
       from_message_id: fromMsgId,
       to_message_id: toMsgId,
       importance: 1,
+      visibility: input.visibility ?? "shared",      // 프라이버시 격리 (2026-05-04 추가)
     });
 
     if (error) {

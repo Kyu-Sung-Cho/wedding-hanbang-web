@@ -372,12 +372,20 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
-    // 4. 대화 요약 (최근 3개) — message_count + to_message_id도 함께 (Memory Step A trigger용)
-    supabase.from("chat_summaries")
-      .select("summary, created_at, message_count, to_message_id")
-      .eq("couple_id", coupleId)
-      .order("created_at", { ascending: false })
-      .limit(3),
+    // 4. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
+    //    shared turn → shared summary만 / private turn → shared + 본인 visibility
+    (() => {
+      const q = supabase.from("chat_summaries")
+        .select("summary, created_at, message_count, to_message_id")
+        .eq("couple_id", coupleId)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      return (
+        bodyVisibility === "shared" || !bodyVisibility
+          ? q.eq("visibility", "shared")
+          : q.in("visibility", ["shared", bodyVisibility])
+      );
+    })(),
     // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)
     //    "6개월 전 결정도 기억" 마케팅 약속 실현 — 활성 사용자도 충분히 소화.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
@@ -756,6 +764,7 @@ export async function POST(request: Request) {
               messages: messagesWithLatest,
               lastCoveredCount,
               lastToMessageId,
+              visibility,
             });
 
             // Memory Step B: 이번 턴 decision/preference 추출 (fire-and-forget)
@@ -904,6 +913,7 @@ export async function POST(request: Request) {
           messages: messagesWithLatest,
           lastCoveredCount,
           lastToMessageId,
+          visibility,
         });
         void maybeExtractDecision({
           coupleId,
