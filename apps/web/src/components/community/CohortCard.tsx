@@ -70,11 +70,14 @@ export default function CohortCard({
         <div className="mb-4 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-[#C4967E]" />
           <h3 className="font-serif text-lg text-[#1A1A1F]">
-            결혼 예정일이 언제인가요?
+            대략 언제쯤 결혼하시나요?
           </h3>
         </div>
-        <p className="mb-5 text-sm leading-relaxed text-[#878680]">
+        <p className="mb-2 text-sm leading-relaxed text-[#878680]">
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
+        </p>
+        <p className="mb-5 text-[12px] leading-relaxed text-[#C4967E]">
+          ✨ 정확한 날짜 몰라도 OK — 대략적인 분기로 가입할 수 있어요. 나중에 변경 가능합니다.
         </p>
 
         <div className="mb-4 grid grid-cols-2 gap-2">
