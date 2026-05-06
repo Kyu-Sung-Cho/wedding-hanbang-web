@@ -66,8 +66,8 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
   }
 
   return (
-    <article className="bg-white rounded-2xl p-5 sm:p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-8`}>
+    <article className="bg-white rounded-2xl p-5 sm:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-8 xl:gap-10`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -90,7 +90,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-xl sm:text-2xl lg:text-[28px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-xl sm:text-2xl lg:text-[26px] xl:text-[30px] 2xl:text-[34px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -106,7 +106,7 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#504444] text-sm sm:text-[17px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
+              <p className="text-[#504444] text-sm sm:text-[16px] xl:text-[17px] 2xl:text-[18px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 */}
@@ -172,13 +172,13 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
         {hasImage && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full sm:w-48 h-40 sm:h-48 rounded-xl overflow-hidden shrink-0"
+            className="w-full sm:w-44 sm:h-44 lg:w-48 lg:h-48 xl:w-56 xl:h-56 2xl:w-64 2xl:h-64 h-40 rounded-xl overflow-hidden shrink-0"
           >
             <Image
               src={images[0]}
               alt=""
-              width={192}
-              height={192}
+              width={256}
+              height={256}
               className="w-full h-full object-cover"
             />
           </Link>

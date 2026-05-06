@@ -233,7 +233,7 @@ function CommunityFeedContent() {
 
       <div className="flex-1 flex w-full">
         {/* SideNavBar — 더 넓게, 꽉 채우기 */}
-        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40 overflow-y-auto">
+        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 2xl:w-[420px] sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <div className="mb-10 px-4">
             <h2 className="font-serif-kr text-3xl italic text-[#795252] mb-2">
               커뮤니티
@@ -279,8 +279,8 @@ function CommunityFeedContent() {
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-12 py-6 sm:py-10 overflow-y-auto">
-          <div className="max-w-4xl mx-auto space-y-8 sm:space-y-12">
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-10 xl:py-12 overflow-y-auto">
+          <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto space-y-8 sm:space-y-12">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">

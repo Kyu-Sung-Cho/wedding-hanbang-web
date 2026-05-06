@@ -484,7 +484,7 @@ export default function PostDetailPage() {
               </div>
 
               {/* 제목 */}
-              <h1 className="text-xl sm:text-2xl font-medium text-[#1A1A1F] leading-snug mb-3">
+              <h1 className="text-xl sm:text-2xl xl:text-3xl 2xl:text-4xl font-medium text-[#1A1A1F] leading-snug mb-3">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-4 h-4" />
