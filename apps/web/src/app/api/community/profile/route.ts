@@ -44,9 +44,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 실제 작성 글 수 — RPC 카운터(post_count)가 어긋났을 수 있으니
-    // community_posts에서 author_id 기준 직접 COUNT (단일 진실 소스)
-    const { count: actualPostCount } = await supabase
+    // 실제 작성 글 수 — service client로 COUNT (RLS 우회)
+    // user 클라이언트로 count하면 visibility/RLS 정책에 따라 0 반환 가능.
+    // author_id = user.id 필터로 본인 글만 카운트 → 보안 OK.
+    const serviceClientForCount = getServiceClient();
+    const { count: actualPostCount } = await serviceClientForCount
       .from("community_posts")
       .select("id", { count: "exact", head: true })
       .eq("author_id", user.id);
