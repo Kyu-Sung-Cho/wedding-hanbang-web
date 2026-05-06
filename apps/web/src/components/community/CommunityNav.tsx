@@ -167,6 +167,13 @@ export default function CommunityNav() {
               )}
             </form>
 
+            {/* 내 도구 — 아모라/예산/일정 (모바일 메뉴에서도 노출) */}
+            {user && (
+              <div onClick={() => setMobileMenuOpen(false)}>
+                <MyToolsWidget variant="sidebar" />
+              </div>
+            )}
+
             <Link
               href="/community/post/write"
               onClick={() => setMobileMenuOpen(false)}
