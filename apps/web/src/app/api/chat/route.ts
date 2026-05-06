@@ -386,9 +386,9 @@ export async function POST(request: Request) {
       .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(50),
-    // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개)
+    // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개) — visibility 격리용으로 컬럼도 select
     supabase.from("decision_nodes")
-      .select("title, chosen_value, reasoning, stage_tag, created_at")
+      .select("title, chosen_value, reasoning, stage_tag, visibility, created_at")
       .eq("couple_id", coupleId)
       .eq("category", "conflict_resolution")
       .order("created_at", { ascending: false })
@@ -465,8 +465,10 @@ export async function POST(request: Request) {
   const lastCoveredCount = lastSummary?.message_count ?? 0;
   const lastToMessageId = lastSummary?.to_message_id ?? null;
 
-  // Memory Step C: 의사결정 히스토리 정리
-  const decisionsData = (decisionsResult.data ?? []) as Array<{
+  // Memory Step C: 의사결정 히스토리 정리 — 프라이버시 가드
+  // RLS는 partner private을 막지만 본인 private은 응답에 포함됨.
+  // shared 응답엔 shared decision만, private 응답엔 shared + 같은 visibility만.
+  const rawDecisions = (decisionsResult.data ?? []) as Array<{
     category: string;
     decision_type: string;
     title: string;
@@ -475,8 +477,13 @@ export async function POST(request: Request) {
     confidence: number | null;
     stage_tag: string | null;
     source: string;
+    visibility: "shared" | "bride_private" | "groom_private";
     created_at: string;
   }>;
+  const decisionsData =
+    visibility === "shared"
+      ? rawDecisions.filter((d) => d.visibility === "shared")
+      : rawDecisions.filter((d) => d.visibility === "shared" || d.visibility === visibility);
   const pastDecisions = decisionsData.map((d) => ({
     category: d.category,
     decisionType: d.decision_type,
@@ -488,14 +495,19 @@ export async function POST(request: Request) {
     createdAt: d.created_at,
   }));
 
-  // Mediation 강화: 갈등→합의 히스토리 정리
-  const conflictsData = (conflictsResult.data ?? []) as Array<{
+  // Mediation 강화: 갈등→합의 히스토리 정리 — 같은 visibility 격리 적용
+  const rawConflicts = (conflictsResult.data ?? []) as Array<{
     title: string;
     chosen_value: { value?: string } | null;
     reasoning: string | null;
     stage_tag: string | null;
+    visibility: "shared" | "bride_private" | "groom_private";
     created_at: string;
   }>;
+  const conflictsData =
+    visibility === "shared"
+      ? rawConflicts.filter((c) => c.visibility === "shared")
+      : rawConflicts.filter((c) => c.visibility === "shared" || c.visibility === visibility);
   const pastConflicts = conflictsData.map((c) => ({
     title: c.title,
     resolution: c.chosen_value?.value ?? null,
