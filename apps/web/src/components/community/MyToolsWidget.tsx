@@ -6,9 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Wallet, CalendarCheck, Lock, ArrowRight, Sparkles, X, MessageSquarePlus } from "lucide-react";
 import { usePostCount, REQUIRED_POSTS_FOR_TOOLS } from "@/hooks/usePostCount";
+import { useToolPanelStore, type ToolPanelKey } from "@/stores/toolPanelStore";
 
 interface ToolCard {
   href: string;
+  /** 라우트 이동 대신 인플레이스 패널로 열 때 사용. 없으면 href로 navigate. */
+  panel?: Exclude<ToolPanelKey, null>;
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -17,6 +20,7 @@ interface ToolCard {
 const TOOLS: ToolCard[] = [
   {
     href: "/chat",
+    panel: "chat",
     label: "아모라 상담",
     description: "AI 웨딩 플래너와 24시간 대화",
     icon: MessageCircle,
@@ -51,6 +55,7 @@ interface MyToolsWidgetProps {
  */
 export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProps = {}) {
   const router = useRouter();
+  const openTool = useToolPanelStore((s) => s.openTool);
   const { postCount, unlocked, isDemo, loading } = usePostCount();
   const [modalTool, setModalTool] = useState<ToolCard | null>(null);
   // 모달에 보여줄 정확한 시점의 카운트 (handleClick에서 fresh fetch 결과)
@@ -60,9 +65,15 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
   const remaining = Math.max(0, REQUIRED_POSTS_FOR_TOOLS - displayCount);
   const progressPct = Math.min(100, Math.round((displayCount / REQUIRED_POSTS_FOR_TOOLS) * 100));
 
+  // 도구 활성화 — panel이 있으면 인플레이스 오버레이, 없으면 라우트 이동
+  function activateTool(tool: ToolCard) {
+    if (tool.panel) openTool(tool.panel);
+    else router.push(tool.href);
+  }
+
   const handleClick = async (tool: ToolCard) => {
     if (isDemo) {
-      router.push(tool.href);
+      activateTool(tool);
       return;
     }
     // 직접 fetch — refetch 비동기 race 회피, 진짜 최신 카운트로 분기
@@ -85,7 +96,7 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
     }
 
     if (freshCount >= REQUIRED_POSTS_FOR_TOOLS) {
-      router.push(tool.href);
+      activateTool(tool);
     } else {
       setModalCount(freshCount);
       setModalTool(tool);
