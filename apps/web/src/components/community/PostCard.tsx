@@ -9,17 +9,18 @@ import {
   Bookmark,
   Pin,
   BarChart3,
+  Heart,
+  Check,
 } from "lucide-react";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
+import { useCommunityStore } from "@/stores/communityStore";
+import { useAuthStore } from "@/stores/authStore";
 
 interface PostCardProps {
   post: PostWithAuthor;
-  isLoggedIn?: boolean;
-  onVote?: (postId: string, vote: 1 | -1) => void;
-  onBookmark?: (postId: string) => void;
 }
 
 // 카테고리별 배지 색상 (sage/rose/tertiary 변주)
@@ -39,9 +40,24 @@ function formatPrice(value: number): string {
   return value.toLocaleString("ko-KR");
 }
 
-export default function PostCard({ post, onBookmark }: PostCardProps) {
+export default function PostCard({ post }: PostCardProps) {
   const categoryInfo = CATEGORY_MAP[post.category];
+  const { votePost, toggleBookmark } = useCommunityStore();
+  const { profile } = useAuthStore();
+  const isLoggedIn = !!profile;
+
+  // 낙관적 UI — 좋아요/북마크/공유
+  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticUpvoteDelta, setOptimisticUpvoteDelta] = useState(0);
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
+  const [voting, setVoting] = useState(false);
+  const [bookmarking, setBookmarking] = useState(false);
+  const [shareToast, setShareToast] = useState(false);
+  const [loginPrompt, setLoginPrompt] = useState(false);
+
+  const displayVote = optimisticVote === undefined ? (post.user_vote ?? null) : optimisticVote;
+  const displayUpvoteCount = (post.upvote_count ?? 0) + optimisticUpvoteDelta;
+  const isLiked = displayVote === 1;
 
   const contentPreview = post.content
     .replace(/<[^>]*>/g, "")
@@ -59,15 +75,100 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
   // 카테고리 배지 스타일
   const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
 
-  function handleBookmark(e: React.MouseEvent) {
+  function showLoginToast() {
+    setLoginPrompt(true);
+    setTimeout(() => setLoginPrompt(false), 2000);
+  }
+
+  async function handleLike(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    if (!isLoggedIn) return showLoginToast();
+    if (voting) return;
+
+    const prev = displayVote;
+    let next: 1 | -1 | null;
+    let delta = 0;
+    if (prev === 1) {
+      next = null;
+      delta = -1;
+    } else if (prev === -1) {
+      next = 1;
+      delta = 2;
+    } else {
+      next = 1;
+      delta = 1;
+    }
+    setOptimisticVote(next);
+    setOptimisticUpvoteDelta((d) => d + delta);
+    setVoting(true);
+    try {
+      await votePost(post.id, next === null ? 0 : next);
+    } catch {
+      // 실패 시 롤백
+      setOptimisticVote(prev);
+      setOptimisticUpvoteDelta((d) => d - delta);
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  async function handleBookmark(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isLoggedIn) return showLoginToast();
+    if (bookmarking) return;
     setBookmarked((prev) => !prev);
-    onBookmark?.(post.id);
+    setBookmarking(true);
+    try {
+      await toggleBookmark(post.id);
+    } finally {
+      setBookmarking(false);
+    }
+  }
+
+  async function handleShare(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}/community/post/${post.id}`;
+    const title = post.title;
+
+    // 모바일 — 네이티브 시트
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch {
+        // 사용자가 취소한 경우 — silent
+        return;
+      }
+    }
+    // 데스크탑 — 클립보드
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2000);
+    } catch {
+      /* ignore */
+    }
   }
 
   return (
-    <article className="bg-white rounded-2xl p-5 sm:p-6 md:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+    <article className="relative bg-white rounded-2xl p-5 sm:p-6 md:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+      {/* 인라인 토스트 */}
+      {(shareToast || loginPrompt) && (
+        <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
+          {shareToast ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              링크 복사됨
+            </>
+          ) : (
+            "로그인이 필요해요"
+          )}
+        </div>
+      )}
       <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-6 md:gap-8 xl:gap-10`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
@@ -166,11 +267,33 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
               <span className="text-sm sm:text-[17px] text-[#504444] truncate">{author.nickname}</span>
             </div>
 
-            <div className="flex items-center gap-3 sm:space-x-5 text-[#504444] flex-shrink-0">
+            <div className="flex items-center gap-3 sm:gap-4 text-[#504444] flex-shrink-0">
+              {/* 좋아요 */}
+              <button
+                type="button"
+                onClick={handleLike}
+                disabled={voting}
+                className={`flex items-center gap-1 group transition-colors disabled:opacity-60 ${
+                  isLiked ? "text-[#D85A5A]" : "hover:text-[#D85A5A]"
+                }`}
+                aria-label="좋아요"
+                title="좋아요"
+              >
+                <Heart
+                  className="w-5 h-5 sm:w-6 sm:h-6 opacity-70 group-hover:opacity-100 transition-all"
+                  fill={isLiked ? "currentColor" : "none"}
+                />
+                {displayUpvoteCount > 0 && (
+                  <span className="text-sm sm:text-[17px] tabular-nums">
+                    {displayUpvoteCount}
+                  </span>
+                )}
+              </button>
+
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
-                className="flex items-center space-x-1 hover:text-[#795252] group"
+                className="flex items-center gap-1 hover:text-[#795252] group"
               >
                 <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
                 <span className="text-sm sm:text-[17px]">{post.comment_count}</span>
@@ -180,10 +303,12 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
               <button
                 type="button"
                 onClick={handleBookmark}
-                className={`flex items-center space-x-1 group ${
+                disabled={bookmarking}
+                className={`flex items-center group disabled:opacity-60 ${
                   bookmarked ? "text-[#795252]" : "hover:text-[#795252]"
                 }`}
                 aria-label="저장"
+                title="저장"
               >
                 <Bookmark
                   className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100"
@@ -194,8 +319,10 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
               {/* 공유 */}
               <button
                 type="button"
-                className="flex items-center space-x-1 hover:text-[#795252] group"
+                onClick={handleShare}
+                className="flex items-center hover:text-[#795252] group"
                 aria-label="공유"
+                title="공유"
               >
                 <Share2 className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
               </button>
