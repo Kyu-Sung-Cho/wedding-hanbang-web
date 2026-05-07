@@ -563,15 +563,30 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     );
   }
 
-  // 커플이 없는 경우
+  // 커플이 없는 경우 — 온보딩 안내 + actionable CTA
   if (!coupleId) {
     return (
-      <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center bg-[#FAFAF8]">
-        <div className="text-center bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10">
-          <Sparkles className="w-14 h-14 text-[#795252]/30 mx-auto mb-4" />
-          <p className="text-base text-[#504444]">
-            온보딩을 완료하면 아모라와 상담할 수 있어요
+      <div
+        className={`${embedded ? "h-full" : "h-[calc(100vh-144px)]"} max-w-[800px] mx-auto flex items-center justify-center bg-[#FAFAF8] px-4`}
+      >
+        <div className="text-center bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-10 max-w-md w-full">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C4967E]/15 to-[#C9A96E]/15 mb-4">
+            <Sparkles className="w-7 h-7 text-[#795252]" />
+          </div>
+          <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1A1A1F] font-light mb-2">
+            아모라 상담 시작 전 한 단계만
+          </h3>
+          <p className="text-sm sm:text-base text-[#504444] leading-relaxed mb-6">
+            결혼식 정보를 한 번만 입력하시면, 아모라가 맞춤 상담을 시작합니다.
+            (1분 정도 소요)
           </p>
+          <a
+            href="/onboarding"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            온보딩 시작하기
+          </a>
         </div>
       </div>
     );

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CommunityNav from "@/components/community/CommunityNav";
 import { ToastContainer } from "@/components/community/Toast";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
+import FooterAuthLink from "@/components/community/FooterAuthLink";
 import Link from "next/link";
 
 export default function CommunityLayout({
@@ -36,9 +37,7 @@ export default function CommunityLayout({
               <Link href="/" className="hover:text-[#1A1A1F] transition-colors">
                 서비스 소개
               </Link>
-              <Link href="/login" className="hover:text-[#1A1A1F] transition-colors">
-                로그인
-              </Link>
+              <FooterAuthLink />
             </div>
           </div>
           {/* AI 기본법 고지 — 원칙 P6 실체화 */}
