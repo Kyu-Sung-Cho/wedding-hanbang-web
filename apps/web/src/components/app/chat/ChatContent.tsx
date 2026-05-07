@@ -52,6 +52,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     suggestions,
     error,
     initialLoadDone,
+    presence,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
@@ -59,8 +60,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
+    notifyTyping,
   } = useChatStore();
   const [input, setInput] = useState("");
+  // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
+  const [pendingSend, setPendingSend] = useState<{ text?: string } | null>(null);
   // 새 채팅 modal 단계 — closed | shared 옵션 선택 | shared 둘 다 추가확인 | private 확인
   const [clearStep, setClearStep] = useState<
     "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
@@ -455,6 +459,21 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     });
   }, []);
 
+  // 파트너 typing freshness — broadcast 후 5초 안 → "지금 입력 중"으로 간주
+  const partnerTypingActive =
+    !!presence.partnerTyping && Date.now() - presence.partnerTyping.updated_at < 5000;
+
+  // AI 응답 중 추론 — 마지막 shared 메시지가 사람(나/파트너)이고 30초 이내면 AI가 응답 중
+  // (서버 broadcast 인프라 없이 메시지 타임스탬프로만 추론)
+  const aiResponding = (() => {
+    const sharedMessages = messages.filter((m) => m.visibility === "shared");
+    const last = sharedMessages[sharedMessages.length - 1];
+    if (!last || last.sender_role === "ai") return null;
+    const ageMs = Date.now() - new Date(last.created_at).getTime();
+    if (ageMs > 30_000) return null;
+    return { triggered_by_user_id: last.sender_id, triggered_at: last.created_at };
+  })();
+
   const handleSend = useCallback(
     async (text?: string) => {
       const content = text ?? input.trim();
@@ -517,6 +536,33 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
     handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
   }, [messages, handleSend]);
+
+  // 사용자가 직접 send 버튼/엔터/제안 칩으로 보낼 때 게이트 — 파트너가 입력 중이거나
+  // AI가 파트너 메시지에 응답 중이면 confirm 모달.
+  const attemptSend = useCallback(
+    (text?: string) => {
+      const content = text ?? input.trim();
+      if ((!content && attachments.length === 0) || !coupleId || !profile) return;
+
+      const aiByMe = aiResponding && aiResponding.triggered_by_user_id === profile.id;
+      const partnerInteracting = partnerTypingActive || (aiResponding && !aiByMe);
+
+      if (partnerInteracting) {
+        setPendingSend({ text });
+        return;
+      }
+      void handleSend(text);
+    },
+    [
+      input,
+      attachments.length,
+      coupleId,
+      profile,
+      partnerTypingActive,
+      aiResponding,
+      handleSend,
+    ]
+  );
 
   // "새 채팅" 버튼 클릭 — activeTab 따라 적절한 modal 단계로
   const openNewChatModal = useCallback(() => {
@@ -890,6 +936,32 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {/* 파트너 typing 인디케이터 — 본인이 streaming 중이 아닐 때만 (중복 방지) */}
+        {!isStreaming && partnerTypingActive && presence.partnerTyping && (
+          <div className="animate-fade-in flex items-center gap-2 px-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#3B5998] to-[#6B8CCE] flex items-center justify-center text-white text-base font-bold">
+              {presence.partnerTyping.sender_role === "bride" ? "신" : "신"}
+            </div>
+            <div className="bg-white border border-black/[0.06] rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
+              <span className="text-[13px] text-[#928980]">
+                {presence.partnerTyping.sender_role === "bride" ? "신부" : "신랑"} 입력 중
+              </span>
+              <span className="flex items-center gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "300ms" }} />
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* AI 응답 중 인디케이터 — 본인이 streaming 중이 아니고 파트너 메시지에 응답 중일 때 */}
+        {!isStreaming && aiResponding && profile && aiResponding.triggered_by_user_id !== profile.id && (
+          <div className="animate-fade-in">
+            <StreamingBubble toolResults={[]} onSend={handleSend} />
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -903,6 +975,55 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+      )}
+
+      {/* Pre-send confirm — 파트너 입력 중이거나 AI가 파트너 메시지에 응답 중일 때 */}
+      {pendingSend && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 animate-fade-in"
+          onClick={() => setPendingSend(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="shrink-0 w-10 h-10 rounded-xl bg-[#C9A96E]/15 flex items-center justify-center text-[#C9A96E]">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-serif-kr text-lg sm:text-xl text-[#1A1A1F] font-light mb-1.5 leading-snug">
+                  잠시 기다리시겠어요?
+                </h3>
+                <p className="text-sm text-[#504444] leading-relaxed">
+                  {partnerTypingActive
+                    ? `상대방(${presence.partnerTyping?.sender_role === "bride" ? "신부" : "신랑"})이 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
+                    : "아모라가 방금 보낸 메시지에 답변하고 있어요. 지금 새 메시지를 보내면 진행 중인 답변이 중단될 수 있어요."}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingSend(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-[#1A1A1F] bg-[#F6F3F2] hover:bg-[#EDE8E5] transition-colors"
+              >
+                기다릴게요
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const t = pendingSend.text;
+                  setPendingSend(null);
+                  void handleSend(t);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-all"
+              >
+                그래도 보내기
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -943,7 +1064,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 제안 버튼 — 입력창과 충분한 간격 유지 */}
       {suggestions.length > 0 && !isStreaming && (
         <div className="px-2 pt-2 pb-4 sm:pb-5 border-t border-[#F0EFED]/60 mt-2">
-          <SuggestionButtons suggestions={suggestions} onSelect={handleSend} disabled={isStreaming} />
+          <SuggestionButtons suggestions={suggestions} onSelect={attemptSend} disabled={isStreaming} />
         </div>
       )}
 
@@ -1035,11 +1156,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // typing broadcast — 디바운스는 store 내부에서 처리, 여기선 매 입력마다 콜
+              if (coupleId && profile?.id && (profile.role === "bride" || profile.role === "groom")) {
+                notifyTyping({ coupleId, userId: profile.id, senderRole: profile.role });
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                handleSend();
+                attemptSend();
               }
             }}
             onPaste={handlePaste}
@@ -1054,7 +1181,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[16px] sm:text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
           />
           <button
-            onClick={() => handleSend()}
+            onClick={() => attemptSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
             className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"

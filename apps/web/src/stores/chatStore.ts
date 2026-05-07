@@ -13,6 +13,14 @@ import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { determineStage } from "@/lib/ai/stage-router";
 import { useAuthStore } from "./authStore";
 
+/** 다른 사람(상대방 또는 AI)이 진행 중인 활동을 인지하기 위한 Presence 정보 */
+export interface ChatPresence {
+  /** 상대방(파트너)이 입력 중일 때 그의 senderRole, 아니면 null */
+  partnerTyping: { sender_role: "bride" | "groom"; user_id: string; updated_at: number } | null;
+  /** AI(아모라)가 응답 생성 중일 때 누구의 요청에 대한 것인지 / 아니면 null */
+  aiResponding: { triggered_by_user_id: string; started_at: number } | null;
+}
+
 interface ChatStoreState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -22,6 +30,9 @@ interface ChatStoreState {
   suggestions: string[];
   error: string | null;
   initialLoadDone: boolean;
+
+  // Presence — Realtime broadcast로 동기화되는 상대방/AI 활동 상태
+  presence: ChatPresence;
 
   loadMessages: (coupleId: string) => Promise<void>;
   pollNewMessages: (coupleId: string) => Promise<void>;
@@ -54,6 +65,10 @@ interface ChatStoreState {
     mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private"
   ) => Promise<void>;
   subscribeToMessages: (coupleId: string) => () => void;
+
+  /** 입력창에서 호출 — 디바운스된 typing broadcast (자동 stop 포함) */
+  notifyTyping: (params: { coupleId: string; userId: string; senderRole: "bride" | "groom" }) => void;
+
   reset: () => void;
 }
 
@@ -378,6 +393,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   suggestions: [],
   error: null,
   initialLoadDone: false,
+  presence: { partnerTyping: null, aiResponding: null },
 
   // 메시지 로드 — 스트리밍 중이면 스킵
   loadMessages: async (coupleId: string) => {
@@ -902,8 +918,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           },
           (payload) => {
             const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
-            // 스트리밍 중이면 무시 (AI 응답은 로컬에서 직접 추가)
-            if (get().isStreaming && newMsg.sender_role === "ai") return;
+            // ID 기반 dedup만 사용 — 이전엔 isStreaming 중일 때 모든 AI 메시지를
+            // 무시했는데, 그러면 동시 발화 시 파트너의 AI 응답까지 가려졌음.
+            // saveAiMessage도 같은 id 기반 dedup을 사용하므로 중복 위험 없음.
             set((s) => {
               const exists = s.messages.some((m) => m.id === newMsg.id);
               if (exists) return s;
@@ -911,6 +928,26 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             });
           }
         )
+        // ───────── Realtime broadcast: typing + AI streaming ─────────
+        .on("broadcast", { event: "typing" }, (msg) => {
+          const p = msg.payload as
+            | { sender_role: "bride" | "groom"; user_id: string; state: "start" | "stop" }
+            | undefined;
+          if (!p?.user_id) return;
+          // 자기 자신의 typing은 무시
+          const me = useAuthStore.getState().profile?.id;
+          if (p.user_id === me) return;
+          set((s) => ({
+            presence: {
+              ...s.presence,
+              partnerTyping:
+                p.state === "start"
+                  ? { sender_role: p.sender_role, user_id: p.user_id, updated_at: Date.now() }
+                  : null,
+            },
+          }));
+        })
+        // AI 응답 중 상태는 메시지 타임스탬프로 추론 (서버 broadcast 인프라 불필요)
         .subscribe((status) => {
           if (isDev) console.log(`[realtime] chat:${coupleId} status: ${status}`);
           if (status === "SUBSCRIBED") {
@@ -925,12 +962,56 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     connect();
 
+    // 스테일 presence 청소 — 파트너 탭 닫혔거나 broadcast가 유실됐을 때 인디케이터가
+    // 영원히 떠있는 걸 방지. 5초마다 partnerTyping의 updated_at이 5s+ 지났으면 null 처리.
+    const presenceSweep = setInterval(() => {
+      const now = Date.now();
+      const pt = get().presence.partnerTyping;
+      if (pt && now - pt.updated_at > 5000) {
+        set((s) => ({ presence: { ...s.presence, partnerTyping: null } }));
+      }
+    }, 5000);
+
     return () => {
       cancelled = true;
+      clearInterval(presenceSweep);
       if (retryTimeout) clearTimeout(retryTimeout);
       if (currentChannel) supabase.removeChannel(currentChannel);
     };
   },
+
+  // typing 브로드캐스트 — 마지막 입력 후 3초간 유지, 그 다음 자동 stop 발송
+  notifyTyping: (() => {
+    let lastSentState: "start" | "stop" = "stop";
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    const supabase = createClient();
+
+    return ({ coupleId, userId, senderRole }) => {
+      const sendBroadcast = (state: "start" | "stop") => {
+        const channel = supabase.channel(`chat:${coupleId}`);
+        // 채널이 이미 구독돼 있어야 broadcast가 도달 — subscribeToMessages가 먼저 호출됨
+        void channel.send({
+          type: "broadcast",
+          event: "typing",
+          payload: { sender_role: senderRole, user_id: userId, state },
+        });
+      };
+
+      // 첫 입력일 때만 "start" 발송 (불필요한 broadcast 폭주 방지)
+      if (lastSentState !== "start") {
+        sendBroadcast("start");
+        lastSentState = "start";
+      }
+
+      // 마지막 입력 후 3초 뒤 자동 stop
+      if (stopTimer) clearTimeout(stopTimer);
+      stopTimer = setTimeout(() => {
+        sendBroadcast("stop");
+        lastSentState = "stop";
+        stopTimer = null;
+      }, 3000);
+    };
+  })(),
 
   reset: () => {
     set({
@@ -942,6 +1023,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       suggestions: [],
       error: null,
       initialLoadDone: false,
+      presence: { partnerTyping: null, aiResponding: null },
     });
   },
 }));
