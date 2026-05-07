@@ -794,8 +794,11 @@ function PostWriteContent() {
           </div>
         </div>
 
-        {/* 하단 버튼 - 모바일 고정 */}
-        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#e4e2e1] px-4 py-3 flex items-center gap-2">
+        {/* 하단 버튼 - 모바일 고정 — iPhone 홈 인디케이터(safe-area-inset-bottom) 보정 */}
+        <div
+          className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#e4e2e1] px-4 pt-3 flex items-center gap-2"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+        >
           <button
             type="button"
             onClick={handleCancel}

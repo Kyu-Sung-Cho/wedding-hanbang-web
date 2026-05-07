@@ -11,7 +11,7 @@ import ChatContent from "@/components/app/chat/ChatContent";
  */
 export default function CommunityChatPage() {
   return (
-    <div className="h-[calc(100vh-160px)] max-w-5xl mx-auto w-full">
+    <div className="h-[calc(100dvh-160px)] max-w-5xl mx-auto w-full">
       <ChatContent embedded />
     </div>
   );

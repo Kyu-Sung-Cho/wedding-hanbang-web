@@ -589,7 +589,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   if (!authInitialized || authLoading) {
     return (
       <div
-        className={`${embedded ? "h-full" : "h-[calc(100vh-144px)]"} flex items-center justify-center bg-[#FAFAF8]`}
+        className={`${embedded ? "h-full" : "h-[calc(100dvh-144px)]"} flex items-center justify-center bg-[#FAFAF8]`}
       >
         <Loader2 className="w-7 h-7 text-[#795252] animate-spin" />
       </div>
@@ -599,7 +599,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 데모 모드
   if (isDemo) {
     return (
-      <div className="max-w-[800px] mx-auto h-[calc(100vh-144px)] flex items-center justify-center bg-[#FAFAF8]">
+      <div className="max-w-[800px] mx-auto h-[calc(100dvh-144px)] flex items-center justify-center bg-[#FAFAF8]">
         <div className="text-center bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10">
           <Sparkles className="w-14 h-14 text-[#795252]/30 mx-auto mb-4" />
           <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] mb-2">
@@ -624,7 +624,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   if (!coupleId) {
     return (
       <div
-        className={`${embedded ? "h-full" : "h-[calc(100vh-144px)]"} max-w-[800px] mx-auto flex items-center justify-center bg-[#FAFAF8] px-4`}
+        className={`${embedded ? "h-full" : "h-[calc(100dvh-144px)]"} max-w-[800px] mx-auto flex items-center justify-center bg-[#FAFAF8] px-4`}
       >
         <div className="text-center bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-10 max-w-md w-full">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C4967E]/15 to-[#C9A96E]/15 mb-4">
@@ -660,7 +660,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   return (
     <div
       className={`${
-        embedded ? "h-full" : "h-[calc(100vh-144px)]"
+        embedded ? "h-full" : "h-[calc(100dvh-144px)]"
       } transition-all duration-300 bg-[#FAFAF8] ${infoPanelOpen ? "md:pr-[390px]" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1152,7 +1152,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word, Excel)"
           >
             <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -1188,7 +1188,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => attemptSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : isPrivate

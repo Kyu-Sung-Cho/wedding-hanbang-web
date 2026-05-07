@@ -560,8 +560,8 @@ export default function PostDetailPage() {
                         : post.images.length === 2
                         ? "grid-cols-2"
                         : post.images.length === 3
-                        ? "grid-cols-3"
-                        : "grid-cols-2 sm:grid-cols-3"
+                        ? "grid-cols-2 sm:grid-cols-3"
+                        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                     }`}
                   >
                     {post.images.map((src, idx) => (
@@ -770,13 +770,13 @@ export default function PostDetailPage() {
 
               {/* 액션바 — 모바일: wrap 허용 / 데스크탑: 한 줄 */}
               <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[#B5ADA3]">
-                {/* 모바일 투표 - 녹색/빨간색 (PostCard 패턴) */}
+                {/* 모바일 투표 - 녹색/빨간색 (PostCard 패턴) — 44px 터치 타겟 확보 */}
                 <div className="md:hidden flex items-center gap-0.5 mr-1">
                   <button
                     type="button"
                     onClick={() => handleVote(1)}
                     disabled={isVoting}
-                    className={`p-1.5 rounded transition-colors duration-200 ${
+                    className={`min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded transition-colors duration-200 ${
                       displayVote === 1
                         ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
                         : "hover:text-[#2E7D5A]"
@@ -800,7 +800,7 @@ export default function PostDetailPage() {
                     type="button"
                     onClick={() => handleVote(-1)}
                     disabled={isVoting}
-                    className={`p-1.5 rounded transition-colors duration-200 ${
+                    className={`min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded transition-colors duration-200 ${
                       displayVote === -1
                         ? "text-[#D85A5A] bg-[#D85A5A]/10"
                         : "hover:text-[#D85A5A]"

@@ -991,7 +991,7 @@ function ReactionRow({
             type="button"
             onClick={() => onReact(messageId, type)}
             disabled={pending || pendingKey !== null}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all border disabled:opacity-60 ${
+            className={`inline-flex items-center justify-center gap-1 min-h-[36px] px-3 py-1.5 rounded-full text-sm font-medium transition-all border disabled:opacity-60 ${
               isMine
                 ? "bg-[#FAF7F2] border-[#C4967E]/40 text-[#1A1A1F]"
                 : "bg-white border-[#F0EFED] text-[#878680] hover:border-[#C4967E]/30 hover:text-[#1A1A1F]"
@@ -999,8 +999,8 @@ function ReactionRow({
             aria-label={meta.label}
             title={meta.label}
           >
-            <span className="text-sm leading-none">{meta.emoji}</span>
-            {count > 0 && <span className="tabular-nums">{count}</span>}
+            <span className="text-[15px] leading-none">{meta.emoji}</span>
+            {count > 0 && <span className="tabular-nums text-[13px]">{count}</span>}
           </button>
         );
       })}
