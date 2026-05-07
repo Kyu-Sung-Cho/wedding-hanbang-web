@@ -920,7 +920,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 {hasToolResults &&
                   msg.metadata!.toolResults!.map((result, i) =>
                     VENDOR_TOOL_NAMES.has(result.toolName) ? (
-                      <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
+                      <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={attemptSend} disabled={isStreaming} />
                     ) : (
                       <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
                     )
@@ -932,33 +932,38 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
         {isStreaming && (
           <div className="animate-fade-in">
-            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} />
+            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={attemptSend} />
           </div>
         )}
 
         {/* 파트너 typing 인디케이터 — 본인이 streaming 중이 아닐 때만 (중복 방지) */}
-        {!isStreaming && partnerTypingActive && presence.partnerTyping && (
-          <div className="animate-fade-in flex items-center gap-2 px-3">
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#3B5998] to-[#6B8CCE] flex items-center justify-center text-white text-base font-bold">
-              {presence.partnerTyping.sender_role === "bride" ? "신" : "신"}
+        {!isStreaming && partnerTypingActive && presence.partnerTyping && (() => {
+          const isBride = presence.partnerTyping.sender_role === "bride";
+          const avatarBg = isBride
+            ? "bg-gradient-to-br from-[#C4967E] to-[#E8C4B8]"
+            : "bg-gradient-to-br from-[#3B5998] to-[#6B8CCE]";
+          const label = isBride ? "신부" : "신랑";
+          return (
+            <div className="animate-fade-in flex items-center gap-2 px-3">
+              <div className={`flex-shrink-0 w-9 h-9 rounded-full ${avatarBg} flex items-center justify-center text-white text-base font-bold shadow-sm`}>
+                {label.charAt(0)}
+              </div>
+              <div className="bg-white border border-black/[0.06] rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
+                <span className="text-[13px] text-[#928980]">{label} 입력 중</span>
+                <span className="flex items-center gap-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "300ms" }} />
+                </span>
+              </div>
             </div>
-            <div className="bg-white border border-black/[0.06] rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
-              <span className="text-[13px] text-[#928980]">
-                {presence.partnerTyping.sender_role === "bride" ? "신부" : "신랑"} 입력 중
-              </span>
-              <span className="flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "150ms" }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "300ms" }} />
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* AI 응답 중 인디케이터 — 본인이 streaming 중이 아니고 파트너 메시지에 응답 중일 때 */}
         {!isStreaming && aiResponding && profile && aiResponding.triggered_by_user_id !== profile.id && (
           <div className="animate-fade-in">
-            <StreamingBubble toolResults={[]} onSend={handleSend} />
+            <StreamingBubble toolResults={[]} onSend={attemptSend} />
           </div>
         )}
 

@@ -1,7 +1,15 @@
 "use client";
 
 import { create } from "zustand";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+
+/**
+ * coupleId당 활성 Realtime 채널 레지스트리.
+ * subscribeToMessages가 채널을 구독한 뒤 여기에 등록 → notifyTyping이
+ * 같은 채널 인스턴스로 broadcast 송신 (별개 채널 인스턴스는 send 안 됨).
+ */
+const activeChatChannels = new Map<string, RealtimeChannel>();
 import type {
   ChatMessage,
   MessageSenderRole,
@@ -924,7 +932,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             set((s) => {
               const exists = s.messages.some((m) => m.id === newMsg.id);
               if (exists) return s;
-              return { messages: [...s.messages, newMsg] };
+
+              // 파트너의 새 메시지가 도착했다면 그의 typing indicator는 즉시 클리어
+              // (이미 보냈으니까 더 이상 입력 중이 아님)
+              const incomingFromPartnerTyping =
+                s.presence.partnerTyping &&
+                newMsg.sender_id === s.presence.partnerTyping.user_id;
+
+              return {
+                messages: [...s.messages, newMsg],
+                ...(incomingFromPartnerTyping
+                  ? { presence: { ...s.presence, partnerTyping: null } }
+                  : {}),
+              };
             });
           }
         )
@@ -952,9 +972,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (isDev) console.log(`[realtime] chat:${coupleId} status: ${status}`);
           if (status === "SUBSCRIBED") {
             retryCount = 0; // 재연결 성공 시 카운터 리셋
+            // notifyTyping이 같은 채널 인스턴스로 send할 수 있게 등록
+            if (currentChannel) activeChatChannels.set(coupleId, currentChannel);
             return;
           }
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            // 끊긴 채널은 더 이상 broadcast 못 보냄 — 레지스트리에서 제거
+            activeChatChannels.delete(coupleId);
             scheduleReconnect(status);
           }
         });
@@ -975,21 +999,23 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     return () => {
       cancelled = true;
       clearInterval(presenceSweep);
+      activeChatChannels.delete(coupleId);
       if (retryTimeout) clearTimeout(retryTimeout);
       if (currentChannel) supabase.removeChannel(currentChannel);
     };
   },
 
-  // typing 브로드캐스트 — 마지막 입력 후 3초간 유지, 그 다음 자동 stop 발송
+  // typing 브로드캐스트 — 마지막 입력 후 3초간 유지, 그 다음 자동 stop 발송.
+  // 같은 채널 인스턴스로 send해야 broadcast가 도달함 → activeChatChannels에서 lookup.
   notifyTyping: (() => {
     let lastSentState: "start" | "stop" = "stop";
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
-    const supabase = createClient();
 
     return ({ coupleId, userId, senderRole }) => {
       const sendBroadcast = (state: "start" | "stop") => {
-        const channel = supabase.channel(`chat:${coupleId}`);
-        // 채널이 이미 구독돼 있어야 broadcast가 도달 — subscribeToMessages가 먼저 호출됨
+        const channel = activeChatChannels.get(coupleId);
+        // 아직 구독 전이거나 끊긴 상태 → 조용히 스킵 (다음 입력 때 다시 시도)
+        if (!channel) return;
         void channel.send({
           type: "broadcast",
           event: "typing",
