@@ -33,8 +33,9 @@ import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import ServiceCTA from "@/components/community/ServiceCTA";
 import Avatar from "@/components/community/Avatar";
+import PollDisplay from "@/components/community/PollDisplay";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
-import type { CommunityRank } from "@/types/community.types";
+import type { CommunityRank, PollWithOptions } from "@/types/community.types";
 
 // 아바타 그래디언트 팔레트 (PostCard와 동일)
 const AVATAR_GRADIENTS = [
@@ -672,6 +673,23 @@ export default function PostDetailPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* 폴(투표/설문) */}
+              {!isMembersOnly && post.poll && (
+                <PollDisplay
+                  poll={
+                    {
+                      ...post.poll,
+                      user_voted_option_ids: post.poll.user_voted_option_ids ?? [],
+                    } as PollWithOptions
+                  }
+                  isAuthenticated={!!user}
+                  onLoginRequired={() => {
+                    setLoginToast(true);
+                    setTimeout(() => setLoginToast(false), 2000);
+                  }}
+                />
               )}
 
               {/* 비용 요약 바 + 상세 비용 데이터 */}

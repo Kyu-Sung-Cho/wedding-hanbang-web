@@ -13,6 +13,8 @@ import type {
   AdDisclosure,
   PriceData,
   AiComment,
+  CreatePollInput,
+  PollSummary,
 } from "@/types/community.types";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -232,11 +234,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 폴 summary 조회 (목록 카드 배지용)
+    let pollSummaryMap: Record<string, PollSummary> = {};
+    if (sortedPosts.length > 0) {
+      const postIds = sortedPosts.map((p) => p.id);
+      const { data: polls } = await supabase
+        .from("community_polls")
+        .select("id, post_id, question, total_voters, closes_at")
+        .in("post_id", postIds);
+      if (polls) {
+        pollSummaryMap = Object.fromEntries(
+          polls.map((p: { id: string; post_id: string; question: string; total_voters: number; closes_at: string | null }) => [
+            p.post_id,
+            {
+              id: p.id,
+              question: p.question,
+              total_voters: p.total_voters,
+              closes_at: p.closes_at,
+            } satisfies PollSummary,
+          ])
+        );
+      }
+    }
+
     // 응답 데이터 조합
     const postsWithVotes = sortedPosts.map((post) => ({
       ...post,
       author: authorMap[post.author_id] ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
       user_vote: userVotesMap[post.id] ?? null,
+      poll: pollSummaryMap[post.id] ?? null,
     }));
 
     const total = count ?? 0;
@@ -292,6 +318,7 @@ export async function POST(req: NextRequest) {
       price_data: rawPriceData,
       is_quick_review,
       rating,
+      poll: rawPoll,
     } = body as {
       category: CommunityCategory;
       title: string;
@@ -306,6 +333,7 @@ export async function POST(req: NextRequest) {
       price_data?: PriceData;
       is_quick_review?: boolean;
       rating?: number;
+      poll?: CreatePollInput | null;
     };
 
     // 광고 표시 필수 검증
@@ -444,6 +472,77 @@ export async function POST(req: NextRequest) {
         { error: "게시글 작성에 실패했습니다." },
         { status: 500 }
       );
+    }
+
+    // ─────── 폴 생성 (있을 경우) ───────
+    // 폴 INSERT 실패 시 게시글 자체를 롤백하여 고아 글 방지
+    if (rawPoll && typeof rawPoll === "object") {
+      const question = (rawPoll.question ?? "").trim().slice(0, 200);
+      const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : [];
+      const cleanOptions = rawOptions
+        .slice(0, 10)
+        .map((o, idx) => ({
+          position: idx,
+          label: typeof o?.label === "string" ? o.label.trim().slice(0, 100) : "",
+          image_url:
+            typeof o?.image_url === "string" && o.image_url.startsWith("https://")
+              ? o.image_url
+              : null,
+        }))
+        .filter((o) => o.label.length > 0);
+
+      // 질문/옵션이 모두 충족된 경우에만 생성. 부분 입력이면 폴 없이 진행 (UX 친화적)
+      if (question.length > 0 && cleanOptions.length >= 2) {
+        // 마감일 검증 (미래여야 함)
+        let closesAt: string | null = null;
+        if (rawPoll.closes_at && typeof rawPoll.closes_at === "string") {
+          const t = Date.parse(rawPoll.closes_at);
+          if (!isNaN(t) && t > Date.now()) closesAt = new Date(t).toISOString();
+        }
+
+        const { data: pollRow, error: pollErr } = await serviceClient
+          .from("community_polls")
+          .insert({
+            post_id: post.id,
+            question,
+            allow_multiple: !!rawPoll.allow_multiple,
+            is_anonymous: !!rawPoll.is_anonymous,
+            hide_results_until_voted: !!rawPoll.hide_results_until_voted,
+            closes_at: closesAt,
+          })
+          .select("id")
+          .single();
+
+        if (pollErr || !pollRow) {
+          console.error("[posts.POST] poll insert failed, rolling back post:", pollErr);
+          await serviceClient.from("community_posts").delete().eq("id", post.id);
+          return NextResponse.json(
+            { error: "투표 생성에 실패했습니다." },
+            { status: 500 }
+          );
+        }
+
+        const optionsPayload = cleanOptions.map((o) => ({
+          poll_id: pollRow.id,
+          position: o.position,
+          label: o.label,
+          image_url: o.image_url,
+        }));
+
+        const { error: optErr } = await serviceClient
+          .from("community_poll_options")
+          .insert(optionsPayload);
+
+        if (optErr) {
+          console.error("[posts.POST] poll options insert failed, rolling back:", optErr);
+          await serviceClient.from("community_polls").delete().eq("id", pollRow.id);
+          await serviceClient.from("community_posts").delete().eq("id", post.id);
+          return NextResponse.json(
+            { error: "투표 선택지 생성에 실패했습니다." },
+            { status: 500 }
+          );
+        }
+      }
     }
 
     // post_count 증가 — 실패해도 INSERT 응답에 영향 없도록 격리

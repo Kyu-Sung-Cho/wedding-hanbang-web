@@ -24,11 +24,13 @@ import VendorTagPicker from "@/components/community/VendorTagPicker";
 import AdDisclosureModal from "@/components/community/AdDisclosureModal";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PriceQuestionForm from "@/components/community/PriceQuestionForm";
+import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import type {
   CommunityCategory,
   PostVisibility,
   CreatePostInput,
+  CreatePollInput,
   AdDisclosure,
   PriceData,
 } from "@/types/community.types";
@@ -51,6 +53,7 @@ interface DraftData {
   adDisclosure?: AdDisclosure;
   sponsorshipDetail?: string;
   priceData?: PriceData | null;
+  poll?: CreatePollInput | null;
   savedAt: number;
 }
 
@@ -91,6 +94,7 @@ function PostWriteContent() {
   const [adDisclosure, setAdDisclosure] = useState<AdDisclosure | null>(null);
   const [sponsorshipDetail, setSponsorshipDetail] = useState<string>("");
   const [priceData, setPriceData] = useState<PriceData | null>(null);
+  const [poll, setPoll] = useState<CreatePollInput | null>(null);
   const [showAdModal, setShowAdModal] = useState(false);
 
   // UI 상태
@@ -201,6 +205,7 @@ function PostWriteContent() {
       if (draft.adDisclosure) setAdDisclosure(draft.adDisclosure);
       if (draft.sponsorshipDetail) setSponsorshipDetail(draft.sponsorshipDetail);
       if (draft.priceData) setPriceData(draft.priceData);
+      if (draft.poll) setPoll(draft.poll);
       setDraftRestored(true);
     } catch {
       // 파싱 실패 시 무시
@@ -256,6 +261,7 @@ function PostWriteContent() {
         adDisclosure: adDisclosure ?? undefined,
         sponsorshipDetail: sponsorshipDetail || undefined,
         priceData,
+        poll,
         savedAt: Date.now(),
       };
       // 비어있으면 저장하지 않음
@@ -273,7 +279,7 @@ function PostWriteContent() {
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData]);
+  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -312,6 +318,15 @@ function PostWriteContent() {
       return;
     }
 
+    // 폴 검증: 활성화되어 있다면 질문 + 옵션 2개 이상 필수
+    if (poll) {
+      const validOptions = poll.options.filter((o) => o.label.trim().length > 0);
+      if (!poll.question.trim() || validOptions.length < 2) {
+        setError("투표를 추가하려면 질문과 선택지를 2개 이상 입력해 주세요. (또는 투표를 제거해 주세요.)");
+        return;
+      }
+    }
+
     // 광고 표시 필수
     if (!adDisclosure) {
       setShowAdModal(true);
@@ -320,6 +335,18 @@ function PostWriteContent() {
 
     setError(null);
     setIsSubmitting(true);
+
+    // 폴은 수정 모드에서는 전송하지 않음 (재투표 결과 보존)
+    const pollPayload =
+      !isEditMode && poll && poll.options.filter((o) => o.label.trim().length > 0).length >= 2
+        ? {
+            ...poll,
+            question: poll.question.trim(),
+            options: poll.options
+              .map((o) => ({ label: o.label.trim(), image_url: o.image_url ?? null }))
+              .filter((o) => o.label.length > 0),
+          }
+        : null;
 
     const input: CreatePostInput = {
       category,
@@ -332,6 +359,7 @@ function PostWriteContent() {
       ad_disclosure: adDisclosure,
       sponsorship_detail: sponsorshipDetail || undefined,
       ...(category === "is_normal" && priceData ? { price_data: priceData } : {}),
+      ...(pollPayload ? { poll: pollPayload } : {}),
     };
 
     try {
@@ -536,6 +564,13 @@ function PostWriteContent() {
               </label>
               <ImageUploader images={images} onChange={setImages} max={5} />
             </section>
+
+            {/* 투표 (폴) — 수정 모드에서는 비활성화 */}
+            {!isEditMode && (
+              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <PollEditor value={poll} onChange={setPoll} />
+              </section>
+            )}
           </div>
 
           {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}

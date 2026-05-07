@@ -102,10 +102,60 @@ export interface PostWithAuthor extends CommunityPost {
   author: CommunityProfile;
   user_vote?: 1 | -1 | null;
   user_bookmarked?: boolean;
+  poll?: PollSummary | null;
 }
 
 export interface PostDetail extends PostWithAuthor {
   vendor_details: VendorTagInfo[];
+  poll?: PollWithOptions | null;
+}
+
+// ────────────────────────────────────────
+// 폴(투표/설문) — 게시글 임베드
+// ────────────────────────────────────────
+export interface PollOption {
+  id: string;
+  poll_id: string;
+  position: number;
+  label: string;
+  image_url: string | null;
+  vote_count: number;
+}
+
+export interface Poll {
+  id: string;
+  post_id: string;
+  question: string;
+  allow_multiple: boolean;
+  is_anonymous: boolean;
+  hide_results_until_voted: boolean;
+  closes_at: string | null;
+  total_voters: number;
+  total_votes: number;
+  created_at: string;
+}
+
+export interface PollWithOptions extends Poll {
+  options: PollOption[];
+  /** 현재 사용자가 투표한 option_id 들. 비로그인 시 빈 배열. */
+  user_voted_option_ids: string[];
+}
+
+/** 목록 카드에 보여줄 요약 정보만 */
+export interface PollSummary {
+  id: string;
+  question: string;
+  total_voters: number;
+  closes_at: string | null;
+}
+
+export interface CreatePollInput {
+  question: string;
+  options: Array<{ label: string; image_url?: string | null }>;
+  allow_multiple?: boolean;
+  is_anonymous?: boolean;
+  hide_results_until_voted?: boolean;
+  closes_at?: string | null;
 }
 
 export interface VendorTagInfo {
@@ -267,6 +317,7 @@ export interface CreatePostInput {
   price_data?: PriceData;
   is_quick_review?: boolean;
   rating?: number;
+  poll?: CreatePollInput | null;
 }
 
 export interface UpdatePostInput {

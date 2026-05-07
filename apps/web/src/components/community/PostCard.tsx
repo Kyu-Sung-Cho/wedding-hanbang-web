@@ -8,6 +8,7 @@ import {
   Share2,
   Bookmark,
   Pin,
+  BarChart3,
 } from "lucide-react";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
@@ -109,11 +110,45 @@ export default function PostCard({ post, onBookmark }: PostCardProps) {
               <p className="text-[#504444] text-sm sm:text-[16px] xl:text-[17px] 2xl:text-[18px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
             )}
 
-            {/* 비용 데이터 */}
-            {post.cost_data && (
-              <div className="bg-[#f6f3f2] rounded-lg px-3 py-1.5 mb-4 inline-block">
-                <span className="text-xs text-[#504444]">비용: </span>
-                <span className="text-sm font-medium text-[#1b1c1c]">{formatPrice(post.cost_data.totalCost)}만원</span>
+            {/* 비용 데이터 + 폴 배지 */}
+            {(post.cost_data || post.poll) && (
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                {post.cost_data && (
+                  <div className="bg-[#f6f3f2] rounded-lg px-3 py-1.5 inline-block">
+                    <span className="text-xs text-[#504444]">비용: </span>
+                    <span className="text-sm font-medium text-[#1b1c1c]">{formatPrice(post.cost_data.totalCost)}만원</span>
+                  </div>
+                )}
+                {post.poll && (() => {
+                  const isClosed = post.poll.closes_at
+                    ? new Date(post.poll.closes_at).getTime() <= Date.now()
+                    : false;
+                  return (
+                    <Link
+                      href={`/community/post/${post.id}`}
+                      className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
+                        isClosed
+                          ? "text-[#928980] bg-[#f6f3f2] border-[#e4e2e1] hover:bg-white"
+                          : "text-[#795252] bg-[#fcf9f8] border-[#f0eeec] hover:border-[#795252] hover:bg-white"
+                      }`}
+                      title={post.poll.question}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate max-w-[180px] sm:max-w-[220px]">
+                        {post.poll.question}
+                      </span>
+                      <span className="shrink-0 text-[#B5ADA3]">·</span>
+                      <span className="shrink-0 tabular-nums">
+                        {post.poll.total_voters.toLocaleString()}명
+                      </span>
+                      {isClosed && (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e4e2e1] text-[#504444]">
+                          마감
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })()}
               </div>
             )}
           </div>

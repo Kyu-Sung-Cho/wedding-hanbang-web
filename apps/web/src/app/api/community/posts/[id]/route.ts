@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import type { UpdatePostInput } from "@/types/community.types";
+import type { UpdatePostInput, PollWithOptions } from "@/types/community.types";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -119,12 +119,54 @@ export async function GET(
       .eq("user_id", post.author_id)
       .single();
 
+    // 폴 + 옵션 + 사용자 투표 상태
+    let pollData: PollWithOptions | null = null;
+    const { data: pollRow } = await supabase
+      .from("community_polls")
+      .select("*")
+      .eq("post_id", id)
+      .maybeSingle();
+
+    if (pollRow) {
+      const { data: optionRows } = await supabase
+        .from("community_poll_options")
+        .select("*")
+        .eq("poll_id", pollRow.id)
+        .order("position", { ascending: true });
+
+      let votedOptionIds: string[] = [];
+      if (user) {
+        const { data: voteRows } = await supabase
+          .from("community_poll_votes")
+          .select("option_id")
+          .eq("poll_id", pollRow.id)
+          .eq("user_id", user.id);
+        votedOptionIds = (voteRows ?? []).map((v: { option_id: string }) => v.option_id);
+      }
+
+      pollData = {
+        id: pollRow.id,
+        post_id: pollRow.post_id,
+        question: pollRow.question,
+        allow_multiple: pollRow.allow_multiple,
+        is_anonymous: pollRow.is_anonymous,
+        hide_results_until_voted: pollRow.hide_results_until_voted,
+        closes_at: pollRow.closes_at,
+        total_voters: pollRow.total_voters,
+        total_votes: pollRow.total_votes,
+        created_at: pollRow.created_at,
+        options: optionRows ?? [],
+        user_voted_option_ids: votedOptionIds,
+      };
+    }
+
     return NextResponse.json({
       ...post,
       author: authorProfile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
       vendor_details: vendorDetails,
       user_vote: userVote,
       user_bookmarked: userBookmarked,
+      poll: pollData,
     });
   } catch (err) {
     console.error("Get post detail error:", err);
