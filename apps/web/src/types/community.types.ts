@@ -289,6 +289,13 @@ export interface Guestbook {
   created_at: string;
 }
 
+export type GuestbookReactionType = "love" | "congrats" | "touched";
+
+export interface GuestbookMessageReactions {
+  counts: Record<GuestbookReactionType, number>;
+  mine: Record<GuestbookReactionType, boolean>;
+}
+
 export interface GuestbookMessage {
   id: string;
   guestbook_id: string;
@@ -299,6 +306,8 @@ export interface GuestbookMessage {
   message_type: GuestbookMessageType;
   is_approved: boolean;
   created_at: string;
+  /** 서버에서 GET 응답에만 포함됨 (집계 + 호출자 IP가 누른 것). INSERT 응답에는 없음. */
+  reactions?: GuestbookMessageReactions;
 }
 
 // ────────────────────────────────────────

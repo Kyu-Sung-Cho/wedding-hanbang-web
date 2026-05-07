@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -8,8 +9,18 @@ function getServiceClient() {
   );
 }
 
+function hashIp(req: NextRequest): string {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+  return crypto.createHash("sha256").update(ip).digest("hex");
+}
+
+type ReactionType = "love" | "congrats" | "touched";
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
@@ -45,7 +56,53 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(100);
 
-    return NextResponse.json({ guestbook, messages: messages ?? [] });
+    const msgList = messages ?? [];
+
+    // 리액션 집계 + 호출자 IP가 누른 것 표시
+    const messageIds = msgList.map((m: { id: string }) => m.id);
+    const reactionMap: Record<
+      string,
+      { counts: Record<ReactionType, number>; mine: Record<ReactionType, boolean> }
+    > = {};
+
+    if (messageIds.length > 0) {
+      const callerIpHash = hashIp(req);
+      const { data: reactionRows } = await service
+        .from("guestbook_message_reactions")
+        .select("message_id, reaction_type, ip_hash")
+        .in("message_id", messageIds);
+
+      // 빈 카운트 초기화
+      for (const id of messageIds) {
+        reactionMap[id] = {
+          counts: { love: 0, congrats: 0, touched: 0 },
+          mine: { love: false, congrats: false, touched: false },
+        };
+      }
+
+      const rows = (reactionRows ?? []) as Array<{
+        message_id: string;
+        reaction_type: ReactionType;
+        ip_hash: string;
+      }>;
+      for (const r of rows) {
+        const entry = reactionMap[r.message_id];
+        if (!entry) continue;
+        entry.counts[r.reaction_type] = (entry.counts[r.reaction_type] ?? 0) + 1;
+        if (r.ip_hash === callerIpHash) entry.mine[r.reaction_type] = true;
+      }
+    }
+
+    const messagesWithReactions = msgList.map((m: { id: string }) => ({
+      ...m,
+      reactions:
+        reactionMap[m.id] ?? {
+          counts: { love: 0, congrats: 0, touched: 0 },
+          mine: { love: false, congrats: false, touched: false },
+        },
+    }));
+
+    return NextResponse.json({ guestbook, messages: messagesWithReactions });
   } catch (err) {
     console.error("Guestbook GET error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

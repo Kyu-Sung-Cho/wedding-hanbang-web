@@ -17,11 +17,19 @@ import {
   Check,
   Sparkles,
   ArrowUpRight,
+  QrCode,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { GUEST_RELATIONS } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
-import type { Guestbook, GuestbookMessage, GuestRelation } from "@/types/community.types";
+import type {
+  Guestbook,
+  GuestbookMessage,
+  GuestRelation,
+  GuestbookReactionType,
+  GuestbookMessageReactions,
+} from "@/types/community.types";
+import GuestbookQRModal from "@/components/community/GuestbookQRModal";
 
 const RELATION_LABEL: Record<GuestRelation, string> = {
   university_friend: "대학친구",
@@ -57,6 +65,12 @@ export default function PublicGuestbookPage() {
   // 공유 모달
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // QR 모달 (오너 전용)
+  const [qrOpen, setQrOpen] = useState(false);
+
+  // 리액션 in-flight (중복 클릭 방지)
+  const [reactionPending, setReactionPending] = useState<string | null>(null);
 
   // 오너 검증 (커뮤니티 크로스포스트 버튼 노출용)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -194,6 +208,53 @@ export default function PublicGuestbookPage() {
     }
   }
 
+  // 리액션 토글 (낙관적 업데이트)
+  async function handleReact(messageId: string, type: GuestbookReactionType) {
+    if (reactionPending) return;
+    const key = `${messageId}:${type}`;
+    setReactionPending(key);
+
+    // 낙관적 UI 업데이트
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const r =
+          m.reactions ?? {
+            counts: { love: 0, congrats: 0, touched: 0 },
+            mine: { love: false, congrats: false, touched: false },
+          };
+        const wasMine = r.mine[type];
+        return {
+          ...m,
+          reactions: {
+            counts: {
+              ...r.counts,
+              [type]: Math.max(0, (r.counts[type] ?? 0) + (wasMine ? -1 : 1)),
+            },
+            mine: { ...r.mine, [type]: !wasMine },
+          },
+        };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/guestbook/messages/${messageId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reaction: type }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as GuestbookMessageReactions;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions: data } : m))
+        );
+      }
+      // 실패 시 낙관적 업데이트 유지 (다음 페이지 로드 시 정정)
+    } finally {
+      setReactionPending(null);
+    }
+  }
+
   const isOwner = !!currentUserId && currentUserId === guestbook?.owner_id;
 
   const inputCls =
@@ -231,16 +292,30 @@ export default function PublicGuestbookPage() {
     <div className="min-h-screen bg-[#FAFAF8]">
       {/* 히어로 */}
       <section className="relative">
-        {/* 공유 버튼 (히어로 우측 상단) */}
-        <button
-          type="button"
-          onClick={handleShare}
-          className="absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1F] text-sm font-medium shadow-md hover:bg-white transition-colors"
-          aria-label="방명록 공유"
-        >
-          <Share2 className="w-4 h-4" />
-          공유
-        </button>
+        {/* 우상단 액션 — 공유 + (오너 전용) QR */}
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1F] text-sm font-medium shadow-md hover:bg-white transition-colors"
+              aria-label="QR 코드"
+              title="QR 코드"
+            >
+              <QrCode className="w-4 h-4" />
+              <span className="hidden sm:inline">QR</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1F] text-sm font-medium shadow-md hover:bg-white transition-colors"
+            aria-label="방명록 공유"
+          >
+            <Share2 className="w-4 h-4" />
+            공유
+          </button>
+        </div>
 
         {guestbook.cover_image_url ? (
           <div className="relative h-80 w-full overflow-hidden">
@@ -272,23 +347,36 @@ export default function PublicGuestbookPage() {
             </div>
           </div>
         ) : (
-          <div className="h-72 w-full bg-gradient-to-br from-[#FAF8F5] to-[#F5F2ED] flex flex-col items-center justify-center px-4 text-center">
-            <h1
-              className="font-serif text-4xl sm:text-5xl font-medium text-[#1A1A1F] mb-3"
-              style={{ fontFamily: "'Noto Serif KR', serif" }}
-            >
-              {guestbook.bride_name} &amp; {guestbook.groom_name}
-            </h1>
-            <p className="text-base text-[#878680] flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              {guestbook.wedding_date}
-            </p>
-            {guestbook.venue && (
-              <p className="text-sm text-[#B5ADA3] mt-1 flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                {guestbook.venue}
+          <div className="relative h-80 w-full bg-gradient-to-br from-[#FAF7F2] via-[#F5EFE7] to-[#EDE3D8] overflow-hidden flex flex-col items-center justify-center px-4 text-center">
+            {/* 장식 — 배경 */}
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-16 -left-16 w-72 h-72 rounded-full bg-[#C4967E]/10 blur-3xl" />
+              <div className="absolute -bottom-20 -right-12 w-80 h-80 rounded-full bg-[#C9A96E]/12 blur-3xl" />
+              {/* 미니 sparkle 흩뿌리기 */}
+              <Sparkles className="absolute top-10 left-10 w-5 h-5 text-[#C9A96E]/45" />
+              <Sparkles className="absolute top-20 right-16 w-4 h-4 text-[#C4967E]/40" />
+              <Sparkles className="absolute bottom-14 left-20 w-4 h-4 text-[#C9A96E]/40" />
+              <Heart className="absolute top-14 right-28 w-3.5 h-3.5 text-[#C4967E]/35 fill-current" />
+              <Heart className="absolute bottom-20 right-1/3 w-3 h-3 text-[#C9A96E]/30 fill-current" />
+            </div>
+            <div className="relative">
+              <h1
+                className="font-serif text-4xl sm:text-5xl font-medium text-[#1A1A1F] mb-3"
+                style={{ fontFamily: "'Noto Serif KR', serif" }}
+              >
+                {guestbook.bride_name} &amp; {guestbook.groom_name}
+              </h1>
+              <p className="text-base text-[#504444] flex items-center justify-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {guestbook.wedding_date}
               </p>
-            )}
+              {guestbook.venue && (
+                <p className="text-sm text-[#878680] mt-1 flex items-center justify-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  {guestbook.venue}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -324,15 +412,22 @@ export default function PublicGuestbookPage() {
 
         {/* 메시지 작성 폼 */}
         <section className="bg-white border border-[#F0EFED] rounded-2xl p-6 sm:p-8">
-          <h2
-            className="font-serif text-2xl font-medium text-[#1A1A1F] mb-2"
-            style={{ fontFamily: "'Noto Serif KR', serif" }}
-          >
-            축하 메시지 남기기
-          </h2>
-          <p className="text-sm text-[#878680] mb-5">
-            두 사람에게 따뜻한 한 마디를 남겨주세요. 사진도 한 장 함께 보낼 수 있어요.
-          </p>
+          <div className="flex items-start gap-3 mb-5">
+            <div className="shrink-0 w-10 h-10 rounded-xl bg-[#C4967E]/12 flex items-center justify-center">
+              <Heart className="w-5 h-5 text-[#C4967E] fill-current" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2
+                className="font-serif text-2xl font-medium text-[#1A1A1F] mb-1"
+                style={{ fontFamily: "'Noto Serif KR', serif" }}
+              >
+                축하 메시지 남기기
+              </h2>
+              <p className="text-sm text-[#878680]">
+                두 사람에게 따뜻한 한 마디를 남겨주세요. 사진 한 장도 함께 보낼 수 있어요.
+              </p>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
@@ -449,8 +544,16 @@ export default function PublicGuestbookPage() {
           </h2>
 
           {messages.length === 0 ? (
-            <div className="bg-white border border-[#F0EFED] rounded-2xl p-10 text-center text-[#B5ADA3]">
-              첫 번째 축하 메시지를 남겨보세요.
+            <div className="bg-white border border-[#F0EFED] rounded-2xl p-10 text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#C4967E]/10 text-[#C4967E] mb-3">
+                <Heart className="w-6 h-6 fill-current" />
+              </div>
+              <p className="text-base font-medium text-[#1A1A1F] mb-1">
+                첫 메시지를 기다리고 있어요
+              </p>
+              <p className="text-sm text-[#878680]">
+                당신의 한 마디가 두 사람에게 가장 큰 선물이에요 🤍
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -493,18 +596,24 @@ export default function PublicGuestbookPage() {
                     </button>
                   )}
 
-                  {/* 오너 전용: 커뮤니티 크로스포스트 */}
-                  {isOwner && (
-                    <div className="mt-3 pt-3 border-t border-[#F5F2ED] flex justify-end">
+                  {/* 리액션 + (오너 전용) 크로스포스트 */}
+                  <div className="mt-3 pt-3 border-t border-[#F5F2ED] flex items-center flex-wrap gap-2">
+                    <ReactionRow
+                      messageId={m.id}
+                      reactions={m.reactions}
+                      pendingKey={reactionPending}
+                      onReact={handleReact}
+                    />
+                    {isOwner && (
                       <Link
                         href={`/community/post/write?prefill=guestbook&slug=${encodeURIComponent(slug)}&msg=${encodeURIComponent(m.id)}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#795252] bg-[#fcf9f8] border border-[#F0EFED] rounded-lg hover:border-[#795252] hover:bg-white transition-colors"
+                        className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#795252] bg-[#fcf9f8] border border-[#F0EFED] rounded-lg hover:border-[#795252] hover:bg-white transition-colors"
                       >
                         <ArrowUpRight className="w-3.5 h-3.5" />
                         커뮤니티에 후기로 올리기
                       </Link>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
@@ -544,6 +653,14 @@ export default function PublicGuestbookPage() {
           </Link>
         </div>
       </footer>
+
+      {/* QR 모달 (오너 전용) */}
+      {qrOpen && typeof window !== "undefined" && (
+        <GuestbookQRModal
+          url={window.location.href}
+          onClose={() => setQrOpen(false)}
+        />
+      )}
 
       {/* 라이트박스 */}
       {lightboxUrl && (
@@ -660,6 +777,64 @@ export default function PublicGuestbookPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ────────── 리액션 행 ──────────
+
+const REACTION_META: Record<
+  GuestbookReactionType,
+  { emoji: string; label: string }
+> = {
+  love: { emoji: "❤️", label: "사랑해요" },
+  congrats: { emoji: "🥰", label: "축하해요" },
+  touched: { emoji: "😭", label: "감동이에요" },
+};
+
+function ReactionRow({
+  messageId,
+  reactions,
+  pendingKey,
+  onReact,
+}: {
+  messageId: string;
+  reactions: GuestbookMessageReactions | undefined;
+  pendingKey: string | null;
+  onReact: (messageId: string, type: GuestbookReactionType) => void;
+}) {
+  const safe =
+    reactions ?? {
+      counts: { love: 0, congrats: 0, touched: 0 },
+      mine: { love: false, congrats: false, touched: false },
+    };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {(Object.keys(REACTION_META) as GuestbookReactionType[]).map((type) => {
+        const meta = REACTION_META[type];
+        const count = safe.counts[type] ?? 0;
+        const isMine = safe.mine[type];
+        const pending = pendingKey === `${messageId}:${type}`;
+        return (
+          <button
+            key={type}
+            type="button"
+            onClick={() => onReact(messageId, type)}
+            disabled={pending || pendingKey !== null}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all border disabled:opacity-60 ${
+              isMine
+                ? "bg-[#FAF7F2] border-[#C4967E]/40 text-[#1A1A1F]"
+                : "bg-white border-[#F0EFED] text-[#878680] hover:border-[#C4967E]/30 hover:text-[#1A1A1F]"
+            }`}
+            aria-label={meta.label}
+            title={meta.label}
+          >
+            <span className="text-sm leading-none">{meta.emoji}</span>
+            {count > 0 && <span className="tabular-nums">{count}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
