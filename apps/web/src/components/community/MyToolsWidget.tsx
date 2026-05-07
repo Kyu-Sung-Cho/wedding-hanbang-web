@@ -34,6 +34,7 @@ const TOOLS: ToolCard[] = [
   },
   {
     href: "/schedule",
+    panel: "schedule",
     label: "일정 관리",
     description: "D-day 체크리스트 + 캘린더",
     icon: CalendarCheck,
