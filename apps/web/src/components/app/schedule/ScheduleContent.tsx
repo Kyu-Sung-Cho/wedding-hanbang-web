@@ -270,14 +270,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         )}
 
         {/* 3-column Stat Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 animate-fade-in">
           {/* D-day */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
             <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-4 font-medium">
               D-DAY
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
             </p>
             <p className="text-base text-[#504444]">
@@ -296,7 +296,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               PROGRESS
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {progressPct}%
             </p>
             <div className="w-full h-2 bg-[#f6f3f2] rounded-full overflow-hidden mt-4">
@@ -315,7 +315,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-4 font-medium">
               UPCOMING
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
               {upcomingEvents.length}
             </p>
             <p className="text-base text-[#504444]">다가오는 일정</p>

@@ -987,7 +987,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
         )}
 
         {/* 상단 스탯 3개 - Editorial */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {/* Total Budget */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
             <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
@@ -1029,7 +1029,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                 </button>
               </div>
             ) : (
-              <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
+              <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
                 {(totalBudget / 10000).toLocaleString()}
               </p>
             )}
@@ -1043,7 +1043,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               SPENT
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
+            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light break-words">
               {(totalSpent / 10000).toLocaleString()}
             </p>
             <p className="text-lg sm:text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>
@@ -1062,7 +1062,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             <p className={`text-xs tracking-widest uppercase mb-4 font-medium ${remaining >= 0 ? "text-[#C9A96E]" : "text-red-400"}`}>
               REMAINING
             </p>
-            <p className={`font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none mb-2 font-light break-words ${remaining >= 0 ? "text-[#1b1c1c]" : "text-red-400"}`}>
+            <p className={`font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none mb-2 font-light break-words ${remaining >= 0 ? "text-[#1b1c1c]" : "text-red-400"}`}>
               {remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString()}
             </p>
             <p className="text-lg sm:text-xl text-[#504444] font-serif-kr italic mb-3">만원</p>

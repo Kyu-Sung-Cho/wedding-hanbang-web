@@ -639,7 +639,7 @@ function PostWriteContent() {
               <label className="block text-base font-medium text-[#1b1c1c] mb-3">
                 카테고리 <span className="text-[#795252]">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {COMMUNITY_CATEGORIES.map((cat) => {
                   const Icon = getIcon(cat.icon);
                   const isSelected = category === cat.key;
@@ -648,7 +648,7 @@ function PostWriteContent() {
                       key={cat.key}
                       type="button"
                       onClick={() => setCategory(cat.key)}
-                      className={`flex items-center gap-2 px-3 py-2 text-base font-medium rounded-lg border transition-all ${
+                      className={`flex items-center gap-2 px-3.5 py-3 sm:py-2.5 text-base font-medium rounded-lg border transition-all ${
                         isSelected
                           ? "border-[#795252] bg-[#795252] text-white shadow-sm"
                           : "border-[#e4e2e1] bg-white text-[#504444] hover:border-[#795252] hover:text-[#1b1c1c]"

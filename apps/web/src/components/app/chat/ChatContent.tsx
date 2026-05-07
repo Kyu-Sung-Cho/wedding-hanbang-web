@@ -1105,29 +1105,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        {/* 대상 토글 — 함께 탭에서만 (아모라/상대방). 나만 탭은 자동 아모라 1:1 */}
+        {/* 대상 토글 — 모바일은 grid 2-col로 동등 폭, sm 이상은 inline */}
         {activeTab === "shared" && (
-          <div className="flex items-center gap-2 mb-2.5 px-0.5 sm:px-1 flex-wrap">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 mb-2.5 px-0.5 sm:px-1">
             <button
               onClick={() => setMessageTarget("ai")}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all whitespace-nowrap ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               아모라에게
             </button>
             <button
               onClick={() => setMessageTarget("partner")}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all whitespace-nowrap ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
               }`}
             >
-              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               상대방에게
             </button>
           </div>

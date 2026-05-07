@@ -192,7 +192,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-xl sm:text-2xl lg:text-[26px] xl:text-[30px] 2xl:text-[34px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-lg sm:text-xl md:text-2xl xl:text-[28px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -254,8 +254,8 @@ export default function PostCard({ post }: PostCardProps) {
             )}
           </div>
 
-          {/* 하단 */}
-          <div className="flex items-center justify-between gap-3 mt-auto pt-2">
+          {/* 하단 — 닉네임 길어지면 액션이 자연스럽게 wrap */}
+          <div className="flex items-center justify-between flex-wrap gap-y-2 gap-x-3 mt-auto pt-2">
             <div className="flex items-center space-x-2 min-w-0">
               <Link href={`/community?author_id=${post.author_id}`} className="shrink-0">
                 <Avatar
@@ -264,10 +264,12 @@ export default function PostCard({ post }: PostCardProps) {
                   size={40}
                 />
               </Link>
-              <span className="text-sm sm:text-[17px] text-[#504444] truncate">{author.nickname}</span>
+              <span className="text-sm sm:text-[17px] text-[#504444] truncate max-w-[140px] sm:max-w-none">
+                {author.nickname}
+              </span>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 text-[#504444] flex-shrink-0">
+            <div className="flex items-center gap-3 sm:gap-4 text-[#504444] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"

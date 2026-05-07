@@ -376,7 +376,7 @@ export default function PublicGuestbookPage() {
         </div>
 
         {guestbook.cover_image_url ? (
-          <div className="relative h-80 w-full overflow-hidden">
+          <div className="relative h-56 sm:h-72 lg:h-80 w-full overflow-hidden">
             <Image
               src={guestbook.cover_image_url}
               alt=""
@@ -405,7 +405,7 @@ export default function PublicGuestbookPage() {
             </div>
           </div>
         ) : (
-          <div className="relative h-80 w-full bg-gradient-to-br from-[#FAF7F2] via-[#F5EFE7] to-[#EDE3D8] overflow-hidden flex flex-col items-center justify-center px-4 text-center">
+          <div className="relative h-56 sm:h-72 lg:h-80 w-full bg-gradient-to-br from-[#FAF7F2] via-[#F5EFE7] to-[#EDE3D8] overflow-hidden flex flex-col items-center justify-center px-4 text-center">
             {/* 장식 — 배경 */}
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -top-16 -left-16 w-72 h-72 rounded-full bg-[#C4967E]/10 blur-3xl" />
@@ -523,7 +523,7 @@ export default function PublicGuestbookPage() {
             )}
 
             {photos.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {photos.map((p) => (
                   <div key={p.id} className="relative group aspect-square">
                     <button
@@ -599,7 +599,7 @@ export default function PublicGuestbookPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <input
                 type="text"
                 value={guestName}
@@ -752,7 +752,7 @@ export default function PublicGuestbookPage() {
                     <button
                       type="button"
                       onClick={() => setLightboxUrl(m.image_url)}
-                      className="mt-3 block w-full max-w-[280px] aspect-square rounded-xl overflow-hidden border border-[#F0EFED] bg-[#FAFAF8] hover:opacity-90 transition-opacity"
+                      className="mt-3 block w-full max-w-[85vw] sm:max-w-[280px] aspect-square rounded-xl overflow-hidden border border-[#F0EFED] bg-[#FAFAF8] hover:opacity-90 transition-opacity"
                       aria-label="사진 확대"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
