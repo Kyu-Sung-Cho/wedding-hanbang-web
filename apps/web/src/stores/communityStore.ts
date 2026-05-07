@@ -150,9 +150,30 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         body: JSON.stringify(input),
       });
       if (!res.ok) return null;
-      const data = (await res.json()) as { post?: { id?: string }; id?: string };
-      // API 응답 형식: { post: { id, ... } }
-      return data.post?.id ?? data.id ?? null;
+      const data = (await res.json()) as {
+        post?: PostWithAuthor & { id: string };
+        id?: string;
+      };
+      const newPost = data.post;
+      const id = newPost?.id ?? data.id ?? null;
+
+      // 옵티미스틱 prepend — 작성자가 곧바로 커뮤니티 리스트로 돌아왔을 때 즉시 보이게.
+      // 응답에 author가 없으면 store에 캐싱된 communityProfile로 채움.
+      if (newPost && id) {
+        const { communityProfile, posts } = get();
+        const enriched: PostWithAuthor = {
+          ...newPost,
+          author: (newPost.author ??
+            communityProfile ??
+            ({ nickname: "나", rank: "sprout", wedding_year: null, wedding_month: null } as PostWithAuthor["author"])) as PostWithAuthor["author"],
+          user_vote: null,
+          user_bookmarked: false,
+        } as PostWithAuthor;
+        // 이미 같은 id가 있으면(드물게 realtime으로 먼저 들어옴) 스킵
+        const dedup = posts.some((p) => p.id === id);
+        if (!dedup) set({ posts: [enriched, ...posts] });
+      }
+      return id;
     } catch {
       return null;
     }

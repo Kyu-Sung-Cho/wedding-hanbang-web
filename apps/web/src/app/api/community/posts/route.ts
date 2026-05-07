@@ -628,25 +628,6 @@ export async function POST(req: NextRequest) {
       // 게이미피케이션 오류는 무시
     }
 
-    // is_normal + price_data: AI 코멘트 생성 (비차단 실패)
-    let finalPost = post;
-    if (category === "is_normal" && priceData) {
-      try {
-        const aiComment = await generateAiPriceComment(priceData);
-        if (aiComment) {
-          const { data: updated } = await serviceClient
-            .from("community_posts")
-            .update({ ai_comment: aiComment })
-            .eq("id", post.id)
-            .select("*")
-            .single();
-          if (updated) finalPost = updated;
-        }
-      } catch (aiErr) {
-        console.error("AI comment generation failed:", aiErr);
-      }
-    }
-
     // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
@@ -655,7 +636,25 @@ export async function POST(req: NextRequest) {
       console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
     }
 
-    return NextResponse.json({ post: finalPost }, { status: 201 });
+    // is_normal + price_data: AI 코멘트 생성 — fire-and-forget
+    // (Claude 호출이 1~3초 걸려서 응답을 막으면 글 작성이 답답함. 백그라운드에서 채워넣음)
+    if (category === "is_normal" && priceData) {
+      void (async () => {
+        try {
+          const aiComment = await generateAiPriceComment(priceData);
+          if (aiComment) {
+            await serviceClient
+              .from("community_posts")
+              .update({ ai_comment: aiComment })
+              .eq("id", post.id);
+          }
+        } catch (aiErr) {
+          console.error("AI comment generation failed:", aiErr);
+        }
+      })();
+    }
+
+    return NextResponse.json({ post }, { status: 201 });
   } catch (err) {
     console.error("Create post error:", err);
     return NextResponse.json(
