@@ -8,7 +8,7 @@ export type CommunityCategory =
   | "free";          // 자유게시판
 
 export type PostVisibility = "public" | "members" | "draft";
-export type PostSort = "hot" | "new" | "top" | "my_cohort";
+export type PostSort = "hot" | "new" | "top" | "my_cohort" | "my_posts";
 export type TimePeriod = "week" | "month" | "all";
 export type AdDisclosure = "general" | "sponsored" | "ad";
 export type CommunityRank = "sprout" | "preparing" | "expert" | "master" | "senior";

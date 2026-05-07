@@ -14,6 +14,7 @@ const SORT_OPTIONS: { key: PostSort; label: string }[] = [
   { key: "new", label: "최신" },
   { key: "top", label: "추천" },
   { key: "my_cohort", label: "내 동기글" },
+  { key: "my_posts", label: "내 글" },
 ];
 
 const PERIOD_OPTIONS: { key: TimePeriod; label: string }[] = [

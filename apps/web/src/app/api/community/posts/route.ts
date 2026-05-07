@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
       query = query.eq("visibility", "public");
     }
 
-    // 정렬 + my_cohort 필터
+    // 정렬 + my_cohort / my_posts 필터
     if (sort === "my_cohort") {
       // 비로그인은 빈 결과
       if (!user) {
@@ -141,17 +141,27 @@ export async function GET(req: NextRequest) {
         // 동기방 미가입 → 빈 결과 (UI에서 가입 유도)
         return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
       }
-      // 2. 같은 cohort room의 모든 멤버 user_ids
+      // 2. 같은 cohort room의 다른 멤버 user_ids — 본인 제외
       const { data: cohortMembers } = await supabase
         .from("cohort_members")
         .select("user_id")
         .in("room_id", roomIds);
-      const memberIds = [...new Set((cohortMembers ?? []).map((m) => m.user_id as string))];
+      const memberIds = [
+        ...new Set((cohortMembers ?? []).map((m) => m.user_id as string)),
+      ].filter((id) => id !== user.id);
       if (memberIds.length === 0) {
+        // 동기방에 나밖에 없음 → 빈 결과
         return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 3. 동기들이 작성한 글만 + 최신순
       query = query.in("author_id", memberIds).order("created_at", { ascending: false });
+    } else if (sort === "my_posts") {
+      // 비로그인은 빈 결과
+      if (!user) {
+        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
+      query = query.eq("author_id", user.id).order("created_at", { ascending: false });
     } else if (sort === "new") {
       query = query.order("created_at", { ascending: false });
     } else if (sort === "top") {
