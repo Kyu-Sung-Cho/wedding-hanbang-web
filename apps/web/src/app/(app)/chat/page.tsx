@@ -163,15 +163,29 @@ export default function ChatPage() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 자동 스크롤: 새 메시지가 추가되면 항상, 스트리밍 토큰 갱신은 바닥 근처일 때만
+  // 자동 스크롤 — 사용자가 위쪽 내용 읽고 있으면 절대 방해 안 함.
+  // 1) 본인이 방금 보낸 메시지(마지막 메시지가 내 거)면 → 항상 스크롤 (자기 메시지 확인용)
+  // 2) AI/상대방 메시지는 → 바닥 근처(120px 이내)일 때만 스크롤
+  // 3) 스트리밍 인디케이터 갱신은 → 바닥 근처일 때만 (이전과 동일)
   useEffect(() => {
     const isNewMessage = messages.length !== lastMsgCountRef.current;
     lastMsgCountRef.current = messages.length;
 
-    if (isNewMessage || isNearBottomRef.current) {
+    if (isNewMessage) {
+      const lastMsg = messages[messages.length - 1];
+      const sentByMe = lastMsg?.sender_id === profile?.id;
+      // 내가 방금 보낸 메시지면 무조건 따라감, 아니면 바닥 근처일 때만
+      if (sentByMe || isNearBottomRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+      return;
+    }
+
+    // 메시지 카운트는 그대로 + 스트리밍 인디케이터/도구 결과 변화 → 바닥 근처일 때만
+    if (isNearBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isStreaming, streamingContent]);
+  }, [messages, isStreaming, streamingContent, streamingToolResults, profile?.id]);
 
   // 갈등 감지: 새 메시지가 추가될 때만 + 최근 5분 이내 메시지만 분석
   useEffect(() => {
