@@ -155,7 +155,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative bg-white rounded-2xl p-5 sm:p-6 md:p-8 xl:p-9 2xl:p-10 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+    <article className="relative bg-white rounded-2xl p-5 sm:p-6 md:p-7 lg:p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt) && (
         <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
@@ -169,7 +169,7 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         </div>
       )}
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-6 md:gap-8 xl:gap-10`}>
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-6 lg:gap-8`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -208,7 +208,7 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#504444] text-sm sm:text-[16px] xl:text-[17px] 2xl:text-[18px] leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
+              <p className="text-[#504444] text-sm sm:text-base lg:text-[15px] xl:text-base leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}
@@ -264,7 +264,7 @@ export default function PostCard({ post }: PostCardProps) {
                   size={40}
                 />
               </Link>
-              <span className="text-sm sm:text-[17px] text-[#504444] truncate max-w-[140px] sm:max-w-none">
+              <span className="text-sm sm:text-base text-[#504444] truncate max-w-[140px] sm:max-w-none">
                 {author.nickname}
               </span>
             </div>
@@ -286,7 +286,7 @@ export default function PostCard({ post }: PostCardProps) {
                   fill={isLiked ? "currentColor" : "none"}
                 />
                 {displayUpvoteCount > 0 && (
-                  <span className="text-sm sm:text-[17px] tabular-nums">
+                  <span className="text-sm sm:text-base tabular-nums">
                     {displayUpvoteCount}
                   </span>
                 )}
@@ -298,7 +298,7 @@ export default function PostCard({ post }: PostCardProps) {
                 className="flex items-center gap-1 hover:text-[#795252] group"
               >
                 <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
-                <span className="text-sm sm:text-[17px]">{post.comment_count}</span>
+                <span className="text-sm sm:text-base">{post.comment_count}</span>
               </Link>
 
               {/* 북마크 */}
@@ -336,7 +336,7 @@ export default function PostCard({ post }: PostCardProps) {
         {hasImage && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full sm:w-44 sm:h-44 lg:w-48 lg:h-48 xl:w-56 xl:h-56 2xl:w-64 2xl:h-64 h-40 rounded-xl overflow-hidden shrink-0"
+            className="w-full h-40 sm:w-44 sm:h-44 lg:w-52 lg:h-52 xl:w-60 xl:h-60 rounded-xl overflow-hidden shrink-0"
           >
             <Image
               src={images[0]}
