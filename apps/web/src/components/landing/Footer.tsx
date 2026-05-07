@@ -6,9 +6,9 @@ import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 
 const SERVICE_LINKS = [
   { label: "아모라 채팅", href: "/chat" },
-  { label: "업체 탐색", href: "/vendors" },
-  { label: "시세 정보", href: "/market-prices" },
   { label: "커뮤니티", href: "/community" },
+  { label: "시세 정보", href: "/market-prices" },
+  { label: "내 즐겨찾기", href: "/favorites" },
 ];
 
 const POLICY_LINKS = [

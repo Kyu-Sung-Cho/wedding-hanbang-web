@@ -490,9 +490,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Spotlight — 다크 테마 */}
+        {/* Spotlight — 커뮤니티 (이번 분기 핵심 채널) */}
         <Link
-          href="/fitting"
+          href="/community"
           className="relative rounded-2xl overflow-hidden min-h-[320px] sm:min-h-[400px] group cursor-pointer block"
         >
           {/* 배경 */}
@@ -503,7 +503,7 @@ export default function DashboardPage() {
 
           {/* 상단 아이콘 */}
           <div className="absolute top-8 right-8">
-            <Sparkles className="w-7 h-7 text-[#C9A96E]/70" />
+            <MessageCircle className="w-7 h-7 text-[#C9A96E]/70" />
           </div>
 
           {/* 컨텐츠 */}
@@ -511,12 +511,12 @@ export default function DashboardPage() {
             <p className="text-xs tracking-[0.25em] uppercase text-[#C9A96E] mb-3 font-medium">
               Spotlight
             </p>
-            <h3 className="font-serif-kr text-2xl sm:text-3xl mb-3 font-light">AI 드레스 피팅</h3>
+            <h3 className="font-serif-kr text-2xl sm:text-3xl mb-3 font-light">웨딩 커뮤니티</h3>
             <p className="text-base text-white/80 mb-5 line-clamp-2 leading-relaxed">
-              내 사진으로 수백 벌의 드레스를 미리 입어보세요
+              먼저 결혼한 분들의 진짜 후기·가격·고민을 같이 나눠보세요
             </p>
             <div className="inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 group-hover:border-white self-start pb-1 transition-colors">
-              지금 시작
+              둘러보기
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>

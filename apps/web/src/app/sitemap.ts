@@ -41,12 +41,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
-      url: `${BASE_URL}/vendors`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
       url: `${BASE_URL}/login`,
       lastModified: new Date(),
       changeFrequency: "monthly",
@@ -81,27 +75,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // DB 오류 시 동적 페이지 없이 정적 페이지만 반환
   }
 
-  // 업체 동적 페이지
-  let vendorPages: MetadataRoute.Sitemap = [];
-  try {
-    const { data: vendors } = await supabase
-      .from("vendors")
-      .select("id, updated_at")
-      .eq("status", "approved")
-      .order("updated_at", { ascending: false })
-      .limit(5000);
+  // 업체 페이지는 사용자 측 비활성 — 사이트맵에서 제외
+  // (업체 DB가 쌓이고 /vendors 사용자 측 재오픈 시 복원 검토)
 
-    if (vendors) {
-      vendorPages = vendors.map((vendor) => ({
-        url: `${BASE_URL}/vendors/${vendor.id}`,
-        lastModified: new Date(vendor.updated_at),
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      }));
-    }
-  } catch {
-    // DB 오류 시 동적 페이지 없이 진행
-  }
-
-  return [...staticPages, ...communityPages, ...vendorPages];
+  return [...staticPages, ...communityPages];
 }

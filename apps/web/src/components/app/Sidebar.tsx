@@ -9,18 +9,16 @@ import {
   MessageCircle,
   Wallet,
   CalendarCheck,
-  Store,
   Users,
-  Sparkles,
   BookOpen,
   Settings,
   LogOut,
   X,
-  FileText,
   Mail,
   Banknote,
   Mic,
   BarChart3,
+  Bookmark,
 } from "lucide-react";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
@@ -33,7 +31,14 @@ const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 
 // 사이드바에서만 숨김 (페이지/라우트는 살아있음 — 직접 URL 접근 가능).
 // invitations·scripts는 운영 안정화 후 노출 예정.
-const SIDEBAR_HIDDEN: string[] = ["/invitations", "/scripts"];
+// vendors·bookings·fitting은 커뮤니티 우선 전환으로 비활성 — 업체 DB 쌓이면 재노출 검토.
+const SIDEBAR_HIDDEN: string[] = [
+  "/invitations",
+  "/scripts",
+  "/vendors",
+  "/bookings",
+  "/fitting",
+];
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "대시보드" },
@@ -44,10 +49,8 @@ const menuItems = [
   { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
   { href: "/money", icon: Banknote, label: "축의금 관리" },
   { href: "/scripts", icon: Mic, label: "AI 대본" },
-  { href: "/vendors", icon: Store, label: "업체 탐색" },
   { href: "/community", icon: Users, label: "커뮤니티" },
-  { href: "/bookings", icon: FileText, label: "내 예약" },
-  { href: "/fitting", icon: Sparkles, label: "드레스 피팅" },
+  { href: "/favorites", icon: Bookmark, label: "내 즐겨찾기" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/settings", icon: Settings, label: "설정" },
 ]
