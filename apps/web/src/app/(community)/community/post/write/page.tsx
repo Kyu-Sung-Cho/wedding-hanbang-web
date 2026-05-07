@@ -76,6 +76,11 @@ function PostWriteContent() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
+  const prefillKind = searchParams.get("prefill");
+  const prefillSlug = searchParams.get("slug");
+  const prefillMsg = searchParams.get("msg");
+  const isPrefillGuestbook =
+    prefillKind === "guestbook" && !!prefillSlug && !!prefillMsg && !isEditMode;
 
   const { createPost, updatePost } = useCommunityStore();
 
@@ -211,6 +216,60 @@ function PostWriteContent() {
       // 파싱 실패 시 무시
     }
   }, [isEditMode, authChecked]);
+
+  // 방명록 메시지 → 커뮤니티 후기 prefill (오너가 자기 방명록에서 트리거)
+  useEffect(() => {
+    if (!isPrefillGuestbook || !authChecked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/guestbook/${prefillSlug}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const gb = data.guestbook as { bride_name: string; groom_name: string } | null;
+        const msgs = (data.messages ?? []) as Array<{
+          id: string;
+          guest_name: string;
+          relation: string | null;
+          message: string;
+          image_url: string | null;
+        }>;
+        const m = msgs.find((x) => x.id === prefillMsg);
+        if (cancelled || !m || !gb) return;
+
+        const relationLabel =
+          m.relation === "university_friend" ? "대학친구" :
+          m.relation === "work_colleague" ? "직장동료" :
+          m.relation === "family" ? "가족" :
+          m.relation === "old_friend" ? "오래된 친구" :
+          m.relation === "partner" ? "파트너 지인" :
+          m.relation === "other" ? "지인" : null;
+
+        const titleSeed = `우리 결혼식 방명록에 ${m.guest_name}님이 남겨주신 메시지`;
+        const quoted = m.message
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n");
+        const attribution = relationLabel
+          ? `— ${m.guest_name} (${relationLabel})`
+          : `— ${m.guest_name}`;
+        const contentSeed = `${quoted}\n\n${attribution}\n\n[방명록 전체 보기](/guestbook/${prefillSlug})`;
+
+        // ama 카테고리 (결혼 끝났다 AMA) 가 가장 적합
+        setCategory("ama");
+        setTitle(titleSeed.slice(0, 200));
+        setContent(contentSeed);
+        if (m.image_url) setImages([m.image_url]);
+        setDraftRestored(false);
+      } catch {
+        /* prefill 실패는 silent — 빈 폼으로 진행 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPrefillGuestbook, prefillSlug, prefillMsg, authChecked]);
 
   // 변경 감지 (unsaved changes)
   useEffect(() => {

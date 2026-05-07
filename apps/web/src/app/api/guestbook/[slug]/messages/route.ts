@@ -55,6 +55,37 @@ export async function POST(
       );
     }
 
+    // image_url 검증: 우리 Supabase Storage의 guestbook-uploads 버킷만 허용 — 외부 URL 차단으로 hotlink/spam 방지
+    let safeImageUrl: string | null = null;
+    if (typeof image_url === "string" && image_url.length > 0) {
+      const supabaseHost = (() => {
+        try {
+          return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host;
+        } catch {
+          return null;
+        }
+      })();
+      let parsed: URL | null = null;
+      try {
+        parsed = new URL(image_url);
+      } catch {
+        parsed = null;
+      }
+      if (
+        parsed &&
+        supabaseHost &&
+        parsed.host === supabaseHost &&
+        parsed.pathname.includes("/guestbook-uploads/")
+      ) {
+        safeImageUrl = parsed.toString();
+      } else {
+        return NextResponse.json(
+          { error: "허용되지 않은 이미지 URL입니다." },
+          { status: 400 }
+        );
+      }
+    }
+
     const ipHash = hashIp(req);
 
     // Rate limit: 최근 24시간 동안 같은 IP가 같은 방명록에 5개 초과 작성 불가
@@ -81,7 +112,7 @@ export async function POST(
         relation: relation ?? null,
         message: message.trim().slice(0, 2000),
         message_type: message_type ?? "general",
-        image_url: image_url ?? null,
+        image_url: safeImageUrl,
         is_approved: true,
         ip_hash: ipHash,
       })
