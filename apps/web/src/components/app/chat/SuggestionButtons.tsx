@@ -1,35 +1,143 @@
 "use client";
 
+import { useRef, useState, useEffect, useCallback } from "react";
+import { Sparkles } from "lucide-react";
+
 interface SuggestionButtonsProps {
   suggestions: string[];
   onSelect: (suggestion: string) => void;
   disabled?: boolean;
 }
 
+/**
+ * AI 제안 칩 — 가로 스크롤 + 마우스 드래그 지원.
+ * 모바일은 터치 스와이프, 데스크탑은 click-and-drag 또는 휠.
+ */
 export default function SuggestionButtons({
   suggestions,
   onSelect,
   disabled = false,
 }: SuggestionButtonsProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStateRef = useRef({ startX: 0, startScrollLeft: 0, hasMoved: false });
+  const [showRightFade, setShowRightFade] = useState(false);
+  const [showLeftFade, setShowLeftFade] = useState(false);
+
+  // 스크롤 가능 여부 + 페이드 표시 갱신
+  const updateFades = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowLeftFade(el.scrollLeft > 4);
+    setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    updateFades();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateFades, { passive: true });
+    window.addEventListener("resize", updateFades);
+    return () => {
+      el.removeEventListener("scroll", updateFades);
+      window.removeEventListener("resize", updateFades);
+    };
+  }, [updateFades, suggestions]);
+
+  // 마우스 드래그 (데스크탑)
+  function handleMouseDown(e: React.MouseEvent) {
+    const el = scrollRef.current;
+    if (!el) return;
+    setIsDragging(true);
+    dragStateRef.current = {
+      startX: e.pageX - el.offsetLeft,
+      startScrollLeft: el.scrollLeft,
+      hasMoved: false,
+    };
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!isDragging) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = x - dragStateRef.current.startX;
+    if (Math.abs(walk) > 4) dragStateRef.current.hasMoved = true;
+    el.scrollLeft = dragStateRef.current.startScrollLeft - walk;
+  }
+
+  function handleMouseUp() {
+    setIsDragging(false);
+  }
+
+  // 휠: 세로 휠을 가로 스크롤로 변환 (트랙패드 가로 스크롤은 기본 동작)
+  function handleWheel(e: React.WheelEvent) {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+    }
+  }
+
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-hide">
-      {suggestions.map((suggestion, i) => (
-        <button
-          key={i}
-          onClick={() => onSelect(suggestion)}
-          disabled={disabled}
-          className="flex-shrink-0 px-5 py-2.5 text-base font-medium rounded-full
-            bg-white border border-black/[0.06] text-[#928980]
-            hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
-            active:scale-95
-            disabled:opacity-40 disabled:cursor-not-allowed
-            transition-all duration-200 shadow-sm"
-        >
-          {suggestion}
-        </button>
-      ))}
+    <div className="relative">
+      {/* 라벨 — 시각적 구분 강화 */}
+      <div className="flex items-center gap-1.5 px-1 mb-2">
+        <Sparkles className="w-3.5 h-3.5 text-[#C9A96E]" />
+        <span className="text-xs uppercase tracking-widest text-[#928980] font-medium">
+          추천 대화
+        </span>
+      </div>
+
+      {/* 좌측 페이드 */}
+      {showLeftFade && (
+        <div className="pointer-events-none absolute top-7 bottom-2 left-0 w-8 bg-gradient-to-r from-[#FAFAF8] to-transparent z-10" />
+      )}
+      {/* 우측 페이드 */}
+      {showRightFade && (
+        <div className="pointer-events-none absolute top-7 bottom-2 right-0 w-8 bg-gradient-to-l from-[#FAFAF8] to-transparent z-10" />
+      )}
+
+      <div
+        ref={scrollRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+        className={`flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-hide select-none ${
+          isDragging ? "cursor-grabbing" : "cursor-grab"
+        }`}
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        {suggestions.map((suggestion, i) => (
+          <button
+            key={i}
+            onClick={(e) => {
+              // 드래그로 끝났으면 클릭 무시
+              if (dragStateRef.current.hasMoved) {
+                e.preventDefault();
+                dragStateRef.current.hasMoved = false;
+                return;
+              }
+              onSelect(suggestion);
+            }}
+            disabled={disabled}
+            className="flex-shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-full
+              bg-white border border-black/[0.06] text-[#504444]
+              hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
+              active:scale-95
+              disabled:opacity-40 disabled:cursor-not-allowed
+              transition-colors duration-200 shadow-sm
+              whitespace-nowrap"
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

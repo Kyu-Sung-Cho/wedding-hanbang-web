@@ -488,9 +488,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               </div>
             )}
 
-            {/* 제안 버튼 */}
+            {/* 제안 버튼 — 입력창과 충분한 간격 */}
             {suggestions.length > 0 && !isStreaming && (
-              <div className="px-3 pb-2">
+              <div className="px-3 pt-2 pb-4 border-t border-[#F0EFED]/60 mt-2">
                 <SuggestionButtons suggestions={suggestions} onSelect={handleSend} disabled={isStreaming} />
               </div>
             )}
