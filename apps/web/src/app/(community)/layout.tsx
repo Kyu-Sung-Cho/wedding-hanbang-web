@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import CommunityNav from "@/components/community/CommunityNav";
-import CommunityToolPanels from "@/components/community/CommunityToolPanels";
 import { ToastContainer } from "@/components/community/Toast";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import Link from "next/link";
@@ -17,10 +16,7 @@ export default function CommunityLayout({
       </Suspense>
       <ToastContainer />
 
-      {/* 도구 오버레이 (아모라/예산/일정) — 라우트 이동 없이 인플레이스 */}
-      <CommunityToolPanels />
-
-      {/* 메인 콘텐츠 */}
+      {/* 메인 콘텐츠 — 도구는 /community/{chat,budget,schedule} 서브라우트로 진입 */}
       <main className="flex-1">{children}</main>
 
       {/* 푸터 */}

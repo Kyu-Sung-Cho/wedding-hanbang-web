@@ -6,35 +6,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Wallet, CalendarCheck, Lock, ArrowRight, Sparkles, X, MessageSquarePlus } from "lucide-react";
 import { usePostCount, REQUIRED_POSTS_FOR_TOOLS } from "@/hooks/usePostCount";
-import { useToolPanelStore, type ToolPanelKey } from "@/stores/toolPanelStore";
 
 interface ToolCard {
   href: string;
-  /** 라우트 이동 대신 인플레이스 패널로 열 때 사용. 없으면 href로 navigate. */
-  panel?: Exclude<ToolPanelKey, null>;
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// 커뮤니티 안에서 사용 — /community/* 서브라우트로 이동.
+// CommunityLayout의 nav + footer는 그대로 유지되고 메인 영역에 도구가 렌더됨.
 const TOOLS: ToolCard[] = [
   {
-    href: "/chat",
-    panel: "chat",
+    href: "/community/chat",
     label: "아모라 상담",
     description: "AI 웨딩 플래너와 24시간 대화",
     icon: MessageCircle,
   },
   {
-    href: "/budget",
-    panel: "budget",
+    href: "/community/budget",
     label: "예산 관리",
     description: "20개 카테고리 + 시세 비교",
     icon: Wallet,
   },
   {
-    href: "/schedule",
-    panel: "schedule",
+    href: "/community/schedule",
     label: "일정 관리",
     description: "D-day 체크리스트 + 캘린더",
     icon: CalendarCheck,
@@ -57,7 +53,6 @@ interface MyToolsWidgetProps {
  */
 export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProps = {}) {
   const router = useRouter();
-  const openTool = useToolPanelStore((s) => s.openTool);
   const { postCount, unlocked, isDemo, loading } = usePostCount();
   const [modalTool, setModalTool] = useState<ToolCard | null>(null);
   // 모달에 보여줄 정확한 시점의 카운트 (handleClick에서 fresh fetch 결과)
@@ -67,10 +62,8 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
   const remaining = Math.max(0, REQUIRED_POSTS_FOR_TOOLS - displayCount);
   const progressPct = Math.min(100, Math.round((displayCount / REQUIRED_POSTS_FOR_TOOLS) * 100));
 
-  // 도구 활성화 — panel이 있으면 인플레이스 오버레이, 없으면 라우트 이동
   function activateTool(tool: ToolCard) {
-    if (tool.panel) openTool(tool.panel);
-    else router.push(tool.href);
+    router.push(tool.href);
   }
 
   const handleClick = async (tool: ToolCard) => {
