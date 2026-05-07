@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CommunityNav from "@/components/community/CommunityNav";
 import { ToastContainer } from "@/components/community/Toast";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
+import AuthInitializer from "@/components/common/AuthInitializer";
 import FooterAuthLink from "@/components/community/FooterAuthLink";
 import Link from "next/link";
 
@@ -12,6 +13,8 @@ export default function CommunityLayout({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAF8]">
+      {/* 클라이언트에서 auth/profile/couple/journey 부팅 — /community/chat 등에서 빈 데이터 방지 */}
+      <AuthInitializer />
       <Suspense fallback={<div className="h-[72px] border-b border-[#F0EFED] bg-white" />}>
         <CommunityNav />
       </Suspense>

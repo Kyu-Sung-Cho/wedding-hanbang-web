@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2 } from "lucide-react";
 import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -42,7 +42,7 @@ interface ChatContentProps {
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
-  const { profile, couple, journey, isDemo } = useAuthStore();
+  const { profile, couple, journey, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const {
     messages,
     isLoading,
@@ -538,6 +538,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     },
     [coupleId, clearMessages]
   );
+
+  // 인증 부팅 전 — 빈 데이터로 잘못된 gate 노출 방지
+  if (!authInitialized || authLoading) {
+    return (
+      <div
+        className={`${embedded ? "h-full" : "h-[calc(100vh-144px)]"} flex items-center justify-center bg-[#FAFAF8]`}
+      >
+        <Loader2 className="w-7 h-7 text-[#795252] animate-spin" />
+      </div>
+    );
+  }
 
   // 데모 모드
   if (isDemo) {
