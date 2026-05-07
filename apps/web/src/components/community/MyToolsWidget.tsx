@@ -27,6 +27,7 @@ const TOOLS: ToolCard[] = [
   },
   {
     href: "/budget",
+    panel: "budget",
     label: "예산 관리",
     description: "20개 카테고리 + 시세 비교",
     icon: Wallet,

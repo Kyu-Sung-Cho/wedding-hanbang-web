@@ -1,6 +1,7 @@
 "use client";
 
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
+import BudgetSidePanel from "@/components/community/BudgetSidePanel";
 import { useToolPanelStore } from "@/stores/toolPanelStore";
 
 /**
@@ -8,9 +9,9 @@ import { useToolPanelStore } from "@/stores/toolPanelStore";
  * 라우트 이동 없이 인플레이스로 도구를 띄움.
  *
  * 단계적 추가 예정:
- *   - chat (이번 PR)
- *   - budget (다음 PR)
- *   - schedule (다음 PR)
+ *   - chat   (PR 1) ✓
+ *   - budget (PR 2) ✓
+ *   - schedule (PR 3)
  */
 export default function CommunityToolPanels() {
   const open = useToolPanelStore((s) => s.open);
@@ -19,7 +20,7 @@ export default function CommunityToolPanels() {
   return (
     <>
       <ChatSidePanel isOpen={open === "chat"} onClose={close} />
-      {/* TODO PR 2: <BudgetSidePanel isOpen={open === "budget"} onClose={close} /> */}
+      <BudgetSidePanel isOpen={open === "budget"} onClose={close} />
       {/* TODO PR 3: <ScheduleSidePanel isOpen={open === "schedule"} onClose={close} /> */}
     </>
   );
