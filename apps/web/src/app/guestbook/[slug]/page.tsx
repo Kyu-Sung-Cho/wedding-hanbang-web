@@ -18,6 +18,8 @@ import {
   Sparkles,
   ArrowUpRight,
   QrCode,
+  Camera,
+  Trash2,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { GUEST_RELATIONS } from "@/constants/communityCategories";
@@ -28,8 +30,11 @@ import type {
   GuestRelation,
   GuestbookReactionType,
   GuestbookMessageReactions,
+  GuestbookPhoto,
 } from "@/types/community.types";
 import GuestbookQRModal from "@/components/community/GuestbookQRModal";
+
+const MAX_WEDDING_PHOTOS = 30;
 
 const RELATION_LABEL: Record<GuestRelation, string> = {
   university_friend: "대학친구",
@@ -47,7 +52,14 @@ export default function PublicGuestbookPage() {
   const [loading, setLoading] = useState(true);
   const [guestbook, setGuestbook] = useState<Guestbook | null>(null);
   const [messages, setMessages] = useState<GuestbookMessage[]>([]);
+  const [photos, setPhotos] = useState<GuestbookPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // 결혼식 사진 업로드 (오너 전용)
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoDeletingId, setPhotoDeletingId] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [guestName, setGuestName] = useState("");
   const [relation, setRelation] = useState<GuestRelation | "">("");
@@ -95,6 +107,7 @@ export default function PublicGuestbookPage() {
       const data = await res.json();
       setGuestbook(data.guestbook);
       setMessages(data.messages ?? []);
+      setPhotos(data.photos ?? []);
     } catch {
       setError("불러오는 중 오류가 발생했습니다.");
     } finally {
@@ -205,6 +218,51 @@ export default function PublicGuestbookPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       /* ignore */
+    }
+  }
+
+  // 결혼식 사진 업로드 (오너만)
+  async function handlePhotoUpload(file: File) {
+    if (photoUploading) return;
+    setPhotoError(null);
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/guestbook/${slug}/photos`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPhotoError(data?.error ?? "사진 업로드에 실패했습니다.");
+        return;
+      }
+      setPhotos((prev) => [...prev, data.photo]);
+    } catch {
+      setPhotoError("사진 업로드 중 오류가 발생했습니다.");
+    } finally {
+      setPhotoUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  }
+
+  async function handlePhotoDelete(photoId: string) {
+    if (photoDeletingId) return;
+    if (!confirm("이 사진을 삭제할까요?")) return;
+    setPhotoDeletingId(photoId);
+    try {
+      const res = await fetch(`/api/guestbook/${slug}/photos/${photoId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPhotoError(data?.error ?? "사진 삭제에 실패했습니다.");
+      }
+    } finally {
+      setPhotoDeletingId(null);
     }
   }
 
@@ -407,6 +465,117 @@ export default function PublicGuestbookPage() {
             <p className="text-[#1A1A1F] leading-relaxed whitespace-pre-wrap text-[15px]">
               {guestbook.proposal_story}
             </p>
+          </section>
+        )}
+
+        {/* 결혼식 사진 갤러리 (책 챕터) */}
+        {(photos.length > 0 || isOwner) && (
+          <section className="bg-white border border-[#F0EFED] rounded-2xl p-6 sm:p-8">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="shrink-0 w-10 h-10 rounded-xl bg-[#C9A96E]/15 flex items-center justify-center">
+                <Camera className="w-5 h-5 text-[#C9A96E]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2
+                  className="font-serif text-2xl font-medium text-[#1A1A1F] mb-1"
+                  style={{ fontFamily: "'Noto Serif KR', serif" }}
+                >
+                  우리의 결혼식
+                </h2>
+                <p className="text-sm text-[#878680]">
+                  {photos.length > 0
+                    ? `${photos.length}장의 순간을 담았어요`
+                    : isOwner
+                      ? "결혼식 사진을 한 장씩 올려서 우리만의 책을 만들어보세요"
+                      : ""}
+                </p>
+              </div>
+              {isOwner && photos.length < MAX_WEDDING_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={photoUploading}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#795252] bg-[#fcf9f8] border border-[#F0EFED] rounded-lg hover:border-[#795252] hover:bg-white transition-colors disabled:opacity-60"
+                >
+                  {photoUploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="w-3.5 h-3.5" />
+                  )}
+                  사진 추가
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handlePhotoUpload(f);
+              }}
+            />
+
+            {photoError && (
+              <p className="mb-3 text-sm text-red-500">{photoError}</p>
+            )}
+
+            {photos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {photos.map((p) => (
+                  <div key={p.id} className="relative group aspect-square">
+                    <button
+                      type="button"
+                      onClick={() => setLightboxUrl(p.url)}
+                      className="block w-full h-full rounded-xl overflow-hidden border border-[#F0EFED] bg-[#FAFAF8] hover:opacity-90 transition-opacity"
+                      aria-label="사진 확대"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.url}
+                        alt={p.caption ?? ""}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => handlePhotoDelete(p.id)}
+                        disabled={photoDeletingId === p.id}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-60"
+                        aria-label="사진 삭제"
+                        title="사진 삭제"
+                      >
+                        {photoDeletingId === p.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              isOwner && (
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={photoUploading}
+                  className="flex flex-col items-center justify-center gap-2 w-full py-12 text-sm text-[#878680] bg-[#FAFAF8] border border-dashed border-[#E4E2E1] rounded-xl hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-white transition-colors disabled:opacity-60"
+                >
+                  {photoUploading ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Camera className="w-6 h-6" />
+                  )}
+                  첫 사진 올리기
+                </button>
+              )
+            )}
           </section>
         )}
 

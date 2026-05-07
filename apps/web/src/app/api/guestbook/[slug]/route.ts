@@ -58,6 +58,13 @@ export async function GET(
 
     const msgList = messages ?? [];
 
+    // 결혼식 사진 (책 챕터)
+    const { data: photos } = await service
+      .from("guestbook_photos")
+      .select("*")
+      .eq("guestbook_id", guestbook.id)
+      .order("position", { ascending: true });
+
     // 리액션 집계 + 호출자 IP가 누른 것 표시
     const messageIds = msgList.map((m: { id: string }) => m.id);
     const reactionMap: Record<
@@ -102,7 +109,11 @@ export async function GET(
         },
     }));
 
-    return NextResponse.json({ guestbook, messages: messagesWithReactions });
+    return NextResponse.json({
+      guestbook,
+      messages: messagesWithReactions,
+      photos: photos ?? [],
+    });
   } catch (err) {
     console.error("Guestbook GET error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

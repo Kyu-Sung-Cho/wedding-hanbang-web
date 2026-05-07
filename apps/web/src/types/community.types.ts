@@ -289,6 +289,15 @@ export interface Guestbook {
   created_at: string;
 }
 
+export interface GuestbookPhoto {
+  id: string;
+  guestbook_id: string;
+  url: string;
+  caption: string | null;
+  position: number;
+  created_at: string;
+}
+
 export type GuestbookReactionType = "love" | "congrats" | "touched";
 
 export interface GuestbookMessageReactions {
