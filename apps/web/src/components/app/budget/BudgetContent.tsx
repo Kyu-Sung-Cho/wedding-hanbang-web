@@ -940,37 +940,51 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
       <div
         className={
           embedded
-            ? "px-4 sm:px-5 py-4 sm:py-6"
+            ? "max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10"
             : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10"
         }
       >
-        {/* Hero Banner */}
-        <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `
-                radial-gradient(circle at 30% 50%, rgba(201, 169, 110, 0.3) 0%, transparent 60%),
-                radial-gradient(circle at 70% 60%, rgba(121, 82, 82, 0.35) 0%, transparent 50%),
-                linear-gradient(135deg, #f6f3f2 0%, #dee6c4 50%, #f6f3f2 100%)
-              `,
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent" />
-          <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
-            <div className="min-w-0">
-              <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
-                BUDGET OVERVIEW
-              </p>
-              <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight font-light break-words">
-                예산 관리
-              </h1>
-              <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
-                우리의 결혼 여정, 현명하게 계획해요.
-              </p>
+        {/* 헤더 — 커뮤니티 모드는 컴팩트 (사이드바 타이틀 톤), 풀페이지는 hero 배너 */}
+        {embedded ? (
+          <header className="mb-6 sm:mb-8 animate-fade-in">
+            <p className="text-xs tracking-widest uppercase text-[#795252] mb-2 font-medium">
+              Budget Overview
+            </p>
+            <h1 className="font-serif-kr text-3xl sm:text-4xl italic text-[#795252] mb-1 leading-tight">
+              예산 관리
+            </h1>
+            <p className="text-sm sm:text-base text-[#504444]">
+              우리의 결혼 여정, 현명하게 계획해요.
+            </p>
+          </header>
+        ) : (
+          <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `
+                  radial-gradient(circle at 30% 50%, rgba(201, 169, 110, 0.3) 0%, transparent 60%),
+                  radial-gradient(circle at 70% 60%, rgba(121, 82, 82, 0.35) 0%, transparent 50%),
+                  linear-gradient(135deg, #f6f3f2 0%, #dee6c4 50%, #f6f3f2 100%)
+                `,
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent" />
+            <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
+              <div className="min-w-0">
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
+                  BUDGET OVERVIEW
+                </p>
+                <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight font-light break-words">
+                  예산 관리
+                </h1>
+                <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
+                  우리의 결혼 여정, 현명하게 계획해요.
+                </p>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 상단 스탯 3개 - Editorial */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
