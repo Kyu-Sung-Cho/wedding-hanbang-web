@@ -43,6 +43,11 @@ const DRAFT_KEY = "community_post_draft";
 const TITLE_MAX_LENGTH = 200;
 const CONTENT_MAX_LENGTH = 50000;
 
+interface InlineImageEntry {
+  id: string;
+  url: string;
+}
+
 interface DraftData {
   category: CommunityCategory | null;
   title: string;
@@ -55,7 +60,38 @@ interface DraftData {
   sponsorshipDetail?: string;
   priceData?: PriceData | null;
   poll?: CreatePollInput | null;
+  inlineImages?: InlineImageEntry[];
   savedAt: number;
+}
+
+// 본문 인라인 이미지 토큰 — 작성 중엔 [!img:abc123]로 보이고, 발행 시 <img>로 변환.
+// HTML을 textarea에 그대로 두면 200자 raw markup이 보여서 ugly.
+const IMG_TOKEN_RE = /\[!img:([a-z0-9]+)\]/g;
+const IMG_HTML_RE = /<img\s+[^>]*src="([^"]+)"[^>]*\/?>/gi;
+const IMG_STYLE = "max-width:100%;height:auto;border-radius:12px;margin:0.75em 0;";
+
+function newInlineImageId(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+/** 토큰 → <img> HTML 변환. 매핑 없는 토큰은 빈 문자열로 제거. */
+function tokensToHtml(content: string, images: InlineImageEntry[]): string {
+  return content.replace(IMG_TOKEN_RE, (_, id) => {
+    const img = images.find((i) => i.id === id);
+    if (!img) return "";
+    return `<img src="${img.url}" alt="" style="${IMG_STYLE}" />`;
+  });
+}
+
+/** 기존 글의 <img> HTML → 토큰. 편집 모드에서 raw HTML 노출 방지. */
+function htmlToTokens(html: string): { content: string; images: InlineImageEntry[] } {
+  const images: InlineImageEntry[] = [];
+  const content = html.replace(IMG_HTML_RE, (_, src) => {
+    const id = newInlineImageId();
+    images.push({ id, url: src });
+    return `[!img:${id}]`;
+  });
+  return { content, images };
 }
 
 // 동적으로 아이콘 컴포넌트 가져오기
@@ -118,9 +154,22 @@ function PostWriteContent() {
   // 초기 폼 상태 (변경 감지용)
   const initialFormRef = useRef<string>("");
 
-  // 본문 인라인 이미지 업로드
+  // 본문 인라인 이미지 — 토큰([!img:id])로 textarea에 표시, 발행/미리보기 시 HTML 변환
+  const [inlineImages, setInlineImages] = useState<InlineImageEntry[]>([]);
   const [insertingImage, setInsertingImage] = useState(false);
   const [insertImageError, setInsertImageError] = useState<string | null>(null);
+
+  // 본문에서 사용 안 하는 inlineImage 자동 정리 (사용자가 토큰을 직접 지웠을 때)
+  useEffect(() => {
+    if (inlineImages.length === 0) return;
+    const usedIds = new Set<string>();
+    let m: RegExpExecArray | null;
+    const re = new RegExp(IMG_TOKEN_RE.source, "g");
+    while ((m = re.exec(content)) !== null) usedIds.add(m[1]);
+    if (usedIds.size === inlineImages.length) return;
+    const next = inlineImages.filter((img) => usedIds.has(img.id));
+    if (next.length !== inlineImages.length) setInlineImages(next);
+  }, [content, inlineImages]);
 
   // 인증 체크
   useEffect(() => {
@@ -162,7 +211,12 @@ function PostWriteContent() {
 
         setCategory(post.category);
         setTitle(post.title);
-        setContent(post.content);
+        // 기존 게시글에 raw <img> HTML이 있으면 토큰으로 역변환 → 편집 화면에서도 깨끗
+        {
+          const { content: tokenized, images: extracted } = htmlToTokens(post.content);
+          setContent(tokenized);
+          if (extracted.length) setInlineImages(extracted);
+        }
         setVisibility(post.visibility);
         setImages(post.images || []);
         setTags(post.tags || []);
@@ -216,6 +270,7 @@ function PostWriteContent() {
       if (draft.adDisclosure) setAdDisclosure(draft.adDisclosure);
       if (draft.sponsorshipDetail) setSponsorshipDetail(draft.sponsorshipDetail);
       if (draft.priceData) setPriceData(draft.priceData);
+      if (draft.inlineImages?.length) setInlineImages(draft.inlineImages);
       if (draft.poll) setPoll(draft.poll);
       setDraftRestored(true);
     } catch {
@@ -327,6 +382,7 @@ function PostWriteContent() {
         sponsorshipDetail: sponsorshipDetail || undefined,
         priceData,
         poll,
+        inlineImages: inlineImages.length > 0 ? inlineImages : undefined,
         savedAt: Date.now(),
       };
       // 비어있으면 저장하지 않음
@@ -344,7 +400,7 @@ function PostWriteContent() {
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll]);
+  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -415,9 +471,10 @@ function PostWriteContent() {
           setInsertImageError(data?.error ?? "업로드에 실패했어요.");
           return;
         }
-        // \n\n으로 감싸서 앞뒤 단락과 분리, 너비 100% / 자동 높이 / 살짝 둥근 모서리
-        const snippet = `\n\n<img src="${data.url}" alt="" style="max-width:100%;height:auto;border-radius:12px;margin:0.75em 0;" />\n\n`;
-        insertAtCursor(snippet);
+        // 토큰만 textarea에 삽입 (raw HTML 보이는 것 방지). 발행/미리보기 때 HTML로 변환.
+        const id = newInlineImageId();
+        setInlineImages((prev) => [...prev, { id, url: data.url }]);
+        insertAtCursor(`\n\n[!img:${id}]\n\n`);
       } catch {
         setInsertImageError("업로드 중 오류가 발생했어요.");
       } finally {
@@ -442,12 +499,10 @@ function PostWriteContent() {
     [handleInsertImage]
   );
 
-  // 콘텐츠 미리보기 — post detail과 동일한 sanitize + whitespace-pre-wrap 사용.
-  // 이전엔 < > 를 escape해서 사용자가 삽입한 <img> 같은 HTML이 안 보였음 → detail과
-  // mismatch. 이제 둘 다 sanitizeHtml(content)로 동일하게 렌더.
+  // 콘텐츠 미리보기 — 토큰을 <img>로 변환 후 sanitize. post detail과 동일한 출력.
   const renderPreviewHtml = useCallback(() => {
-    return sanitizeHtml(content);
-  }, [content]);
+    return sanitizeHtml(tokensToHtml(content, inlineImages));
+  }, [content, inlineImages]);
 
   // 제출
   const handleSubmit = async (asDraft = false) => {
@@ -487,10 +542,13 @@ function PostWriteContent() {
           }
         : null;
 
+    // 발행 직전 토큰 → <img> HTML 변환 (저장 형식은 항상 HTML)
+    const serializedContent = tokensToHtml(content.trim(), inlineImages);
+
     const input: CreatePostInput = {
       category,
       title: title.trim(),
-      content: content.trim(),
+      content: serializedContent,
       visibility: asDraft ? "draft" : visibility,
       images,
       tags,
@@ -715,6 +773,51 @@ function PostWriteContent() {
                       {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
                     </p>
                   </div>
+
+                  {/* 본문에 삽입된 이미지 썸네일 — 토큰이 어떤 이미지인지 시각 확인 + 제거 */}
+                  {inlineImages.length > 0 && (
+                    <div className="mt-3 p-3 bg-[#fcf9f8] border border-[#f0eeec] rounded-lg">
+                      <p className="text-xs font-medium text-[#928980] uppercase tracking-widest mb-2">
+                        본문 안 이미지 {inlineImages.length}장
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {inlineImages.map((img, idx) => (
+                          <div
+                            key={img.id}
+                            className="relative group w-20 h-20 rounded-lg overflow-hidden border border-[#e4e2e1] bg-white"
+                            title={`[!img:${img.id}]`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt={`인라인 이미지 ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // 토큰을 본문에서 제거 (앞뒤 공백 줄바꿈도 정리) + 매핑에서도 제거
+                                const tokenRe = new RegExp(
+                                  `\\n*\\[!img:${img.id}\\]\\n*`,
+                                  "g"
+                                );
+                                setContent((prev) => prev.replace(tokenRe, "\n\n"));
+                                setInlineImages((prev) => prev.filter((i) => i.id !== img.id));
+                              }}
+                              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                              aria-label={`이미지 ${idx + 1} 제거`}
+                              title="제거"
+                            >
+                              ✕
+                            </button>
+                            <div className="absolute bottom-0.5 left-0.5 px-1 rounded bg-black/55 text-white text-[10px] font-medium">
+                              {idx + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="w-full px-4 py-3 bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg min-h-[200px]">
