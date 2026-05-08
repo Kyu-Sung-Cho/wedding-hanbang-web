@@ -65,12 +65,19 @@ export default function PostCard({ post }: PostCardProps) {
     .trim()
     .slice(0, 180);
 
+  // 본문 안에 인라인으로 삽입된 첫 번째 <img>의 src를 추출 — 우측 카드 썸네일 fallback
+  const firstInlineImage = (() => {
+    const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
+    return match ? match[1] : null;
+  })();
+
   const author = post.author ?? { nickname: "익명" };
 
   // 이미지 처리
+  // 첨부 이미지 우선, 없으면 본문 인라인 이미지 fallback
   const images = post.images ?? [];
-  const imageCount = images.length;
-  const hasImage = imageCount > 0;
+  const thumbUrl = images[0] ?? firstInlineImage;
+  const hasImage = !!thumbUrl;
 
   // 카테고리 배지 스타일
   const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
@@ -332,14 +339,14 @@ export default function PostCard({ post }: PostCardProps) {
           </div>
         </div>
 
-        {/* 이미지 (있으면 오른쪽) — 레퍼런스: sm:w-32 h-32 */}
-        {hasImage && (
+        {/* 이미지 (있으면 오른쪽) — 첨부 이미지 우선, 없으면 본문 인라인 첫 이미지 */}
+        {hasImage && thumbUrl && (
           <Link
             href={`/community/post/${post.id}`}
             className="w-full h-40 sm:w-44 sm:h-44 lg:w-52 lg:h-52 xl:w-60 xl:h-60 rounded-xl overflow-hidden shrink-0"
           >
             <Image
-              src={images[0]}
+              src={thumbUrl}
               alt=""
               width={256}
               height={256}

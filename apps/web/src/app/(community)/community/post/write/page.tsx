@@ -499,6 +499,37 @@ function PostWriteContent() {
     [handleInsertImage]
   );
 
+  // 본문에 이미지 파일 drag & drop
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) {
+      e.preventDefault();
+      setIsDraggingImage(true);
+    }
+  }, []);
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) {
+      e.preventDefault();
+    }
+  }, []);
+  const handleDragLeave = useCallback(() => {
+    setIsDraggingImage(false);
+  }, []);
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      const imageFile = files.find((f) => f.type.startsWith("image/"));
+      if (!imageFile) {
+        setIsDraggingImage(false);
+        return;
+      }
+      e.preventDefault();
+      setIsDraggingImage(false);
+      void handleInsertImage(imageFile);
+    },
+    [handleInsertImage]
+  );
+
   // 콘텐츠 미리보기 — 토큰을 <img>로 변환 후 sanitize. post detail과 동일한 출력.
   const renderPreviewHtml = useCallback(() => {
     return sanitizeHtml(tokensToHtml(content, inlineImages));
@@ -725,18 +756,36 @@ function PostWriteContent() {
 
               {activeTab === "write" ? (
                 <>
-                  <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={(e) => {
-                      setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
-                      autoResize();
-                    }}
-                    onPaste={handlePaste}
-                    placeholder="내용을 입력하세요. 이미지나 GIF를 글 중간에 붙여넣거나 아래 버튼으로 삽입할 수 있어요."
-                    maxLength={CONTENT_MAX_LENGTH}
-                    className="w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
-                  />
+                  <div className="relative">
+                    <textarea
+                      ref={textareaRef}
+                      value={content}
+                      onChange={(e) => {
+                        setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
+                        autoResize();
+                      }}
+                      onPaste={handlePaste}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      placeholder="내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                      maxLength={CONTENT_MAX_LENGTH}
+                      className={`w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors resize-none leading-relaxed min-h-[200px] ${
+                        isDraggingImage
+                          ? "border-[#795252] ring-2 ring-[#795252]/30 bg-white"
+                          : "border-[#e4e2e1]"
+                      }`}
+                    />
+                    {isDraggingImage && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-[#795252]/8">
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md text-sm font-medium text-[#795252]">
+                          <ImagePlus className="w-4 h-4" />
+                          여기에 놓아 본문에 삽입
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* 인라인 도구바 — 이미지/GIF 삽입 */}
                   <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
