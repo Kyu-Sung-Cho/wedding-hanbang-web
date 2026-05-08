@@ -93,15 +93,15 @@ export default function CategoryFeedPage() {
   if (!categoryInfo) return null;
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
       {/* 모바일 카테고리 */}
       <div className="lg:hidden px-4 sm:px-6 pt-4">
         <CategoryTabs />
       </div>
 
-      <div className="flex w-full">
-        {/* 왼쪽 사이드바 */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto border-r border-[#F0EFED] bg-white py-5 px-3">
+      <div className="flex-1 flex w-full">
+        {/* 왼쪽 사이드바 — community 페이지와 동일한 폭/스타일 */}
+        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 2xl:w-[420px] sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <CategoryTabs />
 
           <div className="mt-auto pt-4 px-2">
@@ -115,21 +115,21 @@ export default function CategoryFeedPage() {
           </div>
         </aside>
 
-        {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
-          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
+        {/* 가운데: 메인 피드 — community 페이지와 동일한 padding/max-w */}
+        <main className="flex-1 min-w-0 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 xl:py-12 overflow-y-auto">
+          <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto space-y-6 sm:space-y-8">
             {/* 카테고리 헤더 */}
-            <div className="mb-5">
-              <h1 className="text-xl font-medium text-[#1A1A1F]">
+            <div>
+              <h1 className="font-serif-kr text-2xl sm:text-3xl text-[#1b1c1c] mb-1">
                 {categoryInfo.label}
               </h1>
-              <p className="mt-1 text-base text-[#878680]">
+              <p className="text-base text-[#878680]">
                 {categoryInfo.description}
               </p>
             </div>
 
-            {/* 정렬 바 */}
-            <div className="flex items-center gap-4 mb-5 px-1">
+            {/* 정렬 바 — community 페이지와 동일 */}
+            <div className="flex items-center gap-4 px-1 border-b border-[#e4e2e1] pb-4">
               <SortSelector
                 sort={currentSort}
                 period={currentPeriod}
@@ -140,7 +140,7 @@ export default function CategoryFeedPage() {
 
             {/* 활성 태그 필터 표시 */}
             {currentTag && (
-              <div className="mb-4 flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-[#928980]">필터:</span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
                   #{currentTag}
@@ -156,9 +156,9 @@ export default function CategoryFeedPage() {
               </div>
             )}
 
-            {/* 피드 */}
+            {/* 피드 — community 페이지와 동일 카드 간격(space-y-6) */}
             {isLoading && posts.length === 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <PostSkeleton key={i} />
                 ))}
@@ -171,12 +171,12 @@ export default function CategoryFeedPage() {
                 ctaHref="/community/post/write"
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {posts.map((post) => (
                   <PostCard key={post.id} post={post} />
                 ))}
                 {isLoading && (
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <PostSkeleton key={`more-${i}`} />
                     ))}
@@ -189,8 +189,8 @@ export default function CategoryFeedPage() {
           </div>
         </main>
 
-        {/* 오른쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto py-6 pr-6 pl-2 space-y-5 border-l border-[#F0EFED]">
+        {/* 오른쪽 사이드바 — community 페이지와 동일한 frame */}
+        <aside className="hidden xl:block w-96 2xl:w-[420px] shrink-0 p-10 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto bg-[#fcf9f8] space-y-5">
           <GamificationWidget />
 
           <div className="bg-white rounded-2xl border border-[#F0EFED] overflow-hidden">
