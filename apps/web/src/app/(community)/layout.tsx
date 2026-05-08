@@ -37,7 +37,10 @@ export default function CommunityLayout({
               <Link href="/community" className="hover:text-[#1A1A1F] transition-colors">
                 커뮤니티
               </Link>
-              <Link href="/" className="hover:text-[#1A1A1F] transition-colors">
+              <Link href="/community/about" className="hover:text-[#1A1A1F] transition-colors">
+                커뮤니티 소개
+              </Link>
+              <Link href="/landing" className="hover:text-[#1A1A1F] transition-colors">
                 서비스 소개
               </Link>
               <FooterAuthLink />
