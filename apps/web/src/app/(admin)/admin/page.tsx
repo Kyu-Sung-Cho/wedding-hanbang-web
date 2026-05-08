@@ -268,6 +268,36 @@ export default function AdminPage() {
     }
   }
 
+  // 신고된 글에 직접 조치 — 숨김 / 복원 / 강제 삭제
+  async function moderatePost(
+    reportId: string,
+    postId: string,
+    action: "hide" | "unhide" | "delete"
+  ) {
+    if (action === "delete") {
+      const ok = window.confirm(
+        "이 게시글을 영구 삭제하시겠어요?\n댓글, 투표, 북마크, 폴까지 모두 함께 삭제되며 복구 불가합니다."
+      );
+      if (!ok) return;
+    }
+    setReportActionId(reportId);
+    try {
+      const res = await fetch(`/api/admin/posts/${postId}/moderate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        await loadReports(reportFilter);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        window.alert(data?.error ?? "조치 실패");
+      }
+    } finally {
+      setReportActionId(null);
+    }
+  }
+
   // 관리자 인증
   useEffect(() => {
     async function checkAdmin() {
@@ -1442,6 +1472,7 @@ export default function AdminPage() {
                         )}
                       </div>
 
+                      {/* 액션 그룹 1 — 신고 자체 처리 (보기 / 검토 / 처리 / 기각) */}
                       <div className="flex items-center gap-2 flex-wrap">
                         {linkHref && (
                           <a
@@ -1472,7 +1503,7 @@ export default function AdminPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-lg hover:bg-[#246548] transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            처리됨
+                            처리됨으로 표시
                           </button>
                         )}
                         {r.status !== "dismissed" && (
@@ -1486,10 +1517,54 @@ export default function AdminPage() {
                             기각
                           </button>
                         )}
-                        {reportActionId === r.id && (
-                          <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
-                        )}
                       </div>
+
+                      {/* 액션 그룹 2 — 게시글 자체 조치 (글이 살아있을 때만) */}
+                      {r.post && (
+                        <div className="mt-2 pt-2 border-t border-black/[0.04] flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] uppercase tracking-widest text-taupe-400 mr-1">
+                            게시글 조치
+                          </span>
+                          {r.post.visibility !== "draft" && (
+                            <button
+                              type="button"
+                              onClick={() => moderatePost(r.id, r.post!.id, "hide")}
+                              disabled={reportActionId === r.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gold/40 text-gold rounded-lg hover:bg-gold hover:text-white hover:border-gold transition-colors disabled:opacity-50"
+                              title="visibility를 draft로 변경 — 작성자 외 모두에게 숨김"
+                            >
+                              숨김 처리
+                            </button>
+                          )}
+                          {r.post.visibility === "draft" && (
+                            <button
+                              type="button"
+                              onClick={() => moderatePost(r.id, r.post!.id, "unhide")}
+                              disabled={reportActionId === r.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-[#2E7D5A] rounded-lg hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
+                            >
+                              공개 복원
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => moderatePost(r.id, r.post!.id, "delete")}
+                            disabled={reportActionId === r.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            강제 삭제
+                          </button>
+                          <span className="text-[11px] text-taupe-400">
+                            현재: {r.post.visibility === "draft" ? "숨김" : r.post.visibility}
+                          </span>
+                        </div>
+                      )}
+
+                      {reportActionId === r.id && (
+                        <div className="mt-2">
+                          <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
