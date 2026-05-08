@@ -728,7 +728,7 @@ export default function PostDetailPage() {
                   {post.tags.map((tag) => (
                     <Link
                       key={tag}
-                      href={`/community?tag=${encodeURIComponent(tag)}`}
+                      href={`/community/${post.category}?tag=${encodeURIComponent(tag)}`}
                       className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       #{tag}

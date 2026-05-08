@@ -17,6 +17,7 @@ interface CommunityState {
   currentCategory: CommunityCategory | null;
   currentSort: PostSort;
   currentPeriod: TimePeriod;
+  currentTag: string | null;
   currentPage: number;
   hasMore: boolean;
   isLoading: boolean;
@@ -49,6 +50,7 @@ interface CommunityState {
   setCategory: (category: CommunityCategory | null) => void;
   setSort: (sort: PostSort) => void;
   setPeriod: (period: TimePeriod) => void;
+  setTag: (tag: string | null) => void;
   reset: () => void;
 }
 
@@ -59,6 +61,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   currentCategory: null,
   currentSort: "new",
   currentPeriod: "week",
+  currentTag: null,
   currentPage: 1,
   hasMore: true,
   isLoading: true,
@@ -70,11 +73,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   communityProfile: null,
 
   fetchPosts: async (reset = true) => {
-    const { currentCategory, currentSort, currentPeriod } = get();
+    const { currentCategory, currentSort, currentPeriod, currentTag } = get();
     if (reset) set({ isLoading: true, currentPage: 1 });
 
     const params = new URLSearchParams();
     if (currentCategory) params.set("category", currentCategory);
+    if (currentTag) params.set("tag", currentTag);
     params.set("sort", currentSort);
     if (currentSort === "top") params.set("period", currentPeriod);
     params.set("page", "1");
@@ -91,13 +95,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchMorePosts: async () => {
-    const { currentCategory, currentSort, currentPeriod, currentPage, hasMore, isLoading } = get();
+    const { currentCategory, currentSort, currentPeriod, currentTag, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
     set({ isLoading: true });
 
     const nextPage = currentPage + 1;
     const params = new URLSearchParams();
     if (currentCategory) params.set("category", currentCategory);
+    if (currentTag) params.set("tag", currentTag);
     params.set("sort", currentSort);
     if (currentSort === "top") params.set("period", currentPeriod);
     params.set("page", String(nextPage));
@@ -328,10 +333,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     set({ currentPeriod: period, posts: [], hasMore: true, currentPage: 1 });
   },
 
+  setTag: (tag) => {
+    if (get().currentTag === tag) return;
+    set({ currentTag: tag, posts: [], hasMore: true, currentPage: 1 });
+  },
+
   reset: () => {
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
-      currentPage: 1, hasMore: true, isLoading: true, total: 0,
+      currentTag: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
     });
   },

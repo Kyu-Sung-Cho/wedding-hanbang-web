@@ -111,11 +111,13 @@ function CommunityFeedContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const searchQuery = searchParams.get("search") ?? "";
+  const tagQuery = searchParams.get("tag") ?? "";
 
   const posts = useCommunityStore((s) => s.posts);
   const isLoading = useCommunityStore((s) => s.isLoading);
   const currentSort = useCommunityStore((s) => s.currentSort);
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
+  const currentTag = useCommunityStore((s) => s.currentTag);
   const total = useCommunityStore((s) => s.total);
 
   const [searchResults, setSearchResults] = useState<PostWithAuthor[]>([]);
@@ -172,13 +174,14 @@ function CommunityFeedContent() {
       .finally(() => setSearchLoading(false));
   }, [isSearching, searchLoading, searchHasMore, searchPage, searchQuery]);
 
-  // 카테고리 초기화 + 글 목록 가져오기
+  // 카테고리/태그 동기화 + 글 목록 가져오기
   useEffect(() => {
     if (isSearching) return;
     const store = useCommunityStore.getState();
     store.setCategory(null);
+    store.setTag(tagQuery || null);
     store.fetchPosts(true);
-  }, [currentSort, currentPeriod, isSearching]);
+  }, [currentSort, currentPeriod, isSearching, tagQuery]);
 
   // 인기 태그 + 업체 태그 — sessionStorage 10분 캐시 (카테고리 navigation으로 remount돼도 재호출 안 함)
   useEffect(() => {
@@ -313,8 +316,26 @@ function CommunityFeedContent() {
               </div>
             )}
 
-            {/* 에디터 추천 배너 */}
-            {featured && <EditorsPick post={featured} />}
+            {/* 활성 태그 필터 표시 */}
+            {!isSearching && currentTag && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-[#928980]">필터:</span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
+                  #{currentTag}
+                  <button
+                    type="button"
+                    onClick={() => router.push("/community")}
+                    className="ml-1 w-4 h-4 rounded-full bg-[#795252]/20 hover:bg-[#795252]/30 flex items-center justify-center text-[10px] leading-none"
+                    aria-label="태그 필터 제거"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            )}
+
+            {/* 에디터 추천 배너 (태그 필터 중엔 숨김 — featured는 전체 글 기반이라 태그와 안 맞을 수 있음) */}
+            {featured && !currentTag && <EditorsPick post={featured} />}
 
             {/* 피드 헤더 (피드 디바이더) */}
             {!isSearching && (

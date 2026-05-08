@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PenSquare } from "lucide-react";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -28,12 +28,15 @@ const VALID_KEYS = COMMUNITY_CATEGORIES.map((c) => c.key);
 export default function CategoryFeedPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const categoryParam = params.category as string;
+  const tagQuery = searchParams.get("tag") ?? "";
 
   const posts = useCommunityStore((s) => s.posts);
   const isLoading = useCommunityStore((s) => s.isLoading);
   const currentSort = useCommunityStore((s) => s.currentSort);
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
+  const currentTag = useCommunityStore((s) => s.currentTag);
   const total = useCommunityStore((s) => s.total);
 
   const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
@@ -46,8 +49,9 @@ export default function CategoryFeedPage() {
     }
     const store = useCommunityStore.getState();
     store.setCategory(categoryParam as CommunityCategory);
+    store.setTag(tagQuery || null);
     store.fetchPosts(true);
-  }, [categoryParam, currentSort, currentPeriod, router]);
+  }, [categoryParam, currentSort, currentPeriod, tagQuery, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +138,24 @@ export default function CategoryFeedPage() {
               />
             </div>
 
+            {/* 활성 태그 필터 표시 */}
+            {currentTag && (
+              <div className="mb-4 flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-[#928980]">필터:</span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
+                  #{currentTag}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/community/${categoryParam}`)}
+                    className="ml-1 w-4 h-4 rounded-full bg-[#795252]/20 hover:bg-[#795252]/30 flex items-center justify-center text-[10px] leading-none"
+                    aria-label="태그 필터 제거"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            )}
+
             {/* 피드 */}
             {isLoading && posts.length === 0 ? (
               <div className="space-y-3">
@@ -209,7 +231,7 @@ export default function CategoryFeedPage() {
                 {popularTags.slice(0, 15).map((t) => (
                   <Link
                     key={t.tag}
-                    href={`/community?tag=${encodeURIComponent(t.tag)}`}
+                    href={`/community/${categoryParam}?tag=${encodeURIComponent(t.tag)}`}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-[#878680] bg-[#FAFAF8] rounded-full hover:bg-[#F0EFED] transition-colors duration-200"
                   >
                     #{t.tag}
