@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2 } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search } from "lucide-react";
 import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -159,42 +159,57 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     });
   }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
-  // 스크롤 컨테이너에서 사용자가 바닥 근처에 있는지 추적
-  // (사용자가 위로 올려서 이전 대화 읽고 있으면 자동 스크롤 멈춤)
+  // 자동 스크롤 정책 — 사용자 요청으로 메시지 수신/송신 시 자동 스크롤 모두 제거.
+  // 이전엔 scrollIntoView()를 썼는데, 이게 부모 체인 모든 스크롤 컨테이너를 함께 움직여서
+  // 메시지 컨테이너 + 페이지 전체가 같이 내려가는 부작용이 있었음 (사용자 신고).
+  //
+  // 남긴 자동 동작은 두 가지 뿐:
+  //   1) 첫 진입 시 1회 — 가장 아래(최신 메시지)로 컨테이너만 스크롤 (페이지는 안 건드림)
+  //   2) "↓" 플로팅 버튼 — 사용자가 직접 누르면 컨테이너만 바닥으로
+  // 그 외엔 스크롤이 알아서 움직이지 않음.
+
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const hasInitialScrolledRef = useRef(false);
+
+  // 메시지 검색 — 헤더 검색 바, 클라 사이드 필터
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 컨테이너 스크롤 추적 — 바닥 근처 여부 + ↓ 버튼 표시
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       isNearBottomRef.current = distanceFromBottom < 120;
+      // 240px 이상 위로 올라가 있으면 ↓ 버튼 표시 (가까이 있을 땐 굳이 안 띄움)
+      setShowJumpToBottom(distanceFromBottom > 240);
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 자동 스크롤 — 사용자가 위쪽 내용 읽고 있으면 절대 방해 안 함.
-  // 1) 본인이 방금 보낸 메시지(마지막 메시지가 내 거)면 → 항상 스크롤 (자기 메시지 확인용)
-  // 2) AI/상대방 메시지는 → 바닥 근처(120px 이내)일 때만 스크롤
-  // 3) 스트리밍 인디케이터 갱신은 → 바닥 근처일 때만 (이전과 동일)
+  // 첫 진입 1회 — 메시지 처음 보일 때 컨테이너만 바닥으로 (페이지 스크롤 절대 안 건드림)
   useEffect(() => {
-    const isNewMessage = messages.length !== lastMsgCountRef.current;
+    if (hasInitialScrolledRef.current) return;
+    if (messages.length === 0) return;
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight; // smooth 아님 — 즉시 (사용자가 인지하기 전에)
+    hasInitialScrolledRef.current = true;
     lastMsgCountRef.current = messages.length;
+  }, [messages.length]);
 
-    if (isNewMessage) {
-      const lastMsg = messages[messages.length - 1];
-      const sentByMe = lastMsg?.sender_id === profile?.id;
-      // 내가 방금 보낸 메시지면 무조건 따라감, 아니면 바닥 근처일 때만
-      if (sentByMe || isNearBottomRef.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
-      return;
-    }
+  // 마지막 메시지 카운트 동기화 (다른 useEffect 의존성으로 쓰던 ref 유지)
+  useEffect(() => {
+    lastMsgCountRef.current = messages.length;
+  }, [messages.length]);
 
-    // 메시지 카운트는 그대로 + 스트리밍 인디케이터/도구 결과 변화 → 바닥 근처일 때만
-    if (isNearBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isStreaming, streamingContent, streamingToolResults, profile?.id]);
+  const jumpToBottom = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, []);
 
   // 갈등 감지: 새 메시지가 추가될 때만 + 최근 5분 이내 메시지만 분석
   useEffect(() => {
@@ -659,7 +674,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   return (
     <div
-      className={`${
+      className={`relative ${
         embedded ? "h-full" : "h-[calc(100dvh-144px)]"
       } transition-all duration-300 bg-[#FAFAF8] ${infoPanelOpen ? "md:pr-[390px]" : ""}`}
       onDragOver={handleDragOver}
@@ -689,6 +704,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => {
+              setSearchOpen((v) => {
+                if (v) setSearchQuery(""); // 닫을 때 검색어 리셋
+                return !v;
+              });
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+              searchOpen
+                ? "text-[#795252] bg-[#795252]/10"
+                : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
+            }`}
+            aria-label="대화 검색"
+            title="대화 검색"
+          >
+            <Search className="w-4 h-4" />
+            <span className="hidden sm:inline">검색</span>
+          </button>
+          <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
               infoPanelOpen
@@ -711,6 +744,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           )}
         </div>
       </div>
+
+      {/* 검색 바 — 헤더 아래 토글 */}
+      {searchOpen && (
+        <div className="mx-2 mb-2 flex items-center gap-2 px-3 py-2 bg-white border border-[#F0EFED] rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+          <Search className="w-4 h-4 text-[#B5ADA3] shrink-0" />
+          <input
+            type="text"
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="대화 내용 검색..."
+            className="flex-1 min-w-0 text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="text-[#B5ADA3] hover:text-[#1A1A1F]"
+              aria-label="검색어 지우기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 채팅 탭 — 함께 / 나만 */}
       <div className="flex items-center gap-1 mx-2 mb-3 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
@@ -892,14 +950,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             return m.visibility === "bride_private" || m.visibility === "groom_private";
           });
 
+          // 검색 필터 (검색어 trim 후 case-insensitive 부분 매치)
+          const q = searchQuery.trim().toLowerCase();
+          const filteredMessages = q
+            ? tabMessages.filter((m) => m.content.toLowerCase().includes(q))
+            : tabMessages;
+
+          if (q && filteredMessages.length === 0) {
+            return (
+              <div className="text-center py-12 text-[#928980] text-sm">
+                <Search className="w-8 h-8 text-[#B5ADA3]/40 mx-auto mb-2" />
+                &ldquo;{searchQuery}&rdquo;에 해당하는 메시지가 없어요
+              </div>
+            );
+          }
+
           // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
           const recentAiIds = new Set(
-            tabMessages
+            filteredMessages
               .filter((m) => m.sender_role === "ai")
               .slice(-3)
               .map((m) => m.id)
           );
-          return tabMessages.map((msg) => {
+          return filteredMessages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
@@ -969,6 +1042,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 최신 메시지로 ↓ 점프 — 사용자가 바닥에서 240px+ 위로 올라가 있을 때만 */}
+      {showJumpToBottom && (
+        <button
+          type="button"
+          onClick={jumpToBottom}
+          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[#795252] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-all"
+          aria-label="최신 메시지로"
+          title="최신 메시지로"
+        >
+          ↓
+        </button>
+      )}
 
       {/* 에러 메시지 */}
       {error && !isStreaming && (
