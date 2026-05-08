@@ -71,13 +71,12 @@ export async function POST(
 
     const serviceClient = getServiceClient();
 
-    // 중복 신고 확인
+    // 중복 신고 확인 — community_reports 스키마: post_id 또는 comment_id (XOR)
     const { data: existingReport } = await serviceClient
       .from("community_reports")
       .select("id")
       .eq("reporter_id", user.id)
-      .eq("target_type", "post")
-      .eq("target_id", id)
+      .eq("post_id", id)
       .maybeSingle();
 
     if (existingReport) {
@@ -87,15 +86,15 @@ export async function POST(
       );
     }
 
+    // 스키마 컬럼: reporter_id, post_id, reason, description, status
+    // (이전 코드가 존재하지 않는 target_type/target_id, 잘못된 details 컬럼 INSERT 시도해서 500)
     const { error } = await serviceClient
       .from("community_reports")
       .insert({
         reporter_id: user.id,
         post_id: id,
-        target_type: "post",
-        target_id: id,
         reason,
-        details: details ?? null,
+        description: details ?? null,
         status: "pending",
       });
 
