@@ -16,6 +16,7 @@ import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyState from "@/components/community/EmptyState";
 import GamificationWidget from "@/components/community/GamificationWidget";
+import { withSessionCache } from "@/utils/sessionCache";
 
 interface PopularTag {
   tag: string;
@@ -49,10 +50,18 @@ export default function CategoryFeedPage() {
   }, [categoryParam, currentSort, currentPeriod, router]);
 
   useEffect(() => {
-    fetch("/api/community/popular-tags")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setPopularTags(data.tags ?? data ?? []))
-      .catch(() => {});
+    let cancelled = false;
+    void withSessionCache("community:popular-tags", 10 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/popular-tags");
+      if (!res.ok) return [] as PopularTag[];
+      const data = await res.json();
+      return (data.tags ?? data ?? []) as PopularTag[];
+    }).then((tags) => {
+      if (!cancelled) setPopularTags(tags);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleObserver = useCallback(

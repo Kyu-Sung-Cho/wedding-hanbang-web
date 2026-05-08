@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { withSessionCache } from "@/utils/sessionCache";
 
 interface TrendingPost {
   id: string;
@@ -10,40 +11,39 @@ interface TrendingPost {
   comment_count: number;
 }
 
+const TRENDING_CACHE_KEY = "community:trending:hot:5";
+const TRENDING_TTL_MS = 5 * 60 * 1000;
+
 export default function TrendingPosts() {
   const [posts, setPosts] = useState<TrendingPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const lastFetchedAt = useRef<number>(0);
 
-  const fetchTrending = useCallback(async (force = false) => {
-    // 5분 캐시
-    const now = Date.now();
-    if (!force && now - lastFetchedAt.current < 5 * 60 * 1000) return;
-
-    try {
-      const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
-      if (!res.ok) return;
-      const data = await res.json();
-      const fetched: TrendingPost[] = (data.posts ?? [])
-        .slice(0, 5)
-        .map((p: TrendingPost) => ({
-          id: p.id,
-          title: p.title,
-          upvote_count: p.upvote_count,
-          comment_count: p.comment_count,
-        }));
-      setPosts(fetched);
-      lastFetchedAt.current = Date.now();
-    } catch {
-      // 오류 무시
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // sessionStorage 캐시 — 카테고리 navigation으로 remount돼도 같은 세션 안에선 재호출 안 함.
+  // 이전엔 컴포넌트 ref 캐시였는데 remount마다 ref 초기화돼서 매번 fetch가 떠 답답했음.
   useEffect(() => {
-    fetchTrending(true);
-  }, [fetchTrending]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await withSessionCache(TRENDING_CACHE_KEY, TRENDING_TTL_MS, async () => {
+          const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
+          if (!res.ok) return [] as TrendingPost[];
+          const json = await res.json();
+          return (json.posts ?? []).slice(0, 5).map((p: TrendingPost) => ({
+            id: p.id,
+            title: p.title,
+            upvote_count: p.upvote_count,
+            comment_count: p.comment_count,
+          })) as TrendingPost[];
+        });
+        if (!cancelled) setPosts(data);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 로딩 스켈레톤
   if (loading) {

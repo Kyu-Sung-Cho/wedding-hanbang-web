@@ -20,6 +20,7 @@ import TrendingPosts from "@/components/community/TrendingPosts";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
+import { withSessionCache } from "@/utils/sessionCache";
 
 const CohortCard = dynamic(() => import("@/components/community/CohortCardContainer"), {
   ssr: false,
@@ -179,16 +180,28 @@ function CommunityFeedContent() {
     store.fetchPosts(true);
   }, [currentSort, currentPeriod, isSearching]);
 
-  // 인기 태그 + 업체 태그 가져오기
+  // 인기 태그 + 업체 태그 — sessionStorage 10분 캐시 (카테고리 navigation으로 remount돼도 재호출 안 함)
   useEffect(() => {
-    fetch("/api/community/popular-tags")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setPopularTags(data.tags ?? data ?? []))
-      .catch(() => {});
-    fetch("/api/community/vendor-tags?limit=12")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setVendorTags(Array.isArray(data) ? data : data.tags ?? []))
-      .catch(() => {});
+    let cancelled = false;
+    void withSessionCache("community:popular-tags", 10 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/popular-tags");
+      if (!res.ok) return [] as PopularTag[];
+      const data = await res.json();
+      return (data.tags ?? data ?? []) as PopularTag[];
+    }).then((tags) => {
+      if (!cancelled) setPopularTags(tags);
+    });
+    void withSessionCache("community:vendor-tags:12", 10 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/vendor-tags?limit=12");
+      if (!res.ok) return [] as VendorTag[];
+      const data = await res.json();
+      return (Array.isArray(data) ? data : data.tags ?? []) as VendorTag[];
+    }).then((tags) => {
+      if (!cancelled) setVendorTags(tags);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 무한스크롤
