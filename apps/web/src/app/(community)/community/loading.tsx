@@ -1,42 +1,52 @@
 export default function CommunityFeedLoading() {
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      <div className="flex w-full">
-        {/* 왼쪽 사이드바 skeleton */}
-        <aside className="hidden lg:flex flex-col w-[280px] xl:w-[300px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] border-r border-[#F0EFED] bg-white py-5 px-3">
-          {/* 동기방 카드 skeleton */}
-          <div className="px-2 mb-4">
-            <div className="rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] h-32 animate-pulse" />
+    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
+      <div className="flex-1 flex w-full">
+        {/* 왼쪽 사이드바 skeleton — 실제 폭/배경 그대로 */}
+        <aside className="hidden lg:flex bg-[#fcf9f8] h-[calc(100vh-5rem)] w-80 xl:w-96 2xl:w-[420px] sticky top-20 flex-col pt-12 pb-8 px-6 border-r border-[#e4e2e1] z-40">
+          {/* 헤더 */}
+          <div className="mb-10 px-4 space-y-2">
+            <div className="h-8 w-32 bg-[#ede8e6] rounded animate-pulse" />
+            <div className="h-4 w-48 bg-[#f3efed] rounded animate-pulse" />
           </div>
-          {/* 카테고리 탭 skeleton */}
+          {/* 동기방 카드 */}
+          <div className="px-2 mb-6">
+            <div className="rounded-2xl bg-gradient-to-br from-[#795252]/60 to-[#946a6a]/60 h-32 animate-pulse" />
+          </div>
+          {/* 카테고리 탭 */}
           <div className="space-y-2 px-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-9 bg-[#F0EFED] rounded-xl animate-pulse"
+                className="h-10 bg-[#ede8e6] rounded-xl animate-pulse"
                 style={{ animationDelay: `${i * 60}ms` }}
               />
             ))}
           </div>
-          {/* 글쓰기 버튼 skeleton */}
-          <div className="mt-auto pt-4 px-2 space-y-2">
-            <div className="h-11 bg-[#F0EFED] rounded-full animate-pulse" />
-            <div className="h-12 bg-[#E8E6E3] rounded-full animate-pulse" />
+          {/* 글쓰기 버튼 */}
+          <div className="mt-8 mb-8 px-4">
+            <div className="h-14 bg-[#e4d9d9] rounded-lg animate-pulse" />
           </div>
         </aside>
 
         {/* 메인 피드 skeleton */}
-        <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-6">
-          <div className="max-w-[800px] mx-auto lg:mx-0 lg:max-w-none">
-            {/* 정렬 바 skeleton */}
-            <div className="flex items-center gap-3 mb-5 px-1">
-              <div className="h-8 w-16 bg-[#F0EFED] rounded-lg animate-pulse" />
-              <div className="h-8 w-16 bg-[#F0EFED] rounded-lg animate-pulse" />
-              <div className="h-8 w-20 bg-[#F0EFED] rounded-lg animate-pulse" />
+        <main className="flex-1 min-w-0 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 xl:py-12">
+          <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto space-y-6 sm:space-y-8">
+            {/* 헤더 */}
+            <div className="space-y-2">
+              <div className="h-9 w-48 bg-[#ede8e6] rounded animate-pulse" />
+              <div className="h-5 w-72 bg-[#f3efed] rounded animate-pulse" />
             </div>
 
-            {/* 포스트 카드 skeleton */}
-            <div className="space-y-3">
+            {/* 정렬 바 */}
+            <div className="flex items-center gap-3 px-1 border-b border-[#e4e2e1] pb-4">
+              <div className="h-8 w-16 bg-[#ede8e6] rounded-lg animate-pulse" />
+              <div className="h-8 w-16 bg-[#ede8e6] rounded-lg animate-pulse" />
+              <div className="h-8 w-20 bg-[#ede8e6] rounded-lg animate-pulse" />
+            </div>
+
+            {/* 포스트 카드 — space-y-6 */}
+            <div className="space-y-6">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
@@ -44,17 +54,17 @@ export default function CommunityFeedLoading() {
                   style={{ animationDelay: `${i * 80}ms` }}
                 >
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-16 bg-[#F0EFED] rounded animate-pulse" />
-                    <div className="h-4 w-20 bg-[#F0EFED] rounded animate-pulse" />
-                    <div className="h-4 w-12 bg-[#F0EFED] rounded animate-pulse" />
+                    <div className="h-4 w-16 bg-[#ede8e6] rounded animate-pulse" />
+                    <div className="h-4 w-20 bg-[#ede8e6] rounded animate-pulse" />
+                    <div className="h-4 w-12 bg-[#ede8e6] rounded animate-pulse" />
                   </div>
-                  <div className="h-6 w-3/4 bg-[#F0EFED] rounded animate-pulse" />
-                  <div className="h-4 w-full bg-[#F5F2ED] rounded animate-pulse" />
-                  <div className="h-4 w-2/3 bg-[#F5F2ED] rounded animate-pulse" />
+                  <div className="h-6 w-3/4 bg-[#ede8e6] rounded animate-pulse" />
+                  <div className="h-4 w-full bg-[#f3efed] rounded animate-pulse" />
+                  <div className="h-4 w-2/3 bg-[#f3efed] rounded animate-pulse" />
                   <div className="flex items-center gap-6 pt-2">
-                    <div className="h-5 w-16 bg-[#F0EFED] rounded animate-pulse" />
-                    <div className="h-5 w-12 bg-[#F0EFED] rounded animate-pulse" />
-                    <div className="h-5 w-12 bg-[#F0EFED] rounded animate-pulse" />
+                    <div className="h-5 w-16 bg-[#ede8e6] rounded animate-pulse" />
+                    <div className="h-5 w-12 bg-[#ede8e6] rounded animate-pulse" />
+                    <div className="h-5 w-12 bg-[#ede8e6] rounded animate-pulse" />
                   </div>
                 </div>
               ))}
@@ -63,10 +73,10 @@ export default function CommunityFeedLoading() {
         </main>
 
         {/* 오른쪽 사이드바 skeleton */}
-        <aside className="hidden xl:flex flex-col w-[340px] 2xl:w-[380px] shrink-0 sticky top-[72px] h-[calc(100vh-72px)] py-6 pr-6 pl-2 space-y-4 border-l border-[#F0EFED]">
-          <div className="bg-white rounded-2xl border border-[#F0EFED] p-5 h-40 animate-pulse" />
-          <div className="bg-white rounded-2xl border border-[#F0EFED] p-5 h-48 animate-pulse" />
-          <div className="bg-white rounded-2xl border border-[#F0EFED] p-5 h-32 animate-pulse" />
+        <aside className="hidden xl:block w-96 2xl:w-[420px] shrink-0 p-10 border-l border-[#e4e2e1] sticky top-20 h-[calc(100vh-5rem)] bg-[#fcf9f8] space-y-5">
+          <div className="bg-white rounded-2xl border border-[#F0EFED] p-6 h-40 animate-pulse" />
+          <div className="bg-white rounded-2xl border border-[#F0EFED] p-6 h-56 animate-pulse" />
+          <div className="bg-white rounded-2xl border border-[#F0EFED] p-6 h-40 animate-pulse" />
         </aside>
       </div>
     </div>

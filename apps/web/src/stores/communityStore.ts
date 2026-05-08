@@ -56,6 +56,69 @@ interface CommunityState {
 
 const LIMIT = 20;
 
+// SWR 캐시 — sessionStorage 기반.
+// fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
+const CACHE_FRESH_MS = 30_000; // 30s 안엔 즉시 표시 + 네트워크 skip
+const CACHE_MAX_AGE_MS = 5 * 60_000; // 5분 후엔 캐시 버림
+
+interface CachedFeed {
+  posts: PostWithAuthor[];
+  total: number;
+  hasMore: boolean;
+  ts: number;
+}
+
+function feedCacheKey(
+  category: CommunityCategory | null,
+  sort: PostSort,
+  period: TimePeriod,
+  tag: string | null,
+): string {
+  return `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}`;
+}
+
+function readFeedCache(key: string): CachedFeed | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedFeed;
+    if (!parsed.ts || Date.now() - parsed.ts > CACHE_MAX_AGE_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeFeedCache(key: string, value: CachedFeed): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota — ignore */
+  }
+}
+
+// 글 작성/삭제 시 모든 피드 캐시 무력화 — 뒤로 가면 신선한 목록 보이게.
+// vote/bookmark는 in-memory state만 갱신해도 30s 안엔 stale 캐시 보일 수 있지만,
+// 백그라운드 refetch가 바로 정정하므로 무시.
+function invalidateFeedCache(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith("community:feed:")) keys.push(k);
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
 export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
   currentCategory: null,
@@ -74,7 +137,28 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   fetchPosts: async (reset = true) => {
     const { currentCategory, currentSort, currentPeriod, currentTag } = get();
-    if (reset) set({ isLoading: true, currentPage: 1 });
+    const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag);
+
+    // SWR — reset일 때만 캐시 먹임 (페이지네이션엔 의미 없음)
+    let usingFreshCache = false;
+    if (reset) {
+      const cached = readFeedCache(cacheKey);
+      if (cached) {
+        // 캐시 즉시 표시 — 화면 깜빡임 제거
+        set({
+          posts: cached.posts,
+          total: cached.total,
+          hasMore: cached.hasMore,
+          currentPage: 1,
+          isLoading: false,
+        });
+        usingFreshCache = Date.now() - cached.ts < CACHE_FRESH_MS;
+        if (usingFreshCache) return; // fresh window — 네트워크 skip
+        // stale → 백그라운드 refetch (loading은 안 켬)
+      } else {
+        set({ isLoading: true, currentPage: 1 });
+      }
+    }
 
     const params = new URLSearchParams();
     if (currentCategory) params.set("category", currentCategory);
@@ -88,7 +172,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      set({ posts: data.posts ?? [], total: data.total ?? 0, hasMore: data.hasMore ?? false, currentPage: 1, isLoading: false });
+      const posts = data.posts ?? [];
+      const total = data.total ?? 0;
+      const hasMore = data.hasMore ?? false;
+      set({ posts, total, hasMore, currentPage: 1, isLoading: false });
+      writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
       set({ isLoading: false });
     }
@@ -178,6 +266,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         const dedup = posts.some((p) => p.id === id);
         if (!dedup) set({ posts: [enriched, ...posts] });
       }
+      invalidateFeedCache();
       return id;
     } catch {
       return null;
@@ -191,6 +280,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+      if (res.ok) invalidateFeedCache();
       return res.ok;
     } catch {
       return false;
@@ -202,6 +292,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts/${id}`, { method: "DELETE" });
       if (res.ok) {
         set((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
+        invalidateFeedCache();
       }
       return res.ok;
     } catch {
