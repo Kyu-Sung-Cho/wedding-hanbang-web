@@ -86,12 +86,18 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const tag = searchParams.get("tag");
     const authorId = searchParams.get("author_id");
+    const bookmarkedOnly = searchParams.get("bookmarked") === "true";
     const offset = (page - 1) * limit;
 
     // 현재 사용자 확인 (선택적)
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    // bookmarked=true는 로그인 필수 — 비로그인이면 빈 결과
+    if (bookmarkedOnly && !user) {
+      return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+    }
 
     // 기본 쿼리
     let query = supabase
@@ -114,6 +120,19 @@ export async function GET(req: NextRequest) {
     // 작성자 필터
     if (authorId) {
       query = query.eq("author_id", authorId);
+    }
+
+    // 북마크 필터 — 본인이 북마크한 글의 id만 통과
+    if (bookmarkedOnly && user) {
+      const { data: bookmarks } = await supabase
+        .from("community_bookmarks")
+        .select("post_id")
+        .eq("user_id", user.id);
+      const bookmarkedIds = (bookmarks ?? []).map((b) => b.post_id as string);
+      if (bookmarkedIds.length === 0) {
+        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      query = query.in("id", bookmarkedIds);
     }
 
     // visibility 필터: public은 항상, members는 인증 시, draft는 본인만
