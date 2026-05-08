@@ -200,10 +200,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     lastMsgCountRef.current = messages.length;
   }, [messages.length]);
 
-  // 마지막 메시지 카운트 동기화 (다른 useEffect 의존성으로 쓰던 ref 유지)
+  // 본인이 방금 보낸 메시지면 컨테이너만 부드럽게 바닥으로 — 자기 메시지가 화면 밖에
+  // 떨어지는 일 방지. AI/파트너 메시지에는 적용 안 함 (위에서 옛날 대화 읽고 있을 수 있어서).
+  // scrollIntoView 안 씀 → 페이지 전체 스크롤 부작용 없음.
   useEffect(() => {
-    lastMsgCountRef.current = messages.length;
-  }, [messages.length]);
+    const prevCount = lastMsgCountRef.current;
+    const currCount = messages.length;
+    lastMsgCountRef.current = currCount;
+    if (currCount <= prevCount) return; // 새 메시지 없음
+    const last = messages[currCount - 1];
+    if (!last) return;
+    if (last.sender_id !== profile?.id) return; // 본인 거 아님 → 가만히
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    // requestAnimationFrame — 새 메시지 DOM에 들어간 직후 스크롤
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+  }, [messages, profile?.id]);
 
   const jumpToBottom = useCallback(() => {
     const el = messagesContainerRef.current;
