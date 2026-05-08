@@ -46,12 +46,17 @@ export async function GET(req: NextRequest) {
 
     // 실제 작성 글 수 — service client로 COUNT (RLS 우회)
     // user 클라이언트로 count하면 visibility/RLS 정책에 따라 0 반환 가능.
-    // author_id = user.id 필터로 본인 글만 카운트 → 보안 OK.
+    // 도구 잠금 해제용 카운트는 "정상 발행된" 글만 인정:
+    //   - visibility ∈ {public, members}  → draft(=관리자 숨김 처리 포함) 제외
+    //   - under_review = false             → 3+ 신고로 자동 검토 들어간 글 제외
+    // 강제 삭제된 글은 row 자체가 없어서 자동으로 제외됨.
     const serviceClientForCount = getServiceClient();
     const { count: actualPostCount } = await serviceClientForCount
       .from("community_posts")
       .select("id", { count: "exact", head: true })
-      .eq("author_id", user.id);
+      .eq("author_id", user.id)
+      .in("visibility", ["public", "members"])
+      .eq("under_review", false);
 
     // 프로필이 없으면 자동 생성 — 단 historical 글이 있을 수 있으므로
     // post_count 초기값을 actualPostCount로 동기화
