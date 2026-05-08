@@ -14,6 +14,7 @@ import {
   Save,
   Pencil,
   Check,
+  ImagePlus,
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
@@ -112,9 +113,14 @@ function PostWriteContent() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inlineImageInputRef = useRef<HTMLInputElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 초기 폼 상태 (변경 감지용)
   const initialFormRef = useRef<string>("");
+
+  // 본문 인라인 이미지 업로드
+  const [insertingImage, setInsertingImage] = useState(false);
+  const [insertImageError, setInsertImageError] = useState<string | null>(null);
 
   // 인증 체크
   useEffect(() => {
@@ -358,15 +364,89 @@ function PostWriteContent() {
   // 유효성 검사
   const isValid = category && title.trim().length > 0 && content.trim().length > 0;
 
-  // 콘텐츠를 간이 HTML로 변환 (미리보기용, 줄바꿈 처리)
+  // 본문 인라인 이미지 삽입 — 커서 위치에 <img> 태그를 끼움
+  const insertAtCursor = useCallback((snippet: string) => {
+    const ta = textareaRef.current;
+    if (!ta) {
+      setContent((prev) => (prev + snippet).slice(0, CONTENT_MAX_LENGTH));
+      return;
+    }
+    const start = ta.selectionStart ?? content.length;
+    const end = ta.selectionEnd ?? content.length;
+    const next = (content.slice(0, start) + snippet + content.slice(end)).slice(
+      0,
+      CONTENT_MAX_LENGTH
+    );
+    setContent(next);
+    // 커서를 삽입된 텍스트 뒤로 이동
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = Math.min(start + snippet.length, next.length);
+      ta.setSelectionRange(pos, pos);
+      autoResize();
+    });
+  }, [content, autoResize]);
+
+  const handleInsertImage = useCallback(
+    async (file: File) => {
+      if (insertingImage) return;
+      setInsertImageError(null);
+      // 5MB 검증 (이미지), 10MB (GIF)
+      const isGif = file.type === "image/gif";
+      const max = isGif ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (!file.type.startsWith("image/")) {
+        setInsertImageError("이미지/GIF 파일만 삽입할 수 있어요.");
+        return;
+      }
+      if (file.size > max) {
+        setInsertImageError(isGif ? "GIF는 10MB 이하" : "이미지는 5MB 이하");
+        return;
+      }
+      setInsertingImage(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/community/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.url) {
+          setInsertImageError(data?.error ?? "업로드에 실패했어요.");
+          return;
+        }
+        // \n\n으로 감싸서 앞뒤 단락과 분리, 너비 100% / 자동 높이 / 살짝 둥근 모서리
+        const snippet = `\n\n<img src="${data.url}" alt="" style="max-width:100%;height:auto;border-radius:12px;margin:0.75em 0;" />\n\n`;
+        insertAtCursor(snippet);
+      } catch {
+        setInsertImageError("업로드 중 오류가 발생했어요.");
+      } finally {
+        setInsertingImage(false);
+        if (inlineImageInputRef.current) inlineImageInputRef.current.value = "";
+      }
+    },
+    [insertingImage, insertAtCursor]
+  );
+
+  // 클립보드에서 이미지 붙여넣기
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imageItem = items.find((it) => it.type.startsWith("image/"));
+      if (!imageItem) return; // 일반 텍스트 paste는 기본 동작 유지
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      void handleInsertImage(file);
+    },
+    [handleInsertImage]
+  );
+
+  // 콘텐츠 미리보기 — post detail과 동일한 sanitize + whitespace-pre-wrap 사용.
+  // 이전엔 < > 를 escape해서 사용자가 삽입한 <img> 같은 HTML이 안 보였음 → detail과
+  // mismatch. 이제 둘 다 sanitizeHtml(content)로 동일하게 렌더.
   const renderPreviewHtml = useCallback(() => {
-    const escaped = content
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br />");
-    return sanitizeHtml(`<p>${escaped}</p>`);
+    return sanitizeHtml(content);
   }, [content]);
 
   // 제출
@@ -594,19 +674,53 @@ function PostWriteContent() {
                       setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
                       autoResize();
                     }}
-                    placeholder="내용을 입력하세요..."
+                    onPaste={handlePaste}
+                    placeholder="내용을 입력하세요. 이미지나 GIF를 글 중간에 붙여넣거나 아래 버튼으로 삽입할 수 있어요."
                     maxLength={CONTENT_MAX_LENGTH}
                     className="w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors resize-none leading-relaxed min-h-[200px]"
                   />
-                  <p className={`mt-2 text-sm text-right ${contentCountColor}`}>
-                    {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
-                  </p>
+
+                  {/* 인라인 도구바 — 이미지/GIF 삽입 */}
+                  <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={inlineImageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void handleInsertImage(f);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => inlineImageInputRef.current?.click()}
+                        disabled={insertingImage}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#795252] bg-[#fcf9f8] border border-[#e4e2e1] rounded-lg hover:border-[#795252] hover:bg-white transition-colors disabled:opacity-60"
+                        title="본문 안 커서 위치에 이미지/GIF 삽입"
+                      >
+                        {insertingImage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ImagePlus className="w-4 h-4" />
+                        )}
+                        본문에 이미지/GIF 삽입
+                      </button>
+                      {insertImageError && (
+                        <span className="text-xs text-red-500">{insertImageError}</span>
+                      )}
+                    </div>
+                    <p className={`text-sm ${contentCountColor}`}>
+                      {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
+                    </p>
+                  </div>
                 </>
               ) : (
                 <div className="w-full px-4 py-3 bg-[#f6f3f2] border border-[#e4e2e1] rounded-lg min-h-[200px]">
                   {content.trim() ? (
                     <div
-                      className="prose prose-sm max-w-none text-[#1b1c1c] leading-relaxed"
+                      className="prose prose-sm max-w-none text-[#1b1c1c] leading-relaxed whitespace-pre-wrap break-words"
                       dangerouslySetInnerHTML={{ __html: renderPreviewHtml() }}
                     />
                   ) : (
