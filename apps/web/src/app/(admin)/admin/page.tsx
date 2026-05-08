@@ -6,7 +6,7 @@ import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
   UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
-  Banknote,
+  Banknote, Flag,
 } from "lucide-react";
 
 interface Registration {
@@ -120,7 +120,51 @@ interface AdminSettlement {
   vendorName?: string;
 }
 
-type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "settlements" | "admins";
+type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "reports" | "settlements" | "admins";
+
+type ReportStatus = "pending" | "reviewed" | "resolved" | "dismissed";
+
+interface AdminReport {
+  id: string;
+  reporter_id: string;
+  reporter_nickname: string;
+  post_id: string | null;
+  comment_id: string | null;
+  reason: string;
+  description: string | null;
+  status: ReportStatus;
+  created_at: string;
+  post: {
+    id: string;
+    title: string;
+    content: string;
+    author_id: string;
+    category: string;
+    visibility: string;
+    under_review: boolean;
+  } | null;
+  comment: {
+    id: string;
+    content: string;
+    author_id: string;
+    post_id: string;
+  } | null;
+}
+
+const REPORT_REASON_LABEL: Record<string, string> = {
+  spam: "스팸/도배",
+  abuse: "욕설/비하",
+  ad: "광고/홍보",
+  inappropriate: "부적절한 내용",
+  other: "기타",
+};
+
+const REPORT_STATUS_LABEL: Record<ReportStatus, { text: string; cls: string }> = {
+  pending: { text: "대기", cls: "bg-gold/10 text-gold" },
+  reviewed: { text: "검토 중", cls: "bg-rose-500/10 text-rose-500" },
+  resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
+  dismissed: { text: "기각", cls: "bg-noir-800/10 text-noir-800" },
+};
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -181,6 +225,48 @@ export default function AdminPage() {
   const [settlementFilter, setSettlementFilter] = useState<string>("all");
   const [settlementLoading, setSettlementLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // 신고 관리
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [reportCounts, setReportCounts] = useState<Record<ReportStatus, number>>({
+    pending: 0,
+    reviewed: 0,
+    resolved: 0,
+    dismissed: 0,
+  });
+  const [reportFilter, setReportFilter] = useState<ReportStatus | "all">("pending");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportActionId, setReportActionId] = useState<string | null>(null);
+
+  const loadReports = useCallback(async (filter: ReportStatus | "all" = "pending") => {
+    setReportLoading(true);
+    try {
+      const res = await fetch(`/api/admin/reports?status=${filter}`);
+      const data = await res.json();
+      if (res.ok) {
+        setReports(data.reports ?? []);
+        if (data.counts) setReportCounts(data.counts);
+      }
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
+
+  async function updateReportStatus(reportId: string, status: ReportStatus) {
+    setReportActionId(reportId);
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        await loadReports(reportFilter);
+      }
+    } finally {
+      setReportActionId(null);
+    }
+  }
 
   // 관리자 인증
   useEffect(() => {
@@ -358,8 +444,9 @@ export default function AdminPage() {
       fetchAdminUsers();
       fetchInsights();
       fetchSettlements();
+      void loadReports("pending");
     }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, fetchSettlements]);
+  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, fetchSettlements, loadReports]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
@@ -447,6 +534,7 @@ export default function AdminPage() {
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
     { key: "insights", label: "인사이트", icon: BarChart3 },
+    { key: "reports", label: "신고 관리", icon: Flag, badge: reportCounts.pending || undefined },
     { key: "settlements", label: "정산 관리", icon: Banknote, badge: settlements.filter((s) => s.status === "pending").length || undefined },
     { key: "admins", label: "관리자 관리", icon: UserPlus, badge: adminUsers.length || undefined },
   ];
@@ -1218,6 +1306,193 @@ export default function AdminPage() {
             ) : (
               <div className="text-center py-16">
                 <p className="text-[14px] text-taupe-400">인사이트 데이터를 불러올 수 없습니다.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===== 신고 관리 탭 ===== */}
+        {activeTab === "reports" && (
+          <>
+            {/* 상단 카운트 */}
+            <div className="grid grid-cols-4 gap-4 mb-6 max-md:grid-cols-2">
+              {([
+                { key: "pending" as const, label: "대기", cls: "text-gold" },
+                { key: "reviewed" as const, label: "검토 중", cls: "text-rose-500" },
+                { key: "resolved" as const, label: "처리됨", cls: "text-[#2E7D5A]" },
+                { key: "dismissed" as const, label: "기각", cls: "text-noir-800" },
+              ]).map((s) => (
+                <div key={s.key} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                  <p className="text-sm text-taupe-500 mb-2">{s.label}</p>
+                  <p className={`font-display text-3xl font-light ${s.cls}`}>
+                    {reportCounts[s.key] ?? 0}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* 필터 */}
+            <div className="flex gap-2 mb-6 flex-wrap">
+              {([
+                { key: "pending" as const, label: "대기" },
+                { key: "reviewed" as const, label: "검토 중" },
+                { key: "resolved" as const, label: "처리됨" },
+                { key: "dismissed" as const, label: "기각" },
+                { key: "all" as const, label: "전체" },
+              ]).map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => {
+                    setReportFilter(f.key);
+                    void loadReports(f.key);
+                  }}
+                  className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
+                    reportFilter === f.key
+                      ? "border-rose-500 bg-rose-500 text-white"
+                      : "border-platinum text-taupe-500 hover:border-rose-500"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {reportLoading ? (
+              <div className="bg-white rounded-2xl p-16 text-center">
+                <Loader2 className="w-6 h-6 text-rose-500 animate-spin mx-auto" />
+              </div>
+            ) : reports.length === 0 ? (
+              <div className="bg-white rounded-2xl p-16 text-center">
+                <Flag className="w-10 h-10 text-taupe-400 mx-auto mb-3" />
+                <p className="text-sm text-taupe-500">
+                  {reportFilter === "pending"
+                    ? "대기 중인 신고가 없습니다."
+                    : "해당 상태의 신고가 없습니다."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reports.map((r) => {
+                  const isPost = !!r.post;
+                  const isComment = !!r.comment;
+                  const target = r.post ?? r.comment;
+                  const targetTitle = r.post?.title ?? "댓글";
+                  const targetPreview = (target?.content ?? "")
+                    .replace(/<[^>]*>/g, "")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 200);
+                  const statusInfo = REPORT_STATUS_LABEL[r.status];
+                  const linkHref = r.post
+                    ? `/community/post/${r.post.id}`
+                    : r.comment
+                      ? `/community/post/${r.comment.post_id}#comment-${r.comment.id}`
+                      : null;
+
+                  return (
+                    <div
+                      key={r.id}
+                      className="bg-white rounded-2xl p-5 border border-black/[0.04]"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusInfo.cls}`}>
+                            {statusInfo.text}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-noir-800/8 text-noir-800 font-medium">
+                            {REPORT_REASON_LABEL[r.reason] ?? r.reason}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-medium">
+                            {isPost ? "게시글" : isComment ? "댓글" : "—"}
+                          </span>
+                          {r.post?.under_review && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gold/15 text-gold font-medium">
+                              자동 검토
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-taupe-400 shrink-0">
+                          {new Date(r.created_at).toLocaleString("ko-KR")}
+                        </span>
+                      </div>
+
+                      <div className="mb-3">
+                        <p className="text-xs text-taupe-500 mb-1">
+                          신고자: <span className="text-noir-800 font-medium">{r.reporter_nickname}</span>
+                        </p>
+                        {target ? (
+                          <>
+                            <p className="text-sm font-medium text-noir-800 mb-1 truncate">
+                              {targetTitle}
+                            </p>
+                            <p className="text-xs text-taupe-500 line-clamp-2">
+                              {targetPreview || "(내용 없음)"}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-taupe-400">
+                            (대상이 삭제됐거나 접근 불가)
+                          </p>
+                        )}
+                        {r.description && (
+                          <p className="mt-2 text-xs text-taupe-500 italic">
+                            추가 설명: {r.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {linkHref && (
+                          <a
+                            href={linkHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            원본 보기
+                          </a>
+                        )}
+                        {r.status !== "reviewed" && r.status !== "resolved" && (
+                          <button
+                            type="button"
+                            onClick={() => updateReportStatus(r.id, "reviewed")}
+                            disabled={reportActionId === r.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-rose-500 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            검토 중으로 표시
+                          </button>
+                        )}
+                        {r.status !== "resolved" && (
+                          <button
+                            type="button"
+                            onClick={() => updateReportStatus(r.id, "resolved")}
+                            disabled={reportActionId === r.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-lg hover:bg-[#246548] transition-colors disabled:opacity-50"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            처리됨
+                          </button>
+                        )}
+                        {r.status !== "dismissed" && (
+                          <button
+                            type="button"
+                            onClick={() => updateReportStatus(r.id, "dismissed")}
+                            disabled={reportActionId === r.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum text-taupe-500 rounded-lg hover:border-noir-800 hover:text-noir-800 transition-colors disabled:opacity-50"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            기각
+                          </button>
+                        )}
+                        {reportActionId === r.id && (
+                          <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>
