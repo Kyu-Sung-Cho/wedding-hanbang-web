@@ -4,9 +4,13 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { getPayment } from "@/lib/toss/client";
 
 const COMMISSION_RATE = 0.1;
+const TERMINAL_FAILED_TOSS_STATUSES = new Set(["CANCELED", "ABORTED", "EXPIRED"]);
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const transmissionId = req.headers.get("tosspayments-webhook-transmission-id");
     const body = await req.json();
     const { eventType, data } = body;
 
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     if (!payment) {
-      console.log("웹훅: 매칭되는 결제 레코드 없음", paymentKey);
+      console.log("웹훅: 매칭되는 결제 레코드 없음", { paymentKey, transmissionId });
       return NextResponse.json({ ok: true });
     }
 
@@ -83,7 +87,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Toss orderId 불일치" }, { status: 400 });
     }
 
-    if (tossPayment.status === "DONE" && Number(tossPayment.totalAmount) === payment.amount) {
+    if (tossPayment.status === "DONE" && Number(tossPayment.totalAmount) !== payment.amount) {
+      await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          fail_reason: `Toss 금액 불일치: 예상 ${payment.amount} / 실제 ${tossPayment.totalAmount}`,
+        })
+        .eq("id", payment.id)
+        .eq("status", "pending");
+
+      console.error("웹훅: Toss 금액 불일치", {
+        paymentId: payment.id,
+        expected: payment.amount,
+        actual: tossPayment.totalAmount,
+        transmissionId,
+      });
+
+      return NextResponse.json({ error: "Toss 금액 불일치" }, { status: 400 });
+    }
+
+    if (TERMINAL_FAILED_TOSS_STATUSES.has(tossPayment.status)) {
+      await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          fail_reason: `Toss 결제 상태: ${tossPayment.status}`,
+        })
+        .eq("id", payment.id)
+        .eq("status", "pending");
+
+      return NextResponse.json({ ok: true });
+    }
+
+    if (tossPayment.status === "DONE") {
       await supabase
         .from("payments")
         .update({

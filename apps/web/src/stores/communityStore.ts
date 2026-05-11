@@ -21,6 +21,8 @@ interface CommunityState {
   currentPage: number;
   hasMore: boolean;
   isLoading: boolean;
+  errorMessage: string | null;
+  lastSyncedAt: string | null;
   total: number;
 
   // 글 상세
@@ -51,6 +53,7 @@ interface CommunityState {
   setSort: (sort: PostSort) => void;
   setPeriod: (period: TimePeriod) => void;
   setTag: (tag: string | null) => void;
+  clearError: () => void;
   reset: () => void;
 }
 
@@ -128,6 +131,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   currentPage: 1,
   hasMore: true,
   isLoading: true,
+  errorMessage: null,
+  lastSyncedAt: null,
   total: 0,
   currentPost: null,
   comments: [],
@@ -151,12 +156,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           hasMore: cached.hasMore,
           currentPage: 1,
           isLoading: false,
+          errorMessage: null,
         });
         usingFreshCache = Date.now() - cached.ts < CACHE_FRESH_MS;
         if (usingFreshCache) return; // fresh window — 네트워크 skip
         // stale → 백그라운드 refetch (loading은 안 켬)
       } else {
-        set({ isLoading: true, currentPage: 1 });
+        set({ isLoading: true, currentPage: 1, errorMessage: null });
       }
     }
 
@@ -175,17 +181,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const posts = data.posts ?? [];
       const total = data.total ?? 0;
       const hasMore = data.hasMore ?? false;
-      set({ posts, total, hasMore, currentPage: 1, isLoading: false });
+      set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
       writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, errorMessage: "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
     }
   },
 
   fetchMorePosts: async () => {
     const { currentCategory, currentSort, currentPeriod, currentTag, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
-    set({ isLoading: true });
+    set({ isLoading: true, errorMessage: null });
 
     const nextPage = currentPage + 1;
     const params = new URLSearchParams();
@@ -205,9 +211,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         hasMore: data.hasMore,
         currentPage: nextPage,
         isLoading: false,
+        errorMessage: null,
+        lastSyncedAt: new Date().toISOString(),
       }));
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, errorMessage: "다음 글을 불러오지 못했습니다." });
     }
   },
 
@@ -219,7 +227,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const post = await res.json();
       set({ currentPost: post, postLoading: false });
     } catch {
-      set({ postLoading: false });
+      set({ postLoading: false, errorMessage: "게시글 상세를 불러오지 못했습니다." });
     }
   },
 
@@ -231,7 +239,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = await res.json();
       set({ comments: data.comments ?? data, commentsLoading: false });
     } catch {
-      set({ commentsLoading: false });
+      set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
     }
   },
 
@@ -242,7 +250,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        set({ errorMessage: "게시글 작성에 실패했습니다." });
+        return null;
+      }
       const data = (await res.json()) as {
         post?: PostWithAuthor & { id: string };
         id?: string;
@@ -267,8 +278,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         if (!dedup) set({ posts: [enriched, ...posts] });
       }
       invalidateFeedCache();
+      set({ errorMessage: null, lastSyncedAt: new Date().toISOString() });
       return id;
     } catch {
+      set({ errorMessage: "게시글 작성 중 오류가 발생했습니다." });
       return null;
     }
   },
@@ -429,10 +442,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     set({ currentTag: tag, posts: [], hasMore: true, currentPage: 1 });
   },
 
+  clearError: () => set({ errorMessage: null }),
+
   reset: () => {
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
+      errorMessage: null, lastSyncedAt: null,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
     });
   },

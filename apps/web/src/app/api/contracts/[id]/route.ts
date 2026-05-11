@@ -1,6 +1,7 @@
 // 고객용 계약서 조회
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ContractRow, contractRowToModel } from "@/types/contract.types";
 
 export async function GET(
@@ -16,6 +17,8 @@ export async function GET(
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const admin = createAdminClient();
+
     // RLS가 couple_id 기반으로 접근을 제어
     const { data, error } = await supabase
       .from("contracts")
@@ -29,7 +32,7 @@ export async function GET(
 
     // viewed 상태 업데이트 (sent → viewed)
     if (data.status === "sent") {
-      await supabase
+      await admin
         .from("contracts")
         .update({
           status: "viewed",

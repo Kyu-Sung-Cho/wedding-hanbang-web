@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Flame,
+  FileSearch,
   HelpCircle,
   Camera,
   Lightbulb,
@@ -66,6 +67,22 @@ export default function CategoryTabs() {
         >
           <Flame className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
           <span className="text-sm">인기</span>
+        </Link>
+
+        <Link
+          href="/community/quote-check"
+          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+            isActive("/community/quote-check")
+              ? "bg-[#f6f3f2] text-[#795252] font-bold"
+              : "text-[#504444] hover:bg-white hover:text-[#795252]"
+          }`}
+        >
+          <FileSearch
+            className={`mr-2.5 w-4 h-4 ${
+              isActive("/community/quote-check") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+            }`}
+          />
+          <span className="text-sm">견적진단</span>
         </Link>
 
         <Link
@@ -175,6 +192,16 @@ export default function CategoryTabs() {
             }`}
           >
             전체
+          </Link>
+          <Link
+            href="/community/quote-check"
+            className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
+              isActive("/community/quote-check")
+                ? "bg-[#795252] text-white font-medium"
+                : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"
+            }`}
+          >
+            견적진단
           </Link>
           {COMMUNITY_CATEGORIES.map((cat) => {
             const href = `/community/${cat.key}`;

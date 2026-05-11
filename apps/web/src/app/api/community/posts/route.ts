@@ -94,9 +94,19 @@ export async function GET(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_cohort" || sort === "my_posts";
+    const feedCacheControl = isPersonalizedFeed
+      ? "private, no-store, max-age=0"
+      : "public, s-maxage=10, stale-while-revalidate=30";
+    const feedResponse = (payload: unknown, status = 200) =>
+      NextResponse.json(payload, {
+        status,
+        headers: { "Cache-Control": feedCacheControl },
+      });
+
     // bookmarked=true는 로그인 필수 — 비로그인이면 빈 결과
     if (bookmarkedOnly && !user) {
-      return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+      return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
     }
 
     // 기본 쿼리
@@ -130,7 +140,7 @@ export async function GET(req: NextRequest) {
         .eq("user_id", user.id);
       const bookmarkedIds = (bookmarks ?? []).map((b) => b.post_id as string);
       if (bookmarkedIds.length === 0) {
-        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       query = query.in("id", bookmarkedIds);
     }
@@ -148,7 +158,7 @@ export async function GET(req: NextRequest) {
     if (sort === "my_cohort") {
       // 비로그인은 빈 결과
       if (!user) {
-        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 1. 본인이 속한 cohort room ids
       const { data: myRooms } = await supabase
@@ -158,7 +168,7 @@ export async function GET(req: NextRequest) {
       const roomIds = (myRooms ?? []).map((r) => r.room_id as string);
       if (roomIds.length === 0) {
         // 동기방 미가입 → 빈 결과 (UI에서 가입 유도)
-        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 2. 같은 cohort room의 다른 멤버 user_ids — 본인 제외
       const { data: cohortMembers } = await supabase
@@ -170,14 +180,14 @@ export async function GET(req: NextRequest) {
       ].filter((id) => id !== user.id);
       if (memberIds.length === 0) {
         // 동기방에 나밖에 없음 → 빈 결과
-        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 3. 동기들이 작성한 글만 + 최신순
       query = query.in("author_id", memberIds).order("created_at", { ascending: false });
     } else if (sort === "my_posts") {
       // 비로그인은 빈 결과
       if (!user) {
-        return NextResponse.json({ posts: [], total: 0, hasMore: false, page, limit });
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
       query = query.eq("author_id", user.id).order("created_at", { ascending: false });
@@ -297,10 +307,7 @@ export async function GET(req: NextRequest) {
     const total = count ?? 0;
     const hasMore = offset + limit < total;
 
-    return NextResponse.json(
-      { posts: postsWithVotes, total, hasMore },
-      { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } }
-    );
+    return feedResponse({ posts: postsWithVotes, total, hasMore });
   } catch (err) {
     console.error("Community posts error:", err);
     return NextResponse.json(

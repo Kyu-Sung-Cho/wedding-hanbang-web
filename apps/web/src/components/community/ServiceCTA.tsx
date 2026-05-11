@@ -19,9 +19,9 @@ interface CTAConfig {
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
     icon: <Sparkles className="w-5 h-5 text-[#C4967E]" />,
-    text: "이 가격, 정상인지 AI가 분석해드려요",
-    subtext: "견적서 사진만 보내면 항목별 분석 완료",
-    href: "/chat",
+    text: "아모라가 견적 추가금 리스크를 진단해요",
+    subtext: "시세, 빠진 항목, 계약 전 질문까지 한 번에",
+    href: "/community/quote-check",
   },
   tour_review: {
     icon: <MessageCircle className="w-5 h-5 text-[#C4967E]" />,

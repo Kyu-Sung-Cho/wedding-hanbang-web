@@ -89,13 +89,13 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
           <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
         </div>
         <p className="mb-4 text-sm leading-relaxed text-white/75">
-          가격이 정상인지, 일정은 맞는지, AI 아모라가 답해드려요.
+          견적가보다 빠진 항목과 계약 전 질문을 아모라가 먼저 짚어드려요.
         </p>
         <Link
-          href="/chat"
+          href="/community/quote-check"
           className="block w-full rounded-lg bg-white py-2.5 text-center text-sm font-medium text-[#795252] shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)]"
         >
-          아모라와 대화하기
+          견적 진단하기
         </Link>
       </section>
     </div>

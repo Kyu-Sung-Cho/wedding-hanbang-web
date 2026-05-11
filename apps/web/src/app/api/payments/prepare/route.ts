@@ -1,6 +1,7 @@
 // 결제 사전등록 — 금액 검증 + DB에 pending 레코드 생성 + orderId 발급
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { PaymentRow } from "@/types/contract.types";
 
 export async function POST(req: Request) {
@@ -14,7 +15,8 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { contractId, paymentType } = body;
-    const normalizedPaymentType = paymentType === "balance" ? "balance" : "deposit";
+    const normalizedPaymentType =
+      paymentType === "remaining" || paymentType === "balance" ? "remaining" : "deposit";
 
     if (!contractId) {
       return NextResponse.json({ error: "계약 ID는 필수입니다." }, { status: 400 });
@@ -64,7 +66,8 @@ export async function POST(req: Request) {
         : contract.contract_amount - contract.deposit_amount;
 
     // 결제 레코드 생성
-    const { data: payment, error } = await supabase
+    const admin = createAdminClient();
+    const { data: payment, error } = await admin
       .from("payments")
       .insert({
         contract_id: contractId,

@@ -1,6 +1,7 @@
 // 결제 환불 처리 (토스페이먼츠)
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
@@ -16,6 +17,8 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const admin = createAdminClient();
 
     const body = await req.json();
     const { reason, amount } = body;
@@ -90,7 +93,7 @@ export async function POST(
     }
 
     // DB 업데이트
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await admin
       .from("payments")
       .update({
         status: "refunded",
@@ -105,7 +108,7 @@ export async function POST(
     if (error) throw error;
 
     // 계약 취소 처리
-    await supabase
+    await admin
       .from("contracts")
       .update({
         status: "cancelled",
@@ -116,7 +119,7 @@ export async function POST(
       .eq("id", payment.contract_id);
 
     // 예약 상태 업데이트
-    await supabase
+    await admin
       .from("vendor_bookings")
       .update({ status: "cancelled", payment_status: "refunded" })
       .eq("id", payment.booking_id);

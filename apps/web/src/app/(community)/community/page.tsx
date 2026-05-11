@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Star, Bookmark, Shield, Archive } from "lucide-react";
+import { PenSquare, Star, Bookmark, Shield, Archive, AlertCircle, RefreshCw } from "lucide-react";
 import Avatar from "@/components/community/Avatar";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
@@ -121,6 +121,8 @@ function CommunityFeedContent() {
   const currentPeriod = useCommunityStore((s) => s.currentPeriod);
   const currentTag = useCommunityStore((s) => s.currentTag);
   const total = useCommunityStore((s) => s.total);
+  const errorMessage = useCommunityStore((s) => s.errorMessage);
+  const clearError = useCommunityStore((s) => s.clearError);
 
   const [searchResults, setSearchResults] = useState<PostWithAuthor[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -354,6 +356,32 @@ function CommunityFeedContent() {
             )}
 
             {!isSearching && <FeedComposer />}
+
+            {!isSearching && errorMessage && (
+              <div className="flex flex-col gap-3 rounded-xl border border-[#d9c8c8] bg-white px-4 py-3 text-sm text-[#504444] sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-[#795252]" />
+                  <span className="break-words">{errorMessage}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => useCommunityStore.getState().fetchPosts(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#795252] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#946a6a]"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    다시 불러오기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearError}
+                    className="rounded-lg px-2 py-2 text-xs font-medium text-[#928980] transition-colors hover:bg-[#f6f3f2] hover:text-[#504444]"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 피드 리스트 */}
             {isSearching ? (

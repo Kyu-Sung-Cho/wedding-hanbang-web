@@ -1,6 +1,7 @@
 // 결제 완료 처리 — 토스 confirm API + DB 업데이트
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { confirmPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
 
@@ -14,6 +15,8 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const admin = createAdminClient();
 
     const body = await req.json();
     const { paymentId, paymentKey, orderId, amount } = body;
@@ -47,7 +50,7 @@ export async function POST(req: Request) {
 
     // 금액 검증
     if (Number(amount) !== payment.amount) {
-      await supabase
+      await admin
         .from("payments")
         .update({
           status: "failed",
@@ -82,7 +85,7 @@ export async function POST(req: Request) {
 
     // 토스 결제 상태 확인
     if (tossPayment.status !== "DONE") {
-      await supabase
+      await admin
         .from("payments")
         .update({
           status: "failed",
@@ -95,7 +98,7 @@ export async function POST(req: Request) {
     }
 
     if (tossPayment.orderId && tossPayment.orderId !== payment.order_id) {
-      await supabase
+      await admin
         .from("payments")
         .update({
           status: "failed",
@@ -108,7 +111,7 @@ export async function POST(req: Request) {
     }
 
     if (Number(tossPayment.totalAmount) !== payment.amount) {
-      await supabase
+      await admin
         .from("payments")
         .update({
           status: "failed",
@@ -130,7 +133,7 @@ export async function POST(req: Request) {
     };
 
     // 결제 완료 처리
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await admin
       .from("payments")
       .update({
         status: "paid",
@@ -144,13 +147,29 @@ export async function POST(req: Request) {
       .eq("id", paymentId)
       .eq("status", "pending")
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!updated) {
+      const { data: current } = await admin
+        .from("payments")
+        .select("*")
+        .eq("id", paymentId)
+        .single();
+
+      if (current?.status === "paid") {
+        return NextResponse.json({
+          payment: paymentRowToModel(current as PaymentRow),
+          message: "이미 결제가 완료되었습니다.",
+        });
+      }
+
+      return NextResponse.json({ error: "결제 상태를 갱신할 수 없습니다." }, { status: 409 });
+    }
 
     // 예약 상태 업데이트
     if (payment.payment_type === "deposit") {
-      await supabase
+      await admin
         .from("vendor_bookings")
         .update({ payment_status: "deposit_paid", status: "deposit_paid" })
         .eq("id", payment.booking_id);
@@ -160,7 +179,7 @@ export async function POST(req: Request) {
     const commissionAmount = Math.round(payment.amount * COMMISSION_RATE);
     const settleAmount = payment.amount - commissionAmount;
 
-    await supabase.from("settlements").upsert({
+    await admin.from("settlements").upsert({
       payment_id: paymentId,
       vendor_id: payment.vendor_id,
       booking_id: payment.booking_id,

@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   Camera,
   ChevronRight,
+  FileSearch,
   HelpCircle,
   Lightbulb,
   MessageSquarePlus,
@@ -17,38 +18,45 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
+    href: "/community/quote-check",
+    label: "아모라 견적진단",
+    title: "받은 견적서의 빠진 항목과 예상 추가금 먼저 확인하기",
+    meta: "AI 진단",
+    icon: FileSearch,
+  },
+  {
     href: "/community/is_normal",
-    label: "이거 정상인가요?",
-    title: "견적, 계약, 추가금이 애매할 때",
-    meta: "가격 확인",
+    label: "정상인가요 게시판",
+    title: "다른 예비부부의 견적/계약 질문 먼저 보기",
+    meta: "사례 보기",
     icon: HelpCircle,
   },
   {
     href: "/community/tour_review",
     label: "투어/이용 후기",
-    title: "다녀온 업체 경험을 남길 때",
+    title: "방문한 업체 경험과 실제 상담 포인트 공유하기",
     meta: "후기 공유",
     icon: Camera,
   },
   {
     href: "/community/tips_v2",
     label: "꿀팁",
-    title: "준비하면서 알게 된 팁을 모을 때",
+    title: "계약 전 물어볼 질문과 숨은 추가금 체크리스트 모으기",
     meta: "체크리스트",
     icon: Lightbulb,
   },
   {
     href: "/community/ama",
     label: "결혼 끝났다 AMA",
-    title: "이미 끝낸 사람이 답해줄 때",
+    title: "이미 끝낸 선배에게 현실적인 선택 기준 물어보기",
     meta: "경험 질문",
     icon: CalendarCheck,
   },
 ];
 
 export default function EmptyFeedStarter({
-  title = "아직 올라온 글이 없습니다",
-  description = "첫 글을 올리면 이 피드가 바로 채워집니다.",
+  title = "아직 작성된 글이 없습니다",
+  description = "첫 글은 커뮤니티의 기준이 됩니다. 견적, 계약, 업체 경험부터 편하게 남겨주세요.",
 }: EmptyFeedStarterProps) {
   return (
     <div className="space-y-3">
@@ -57,7 +65,7 @@ export default function EmptyFeedStarter({
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#f6f3f2] px-2.5 py-1 text-xs font-medium text-[#795252]">
               <MessageSquarePlus className="h-3.5 w-3.5" />
-              새 글 대기중
+              첫 글 대기중
             </div>
             <h3 className="font-serif-kr text-xl text-[#1b1c1c] sm:text-2xl">
               {title}
@@ -67,10 +75,10 @@ export default function EmptyFeedStarter({
             </p>
           </div>
           <Link
-            href="/community/post/write"
+            href="/community/quote-check"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a]"
           >
-            글쓰기
+            견적 진단하기
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>

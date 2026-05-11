@@ -1,6 +1,7 @@
 // 고객 계약 서명
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ContractRow, contractRowToModel } from "@/types/contract.types";
 
 export async function POST(
@@ -15,6 +16,8 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const admin = createAdminClient();
 
     const body = await req.json();
     const { signedName, agreed } = body;
@@ -45,7 +48,7 @@ export async function POST(
     }
 
     // 서명 처리
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from("contracts")
       .update({
         status: "signed",
@@ -60,7 +63,7 @@ export async function POST(
     if (error) throw error;
 
     // 예약 상태 업데이트
-    await supabase
+    await admin
       .from("vendor_bookings")
       .update({ contract_status: "signed" })
       .eq("id", existing.booking_id);

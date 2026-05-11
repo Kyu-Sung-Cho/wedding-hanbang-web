@@ -116,6 +116,10 @@ function PostWriteContent() {
   const prefillKind = searchParams.get("prefill");
   const prefillSlug = searchParams.get("slug");
   const prefillMsg = searchParams.get("msg");
+  const requestedCategory = searchParams.get("category");
+  const initialCategory = COMMUNITY_CATEGORIES.some((c) => c.key === requestedCategory)
+    ? (requestedCategory as CommunityCategory)
+    : null;
   const isPrefillGuestbook =
     prefillKind === "guestbook" && !!prefillSlug && !!prefillMsg && !isEditMode;
 
@@ -126,7 +130,7 @@ function PostWriteContent() {
   const [userId, setUserId] = useState<string | null>(null);
 
   // 폼 상태
-  const [category, setCategory] = useState<CommunityCategory | null>(null);
+  const [category, setCategory] = useState<CommunityCategory | null>(initialCategory);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [visibility, setVisibility] = useState<PostVisibility>("public");
