@@ -59,6 +59,17 @@ function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
   };
 }
 
+function buildQuoteLeadPlaceId(vendorName: string, category: string, region: string): string {
+  const normalizedName = vendorName
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  return `amora-quote:${category}:${region}:${normalizedName}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
@@ -110,9 +121,10 @@ export async function POST(req: NextRequest) {
 
       if (input.vendorName) {
         const leadCategory = LEAD_CATEGORY_BY_QUOTE_CATEGORY[input.category];
+        const sourcePlaceId = buildQuoteLeadPlaceId(input.vendorName, leadCategory, input.region);
         const { data: existingLead, error: leadReadError } = await admin
           .from("vendor_leads")
-          .select("id, mention_count, proof_count, priority_score")
+          .select("id, mention_count, proof_count, priority_score, source_place_id")
           .eq("name", input.vendorName)
           .eq("category", leadCategory)
           .maybeSingle();
@@ -127,6 +139,7 @@ export async function POST(req: NextRequest) {
               proof_count: Number(existingLead.proof_count ?? 0) + 1,
               priority_score: Number(existingLead.priority_score ?? 0) + 4,
               source: "user_mention",
+              source_place_id: existingLead.source_place_id ?? sourcePlaceId,
             })
             .eq("id", existingLead.id);
           if (leadUpdateError) {
@@ -140,6 +153,7 @@ export async function POST(req: NextRequest) {
               category: leadCategory,
               region: input.region,
               source: "user_mention",
+              source_place_id: sourcePlaceId,
               status: "raw",
               mention_count: 1,
               proof_count: 1,
@@ -147,7 +161,30 @@ export async function POST(req: NextRequest) {
               owner_notes: "Created from logged-in Amora quote check.",
             });
           if (leadInsertError) {
-            console.warn("Vendor lead insert skipped:", leadInsertError.message);
+            if (leadInsertError.code === "23505") {
+              const { data: duplicateLead } = await admin
+                .from("vendor_leads")
+                .select("id, mention_count, proof_count, priority_score")
+                .eq("source", "user_mention")
+                .eq("source_place_id", sourcePlaceId)
+                .maybeSingle();
+
+              if (duplicateLead) {
+                const { error: duplicateUpdateError } = await admin
+                  .from("vendor_leads")
+                  .update({
+                    mention_count: Number(duplicateLead.mention_count ?? 0) + 1,
+                    proof_count: Number(duplicateLead.proof_count ?? 0) + 1,
+                    priority_score: Number(duplicateLead.priority_score ?? 0) + 4,
+                  })
+                  .eq("id", duplicateLead.id);
+                if (duplicateUpdateError) {
+                  console.warn("Vendor lead duplicate update skipped:", duplicateUpdateError.message);
+                }
+              }
+            } else {
+              console.warn("Vendor lead insert skipped:", leadInsertError.message);
+            }
           }
         }
       }

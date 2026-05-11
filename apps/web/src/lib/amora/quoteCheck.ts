@@ -36,6 +36,7 @@ export interface AmoraQuoteCheckItem {
   usageRatePercent: number;
   checkQuestion: string;
   reason: string;
+  disguise: string;
 }
 
 export interface AmoraQuoteCheckResult {
@@ -107,6 +108,7 @@ function toCheckItem(item: HiddenCostItem, scope: AmoraQuoteScope): AmoraQuoteCh
     usageRatePercent: Math.round(item.usageRate * 100),
     checkQuestion: item.checkQuestion,
     reason: item.reason,
+    disguise: item.disguise,
   };
 }
 

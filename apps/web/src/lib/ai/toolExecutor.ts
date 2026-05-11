@@ -9,6 +9,12 @@ import {
   getVenueOptionalItems, getRegionalCosts, REGION_LABELS,
 } from "@/constants/marketPrices";
 import {
+  analyzeAmoraQuoteCheck,
+  getQuoteCheckItems,
+  type AmoraQuoteCategory,
+  type AmoraQuoteRegion,
+} from "@/lib/amora/quoteCheck";
+import {
   HIDDEN_COSTS, RED_FLAGS, getGradeFromScore, estimateHiddenCosts,
   type HiddenCostItem, type RedFlag,
 } from "@/constants/hiddenCosts";
@@ -148,7 +154,7 @@ export async function executeTool(
       case "search_nearby_places":
         return await executeSearchNearbyPlaces(toolInput);
       case "analyze_quote":
-        return executeAnalyzeQuote(toolInput);
+        return executeAnalyzeQuoteWithTrustEngine(toolInput);
       default:
         return {
           toolName,
@@ -1977,6 +1983,157 @@ async function executeSearchNearbyPlaces(
 }
 
 // ===== 견적 분석 (AI 견적 체크) =====
+
+const AMORA_QUOTE_CATEGORY_SET = new Set<AmoraQuoteCategory>(["sdm_package", "studio", "dress", "makeup"]);
+const AMORA_QUOTE_REGION_SET = new Set<AmoraQuoteRegion>(["seoul", "gyeonggi", "busan", "daegu", "other"]);
+
+function normalizeQuoteToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function parseQuoteCategory(value: unknown): AmoraQuoteCategory {
+  return AMORA_QUOTE_CATEGORY_SET.has(value as AmoraQuoteCategory)
+    ? value as AmoraQuoteCategory
+    : "sdm_package";
+}
+
+function parseQuoteRegion(value: unknown): AmoraQuoteRegion {
+  return AMORA_QUOTE_REGION_SET.has(value as AmoraQuoteRegion)
+    ? value as AmoraQuoteRegion
+    : "seoul";
+}
+
+function resolveIncludedQuoteItemIds(
+  category: AmoraQuoteCategory,
+  region: AmoraQuoteRegion,
+  includedItems: string[]
+): string[] {
+  const checklistItems = getQuoteCheckItems(category, region);
+  const normalizedInputs = includedItems
+    .map((item) => normalizeQuoteToken(item))
+    .filter(Boolean);
+
+  const ids = new Set<string>();
+  for (const item of checklistItems) {
+    const candidates = [item.id, item.name, item.checkQuestion].map(normalizeQuoteToken);
+    if (normalizedInputs.some((input) =>
+      candidates.some((candidate) => input === candidate || input.includes(candidate) || candidate.includes(input))
+    )) {
+      ids.add(item.id);
+    }
+  }
+
+  return [...ids];
+}
+
+function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): ToolExecutionResult {
+  const quotePrice = Number(input.quote_price ?? 0);
+  const category = parseQuoteCategory(input.category);
+  const region = parseQuoteRegion(input.region);
+  const vendorName = typeof input.vendor_name === "string" ? input.vendor_name : "";
+  const includedItems = Array.isArray(input.included_items)
+    ? input.included_items.map((item) => String(item)).filter(Boolean)
+    : [];
+
+  if (!Number.isFinite(quotePrice) || quotePrice <= 0) {
+    return {
+      toolName: "analyze_quote",
+      toolInput: input,
+      toolOutput: { error: "quote_price must be a positive number." },
+      success: false,
+      displayMessage: "견적 금액을 만원 단위 숫자로 다시 알려주세요.",
+    };
+  }
+
+  const checklistItems = getQuoteCheckItems(category, region);
+  if (includedItems.length === 0) {
+    return {
+      toolName: "analyze_quote",
+      toolInput: input,
+      toolOutput: {
+        mode: "checklist",
+        quotePrice,
+        category,
+        region,
+        vendorName,
+        checklistItems: checklistItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          severity: item.severity,
+          price: item.priceManwon,
+          usageRate: item.usageRatePercent,
+          checkQuestion: item.checkQuestion,
+        })),
+      },
+      success: true,
+      displayMessage: "견적 포함 항목을 먼저 확인해주세요.",
+    };
+  }
+
+  const includedItemIds = resolveIncludedQuoteItemIds(category, region, includedItems);
+  const analysis = analyzeAmoraQuoteCheck({
+    category,
+    region,
+    quotePriceManwon: quotePrice,
+    includedItemIds,
+    vendorName,
+  });
+
+  const output = {
+    quotePrice: analysis.quotePriceManwon,
+    category: analysis.category,
+    region: analysis.scope,
+    vendorName,
+    marketMedian: analysis.marketMedianManwon,
+    priceDiff: analysis.quotePriceManwon - analysis.marketMedianManwon,
+    priceDiffPercent: analysis.priceDiffPercent,
+    dataSource: analysis.sourceNote,
+    transparencyScore: analysis.score,
+    grade: analysis.grade,
+    verdict: analysis.verdict,
+    estimatedHiddenMin: analysis.estimatedHiddenMinManwon,
+    estimatedHiddenMax: analysis.estimatedHiddenMaxManwon,
+    estimatedTotalMin: analysis.estimatedTotalMinManwon,
+    estimatedTotalMax: analysis.estimatedTotalMaxManwon,
+    missingItems: analysis.missingItems.map((item) => ({
+      name: item.name,
+      category: item.category,
+      severity: item.severity,
+      price: item.priceManwon,
+      usageRate: item.usageRatePercent,
+      reason: item.reason,
+      checkQuestion: item.checkQuestion,
+      disguise: item.disguise,
+    })),
+    includedItems: analysis.includedItems.map((item) => ({
+      name: item.name,
+      category: item.category,
+      severity: item.severity,
+    })),
+    missingCriticalCount: analysis.missingCriticalCount,
+    missingHighCount: analysis.missingHighCount,
+    missingMediumCount: analysis.missingMediumCount,
+    redFlags: analysis.redFlags,
+    summaryTitle: analysis.summaryTitle,
+    summaryText: analysis.summaryText,
+    recommendedAction: analysis.recommendedAction,
+    contractQuestions: analysis.contractQuestions,
+    negotiationScript: analysis.negotiationScript,
+    statsNote: analysis.sourceNote,
+  };
+
+  return {
+    toolName: "analyze_quote",
+    toolInput: input,
+    toolOutput: output,
+    success: true,
+    displayMessage: `견적 분석 완료: 투명도 ${analysis.grade}등급(${analysis.score}점), 예상 실제 비용 ${analysis.estimatedTotalMinManwon}~${analysis.estimatedTotalMaxManwon}만원`,
+  };
+}
 
 function executeAnalyzeQuote(input: Record<string, unknown>): ToolExecutionResult {
   const quotePrice = (input.quote_price as number) || 0;
