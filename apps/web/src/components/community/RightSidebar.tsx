@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, FileSearch, Sparkles, TrendingUp } from "lucide-react";
 
 interface PopularTag {
   vendor_name: string;
@@ -23,17 +23,40 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
   const postCount = weekly?.newPostsThisWeek ?? 0;
   const postTrend = postCount > 50 ? "up" : postCount > 20 ? "steady" : "down";
   const postTrendLabel =
-    postTrend === "up" ? "Trending Up" : postTrend === "steady" ? "Steady" : "Trending Down";
+    postTrend === "up" ? "활발" : postTrend === "steady" ? "안정적" : "준비 중";
   const postTrendWidth = postTrend === "up" ? "78%" : postTrend === "steady" ? "52%" : "28%";
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
-        <h3 className="mb-4 border-b border-[#e4e2e1] pb-2 font-serif-kr text-lg text-[#1b1c1c]">
-          이번 주 요약
-        </h3>
+      <section className="rounded-lg border border-[#d9c8c8] bg-[#795252] p-4 text-white shadow-[0_8px_24px_rgba(121,82,82,0.14)]">
+        <div className="mb-3 flex items-center gap-2.5">
+          <Sparkles className="h-4 w-4 text-[#dee6c4]" />
+          <h3 className="font-serif-kr text-lg">아모라 견적진단</h3>
+        </div>
+        <p className="text-sm leading-relaxed text-white/80">
+          받은 견적서에서 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.
+        </p>
+        <Link
+          href="/community/quote-check"
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fff8f5]"
+        >
+          바로 진단하기
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </section>
+
+      <section className="rounded-lg border border-[#e4e2e1] bg-white p-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
+          <TrendingUp className="h-4 w-4 text-[#5a6147]" />
+          <h3 className="font-serif-kr text-lg text-[#1b1c1c]">이번 주 흐름</h3>
+        </div>
         <div className="space-y-3.5">
-          <MetricRow label="새 글" value={postTrendLabel} width={postTrendWidth} color="bg-sage-500" />
+          <MetricRow
+            label="새 글"
+            value={postCount > 0 ? `${postCount.toLocaleString("ko-KR")}건` : postTrendLabel}
+            width={postTrendWidth}
+            color="bg-sage-500"
+          />
           <MetricRow
             label="인기 업체"
             value={weekly?.topVendor ?? "---"}
@@ -50,7 +73,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       </section>
 
       {popularTags.length > 0 && (
-        <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
+        <section className="rounded-lg border border-[#e4e2e1] bg-white p-4">
           <h3 className="mb-3 border-b border-[#e4e2e1] pb-2 font-serif-kr text-lg text-[#1b1c1c]">
             많이 찾는 업체
           </h3>
@@ -68,9 +91,9 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </section>
       )}
 
-      <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
+      <section className="rounded-lg border border-[#e4e2e1] bg-white p-4">
         <div className="mb-3 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
-          <TrendingUp className="h-4 w-4 text-[#795252]" />
+          <FileSearch className="h-4 w-4 text-[#795252]" />
           <h3 className="font-serif-kr text-lg text-[#1b1c1c]">커뮤니티 원칙</h3>
         </div>
         <div className="space-y-2.5 text-sm">
@@ -83,20 +106,11 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </p>
       </section>
 
-      <section className="rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] p-5 text-white">
-        <div className="mb-4 flex items-center gap-2.5">
-          <Sparkles className="h-5 w-5 text-[#dee6c4]" />
-          <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
-        </div>
-        <p className="mb-4 text-sm leading-relaxed text-white/75">
-          견적가보다 빠진 항목과 계약 전 질문을 아모라가 먼저 짚어드려요.
+      <section className="rounded-lg border border-[#e4e2e1] bg-[#fbfcf8] p-4">
+        <p className="text-xs font-medium text-[#5a6147]">좋은 글의 기준</p>
+        <p className="mt-2 text-sm leading-relaxed text-[#504444]">
+          업체명, 날짜, 견적 항목, 받은 혜택을 구체적으로 적을수록 다음 예비부부의 선택이 쉬워져요.
         </p>
-        <Link
-          href="/community/quote-check"
-          className="block w-full rounded-lg bg-white py-2.5 text-center text-sm font-medium text-[#795252] shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)]"
-        >
-          견적 진단하기
-        </Link>
       </section>
     </div>
   );

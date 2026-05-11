@@ -55,17 +55,17 @@ const STARTERS = [
 ];
 
 export default function EmptyFeedStarter({
-  title = "아직 작성된 글이 없습니다",
-  description = "첫 글은 커뮤니티의 기준이 됩니다. 견적, 계약, 업체 경험부터 편하게 남겨주세요.",
+  title = "첫 번째 실제 사례를 기다리고 있어요",
+  description = "받은 견적, 계약 전 애매한 답변, 투어 후기를 남기면 다음 예비부부가 덜 헤매게 됩니다.",
 }: EmptyFeedStarterProps) {
   return (
     <div className="space-y-3">
-      <section className="rounded-xl border border-[#e4e2e1] bg-white p-4 sm:p-5">
+      <section className="rounded-lg border border-[#e4e2e1] bg-white p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#f6f3f2] px-2.5 py-1 text-xs font-medium text-[#795252]">
               <MessageSquarePlus className="h-3.5 w-3.5" />
-              첫 글 대기중
+              실제 사례 대기중
             </div>
             <h3 className="font-serif-kr text-xl text-[#1b1c1c] sm:text-2xl">
               {title}
@@ -91,7 +91,7 @@ export default function EmptyFeedStarter({
             <Link
               key={item.href}
               href={item.href}
-              className="group rounded-xl border border-[#e4e2e1] bg-white p-4 transition-colors hover:border-[#d4c2c2] hover:bg-[#fffdfb]"
+              className="group rounded-lg border border-[#e4e2e1] bg-white p-4 transition-colors hover:border-[#d4c2c2] hover:bg-[#fffdfb]"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f6f3f2] text-[#795252]">

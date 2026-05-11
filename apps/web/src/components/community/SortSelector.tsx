@@ -30,46 +30,42 @@ export default function SortSelector({
   onPeriodChange,
 }: SortSelectorProps) {
   return (
-    <div className="flex items-center gap-0 flex-wrap justify-start sm:justify-end">
-      {SORT_OPTIONS.map((option, idx) => {
+    <div className="flex max-w-full items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 sm:justify-end sm:pb-0">
+      {SORT_OPTIONS.map((option) => {
         const isActive = sort === option.key;
 
         return (
-          <span key={option.key} className="flex items-center">
-            {idx > 0 && <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">&middot;</span>}
-            <button
-              type="button"
-              onClick={() => onSortChange(option.key)}
-              className={`text-sm sm:text-[15px] lg:text-base transition-colors duration-200 ${
-                isActive
-                  ? "text-[#1A1A1F] font-medium"
-                  : "text-[#B5ADA3] hover:text-[#878680]"
-              }`}
-            >
-              {option.label}
-            </button>
-          </span>
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onSortChange(option.key)}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
+              isActive
+                ? "bg-[#1b1c1c] text-white"
+                : "bg-white text-[#928980] hover:bg-[#f6f3f2] hover:text-[#504444]"
+            }`}
+          >
+            {option.label}
+          </button>
         );
       })}
 
       {sort === "top" && (
         <>
-          <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">|</span>
-          {PERIOD_OPTIONS.map((p, idx) => (
-            <span key={p.key} className="flex items-center">
-              {idx > 0 && <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">&middot;</span>}
+          <span className="mx-1 h-5 w-px shrink-0 bg-[#e4e2e1]" />
+          {PERIOD_OPTIONS.map((p) => (
               <button
+                key={p.key}
                 type="button"
                 onClick={() => onPeriodChange(p.key)}
-                className={`text-sm sm:text-[15px] lg:text-base transition-colors duration-200 ${
+                className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
                   period === p.key
-                    ? "text-[#1A1A1F] font-medium"
-                    : "text-[#B5ADA3] hover:text-[#878680]"
+                    ? "bg-[#795252] text-white"
+                    : "bg-white text-[#928980] hover:bg-[#f6f3f2] hover:text-[#504444]"
                 }`}
               >
                 {p.label}
               </button>
-            </span>
           ))}
         </>
       )}

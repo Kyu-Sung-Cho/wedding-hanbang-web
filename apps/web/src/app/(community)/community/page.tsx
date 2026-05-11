@@ -19,6 +19,7 @@ import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
+import CommunityHero from "@/components/community/CommunityHero";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -244,21 +245,21 @@ function CommunityFeedContent() {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
-      {/* 모바일/태블릿: 동기방 + 카테고리 */}
-      <div className="xl:hidden px-4 sm:px-6 pt-4 space-y-3 overflow-x-auto">
-        <CohortCard />
+    <div className="min-h-screen bg-[#f8f4f1] flex flex-col">
+      {/* 모바일/태블릿: 카테고리 */}
+      <div className="xl:hidden px-4 sm:px-6 pt-4 overflow-x-auto">
         <CategoryTabs />
       </div>
 
-      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40 overflow-y-auto">
+      <div className="flex-1 flex w-full max-w-[1920px] mx-auto">
+        <aside className="hidden xl:flex bg-[#f8f4f1] h-[calc(100vh-4rem)] w-64 2xl:w-72 sticky top-16 flex-col pt-6 pb-5 px-4 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <div className="mb-5 px-2">
-            <h2 className="font-serif-kr text-2xl italic text-[#795252] mb-1">
-              커뮤니티
-            </h2>
-            <p className="text-xs text-[#504444] tracking-wide">
-              웨딩한방 커뮤니티
+            <p className="mb-2 text-[11px] font-medium text-[#928980]">
+              WEDDING HANBANG
+            </p>
+            <h2 className="font-serif-kr text-2xl text-[#1b1c1c] mb-1">커뮤니티</h2>
+            <p className="text-xs leading-relaxed text-[#504444]">
+              가격, 후기, 계약 질문을 함께 검증하는 웨딩 준비 기록실
             </p>
           </div>
 
@@ -298,8 +299,8 @@ function CommunityFeedContent() {
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6 overflow-y-auto">
-          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-6 2xl:px-8 py-5 sm:py-6 overflow-y-auto">
+          <div className="max-w-[1120px] mx-auto space-y-4 sm:space-y-5">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
@@ -337,15 +338,25 @@ function CommunityFeedContent() {
               </div>
             )}
 
+            {!isSearching && !currentTag && (
+              <CommunityHero
+                postCount={total}
+                topVendor={vendorTags[0]?.vendor_name ?? null}
+              />
+            )}
+
             {/* 에디터 추천 배너 (태그 필터 중엔 숨김 — featured는 전체 글 기반이라 태그와 안 맞을 수 있음) */}
             {featured && !currentTag && <EditorsPick post={featured} />}
 
             {/* 피드 헤더 (피드 디바이더) */}
             {!isSearching && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 border-b border-[#e4e2e1] pb-4">
-                <h3 className="font-serif-kr text-xl sm:text-2xl lg:text-3xl text-[#1b1c1c] whitespace-nowrap">
-                  최신 글
-                </h3>
+              <div className="flex flex-col gap-2 border-b border-[#d8d1cc] pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+                <div>
+                  <p className="text-xs font-medium text-[#928980]">REAL STORIES</p>
+                  <h3 className="font-serif-kr text-xl text-[#1b1c1c] sm:text-2xl">
+                    최신 글
+                  </h3>
+                </div>
                 <SortSelector
                   sort={currentSort}
                   period={currentPeriod}
@@ -457,8 +468,8 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8]">
-          <div className="mb-4 rounded-xl border border-[#e4e2e1] bg-white p-4">
+        <aside className="hidden xl:block w-80 2xl:w-[360px] shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#f8f4f1]">
+          <div className="mb-4 rounded-lg border border-[#e4e2e1] bg-white p-4">
             <TrendingPosts />
           </div>
           <RightSidebar
@@ -472,7 +483,7 @@ function CommunityFeedContent() {
 
           {/* 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div className="mt-4 rounded-xl border border-[#e4e2e1] bg-white p-4">
+            <div className="mt-4 rounded-lg border border-[#e4e2e1] bg-white p-4">
               <h3 className="font-serif-kr text-lg text-[#1b1c1c] mb-3 border-b border-[#e4e2e1] pb-2">
                 인기 태그
               </h3>

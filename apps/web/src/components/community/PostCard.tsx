@@ -162,7 +162,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative bg-white rounded-xl p-4 sm:p-5 lg:p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] lg:p-5">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt) && (
         <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
@@ -176,7 +176,7 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         </div>
       )}
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-4 sm:gap-5 lg:gap-6`}>
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-4 sm:gap-5`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -199,7 +199,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-lg sm:text-xl lg:text-[22px] font-serif-kr text-[#1b1c1c] mb-2.5 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-lg sm:text-[19px] lg:text-xl font-serif-kr text-[#1b1c1c] mb-2.5 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -215,7 +215,7 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-4">{contentPreview}</p>
+              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}
@@ -343,7 +343,7 @@ export default function PostCard({ post }: PostCardProps) {
         {hasImage && thumbUrl && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full h-40 sm:w-40 sm:h-40 lg:w-44 lg:h-44 2xl:w-48 2xl:h-48 rounded-lg overflow-hidden shrink-0"
+            className="w-full h-40 sm:w-36 sm:h-36 lg:w-40 lg:h-40 2xl:w-44 2xl:h-44 rounded-lg overflow-hidden shrink-0"
           >
             <Image
               src={thumbUrl}

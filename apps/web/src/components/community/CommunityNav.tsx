@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { Search, PenSquare, Menu, X, User } from "lucide-react";
+import { FileSearch, Search, PenSquare, Menu, X, User } from "lucide-react";
 import MyToolsWidget from "@/components/community/MyToolsWidget";
 
 export default function CommunityNav() {
@@ -50,14 +50,14 @@ export default function CommunityNav() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#F0EFED]">
-      <div className="px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#F0EFED]">
+      <div className="mx-auto max-w-[1920px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 sm:gap-4 h-14 sm:h-16">
           {/* 왼쪽: 로고 + 커뮤니티 */}
           <div className="flex items-center gap-2.5 shrink-0">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl sm:text-[22px] text-[#1A1A1F] tracking-tight"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl sm:text-[22px] text-[#1A1A1F]"
             >
               웨딩한방
             </Link>
@@ -81,7 +81,7 @@ export default function CommunityNav() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="커뮤니티 검색"
+                placeholder="견적, 업체명, 계약조건 검색"
                 className="w-full pl-11 pr-11 py-2.5 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
               />
               {searchQuery && (
@@ -101,6 +101,14 @@ export default function CommunityNav() {
           <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
             {/* 내 도구 — 아모라/예산/일정 (잠금 게이트 포함) */}
             {user && <MyToolsWidget variant="nav" />}
+
+            <Link
+              href="/community/quote-check"
+              className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
+            >
+              <FileSearch className="w-4 h-4" />
+              견적진단
+            </Link>
 
             <Link
               href="/community/post/write"
@@ -152,7 +160,7 @@ export default function CommunityNav() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="커뮤니티 검색"
+                placeholder="견적, 업체명, 계약조건 검색"
                 className="w-full pl-11 pr-11 py-3 text-base bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:bg-white transition-all"
               />
               {searchQuery && (
@@ -173,6 +181,15 @@ export default function CommunityNav() {
                 페이지 이동 시 자연스럽게 새 mount → 메뉴 자동 닫힘.
                 모달 표시 시는 portal이 메뉴 위에 떠서 가림. */}
             {user && <MyToolsWidget variant="sidebar" />}
+
+            <Link
+              href="/community/quote-check"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 px-5 py-3 text-base font-medium text-[#795252] bg-[#795252]/10 rounded-full hover:bg-[#795252]/15 transition-all"
+            >
+              <FileSearch className="w-5 h-5" />
+              견적진단
+            </Link>
 
             <Link
               href="/community/post/write"
