@@ -46,6 +46,12 @@ import {
   type AmoraGuardrailSeverity,
   type AmoraRiskLevel,
 } from "@/lib/amora/lifecycle";
+import {
+  getOpenAmoraActions,
+  withUpdatedAmoraAction,
+  getActionPriorityLabel,
+  type AmoraActionItem,
+} from "@/lib/amora/actions";
 
 // 카테고리 아이콘 매핑
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -216,6 +222,19 @@ const RISK_STYLES: Record<AmoraRiskLevel, { badge: string; bar: string; text: st
   },
 };
 
+function formatActionDueDate(action: AmoraActionItem) {
+  if (!action.dueDate) return "마감 미정";
+  const due = new Date(`${action.dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return action.dueDate;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return `${Math.abs(days)}일 지남`;
+  if (days === 0) return "오늘까지";
+  if (days === 1) return "내일까지";
+  return `${days}일 남음`;
+}
+
 export default function DashboardPage() {
   const { partner, journey, couple, updateJourney } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
@@ -343,6 +362,12 @@ export default function DashboardPage() {
   );
 
   const riskStyle = RISK_STYLES[amoraPlan.riskLevel];
+  const amoraActions = useMemo(() => getOpenAmoraActions(progress).slice(0, 5), [progress]);
+
+  const handleActionStatusChange = async (actionId: string, status: "done" | "dismissed") => {
+    const nextProgress = withUpdatedAmoraAction(progress, actionId, { status });
+    await updateJourney({ progress: nextProgress as unknown as typeof progress });
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-10 bg-[#fbf8f4]">
@@ -534,7 +559,87 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 3. D-day + Budget Overview (2-column) */}
+      {/* 3. 아모라 행동 카드 */}
+      <section className="mb-6 animate-fade-in rounded-2xl border border-[#e8ded7] bg-white p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">Amora action memory</p>
+            <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">아모라가 기억하는 다음 행동</h2>
+          </div>
+          <Link
+            href="/chat"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#f6f1ee] px-3 py-2 text-sm font-semibold text-[#795252] transition-colors hover:bg-[#eee3dd]"
+          >
+            <Sparkles className="h-4 w-4" />
+            새 행동 저장
+          </Link>
+        </div>
+
+        {amoraActions.length > 0 ? (
+          <div className="grid gap-3 lg:grid-cols-5">
+            {amoraActions.map((action) => (
+              <div
+                key={action.id}
+                className="flex min-h-[166px] flex-col rounded-xl border border-[#eee6e0] bg-[#fffdfb] p-4"
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    action.priority === "high"
+                      ? "bg-red-50 text-red-600"
+                      : action.priority === "low"
+                        ? "bg-[#eef2df] text-[#5a6147]"
+                        : "bg-[#f3e7e1] text-[#795252]"
+                  }`}>
+                    {getActionPriorityLabel(action.priority)}
+                  </span>
+                  <span className="text-xs text-[#928980]">{formatActionDueDate(action)}</span>
+                </div>
+
+                <Link href={action.href ?? "/dashboard"} className="group min-w-0">
+                  <p className="text-[15px] font-semibold leading-snug text-[#1b1c1c] group-hover:text-[#795252]">
+                    {action.title}
+                  </p>
+                  {action.description && (
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[#504444]">
+                      {action.description}
+                    </p>
+                  )}
+                </Link>
+
+                <div className="mt-auto flex items-center gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => void handleActionStatusChange(action.id, "done")}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#795252] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#946a6a]"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    완료
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleActionStatusChange(action.id, "dismissed")}
+                    className="rounded-lg border border-[#e4d8d1] px-3 py-2 text-xs font-semibold text-[#928980] transition-colors hover:bg-[#f8f4f1] hover:text-[#504444]"
+                  >
+                    숨김
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-[#ddd1ca] bg-[#fffdfb] px-5 py-6 text-center">
+            <Sparkles className="mx-auto h-7 w-7 text-[#795252]" />
+            <p className="mt-3 text-[15px] font-semibold text-[#1b1c1c]">
+              아직 저장된 행동은 없어요
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-[#504444]">
+              채팅에서 &ldquo;이거 다음 할 일로 저장해줘&rdquo;라고 말하면 아모라가 여기 계속 기억해둘게요.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* 4. D-day + Budget Overview (2-column) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 animate-fade-in">
         {/* D-day 카드 */}
         <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[240px] sm:min-h-[300px] relative overflow-hidden">

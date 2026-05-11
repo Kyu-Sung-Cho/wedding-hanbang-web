@@ -308,6 +308,109 @@ export const WEDDING_TOOLS: Tool[] = [
       required: [],
     },
   },
+  {
+    name: "add_amora_action",
+    description:
+      "아모라가 사용자의 다음 행동을 저장합니다. 사용자가 '이거 기억해줘', '다음 할 일로 추가해줘', '챙겨줘'라고 하거나, 견적/일정/예산 상담 후 실제로 해야 할 구체적인 행동이 생겼을 때 사용합니다. 막연한 조언에는 사용하지 말고, 사용자가 실행할 수 있는 한 가지 행동으로 저장하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "행동 카드 제목. 30자 이내 권장. 예: '스튜디오 원본 USB 포함 여부 확인'",
+        },
+        description: {
+          type: "string",
+          description: "왜 해야 하는지, 확인할 내용을 한 문장으로 정리",
+        },
+        due_date: {
+          type: "string",
+          description: "마감일 YYYY-MM-DD. 정확한 날짜가 있을 때만 입력",
+        },
+        category_key: {
+          type: "string",
+          enum: [
+            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
+            "hanbok", "yedan", "honeymoon", "houseware", "housing",
+            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
+          ],
+          description: "관련 카테고리. 불명확하면 general",
+        },
+        priority: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "중요도. 계약/마감/추가금 위험은 high, 일반 확인은 medium, 참고는 low",
+        },
+        source: {
+          type: "string",
+          enum: ["chat", "quote", "schedule", "budget", "guardrail", "manual"],
+          description: "행동이 생긴 맥락. 견적 분석이면 quote, 일정이면 schedule, 예산이면 budget, 일반 대화면 chat",
+        },
+        href: {
+          type: "string",
+          description: "관련 페이지 경로. 예: /community/quote-check, /schedule, /budget, /scripts",
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "get_amora_actions",
+    description:
+      "아모라가 저장한 다음 행동 목록을 조회합니다. 사용자가 '내가 해야 할 일 뭐야?', '아모라가 기억한 것 보여줘', '남은 액션 보여줘'라고 할 때 사용합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string",
+          enum: ["open", "done", "dismissed", "all"],
+          description: "조회할 상태. 기본 open",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_amora_action",
+    description:
+      "저장된 아모라 행동 카드의 상태나 내용을 변경합니다. 사용자가 '이거 완료했어', '이 할 일 지워줘', '마감일 바꿔줘'라고 할 때 사용합니다. 먼저 get_amora_actions로 action_id를 확인하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        action_id: {
+          type: "string",
+          description: "수정할 행동 카드 ID",
+        },
+        status: {
+          type: "string",
+          enum: ["open", "done", "dismissed"],
+          description: "새 상태. 완료했으면 done, 숨기면 dismissed",
+        },
+        title: {
+          type: "string",
+          description: "새 제목. 변경할 때만 입력",
+        },
+        description: {
+          type: "string",
+          description: "새 설명. 변경할 때만 입력",
+        },
+        due_date: {
+          type: "string",
+          description: "새 마감일 YYYY-MM-DD. 변경할 때만 입력",
+        },
+        priority: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "새 중요도. 변경할 때만 입력",
+        },
+        href: {
+          type: "string",
+          description: "새 관련 페이지 경로. 변경할 때만 입력",
+        },
+      },
+      required: ["action_id"],
+    },
+  },
   // ── 업체 검색 & 추천 도구 ──
   {
     name: "search_vendors",

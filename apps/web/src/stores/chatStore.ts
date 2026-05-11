@@ -19,6 +19,7 @@ import type {
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { determineStage } from "@/lib/ai/stage-router";
+import type { AmoraActionItem } from "@/lib/amora/actions";
 import { useAuthStore } from "./authStore";
 
 /** 다른 사람(상대방 또는 AI)이 진행 중인 활동을 인지하기 위한 Presence 정보 */
@@ -225,6 +226,32 @@ function syncToolResult(result: ToolExecutionResult) {
           ...currentP4,
           [cat]: { ...(existingCat ?? { category: cat }), category: cat, status: newStat as "not_started" | "in_progress" | "completed", checklist: cl },
         },
+      });
+      break;
+    }
+    case "add_amora_action": {
+      const currentProgress = authStore.journey?.progress ?? {};
+      const currentActions = ((currentProgress as Record<string, unknown>).__amora_actions ?? []) as AmoraActionItem[];
+      const action = result.toolOutput.action as AmoraActionItem | undefined;
+      if (!action) break;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentProgress,
+          __amora_actions: [action, ...currentActions.filter((item) => item.id !== action.id)],
+        } as unknown as typeof currentProgress,
+      });
+      break;
+    }
+    case "update_amora_action": {
+      const currentProgress = authStore.journey?.progress ?? {};
+      const currentActions = ((currentProgress as Record<string, unknown>).__amora_actions ?? []) as AmoraActionItem[];
+      const action = result.toolOutput.action as AmoraActionItem | undefined;
+      if (!action) break;
+      authStore.updateJourneyLocal({
+        progress: {
+          ...currentProgress,
+          __amora_actions: currentActions.map((item) => item.id === action.id ? action : item),
+        } as unknown as typeof currentProgress,
       });
       break;
     }

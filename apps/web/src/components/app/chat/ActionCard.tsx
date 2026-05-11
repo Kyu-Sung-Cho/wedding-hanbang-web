@@ -13,7 +13,9 @@ import {
   Info,
   XCircle,
   Check,
+  Sparkles,
 } from "lucide-react";
+import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -33,6 +35,10 @@ function getIcon(toolName: string) {
       return <BarChart3 className="w-5 h-5" />;
     case "get_schedule_summary":
       return <ListChecks className="w-5 h-5" />;
+    case "add_amora_action":
+    case "get_amora_actions":
+    case "update_amora_action":
+      return <Sparkles className="w-5 h-5" />;
     case "get_wedding_info":
       return <Info className="w-5 h-5" />;
     default:
@@ -60,12 +66,21 @@ function getTitle(toolName: string) {
       return "체크리스트 변경";
     case "update_category_budget":
       return "카테고리 예산 변경";
+    case "add_amora_action":
+      return "아모라 행동 저장";
+    case "get_amora_actions":
+      return "아모라 행동 목록";
+    case "update_amora_action":
+      return "아모라 행동 변경";
     default:
       return "작업 완료";
   }
 }
 
 function getAccentColor(toolName: string) {
+  if (toolName.includes("amora_action")) {
+    return "border-[#795252]/20 bg-[#795252]/5";
+  }
   if (toolName.startsWith("update_") || toolName === "toggle_checklist_item") {
     return "border-[#C4967E]/30 bg-[#C4967E]/5";
   }
@@ -138,6 +153,44 @@ function BudgetMiniCard() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
+  const single = result.toolOutput.action as AmoraActionItem | undefined;
+  const list = (result.toolOutput.actions as AmoraActionItem[] | undefined) ?? [];
+  const actions = single ? [single] : list.slice(0, 4);
+
+  if (actions.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
+      {actions.map((action) => (
+        <div key={action.id} className="rounded-lg bg-white/70 border border-black/[0.04] p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#1A1A1F] leading-snug">{action.title}</p>
+              {action.description && (
+                <p className="mt-1 text-xs leading-relaxed text-[#504444]">{action.description}</p>
+              )}
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              action.priority === "high"
+                ? "bg-red-50 text-red-600"
+                : action.priority === "low"
+                  ? "bg-[#eef2df] text-[#5a6147]"
+                  : "bg-[#f3e7e1] text-[#795252]"
+            }`}>
+              {getActionPriorityLabel(action.priority)}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[#928980]">
+            <span>{getActionStatusLabel(action.status)}</span>
+            {action.dueDate && <span>· {action.dueDate}까지</span>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -227,6 +280,7 @@ export default function ActionCard({ result }: ActionCardProps) {
 
   const isBudgetTool = result.toolName === "get_budget_summary" || result.toolName === "update_budget" || result.toolName === "update_category_budget";
   const isScheduleTool = result.toolName === "get_schedule_summary" || result.toolName === "update_task_status" || result.toolName === "toggle_checklist_item";
+  const isAmoraActionTool = result.toolName === "add_amora_action" || result.toolName === "get_amora_actions" || result.toolName === "update_amora_action";
 
   return (
     <div className="flex justify-start ml-14 my-2">
@@ -248,6 +302,7 @@ export default function ActionCard({ result }: ActionCardProps) {
 
         {isBudgetTool && <BudgetMiniCard />}
         {isScheduleTool && <ScheduleMiniCard />}
+        {isAmoraActionTool && <ActionItemsMiniCard result={result} />}
       </div>
     </div>
   );

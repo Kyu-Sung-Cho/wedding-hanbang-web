@@ -15,6 +15,17 @@ import {
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import {
+  getAmoraActions,
+  createAmoraActionId,
+  withAddedAmoraAction,
+  withUpdatedAmoraAction,
+  getActionStatusLabel,
+  type AmoraActionItem,
+  type AmoraActionPriority,
+  type AmoraActionSource,
+  type AmoraActionStatus,
+} from "@/lib/amora/actions";
+import {
   HIDDEN_COSTS, RED_FLAGS, getGradeFromScore, estimateHiddenCosts,
   type HiddenCostItem, type RedFlag,
 } from "@/constants/hiddenCosts";
@@ -133,6 +144,12 @@ export async function executeTool(
         return await executeToggleChecklistItem(toolInput, context);
       case "get_schedule_events":
         return executeGetScheduleEvents(toolInput, context);
+      case "add_amora_action":
+        return await executeAddAmoraAction(toolInput, context);
+      case "get_amora_actions":
+        return executeGetAmoraActions(toolInput, context);
+      case "update_amora_action":
+        return await executeUpdateAmoraAction(toolInput, context);
       case "search_vendors":
         return await executeSearchVendors(toolInput, context);
       case "check_vendor_availability":
@@ -759,6 +776,167 @@ function executeGetScheduleEvents(
     displayMessage: filtered.length > 0
       ? `${fromDate} ~ ${toDate} 기간에 ${filtered.length}개 일정: ${filtered.map((e) => `${e.date} ${e.title}`).join(", ")}`
       : `${fromDate} ~ ${toDate} 기간에 등록된 일정이 없습니다.`,
+  };
+}
+
+function normalizeActionPriority(value: unknown): AmoraActionPriority {
+  return value === "high" || value === "low" || value === "medium" ? value : "medium";
+}
+
+function normalizeActionSource(value: unknown): AmoraActionSource {
+  if (
+    value === "quote" ||
+    value === "schedule" ||
+    value === "budget" ||
+    value === "guardrail" ||
+    value === "manual" ||
+    value === "chat"
+  ) {
+    return value;
+  }
+  return "chat";
+}
+
+function normalizeActionStatus(value: unknown): AmoraActionStatus | undefined {
+  if (value === "open" || value === "done" || value === "dismissed") return value;
+  return undefined;
+}
+
+function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) {
+  if (source === "quote") return "/community/quote-check";
+  if (source === "budget") return "/budget";
+  if (source === "schedule") return "/schedule";
+  if (categoryKey === "invitation") return "/invitations";
+  if (categoryKey === "mc" || categoryKey === "gift") return "/scripts";
+  return "/dashboard";
+}
+
+async function saveProgress(ctx: ExecutionContext, progress: Record<string, unknown>) {
+  const admin = getAdminClient();
+  const { error } = await admin
+    .from("wedding_journeys")
+    .update({ progress })
+    .eq("couple_id", ctx.coupleId);
+  if (error) throw error;
+  ctx.weddingContext.progress = progress as unknown as ExecutionContext["weddingContext"]["progress"];
+}
+
+async function executeAddAmoraAction(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const title = String(input.title ?? "").trim();
+  if (!title) {
+    return {
+      toolName: "add_amora_action",
+      toolInput: input,
+      toolOutput: { error: "title is required" },
+      success: false,
+      displayMessage: "저장할 행동 제목이 필요합니다.",
+    };
+  }
+
+  const categoryKey = input.category_key && input.category_key !== "general"
+    ? String(input.category_key)
+    : undefined;
+  const source = normalizeActionSource(input.source);
+  const href = typeof input.href === "string" && input.href.startsWith("/")
+    ? input.href
+    : getDefaultActionHref(categoryKey, source);
+  const actionId = createAmoraActionId();
+
+  const newProgress = withAddedAmoraAction(ctx.weddingContext.progress as Record<string, unknown>, {
+    id: actionId,
+    title: title.slice(0, 80),
+    description: typeof input.description === "string" ? input.description.slice(0, 300) : undefined,
+    dueDate: typeof input.due_date === "string" ? input.due_date : undefined,
+    categoryKey,
+    priority: normalizeActionPriority(input.priority),
+    source,
+    href,
+  });
+
+  await saveProgress(ctx, newProgress);
+
+  const actions = getAmoraActions(newProgress);
+  const action = actions.find((item) => item.id === actionId);
+
+  return {
+    toolName: "add_amora_action",
+    toolInput: input,
+    toolOutput: { action, actions_count: actions.filter((item) => item.status === "open").length },
+    success: true,
+    displayMessage: `"${title}"을(를) 아모라 행동 카드에 저장했습니다.`,
+  };
+}
+
+function executeGetAmoraActions(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): ToolExecutionResult {
+  const status = typeof input.status === "string" ? input.status : "open";
+  const allActions = getAmoraActions(ctx.weddingContext.progress as Record<string, unknown>);
+  const actions = status === "all"
+    ? allActions
+    : allActions.filter((item) => item.status === status);
+
+  return {
+    toolName: "get_amora_actions",
+    toolInput: input,
+    toolOutput: {
+      actions,
+      count: actions.length,
+      open_count: allActions.filter((item) => item.status === "open").length,
+    },
+    success: true,
+    displayMessage: actions.length > 0
+      ? `아모라가 기억한 행동 ${actions.length}개: ${actions.slice(0, 5).map((item) => item.title).join(", ")}`
+      : "현재 열려 있는 아모라 행동 카드가 없습니다.",
+  };
+}
+
+async function executeUpdateAmoraAction(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const actionId = String(input.action_id ?? "");
+  const currentProgress = ctx.weddingContext.progress as Record<string, unknown>;
+  const currentActions = getAmoraActions(currentProgress);
+  const existing = currentActions.find((item) => item.id === actionId);
+
+  if (!existing) {
+    return {
+      toolName: "update_amora_action",
+      toolInput: input,
+      toolOutput: { error: "action not found", action_id: actionId },
+      success: false,
+      displayMessage: "수정할 아모라 행동 카드를 찾지 못했습니다.",
+    };
+  }
+
+  const updates: Partial<Pick<AmoraActionItem, "title" | "description" | "dueDate" | "priority" | "status" | "href">> = {};
+  if (typeof input.title === "string") updates.title = input.title.slice(0, 80);
+  if (typeof input.description === "string") updates.description = input.description.slice(0, 300);
+  if (typeof input.due_date === "string") updates.dueDate = input.due_date;
+  if (typeof input.href === "string" && input.href.startsWith("/")) updates.href = input.href;
+  if (input.priority !== undefined) updates.priority = normalizeActionPriority(input.priority);
+  if (input.status !== undefined) {
+    const status = normalizeActionStatus(input.status);
+    if (status) updates.status = status;
+  }
+
+  const newProgress = withUpdatedAmoraAction(currentProgress, actionId, updates);
+  await saveProgress(ctx, newProgress);
+  const updated = getAmoraActions(newProgress).find((item) => item.id === actionId);
+
+  return {
+    toolName: "update_amora_action",
+    toolInput: input,
+    toolOutput: { action: updated },
+    success: true,
+    displayMessage: updated
+      ? `"${updated.title}" 행동 카드가 ${getActionStatusLabel(updated.status)} 상태로 변경되었습니다.`
+      : "아모라 행동 카드가 수정되었습니다.",
   };
 }
 
