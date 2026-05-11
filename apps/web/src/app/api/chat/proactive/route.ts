@@ -1,37 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례",
-  venue: "예식장",
-  studio: "스튜디오",
-  dress: "드레스/턱시도",
-  makeup: "메이크업",
-  ring: "예물(반지)",
-  hanbok: "한복",
-  yedan: "예단",
-  honeymoon: "신혼여행",
-  houseware: "혼수(가전/가구)",
-  housing: "신혼집",
-  invitation: "청첩장",
-  snap: "본식스냅/영상",
-  shoes: "웨딩구두",
-  bouquet: "부케/꽃장식",
-  gift: "답례품",
-  mc: "사회/축가",
-  ham: "함",
-  pyebaek: "폐백",
-};
-
-// D-day 기준 우선순위 일정
-const TIMELINE_THRESHOLDS = [
-  { dDay: 360, items: ["meeting", "venue"] },
-  { dDay: 300, items: ["studio", "dress", "makeup", "ring"] },
-  { dDay: 180, items: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
-  { dDay: 120, items: ["invitation", "snap"] },
-  { dDay: 90, items: ["shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
-];
 
 export async function GET(req: NextRequest) {
   try {
@@ -92,50 +62,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 프로액티브 조건 체크
-    const progress = (journey.progress as Record<string, { status: string }>) ?? {};
-    let proactiveMessage = "";
+    const plan = buildAmoraLifecyclePlan({
+      weddingDate: journey.wedding_date,
+      venue: journey.venue,
+      totalBudget: journey.total_budget,
+      progress: journey.progress,
+    });
 
-    // 조건 1: 예산 미설정
-    if (!journey.total_budget || journey.total_budget === 0) {
-      proactiveMessage =
-        "아직 결혼 예산이 설정되지 않았어요! 예산을 설정하면 카테고리별 배분과 진행 상황을 더 정확하게 관리할 수 있어요. 예산을 설정해 드릴까요?";
-    }
-    // 조건 2: 결혼 날짜 미설정
-    else if (!journey.wedding_date) {
-      proactiveMessage =
-        "결혼 예정일이 아직 설정되지 않았어요. 날짜가 정해지면 D-day 기준으로 준비 일정을 안내해 드릴 수 있어요. 날짜를 알려주시겠어요?";
-    }
-    // 조건 3: D-day 기준 해야할 일이 남아있을 때
-    else {
-      const weddingDate = new Date(journey.wedding_date);
-      const dDay = Math.ceil(
-        (weddingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-      );
-
-      if (dDay > 0) {
-        for (const threshold of TIMELINE_THRESHOLDS) {
-          if (dDay <= threshold.dDay) {
-            const overdue = threshold.items.filter(
-              (item) =>
-                !progress[item] || progress[item].status === "not_started"
-            );
-
-            if (overdue.length > 0) {
-              const labels = overdue
-                .map((k) => CATEGORY_LABELS[k] || k)
-                .join(", ");
-              proactiveMessage = `D-${dDay}이에요! ${labels} 준비가 아직 시작되지 않았어요. 지금 시작하면 여유롭게 준비할 수 있어요. 어떤 항목부터 시작할까요?`;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    if (!proactiveMessage) {
+    if (plan.riskLevel === "calm" || plan.primaryAction.severity === "celebrate") {
       return NextResponse.json({ triggered: false });
     }
+
+    const proactiveMessage = [
+      plan.primaryAction.title,
+      plan.primaryAction.body,
+      "",
+      `지금은 '${plan.stageLabel}' 단계예요. ${plan.stageSummary}`,
+    ].join("\n");
 
     // 프로액티브 메시지 저장 — shared 채널로만 발송 (양쪽 모두 봄)
     const { data: inserted } = await admin
@@ -148,7 +91,14 @@ export async function GET(req: NextRequest) {
         content: proactiveMessage,
         visibility: "shared",
         metadata: {
-          suggestions: ["예산 설정하기", "일정 확인하기", "준비 현황 보기"],
+          suggestions: plan.guardrails.slice(0, 3).map((item) => item.cta),
+          lifecycle: {
+            stage: plan.stage,
+            riskLevel: plan.riskLevel,
+            riskScore: plan.riskScore,
+            primaryActionId: plan.primaryAction.id,
+            href: plan.primaryAction.href,
+          },
         },
       })
       .select()

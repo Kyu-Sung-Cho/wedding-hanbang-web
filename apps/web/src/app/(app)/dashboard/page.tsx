@@ -40,6 +40,12 @@ import type { CategoryChecklistTemplate } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ServiceGuide from "@/components/app/ServiceGuide";
+import {
+  buildAmoraLifecyclePlan,
+  type AmoraActionIconKey,
+  type AmoraGuardrailSeverity,
+  type AmoraRiskLevel,
+} from "@/lib/amora/lifecycle";
 
 // 카테고리 아이콘 매핑
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -173,17 +179,45 @@ const STATUS_STYLES: Record<string, { label: string; color: string }> = {
   not_started: { label: "예정", color: "bg-[#B5ADA3]" },
 };
 
-interface BriefingItem {
-  title: string;
-  text: string;
-  href: string;
-  cta: string;
-  icon: React.ComponentType<{ className?: string }>;
-  tone: string;
-}
+const AMORA_ACTION_ICONS: Record<AmoraActionIconKey, React.ComponentType<{ className?: string }>> = {
+  calendar: CalendarCheck,
+  wallet: Wallet,
+  quote: AlertCircle,
+  schedule: Clock,
+  chat: MessageCircle,
+  invitation: Mail,
+  script: Mic,
+  money: Gift,
+  community: Users,
+};
+
+const GUARDRAIL_TONES: Record<AmoraGuardrailSeverity, string> = {
+  critical: "bg-red-50 text-red-600",
+  warning: "bg-amber-50 text-amber-700",
+  steady: "bg-[#eef2df] text-[#5a6147]",
+  celebrate: "bg-[#f3e7e1] text-[#795252]",
+};
+
+const RISK_STYLES: Record<AmoraRiskLevel, { badge: string; bar: string; text: string }> = {
+  urgent: {
+    badge: "bg-red-50 text-red-600 border-red-100",
+    bar: "bg-red-500",
+    text: "text-red-600",
+  },
+  watch: {
+    badge: "bg-amber-50 text-amber-700 border-amber-100",
+    bar: "bg-amber-500",
+    text: "text-amber-700",
+  },
+  calm: {
+    badge: "bg-[#eef2df] text-[#5a6147] border-[#dfe6cf]",
+    bar: "bg-[#8c9566]",
+    text: "text-[#5a6147]",
+  },
+};
 
 export default function DashboardPage() {
-  const { profile, partner, journey, couple, updateJourney } = useAuthStore();
+  const { partner, journey, couple, updateJourney } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -223,35 +257,23 @@ export default function DashboardPage() {
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  // 진행률 계산 (개별 체크리스트 항목 기준 — 일정/채팅 패널과 동일)
-  const progress = journey?.progress ?? {};
-  const { totalDone, totalItems } = CATEGORY_CHECKLISTS.reduce(
-    (acc, cat) => {
-      const template = CHECKLIST_MAP[cat.key];
-      if (!template) return acc;
-      const existing = progress[cat.key] as { status?: string; checklist?: { id: string; label: string; done: boolean }[] } | undefined;
-      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status as "not_started" | "in_progress" | "completed" | undefined);
-      const counts = getChecklistCounts(merged);
-      return { totalDone: acc.totalDone + counts.done, totalItems: acc.totalItems + counts.total };
-    },
-    { totalDone: 0, totalItems: 0 }
-  );
-  const progressPercent = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
-
-  // 예산 계산
+  // 진행률 계산 (아모라 라이프사이클 엔진 기준 — 대시보드/알림/채팅이 같은 판단을 씀)
+  const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const totalBudget = journey?.total_budget ?? 0;
-  const spentBudget = Object.values(progress).reduce((sum, item) => {
-    const row = item as { spent?: number; cost?: number } | undefined;
-    return sum + Number(row?.spent ?? row?.cost ?? 0);
-  }, 0);
-  const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
+  const amoraPlan = useMemo(
+    () => buildAmoraLifecyclePlan({
+      weddingDate: journey?.wedding_date ?? null,
+      venue: journey?.venue ?? null,
+      totalBudget,
+      progress,
+    }),
+    [journey?.wedding_date, journey?.venue, totalBudget, progress]
+  );
+  const { totalDone, totalItems, progressPercent, spentBudget, budgetPercent } = amoraPlan;
   const formatBudget = (amount: number) =>
     amount >= 10000
       ? `₩${(amount / 10000).toLocaleString()}만`
       : `₩${amount.toLocaleString()}`;
-
-  const userName = profile?.name ?? "사용자";
-  const partnerName = partner?.name;
 
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
@@ -302,102 +324,25 @@ export default function DashboardPage() {
           ? "일 지났어요"
           : "날짜 미정";
 
-  const briefingItems: BriefingItem[] = useMemo(() => {
-    const items: BriefingItem[] = [];
+  const briefingItems = useMemo(
+    () => amoraPlan.guardrails.slice(0, 3).map((item) => ({
+      ...item,
+      text: item.body,
+      icon: AMORA_ACTION_ICONS[item.iconKey],
+      tone: GUARDRAIL_TONES[item.severity],
+    })),
+    [amoraPlan]
+  );
 
-    if (!weddingDate) {
-      items.push({
-        title: "예식일을 먼저 잡아둘게요",
-        text: "D-day가 있어야 일정, 청첩장, 본식 준비 알림이 정확해져요.",
-        href: "/settings",
-        cta: "날짜 설정",
-        icon: CalendarCheck,
-        tone: "bg-[#eef2df] text-[#5a6147]",
-      });
-    }
+  const lifecycleActions = useMemo(
+    () => amoraPlan.quickActions.map((item) => ({
+      ...item,
+      icon: AMORA_ACTION_ICONS[item.iconKey],
+    })),
+    [amoraPlan]
+  );
 
-    if (totalBudget <= 0) {
-      items.push({
-        title: "전체 예산을 세우면 실수가 줄어요",
-        text: "아모라가 견적과 숨은 추가금을 예산 안에서 같이 봐줄 수 있어요.",
-        href: "/budget",
-        cta: "예산 입력",
-        icon: Wallet,
-        tone: "bg-[#f3e7e1] text-[#795252]",
-      });
-    }
-
-    if (nextMilestone) {
-      items.push({
-        title: `${nextMilestone.label}을 놓치지 않게 볼게요`,
-        text: `${nextMilestone.deadlineText}. 체크리스트를 열어 빠진 항목을 확인하세요.`,
-        href: "/schedule",
-        cta: "체크리스트",
-        icon: CalendarCheck,
-        tone: nextMilestone.urgency === "overdue" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700",
-      });
-    }
-
-    if (dday !== null && dday <= 14 && dday >= 0) {
-      items.push({
-        title: "본식 직전 문구와 진행을 준비해요",
-        text: "사회자 대본, 부모님 편지, 감사 인사 초안을 미리 만들어두면 당일이 편해져요.",
-        href: "/scripts",
-        cta: "대본 준비",
-        icon: Mic,
-        tone: "bg-[#f7efd7] text-[#7b6230]",
-      });
-    }
-
-    if (dday !== null && dday < 0) {
-      items.push({
-        title: "식 후 감사 인사까지 같이 챙길게요",
-        text: "축의금 정리, 감사 문자, 업체 후기, 앨범 수령 일정을 이어서 관리하세요.",
-        href: "/scripts",
-        cta: "감사 문구",
-        icon: Gift,
-        tone: "bg-[#eef2df] text-[#5a6147]",
-      });
-    }
-
-    items.push({
-      title: "받은 견적은 계약 전 한번 점검해요",
-      text: "원본, 수정본, 헬퍼비, 얼리스타트처럼 나중에 붙는 비용을 먼저 확인해요.",
-      href: "/community/quote-check",
-      cta: "견적 진단",
-      icon: AlertCircle,
-      tone: "bg-[#f3e7e1] text-[#795252]",
-    });
-
-    return items.slice(0, 3);
-  }, [dday, nextMilestone, totalBudget, weddingDate]);
-
-  const lifecycleActions = [
-    {
-      href: "/community/quote-check",
-      label: "견적 점검",
-      text: "계약 전 빠진 항목 확인",
-      icon: AlertCircle,
-    },
-    {
-      href: "/chat",
-      label: "아모라에게 묻기",
-      text: "업체 질문·가족 대화 정리",
-      icon: MessageCircle,
-    },
-    {
-      href: "/invitations",
-      label: "청첩장 만들기",
-      text: "초대와 하객 안내 준비",
-      icon: Mail,
-    },
-    {
-      href: "/scripts",
-      label: "감사 인사",
-      text: "식 전후 문구와 전화 스크립트",
-      icon: Mic,
-    },
-  ];
+  const riskStyle = RISK_STYLES[amoraPlan.riskLevel];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-10 bg-[#fbf8f4]">
@@ -483,9 +428,9 @@ export default function DashboardPage() {
                   <p className="mt-1 text-xs text-[#504444]">{totalDone}/{totalItems}개 체크</p>
                 </div>
                 <div className="rounded-xl border border-white/70 bg-white/75 p-4">
-                  <p className="text-xs font-medium text-[#928980]">아모라 모드</p>
-                  <p className="mt-2 text-lg font-semibold text-[#795252]">실수 방지</p>
-                  <p className="mt-1 text-xs text-[#504444]">전 여정 파트너</p>
+                  <p className="text-xs font-medium text-[#928980]">아모라 안전도</p>
+                  <p className={`mt-2 text-lg font-semibold ${riskStyle.text}`}>{amoraPlan.riskLabel}</p>
+                  <p className="mt-1 text-xs text-[#504444]">{amoraPlan.riskScore}점 점검</p>
                 </div>
               </div>
             </div>
@@ -527,8 +472,47 @@ export default function DashboardPage() {
         </div>
 
         <div className="rounded-2xl border border-[#dfe6cf] bg-[#f7faef] p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
-          <p className="text-xs font-semibold tracking-[0.2em] text-[#667049] uppercase">Lifecycle tools</p>
-          <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">업체 없이도 되는 것</h2>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] text-[#667049] uppercase">Amora guardrails</p>
+              <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">실수 방지 점검</h2>
+            </div>
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${riskStyle.badge}`}>
+              {amoraPlan.riskLabel}
+            </span>
+          </div>
+          <div className="mt-4 rounded-xl bg-white/80 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-[#1b1c1c]">{amoraPlan.stageLabel}</span>
+              <span className="text-sm font-semibold text-[#504444]">{amoraPlan.riskScore}/100</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-[#ece7df]">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${riskStyle.bar}`}
+                style={{ width: `${Math.max(8, Math.min(amoraPlan.riskScore, 100))}%` }}
+              />
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-[#504444]">{amoraPlan.stageSummary}</p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {amoraPlan.phases.map((phase) => (
+              <div key={phase.id} className="rounded-xl bg-white/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#504444]">{phase.label}</span>
+                  <span className={`h-2 w-2 rounded-full ${
+                    phase.state === "done"
+                      ? "bg-[#8c9566]"
+                      : phase.state === "active"
+                        ? "bg-[#795252]"
+                        : "bg-[#d8cec8]"
+                  }`} />
+                </div>
+                <p className="mt-2 font-serif-kr text-2xl text-[#1b1c1c]">{phase.percent}%</p>
+              </div>
+            ))}
+          </div>
+
           <div className="mt-4 grid gap-2">
             {lifecycleActions.map((item) => (
               <Link
