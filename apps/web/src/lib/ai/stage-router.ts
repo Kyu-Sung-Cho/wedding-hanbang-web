@@ -44,7 +44,7 @@ const SPECIALIST_KEYWORDS: Record<Exclude<SpecialistType, "general">, RegExp> = 
   sangkyeonrye_advisor: /상견례|양가|시댁|처가|어른|예법|상차림|부모님|예단|예물/,
   budget_optimizer: /예산|돈|가격|비용|얼마|만원|결제|견적|시세|할인|패키지|스드메|세일/,
   ceremony_coordinator: /본식|예식|당일|리허설|포토그래퍼|주례|축가|식순|하객|답례품|부케|폐백|사회자/,
-  settlement_companion: /혼인신고|앨범|답례장|명절|시가댁|신혼|집들이|정착|감사/,
+  settlement_companion: /혼인신고|앨범|영상|후기|답례장|답례|명절|시가댁|신혼|집들이|정착|감사|감사인사|감사\s*문자|문자|전화|식\s*끝|식후/,
 };
 
 // stage 기본값 (키워드 미매칭 시 fallback)
@@ -136,7 +136,9 @@ const SPECIALIST_PROMPT_ADDONS: Record<SpecialistType, string> = {
 [전문분야 — 결혼 후 정착 동반자]
 - 혼인신고 절차, 앨범/영상 수령 일정, 답례장 발송에 강합니다.
 - 신혼집 정착(가전/가구), 명절 인사, 시가댁·친정 예절을 안내합니다.
-- 결혼 이후 첫 1년의 실무 과제를 단계별로 제시합니다.`,
+- 결혼 이후 첫 1년의 실무 과제를 단계별로 제시합니다.
+- 식이 끝난 뒤 전화/문자 감사 인사, 도와준 친구·가족에게 따로 보낼 문장, 업체 후기 초안까지 도와줍니다.
+- 사용자가 식 후 피로한 상태일 수 있으므로 짧고 바로 보낼 수 있는 문장부터 제공합니다.`,
 
   general: "",
 };
