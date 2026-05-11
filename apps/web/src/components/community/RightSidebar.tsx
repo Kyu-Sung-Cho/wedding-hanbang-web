@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TrendingUp } from "lucide-react";
 
 interface PopularTag {
   vendor_name: string;
@@ -20,138 +20,120 @@ interface RightSidebarProps {
 }
 
 export default function RightSidebar({ popularTags = [], weekly }: RightSidebarProps) {
-  // 주간 요약 트렌드 계산
   const postCount = weekly?.newPostsThisWeek ?? 0;
   const postTrend = postCount > 50 ? "up" : postCount > 20 ? "steady" : "down";
   const postTrendLabel =
     postTrend === "up" ? "Trending Up" : postTrend === "steady" ? "Steady" : "Trending Down";
-  const postTrendWidth = postTrend === "up" ? "75%" : postTrend === "steady" ? "50%" : "25%";
+  const postTrendWidth = postTrend === "up" ? "78%" : postTrend === "steady" ? "52%" : "28%";
 
   return (
-    <>
-      {/* Pulse Section — 이번 주 요약 */}
-      <div className="mb-8">
-        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 border-b border-[#e4e2e1] pb-2">
+    <div className="space-y-4">
+      <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
+        <h3 className="mb-4 border-b border-[#e4e2e1] pb-2 font-serif-kr text-lg text-[#1b1c1c]">
           이번 주 요약
         </h3>
-        <div className="space-y-4">
-          {/* 새 글 + 트렌드 바 */}
-          <div>
-            <div className="flex justify-between text-sm mb-2 text-[#504444]">
-              <span>새 글</span>
-              <span className="text-sage-500 font-medium">{postTrendLabel}</span>
-            </div>
-            <div className="w-full bg-[#f0eded] h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-sage-500 h-full rounded-full transition-all duration-700"
-                style={{ width: postTrendWidth }}
-              />
-            </div>
-          </div>
-
-          {/* 인기 업체 */}
-          <div>
-            <div className="flex justify-between text-sm mb-2 text-[#504444]">
-              <span>인기 업체</span>
-              <span className="text-[#795252] font-medium truncate max-w-[140px]">
-                {weekly?.topVendor ?? "---"}
-              </span>
-            </div>
-            <div className="w-full bg-[#f0eded] h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-[#795252] h-full rounded-full transition-all duration-700"
-                style={{ width: "60%" }}
-              />
-            </div>
-          </div>
-
-          {/* 평균 스튜디오 기본금 */}
-          <div>
-            <div className="flex justify-between text-sm mb-2 text-[#504444]">
-              <span>스튜디오 평균</span>
-              <span className="text-[#625b4d] font-medium">
-                {weekly?.avgStudioPrice ? `${weekly.avgStudioPrice}만원` : "---"}
-              </span>
-            </div>
-            <div className="w-full bg-[#f0eded] h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-[#625b4d] h-full rounded-full transition-all duration-700"
-                style={{ width: "40%" }}
-              />
-            </div>
-          </div>
+        <div className="space-y-3.5">
+          <MetricRow label="새 글" value={postTrendLabel} width={postTrendWidth} color="bg-sage-500" />
+          <MetricRow
+            label="인기 업체"
+            value={weekly?.topVendor ?? "---"}
+            width="62%"
+            color="bg-[#795252]"
+          />
+          <MetricRow
+            label="스튜디오 평균"
+            value={weekly?.avgStudioPrice ? `${weekly.avgStudioPrice}만원` : "---"}
+            width="42%"
+            color="bg-[#625b4d]"
+          />
         </div>
-      </div>
+      </section>
 
-      {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
-        <div className="mb-8">
-          <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+        <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
+          <h3 className="mb-3 border-b border-[#e4e2e1] pb-2 font-serif-kr text-lg text-[#1b1c1c]">
             많이 찾는 업체
           </h3>
-          <div className="flex flex-wrap gap-x-3 gap-y-2.5">
-            {popularTags.slice(0, 12).map((tag) => (
+          <div className="flex flex-wrap gap-2">
+            {popularTags.slice(0, 10).map((tag) => (
               <Link
                 key={tag.vendor_name}
                 href={`/community/vendor/${encodeURIComponent(tag.vendor_name)}`}
-                className="text-sm text-[#504444] hover:text-[#795252] transition-colors duration-200"
+                className="rounded-full bg-[#f6f3f2] px-3 py-1.5 text-xs text-[#504444] transition-colors hover:bg-[#f0eded] hover:text-[#795252]"
               >
                 #{tag.vendor_name}
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Hot Topics — 커뮤니티 원칙 */}
-      <div className="mb-8">
-        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
-          커뮤니티 원칙
-        </h3>
-        <div className="space-y-3.5 text-sm">
-          <div className="flex items-start gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-sage-500 mt-1.5 shrink-0" />
-            <div>
-              <span className="text-[#1b1c1c] font-medium">일반</span>
-              <span className="text-[#504444]"> --- 직접 쓴 글</span>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#625b4d] mt-1.5 shrink-0" />
-            <div>
-              <span className="text-[#1b1c1c] font-medium">협찬</span>
-              <span className="text-[#504444]"> --- 혜택 받은 글</span>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#795252] mt-1.5 shrink-0" />
-            <div>
-              <span className="text-[#1b1c1c] font-medium">광고</span>
-              <span className="text-[#504444]"> --- 추천 알고리즘 미반영</span>
-            </div>
-          </div>
+      <section className="rounded-xl border border-[#e4e2e1] bg-white p-4">
+        <div className="mb-3 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
+          <TrendingUp className="h-4 w-4 text-[#795252]" />
+          <h3 className="font-serif-kr text-lg text-[#1b1c1c]">커뮤니티 원칙</h3>
         </div>
-        <p className="mt-5 text-xs text-[#504444] leading-relaxed">
-          정직한 표시는 신뢰의 시작입니다. 미표시 신고 시 검토 후 제재됩니다.
+        <div className="space-y-2.5 text-sm">
+          <RuleDot color="bg-sage-500" label="일반" text="직접 쓴 글" />
+          <RuleDot color="bg-[#625b4d]" label="협찬" text="혜택 받은 글" />
+          <RuleDot color="bg-[#795252]" label="광고" text="추천 알고리즘 미반영" />
+        </div>
+        <p className="mt-4 text-xs leading-relaxed text-[#504444]">
+          표시가 정확해야 정보가 오래 살아남습니다.
         </p>
-      </div>
+      </section>
 
-      {/* 웨딩한방 AI CTA */}
-      <div className="bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-xl p-6 text-white">
-        <div className="flex items-center gap-2.5 mb-4">
-          <Sparkles className="w-5 h-5 text-[#dee6c4]" />
+      <section className="rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] p-5 text-white">
+        <div className="mb-4 flex items-center gap-2.5">
+          <Sparkles className="h-5 w-5 text-[#dee6c4]" />
           <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
         </div>
-        <p className="text-sm text-white/70 leading-relaxed mb-4">
+        <p className="mb-4 text-sm leading-relaxed text-white/75">
           가격이 정상인지, 일정은 맞는지, AI 아모라가 답해드려요.
         </p>
         <Link
           href="/chat"
-          className="block w-full text-center bg-white text-[#795252] rounded-xl py-3 text-sm font-medium shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-all duration-200"
+          className="block w-full rounded-lg bg-white py-2.5 text-center text-sm font-medium text-[#795252] shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)]"
         >
           아모라와 대화하기
         </Link>
+      </section>
+    </div>
+  );
+}
+
+function MetricRow({
+  label,
+  value,
+  width,
+  color,
+}: {
+  label: string;
+  value: string;
+  width: string;
+  color: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex justify-between gap-3 text-sm text-[#504444]">
+        <span>{label}</span>
+        <span className="max-w-[150px] truncate font-medium text-[#625b4d]">{value}</span>
       </div>
-    </>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-[#f0eded]">
+        <div className={`h-full rounded-full ${color}`} style={{ width }} />
+      </div>
+    </div>
+  );
+}
+
+function RuleDot({ color, label, text }: { color: string; label: string; text: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${color}`} />
+      <div className="min-w-0">
+        <span className="font-medium text-[#1b1c1c]">{label}</span>
+        <span className="text-[#504444]"> -- {text}</span>
+      </div>
+    </div>
   );
 }

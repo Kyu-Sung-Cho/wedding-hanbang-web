@@ -13,6 +13,8 @@ import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyState from "@/components/community/EmptyState";
+import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
+import FeedComposer from "@/components/community/FeedComposer";
 import ServiceBanner from "@/components/community/ServiceBanner";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
@@ -247,55 +249,55 @@ function CommunityFeedContent() {
         <CategoryTabs />
       </div>
 
-      <div className="flex-1 flex w-full max-w-[1500px] mx-auto">
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-64 2xl:w-72 sticky top-16 flex-col pt-8 pb-6 px-4 border-r border-[#e4e2e1] z-40 overflow-y-auto">
-          <div className="mb-7 px-3">
-            <h2 className="font-serif-kr text-2xl italic text-[#795252] mb-1.5">
+      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
+        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40 overflow-y-auto">
+          <div className="mb-5 px-2">
+            <h2 className="font-serif-kr text-2xl italic text-[#795252] mb-1">
               커뮤니티
             </h2>
-            <p className="text-sm text-[#504444] tracking-wide">
+            <p className="text-xs text-[#504444] tracking-wide">
               웨딩한방 커뮤니티
             </p>
           </div>
 
           {/* 동기방 카드 */}
-          <div className="px-1 mb-5">
+          <div className="mb-4">
             <CohortCard />
           </div>
 
           <CategoryTabs />
 
-          <div className="mt-6 mb-6 px-3">
+          <div className="mt-4 px-1">
             <Link
               href="/community/post/write"
-              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-3 rounded-lg font-medium text-base shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
+              className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-2.5 rounded-lg font-medium text-sm shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
             >
-              <PenSquare className="mr-2 w-5 h-5" />
+              <PenSquare className="mr-2 w-4 h-4" />
               글쓰기
             </Link>
           </div>
 
-          <div className="mt-auto space-y-1 pt-6 border-t border-[#e4e2e1]/50 pr-2">
+          <div className="mt-5 space-y-1 border-t border-[#e4e2e1]/50 pt-4">
             <Link
               href="/community/guidelines"
-              className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
+              className="flex items-center rounded-lg px-3 py-2 text-[#504444] hover:bg-white hover:text-[#795252] group"
             >
-              <Shield className="mr-3 w-5 h-5 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm tracking-wide">가이드라인</span>
+              <Shield className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
+              <span className="text-sm">가이드라인</span>
             </Link>
             <Link
               href="/community/archive"
-              className="flex items-center px-4 py-2 text-[#504444] hover:text-[#795252] group"
+              className="flex items-center rounded-lg px-3 py-2 text-[#504444] hover:bg-white hover:text-[#795252] group"
             >
-              <Archive className="mr-3 w-5 h-5 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm tracking-wide">아카이브</span>
+              <Archive className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
+              <span className="text-sm">아카이브</span>
             </Link>
           </div>
         </aside>
 
         {/* 가운데: 메인 피드 */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-5 sm:py-6 lg:py-8 overflow-y-auto">
-          <div className="max-w-[760px] 2xl:max-w-[800px] mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6 overflow-y-auto">
+          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
             {/* 검색 결과 헤더 */}
             {isSearching && (
               <div className="flex items-center justify-between mb-8">
@@ -351,6 +353,8 @@ function CommunityFeedContent() {
               </div>
             )}
 
+            {!isSearching && <FeedComposer />}
+
             {/* 피드 리스트 */}
             {isSearching ? (
               <>
@@ -396,12 +400,7 @@ function CommunityFeedContent() {
                     ))}
                   </div>
                 ) : posts.length === 0 ? (
-                  <EmptyState
-                    message="아직 작성된 글이 없습니다"
-                    description="첫 번째 글을 작성해 보세요!"
-                    ctaLabel="글쓰기"
-                    ctaHref="/community/post/write"
-                  />
+                  <EmptyFeedStarter />
                 ) : (
                   <div className="space-y-6">
                     {posts.map((post, idx) => (
@@ -430,8 +429,8 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        <aside className="hidden 2xl:block w-80 shrink-0 p-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8]">
-          <div className="mb-8">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8]">
+          <div className="mb-4 rounded-xl border border-[#e4e2e1] bg-white p-4">
             <TrendingPosts />
           </div>
           <RightSidebar
@@ -445,7 +444,7 @@ function CommunityFeedContent() {
 
           {/* 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
-            <div className="mt-8">
+            <div className="mt-4 rounded-xl border border-[#e4e2e1] bg-white p-4">
               <h3 className="font-serif-kr text-lg text-[#1b1c1c] mb-3 border-b border-[#e4e2e1] pb-2">
                 인기 태그
               </h3>
@@ -464,11 +463,11 @@ function CommunityFeedContent() {
           )}
 
           {/* 내 활동 (게이미피케이션) */}
-          <div className="mt-8">
+          <div className="mt-4">
             <GamificationWidget />
           </div>
 
-          <div className="text-center py-4 mt-6">
+          <div className="text-center py-4 mt-4">
             <Link
               href="/"
               className="text-[12px] text-[#504444] hover:text-[#795252] transition-colors duration-200 tracking-widest uppercase"

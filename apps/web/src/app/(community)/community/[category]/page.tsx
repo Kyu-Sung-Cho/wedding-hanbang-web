@@ -14,7 +14,8 @@ import CategoryTabs from "@/components/community/CategoryTabs";
 import SortSelector from "@/components/community/SortSelector";
 import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
-import EmptyState from "@/components/community/EmptyState";
+import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
+import FeedComposer from "@/components/community/FeedComposer";
 import GamificationWidget from "@/components/community/GamificationWidget";
 import { withSessionCache } from "@/utils/sessionCache";
 
@@ -99,25 +100,25 @@ export default function CategoryFeedPage() {
         <CategoryTabs />
       </div>
 
-      <div className="flex-1 flex w-full max-w-[1500px] mx-auto">
+      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
         {/* 왼쪽 사이드바 — community 페이지와 동일한 폭/스타일 */}
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-64 2xl:w-72 sticky top-16 flex-col pt-8 pb-6 px-4 border-r border-[#e4e2e1] z-40 overflow-y-auto">
+        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40 overflow-y-auto">
           <CategoryTabs />
 
-          <div className="mt-auto pt-4 px-3">
+          <div className="mt-4 px-1">
             <Link
               href="/community/post/write"
-              className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-lg transition-all duration-200"
+              className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-lg transition-all duration-200"
             >
-              <PenSquare className="w-5 h-5" />
+              <PenSquare className="w-4 h-4" />
               글쓰기
             </Link>
           </div>
         </aside>
 
         {/* 가운데: 메인 피드 — community 페이지와 동일한 padding/max-w */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-5 sm:py-6 lg:py-8 overflow-y-auto">
-          <div className="max-w-[760px] 2xl:max-w-[800px] mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6 overflow-y-auto">
+          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
             {/* 카테고리 헤더 */}
             <div>
               <h1 className="font-serif-kr text-2xl lg:text-3xl text-[#1b1c1c] mb-1">
@@ -137,6 +138,8 @@ export default function CategoryFeedPage() {
                 onPeriodChange={(p) => useCommunityStore.getState().setPeriod(p)}
               />
             </div>
+
+            <FeedComposer />
 
             {/* 활성 태그 필터 표시 */}
             {currentTag && (
@@ -164,11 +167,9 @@ export default function CategoryFeedPage() {
                 ))}
               </div>
             ) : posts.length === 0 ? (
-              <EmptyState
-                message={`${categoryInfo.label}에 아직 작성된 글이 없습니다`}
-                description="첫 번째 글을 작성해 보세요!"
-                ctaLabel="글쓰기"
-                ctaHref="/community/post/write"
+              <EmptyFeedStarter
+                title={`${categoryInfo.label}에 아직 올라온 글이 없습니다`}
+                description="이 카테고리의 첫 이야기를 기다리고 있어요."
               />
             ) : (
               <div className="space-y-5 sm:space-y-6">
@@ -190,7 +191,7 @@ export default function CategoryFeedPage() {
         </main>
 
         {/* 오른쪽 사이드바 — community 페이지와 동일한 frame */}
-        <aside className="hidden 2xl:block w-80 shrink-0 p-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8] space-y-5">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8] space-y-4">
           <GamificationWidget />
 
           <div className="bg-white rounded-xl border border-[#F0EFED] overflow-hidden">

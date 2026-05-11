@@ -1,10 +1,10 @@
 export default function CategoryFeedLoading() {
   return (
     <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
-      <div className="flex-1 flex w-full max-w-[1500px] mx-auto">
+      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
         {/* 왼쪽 사이드바 — 카테고리 페이지 실제 폭 그대로 */}
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-64 2xl:w-72 sticky top-16 flex-col pt-8 pb-6 px-4 border-r border-[#e4e2e1] z-40">
-          <div className="space-y-2 px-2">
+        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40">
+          <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
@@ -13,14 +13,14 @@ export default function CategoryFeedLoading() {
               />
             ))}
           </div>
-          <div className="mt-auto pt-4 px-2">
-            <div className="h-12 bg-[#e4d9d9] rounded-lg animate-pulse" />
+          <div className="mt-4 px-1">
+            <div className="h-10 bg-[#e4d9d9] rounded-lg animate-pulse" />
           </div>
         </aside>
 
         {/* 메인 피드 skeleton */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-5 sm:py-6 lg:py-8">
-          <div className="max-w-[760px] 2xl:max-w-[800px] mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6">
+          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
             <div className="space-y-2">
               <div className="h-9 w-40 bg-[#ede8e6] rounded animate-pulse" />
               <div className="h-5 w-64 bg-[#f3efed] rounded animate-pulse" />
@@ -59,7 +59,7 @@ export default function CategoryFeedLoading() {
         </main>
 
         {/* 오른쪽 사이드바 skeleton */}
-        <aside className="hidden 2xl:block w-80 shrink-0 p-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] bg-[#fcf9f8] space-y-5">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] bg-[#fcf9f8] space-y-4">
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-64 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-28 animate-pulse" />

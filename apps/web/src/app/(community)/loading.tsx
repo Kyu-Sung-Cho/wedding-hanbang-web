@@ -10,17 +10,17 @@ export default function CommunityLoading() {
         </div>
       </div>
 
-      <div className="max-w-[1500px] mx-auto px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-5 sm:py-6 lg:py-8">
+      <div className="max-w-[1680px] mx-auto px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6">
         <div className="flex gap-5 lg:gap-6">
           {/* 사이드바 skeleton */}
-          <div className="hidden xl:block w-64 2xl:w-72 shrink-0 space-y-3">
+          <div className="hidden xl:block w-56 2xl:w-60 shrink-0 space-y-3">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="h-9 bg-[#F0EFED] rounded-xl animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
             ))}
           </div>
 
           {/* 메인 피드 skeleton */}
-          <div className="flex-1 max-w-[760px] 2xl:max-w-[800px] mx-auto space-y-5">
+          <div className="flex-1 max-w-[980px] mx-auto space-y-5">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-xl border border-[#F0EFED] p-5 space-y-3" style={{ animationDelay: `${i * 80}ms` }}>
                 <div className="flex items-center gap-2">
@@ -41,7 +41,7 @@ export default function CommunityLoading() {
           </div>
 
           {/* 오른쪽 사이드바 skeleton */}
-          <div className="hidden 2xl:block w-80 shrink-0 space-y-4">
+          <div className="hidden xl:block w-72 2xl:w-80 shrink-0 space-y-4">
             <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
             <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-28 animate-pulse" />
           </div>

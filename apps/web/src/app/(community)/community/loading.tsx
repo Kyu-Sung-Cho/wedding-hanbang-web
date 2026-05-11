@@ -1,20 +1,20 @@
 export default function CommunityFeedLoading() {
   return (
     <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
-      <div className="flex-1 flex w-full max-w-[1500px] mx-auto">
+      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
         {/* 왼쪽 사이드바 skeleton — 실제 폭/배경 그대로 */}
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-64 2xl:w-72 sticky top-16 flex-col pt-8 pb-6 px-4 border-r border-[#e4e2e1] z-40">
+        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40">
           {/* 헤더 */}
-          <div className="mb-7 px-3 space-y-2">
+          <div className="mb-5 px-2 space-y-2">
             <div className="h-7 w-28 bg-[#ede8e6] rounded animate-pulse" />
             <div className="h-4 w-48 bg-[#f3efed] rounded animate-pulse" />
           </div>
           {/* 동기방 카드 */}
-          <div className="px-2 mb-6">
+          <div className="mb-4">
             <div className="rounded-xl bg-gradient-to-br from-[#795252]/60 to-[#946a6a]/60 h-28 animate-pulse" />
           </div>
           {/* 카테고리 탭 */}
-          <div className="space-y-2 px-2">
+          <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
@@ -24,14 +24,14 @@ export default function CommunityFeedLoading() {
             ))}
           </div>
           {/* 글쓰기 버튼 */}
-          <div className="mt-8 mb-8 px-4">
-            <div className="h-12 bg-[#e4d9d9] rounded-lg animate-pulse" />
+          <div className="mt-4 px-1">
+            <div className="h-10 bg-[#e4d9d9] rounded-lg animate-pulse" />
           </div>
         </aside>
 
         {/* 메인 피드 skeleton */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-5 sm:py-6 lg:py-8">
-          <div className="max-w-[760px] 2xl:max-w-[800px] mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6">
+          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
             {/* 헤더 */}
             <div className="space-y-2">
               <div className="h-9 w-48 bg-[#ede8e6] rounded animate-pulse" />
@@ -73,7 +73,7 @@ export default function CommunityFeedLoading() {
         </main>
 
         {/* 오른쪽 사이드바 skeleton */}
-        <aside className="hidden 2xl:block w-80 shrink-0 p-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] bg-[#fcf9f8] space-y-5">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] bg-[#fcf9f8] space-y-4">
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-48 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
