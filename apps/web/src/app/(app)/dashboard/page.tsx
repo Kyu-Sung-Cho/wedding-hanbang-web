@@ -173,6 +173,15 @@ const STATUS_STYLES: Record<string, { label: string; color: string }> = {
   not_started: { label: "예정", color: "bg-[#B5ADA3]" },
 };
 
+interface BriefingItem {
+  title: string;
+  text: string;
+  href: string;
+  cta: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: string;
+}
+
 export default function DashboardPage() {
   const { profile, partner, journey, couple, updateJourney } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
@@ -231,7 +240,10 @@ export default function DashboardPage() {
 
   // 예산 계산
   const totalBudget = journey?.total_budget ?? 0;
-  const spentBudget = Math.round(totalBudget * (progressPercent / 100));
+  const spentBudget = Object.values(progress).reduce((sum, item) => {
+    const row = item as { spent?: number; cost?: number } | undefined;
+    return sum + Number(row?.spent ?? row?.cost ?? 0);
+  }, 0);
   const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
   const formatBudget = (amount: number) =>
     amount >= 10000
@@ -290,8 +302,105 @@ export default function DashboardPage() {
           ? "일 지났어요"
           : "날짜 미정";
 
+  const briefingItems: BriefingItem[] = useMemo(() => {
+    const items: BriefingItem[] = [];
+
+    if (!weddingDate) {
+      items.push({
+        title: "예식일을 먼저 잡아둘게요",
+        text: "D-day가 있어야 일정, 청첩장, 본식 준비 알림이 정확해져요.",
+        href: "/settings",
+        cta: "날짜 설정",
+        icon: CalendarCheck,
+        tone: "bg-[#eef2df] text-[#5a6147]",
+      });
+    }
+
+    if (totalBudget <= 0) {
+      items.push({
+        title: "전체 예산을 세우면 실수가 줄어요",
+        text: "아모라가 견적과 숨은 추가금을 예산 안에서 같이 봐줄 수 있어요.",
+        href: "/budget",
+        cta: "예산 입력",
+        icon: Wallet,
+        tone: "bg-[#f3e7e1] text-[#795252]",
+      });
+    }
+
+    if (nextMilestone) {
+      items.push({
+        title: `${nextMilestone.label}을 놓치지 않게 볼게요`,
+        text: `${nextMilestone.deadlineText}. 체크리스트를 열어 빠진 항목을 확인하세요.`,
+        href: "/schedule",
+        cta: "체크리스트",
+        icon: CalendarCheck,
+        tone: nextMilestone.urgency === "overdue" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700",
+      });
+    }
+
+    if (dday !== null && dday <= 14 && dday >= 0) {
+      items.push({
+        title: "본식 직전 문구와 진행을 준비해요",
+        text: "사회자 대본, 부모님 편지, 감사 인사 초안을 미리 만들어두면 당일이 편해져요.",
+        href: "/scripts",
+        cta: "대본 준비",
+        icon: Mic,
+        tone: "bg-[#f7efd7] text-[#7b6230]",
+      });
+    }
+
+    if (dday !== null && dday < 0) {
+      items.push({
+        title: "식 후 감사 인사까지 같이 챙길게요",
+        text: "축의금 정리, 감사 문자, 업체 후기, 앨범 수령 일정을 이어서 관리하세요.",
+        href: "/scripts",
+        cta: "감사 문구",
+        icon: Gift,
+        tone: "bg-[#eef2df] text-[#5a6147]",
+      });
+    }
+
+    items.push({
+      title: "받은 견적은 계약 전 한번 점검해요",
+      text: "원본, 수정본, 헬퍼비, 얼리스타트처럼 나중에 붙는 비용을 먼저 확인해요.",
+      href: "/community/quote-check",
+      cta: "견적 진단",
+      icon: AlertCircle,
+      tone: "bg-[#f3e7e1] text-[#795252]",
+    });
+
+    return items.slice(0, 3);
+  }, [dday, nextMilestone, totalBudget, weddingDate]);
+
+  const lifecycleActions = [
+    {
+      href: "/community/quote-check",
+      label: "견적 점검",
+      text: "계약 전 빠진 항목 확인",
+      icon: AlertCircle,
+    },
+    {
+      href: "/chat",
+      label: "아모라에게 묻기",
+      text: "업체 질문·가족 대화 정리",
+      icon: MessageCircle,
+    },
+    {
+      href: "/invitations",
+      label: "청첩장 만들기",
+      text: "초대와 하객 안내 준비",
+      icon: Mail,
+    },
+    {
+      href: "/scripts",
+      label: "감사 인사",
+      text: "식 전후 문구와 전화 스크립트",
+      icon: Mic,
+    },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10 bg-[#fcf9f8]">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-10 bg-[#fbf8f4]">
       {/* 파트너 미연동 안내 */}
       {couple && !partner && inviteCode && (
         <div className="bg-white rounded-2xl p-6 mb-8 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -319,41 +428,129 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 1. 에디토리얼 히어로 배너 */}
-      <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/7] lg:aspect-[16/6] mb-8 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        {/* 배경 그라디언트 (CSS 폴백) */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#E8DDD5] via-[#D9C5BC] to-[#946a6a]" />
-        {/* 장식 패턴 */}
-        <div className="absolute top-[-15%] right-[-10%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(255,255,255,0.3),transparent_70%)] rounded-full" />
-        <div className="absolute bottom-[-25%] left-[5%] w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(201,169,110,0.25),transparent_70%)] rounded-full" />
-        <div className="absolute top-[20%] left-[40%] w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(121,82,82,0.2),transparent_70%)] rounded-full" />
-        {/* 어두운 오버레이 (가독성) */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
-
-        {/* 텍스트 컨텐츠 */}
-        <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
-          <div className="min-w-0">
-            <p className="text-xs lg:text-sm tracking-[0.3em] uppercase text-white/75 font-medium mb-3 sm:mb-5">
-              The Curated Atelier
+      {/* 1. 웨딩 지휘실 히어로 */}
+      <section className="mb-6 animate-fade-in overflow-hidden rounded-2xl border border-[#e8ded7] bg-[#fffdf9] shadow-[0_12px_40px_rgba(80,68,68,0.06)]">
+        <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
+          <div className="p-6 sm:p-8 lg:p-10">
+            <p className="mb-4 text-xs font-semibold tracking-[0.24em] text-[#8a5f5b] uppercase">
+              Wedding command room
             </p>
-            <h1 className="text-white mb-3 sm:mb-4 leading-[1.05] break-words">
-              <span className="block headline-italic text-4xl sm:text-5xl lg:text-7xl">
-                Welcome,
-              </span>
-              <span className="block font-serif-kr font-light text-2xl sm:text-3xl lg:text-5xl mt-1 sm:mt-2">
-                {partnerName
-                  ? <>{userName} & {partnerName}</>
-                  : <>{userName ?? "예비 부부"}님</>}
-              </span>
+            <h1 className="font-serif-kr text-[34px] leading-tight text-[#1b1c1c] sm:text-[44px] lg:text-[56px]">
+              오늘도 실수 없이,
+              <br />
+              우리다운 결혼식으로.
             </h1>
-            <p className="text-base sm:text-lg lg:text-xl text-white/90 font-light italic font-serif-kr">
-              결혼 준비가 아름답게 시작됐어요.
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#504444] sm:text-base">
+              아모라가 일정, 예산, 견적, 청첩장, 식후 감사 인사까지 이어서 챙겨요.
+              지금 화면만 봐도 다음 행동이 보이도록 정리해둘게요.
             </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/chat"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#795252] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a]"
+              >
+                <Sparkles className="h-4 w-4" />
+                아모라에게 오늘 할 일 묻기
+              </Link>
+              <Link
+                href="/community/quote-check"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-5 py-3 text-sm font-semibold text-[#795252] transition-colors hover:bg-[#f7f0ed]"
+              >
+                <AlertCircle className="h-4 w-4" />
+                견적 먼저 점검
+              </Link>
+            </div>
+          </div>
+
+          <div className="border-t border-[#eee5de] bg-[#f7efe8] p-5 sm:p-6 lg:border-l lg:border-t-0">
+            <div className="grid h-full gap-3">
+              <div className="rounded-xl border border-white/70 bg-white/80 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.2em] text-[#928980] uppercase">The date</p>
+                    <p className="mt-2 font-serif-kr text-4xl text-[#795252] sm:text-5xl">
+                      {dday !== null ? `D${dday > 0 ? `-${dday}` : dday === 0 ? "-day" : ddayDisplay}` : "D-day"}
+                    </p>
+                  </div>
+                  <CalendarCheck className="h-8 w-8 text-[#8c9566]" />
+                </div>
+                <p className="mt-3 text-sm text-[#504444]">{dateStr}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/70 bg-white/75 p-4">
+                  <p className="text-xs font-medium text-[#928980]">준비 진행</p>
+                  <p className="mt-2 font-serif-kr text-3xl text-[#1b1c1c]">{progressPercent}%</p>
+                  <p className="mt-1 text-xs text-[#504444]">{totalDone}/{totalItems}개 체크</p>
+                </div>
+                <div className="rounded-xl border border-white/70 bg-white/75 p-4">
+                  <p className="text-xs font-medium text-[#928980]">아모라 모드</p>
+                  <p className="mt-2 text-lg font-semibold text-[#795252]">실수 방지</p>
+                  <p className="mt-1 text-xs text-[#504444]">전 여정 파트너</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 2. D-day + Budget Overview (2-column) */}
+      {/* 2. 오늘의 아모라 브리핑 */}
+      <section className="mb-6 grid gap-4 animate-fade-in lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-2xl border border-[#e8ded7] bg-white p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">Amora briefing</p>
+              <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">오늘 놓치지 않을 것</h2>
+            </div>
+            <Link href="/chat" className="hidden rounded-lg bg-[#f6f1ee] px-3 py-2 text-sm font-medium text-[#795252] hover:bg-[#eee3dd] sm:inline-flex">
+              상담 열기
+            </Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {briefingItems.map((item) => (
+              <Link
+                key={item.title}
+                href={item.href}
+                className="group flex min-h-[150px] flex-col rounded-xl border border-[#efe6df] bg-[#fffdfb] p-4 transition-colors hover:bg-[#faf4ef]"
+              >
+                <span className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${item.tone}`}>
+                  <item.icon className="h-5 w-5" />
+                </span>
+                <p className="text-[15px] font-semibold leading-snug text-[#1b1c1c]">{item.title}</p>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-[#504444]">{item.text}</p>
+                <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#795252]">
+                  {item.cta}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#dfe6cf] bg-[#f7faef] p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#667049] uppercase">Lifecycle tools</p>
+          <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">업체 없이도 되는 것</h2>
+          <div className="mt-4 grid gap-2">
+            {lifecycleActions.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-3 rounded-xl bg-white/80 px-3 py-3 transition-colors hover:bg-white"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#795252]/10 text-[#795252]">
+                  <item.icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-[#1b1c1c]">{item.label}</span>
+                  <span className="block truncate text-xs text-[#504444]">{item.text}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-[#928980]" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 3. D-day + Budget Overview (2-column) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 animate-fade-in">
         {/* D-day 카드 */}
         <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[240px] sm:min-h-[300px] relative overflow-hidden">
@@ -493,31 +690,39 @@ export default function DashboardPage() {
         {/* Spotlight — 커뮤니티 (이번 분기 핵심 채널) */}
         <Link
           href="/community"
-          className="relative rounded-2xl overflow-hidden min-h-[320px] sm:min-h-[400px] group cursor-pointer block"
+          className="group block min-h-[320px] overflow-hidden rounded-2xl border border-[#e8ded7] bg-white shadow-[0_8px_30px_rgba(80,68,68,0.04)] transition-colors hover:bg-[#fffdfb]"
         >
-          {/* 배경 */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] via-[#3a2a2a] to-[#5a4040]" />
-          <div className="absolute top-[-20%] right-[-10%] w-[250px] h-[250px] bg-[radial-gradient(circle,rgba(201,169,110,0.35),transparent_70%)] rounded-full" />
-          <div className="absolute bottom-[-10%] left-[-15%] w-[200px] h-[200px] bg-[radial-gradient(circle,rgba(148,106,106,0.4),transparent_70%)] rounded-full" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-
-          {/* 상단 아이콘 */}
-          <div className="absolute top-8 right-8">
-            <MessageCircle className="w-7 h-7 text-[#C9A96E]/70" />
-          </div>
-
-          {/* 컨텐츠 */}
-          <div className="relative h-full flex flex-col justify-end p-6 sm:p-8 text-white">
-            <p className="text-xs tracking-[0.25em] uppercase text-[#C9A96E] mb-3 font-medium">
-              Spotlight
+          <div className="flex h-full min-h-[320px] flex-col p-6 sm:p-8">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[#795252]">
+                  Real wedding room
+                </p>
+                <h3 className="mt-2 font-serif-kr text-2xl font-light text-[#1b1c1c] sm:text-3xl">
+                  웨딩 커뮤니티
+                </h3>
+              </div>
+              <MessageCircle className="h-7 w-7 text-[#8c9566]" />
+            </div>
+            <p className="text-[15px] leading-7 text-[#504444]">
+              가격표보다 중요한 건 실제 예비부부의 질문과 계약 전 확인이에요.
+              견적, 업체 응대, 가족 고민을 혼자 판단하지 않도록 모아둘게요.
             </p>
-            <h3 className="font-serif-kr text-2xl sm:text-3xl mb-3 font-light">웨딩 커뮤니티</h3>
-            <p className="text-base text-white/80 mb-5 line-clamp-2 leading-relaxed">
-              먼저 결혼한 분들의 진짜 후기·가격·고민을 같이 나눠보세요
-            </p>
-            <div className="inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 group-hover:border-white self-start pb-1 transition-colors">
-              둘러보기
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="mt-6 space-y-3">
+              {["견적이 정상인지 묻기", "업체 답변 같이 해석하기", "결혼 끝난 선배 후기 보기"].map((text, idx) => (
+                <div key={text} className="flex items-center gap-3 rounded-xl bg-[#f8f4f1] px-3 py-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#795252]">
+                    {idx + 1}
+                  </span>
+                  <span className="text-sm font-medium text-[#1b1c1c]">{text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-auto pt-6">
+              <span className="inline-flex items-center gap-2 text-base font-semibold text-[#795252]">
+                둘러보기
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </span>
             </div>
           </div>
         </Link>

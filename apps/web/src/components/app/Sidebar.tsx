@@ -30,11 +30,8 @@ const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
 const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 
 // 사이드바에서만 숨김 (페이지/라우트는 살아있음 — 직접 URL 접근 가능).
-// invitations·scripts는 운영 안정화 후 노출 예정.
-// vendors·bookings·fitting은 커뮤니티 우선 전환으로 비활성 — 업체 DB 쌓이면 재노출 검토.
+// vendors·bookings·fitting은 업체 공급망이 충분해질 때 재노출.
 const SIDEBAR_HIDDEN: string[] = [
-  "/invitations",
-  "/scripts",
   "/vendors",
   "/bookings",
   "/fitting",

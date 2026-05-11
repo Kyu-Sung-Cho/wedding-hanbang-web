@@ -4,7 +4,22 @@ import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Star, Bookmark, Shield, Archive, AlertCircle, RefreshCw } from "lucide-react";
+import {
+  PenSquare,
+  Star,
+  Bookmark,
+  Shield,
+  Archive,
+  AlertCircle,
+  RefreshCw,
+  CalendarCheck,
+  ChevronRight,
+  FileSearch,
+  Mail,
+  MessageCircle,
+  Mic,
+  Wallet,
+} from "lucide-react";
 import Avatar from "@/components/community/Avatar";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { PostWithAuthor } from "@/types/community.types";
@@ -96,6 +111,104 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
         </div>
       )}
     </Link>
+  );
+}
+
+const lifecycleToolLinks = [
+  {
+    href: "/community/quote-check",
+    eyebrow: "계약 전",
+    title: "견적 진단",
+    text: "원본·수정본·헬퍼비처럼 뒤늦게 붙는 비용을 먼저 확인해요.",
+    icon: FileSearch,
+    tone: "bg-[#f3e7e1] text-[#795252]",
+  },
+  {
+    href: "/chat",
+    eyebrow: "준비 중",
+    title: "아모라 상담",
+    text: "업체 질문, 가족 대화, 다음 할 일을 바로 정리해요.",
+    icon: MessageCircle,
+    tone: "bg-[#eef2df] text-[#5a6147]",
+  },
+  {
+    href: "/schedule",
+    eyebrow: "마감 관리",
+    title: "일정 체크",
+    text: "D-day 기준으로 늦기 쉬운 항목을 놓치지 않게 봐요.",
+    icon: CalendarCheck,
+    tone: "bg-[#eef0f5] text-[#56627a]",
+  },
+  {
+    href: "/invitations",
+    eyebrow: "초대",
+    title: "청첩장",
+    text: "모바일 청첩장, 하객 안내, 위치 정보를 한 번에 준비해요.",
+    icon: Mail,
+    tone: "bg-[#f7efd7] text-[#7b6230]",
+  },
+  {
+    href: "/scripts",
+    eyebrow: "식 전후",
+    title: "대본·감사 인사",
+    text: "사회자 대본, 부모님 편지, 식후 감사 문자까지 도와줘요.",
+    icon: Mic,
+    tone: "bg-[#f3e7e1] text-[#795252]",
+  },
+  {
+    href: "/money",
+    eyebrow: "식 후",
+    title: "축의금 정리",
+    text: "받은 마음을 기록하고 감사 인사를 빠뜨리지 않게 관리해요.",
+    icon: Wallet,
+    tone: "bg-[#eef2df] text-[#5a6147]",
+  },
+];
+
+function CommunityLifecycleTools() {
+  return (
+    <section className="rounded-lg border border-[#e4e2e1] bg-white p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">
+            Wedding runbook
+          </p>
+          <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">
+            커뮤니티에서 바로 이어지는 준비 도구
+          </h2>
+        </div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-[#795252] hover:text-[#946a6a]"
+        >
+          내 준비실로
+          <ChevronRight className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {lifecycleToolLinks.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="group flex min-h-[142px] flex-col rounded-lg border border-[#eee6e0] bg-[#fffdfb] p-4 transition-colors hover:bg-[#faf4ef]"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.tone}`}>
+                <item.icon className="h-4 w-4" />
+              </span>
+              <span className="text-xs font-medium text-[#928980]">{item.eyebrow}</span>
+            </div>
+            <p className="text-[15px] font-semibold text-[#1b1c1c]">{item.title}</p>
+            <p className="mt-2 flex-1 text-sm leading-relaxed text-[#504444]">{item.text}</p>
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#795252]">
+              열기
+              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -344,6 +457,8 @@ function CommunityFeedContent() {
                 topVendor={vendorTags[0]?.vendor_name ?? null}
               />
             )}
+
+            {!isSearching && !currentTag && <CommunityLifecycleTools />}
 
             {/* 에디터 추천 배너 (태그 필터 중엔 숨김 — featured는 전체 글 기반이라 태그와 안 맞을 수 있음) */}
             {featured && !currentTag && <EditorsPick post={featured} />}
