@@ -181,7 +181,7 @@ function CommunityTrustToolkit() {
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-5">
         {trustToolLinks.map((item) => (
           <Link
             key={item.href}

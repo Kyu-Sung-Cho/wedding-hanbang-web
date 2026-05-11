@@ -57,7 +57,7 @@ const MOAT_POINTS = [
 export default function CommunityTrustLoop() {
   return (
     <section className="rounded-lg border border-[#d8d1cc] bg-white p-4 sm:p-5 lg:p-6">
-      <div className="grid gap-5 lg:grid-cols-[1fr_0.72fr]">
+      <div className="grid gap-5 2xl:grid-cols-[1fr_0.72fr]">
         <div className="min-w-0">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -77,7 +77,7 @@ export default function CommunityTrustLoop() {
             </Link>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
             {LOOP_STEPS.map((step, index) => (
               <LoopStep key={step.title} index={index + 1} {...step} />
             ))}

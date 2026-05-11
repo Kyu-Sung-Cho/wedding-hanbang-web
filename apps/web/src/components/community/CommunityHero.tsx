@@ -38,7 +38,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
 
   return (
     <section className="overflow-hidden rounded-lg border border-[#d8d1cc] bg-white shadow-[0_18px_50px_rgba(80,68,68,0.06)]">
-      <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
+      <div className="grid gap-0 2xl:grid-cols-[1.08fr_0.92fr]">
         <div className="min-w-0 bg-[#fffdfb] p-4 sm:p-5 lg:p-7">
           <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-[#d9c8c8] bg-white px-3 py-1.5 text-xs font-medium text-[#795252]">
             <Handshake className="h-3.5 w-3.5 shrink-0" />
@@ -81,7 +81,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
           </div>
         </div>
 
-        <div className="bg-[#1b1c1c] p-4 text-white sm:p-5 lg:p-6">
+        <div className="border-t border-[#2d2d33] bg-[#1b1c1c] p-4 text-white sm:p-5 lg:p-6 2xl:border-l 2xl:border-t-0">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-white/55">견적 진단 미리보기</p>
