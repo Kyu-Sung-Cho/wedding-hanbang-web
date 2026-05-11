@@ -97,8 +97,7 @@ export async function GET(
           .from("community_votes")
           .select("vote_type")
           .eq("user_id", user.id)
-          .eq("target_type", "post")
-          .eq("target_id", id)
+          .eq("post_id", id)
           .maybeSingle(),
         supabase
           .from("community_bookmarks")

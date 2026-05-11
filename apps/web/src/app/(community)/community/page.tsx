@@ -12,13 +12,12 @@ import {
   Archive,
   AlertCircle,
   RefreshCw,
-  CalendarCheck,
   ChevronRight,
+  ClipboardCheck,
   FileSearch,
-  Mail,
   MessageCircle,
-  Mic,
-  Wallet,
+  PenLine,
+  ShieldCheck,
 } from "lucide-react";
 import Avatar from "@/components/community/Avatar";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -114,7 +113,7 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
   );
 }
 
-const lifecycleToolLinks = [
+const trustToolLinks = [
   {
     href: "/community/quote-check",
     eyebrow: "계약 전",
@@ -125,69 +124,64 @@ const lifecycleToolLinks = [
   },
   {
     href: "/chat",
-    eyebrow: "준비 중",
-    title: "아모라 상담",
-    text: "업체 질문, 가족 대화, 다음 할 일을 바로 정리해요.",
+    eyebrow: "질문 정리",
+    title: "아모라 계약 질문",
+    text: "상담 전에 업체에 확인할 질문과 회피 답변 체크포인트를 만들어요.",
     icon: MessageCircle,
     tone: "bg-[#eef2df] text-[#5a6147]",
   },
   {
-    href: "/schedule",
-    eyebrow: "마감 관리",
-    title: "일정 체크",
-    text: "D-day 기준으로 늦기 쉬운 항목을 놓치지 않게 봐요.",
-    icon: CalendarCheck,
+    href: "/community/post/write?category=is_normal",
+    eyebrow: "익명 공유",
+    title: "견적 카드 올리기",
+    text: "지역, 항목, 포함·미포함을 구조화해서 비슷한 견적과 비교해요.",
+    icon: PenLine,
     tone: "bg-[#eef0f5] text-[#56627a]",
   },
   {
-    href: "/invitations",
-    eyebrow: "초대",
-    title: "청첩장",
-    text: "모바일 청첩장, 하객 안내, 위치 정보를 한 번에 준비해요.",
-    icon: Mail,
+    href: "/dashboard",
+    eyebrow: "내 준비실",
+    title: "리포트 저장",
+    text: "진단한 견적과 업체 질문을 예산·일정의 다음 행동으로 이어가요.",
+    icon: ClipboardCheck,
     tone: "bg-[#f7efd7] text-[#7b6230]",
   },
   {
-    href: "/scripts",
-    eyebrow: "식 전후",
-    title: "대본·감사 인사",
-    text: "사회자 대본, 부모님 편지, 식후 감사 문자까지 도와줘요.",
-    icon: Mic,
+    href: "/community/tips_v2",
+    eyebrow: "계약 팁",
+    title: "체크포인트 모음",
+    text: "선배들이 남긴 추가금, 환불, 변경 조건 팁을 먼저 확인해요.",
+    icon: ShieldCheck,
     tone: "bg-[#f3e7e1] text-[#795252]",
-  },
-  {
-    href: "/money",
-    eyebrow: "식 후",
-    title: "축의금 정리",
-    text: "받은 마음을 기록하고 감사 인사를 빠뜨리지 않게 관리해요.",
-    icon: Wallet,
-    tone: "bg-[#eef2df] text-[#5a6147]",
   },
 ];
 
-function CommunityLifecycleTools() {
+function CommunityTrustToolkit() {
   return (
     <section className="rounded-lg border border-[#e4e2e1] bg-white p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">
-            Wedding runbook
+            Trust toolkit
           </p>
           <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">
-            커뮤니티에서 바로 이어지는 준비 도구
+            계약 전 손해를 줄이는 커뮤니티 도구
           </h2>
+          <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+            깊은 개인 관리는 내 준비실에서, 커뮤니티는 견적·계약·업체 신뢰를 빠르게 검증해요.
+          </p>
         </div>
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1 text-sm font-semibold text-[#795252] hover:text-[#946a6a]"
         >
-          내 준비실로
+          내 준비실
           <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {lifecycleToolLinks.map((item) => (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {trustToolLinks.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -458,7 +452,7 @@ function CommunityFeedContent() {
               />
             )}
 
-            {!isSearching && !currentTag && <CommunityLifecycleTools />}
+            {!isSearching && !currentTag && <CommunityTrustToolkit />}
 
             {/* 에디터 추천 배너 (태그 필터 중엔 숨김 — featured는 전체 글 기반이라 태그와 안 맞을 수 있음) */}
             {featured && !currentTag && <EditorsPick post={featured} />}

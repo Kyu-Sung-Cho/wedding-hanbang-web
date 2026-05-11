@@ -97,9 +97,9 @@ export default function CommunityNav() {
             </div>
           </form>
 
-          {/* 오른쪽: 내 도구 + 글쓰기 + 유저/로그인 (모바일에선 검색바 hidden으로 spacer 없어 ml-auto로 강제 우측 정렬) */}
+          {/* 오른쪽: 신뢰 도구 + 글쓰기 + 유저/로그인 (모바일에선 검색바 hidden으로 spacer 없어 ml-auto로 강제 우측 정렬) */}
           <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-            {/* 내 도구 — 아모라/예산/일정 (잠금 게이트 포함) */}
+            {/* 신뢰 도구 — 견적진단/아모라 질문/내 준비실 */}
             {user && <MyToolsWidget variant="nav" />}
 
             <Link
@@ -175,11 +175,7 @@ export default function CommunityNav() {
               )}
             </form>
 
-            {/* 내 도구 — 아모라/예산/일정 (모바일 메뉴에서도 노출)
-                NOTE: onClick wrap을 제거 — bubbling으로 메뉴가 즉시 닫히면
-                MyToolsWidget이 unmount되어 handleClick의 async가 무효화됨.
-                페이지 이동 시 자연스럽게 새 mount → 메뉴 자동 닫힘.
-                모달 표시 시는 portal이 메뉴 위에 떠서 가림. */}
+            {/* 신뢰 도구 — 모바일 메뉴에서도 노출 */}
             {user && <MyToolsWidget variant="sidebar" />}
 
             <Link

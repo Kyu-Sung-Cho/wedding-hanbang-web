@@ -12,7 +12,6 @@ import {
   GraduationCap,
   MessageSquare,
   ChevronDown,
-  BookOpen,
   Bookmark,
   ThumbsUp,
 } from "lucide-react";
@@ -83,22 +82,6 @@ export default function CategoryTabs() {
             }`}
           />
           <span className="text-sm">견적진단</span>
-        </Link>
-
-        <Link
-          href="/community/guestbook"
-          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
-            isActive("/community/guestbook")
-              ? "bg-[#f6f3f2] text-[#795252] font-bold"
-              : "text-[#504444] hover:bg-white hover:text-[#795252]"
-          }`}
-        >
-          <BookOpen
-            className={`mr-2.5 w-4 h-4 ${
-              isActive("/community/guestbook") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
-            }`}
-          />
-          <span className="text-sm">내 방명록</span>
         </Link>
 
         <Link

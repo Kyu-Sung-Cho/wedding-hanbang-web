@@ -66,14 +66,13 @@ export async function GET(req: NextRequest) {
       const commentIds = comments.map((c) => c.id);
       const { data: votes } = await supabase
         .from("community_votes")
-        .select("target_id, vote_type")
+        .select("comment_id, vote_type")
         .eq("user_id", user.id)
-        .eq("target_type", "comment")
-        .in("target_id", commentIds);
+        .in("comment_id", commentIds);
 
       if (votes) {
         userVotesMap = Object.fromEntries(
-          votes.map((v) => [v.target_id, v.vote_type])
+          votes.map((v) => [v.comment_id, v.vote_type])
         );
       }
     }

@@ -37,8 +37,21 @@ export async function POST(
       );
     }
 
+    const { data: visibleComment } = await supabase
+      .from("community_comments")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!visibleComment) {
+      return NextResponse.json(
+        { error: "댓글을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
     // RPC 호출로 원자적 투표 처리
-    const { data, error } = await supabase.rpc("community_vote_comment", {
+    const { error } = await supabase.rpc("community_vote_comment", {
       p_user_id: user.id,
       p_comment_id: id,
       p_vote_type: voteType,
@@ -52,8 +65,14 @@ export async function POST(
       );
     }
 
+    const { data: counts } = await supabase
+      .from("community_comments")
+      .select("upvote_count")
+      .eq("id", id)
+      .single();
+
     return NextResponse.json({
-      upvote_count: data?.upvote_count ?? 0,
+      upvote_count: counts?.upvote_count ?? 0,
     });
   } catch (err) {
     console.error("Vote comment error:", err);

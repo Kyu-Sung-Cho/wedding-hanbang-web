@@ -8,6 +8,58 @@ function getServiceClient() {
   );
 }
 
+type CommunityPostWithAuthorId = {
+  author_id: string;
+} & Record<string, unknown>;
+
+type AuthorProfile = {
+  nickname: string;
+  rank: string;
+  wedding_year: number | null;
+  wedding_month: number | null;
+};
+
+async function attachAuthorProfiles(
+  service: ReturnType<typeof getServiceClient>,
+  posts: CommunityPostWithAuthorId[]
+) {
+  const authorIds = [...new Set(posts.map((post) => post.author_id))].filter(
+    Boolean
+  );
+  let authorMap: Record<string, AuthorProfile> = {};
+
+  if (authorIds.length > 0) {
+    const { data: profiles } = await service
+      .from("community_profiles")
+      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .in("user_id", authorIds);
+
+    if (profiles) {
+      authorMap = Object.fromEntries(
+        profiles.map((profile) => [
+          profile.user_id,
+          {
+            nickname: profile.nickname,
+            rank: profile.rank,
+            wedding_year: profile.wedding_year,
+            wedding_month: profile.wedding_month,
+          },
+        ])
+      );
+    }
+  }
+
+  return posts.map((post) => ({
+    ...post,
+    author: authorMap[post.author_id] ?? {
+      nickname: "?듬챸",
+      rank: "sprout",
+      wedding_year: null,
+      wedding_month: null,
+    },
+  }));
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ name: string }> }
@@ -25,15 +77,18 @@ export async function GET(
 
     const { data: posts } = await service
       .from("community_posts")
-      .select(
-        "*, author:community_profiles!community_posts_author_id_fkey(*)"
-      )
+      .select("*")
       .or(`title.ilike.%${name}%,content.ilike.%${name}%`)
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
       .limit(50);
 
-    return NextResponse.json({ tag: tag ?? null, posts: posts ?? [] });
+    const postsWithAuthors = await attachAuthorProfiles(
+      service,
+      (posts ?? []) as CommunityPostWithAuthorId[]
+    );
+
+    return NextResponse.json({ tag: tag ?? null, posts: postsWithAuthors });
   } catch (err) {
     console.error("Vendor tag detail error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

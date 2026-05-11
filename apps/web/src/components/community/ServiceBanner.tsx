@@ -2,52 +2,54 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { MessageCircle, Wallet, CalendarCheck, Sparkles } from "lucide-react";
+import { FileSearch, MessageCircle, Wallet, CalendarCheck, Sparkles, PenLine } from "lucide-react";
 
 interface BannerConfig {
   text: string;
   subtext: string;
   href: string;
-  icon: "chat" | "budget" | "schedule";
+  icon: "quote" | "chat" | "budget" | "schedule" | "write";
 }
 
 const BANNER_OPTIONS: BannerConfig[] = [
   {
-    text: "결혼 준비 어디서부터?",
-    subtext: "AI 아모라가 맞춤 플랜을 만들어드려요",
+    text: "견적서가 적정한 가격인지 궁금하세요?",
+    subtext: "빠진 항목과 추가금 가능성을 먼저 확인해요",
+    href: "/community/quote-check",
+    icon: "quote",
+  },
+  {
+    text: "업체에 뭐라고 물어봐야 할까요?",
+    subtext: "아모라가 계약 전 질문을 정리해드려요",
     href: "/chat",
     icon: "chat",
   },
   {
-    text: "예산이 걱정되세요?",
-    subtext: "숨은 비용까지 관리하는 예산 도구",
+    text: "비슷한 견적과 비교하고 싶다면",
+    subtext: "익명 견적 카드로 커뮤니티에 물어보세요",
+    href: "/community/post/write?category=is_normal",
+    icon: "write",
+  },
+  {
+    text: "진단한 비용을 예산에 반영하세요",
+    subtext: "숨은 비용까지 내 준비실에서 관리해요",
     href: "/budget",
     icon: "budget",
   },
   {
-    text: "D-day까지 뭘 해야 하지?",
-    subtext: "자동 체크리스트로 하나씩 완료",
+    text: "확인할 일을 일정으로 넘기세요",
+    subtext: "계약 전 질문과 마감일을 놓치지 않게 관리해요",
     href: "/schedule",
     icon: "schedule",
-  },
-  {
-    text: "견적서가 적정한 가격인지 궁금하세요?",
-    subtext: "사진만 보내면 AI가 항목별로 분석해드려요",
-    href: "/chat",
-    icon: "chat",
-  },
-  {
-    text: "업체 계약 전 꼭 확인하세요",
-    subtext: "아모라가 계약서 체크리스트를 만들어드려요",
-    href: "/chat",
-    icon: "chat",
   },
 ];
 
 const ICON_MAP = {
+  quote: <FileSearch className="w-5 h-5" />,
   chat: <MessageCircle className="w-5 h-5" />,
   budget: <Wallet className="w-5 h-5" />,
   schedule: <CalendarCheck className="w-5 h-5" />,
+  write: <PenLine className="w-5 h-5" />,
 };
 
 interface ServiceBannerProps {

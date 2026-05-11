@@ -3,6 +3,61 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommunityCategory } from "@/types/community.types";
 
+type CommunityPostWithAuthorId = {
+  id: string;
+  author_id: string;
+} & Record<string, unknown>;
+
+type AuthorProfile = {
+  nickname: string;
+  rank: string;
+  wedding_year: number | null;
+  wedding_month: number | null;
+};
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClientFromRequest>>;
+
+async function attachAuthorProfiles(
+  supabase: SupabaseServerClient,
+  posts: CommunityPostWithAuthorId[]
+) {
+  const authorIds = [...new Set(posts.map((post) => post.author_id))].filter(
+    Boolean
+  );
+  let authorMap: Record<string, AuthorProfile> = {};
+
+  if (authorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("community_profiles")
+      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .in("user_id", authorIds);
+
+    if (profiles) {
+      authorMap = Object.fromEntries(
+        profiles.map((profile) => [
+          profile.user_id,
+          {
+            nickname: profile.nickname,
+            rank: profile.rank,
+            wedding_year: profile.wedding_year,
+            wedding_month: profile.wedding_month,
+          },
+        ])
+      );
+    }
+  }
+
+  return posts.map((post) => ({
+    ...post,
+    author: authorMap[post.author_id] ?? {
+      nickname: "?듬챸",
+      rank: "sprout",
+      wedding_year: null,
+      wedding_month: null,
+    },
+  }));
+}
+
 // 전문 검색
 export async function GET(req: NextRequest) {
   try {
@@ -44,13 +99,10 @@ export async function GET(req: NextRequest) {
     // search_vector를 사용한 전문 검색
     let query = supabase
       .from("community_posts")
-      .select(
-        "*, author:community_profiles!community_posts_author_id_fkey(*)",
-        { count: "exact" }
-      )
+      .select("*", { count: "exact" })
       .textSearch("search_vector", q, {
         type: "plain",
-        config: "korean",
+        config: "simple",
       })
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
@@ -70,10 +122,7 @@ export async function GET(req: NextRequest) {
       const escaped = q.replace(/[%_\\]/g, (c) => `\\${c}`);
       let fallbackQuery = supabase
         .from("community_posts")
-        .select(
-          "*, author:community_profiles!community_posts_author_id_fkey(*)",
-          { count: "exact" }
-        )
+        .select("*", { count: "exact" })
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
         .eq("visibility", "public")
         .order("created_at", { ascending: false })
@@ -98,24 +147,28 @@ export async function GET(req: NextRequest) {
       }
 
       // 인증 사용자의 투표 상태
+      const postsWithAuthors = await attachAuthorProfiles(
+        supabase,
+        (fallbackPosts ?? []) as CommunityPostWithAuthorId[]
+      );
+
       let userVotesMap: Record<string, number> = {};
-      if (user && fallbackPosts && fallbackPosts.length > 0) {
-        const postIds = fallbackPosts.map((p) => p.id);
+      if (user && postsWithAuthors.length > 0) {
+        const postIds = postsWithAuthors.map((p) => p.id);
         const { data: votes } = await supabase
           .from("community_votes")
-          .select("target_id, vote_type")
+          .select("post_id, vote_type")
           .eq("user_id", user.id)
-          .eq("target_type", "post")
-          .in("target_id", postIds);
+          .in("post_id", postIds);
 
         if (votes) {
           userVotesMap = Object.fromEntries(
-            votes.map((v) => [v.target_id, v.vote_type])
+            votes.map((v) => [v.post_id, v.vote_type])
           );
         }
       }
 
-      const postsWithVotes = (fallbackPosts ?? []).map((post) => ({
+      const postsWithVotes = postsWithAuthors.map((post) => ({
         ...post,
         user_vote: userVotesMap[post.id] ?? null,
       }));
@@ -129,24 +182,28 @@ export async function GET(req: NextRequest) {
     }
 
     // 인증 사용자의 투표 상태
+    const postsWithAuthors = await attachAuthorProfiles(
+      supabase,
+      (posts ?? []) as CommunityPostWithAuthorId[]
+    );
+
     let userVotesMap: Record<string, number> = {};
-    if (user && posts && posts.length > 0) {
-      const postIds = posts.map((p) => p.id);
+    if (user && postsWithAuthors.length > 0) {
+      const postIds = postsWithAuthors.map((p) => p.id);
       const { data: votes } = await supabase
         .from("community_votes")
-        .select("target_id, vote_type")
+        .select("post_id, vote_type")
         .eq("user_id", user.id)
-        .eq("target_type", "post")
-        .in("target_id", postIds);
+        .in("post_id", postIds);
 
       if (votes) {
         userVotesMap = Object.fromEntries(
-          votes.map((v) => [v.target_id, v.vote_type])
+          votes.map((v) => [v.post_id, v.vote_type])
         );
       }
     }
 
-    const postsWithVotes = (posts ?? []).map((post) => ({
+    const postsWithVotes = postsWithAuthors.map((post) => ({
       ...post,
       user_vote: userVotesMap[post.id] ?? null,
     }));

@@ -38,8 +38,21 @@ export async function POST(
       );
     }
 
+    const { data: visiblePost } = await supabase
+      .from("community_posts")
+      .select("id, author_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!visiblePost) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
     // RPC 호출로 원자적 투표 처리
-    const { data, error } = await supabase.rpc("community_vote_post", {
+    const { error } = await supabase.rpc("community_vote_post", {
       p_user_id: user.id,
       p_post_id: id,
       p_vote_type: voteType,
@@ -60,16 +73,10 @@ export async function POST(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
-        const { data: post } = await admin
-          .from("community_posts")
-          .select("author_id")
-          .eq("id", id)
-          .single();
-
-        if (post && post.author_id !== user.id) {
+        if (visiblePost.author_id !== user.id) {
           void admin
             .rpc("community_award_xp", {
-              p_user_id: post.author_id,
+              p_user_id: visiblePost.author_id,
               p_action: "receive_upvote",
               p_xp: 5,
               p_reference_id: id,
@@ -81,9 +88,15 @@ export async function POST(
       }
     }
 
+    const { data: counts } = await supabase
+      .from("community_posts")
+      .select("upvote_count, downvote_count")
+      .eq("id", id)
+      .single();
+
     return NextResponse.json({
-      upvote_count: data?.upvote_count ?? 0,
-      downvote_count: data?.downvote_count ?? 0,
+      upvote_count: counts?.upvote_count ?? 0,
+      downvote_count: counts?.downvote_count ?? 0,
     });
   } catch (err) {
     console.error("Vote post error:", err);

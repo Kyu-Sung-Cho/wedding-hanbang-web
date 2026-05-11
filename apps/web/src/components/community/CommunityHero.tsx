@@ -6,10 +6,11 @@ import {
   BadgeCheck,
   ChevronRight,
   FileSearch,
+  Handshake,
   MessageSquarePlus,
   ReceiptText,
   SearchCheck,
-  ShieldCheck,
+  Store,
   UsersRound,
 } from "lucide-react";
 
@@ -22,22 +23,23 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
   const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개` : "실시간";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-[#e4e2e1] bg-[linear-gradient(135deg,#fffdfb_0%,#f8f1ec_52%,#f2f4eb_100%)]">
-      <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1.35fr_0.85fr] lg:p-6">
-        <div className="min-w-0">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-xs font-medium text-[#795252] shadow-[0_1px_0_rgba(255,255,255,0.8)]">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            예비부부가 같이 검증하는 웨딩 커뮤니티
+    <section className="overflow-hidden rounded-lg border border-[#d8d1cc] bg-[#fffdfb]">
+      <div className="grid gap-0 lg:grid-cols-[1.35fr_0.9fr]">
+        <div className="min-w-0 p-4 sm:p-5 lg:p-6">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#d9c8c8] bg-[#f8f4f1] px-3 py-1.5 text-xs font-medium text-[#795252]">
+            <Handshake className="h-3.5 w-3.5" />
+            예비부부와 투명한 업체를 연결하는 거래 신뢰 네트워크
           </div>
 
-          <h1 className="font-serif-kr text-[26px] leading-tight text-[#1b1c1c] sm:text-[32px] lg:text-[36px]">
-            견적, 업체, 계약 조건을
-            <br className="hidden sm:block" /> 혼자 판단하지 않게.
+          <h1 className="font-serif-kr text-[26px] leading-tight text-[#1b1c1c] sm:text-[32px] lg:text-[38px]">
+            계약 전 불안을 줄이고,
+            <br className="hidden sm:block" /> 좋은 업체가 선택받게.
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#504444] sm:text-[15px]">
-            받은 견적서의 빠진 항목, 업체 응대가 정상인지, 계약 전에 물어봐야 할 질문을
-            아모라와 실제 예비부부 경험으로 함께 확인하는 공간이에요.
+            받은 견적의 빠진 항목, 추가금 가능성, 계약 전 질문을 아모라와 커뮤니티가
+            근거 중심으로 정리해요. 소비자는 손해를 줄이고, 투명한 업체는 더 준비된
+            고객을 만납니다.
           </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
@@ -51,27 +53,27 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
             </Link>
             <Link
               href="/community/post/write?category=is_normal"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white/75 px-4 py-3 text-sm font-medium text-[#795252] transition-colors hover:border-[#c6abab] hover:bg-white"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-medium text-[#795252] transition-colors hover:border-[#c6abab] hover:bg-[#fcf9f8]"
             >
               <MessageSquarePlus className="h-4 w-4" />
-              질문 올리기
+              익명 견적 카드 올리기
             </Link>
           </div>
 
           <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
-            <ValuePill icon={ReceiptText} label="견적 누락" text="추가금 리스크 확인" />
-            <ValuePill icon={UsersRound} label="실제 경험" text="후기와 질문 축적" />
-            <ValuePill icon={BadgeCheck} label="광고 표시" text="협찬·광고 분리" />
+            <ValuePill icon={ReceiptText} label="실제 총액" text="누락·추가금 확인" />
+            <ValuePill icon={UsersRound} label="비슷한 사례" text="익명 견적 비교" />
+            <ValuePill icon={Store} label="투명 업체" text="명확한 조건이 강점" />
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/70 bg-white/75 p-4 shadow-[0_8px_24px_rgba(80,68,68,0.06)]">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="border-t border-[#e4e2e1] bg-[#f8f4f1] p-4 sm:p-5 lg:border-l lg:border-t-0 lg:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-[#928980]">오늘 먼저 할 일</p>
-              <h2 className="mt-1 font-serif-kr text-xl text-[#1b1c1c]">3분 웨딩 점검</h2>
+              <p className="text-xs font-medium text-[#928980]">오늘의 신뢰 리포트</p>
+              <h2 className="mt-1 font-serif-kr text-xl text-[#1b1c1c]">3분 거래 점검</h2>
             </div>
-            <span className="rounded-full bg-[#dee6c4]/45 px-2.5 py-1 text-xs font-medium text-[#5a6147]">
+            <span className="rounded-full bg-[#dee6c4]/55 px-2.5 py-1 text-xs font-medium text-[#5a6147]">
               {displayCount}
             </span>
           </div>
@@ -79,18 +81,18 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
           <div className="space-y-2.5">
             <ChecklistItem
               icon={FileSearch}
-              title="받은 견적서 붙여넣기"
-              text="빠진 항목과 계약 전 질문을 바로 정리"
+              title="견적의 빈칸 찾기"
+              text="원본비, 헬퍼비, 피팅비처럼 뒤에 붙는 비용 확인"
             />
             <ChecklistItem
               icon={SearchCheck}
-              title="업체명으로 후기 찾기"
-              text={topVendor ? `지금 ${topVendor} 이야기가 많이 올라와요` : "스드메·예식장 실사용 후기 확인"}
+              title="업체 응대 비교"
+              text={topVendor ? `지금 ${topVendor} 이야기가 많이 올라와요` : "비슷한 조건의 후기와 질문 흐름 확인"}
             />
             <ChecklistItem
-              icon={MessageSquarePlus}
-              title="애매한 답변 공유하기"
-              text="정상인지, 더 물어볼 게 있는지 함께 판단"
+              icon={BadgeCheck}
+              title="투명한 조건이 보상받게"
+              text="가격·포함항목·변경 기준을 명확히 공개한 업체가 더 신뢰받아요"
             />
           </div>
         </div>
