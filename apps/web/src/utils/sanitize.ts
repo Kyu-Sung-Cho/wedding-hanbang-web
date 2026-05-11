@@ -1,26 +1,44 @@
 // HTML 정화 (XSS 방지)
-// isomorphic-dompurify가 Vercel에서 jsdom ESM 충돌 → 서버용 간단 정규식 사용
+import DOMPurify from "isomorphic-dompurify";
 
-function stripDangerous(dirty: string): string {
-  return dirty
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[\s\S]*?>/gi, "")
-    .replace(/<form[\s\S]*?<\/form>/gi, "")
-    .replace(/<input[\s\S]*?>/gi, "")
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/on\w+\s*=\s*[^\s>]*/gi, "")
-    .replace(/javascript\s*:/gi, "");
-}
+const ALLOWED_TAGS = [
+  "p",
+  "br",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "blockquote",
+  "ul",
+  "ol",
+  "li",
+  "a",
+  "img",
+  "figure",
+  "figcaption",
+  "h2",
+  "h3",
+  "h4",
+  "span",
+  "div",
+];
+
+const ALLOWED_ATTR = ["href", "src", "alt", "title", "target", "rel"];
 
 export function sanitizeHtml(dirty: string): string {
-  return stripDangerous(dirty);
+  return DOMPurify.sanitize(dirty, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/(?!\/)|#)/i,
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input"],
+    FORBID_ATTR: ["style"],
+  });
 }
 
 export function sanitizeText(dirty: string): string {
-  return dirty.replace(/<[^>]*>/g, "").trim();
+  return DOMPurify.sanitize(dirty, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).trim();
 }
 
 export function validateTextInput(value: string, maxLength: number): string {

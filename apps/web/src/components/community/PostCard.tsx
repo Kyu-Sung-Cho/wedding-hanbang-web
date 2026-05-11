@@ -162,7 +162,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative bg-white rounded-2xl p-5 sm:p-6 md:p-7 lg:p-8 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
+    <article className="relative bg-white rounded-xl p-4 sm:p-5 lg:p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-transparent hover:border-[#e4e2e1]/50">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt) && (
         <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
@@ -176,7 +176,7 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         </div>
       )}
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-5 sm:gap-6 lg:gap-8`}>
+      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-4 sm:gap-5 lg:gap-6`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -199,7 +199,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-lg sm:text-xl md:text-2xl xl:text-[28px] font-serif-kr text-[#1b1c1c] mb-3 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-lg sm:text-xl lg:text-[22px] font-serif-kr text-[#1b1c1c] mb-2.5 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -215,7 +215,7 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#504444] text-sm sm:text-base lg:text-[15px] xl:text-base leading-relaxed line-clamp-2 mb-5">{contentPreview}</p>
+              <p className="text-[#504444] text-sm leading-relaxed line-clamp-2 mb-4">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}
@@ -268,15 +268,15 @@ export default function PostCard({ post }: PostCardProps) {
                 <Avatar
                   nickname={author.nickname}
                   avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
-                  size={40}
+                  size={34}
                 />
               </Link>
-              <span className="text-sm sm:text-base text-[#504444] truncate max-w-[140px] sm:max-w-none">
+              <span className="text-sm text-[#504444] truncate max-w-[140px] sm:max-w-none">
                 {author.nickname}
               </span>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 text-[#504444] flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-3 text-[#504444] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"
@@ -289,11 +289,11 @@ export default function PostCard({ post }: PostCardProps) {
                 title="좋아요"
               >
                 <Heart
-                  className="w-5 h-5 sm:w-6 sm:h-6 opacity-70 group-hover:opacity-100 transition-all"
+                  className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-all"
                   fill={isLiked ? "currentColor" : "none"}
                 />
                 {displayUpvoteCount > 0 && (
-                  <span className="text-sm sm:text-base tabular-nums">
+                  <span className="text-sm tabular-nums">
                     {displayUpvoteCount}
                   </span>
                 )}
@@ -304,8 +304,8 @@ export default function PostCard({ post }: PostCardProps) {
                 href={`/community/post/${post.id}#comments`}
                 className="flex items-center gap-1 hover:text-[#795252] group"
               >
-                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
-                <span className="text-sm sm:text-base">{post.comment_count}</span>
+                <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
+                <span className="text-sm">{post.comment_count}</span>
               </Link>
 
               {/* 북마크 */}
@@ -320,7 +320,7 @@ export default function PostCard({ post }: PostCardProps) {
                 title="저장"
               >
                 <Bookmark
-                  className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100"
+                  className="w-5 h-5 opacity-60 group-hover:opacity-100"
                   fill={bookmarked ? "#795252" : "none"}
                 />
               </button>
@@ -333,7 +333,7 @@ export default function PostCard({ post }: PostCardProps) {
                 aria-label="공유"
                 title="공유"
               >
-                <Share2 className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 group-hover:opacity-100" />
+                <Share2 className="w-5 h-5 opacity-60 group-hover:opacity-100" />
               </button>
             </div>
           </div>
@@ -343,7 +343,7 @@ export default function PostCard({ post }: PostCardProps) {
         {hasImage && thumbUrl && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full h-40 sm:w-44 sm:h-44 lg:w-52 lg:h-52 xl:w-60 xl:h-60 rounded-xl overflow-hidden shrink-0"
+            className="w-full h-40 sm:w-40 sm:h-40 lg:w-44 lg:h-44 2xl:w-48 2xl:h-48 rounded-lg overflow-hidden shrink-0"
           >
             <Image
               src={thumbUrl}

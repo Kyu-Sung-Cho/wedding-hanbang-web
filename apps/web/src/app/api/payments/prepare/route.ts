@@ -14,6 +14,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { contractId, paymentType } = body;
+    const normalizedPaymentType = paymentType === "balance" ? "balance" : "deposit";
 
     if (!contractId) {
       return NextResponse.json({ error: "계약 ID는 필수입니다." }, { status: 400 });
@@ -39,9 +40,9 @@ export async function POST(req: Request) {
       .from("payments")
       .select("id, status, order_id, amount")
       .eq("contract_id", contractId)
-      .eq("payment_type", paymentType ?? "deposit")
+      .eq("payment_type", normalizedPaymentType)
       .in("status", ["pending", "paid"])
-      .single();
+      .maybeSingle();
 
     if (existingPayment?.status === "paid") {
       return NextResponse.json({ error: "이미 결제가 완료되었습니다." }, { status: 400 });
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     const amount =
-      (paymentType ?? "deposit") === "deposit"
+      normalizedPaymentType === "deposit"
         ? contract.deposit_amount
         : contract.contract_amount - contract.deposit_amount;
 
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
         booking_id: contract.booking_id,
         customer_id: user.id,
         vendor_id: contract.vendor_id,
-        payment_type: paymentType ?? "deposit",
+        payment_type: normalizedPaymentType,
         amount,
         status: "pending",
         order_id: `wedding_${crypto.randomUUID().slice(0, 8)}`,

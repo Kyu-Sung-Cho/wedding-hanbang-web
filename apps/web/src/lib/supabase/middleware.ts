@@ -14,7 +14,7 @@ const VENDOR_PATHS = [
 function isProtectedPath(pathname: string): "customer" | "vendor" | "admin" | null {
   if (CUSTOMER_PATHS.some((p) => pathname.startsWith(p))) return "customer";
   if (VENDOR_PATHS.some((p) => pathname.startsWith(p))) return "vendor";
-  if (pathname === "/admin") return "admin";
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   return null;
 }
 
@@ -37,8 +37,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 데모 모드면 즉시 통과
-  if (request.cookies.get("demo_mode")?.value === "true") {
+  // 데모 모드는 고객 앱 shell에만 허용한다. 업체/관리자 보호 경로는 실제 인증 필요.
+  if (protectedType === "customer" && request.cookies.get("demo_mode")?.value === "true") {
     return supabaseResponse;
   }
 

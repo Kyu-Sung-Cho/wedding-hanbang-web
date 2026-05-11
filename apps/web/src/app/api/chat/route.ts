@@ -14,13 +14,18 @@ import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
-// mammoth, xlsx는 필요할 때만 동적 import (Vercel 호환성)
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+// mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
 export const maxDuration = 300;
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_ATTACHMENTS = 5;
+const FETCH_TIMEOUT_MS = 10_000;
+const MAX_EXTRACTED_TEXT_CHARS = 80_000;
 
 // Service role 클라이언트 (RLS 우회 — 자동 피드백 저장용)
 function getServiceClient() {
@@ -227,24 +232,6 @@ async function extractDocxText(base64: string): Promise<string> {
   return result.value.trim();
 }
 
-// XLSX에서 텍스트 추출 (동적 import)
-async function extractXlsxText(base64: string): Promise<string> {
-  const XLSX = await import("xlsx");
-  const buffer = Buffer.from(base64, "base64");
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const sheets: string[] = [];
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const csv = XLSX.utils.sheet_to_csv(sheet);
-    if (csv.trim()) {
-      sheets.push(`[시트: ${sheetName}]\n${csv}`);
-    }
-  }
-
-  return sheets.join("\n\n");
-}
-
 // 첨부파일 처리: Claude에 보낼 형태로 변환
 interface ProcessedAttachment {
   visionAttachments: ImageAttachment[]; // 이미지/PDF → Claude vision/document
@@ -252,61 +239,195 @@ interface ProcessedAttachment {
 }
 
 const VISION_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
-const DOC_TYPES = [
+const WORD_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
   "application/msword", // doc
+];
+const UNSUPPORTED_SPREADSHEET_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
   "application/vnd.ms-excel", // xls
 ];
+
+function getCleanBase64(value: string): string {
+  const commaIndex = value.indexOf(",");
+  const isDataUrl = value.startsWith("data:") && commaIndex > -1 && value.slice(0, commaIndex).includes(";base64");
+  return (isDataUrl ? value.slice(commaIndex + 1) : value).replace(/\s/g, "");
+}
+
+function getBase64ByteLength(value: string): number {
+  const clean = getCleanBase64(value);
+  const padding = clean.endsWith("==") ? 2 : clean.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
+function assertBase64UnderLimit(value: string): string {
+  const clean = getCleanBase64(value);
+  if (getBase64ByteLength(clean) > MAX_FILE_SIZE) {
+    throw new Error("첨부파일 크기 초과");
+  }
+  return clean;
+}
+
+function isPrivateIpAddress(address: string): boolean {
+  const version = isIP(address);
+  if (version === 4) {
+    const [a, b] = address.split(".").map(Number);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
+  }
+
+  if (version === 6) {
+    const lower = address.toLowerCase();
+    return (
+      lower === "::" ||
+      lower === "::1" ||
+      lower.startsWith("fc") ||
+      lower.startsWith("fd") ||
+      lower.startsWith("fe80") ||
+      lower.startsWith("::ffff:127.") ||
+      lower.startsWith("::ffff:10.") ||
+      lower.startsWith("::ffff:192.168.")
+    );
+  }
+
+  return false;
+}
+
+async function assertSafeRemoteUrl(rawUrl: string): Promise<URL> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:") {
+    throw new Error("https URL만 첨부할 수 있습니다.");
+  }
+  if (url.username || url.password) {
+    throw new Error("인증 정보가 포함된 URL은 허용되지 않습니다.");
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    throw new Error("로컬 주소는 허용되지 않습니다.");
+  }
+  if (isIP(hostname)) {
+    if (isPrivateIpAddress(hostname)) throw new Error("내부 네트워크 주소는 허용되지 않습니다.");
+    return url;
+  }
+
+  const addresses = await lookup(hostname, { all: true });
+  if (addresses.length === 0 || addresses.some((addr) => isPrivateIpAddress(addr.address))) {
+    throw new Error("내부 네트워크로 해석되는 URL은 허용되지 않습니다.");
+  }
+
+  return url;
+}
+
+async function readResponseBodyWithLimit(response: Response): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.byteLength > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
+    return buffer;
+  }
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function fetchRemoteAttachment(rawUrl: string, expectedMediaType: string): Promise<Buffer> {
+  const url = await assertSafeRemoteUrl(rawUrl);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: "error",
+    });
+    if (!response.ok) throw new Error(`첨부 URL 응답 실패: ${response.status}`);
+
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
+
+    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
+    if (contentType && contentType !== expectedMediaType) {
+      throw new Error("첨부 URL의 Content-Type이 요청과 다릅니다.");
+    }
+
+    return await readResponseBodyWithLimit(response);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function safeFileName(value: string | undefined, fallback: string): string {
+  return (value ?? fallback).replace(/[^\w .()[\]\-가-힣]/g, "").slice(0, 120) || fallback;
+}
+
+function limitExtractedText(text: string): string {
+  return text.length > MAX_EXTRACTED_TEXT_CHARS
+    ? `${text.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[첨부문서가 길어 일부만 분석합니다.]`
+    : text;
+}
 
 async function processAttachments(attachments: unknown[]): Promise<ProcessedAttachment> {
   const visionAttachments: ImageAttachment[] = [];
   const textAttachments: string[] = [];
 
-  for (const att of (attachments || []).slice(0, 5)) {
+  for (const att of (attachments || []).slice(0, MAX_ATTACHMENTS)) {
     const item = att as { base64?: string; url?: string; mediaType?: string; fileName?: string };
     if (!item.mediaType) continue;
 
     if (VISION_TYPES.includes(item.mediaType)) {
       if (item.url) {
-        // URL 기반: 서버에서 fetch → base64 변환
         try {
-          const imgRes = await fetch(item.url);
-          if (imgRes.ok) {
-            const buffer = Buffer.from(await imgRes.arrayBuffer());
-            visionAttachments.push({
-              base64: buffer.toString("base64"),
-              mediaType: item.mediaType as ImageAttachment["mediaType"],
-            });
-          }
+          const buffer = await fetchRemoteAttachment(item.url, item.mediaType);
+          visionAttachments.push({
+            base64: buffer.toString("base64"),
+            mediaType: item.mediaType as ImageAttachment["mediaType"],
+          });
         } catch (err) {
-          console.error("이미지 다운로드 에러:", err);
+          console.error("첨부 URL 다운로드 거부/실패:", err);
         }
       } else if (item.base64) {
-        // base64 직접 전달 (호환)
-        visionAttachments.push({
-          base64: item.base64,
-          mediaType: item.mediaType as ImageAttachment["mediaType"],
-        });
+        try {
+          visionAttachments.push({
+            base64: assertBase64UnderLimit(item.base64),
+            mediaType: item.mediaType as ImageAttachment["mediaType"],
+          });
+        } catch (err) {
+          console.error("base64 첨부 거부:", err);
+        }
       }
-    } else if (item.base64 && (item.mediaType.includes("wordprocessingml") || item.mediaType === "application/msword")) {
+    } else if (item.base64 && WORD_TYPES.includes(item.mediaType)) {
       try {
-        const text = await extractDocxText(item.base64);
+        const text = await extractDocxText(assertBase64UnderLimit(item.base64));
         if (text) {
-          textAttachments.push(`[첨부문서: ${item.fileName || "document.docx"}]\n${text}`);
+          textAttachments.push(`[첨부문서: ${safeFileName(item.fileName, "document.docx")}]\n${limitExtractedText(text)}`);
         }
       } catch (err) {
         console.error("DOCX 파싱 에러:", err);
       }
-    } else if (item.base64 && (item.mediaType.includes("spreadsheetml") || item.mediaType.includes("ms-excel"))) {
-      try {
-        const text = await extractXlsxText(item.base64);
-        if (text) {
-          textAttachments.push(`[첨부스프레드시트: ${item.fileName || "spreadsheet.xlsx"}]\n${text}`);
-        }
-      } catch (err) {
-        console.error("XLSX 파싱 에러:", err);
-      }
+    } else if (UNSUPPORTED_SPREADSHEET_TYPES.includes(item.mediaType)) {
+      textAttachments.push(
+        `[첨부스프레드시트: ${safeFileName(item.fileName, "spreadsheet.xlsx")}]\n` +
+        "보안상의 이유로 Excel 파일 분석은 현재 비활성화되어 있습니다. PDF 또는 DOCX로 변환해 업로드해주세요."
+      );
     }
   }
 

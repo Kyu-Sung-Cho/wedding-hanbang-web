@@ -51,6 +51,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (orderId && payment.order_id && orderId !== payment.order_id) {
+      console.error("웹훅: orderId 불일치", { eventOrderId: orderId, paymentOrderId: payment.order_id });
+      return NextResponse.json({ error: "orderId 불일치" }, { status: 400 });
+    }
+
     if (payment.status === "paid") {
       return NextResponse.json({ ok: true, message: "이미 처리됨" });
     }
@@ -73,18 +78,25 @@ export async function POST(req: Request) {
       "간편결제": "easypay",
     };
 
-    if (tossPayment.status === "DONE" && tossPayment.totalAmount === payment.amount) {
+    if (tossPayment.orderId && payment.order_id && tossPayment.orderId !== payment.order_id) {
+      console.error("웹훅: Toss orderId 불일치", { tossOrderId: tossPayment.orderId, paymentOrderId: payment.order_id });
+      return NextResponse.json({ error: "Toss orderId 불일치" }, { status: 400 });
+    }
+
+    if (tossPayment.status === "DONE" && Number(tossPayment.totalAmount) === payment.amount) {
       await supabase
         .from("payments")
         .update({
           status: "paid",
           toss_payment_key: paymentKey,
           toss_transaction_key: tossPayment.transactionKey || null,
+          order_id: payment.order_id,
           paid_at: new Date().toISOString(),
           method: methodMap[tossPayment.method] || tossPayment.method?.toLowerCase() || null,
           receipt_url: tossPayment.receipt?.url || null,
         })
-        .eq("id", payment.id);
+        .eq("id", payment.id)
+        .eq("status", "pending");
 
       // 예약 상태 업데이트
       if (payment.payment_type === "deposit") {
@@ -105,7 +117,7 @@ export async function POST(req: Request) {
         const commissionAmount = Math.round(payment.amount * COMMISSION_RATE);
         const settleAmount = payment.amount - commissionAmount;
 
-        await supabase.from("settlements").insert({
+        await supabase.from("settlements").upsert({
           payment_id: payment.id,
           vendor_id: payment.vendor_id,
           booking_id: payment.booking_id,
@@ -114,6 +126,9 @@ export async function POST(req: Request) {
           commission_amount: commissionAmount,
           settle_amount: settleAmount,
           status: "pending",
+        }, {
+          onConflict: "payment_id",
+          ignoreDuplicates: true,
         });
       }
     }

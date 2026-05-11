@@ -25,8 +25,6 @@ const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
   "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
   "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxSize: 10 * 1024 * 1024, label: "Excel" },
-  "application/vnd.ms-excel": { maxSize: 10 * 1024 * 1024, label: "Excel" },
 };
 
 interface AttachmentItem {
@@ -404,7 +402,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     files.slice(0, remaining).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
-        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word, Excel 가능)`);
+        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word 가능)`);
         return;
       }
       if (file.size > typeInfo.maxSize) {
@@ -701,7 +699,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <div className="bg-white rounded-xl px-8 py-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center">
             <Paperclip className="w-12 h-12 text-[#795252] mx-auto mb-3" />
             <p className="text-lg font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
-            <p className="text-sm text-[#504444] mt-1">이미지, PDF, Word, Excel</p>
+            <p className="text-sm text-[#504444] mt-1">이미지, PDF, Word</p>
           </div>
         </div>
       )}
@@ -1244,7 +1242,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.doc,.xlsx,.xls"
+            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.doc"
             multiple
             onChange={handleFileSelect}
             className="hidden"
@@ -1253,7 +1251,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
             className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
-            title="파일 첨부 (이미지, PDF, Word, Excel)"
+            title="파일 첨부 (이미지, PDF, Word)"
           >
             <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>

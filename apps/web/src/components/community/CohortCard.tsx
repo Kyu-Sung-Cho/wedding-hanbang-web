@@ -66,25 +66,25 @@ export default function CohortCard({
   // 아직 배정 안된 상태 → CTA 카드
   if (!room) {
     return (
-      <div className="rounded-2xl border border-[#F0EFED] bg-white p-7">
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-[#C4967E]" />
-          <h3 className="font-serif text-lg text-[#1A1A1F]">
+      <div className="rounded-xl border border-[#F0EFED] bg-white p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[#C4967E]" />
+          <h3 className="font-serif text-base text-[#1A1A1F]">
             대략 언제쯤 결혼하시나요?
           </h3>
         </div>
-        <p className="mb-2 text-sm leading-relaxed text-[#878680]">
+        <p className="mb-2 text-xs leading-relaxed text-[#878680]">
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
-        <p className="mb-5 text-[12px] leading-relaxed text-[#C4967E]">
+        <p className="mb-4 text-[11px] leading-relaxed text-[#C4967E]">
           ✨ 정확한 날짜 몰라도 OK — 대략적인 분기로 가입할 수 있어요. 나중에 변경 가능합니다.
         </p>
 
-        <div className="mb-4 grid grid-cols-2 gap-2">
+        <div className="mb-3 grid grid-cols-2 gap-2">
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-3 text-base text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[0, 1, 2].map((offset) => {
               const y = (now?.getFullYear() ?? year) + offset;
@@ -98,7 +98,7 @@ export default function CohortCard({
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-3 text-base text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[
               { v: 1, label: "1분기" },
@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-4 py-3.5 text-base font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-60"
+          className="w-full rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,28 +133,28 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-2xl border border-[#F0EFED] bg-gradient-to-br from-[#795252] to-[#946a6a] p-7 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(121,82,82,0.15)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.2)]"
+      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#795252] to-[#946a6a] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(121,82,82,0.15)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.2)]"
     >
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="font-serif text-lg text-white">{room.name}</h3>
-          <div className="mt-1.5 flex items-center gap-1.5 text-sm text-[#B5ADA3]">
-            <Users className="h-4 w-4" />
+          <h3 className="font-serif text-base text-white">{room.name}</h3>
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#B5ADA3]">
+            <Users className="h-3.5 w-3.5" />
             <span>{room.member_count}명 참여</span>
           </div>
         </div>
-        <ChevronRight className="h-5 w-5 text-[#878680] transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="h-4 w-4 text-[#878680] transition-transform group-hover:translate-x-0.5" />
       </div>
 
       {/* 멤버 아바타 row */}
-      <div className="mb-4 flex items-center">
+      <div className="mb-3 flex items-center">
         <div className="flex -space-x-2">
           {recentMembers.slice(0, 5).map((m) => {
             const initial = m.profile?.nickname?.[0] ?? "?";
             return (
               <div
                 key={m.id}
-                className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#795252] bg-[#C4967E] text-xs font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#795252] bg-[#C4967E] text-xs font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element

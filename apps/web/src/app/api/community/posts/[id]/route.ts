@@ -343,19 +343,14 @@ export async function DELETE(
       );
     }
 
-    // post_count 감소
-    await serviceClient
-      .from("community_profiles")
-      .update({
-        post_count: Math.max(0, 0), // RPC로 처리하는 게 이상적
-      })
-      .eq("user_id", user.id);
-
-    // 실제로는 RPC 사용 권장
-    await serviceClient.rpc("community_decrement_profile_count", {
-      p_user_id: user.id,
+    // 작성자의 post_count를 감소시킨다. 관리자가 삭제해도 관리자 카운터가 바뀌면 안 된다.
+    const { error: countError } = await serviceClient.rpc("community_decrement_profile_count", {
+      p_user_id: existingPost.author_id,
       p_field: "post_count",
     });
+    if (countError) {
+      console.error("[posts.DELETE] post_count decrement failed (non-fatal):", countError);
+    }
 
     // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 실패해도 응답은 성공
     try {

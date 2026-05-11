@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
+    const includeDebug = process.env.NODE_ENV !== "production";
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     if (!profile) {
       return NextResponse.json({
         user: { id: user.id, email: user.email },
-        _debug,
+        ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
       });
     }
 
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
       couple,
       partner,
       journey,
-      _debug: Object.keys(_debug).length > 0 ? _debug : undefined,
+      ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
     });
   } catch (err) {
     console.error("Auth me 에러:", err);

@@ -39,81 +39,81 @@ export default function CategoryTabs() {
 
   return (
     <>
-      {/* 데스크탑: Atelier Hub 레퍼런스 세로 네비게이션 */}
-      <nav className="hidden lg:flex flex-col flex-1 space-y-1 pr-2">
+      {/* 데스크탑: 세로 네비게이션 */}
+      <nav className="hidden xl:flex flex-col flex-1 space-y-1 pr-1">
         {/* 주요 네비 */}
         <Link
           href="/community"
-          className={`flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community") && pathname === "/community"
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <Home
-            className={`mr-4 w-6 h-6 ${
+            className={`mr-3 w-5 h-5 ${
               isActive("/community") && pathname === "/community"
                 ? "opacity-80"
                 : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-lg tracking-widest uppercase">전체</span>
+          <span className="text-base tracking-wide">전체</span>
         </Link>
 
         <Link
           href="/community?sort=hot"
-          className="flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
+          className="flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 text-[#504444] hover:bg-white hover:text-[#795252]"
         >
-          <Flame className="mr-4 w-6 h-6 opacity-60 group-hover:opacity-100" />
-          <span className="text-lg tracking-widest uppercase">인기</span>
+          <Flame className="mr-3 w-5 h-5 opacity-60 group-hover:opacity-100" />
+          <span className="text-base tracking-wide">인기</span>
         </Link>
 
         <Link
           href="/community/guestbook"
-          className={`flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/guestbook")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <BookOpen
-            className={`mr-4 w-6 h-6 ${
+            className={`mr-3 w-5 h-5 ${
               isActive("/community/guestbook") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-lg tracking-widest uppercase">내 방명록</span>
+          <span className="text-base tracking-wide">내 방명록</span>
         </Link>
 
         <Link
           href="/community/my/bookmarks"
-          className={`flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/my/bookmarks")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <Bookmark
-            className={`mr-4 w-6 h-6 ${
+            className={`mr-3 w-5 h-5 ${
               isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-lg tracking-widest uppercase">북마크</span>
+          <span className="text-base tracking-wide">북마크</span>
         </Link>
 
         <Link
           href="/community/my/upvoted"
-          className={`flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+          className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
             isActive("/community/my/upvoted")
               ? "bg-[#f6f3f2] text-[#795252] font-bold"
               : "text-[#504444] hover:bg-white hover:text-[#795252]"
           }`}
         >
           <ThumbsUp
-            className={`mr-4 w-6 h-6 ${
+            className={`mr-3 w-5 h-5 ${
               isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-lg tracking-widest uppercase">좋아요</span>
+          <span className="text-base tracking-wide">좋아요</span>
         </Link>
 
         {/* 카테고리 섹션 */}
@@ -144,18 +144,18 @@ export default function CategoryTabs() {
                 <Link
                   key={cat.key}
                   href={href}
-                  className={`flex items-center px-5 py-4 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
+                  className={`flex items-center px-4 py-3 rounded-r-full group hover:translate-x-1 transition-transform duration-200 ${
                     active
                       ? "bg-[#f6f3f2] text-[#795252] font-bold"
                       : "text-[#504444] hover:bg-white hover:text-[#795252]"
                   }`}
                 >
                   <Icon
-                    className={`mr-4 w-6 h-6 ${
+                    className={`mr-3 w-5 h-5 ${
                       active ? "opacity-80" : "opacity-60 group-hover:opacity-100"
                     }`}
                   />
-                  <span className="text-lg tracking-widest uppercase">{cat.label}</span>
+                  <span className="text-base tracking-wide">{cat.label}</span>
                 </Link>
               );
             })}
@@ -164,11 +164,11 @@ export default function CategoryTabs() {
       </nav>
 
       {/* 모바일/태블릿: 가로 스크롤 칩 */}
-      <div className="lg:hidden overflow-x-auto scrollbar-hide -mx-4 px-4">
+      <div className="xl:hidden overflow-x-auto scrollbar-hide -mx-4 px-4">
         <div className="flex items-center gap-2.5 min-w-max py-1">
           <Link
             href="/community"
-            className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
+            className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
               pathname === "/community"
                 ? "bg-[#795252] text-white font-medium"
                 : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"
@@ -183,7 +183,7 @@ export default function CategoryTabs() {
               <Link
                 key={cat.key}
                 href={href}
-                className={`px-5 py-2.5 text-base rounded-full whitespace-nowrap transition-all duration-200 ${
+                className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
                     ? "bg-[#795252] text-white font-medium"
                     : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"

@@ -442,7 +442,7 @@ export async function POST(req: NextRequest) {
     // 커뮤니티 프로필 자동 생성 (없으면)
     const { data: existingProfile } = await serviceClient
       .from("community_profiles")
-      .select("user_id")
+      .select("user_id, post_count")
       .eq("user_id", user.id)
       .single();
 

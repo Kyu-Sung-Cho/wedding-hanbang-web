@@ -22,8 +22,6 @@ const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
   "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
   "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxSize: 10 * 1024 * 1024, label: "Excel" },
-  "application/vnd.ms-excel": { maxSize: 10 * 1024 * 1024, label: "Excel" },
 };
 
 interface AttachmentItem {

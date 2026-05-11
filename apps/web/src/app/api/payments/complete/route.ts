@@ -41,6 +41,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "이미 결제가 완료되었습니다." }, { status: 400 });
     }
 
+    if (orderId !== payment.order_id) {
+      return NextResponse.json({ error: "결제 주문번호가 일치하지 않습니다." }, { status: 400 });
+    }
+
     // 금액 검증
     if (Number(amount) !== payment.amount) {
       await supabase
@@ -66,6 +70,7 @@ export async function POST(req: Request) {
         tossPayment = {
           status: "DONE",
           totalAmount: payment.amount,
+          orderId: payment.order_id,
           method: "카드",
           transactionKey: "dev_tx_" + paymentId.slice(0, 8),
           receipt: { url: null },
@@ -89,6 +94,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "결제가 완료되지 않았습니다." }, { status: 400 });
     }
 
+    if (tossPayment.orderId && tossPayment.orderId !== payment.order_id) {
+      await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          fail_reason: `주문번호 불일치: 예상 ${payment.order_id} / 실제 ${tossPayment.orderId}`,
+        })
+        .eq("id", paymentId);
+
+      return NextResponse.json({ error: "결제 주문번호가 일치하지 않습니다." }, { status: 400 });
+    }
+
+    if (Number(tossPayment.totalAmount) !== payment.amount) {
+      await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          fail_reason: `승인 금액 불일치: 예상 ${payment.amount} / 실제 ${tossPayment.totalAmount}`,
+        })
+        .eq("id", paymentId);
+
+      return NextResponse.json({ error: "결제 승인 금액이 일치하지 않습니다." }, { status: 400 });
+    }
+
     // 결제 방식 매핑
     const methodMap: Record<string, string> = {
       "카드": "card",
@@ -105,12 +136,13 @@ export async function POST(req: Request) {
         status: "paid",
         toss_payment_key: paymentKey,
         toss_transaction_key: tossPayment.transactionKey || null,
-        order_id: orderId,
+        order_id: payment.order_id,
         method: methodMap[tossPayment.method] || tossPayment.method?.toLowerCase() || null,
         paid_at: new Date().toISOString(),
         receipt_url: tossPayment.receipt?.url || null,
       })
       .eq("id", paymentId)
+      .eq("status", "pending")
       .select()
       .single();
 
@@ -128,7 +160,7 @@ export async function POST(req: Request) {
     const commissionAmount = Math.round(payment.amount * COMMISSION_RATE);
     const settleAmount = payment.amount - commissionAmount;
 
-    await supabase.from("settlements").insert({
+    await supabase.from("settlements").upsert({
       payment_id: paymentId,
       vendor_id: payment.vendor_id,
       booking_id: payment.booking_id,
@@ -137,6 +169,9 @@ export async function POST(req: Request) {
       commission_amount: commissionAmount,
       settle_amount: settleAmount,
       status: "pending",
+    }, {
+      onConflict: "payment_id",
+      ignoreDuplicates: true,
     });
 
     return NextResponse.json({

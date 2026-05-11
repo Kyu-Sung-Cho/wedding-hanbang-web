@@ -30,14 +30,14 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
   return (
     <>
       {/* Pulse Section — 이번 주 요약 */}
-      <div className="mb-10">
-        <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-6 border-b border-[#e4e2e1] pb-2">
+      <div className="mb-8">
+        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-5 border-b border-[#e4e2e1] pb-2">
           이번 주 요약
         </h3>
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* 새 글 + 트렌드 바 */}
           <div>
-            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
+            <div className="flex justify-between text-sm mb-2 text-[#504444]">
               <span>새 글</span>
               <span className="text-sage-500 font-medium">{postTrendLabel}</span>
             </div>
@@ -51,7 +51,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
           {/* 인기 업체 */}
           <div>
-            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
+            <div className="flex justify-between text-sm mb-2 text-[#504444]">
               <span>인기 업체</span>
               <span className="text-[#795252] font-medium truncate max-w-[140px]">
                 {weekly?.topVendor ?? "---"}
@@ -67,7 +67,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
           {/* 평균 스튜디오 기본금 */}
           <div>
-            <div className="flex justify-between text-[17px] mb-2 text-[#504444]">
+            <div className="flex justify-between text-sm mb-2 text-[#504444]">
               <span>스튜디오 평균</span>
               <span className="text-[#625b4d] font-medium">
                 {weekly?.avgStudioPrice ? `${weekly.avgStudioPrice}만원` : "---"}
@@ -85,8 +85,8 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
 
       {/* 많이 찾는 업체 */}
       {popularTags.length > 0 && (
-        <div className="mb-10">
-          <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+        <div className="mb-8">
+          <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
             많이 찾는 업체
           </h3>
           <div className="flex flex-wrap gap-x-3 gap-y-2.5">
@@ -104,11 +104,11 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       )}
 
       {/* Hot Topics — 커뮤니티 원칙 */}
-      <div className="mb-10">
-        <h3 className="font-serif-kr text-[28px] text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
+      <div className="mb-8">
+        <h3 className="font-serif-kr text-2xl text-[#1b1c1c] mb-4 border-b border-[#e4e2e1] pb-2">
           커뮤니티 원칙
         </h3>
-        <div className="space-y-4 text-base">
+        <div className="space-y-3.5 text-sm">
           <div className="flex items-start gap-3">
             <span className="w-2.5 h-2.5 rounded-full bg-sage-500 mt-1.5 shrink-0" />
             <div>
@@ -137,17 +137,17 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       </div>
 
       {/* 웨딩한방 AI CTA */}
-      <div className="bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-xl p-8 text-white">
+      <div className="bg-gradient-to-br from-[#795252] to-[#946a6a] rounded-xl p-6 text-white">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="w-5 h-5 text-[#dee6c4]" />
-          <h3 className="font-serif-kr text-xl italic">웨딩한방 AI</h3>
+          <h3 className="font-serif-kr text-lg italic">웨딩한방 AI</h3>
         </div>
-        <p className="text-base text-white/70 leading-relaxed mb-5">
+        <p className="text-sm text-white/70 leading-relaxed mb-4">
           가격이 정상인지, 일정은 맞는지, AI 아모라가 답해드려요.
         </p>
         <Link
           href="/chat"
-          className="block w-full text-center bg-white text-[#795252] rounded-xl py-3.5 text-base font-medium shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-all duration-200"
+          className="block w-full text-center bg-white text-[#795252] rounded-xl py-3 text-sm font-medium shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-all duration-200"
         >
           아모라와 대화하기
         </Link>

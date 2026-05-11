@@ -45,6 +45,7 @@ supabase/.branches/
 
 # Expo/Mobile
 apps/mobile/.expo/
+apps/mobile/.metro-cache/
 apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/*.jks

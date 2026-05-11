@@ -30,17 +30,17 @@ export default function SortSelector({
   onPeriodChange,
 }: SortSelectorProps) {
   return (
-    <div className="flex items-center gap-0 flex-wrap">
+    <div className="flex items-center gap-0 flex-wrap justify-start sm:justify-end">
       {SORT_OPTIONS.map((option, idx) => {
         const isActive = sort === option.key;
 
         return (
           <span key={option.key} className="flex items-center">
-            {idx > 0 && <span className="text-[#B5ADA3] mx-3 select-none">&middot;</span>}
+            {idx > 0 && <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">&middot;</span>}
             <button
               type="button"
               onClick={() => onSortChange(option.key)}
-              className={`text-[17px] transition-colors duration-200 ${
+              className={`text-sm sm:text-[15px] lg:text-base transition-colors duration-200 ${
                 isActive
                   ? "text-[#1A1A1F] font-medium"
                   : "text-[#B5ADA3] hover:text-[#878680]"
@@ -54,14 +54,14 @@ export default function SortSelector({
 
       {sort === "top" && (
         <>
-          <span className="text-[#B5ADA3] mx-3 select-none">|</span>
+          <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">|</span>
           {PERIOD_OPTIONS.map((p, idx) => (
             <span key={p.key} className="flex items-center">
-              {idx > 0 && <span className="text-[#B5ADA3] mx-3 select-none">&middot;</span>}
+              {idx > 0 && <span className="text-[#B5ADA3] mx-2 sm:mx-3 select-none">&middot;</span>}
               <button
                 type="button"
                 onClick={() => onPeriodChange(p.key)}
-                className={`text-[17px] transition-colors duration-200 ${
+                className={`text-sm sm:text-[15px] lg:text-base transition-colors duration-200 ${
                   period === p.key
                     ? "text-[#1A1A1F] font-medium"
                     : "text-[#B5ADA3] hover:text-[#878680]"

@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: repoRoot,
+  },
+
   // gzip/brotli 압축 활성화
   compress: true,
 

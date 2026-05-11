@@ -1,6 +1,6 @@
 export default function PostSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-[#F0EFED] animate-pulse">
+    <div className="bg-white rounded-xl border border-[#F0EFED] animate-pulse">
       <div className="p-4">
         {/* 메타 라인 */}
         <div className="flex items-center gap-2 mb-2">
