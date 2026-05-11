@@ -14,6 +14,7 @@ import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
@@ -445,6 +446,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
+  const limited = checkRateLimit(rateLimitKey("chat", request, user.id), {
+    maxRequests: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (limited) return limited;
+
   let body;
   try {
     body = await request.json();
@@ -457,8 +464,9 @@ export async function POST(request: Request) {
   const clientRequestId: string | null = typeof bodyClientRequestId === "string" && bodyClientRequestId.length > 0
     ? bodyClientRequestId
     : null;
-  const visibility: "shared" | "bride_private" | "groom_private" =
+  const requestedVisibility: "shared" | "bride_private" | "groom_private" =
     bodyVisibility === "bride_private" || bodyVisibility === "groom_private" ? bodyVisibility : "shared";
+  let visibility: "shared" | "bride_private" | "groom_private" = requestedVisibility;
 
   if (!messages || !coupleId) {
     return NextResponse.json(
@@ -470,12 +478,25 @@ export async function POST(request: Request) {
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
   const { data: userProfile } = await supabase
     .from("profiles")
-    .select("couple_id")
+    .select("couple_id, role")
     .eq("id", user.id)
     .single();
 
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
+  if (requestedVisibility !== "shared") {
+    const role = userProfile?.role;
+    if (role !== "bride" && role !== "groom") {
+      return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
+    }
+
+    const allowedPrivateVisibility = role === "groom" ? "groom_private" : "bride_private";
+    if (requestedVisibility !== allowedPrivateVisibility) {
+      return NextResponse.json({ error: "비공개 채팅 권한이 없습니다." }, { status: 403 });
+    }
+    visibility = allowedPrivateVisibility;
   }
 
   // 첨부파일 처리
@@ -502,9 +523,9 @@ export async function POST(request: Request) {
         .order("created_at", { ascending: false })
         .limit(3);
       return (
-        bodyVisibility === "shared" || !bodyVisibility
+        visibility === "shared"
           ? q.eq("visibility", "shared")
-          : q.in("visibility", ["shared", bodyVisibility])
+          : q.in("visibility", ["shared", visibility])
       );
     })(),
     // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)

@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
               mention_count: Number(existingLead.mention_count ?? 0) + 1,
               proof_count: Number(existingLead.proof_count ?? 0) + 1,
               priority_score: Number(existingLead.priority_score ?? 0) + 4,
-              source: "amora_quote_check",
+              source: "user_mention",
             })
             .eq("id", existingLead.id);
           if (leadUpdateError) {
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
               name: input.vendorName,
               category: leadCategory,
               region: input.region,
-              source: "amora_quote_check",
+              source: "user_mention",
               status: "raw",
               mention_count: 1,
               proof_count: 1,
