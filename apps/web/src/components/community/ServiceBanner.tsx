@@ -66,17 +66,15 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
   return (
     <Link
       href={banner.href}
-      className="group block rounded-2xl bg-gradient-to-r from-[#FDFCFA] via-[#FAF8F5] to-[#F8F3EE] border border-[#F0EFED] hover:border-[#C4967E]/30 px-7 py-5 transition-all duration-300 hover:shadow-sm"
+      className="group block rounded-lg border border-[#e4e2e1] bg-white px-4 py-4 transition-colors hover:border-[#d9c8c8] hover:bg-[#fffdfb] sm:px-5"
     >
       <div className="flex items-center gap-4">
-        {/* 아이콘 */}
-        <div className="w-11 h-11 rounded-xl bg-white border border-[#F0EFED] flex items-center justify-center shrink-0 text-[#C4967E] group-hover:border-[#C4967E]/30 transition-colors duration-200">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-[#f8f4f1] text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
           {ICON_MAP[banner.icon]}
         </div>
 
-        {/* 텍스트 */}
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200">
+          <p className="text-[15px] font-medium text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
             {banner.text}
           </p>
           <p className="text-[13px] text-[#B5ADA3] mt-0.5">
@@ -84,14 +82,13 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
           </p>
         </div>
 
-        {/* 배지 + 화살표 */}
         <div className="flex items-center gap-3 shrink-0">
-          <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1A1A1F]/5 text-[11px] font-medium text-[#878680]">
-            <Sparkles className="w-3 h-3 text-[#C9A96E]" />
-            웨딩한방
+          <span className="hidden items-center gap-1 rounded-full bg-[#eef2df] px-2.5 py-1 text-[11px] font-medium text-[#5a6147] sm:inline-flex">
+            <Sparkles className="w-3 h-3" />
+            검증 루프
           </span>
           <svg
-            className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#C4967E] group-hover:translate-x-0.5 transition-all duration-200"
+            className="w-5 h-5 text-[#B5ADA3] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#795252]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

@@ -34,6 +34,7 @@ import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
 import CommunityHero from "@/components/community/CommunityHero";
+import CommunityTrustLoop from "@/components/community/CommunityTrustLoop";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -366,7 +367,7 @@ function CommunityFeedContent() {
             </p>
             <h2 className="font-serif-kr text-2xl text-[#1b1c1c] mb-1">커뮤니티</h2>
             <p className="text-xs leading-relaxed text-[#504444]">
-              가격, 후기, 계약 질문을 함께 검증하는 웨딩 준비 기록실
+              견적, 후기, 계약 질문을 함께 검증하는 웨딩 거래 신뢰망
             </p>
           </div>
 
@@ -389,18 +390,18 @@ function CommunityFeedContent() {
 
           <div className="mt-5 space-y-1 border-t border-[#e4e2e1]/50 pt-4">
             <Link
-              href="/community/guidelines"
+              href="/community/about"
               className="flex items-center rounded-lg px-3 py-2 text-[#504444] hover:bg-white hover:text-[#795252] group"
             >
               <Shield className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm">가이드라인</span>
+              <span className="text-sm">신뢰 원칙</span>
             </Link>
             <Link
-              href="/community/archive"
+              href="/community/my/posts"
               className="flex items-center rounded-lg px-3 py-2 text-[#504444] hover:bg-white hover:text-[#795252] group"
             >
               <Archive className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
-              <span className="text-sm">아카이브</span>
+              <span className="text-sm">내 기록</span>
             </Link>
           </div>
         </aside>
@@ -451,6 +452,8 @@ function CommunityFeedContent() {
                 topVendor={vendorTags[0]?.vendor_name ?? null}
               />
             )}
+
+            {!isSearching && !currentTag && <CommunityTrustLoop />}
 
             {!isSearching && !currentTag && <CommunityTrustToolkit />}
 

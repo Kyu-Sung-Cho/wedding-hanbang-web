@@ -485,6 +485,29 @@ This product cannot tolerate hallucination. The AI must follow these rules:
 - vendor response completion
 - qualified lead conversion
 
+## 2026-05-11 Product Surface Update
+
+The community first screen should now communicate the trust loop directly:
+
+1. Quote entered.
+2. Missing cost and contract-risk items detected.
+3. Vendor questions generated.
+4. Anonymous estimate card shared.
+5. Comparable evidence improves the next diagnosis.
+6. Transparent vendors earn trust through clearer terms.
+
+This is the current product wedge in one sentence:
+
+> 기능을 많이 가진 웨딩 앱이 아니라, 계약 전 판단을 더 안전하게 만드는 견적 신뢰 운영체제.
+
+Design and navigation decisions:
+
+- Community hero leads with quote trust, not generic social posting.
+- Community tools stay shallow and shareable: quote check, Amora questions, anonymous estimate cards, checkpoints.
+- Deep private operations stay in the service body: budget, schedule, invitations, money, scripts.
+- Vendor messaging stays positive: "transparent vendors are rewarded," not "vendors are punished."
+- Quote-check results should always lead to a next action: copy questions, ask Amora, share anonymously, or save to dashboard.
+
 ## Strategic Verdict
 
 The strongest strategy is not to become the biggest wedding feature bundle. The strongest strategy is to become the most trusted place before a wedding consumer and vendor commit to each other.

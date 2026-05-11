@@ -5,10 +5,14 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowLeft,
+  Check,
   CheckCircle2,
   ClipboardCheck,
+  Copy,
   FileSearch,
   Loader2,
+  MessageCircle,
+  PenLine,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -362,6 +366,23 @@ function ItemGroup({
 function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
   const style = VERDICT_STYLES[result.verdict];
   const Icon = style.icon;
+  const [copied, setCopied] = useState(false);
+
+  const copyQuestions = async () => {
+    const text = [
+      result.negotiationScript,
+      "",
+      "계약 전 확인 질문",
+      ...result.contractQuestions.map((question, index) => `${index + 1}. ${question}`),
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <section className={`mt-5 rounded-xl border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
@@ -392,7 +413,17 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       </div>
 
       <div className="mt-5 rounded-lg bg-white p-4">
-        <h3 className="text-sm font-semibold text-[#1b1c1c]">계약 전 그대로 보낼 질문</h3>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold text-[#1b1c1c]">계약 전 그대로 보낼 질문</h3>
+          <button
+            type="button"
+            onClick={copyQuestions}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#e4e2e1] px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+          >
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "복사됨" : "질문 복사"}
+          </button>
+        </div>
         <p className="mt-2 rounded-lg bg-[#fcf9f8] px-3 py-3 text-sm leading-6 text-[#625b4d]">
           {result.negotiationScript}
         </p>
@@ -422,6 +453,22 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
 
       <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#795252]">
         {result.recommendedAction}
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <Link
+          href="/chat"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#946a6a]"
+        >
+          <MessageCircle className="h-4 w-4" />
+          아모라에게 이어서 묻기
+        </Link>
+        <Link
+          href="/community/post/write?category=is_normal"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-semibold text-[#795252] transition-colors hover:bg-[#fffdfb]"
+        >
+          <PenLine className="h-4 w-4" />
+          익명 사례로 공유하기
+        </Link>
       </div>
       <p className="mt-3 text-xs leading-5 text-[#928980]">{result.sourceNote}</p>
     </section>

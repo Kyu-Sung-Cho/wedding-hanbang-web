@@ -82,7 +82,7 @@
   font-family: 'Noto Serif KR', serif;
   font-style: italic;
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 /* PRD: 영문/숫자 본문 — Plus Jakarta Sans (한글은 Noto Sans KR fallback) */
@@ -103,7 +103,7 @@ body {
   word-break: keep-all;
   overflow-wrap: break-word;
   line-height: 1.6;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 /* 커스텀 애니메이션 */

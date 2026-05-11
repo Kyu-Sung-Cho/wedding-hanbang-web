@@ -120,6 +120,13 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         <p className="mt-4 text-xs leading-relaxed text-[#504444]">
           웨딩한방은 좋은 업체가 광고비보다 신뢰로 선택받는 구조를 지향합니다.
         </p>
+        <Link
+          href="/vendor/register"
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-[#fffdfb] px-3 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#f6f3f2]"
+        >
+          투명 업체 입점 기준 보기
+          <ArrowRight className="h-4 w-4" />
+        </Link>
       </section>
 
       <section className="rounded-lg border border-[#e4e2e1] bg-[#fbfcf8] p-4">
