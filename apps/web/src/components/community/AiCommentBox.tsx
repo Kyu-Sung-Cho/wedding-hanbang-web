@@ -11,6 +11,8 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
       ? "#22C55E"
       : aiComment.comparison === "average"
       ? "#C9A96E"
+      : aiComment.comparison === "unknown"
+      ? "#928980"
       : "#C4967E";
 
   const comparisonLabel =
@@ -18,7 +20,13 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
       ? "평균 이하"
       : aiComment.comparison === "average"
       ? "평균"
+      : aiComment.comparison === "unknown"
+      ? "비교 기준 부족"
       : "평균 이상";
+  const comparisonMeta =
+    aiComment.comparison === "unknown" || aiComment.percentage <= 0
+      ? comparisonLabel
+      : `${comparisonLabel} · ${aiComment.percentage}%`;
 
   return (
     <div
@@ -40,7 +48,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
             color: comparisonColor,
           }}
         >
-          {comparisonLabel} · {aiComment.percentage}%
+          {comparisonMeta}
         </span>
       </div>
       <p className="text-[15px] text-[#1A1A1F] leading-relaxed mb-3">

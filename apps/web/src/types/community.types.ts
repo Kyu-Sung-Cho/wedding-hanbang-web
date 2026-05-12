@@ -58,9 +58,9 @@ export interface PriceData {
 
 export interface AiComment {
   text: string;
-  comparison: "below" | "average" | "above";
+  comparison: "below" | "average" | "above" | "unknown";
   percentage: number;        // 평균 대비 %
-  reference: string;         // "기재부 2024 기준 기본금 346만원"
+  reference: string;         // 비교 기준, 출처, 또는 "공식 비교 기준 부족"
   generated_at: string;
 }
 

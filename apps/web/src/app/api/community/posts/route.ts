@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
@@ -16,50 +17,10 @@ import type {
   CreatePollInput,
   PollSummary,
 } from "@/types/community.types";
-import Anthropic from "@anthropic-ai/sdk";
-
-const AI_PRICE_SYSTEM_PROMPT = `You are the wedding hanbang AI 아모라 price analyzer. Given a vendor price, compare to Korean wedding industry averages and write a SHORT 1-2 sentence Korean comment.
-
-References (기재부 2024.11):
-- 스튜디오/드레스/메이크업 기본금 평균: 346만원
-- 평균 추가금: 174만원
-
-Output JSON only:
-{
-  "text": "1-2문장 한국어 코멘트",
-  "comparison": "below|average|above",
-  "percentage": <int 평균 대비 %>,
-  "reference": "기재부 2024.11 기준 평균 346만원"
-}`;
 
 async function generateAiPriceComment(priceData: PriceData): Promise<AiComment | null> {
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-    const userContent = `카테고리: ${priceData.vendor_category}
-기본금: ${priceData.base_price}만원
-추가금: ${priceData.extra_price ?? 0}만원
-업체명: ${priceData.vendor_name ?? "미상"}
-지역: ${priceData.region ?? "미상"}
-상세: ${priceData.details ?? "없음"}`;
-
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: AI_PRICE_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
-    });
-    const firstBlock = message.content[0];
-    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-    const parsed = JSON.parse(jsonMatch[0]) as Omit<AiComment, "generated_at">;
-    return {
-      text: parsed.text,
-      comparison: parsed.comparison,
-      percentage: parsed.percentage,
-      reference: parsed.reference,
-      generated_at: new Date().toISOString(),
-    };
+    return buildSourceBackedPriceComment(priceData);
   } catch (err) {
     console.error("AI price comment inline error:", err);
     return null;

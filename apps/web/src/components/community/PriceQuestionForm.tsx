@@ -92,7 +92,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
-                placeholder="346"
+                placeholder="예: 300"
                 className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
               />
             </div>
@@ -104,7 +104,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 type="number"
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
-                placeholder="174"
+                placeholder="예: 50"
                 className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
               />
             </div>
