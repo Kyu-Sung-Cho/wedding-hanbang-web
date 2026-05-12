@@ -16,7 +16,7 @@ import {
 export const metadata = {
   title: "커뮤니티 소개 — 웨딩한방",
   description:
-    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를 나누는 공간입니다. 동기방, 검증된 후기, AI 도구까지 한 곳에서.",
+    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 견적진단까지 한 곳에서.",
 };
 
 export default function CommunityAboutPage() {
@@ -36,7 +36,7 @@ export default function CommunityAboutPage() {
           <p className="text-base sm:text-lg text-[#504444] font-light leading-relaxed max-w-xl mx-auto">
             웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를
             나누는 공간이에요. 같은 시기에 결혼하는 동기들과 함께,
-            검증된 정보로 더 현명한 결정을 내려보세요.
+            실제 경험을 참고해 더 차분하게 결정해보세요.
           </p>
         </div>
       </section>
@@ -107,7 +107,7 @@ export default function CommunityAboutPage() {
               {
                 icon: PenSquare,
                 title: "내 경험 나누기",
-                desc: "사진, 영상과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요. 활동하면 등급도 올라가요.",
+                desc: "사진, 영상과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
                 color: "from-[#C9A96E]/20 to-[#C9A96E]/5",
                 iconColor: "text-[#C9A96E]",
               },
@@ -120,8 +120,8 @@ export default function CommunityAboutPage() {
               },
               {
                 icon: Sparkles,
-                title: "AI 도구로 더 똑똑하게",
-                desc: "가격 적정성 분석, 일정 관리, 예산 트래킹 — 글을 5개 이상 작성하면 도구가 열려요.",
+                title: "아모라 견적진단",
+                desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
                 color: "from-[#946a6a]/20 to-[#946a6a]/5",
                 iconColor: "text-[#946a6a]",
               },
@@ -148,93 +148,6 @@ export default function CommunityAboutPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── 등급 시스템 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-white border-y border-[#e4e2e1]">
-        <div className="max-w-3xl mx-auto">
-          <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase text-center">
-            Rank system
-          </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#1b1c1c] mb-3 leading-snug text-center">
-            활동하면 등급이 올라가요
-          </h2>
-          <p className="text-center text-base text-[#504444] font-light mb-10">
-            글쓰기, 댓글, 투표로 경험치를 쌓으세요
-          </p>
-
-          <div className="space-y-3">
-            {[
-              {
-                rank: "🌱",
-                name: "새싹",
-                level: "Lv.1",
-                desc: "가입하면 바로",
-                color: "from-[#A8D8A8] to-sage-500",
-                xp: "0 XP",
-              },
-              {
-                rank: "🌿",
-                name: "준비중",
-                level: "Lv.2",
-                desc: "첫 글 작성",
-                color: "from-[#7EB8D8] to-[#5A9CC0]",
-                xp: "100 XP",
-              },
-              {
-                rank: "💐",
-                name: "전문가",
-                level: "Lv.3",
-                desc: "후기 5개 이상",
-                color: "from-[#795252] to-[#C9A96E]",
-                xp: "500 XP",
-              },
-              {
-                rank: "👑",
-                name: "마스터",
-                level: "Lv.4",
-                desc: "BEST 글 선정",
-                color: "from-[#C9A96E] to-[#DCC9A0]",
-                xp: "1,500 XP",
-              },
-              {
-                rank: "💎",
-                name: "시니어",
-                level: "Lv.5",
-                desc: "결혼 완료 선배",
-                color: "from-[#B39DDB] to-[#7E57C2]",
-                xp: "5,000 XP",
-              },
-            ].map((item) => (
-              <div
-                key={item.name}
-                className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 rounded-xl bg-[#fcf9f8] border border-[#f0efed]"
-              >
-                <div
-                  className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shrink-0`}
-                >
-                  <span className="text-xl">{item.rank}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base sm:text-lg text-[#1b1c1c] font-semibold">
-                      {item.name}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 bg-white text-[#504444] rounded-full border border-[#f0efed]">
-                      {item.level}
-                    </span>
-                  </div>
-                  <div className="text-sm text-[#928980] font-light mt-0.5">
-                    {item.desc}
-                  </div>
-                </div>
-                <div className="text-sm text-[#928980] font-light tabular-nums shrink-0">
-                  {item.xp}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>

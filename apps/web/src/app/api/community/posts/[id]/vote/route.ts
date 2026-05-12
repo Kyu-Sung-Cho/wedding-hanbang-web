@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -40,7 +39,7 @@ export async function POST(
 
     const { data: visiblePost } = await supabase
       .from("community_posts")
-      .select("id, author_id")
+      .select("id")
       .eq("id", id)
       .maybeSingle();
 
@@ -64,28 +63,6 @@ export async function POST(
         { error: "투표 처리에 실패했습니다." },
         { status: 500 }
       );
-    }
-
-    // 게이미피케이션: 추천 시 글 작성자에게 XP 지급 (비차단)
-    if (voteType === 1) {
-      try {
-        const admin = createSupabaseClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-        if (visiblePost.author_id !== user.id) {
-          void admin
-            .rpc("community_award_xp", {
-              p_user_id: visiblePost.author_id,
-              p_action: "receive_upvote",
-              p_xp: 5,
-              p_reference_id: id,
-            })
-            .then(() => {}, () => {});
-        }
-      } catch {
-        // 게이미피케이션 오류는 무시
-      }
     }
 
     const { data: counts } = await supabase

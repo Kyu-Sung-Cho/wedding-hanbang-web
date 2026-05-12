@@ -1,4 +1,4 @@
-// 커뮤니티 V2 TypeScript 타입 정의 (전략 프롬프트 기반 재설계)
+// 커뮤니티 TypeScript 타입 정의
 
 export type CommunityCategory =
   | "is_normal"      // 이거 정상이야?

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_community_guide_seen";
-const TOTAL_SLIDES = 6;
+const TOTAL_SLIDES = 5;
 
 /* ─────────────────────────────────────────────
    Slide 1 — 공감 시작 (기능 나열 X, 감정으로 시작)
@@ -85,11 +85,10 @@ function SlideRealReview() {
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-sage-500 flex items-center justify-center">
             <span className="text-base">🌿</span>
           </div>
-          <div className="flex flex-col items-start">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base text-[#1b1c1c] font-medium">가을의신부</span>
-              <span className="text-sm px-1.5 py-0.5 bg-sage-500/10 text-sage-500 rounded-full font-semibold">Lv.4</span>
-            </div>
+            <div className="flex flex-col items-start">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base text-[#1b1c1c] font-medium">가을의신부</span>
+              </div>
             <span className="text-sm text-[#B5ADA3] font-light">어제 · 후기</span>
           </div>
         </div>
@@ -321,50 +320,7 @@ function SlideHowToUse() {
 }
 
 /* ─────────────────────────────────────────────
-   Slide 5 — 랭크 시스템
-   ───────────────────────────────────────────── */
-function SlideRankSystem() {
-  return (
-    <div className="flex flex-col items-center px-6">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] mb-2 leading-snug">
-        활동하면 랭크가 올라가요
-      </h2>
-      <p className="text-base text-[#504444] font-light mb-6">
-        글쓰기, 댓글, 투표로 경험치를 쌓으세요
-      </p>
-
-      <div className="w-full max-w-[360px] flex flex-col gap-2.5">
-        {[
-          { rank: "🌱", name: "새싹", level: "Lv.1", desc: "가입하면 바로", color: "from-[#A8D8A8] to-sage-500", xp: "0 XP" },
-          { rank: "🌿", name: "준비중", level: "Lv.2", desc: "첫 글 작성", color: "from-[#7EB8D8] to-[#5A9CC0]", xp: "100 XP" },
-          { rank: "💐", name: "전문가", level: "Lv.3", desc: "후기 5개 이상", color: "from-[#795252] to-[#C9A96E]", xp: "500 XP" },
-          { rank: "👑", name: "마스터", level: "Lv.4", desc: "BEST 글 선정", color: "from-[#C9A96E] to-[#DCC9A0]", xp: "1,500 XP" },
-          { rank: "💎", name: "시니어", level: "Lv.5", desc: "결혼 완료 선배", color: "from-[#B39DDB] to-[#7E57C2]", xp: "5,000 XP" },
-        ].map((item, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-[#f6f3f2] hover:border-[#795252]/20 transition-colors"
-          >
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shrink-0`}>
-              <span className="text-[18px]">{item.rank}</span>
-            </div>
-            <div className="flex-1 text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base text-[#1b1c1c] font-semibold">{item.name}</span>
-                <span className="text-sm px-1.5 py-0.5 bg-[#fcf9f8] text-[#504444] rounded-full">{item.level}</span>
-              </div>
-              <div className="text-sm text-[#B5ADA3] font-light">{item.desc}</div>
-            </div>
-            <div className="text-sm text-[#B5ADA3] font-light">{item.xp}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Slide 6 — 커뮤니티 약속 + CTA
+   Slide 5 — 커뮤니티 약속 + CTA
    ───────────────────────────────────────────── */
 function SlideStart({ onClose }: { onClose: () => void }) {
   const handleStart = useCallback(() => {
@@ -480,8 +436,7 @@ export default function CommunityGuide() {
       case 1: return <SlideRealReview />;
       case 2: return <SlideCohort />;
       case 3: return <SlideHowToUse />;
-      case 4: return <SlideRankSystem />;
-      case 5: return <SlideStart onClose={() => setVisible(false)} />;
+      case 4: return <SlideStart onClose={() => setVisible(false)} />;
       default: return null;
     }
   }

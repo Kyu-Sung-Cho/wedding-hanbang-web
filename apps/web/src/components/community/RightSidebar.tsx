@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentType } from "react";
-import { ArrowRight, BadgeCheck, FileSearch, Sparkles, Store, TrendingUp } from "lucide-react";
+import { ArrowRight, FileSearch, Sparkles, TrendingUp } from "lucide-react";
 
 interface PopularTag {
   vendor_name: string;
@@ -12,7 +11,6 @@ interface PopularTag {
 interface WeeklySummary {
   newPostsThisWeek?: number;
   topVendor?: string | null;
-  avgStudioPrice?: number | null;
 }
 
 interface RightSidebarProps {
@@ -49,26 +47,20 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       <section className="rounded-lg border border-[#e4e2e1] bg-white p-4">
         <div className="mb-4 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
           <TrendingUp className="h-4 w-4 text-[#5a6147]" />
-          <h3 className="font-serif-kr text-lg text-[#1b1c1c]">이번 주 흐름</h3>
+          <h3 className="font-serif-kr text-lg text-[#1b1c1c]">커뮤니티 현황</h3>
         </div>
         <div className="space-y-3.5">
           <MetricRow
-            label="새 글"
+            label="전체 글"
             value={postCount > 0 ? `${postCount.toLocaleString("ko-KR")}건` : postTrendLabel}
             width={postTrendWidth}
             color="bg-sage-500"
           />
           <MetricRow
-            label="인기 업체"
+            label="많이 언급된 업체"
             value={weekly?.topVendor ?? "---"}
             width="62%"
             color="bg-[#795252]"
-          />
-          <MetricRow
-            label="스튜디오 평균"
-            value={weekly?.avgStudioPrice ? `${weekly.avgStudioPrice}만원` : "---"}
-            width="42%"
-            color="bg-[#625b4d]"
           />
         </div>
       </section>
@@ -76,7 +68,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       {popularTags.length > 0 && (
         <section className="rounded-lg border border-[#e4e2e1] bg-white p-4">
           <h3 className="mb-3 border-b border-[#e4e2e1] pb-2 font-serif-kr text-lg text-[#1b1c1c]">
-            많이 찾는 업체
+            많이 언급된 업체
           </h3>
           <div className="flex flex-wrap gap-2">
             {popularTags.slice(0, 10).map((tag) => (
@@ -107,28 +99,6 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
         </p>
       </section>
 
-      <section className="rounded-lg border border-[#d8d1cc] bg-white p-4">
-        <div className="mb-3 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
-          <Store className="h-4 w-4 text-[#5a6147]" />
-          <h3 className="font-serif-kr text-lg text-[#1b1c1c]">투명 업체 기준</h3>
-        </div>
-        <div className="space-y-2.5 text-sm">
-          <TrustLine icon={BadgeCheck} text="가격 범위와 포함 항목을 먼저 설명" />
-          <TrustLine icon={BadgeCheck} text="추가금과 변경·환불 기준을 명확히 안내" />
-          <TrustLine icon={BadgeCheck} text="상담 답변이 견적서와 계약서에 남음" />
-        </div>
-        <p className="mt-4 text-xs leading-relaxed text-[#504444]">
-          웨딩한방은 좋은 업체가 광고비보다 신뢰로 선택받는 구조를 지향합니다.
-        </p>
-        <Link
-          href="/vendor/register"
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-[#fffdfb] px-3 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#f6f3f2]"
-        >
-          투명 업체 입점 기준 보기
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </section>
-
       <section className="rounded-lg border border-[#e4e2e1] bg-[#fbfcf8] p-4">
         <p className="text-xs font-medium text-[#5a6147]">좋은 글의 기준</p>
         <p className="mt-2 text-sm leading-relaxed text-[#504444]">
@@ -138,7 +108,6 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
     </div>
   );
 }
-
 function MetricRow({
   label,
   value,
@@ -171,21 +140,6 @@ function RuleDot({ color, label, text }: { color: string; label: string; text: s
         <span className="font-medium text-[#1b1c1c]">{label}</span>
         <span className="text-[#504444]"> -- {text}</span>
       </div>
-    </div>
-  );
-}
-
-function TrustLine({
-  icon: Icon,
-  text,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  text: string;
-}) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[#5a6147]" />
-      <span className="leading-relaxed text-[#504444]">{text}</span>
     </div>
   );
 }

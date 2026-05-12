@@ -227,24 +227,6 @@ body {
   overflow: hidden;
 }
 
-/* 게이미피케이션: XP 획득 플로팅 애니메이션 */
-@keyframes xpFloat {
-  0% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-24px); }
-}
-.animate-xp-float {
-  animation: xpFloat 1.5s ease-out forwards;
-}
-
-/* 게이미피케이션: 불꽃 스트릭 펄스 */
-@keyframes flamePulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-}
-.animate-flame-pulse {
-  animation: flamePulse 1.2s ease-in-out infinite;
-}
-
 /* 서비스 가이드 애니메이션 */
 @keyframes guideShimmer {
   0% { transform: translateX(-100%); }

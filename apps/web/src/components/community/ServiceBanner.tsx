@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { FileSearch, MessageCircle, Wallet, CalendarCheck, Sparkles, PenLine } from "lucide-react";
+import { FileSearch, MessageCircle, Wallet, CalendarCheck, PenLine } from "lucide-react";
 
 interface BannerConfig {
   text: string;
@@ -83,10 +83,6 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <span className="hidden items-center gap-1 rounded-full bg-[#eef2df] px-2.5 py-1 text-[11px] font-medium text-[#5a6147] sm:inline-flex">
-            <Sparkles className="w-3 h-3" />
-            검증 루프
-          </span>
           <svg
             className="w-5 h-5 text-[#B5ADA3] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#795252]"
             fill="none"

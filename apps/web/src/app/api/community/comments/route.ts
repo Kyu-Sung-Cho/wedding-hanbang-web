@@ -256,33 +256,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // 게이미피케이션: XP 지급 및 업적 확인 (비차단)
-    try {
-      void serviceClient
-        .rpc("community_award_xp", {
-          p_user_id: user.id,
-          p_action: "comment_create",
-          p_xp: 10,
-          p_reference_id: comment.id,
-        })
-        .then(() => {}, () => {});
-
-      // 첫 댓글 업적 확인
-      const { data: commentProfile } = await serviceClient
-        .from("community_profiles")
-        .select("comment_count")
-        .eq("user_id", user.id)
-        .single();
-
-      if (commentProfile?.comment_count === 1) {
-        void serviceClient
-          .rpc("community_unlock_achievement", { p_user_id: user.id, p_key: "first_comment" })
-          .then(() => {}, () => {});
-      }
-    } catch {
-      // 게이미피케이션 오류는 무시
-    }
-
     // 작성자 프로필 추가
     const { data: creatorProfile } = await serviceClient
       .from("community_profiles")

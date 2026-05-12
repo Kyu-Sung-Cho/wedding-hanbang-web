@@ -97,9 +97,8 @@ export default function CommunityNav() {
             </div>
           </form>
 
-          {/* 오른쪽: 신뢰 도구 + 글쓰기 + 유저/로그인 (모바일에선 검색바 hidden으로 spacer 없어 ml-auto로 강제 우측 정렬) */}
+          {/* 오른쪽: 준비 도구 + 글쓰기 + 유저/로그인 */}
           <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-            {/* 신뢰 도구 — 견적진단/아모라 질문/내 준비실 */}
             {user && <MyToolsWidget variant="nav" />}
 
             <Link
@@ -175,7 +174,6 @@ export default function CommunityNav() {
               )}
             </form>
 
-            {/* 신뢰 도구 — 모바일 메뉴에서도 노출 */}
             {user && <MyToolsWidget variant="sidebar" />}
 
             <Link

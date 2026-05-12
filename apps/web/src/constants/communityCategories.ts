@@ -12,7 +12,7 @@ export interface CommunityCategoryInfo {
   allowPriceForm: boolean;
 }
 
-// 신규 5개 게시판 (전략 프롬프트 기반)
+// 커뮤니티 게시판
 export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   {
     key: "is_normal",
@@ -122,15 +122,6 @@ export const COHORT_THREAD_TOPICS = [
   { key: "review", label: "후기", icon: "⭐" },
   { key: "concern", label: "고민", icon: "💭" },
   { key: "chat", label: "잡담", icon: "💬" },
-] as const;
-
-// 계급 시스템
-export const COMMUNITY_RANKS = [
-  { key: "sprout", label: "웨딩 새싹", emoji: "🌱", description: "가입" },
-  { key: "preparing", label: "예비 신부/신랑", emoji: "💍", description: "글 5개 또는 댓글 20개" },
-  { key: "expert", label: "결준 고수", emoji: "⭐", description: "글 20개 + 댓글 50개" },
-  { key: "master", label: "웨딩 마스터", emoji: "👑", description: "글 50개 + 좋아요 100개" },
-  { key: "senior", label: "결혼 선배", emoji: "🎓", description: "결혼 완료" },
 ] as const;
 
 // 신고 사유

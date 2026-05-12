@@ -10,7 +10,7 @@ interface ToolCard {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const TRUST_TOOLS: ToolCard[] = [
+const QUICK_TOOLS: ToolCard[] = [
   {
     href: "/community/quote-check",
     label: "견적진단",
@@ -40,7 +40,7 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
   if (variant === "nav") {
     return (
       <div className="hidden md:flex items-center gap-1.5">
-        {TRUST_TOOLS.map((tool) => {
+        {QUICK_TOOLS.map((tool) => {
           const Icon = tool.icon;
           return (
             <Link
@@ -62,11 +62,11 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
     <div className="mb-6">
       <div className="mb-3 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
         <BarChart3 className="h-4 w-4 text-[#795252]" />
-        <h3 className="font-serif-kr text-lg text-[#1C1917]">거래 신뢰 도구</h3>
+        <h3 className="font-serif-kr text-lg text-[#1C1917]">준비 도구</h3>
       </div>
 
       <div className="space-y-2">
-        {TRUST_TOOLS.map((tool) => {
+        {QUICK_TOOLS.map((tool) => {
           const Icon = tool.icon;
           return (
             <Link

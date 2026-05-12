@@ -16,7 +16,6 @@ import PostCard from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import FeedComposer from "@/components/community/FeedComposer";
-import GamificationWidget from "@/components/community/GamificationWidget";
 import { withSessionCache } from "@/utils/sessionCache";
 
 interface PopularTag {
@@ -192,8 +191,6 @@ export default function CategoryFeedPage() {
 
         {/* 오른쪽 사이드바 — community 페이지와 동일한 frame */}
         <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8] space-y-4">
-          <GamificationWidget />
-
           <div className="bg-white rounded-xl border border-[#F0EFED] overflow-hidden">
             <div className="px-5 py-3 border-b border-[#F0EFED]">
               <h3 className="text-base font-medium text-[#1A1A1F]">인기 카테고리</h3>

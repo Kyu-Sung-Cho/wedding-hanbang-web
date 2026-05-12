@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronUp, ChevronDown, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
-import type { CommentWithAuthor, CommunityRank } from "@/types/community.types";
+import type { CommentWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
 
 // 아모라 서비스 계정 ID
@@ -20,25 +19,6 @@ interface CommentItemProps {
   onVote: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   onReply: (parentId: string, content: string) => Promise<void>;
 }
-
-// 아바타 그래디언트 팔레트 (PostCard 동일)
-const AVATAR_GRADIENTS = [
-  "from-[#C4967E] to-[#C9A96E]",
-  "from-[#A8D8A8] to-[#6BBF6B]",
-  "from-[#7EB8D8] to-[#5A9CC0]",
-  "from-[#C9A96E] to-[#DCC9A0]",
-  "from-[#D88B8B] to-[#C06B6B]",
-  "from-[#B39DDB] to-[#7E57C2]",
-];
-
-// 계급 라벨 + 레벨 (PostCard 동일)
-const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: string; text: string }> = {
-  sprout:    { label: "새싹",   level: 1, bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]" },
-  preparing: { label: "준비중", level: 2, bg: "bg-[#7EB8D8]/10", text: "text-[#5A9CC0]" },
-  expert:    { label: "전문가", level: 3, bg: "bg-[#C4967E]/10", text: "text-[#C4967E]" },
-  master:    { label: "마스터", level: 4, bg: "bg-[#C9A96E]/10", text: "text-[#C9A96E]" },
-  senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
-};
 
 export default function CommentItem({
   comment,
@@ -57,15 +37,10 @@ export default function CommentItem({
   const isAuthor = currentUserId === comment.author_id;
   const isLoggedIn = !!currentUserId;
 
-  // 아바타 & 랭크 계산
+  // 아바타 계산
   const nickname = comment.author?.nickname ?? "익명";
   const isAmoraAI = comment.author_id === AMORA_USER_ID || nickname === "아모라 AI";
-  const rank: CommunityRank = (comment.author?.rank as CommunityRank) || "sprout";
-  const rankConfig = RANK_CONFIG[rank];
-  const gradientIndex = nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
-  const avatarGradient = AVATAR_GRADIENTS[gradientIndex];
   const avatarUrl = comment.author?.avatar_url;
-  const isEmoji = avatarUrl ? /\p{Emoji}/u.test(avatarUrl) : false;
 
   async function handleReplySubmit() {
     if (!replyContent.trim() || submittingReply) return;
@@ -201,12 +176,7 @@ export default function CommentItem({
                   <Sparkles className="w-2.5 h-2.5" />
                   AI
                 </span>
-              ) : (
-                /* 랭크 배지 (pill) */
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none ${rankConfig.bg} ${rankConfig.text}`}>
-                  Lv.{rankConfig.level} {rankConfig.label}
-                </span>
-              )}
+              ) : null}
 
               <span className="text-[#B5ADA3]">&middot;</span>
               <time className="text-[#B5ADA3]" title={comment.created_at}>

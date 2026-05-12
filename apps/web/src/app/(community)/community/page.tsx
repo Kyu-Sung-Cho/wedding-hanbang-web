@@ -12,12 +12,6 @@ import {
   Archive,
   AlertCircle,
   RefreshCw,
-  ChevronRight,
-  ClipboardCheck,
-  FileSearch,
-  MessageCircle,
-  PenLine,
-  ShieldCheck,
 } from "lucide-react";
 import Avatar from "@/components/community/Avatar";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -30,11 +24,9 @@ import EmptyState from "@/components/community/EmptyState";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import FeedComposer from "@/components/community/FeedComposer";
 import ServiceBanner from "@/components/community/ServiceBanner";
-import GamificationWidget from "@/components/community/GamificationWidget";
 import RightSidebar from "@/components/community/RightSidebar";
 import TrendingPosts from "@/components/community/TrendingPosts";
 import CommunityHero from "@/components/community/CommunityHero";
-import CommunityTrustLoop from "@/components/community/CommunityTrustLoop";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
@@ -111,99 +103,6 @@ function EditorsPick({ post }: { post: PostWithAuthor }) {
         </div>
       )}
     </Link>
-  );
-}
-
-const trustToolLinks = [
-  {
-    href: "/community/quote-check",
-    eyebrow: "계약 전",
-    title: "견적 진단",
-    text: "원본·수정본·헬퍼비처럼 뒤늦게 붙는 비용을 먼저 확인해요.",
-    icon: FileSearch,
-    tone: "bg-[#f3e7e1] text-[#795252]",
-  },
-  {
-    href: "/chat",
-    eyebrow: "질문 정리",
-    title: "아모라 계약 질문",
-    text: "상담 전에 업체에 확인할 질문과 회피 답변 체크포인트를 만들어요.",
-    icon: MessageCircle,
-    tone: "bg-[#eef2df] text-[#5a6147]",
-  },
-  {
-    href: "/community/post/write?category=is_normal",
-    eyebrow: "익명 공유",
-    title: "견적 카드 올리기",
-    text: "지역, 항목, 포함·미포함을 구조화해서 비슷한 견적과 비교해요.",
-    icon: PenLine,
-    tone: "bg-[#eef0f5] text-[#56627a]",
-  },
-  {
-    href: "/dashboard",
-    eyebrow: "내 준비실",
-    title: "리포트 저장",
-    text: "진단한 견적과 업체 질문을 예산·일정의 다음 행동으로 이어가요.",
-    icon: ClipboardCheck,
-    tone: "bg-[#f7efd7] text-[#7b6230]",
-  },
-  {
-    href: "/community/tips_v2",
-    eyebrow: "계약 팁",
-    title: "체크포인트 모음",
-    text: "선배들이 남긴 추가금, 환불, 변경 조건 팁을 먼저 확인해요.",
-    icon: ShieldCheck,
-    tone: "bg-[#f3e7e1] text-[#795252]",
-  },
-];
-
-function CommunityTrustToolkit() {
-  return (
-    <section className="rounded-lg border border-[#e4e2e1] bg-white p-4 sm:p-5">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">
-            Trust toolkit
-          </p>
-          <h2 className="mt-1 font-serif-kr text-2xl text-[#1b1c1c]">
-            계약 전 손해를 줄이는 커뮤니티 도구
-          </h2>
-          <p className="mt-1 text-sm leading-relaxed text-[#504444]">
-            깊은 개인 관리는 내 준비실에서, 커뮤니티는 견적·계약·업체 신뢰를 빠르게 검증해요.
-          </p>
-        </div>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-[#795252] hover:text-[#946a6a]"
-        >
-          내 준비실
-          <ChevronRight className="h-4 w-4" />
-        </Link>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-5">
-        {trustToolLinks.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="group flex min-h-[142px] flex-col rounded-lg border border-[#eee6e0] bg-[#fffdfb] p-4 transition-colors hover:bg-[#faf4ef]"
-          >
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.tone}`}>
-                <item.icon className="h-4 w-4" />
-              </span>
-              <span className="text-xs font-medium text-[#928980]">{item.eyebrow}</span>
-            </div>
-            <p className="text-[15px] font-semibold text-[#1b1c1c]">{item.title}</p>
-            <p className="mt-2 flex-1 text-sm leading-relaxed text-[#504444]">{item.text}</p>
-            <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#795252]">
-              열기
-              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -367,7 +266,7 @@ function CommunityFeedContent() {
             </p>
             <h2 className="font-serif-kr text-2xl text-[#1b1c1c] mb-1">커뮤니티</h2>
             <p className="text-xs leading-relaxed text-[#504444]">
-              견적, 후기, 계약 질문을 함께 검증하는 웨딩 거래 신뢰망
+              예비부부가 견적, 후기, 계약 질문을 나누는 공간
             </p>
           </div>
 
@@ -452,10 +351,6 @@ function CommunityFeedContent() {
                 topVendor={vendorTags[0]?.vendor_name ?? null}
               />
             )}
-
-            {!isSearching && !currentTag && <CommunityTrustLoop />}
-
-            {!isSearching && !currentTag && <CommunityTrustToolkit />}
 
             {/* 에디터 추천 배너 (태그 필터 중엔 숨김 — featured는 전체 글 기반이라 태그와 안 맞을 수 있음) */}
             {featured && !currentTag && <EditorsPick post={featured} />}
@@ -589,7 +484,6 @@ function CommunityFeedContent() {
             weekly={{
               newPostsThisWeek: total,
               topVendor: vendorTags[0]?.vendor_name ?? null,
-              avgStudioPrice: 185,
             }}
           />
 
@@ -612,11 +506,6 @@ function CommunityFeedContent() {
               </div>
             </div>
           )}
-
-          {/* 내 활동 (게이미피케이션) */}
-          <div className="mt-4">
-            <GamificationWidget />
-          </div>
 
           <div className="text-center py-4 mt-4">
             <Link

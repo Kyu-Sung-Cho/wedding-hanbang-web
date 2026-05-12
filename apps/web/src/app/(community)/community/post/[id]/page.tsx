@@ -35,26 +35,7 @@ import ServiceCTA from "@/components/community/ServiceCTA";
 import Avatar from "@/components/community/Avatar";
 import PollDisplay from "@/components/community/PollDisplay";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
-import type { CommunityRank, PollWithOptions } from "@/types/community.types";
-
-// 아바타 그래디언트 팔레트 (PostCard와 동일)
-const AVATAR_GRADIENTS = [
-  "from-[#C4967E] to-[#C9A96E]",
-  "from-[#A8D8A8] to-[#6BBF6B]",
-  "from-[#7EB8D8] to-[#5A9CC0]",
-  "from-[#C9A96E] to-[#DCC9A0]",
-  "from-[#D88B8B] to-[#C06B6B]",
-  "from-[#B39DDB] to-[#7E57C2]",
-];
-
-// 계급 라벨 + 레벨 (PostCard와 동일)
-const RANK_CONFIG: Record<CommunityRank, { label: string; level: number; bg: string; text: string }> = {
-  sprout:    { label: "새싹",   level: 1, bg: "bg-[#2E7D5A]/10", text: "text-[#2E7D5A]" },
-  preparing: { label: "준비중", level: 2, bg: "bg-[#7EB8D8]/10", text: "text-[#5A9CC0]" },
-  expert:    { label: "전문가", level: 3, bg: "bg-[#C4967E]/10", text: "text-[#C4967E]" },
-  master:    { label: "마스터", level: 4, bg: "bg-[#C9A96E]/10", text: "text-[#C9A96E]" },
-  senior:    { label: "선배",   level: 5, bg: "bg-[#B39DDB]/10", text: "text-[#7E57C2]" },
-};
+import type { PollWithOptions } from "@/types/community.types";
 
 // 비용 포맷 헬퍼 (PostCard와 동일)
 function formatPrice(value: number): string {
@@ -324,11 +305,7 @@ export default function PostDetailPage() {
   const voteCount = post.upvote_count - post.downvote_count + optimisticDelta;
 
   // 작성자 정보 (PostCard 패턴)
-  const author = post.author ?? { nickname: "익명", rank: "sprout" as CommunityRank, avatar_url: null, wedding_year: null, wedding_month: null };
-  const rankConfig = RANK_CONFIG[author.rank];
-  const gradientIndex = author.nickname.charCodeAt(0) % AVATAR_GRADIENTS.length;
-  const avatarGradient = AVATAR_GRADIENTS[gradientIndex];
-  const isEmoji = author.avatar_url ? /\p{Emoji}/u.test(author.avatar_url) : false;
+  const author = post.author ?? { nickname: "익명", avatar_url: null, wedding_year: null, wedding_month: null };
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
@@ -402,9 +379,9 @@ export default function PostDetailPage() {
 
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4 sm:p-5">
-              {/* 작성자 행: 그래디언트 아바타 + 닉네임 + 랭크 배지 + 시간 + 카테고리 */}
+              {/* 작성자 행: 아바타 + 닉네임 + 시간 + 카테고리 */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-4">
-                {/* 그래디언트 아바타 */}
+                {/* 아바타 */}
                 <Link
                   href={`/community?author_id=${post.author_id}`}
                   className="shrink-0"
@@ -424,13 +401,6 @@ export default function PostDetailPage() {
                 >
                   {author.nickname}
                 </Link>
-
-                {/* 랭크 배지 (pill) */}
-                {rankConfig && (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${rankConfig.bg} ${rankConfig.text}`}>
-                    Lv.{rankConfig.level} {rankConfig.label}
-                  </span>
-                )}
 
                 {/* 결혼 동기 */}
                 {author.wedding_year && author.wedding_month && (

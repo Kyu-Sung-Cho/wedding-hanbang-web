@@ -24,7 +24,7 @@ interface CommunityHeroProps {
 const VALUE_PILLS = [
   { icon: ReceiptText, label: "실제 총액", text: "누락·추가금 확인" },
   { icon: UsersRound, label: "비슷한 사례", text: "익명 견적 비교" },
-  { icon: Store, label: "투명 업체", text: "명확한 조건이 강점" },
+  { icon: Store, label: "선배 후기", text: "직접 겪은 상담 포인트" },
 ];
 
 const RISK_ROWS = [
@@ -42,18 +42,17 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
         <div className="min-w-0 bg-[#fffdfb] p-4 sm:p-5 lg:p-7">
           <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-[#d9c8c8] bg-white px-3 py-1.5 text-xs font-medium text-[#795252]">
             <Handshake className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">예비부부와 투명한 업체를 연결하는 거래 신뢰 네트워크</span>
+            <span className="truncate">예비부부가 견적·후기·질문을 함께 확인하는 공간</span>
           </div>
 
           <h1 className="font-serif-kr text-[27px] leading-tight text-[#1b1c1c] sm:text-[34px] lg:text-[42px]">
-            견적의 빈칸을 먼저 찾고,
-            <br className="hidden sm:block" /> 투명한 선택이 이기게.
+            견적이 애매할 때,
+            <br className="hidden sm:block" /> 먼저 물어보는 곳.
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#504444] sm:text-[15px]">
-            웨딩한방은 후기 피드 위에 아모라의 견적 진단을 얹어, 가격·포함 항목·계약 질문을
-            한 번에 검증합니다. 소비자는 손해를 줄이고, 명확하게 안내하는 업체는 더 준비된
-            고객을 만납니다.
+            받은 견적, 계약 전 질문, 투어 후기를 익명으로 나누고 비슷한 상황의 예비부부와
+            같이 확인해요. 아모라는 빠진 항목과 다음 질문을 정리하는 데만 조용히 도와줍니다.
           </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
@@ -70,7 +69,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-medium text-[#795252] transition-colors hover:border-[#c6abab] hover:bg-[#fcf9f8]"
             >
               <MessageSquarePlus className="h-4 w-4" />
-              익명 견적 카드 올리기
+              후기·질문 올리기
             </Link>
           </div>
 
@@ -136,8 +135,8 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
             />
             <MiniTrustCard
               icon={CircleDollarSign}
-              title="광고보다 조건"
-              text="가격 범위와 포함 항목이 명확한 업체가 더 잘 보이게 설계합니다."
+              title="조건 먼저 확인"
+              text="가격 범위와 포함 항목을 함께 보며 비교해요."
             />
           </div>
         </div>
