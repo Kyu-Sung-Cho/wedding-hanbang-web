@@ -8,7 +8,6 @@ import {
   CircleDollarSign,
   FileSearch,
   Handshake,
-  MessageSquarePlus,
   ReceiptText,
   SearchCheck,
   ShieldCheck,
@@ -55,7 +54,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
             같이 확인해요. 아모라는 빠진 항목과 다음 질문을 정리하는 데만 조용히 도와줍니다.
           </p>
 
-          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+          <div className="mt-5">
             <Link
               href="/community/quote-check"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_16px_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a]"
@@ -63,13 +62,6 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
               <FileSearch className="h-4 w-4" />
               견적 진단하기
               <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/community/post/write?category=is_normal"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-medium text-[#795252] transition-colors hover:border-[#c6abab] hover:bg-[#fcf9f8]"
-            >
-              <MessageSquarePlus className="h-4 w-4" />
-              후기·질문 올리기
             </Link>
           </div>
 
