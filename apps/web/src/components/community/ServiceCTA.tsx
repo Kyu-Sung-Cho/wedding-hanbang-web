@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { MessageCircle, Wallet, CalendarCheck, HelpCircle, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  ArrowRight,
+  CalendarCheck,
+  FileSearch,
+  HelpCircle,
+  MessageCircle,
+  Wallet,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import type { CommunityCategory } from "@/types/community.types";
 
 interface ServiceCTAProps {
@@ -10,133 +17,129 @@ interface ServiceCTAProps {
 }
 
 interface CTAConfig {
-  icon: ReactNode;
-  text: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  title: string;
   subtext: string;
   href: string;
 }
 
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
-    icon: <Sparkles className="w-5 h-5 text-[#C4967E]" />,
-    text: "아모라가 견적 추가금 리스크를 진단해요",
-    subtext: "시세, 빠진 항목, 계약 전 질문까지 한 번에",
+    icon: FileSearch,
+    label: "견적 확인",
+    title: "이 견적, 계약 전에 한 번 더 확인해볼까요?",
+    subtext: "빠진 항목, 추가금 가능성, 업체에 물어볼 질문을 정리합니다.",
     href: "/community/quote-check",
   },
   tour_review: {
-    icon: <MessageCircle className="w-5 h-5 text-[#C4967E]" />,
-    text: "내 예산에 맞는 업체 찾기",
-    subtext: "아모라가 맞춤 추천해드려요",
+    icon: MessageCircle,
+    label: "후기 다음 단계",
+    title: "후기 기준으로 내 조건에 맞는 후보를 좁혀보세요.",
+    subtext: "예산, 지역, 스타일을 기준으로 아모라와 비교할 수 있어요.",
     href: "/chat",
   },
   tips_v2: {
-    icon: <Sparkles className="w-5 h-5 text-[#C9A96E]" />,
-    text: "AI 웨딩 플래너와 상담",
-    subtext: "24시간 무료 상담",
-    href: "/chat",
+    icon: CalendarCheck,
+    label: "준비 흐름",
+    title: "이 팁을 내 일정에 맞게 다시 정리해보세요.",
+    subtext: "해야 할 일과 확인 시점을 놓치지 않게 이어갑니다.",
+    href: "/schedule",
   },
   ama: {
-    icon: <HelpCircle className="w-5 h-5 text-[#C4967E]" />,
-    text: "아모라에게 질문하기",
-    subtext: "궁금한 건 바로 답변받기",
+    icon: HelpCircle,
+    label: "질문 정리",
+    title: "더 물어볼 내용은 아모라와 먼저 정리해보세요.",
+    subtext: "상황을 정리하고 커뮤니티에 올릴 질문까지 다듬을 수 있어요.",
     href: "/chat",
   },
   free: {
-    icon: <MessageCircle className="w-5 h-5 text-[#C4967E]" />,
-    text: "고민이 있으세요? 아모라와 이야기해보세요",
-    subtext: "중립적이고 편안한 상담",
+    icon: MessageCircle,
+    label: "상담",
+    title: "혼자 판단하기 애매한 내용은 아모라와 이어서 이야기해보세요.",
+    subtext: "견적, 업체 응대, 가족 고민을 차분히 정리합니다.",
     href: "/chat",
   },
 };
 
-// 비용 관련 카테고리에는 예산 도구 CTA 추가
 const BUDGET_CATEGORIES = new Set(["is_normal"]);
-// 일정 관련 CTA
 const SCHEDULE_CATEGORIES = new Set(["tips_v2", "ama"]);
 
 export default function ServiceCTA({ category }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
+  const MainIcon = mainCta.icon;
 
-  // 보조 CTA (예산 또는 일정)
   let secondaryCta: CTAConfig | null = null;
   if (BUDGET_CATEGORIES.has(category)) {
     secondaryCta = {
-      icon: <Wallet className="w-5 h-5 text-[#C9A96E]" />,
-      text: "내 예산 진단받기",
-      subtext: "항목별 적정 가격 체크",
+      icon: Wallet,
+      label: "예산",
+      title: "확인한 금액을 예산에 반영하기",
+      subtext: "견적가와 예상 추가금을 한 곳에서 관리합니다.",
       href: "/budget",
     };
   } else if (SCHEDULE_CATEGORIES.has(category)) {
     secondaryCta = {
-      icon: <CalendarCheck className="w-5 h-5 text-[#C9A96E]" />,
-      text: "D-day까지 자동 체크리스트",
-      subtext: "놓치기 쉬운 일정도 관리",
+      icon: CalendarCheck,
+      label: "일정",
+      title: "다음 확인일을 일정으로 넘기기",
+      subtext: "계약 전 질문과 마감일을 놓치지 않게 정리합니다.",
       href: "/schedule",
     };
   }
 
   return (
-    <div className="rounded-2xl border border-[#F0EFED] bg-gradient-to-r from-[#FDFCFA] to-[#FAF8F5] p-[1px]">
-      <div className="rounded-2xl bg-gradient-to-r from-[#FDFCFA] to-[#FAF8F5] px-5 py-4">
-        {/* 메인 CTA */}
-        <Link
-          href={mainCta.href}
-          className="flex items-center gap-4 group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-white border border-[#F0EFED] flex items-center justify-center shrink-0 group-hover:border-[#C4967E]/30 transition-colors duration-200">
-            {mainCta.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-medium text-[#1A1A1F] group-hover:text-[#C4967E] transition-colors duration-200">
-              {mainCta.text}
-            </p>
-            <p className="text-[13px] text-[#B5ADA3] mt-0.5">
-              {mainCta.subtext}
-            </p>
-          </div>
-          <svg
-            className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#C4967E] group-hover:translate-x-0.5 transition-all duration-200 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
+    <div className="rounded-lg border border-[#e4ded9] bg-[#fffdfb] px-4 py-4 sm:px-5">
+      <p className="mb-3 text-[11px] font-medium tracking-[0.2em] text-[#928980]">
+        다음 행동
+      </p>
 
-        {/* 보조 CTA */}
-        {secondaryCta && (
-          <>
-            <div className="my-3 border-t border-[#F0EFED]" />
-            <Link
-              href={secondaryCta.href}
-              className="flex items-center gap-4 group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white border border-[#F0EFED] flex items-center justify-center shrink-0 group-hover:border-[#C9A96E]/30 transition-colors duration-200">
-                {secondaryCta.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-medium text-[#1A1A1F] group-hover:text-[#C9A96E] transition-colors duration-200">
-                  {secondaryCta.text}
-                </p>
-                <p className="text-[13px] text-[#B5ADA3] mt-0.5">
-                  {secondaryCta.subtext}
-                </p>
-              </div>
-              <svg
-                className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#C9A96E] group-hover:translate-x-0.5 transition-all duration-200 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </>
-        )}
-      </div>
+      <ServiceAction
+        href={mainCta.href}
+        icon={MainIcon}
+        label={mainCta.label}
+        title={mainCta.title}
+        subtext={mainCta.subtext}
+      />
+
+      {secondaryCta ? (
+        <>
+          <div className="my-3 border-t border-[#eee6e0]" />
+          <ServiceAction
+            href={secondaryCta.href}
+            icon={secondaryCta.icon}
+            label={secondaryCta.label}
+            title={secondaryCta.title}
+            subtext={secondaryCta.subtext}
+          />
+        </>
+      ) : null}
     </div>
+  );
+}
+
+function ServiceAction({
+  href,
+  icon: Icon,
+  label,
+  title,
+  subtext,
+}: CTAConfig) {
+  return (
+    <Link href={href} className="group flex items-start gap-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="mb-1 block text-[11px] font-medium text-[#928980]">{label}</span>
+        <span className="block text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
+          {title}
+        </span>
+        <span className="mt-1 block text-[13px] leading-relaxed text-[#625b4d]">
+          {subtext}
+        </span>
+      </span>
+      <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#795252]" />
+    </Link>
   );
 }

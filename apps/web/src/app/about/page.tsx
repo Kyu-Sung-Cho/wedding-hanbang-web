@@ -13,7 +13,7 @@ export const revalidate = 60;
 export const metadata = {
   title: "이 브랜드의 이야기 — 웨딩한방",
   description:
-    "결혼 준비가 진짜 힘든 이유, 아모라의 다섯 가지 역할, 정부 공식 데이터로 보는 시세, 사람 플래너와의 차이.",
+    "결혼 준비가 진짜 힘든 이유, 견적·예산·일정으로 이어지는 아모라의 준비 도구, 정부 공식 데이터로 보는 시세.",
 };
 
 export default async function AboutPage() {

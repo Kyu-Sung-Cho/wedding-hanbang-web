@@ -2,10 +2,18 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { FileSearch, MessageCircle, Wallet, CalendarCheck, PenLine } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarCheck,
+  FileSearch,
+  MessageCircle,
+  PenLine,
+  Wallet,
+} from "lucide-react";
 
 interface BannerConfig {
-  text: string;
+  eyebrow: string;
+  title: string;
   subtext: string;
   href: string;
   icon: "quote" | "chat" | "budget" | "schedule" | "write";
@@ -13,86 +21,83 @@ interface BannerConfig {
 
 const BANNER_OPTIONS: BannerConfig[] = [
   {
-    text: "견적서가 적정한 가격인지 궁금하세요?",
-    subtext: "빠진 항목과 추가금 가능성을 먼저 확인해요",
+    eyebrow: "견적 확인",
+    title: "받은 견적에서 빠진 항목이 있는지 먼저 볼까요?",
+    subtext: "추가금 가능성과 계약 전 질문을 한 번에 정리합니다.",
     href: "/community/quote-check",
     icon: "quote",
   },
   {
-    text: "업체에 뭐라고 물어봐야 할까요?",
-    subtext: "아모라가 계약 전 질문을 정리해드려요",
+    eyebrow: "상담 정리",
+    title: "업체 답변이 애매하면 아모라와 같이 읽어보세요.",
+    subtext: "다시 물어볼 문장과 확인할 조건을 정리합니다.",
     href: "/chat",
     icon: "chat",
   },
   {
-    text: "비슷한 견적과 비교하고 싶다면",
-    subtext: "익명 견적 카드로 커뮤니티에 물어보세요",
+    eyebrow: "커뮤니티 질문",
+    title: "비슷한 조건의 예비부부에게 익명으로 물어볼 수 있어요.",
+    subtext: "지역, 예산, 포함 항목을 적으면 비교가 쉬워집니다.",
     href: "/community/post/write?category=is_normal",
     icon: "write",
   },
   {
-    text: "진단한 비용을 예산에 반영하세요",
-    subtext: "숨은 비용까지 내 준비실에서 관리해요",
+    eyebrow: "예산 관리",
+    title: "확인한 금액을 내 예산표에 바로 반영하세요.",
+    subtext: "견적가와 예상 추가금을 한 곳에서 관리합니다.",
     href: "/budget",
     icon: "budget",
   },
   {
-    text: "확인할 일을 일정으로 넘기세요",
-    subtext: "계약 전 질문과 마감일을 놓치지 않게 관리해요",
+    eyebrow: "일정 관리",
+    title: "계약 전 확인할 일을 일정으로 넘겨두세요.",
+    subtext: "질문, 마감일, 재확인 일정을 놓치지 않게 정리합니다.",
     href: "/schedule",
     icon: "schedule",
   },
 ];
 
 const ICON_MAP = {
-  quote: <FileSearch className="w-5 h-5" />,
-  chat: <MessageCircle className="w-5 h-5" />,
-  budget: <Wallet className="w-5 h-5" />,
-  schedule: <CalendarCheck className="w-5 h-5" />,
-  write: <PenLine className="w-5 h-5" />,
+  quote: FileSearch,
+  chat: MessageCircle,
+  budget: Wallet,
+  schedule: CalendarCheck,
+  write: PenLine,
 };
 
 interface ServiceBannerProps {
-  /** 피드에서의 위치 인덱스 (다양한 배너를 위해 사용) */
   index?: number;
 }
 
 export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
-  // 인덱스 기반으로 배너 선택 (랜덤 대신 결정적)
   const banner = useMemo(() => {
     return BANNER_OPTIONS[index % BANNER_OPTIONS.length];
   }, [index]);
+  const Icon = ICON_MAP[banner.icon];
 
   return (
     <Link
       href={banner.href}
-      className="group block rounded-lg border border-[#e4e2e1] bg-white px-4 py-4 transition-colors hover:border-[#d9c8c8] hover:bg-[#fffdfb] sm:px-5"
+      className="group block rounded-lg border border-[#e4ded9] bg-[#fffdfb] px-4 py-4 transition-colors hover:border-[#d9c8c8] hover:bg-white sm:px-5"
     >
-      <div className="flex items-center gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-[#f8f4f1] text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
-          {ICON_MAP[banner.icon]}
-        </div>
+      <div className="flex items-start gap-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
+          <Icon className="h-5 w-5" />
+        </span>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-medium text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
-            {banner.text}
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-[11px] font-medium tracking-[0.18em] text-[#928980]">
+            {banner.eyebrow}
           </p>
-          <p className="text-[13px] text-[#B5ADA3] mt-0.5">
+          <p className="text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
+            {banner.title}
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-[#625b4d]">
             {banner.subtext}
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <svg
-            className="w-5 h-5 text-[#B5ADA3] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#795252]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </div>
+        <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#795252]" />
       </div>
     </Link>
   );

@@ -12,51 +12,51 @@ interface Role {
 const ROLES: Role[] = [
   {
     number: "01",
-    title: "선호 발굴자",
+    title: "받은 견적 확인하기",
     body: (
       <>
-        &ldquo;예쁜 거&rdquo;가 아니라
-        <span className="text-noir-800"> 왜 그게 좋은지</span>까지 끌어냅니다.
+        금액만 보지 않고
+        <span className="text-noir-800"> 빠진 항목과 추가금 가능성</span>을 먼저 확인합니다.
       </>
     ),
   },
   {
     number: "02",
-    title: "커플 중재자",
+    title: "업체 질문 정리하기",
     body: (
       <>
-        신부와 신랑이
-        <span className="text-noir-800"> 따로 대화한 후 함께</span> 합의로 갑니다.
+        애매한 답변을 그대로 넘기지 않도록
+        <span className="text-noir-800"> 다시 물어볼 문장</span>을 정리합니다.
       </>
     ),
   },
   {
     number: "03",
-    title: "제약 해결사",
+    title: "예산에 반영하기",
     body: (
       <>
-        예산 · 시간 · 지역 · 가족을
-        <span className="text-noir-800"> 모두 만족하는 길</span>만 보여드립니다.
+        확인한 견적과 숨은 비용을
+        <span className="text-noir-800"> 내 예산표에 이어서</span> 관리합니다.
       </>
     ),
   },
   {
     number: "04",
-    title: "기억 지킴이",
+    title: "일정으로 넘기기",
     body: (
       <>
-        6개월 전 결정과 지금 결정을
-        <span className="text-noir-800"> 연결해 일관성</span>을 지킵니다.
+        계약 전 질문과 마감일을
+        <span className="text-noir-800"> 다음 할 일</span>로 남겨둡니다.
       </>
     ),
   },
   {
     number: "05",
-    title: "정보 격차 해소자",
+    title: "비슷한 후기 찾아보기",
     body: (
       <>
-        업체가 아는 모든 것을
-        <span className="text-noir-800"> 당신도 알 수 있게</span> 합니다.
+        같은 지역, 비슷한 예산의 사례를
+        <span className="text-noir-800"> 커뮤니티에서 함께</span> 확인합니다.
       </>
     ),
   },
@@ -74,14 +74,14 @@ export default function FiveRoles() {
           transition={{ duration: 0.6 }}
           className="mb-20 md:mb-24 max-w-3xl"
         >
-          <SectionLabel label="다섯 가지 역할" />
+          <SectionLabel label="준비 도구" />
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
-            단순한 정보 검색이 아니라,
+            견적에서 일정까지,
             <br />
-            <em className="not-italic text-rose-500">의사결정의 동반자.</em>
+            <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            아모라는 당신 곁에서 다섯 가지 역할을 수행합니다.
+            아모라는 커뮤니티에서 확인한 내용을 내 준비실의 다음 행동으로 이어줍니다.
           </p>
         </motion.div>
 

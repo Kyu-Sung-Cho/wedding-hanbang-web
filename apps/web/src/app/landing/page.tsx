@@ -1,6 +1,7 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Hero from "@/components/landing/Hero";
 import CommunityFeed from "@/components/landing/CommunityFeed";
+import ServicePreview from "@/components/landing/ServicePreview";
 import BetaCTA from "@/components/landing/BetaCTA";
 import Footer from "@/components/landing/Footer";
 import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
@@ -22,6 +23,7 @@ export default async function LandingPage() {
       <CustomerNav />
       <Hero />
       <CommunityFeed />
+      <ServicePreview />
       <BetaCTA current={current} total={BETA_TOTAL} />
       <Footer />
     </main>
