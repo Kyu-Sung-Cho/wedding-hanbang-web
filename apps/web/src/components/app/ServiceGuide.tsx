@@ -163,7 +163,7 @@ function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
       <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
-        아모라 — 모든 걸 연결하는 코어
+        아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-base text-[#504444] text-center mb-5">
         채팅 한 줄로 견적 진단부터 커플 합의까지
@@ -210,13 +210,13 @@ function SlideChat() {
           </div>
         </div>
 
-        {/* 통합 영역 칩 — 아모라가 관장하는 전 영역 */}
+        {/* 통합 영역 칩 — 아모라가 챙겨주는 전 영역 */}
         <div className="mt-1">
-          <p className="text-sm text-[#928980] mb-1.5 text-center">아모라 하나가 전부 관장해요</p>
+          <p className="text-sm text-[#928980] mb-1.5 text-center">아모라가 다 챙겨줘요</p>
           <div className="flex flex-wrap justify-center gap-1.5">
             {[
               "견적 진단",
-              "계약서 번역",
+              "계약서 풀이",
               "예산 자동",
               "일정 자동",
               "커플 합의 코칭",

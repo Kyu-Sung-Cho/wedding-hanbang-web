@@ -76,7 +76,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           <span className="text-white/60">{email}</span>
         </p>
         <p className="text-[12px] text-white/50 leading-relaxed mb-8">
-          진척도 표시는 약 1분 후 반영됩니다.
+          모집 현황은 약 1분 후 반영됩니다.
         </p>
 
         <div className="h-px w-full bg-white/10 mb-8" aria-hidden />

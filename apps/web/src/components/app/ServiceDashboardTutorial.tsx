@@ -5,7 +5,7 @@ import SpotlightTutorial, { type SpotlightStep } from "@/components/ui/Spotlight
 const STEPS: SpotlightStep[] = [
   {
     selector: '[data-tutorial-target="dashboard-hero"]',
-    title: "아모라가 관장하는 웨딩 지휘실",
+    title: "아모라가 다 챙겨주는 결혼 준비 메인 화면",
     description:
       "AI 아모라가 견적·계약·예산·일정·커플 합의·본식 타임라인까지 전부 하나의 흐름으로 묶어줘요. 결혼식까지 남은 날, 진행률, 아모라 안전도를 한눈에 보고 '오늘 할 일 묻기'로 바로 이어가세요.",
   },
@@ -13,13 +13,13 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="dashboard-briefing"]',
     title: "오늘의 아모라 브리핑",
     description:
-      "오늘 놓치면 안 되는 일과 실수 방지 점검을 카드 형태로 보여줘요. 라이프사이클 단계별 가드레일이 자동으로 갱신돼요.",
+      "오늘 놓치면 안 되는 일과 실수 방지 점검을 카드 형태로 보여줘요. 결혼 준비 시점에 맞춰 챙겨야 할 것들이 자동으로 바뀌어요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-actions"]',
     title: "아모라가 기억하는 행동",
     description:
-      "AI 채팅에서 '이거 다음 할 일로 저장해줘'라고 하면 여기 쌓여요. 완료/숨김으로 정리하면서 진척을 관리할 수 있어요.",
+      "AI 채팅에서 '이거 다음 할 일로 저장해줘'라고 하면 여기 쌓여요. 완료/숨김으로 정리하면서 진행 상황을 챙길 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-dday-budget"]',
