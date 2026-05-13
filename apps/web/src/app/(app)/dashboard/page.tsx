@@ -40,6 +40,7 @@ import type { CategoryChecklistTemplate } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ServiceGuide from "@/components/app/ServiceGuide";
+import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
 import {
   buildAmoraLifecyclePlan,
   type AmoraActionIconKey,
@@ -399,7 +400,10 @@ export default function DashboardPage() {
       )}
 
       {/* 1. 웨딩 지휘실 히어로 */}
-      <section className="mb-6 animate-fade-in overflow-hidden rounded-2xl border border-[#e8ded7] bg-[#fffdf9] shadow-[0_12px_40px_rgba(80,68,68,0.06)]">
+      <section
+        data-tutorial-target="dashboard-hero"
+        className="mb-6 animate-fade-in overflow-hidden rounded-2xl border border-[#e8ded7] bg-[#fffdf9] shadow-[0_12px_40px_rgba(80,68,68,0.06)]"
+      >
         <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
           <div className="p-6 sm:p-8 lg:p-10">
             <p className="mb-4 text-xs font-semibold tracking-[0.24em] text-[#8a5f5b] uppercase">
@@ -464,7 +468,10 @@ export default function DashboardPage() {
       </section>
 
       {/* 2. 오늘의 아모라 브리핑 */}
-      <section className="mb-6 grid gap-4 animate-fade-in lg:grid-cols-[1.25fr_0.75fr]">
+      <section
+        data-tutorial-target="dashboard-briefing"
+        className="mb-6 grid gap-4 animate-fade-in lg:grid-cols-[1.25fr_0.75fr]"
+      >
         <div className="rounded-2xl border border-[#e8ded7] bg-white p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -560,7 +567,10 @@ export default function DashboardPage() {
       </section>
 
       {/* 3. 아모라 행동 카드 */}
-      <section className="mb-6 animate-fade-in rounded-2xl border border-[#e8ded7] bg-white p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6">
+      <section
+        data-tutorial-target="dashboard-actions"
+        className="mb-6 animate-fade-in rounded-2xl border border-[#e8ded7] bg-white p-5 shadow-[0_8px_30px_rgba(80,68,68,0.04)] sm:p-6"
+      >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-[#795252] uppercase">Amora action memory</p>
@@ -640,7 +650,10 @@ export default function DashboardPage() {
       </section>
 
       {/* 4. D-day + Budget Overview (2-column) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 animate-fade-in">
+      <div
+        data-tutorial-target="dashboard-dday-budget"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 animate-fade-in"
+      >
         {/* D-day 카드 */}
         <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center min-h-[240px] sm:min-h-[300px] relative overflow-hidden">
           {/* 장식 스파클 */}
@@ -911,7 +924,10 @@ export default function DashboardPage() {
       {/* 5. 카테고리별 진행 상태 + 시작 가이드 */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 animate-fade-in">
         {/* 카테고리 현황 */}
-        <div className="lg:col-span-3 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div
+          data-tutorial-target="dashboard-categories"
+          className="lg:col-span-3 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        >
           <div className="flex items-center justify-between gap-3 mb-5">
             <div className="min-w-0">
               <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-1">
@@ -981,7 +997,10 @@ export default function DashboardPage() {
         </div>
 
         {/* 시작 가이드 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div
+          data-tutorial-target="dashboard-start-guide"
+          className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
             <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">시작 가이드</h3>
@@ -1022,6 +1041,9 @@ export default function DashboardPage() {
 
       {/* 서비스 가이드 (첫 방문 시) */}
       <ServiceGuide />
+
+      {/* ServiceGuide 닫힌 직후 — 스포트라이트 튜토리얼 */}
+      <ServiceDashboardTutorial />
     </div>
   );
 }

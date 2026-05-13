@@ -30,6 +30,7 @@ import CommunityHero from "@/components/community/CommunityHero";
 import dynamic from "next/dynamic";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import CommunityGuide from "@/components/community/CommunityGuide";
+import CommunityTutorial from "@/components/community/CommunityTutorial";
 import { withSessionCache } from "@/utils/sessionCache";
 
 const CohortCard = dynamic(() => import("@/components/community/CohortCardContainer"), {
@@ -271,15 +272,18 @@ function CommunityFeedContent() {
           </div>
 
           {/* 동기방 카드 */}
-          <div className="mb-4">
+          <div className="mb-4" data-tutorial-target="community-cohort">
             <CohortCard />
           </div>
 
-          <CategoryTabs />
+          <div data-tutorial-target="community-categories">
+            <CategoryTabs />
+          </div>
 
           <div className="mt-4 px-1">
             <Link
               href="/community/post/write"
+              data-tutorial-target="community-write"
               className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white py-2.5 rounded-lg font-medium text-sm shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all duration-200 flex items-center justify-center"
             >
               <PenSquare className="mr-2 w-4 h-4" />
@@ -373,7 +377,11 @@ function CommunityFeedContent() {
               </div>
             )}
 
-            {!isSearching && <FeedComposer />}
+            {!isSearching && (
+              <div data-tutorial-target="community-composer">
+                <FeedComposer />
+              </div>
+            )}
 
             {!isSearching && errorMessage && (
               <div className="flex flex-col gap-3 rounded-xl border border-[#d9c8c8] bg-white px-4 py-3 text-sm text-[#504444] sm:flex-row sm:items-center sm:justify-between">
@@ -475,7 +483,10 @@ function CommunityFeedContent() {
           </div>
         </main>
 
-        <aside className="hidden xl:block w-80 2xl:w-[360px] shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#f8f4f1]">
+        <aside
+          data-tutorial-target="community-right"
+          className="hidden xl:block w-80 2xl:w-[360px] shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#f8f4f1]"
+        >
           <div className="mb-4 rounded-lg border border-[#e4e2e1] bg-white p-4">
             <TrendingPosts />
           </div>
@@ -510,6 +521,7 @@ function CommunityFeedContent() {
           <div className="text-center py-4 mt-4">
             <Link
               href="/"
+              data-tutorial-target="community-service-link"
               className="text-[12px] text-[#504444] hover:text-[#795252] transition-colors duration-200 tracking-widest uppercase"
             >
               웨딩한방 서비스 둘러보기 →
@@ -529,6 +541,9 @@ function CommunityFeedContent() {
 
       {/* 커뮤니티 가이드 (첫 방문 시) */}
       <CommunityGuide />
+
+      {/* 커뮤니티 가이드 닫힌 직후 — 스포트라이트 튜토리얼 */}
+      <CommunityTutorial />
     </div>
   );
 }

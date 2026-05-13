@@ -158,23 +158,23 @@ function SlideDashboard() {
   );
 }
 
-// ─── Slide 3: AI Amora Chat ─────────────────────────────────────────
+// ─── Slide 3: AI Amora — Integration Hub ────────────────────────────
 function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
       <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
-        AI 아모라
+        아모라 — 모든 걸 연결하는 코어
       </h2>
-      <p className="text-base text-[#504444] text-center mb-6">
-        24시간 웨딩 플래너
+      <p className="text-base text-[#504444] text-center mb-5">
+        채팅 한 줄로 견적 진단부터 커플 합의까지
       </p>
 
-      {/* Mock 채팅 UI */}
+      {/* Mock 채팅 UI: 견적 진단 시나리오 */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
           <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[#1b1c1c] text-white px-4 py-2.5">
-            <p className="text-base leading-relaxed">스드메 어디가 좋아?</p>
+            <p className="text-base leading-relaxed">강남 스튜디오 380만원 견적 받았는데 적정해?</p>
           </div>
         </div>
 
@@ -186,47 +186,52 @@ function SlideChat() {
           <div className="flex flex-col gap-2 max-w-[80%]">
             <div className="rounded-2xl rounded-tl-md bg-[#fcf9f8] border border-[#f6f3f2] px-4 py-2.5">
               <p className="text-base text-[#1b1c1c] leading-relaxed">
-                예산과 스타일에 맞는 3곳을 찾아봤어요
+                기본가는 적정. 다만 <span className="font-semibold text-amber-700">원본 데이터 비용</span>이 빠져 있어요.
               </p>
             </div>
 
-            {/* 미니 업체 카드 */}
+            {/* 통합 액션 — 아모라가 한 번에 해주는 것들 */}
             <div className="rounded-xl bg-white border border-[#f6f3f2] p-3 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#f6f3f2] to-[#fcf9f8] flex items-center justify-center">
-                  <span className="text-[18px]">📸</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
+                  <span className="text-sm text-[#504444]">예산 항목에 <span className="text-[#1b1c1c] font-medium">스튜디오 380만원</span> 자동 추가</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-medium text-[#1b1c1c] truncate">로렌 스튜디오</p>
-                  <p className="text-sm text-[#B5ADA3]">강남 · 스튜디오/드레스/메이크업</p>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
+                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">상담 일정</span> 캘린더에 등록</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-base font-medium text-[#795252]">280만원</p>
-                  <div className="flex items-center gap-0.5">
-                    <span className="text-sm text-[#C9A96E]">★</span>
-                    <span className="text-sm text-[#504444]">4.8</span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
+                  <span className="text-sm text-[#504444]">파트너에게 보낼 <span className="text-[#1b1c1c] font-medium">메시지 초안</span> 작성</span>
                 </div>
               </div>
-            </div>
-
-            {/* 추천 버튼 */}
-            <div className="flex gap-2">
-              <button className="flex-1 text-sm text-[#795252] bg-white border border-[#795252]/30 rounded-xl py-2.5 font-medium">
-                가격 비교
-              </button>
-              <button className="flex-1 text-sm text-[#795252] bg-white border border-[#795252]/30 rounded-xl py-2.5 font-medium">
-                포트폴리오 보기
-              </button>
             </div>
           </div>
         </div>
 
-        {/* 어노테이션 */}
-        <div className="flex justify-center">
-          <span className="text-sm text-[#795252] font-medium bg-white/90 rounded-full px-3 py-1 shadow-sm border border-[#795252]/20">
-            업체 추천, 견적 분석, 일정 관리까지
-          </span>
+        {/* 통합 영역 칩 — 아모라가 관장하는 전 영역 */}
+        <div className="mt-1">
+          <p className="text-sm text-[#928980] mb-1.5 text-center">아모라 하나가 전부 관장해요</p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {[
+              "견적 진단",
+              "계약서 번역",
+              "예산 자동",
+              "일정 자동",
+              "커플 합의 코칭",
+              "양가 메시지",
+              "본식 타임라인",
+              "감사 인사",
+            ].map((label) => (
+              <span
+                key={label}
+                className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#fcf9f8] border border-[#f6f3f2] text-sm text-[#504444]"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -514,6 +519,11 @@ export default function ServiceGuide() {
         // 무시
       }
     }
+    try {
+      window.dispatchEvent(new CustomEvent("hanbang:service-guide-completed"));
+    } catch {
+      // 무시
+    }
   }, [neverShow]);
 
   const goTo = useCallback(
@@ -551,6 +561,11 @@ export default function ServiceGuide() {
     }
     setEntered(false);
     setTimeout(() => setVisible(false), 250);
+    try {
+      window.dispatchEvent(new CustomEvent("hanbang:service-guide-completed"));
+    } catch {
+      // 무시
+    }
   }, []);
 
   // 키보드 네비게이션

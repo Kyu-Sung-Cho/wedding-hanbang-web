@@ -16,10 +16,14 @@ import {
   Camera,
   Shield,
   Users,
+  Sparkles,
+  FileSearch,
+  AlertTriangle,
+  Heart,
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_community_guide_seen";
-const TOTAL_SLIDES = 5;
+const TOTAL_SLIDES = 6;
 
 /* ─────────────────────────────────────────────
    Slide 1 — 공감 시작 (기능 나열 X, 감정으로 시작)
@@ -94,7 +98,7 @@ function SlideRealReview() {
         </div>
         <div className="px-4 pb-2">
           <div className="text-[17px] text-[#1b1c1c] font-semibold mb-1 text-left">
-            강남 스드메 3곳 투어 솔직 비교 💍
+            강남 스튜디오 3곳 가격 솔직 비교 💍
           </div>
           <p className="text-base text-[#504444] font-light leading-relaxed text-left">
             기본가 280만원인데 추가금이 130만원... 총 410만원이었어요.
@@ -213,7 +217,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">행복한예비맘</div>
             <div className="bg-[#fcf9f8] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6f3f2]">
               <span className="text-base text-[#1b1c1c] leading-relaxed">
-                혹시 5월에 스드메 투어 같이 가실 분 계세요? 🙋‍♀️
+                강남 스튜디오 다들 얼마에 계약하셨어요? 380만원 견적이 적정한지 모르겠어요 💭
               </span>
             </div>
           </div>
@@ -224,7 +228,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">민트초코신부</div>
             <div className="bg-[#fcf9f8] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6f3f2]">
               <span className="text-base text-[#1b1c1c] leading-relaxed">
-                저요! 저도 5월 말 예식인데 아직 스드메 못 정했어요 😂
+                저는 340만원에 했어요! 추가금 거의 없어서 가성비 좋았어요
               </span>
             </div>
           </div>
@@ -235,7 +239,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">달빛웨딩</div>
             <div className="bg-[#fcf9f8] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6f3f2]">
               <span className="text-base text-[#1b1c1c] leading-relaxed">
-                저 지난주에 다녀왔어요! 후기 올릴게요 ✍️
+                저도 거기 상담 받았어요. 자세한 후기 글로 올려드릴게요 ✍️
               </span>
             </div>
           </div>
@@ -252,7 +256,86 @@ function SlideCohort() {
 }
 
 /* ─────────────────────────────────────────────
-   Slide 4 — 나만의 커뮤니티 활용법
+   Slide 4 — 아모라가 같이 본다 (커뮤니티 ↔ AI 통합)
+   ───────────────────────────────────────────── */
+function SlideAmora() {
+  return (
+    <div className="flex flex-col items-center px-6">
+      {/* 시나리오 라벨 */}
+      <div className="w-full max-w-[380px] mb-4">
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <Sparkles className="w-5 h-5 text-[#795252]" />
+          <span className="text-base text-[#795252] font-medium">
+            혼자 판단하지 마세요 — AI 아모라가 같이 봐줘요
+          </span>
+        </div>
+      </div>
+
+      {/* 아모라 견적 진단 카드 mockup */}
+      <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6f3f2] shadow-sm overflow-hidden mb-4">
+        <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#C9A96E] flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-base text-[#1b1c1c] font-medium">아모라 견적 진단</span>
+            <span className="text-sm text-[#B5ADA3] font-light">방금 분석 완료</span>
+          </div>
+        </div>
+        <div className="px-4 pb-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-left">
+              <div className="text-sm text-amber-800 font-semibold mb-0.5">원본 데이터 비용 누락</div>
+              <div className="text-sm text-amber-700 leading-relaxed">
+                강남 평균 +40~80만원 추가될 가능성. 계약 전에 꼭 확인하세요.
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#fcf9f8] border border-[#f6f3f2] rounded-xl p-3 flex items-start gap-2">
+            <FileSearch className="w-4 h-4 text-[#795252] shrink-0 mt-0.5" />
+            <div className="text-left">
+              <div className="text-sm text-[#1b1c1c] font-semibold mb-0.5">업체에 물어볼 질문</div>
+              <div className="text-sm text-[#504444] leading-relaxed">
+                &ldquo;원본 데이터 비용 포함 견적으로 다시 받을 수 있을까요?&rdquo;
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 아모라가 통합하는 것들 — 칩 */}
+      <div className="w-full max-w-[380px] mb-4">
+        <p className="text-sm text-[#928980] mb-2 text-left">아모라 하나가 다 연결돼 있어요</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { icon: FileSearch, label: "견적 진단" },
+            { icon: Shield, label: "계약서 검토" },
+            { icon: TrendingUp, label: "예산 자동 반영" },
+            { icon: Camera, label: "일정 자동 등록" },
+            { icon: Heart, label: "커플 메시지 코칭" },
+            { icon: AlertTriangle, label: "실수 방지 레이더" },
+          ].map((chip) => (
+            <span
+              key={chip.label}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fcf9f8] border border-[#f6f3f2] text-sm text-[#504444]"
+            >
+              <chip.icon className="w-3.5 h-3.5 text-[#795252]" />
+              {chip.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-base text-[#504444] font-light text-center">
+        커뮤니티 글에서도 <span className="text-[#795252] font-medium">아모라가 가격 댓글</span>로 적정한지 알려줘요
+      </p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Slide 5 — 나만의 커뮤니티 활용법
    ───────────────────────────────────────────── */
 function SlideHowToUse() {
   return (
@@ -324,12 +407,18 @@ function SlideHowToUse() {
    ───────────────────────────────────────────── */
 function SlideStart({ onClose }: { onClose: () => void }) {
   const handleStart = useCallback(() => {
-    try { localStorage.setItem(STORAGE_KEY, "true"); } catch { /* */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+      window.dispatchEvent(new CustomEvent("hanbang:community-guide-completed"));
+    } catch { /* */ }
     onClose();
   }, [onClose]);
 
   const handleNeverShow = useCallback(() => {
-    try { localStorage.setItem(STORAGE_KEY, "true"); } catch { /* */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+      window.dispatchEvent(new CustomEvent("hanbang:community-guide-completed"));
+    } catch { /* */ }
     onClose();
   }, [onClose]);
 
@@ -393,7 +482,10 @@ export default function CommunityGuide() {
   }, []);
 
   const close = useCallback(() => {
-    try { localStorage.setItem(STORAGE_KEY, "true"); } catch { /* */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+      window.dispatchEvent(new CustomEvent("hanbang:community-guide-completed"));
+    } catch { /* */ }
     setVisible(false);
   }, []);
 
@@ -435,8 +527,9 @@ export default function CommunityGuide() {
       case 0: return <SlideEmpathy />;
       case 1: return <SlideRealReview />;
       case 2: return <SlideCohort />;
-      case 3: return <SlideHowToUse />;
-      case 4: return <SlideStart onClose={() => setVisible(false)} />;
+      case 3: return <SlideAmora />;
+      case 4: return <SlideHowToUse />;
+      case 5: return <SlideStart onClose={() => setVisible(false)} />;
       default: return null;
     }
   }
