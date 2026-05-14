@@ -630,8 +630,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       set((s) => ({ messages: [...s.messages, demoMsg] }));
     }
 
-    // 상대방에게 보내는 메시지는 AI 호출 안 함
-    if (target === "partner") return;
+    // 상대방에게 보내는 메시지 — AI 호출은 안 하지만 서버 측 갈등 감지기는 트리거.
+    // 서버가 cooldown·휴리스틱·LLM 검증 후 필요 시 자동으로 mediation 메시지를 INSERT 함.
+    // Realtime 이 양쪽 클라이언트에 결과 전달.
+    if (target === "partner") {
+      // fire-and-forget — 응답 안 기다림 (UI 블로킹 방지)
+      void fetch("/api/chat/check-couple-conflict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupleId }),
+      }).catch(() => {
+        /* 감지 실패는 silent — 메시지 전송 자체에는 영향 X */
+      });
+      return;
+    }
 
     // AI 응답
     set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });

@@ -54,7 +54,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     loadMessages,
     sendMessage,
     requestInitialGreeting,
-    requestMediation,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
@@ -91,8 +90,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const greetingRequested = useRef(false);
-  const mediationTriggeredAt = useRef<number>(0);
-  const lastCheckedMsgCount = useRef<number>(0);
   const coupleId = couple?.id;
 
   // 메시지 로드 + 구독
@@ -231,152 +228,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
-  // 갈등 감지: 새 메시지가 추가될 때만 + 최근 5분 이내 메시지만 분석
-  useEffect(() => {
-    // 새 메시지가 없으면 스킵 (AI 응답, 스크롤 등으로 re-render 방지)
-    const currentCount = messages.length;
-    if (currentCount <= lastCheckedMsgCount.current) return;
-    lastCheckedMsgCount.current = currentCount;
-
-    // 스트리밍 중이면 스킵
-    if (isStreaming) return;
-
-    // 마지막 메시지가 AI면 스킵 (유저 메시지가 올 때만 감지)
-    const lastMsg = messages[messages.length - 1];
-    if (!lastMsg || lastMsg.sender_role === "ai") return;
-
-    // 5분 쿨다운 (한 번 중재 후 최소 5분 대기)
-    const now = Date.now();
-    if (now - mediationTriggeredAt.current < 5 * 60 * 1000) return;
-
-    const CONFLICT_CATEGORIES: { id: string; patterns: string[]; weight: number }[] = [
-      {
-        id: "fight", weight: 5,
-        patterns: [
-          "싸우자", "싸웠어", "싸운 거", "크게 싸", "다퉜어", "다투고", "다투었",
-          "말 안 해", "말 안해", "말을 안 해", "연락 끊", "연락도 안",
-          "무시하지 마", "무시하는 거", "무시당하", "무시해",
-          "대화가 안 돼", "대화가 안돼", "말이 안 통해", "소통이 안",
-          "이해를 못 해", "이해를 안 해", "이해가 안 돼",
-          "헤어지자", "결혼 안 해", "결혼 취소", "파혼",
-        ],
-      },
-      {
-        id: "blame", weight: 4,
-        patterns: [
-          "왜 맨날 너만", "나만 양보", "너는 맨날", "너만 맨날",
-          "맨날 나한테", "내 말은 안 듣", "내 말을 안 듣",
-          "관심이 없는 거", "관심도 없", "신경도 안 써", "신경을 안 써",
-          "니가 알아서 해", "너 혼자 해", "나 몰라",
-          "왜 항상 나만", "너는 왜 그래",
-          "맨날 이래", "또 이러네", "또 시작이야",
-          "말을 안 해줘", "얘기를 안 해",
-          "걔가 맨날", "쟤가 맨날", "남편이 맨날", "와이프가 맨날",
-          "신랑이 맨날", "신부가 맨날", "그 사람이 맨날",
-          "안 들어줘", "안들어줘", "말을 안 들어",
-        ],
-      },
-      {
-        id: "disagree", weight: 3,
-        patterns: [
-          "난 절대 반대", "나는 반대야", "절대 안 돼", "절대 안돼",
-          "그건 절대 싫", "왜 꼭 그걸", "왜 그걸 해야",
-          "말도 안 되는", "말이 되냐", "말이 돼?",
-          "돈이 어디서 나", "돈이 어디 있", "그 돈으로 뭘",
-          "내가 언제 그랬", "그렇게 정한 적 없",
-          "의견이 달라", "의견이 안 맞", "생각이 달라", "생각이 안 맞",
-          "동의 못 해", "동의 안 해", "합의가 안",
-          "안 된다니까", "싫다니까", "하기 싫",
-        ],
-      },
-      {
-        id: "emotion", weight: 2,
-        patterns: [
-          "너 때문에 속상", "너한테 서운", "서운한 게", "서운했어", "서운해",
-          "답답해 진짜", "진짜 답답", "너무 답답", "답답해서",
-          "화가 나", "화나는", "너 때문에 화", "화났어", "화가 많이",
-          "짜증나 진짜", "진짜 짜증", "너무 짜증", "짜증이 나",
-          "지쳤어 이제", "진짜 지쳤", "너무 힘들어", "힘들다",
-          "스트레스", "속상해", "속상하다", "울었어", "울고 싶",
-          "불안해", "걱정돼", "걱정이 돼",
-        ],
-      },
-    ];
-
-    // 최근 5분 이내 유저 메시지만 필터 (오래된 싸움 무시)
-    const WINDOW_MS = 5 * 60 * 1000;
-    const cutoff = new Date(now - WINDOW_MS).toISOString();
-    const recentUserMsgs = messages
-      .filter((m) => m.sender_role !== "ai" && m.created_at && m.created_at >= cutoff)
-      .slice(-10);
-
-    if (recentUserMsgs.length < 2) return;
-
-    // 점수 계산
-    let totalScore = 0;
-    let messagesWithConflict = 0;
-    const hitCategories = new Set<string>();
-    const senderHits: Record<string, number> = {};
-
-    for (const msg of recentUserMsgs) {
-      let msgScore = 0;
-      for (const cat of CONFLICT_CATEGORIES) {
-        for (const pattern of cat.patterns) {
-          if (msg.content.includes(pattern)) {
-            msgScore += cat.weight;
-            hitCategories.add(cat.id);
-            break;
-          }
-        }
-      }
-      if (msgScore > 0) {
-        messagesWithConflict++;
-        totalScore += msgScore;
-        const role = msg.sender_role ?? "unknown";
-        senderHits[role] = (senderHits[role] || 0) + 1;
-      }
-    }
-
-    // 양쪽 다 부정적 → 1.5배
-    if (Object.keys(senderHits).length >= 2) {
-      totalScore = Math.round(totalScore * 1.5);
-    }
-
-    // 총점 6+ / 갈등 메시지 2+ / 카테고리 조건
-    const THRESHOLD = 6;
-    const multiCategory = hitCategories.size >= 2 || hitCategories.has("fight");
-    const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2 && multiCategory;
-
-    if (isConflict && coupleId && profile && journey) {
-      mediationTriggeredAt.current = now;
-
-      // 갈등 맥락 추출
-      const conflictMsgs = recentUserMsgs
-        .filter((m) => {
-          for (const cat of CONFLICT_CATEGORIES) {
-            for (const pattern of cat.patterns) {
-              if (m.content.includes(pattern)) return true;
-            }
-          }
-          return false;
-        })
-        .map((m) => m.content.slice(0, 50))
-        .join(" / ");
-
-      requestMediation({
-        coupleId,
-        senderRole: profile.role ?? "bride",
-        senderName: profile.name ?? "사용자",
-        weddingContext: {
-          weddingDate: journey?.wedding_date ?? null,
-          budget: journey?.total_budget ?? 0,
-          venue: journey?.venue ?? null,
-          progress: journey?.progress ?? {},
-        },
-        conflictContext: conflictMsgs || "커플 간 의견 차이",
-      });
-    }
-  }, [messages.length, isStreaming, coupleId, profile, journey, requestMediation]);
+  // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
+  // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
+  // 서버에서 휴리스틱 + 회상 필터 + 턴 패턴 + (borderline) LLM 검증 → 트리거 시
+  // mediation 메시지를 직접 INSERT 하며 Realtime 으로 양쪽 클라이언트에 자동 전달.
+  // 단일 진실원본이라 양쪽 디바이스 동시 트리거하는 race condition 제거.
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
