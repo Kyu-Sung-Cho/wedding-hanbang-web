@@ -832,15 +832,23 @@ export default function PostDetailPage() {
                   신고
                 </button>
 
-                {/* 삭제 (작성자만) */}
+                {/* 수정/삭제 (작성자만) */}
                 {isAuthor && (
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteModal(true)}
-                    className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 ml-auto whitespace-nowrap"
-                  >
-                    삭제
-                  </button>
+                  <>
+                    <Link
+                      href={`/community/post/write?edit=${post.id}`}
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#504444] transition-all duration-200 ml-auto whitespace-nowrap"
+                    >
+                      수정
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 whitespace-nowrap"
+                    >
+                      삭제
+                    </button>
+                  </>
                 )}
               </div>
             </div>
