@@ -18,9 +18,47 @@ import {
   X,
   Trash2,
   MapPin,
+  Sparkles,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
+import type {
+  WeddingStyle,
+  PriorityItem,
+  BudgetTendency,
+  GuestCount,
+} from "@/types/onboarding.types";
+
+// 웨딩 스타일 4필드 선택지 — 온보딩과 동일
+const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
+  { value: "minimal", label: "미니멀" },
+  { value: "classic", label: "클래식" },
+  { value: "fancy", label: "화려한" },
+  { value: "natural", label: "자연스러운" },
+];
+
+const PRIORITY_OPTIONS: { value: PriorityItem; label: string }[] = [
+  { value: "sdm", label: "스드메" },
+  { value: "venue", label: "예식장" },
+  { value: "rings", label: "예물·예단" },
+  { value: "honeymoon", label: "신혼여행" },
+  { value: "ceremony", label: "본식 연출" },
+  { value: "housing", label: "신혼집" },
+];
+
+const BUDGET_TENDENCY_OPTIONS: { value: BudgetTendency; label: string }[] = [
+  { value: "saving", label: "절약형" },
+  { value: "balanced", label: "가성비" },
+  { value: "premium", label: "프리미엄" },
+];
+
+const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
+  { value: "under50", label: "50명 이하" },
+  { value: "50to100", label: "50~100명" },
+  { value: "100to200", label: "100~200명" },
+  { value: "200to300", label: "200~300명" },
+  { value: "over300", label: "300명 이상" },
+];
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -120,6 +158,39 @@ export default function SettingsPage() {
     await updateJourney({ venue: venueInput.trim() || null });
     setSaving(false);
     setEditingVenue(false);
+  };
+
+  // 웨딩 스타일 선호도 — journey.progress.__preferences 안에 저장됨.
+  // progress 자체는 다른 체크리스트 항목들도 들어있으므로 머지해서 PATCH.
+  // 칩 클릭 즉시 저장 (편집 모드 없음).
+  const prefs = (journey?.progress as Record<string, unknown> | undefined)?.__preferences as
+    | {
+        weddingStyle?: WeddingStyle | null;
+        priorities?: PriorityItem[];
+        budgetTendency?: BudgetTendency | null;
+        guestCount?: GuestCount | null;
+      }
+    | undefined;
+
+  const updatePreferences = async (
+    partial: Partial<{
+      weddingStyle: WeddingStyle | null;
+      priorities: PriorityItem[];
+      budgetTendency: BudgetTendency | null;
+      guestCount: GuestCount | null;
+    }>
+  ) => {
+    const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
+    const nextPrefs = { ...(prefs ?? {}), ...partial };
+    await updateJourney({
+      progress: { ...currentProgress, __preferences: nextPrefs } as never,
+    });
+  };
+
+  const togglePriority = async (value: PriorityItem) => {
+    const cur = prefs?.priorities ?? [];
+    const next = cur.includes(value) ? cur.filter((p) => p !== value) : [...cur, value];
+    await updatePreferences({ priorities: next });
   };
 
   const DELETE_REASONS = [
@@ -344,6 +415,119 @@ export default function SettingsPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* 웨딩 스타일 — 온보딩에서 입력되는 4필드 (스타일/우선순위/예산성향/하객수).
+          한쪽이 온보딩에서 설정한 값을 코드로 따라온 파트너도 보고 수정할 수 있도록.
+          칩 클릭 = 즉시 저장 (편집 모드 없음). */}
+      <motion.div
+        {...fadeIn}
+        transition={{ duration: 0.5, delay: 0.03 }}
+        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+      >
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[0_4px_14px_rgba(196,150,126,0.2)]">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">웨딩 스타일</h3>
+            <p className="text-base text-[#504444] font-light">아모라가 추천·예산 짤 때 쓰는 취향 정보예요</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* 스타일 */}
+          <div>
+            <p className="text-sm text-[#B5ADA3] mb-2">스타일</p>
+            <div className="flex flex-wrap gap-2">
+              {STYLE_OPTIONS.map((opt) => {
+                const selected = prefs?.weddingStyle === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      selected
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 우선순위 (다중 선택) */}
+          <div>
+            <p className="text-sm text-[#B5ADA3] mb-2">우선순위 <span className="text-[#B5ADA3]/70">(여러 개 선택)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {PRIORITY_OPTIONS.map((opt) => {
+                const selected = (prefs?.priorities ?? []).includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => togglePriority(opt.value)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      selected
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 예산 성향 */}
+          <div>
+            <p className="text-sm text-[#B5ADA3] mb-2">예산 성향</p>
+            <div className="flex flex-wrap gap-2">
+              {BUDGET_TENDENCY_OPTIONS.map((opt) => {
+                const selected = prefs?.budgetTendency === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      selected
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 하객 규모 */}
+          <div>
+            <p className="text-sm text-[#B5ADA3] mb-2">하객 규모</p>
+            <div className="flex flex-wrap gap-2">
+              {GUEST_COUNT_OPTIONS.map((opt) => {
+                const selected = prefs?.guestCount === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      selected
+                        ? "bg-[#795252] text-white shadow-sm"
+                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
