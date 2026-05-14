@@ -194,20 +194,38 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // 컨테이너 스크롤 헬퍼 — el.scrollTo / scrollTop 직접 만지는 것 자체는 페이지에
+  // 영향이 없지만, 새 메시지 렌더링 중에 autoFocus / 이미지 로딩 / scroll anchoring
+  // 등 부수효과로 window.scrollY가 함께 움직이는 케이스가 있음. 컨테이너 스크롤
+  // 전후에 window.scrollY 를 캡처·복원해 페이지가 절대 안 움직이도록 잠금.
+  // (effect보다 위에 선언 — TDZ 방지)
+  const scrollContainerToBottom = useCallback((smooth: boolean) => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const prevPageY = window.scrollY;
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+    // 같은 tick + 다음 frame 두 번 복원 — 동기/비동기 페이지 스크롤 모두 잡음
+    if (window.scrollY !== prevPageY) window.scrollTo({ top: prevPageY, behavior: "auto" });
+    requestAnimationFrame(() => {
+      if (window.scrollY !== prevPageY) window.scrollTo({ top: prevPageY, behavior: "auto" });
+    });
+  }, []);
+
   // 첫 진입 1회 — 메시지 처음 보일 때 컨테이너만 바닥으로 (페이지 스크롤 절대 안 건드림)
   useEffect(() => {
     if (hasInitialScrolledRef.current) return;
     if (messages.length === 0) return;
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight; // smooth 아님 — 즉시 (사용자가 인지하기 전에)
+    scrollContainerToBottom(false);
     hasInitialScrolledRef.current = true;
     lastMsgCountRef.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, scrollContainerToBottom]);
 
   // 본인이 방금 보낸 메시지면 컨테이너만 부드럽게 바닥으로 — 자기 메시지가 화면 밖에
   // 떨어지는 일 방지. AI/파트너 메시지에는 적용 안 함 (위에서 옛날 대화 읽고 있을 수 있어서).
-  // scrollIntoView 안 씀 → 페이지 전체 스크롤 부작용 없음.
   useEffect(() => {
     const prevCount = lastMsgCountRef.current;
     const currCount = messages.length;
@@ -216,48 +234,28 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const last = messages[currCount - 1];
     if (!last) return;
     if (last.sender_id !== profile?.id) return; // 본인 거 아님 → 가만히
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    // requestAnimationFrame — 새 메시지 DOM에 들어간 직후 스크롤
-    requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    });
-  }, [messages, profile?.id]);
+    requestAnimationFrame(() => scrollContainerToBottom(true));
+  }, [messages, profile?.id, scrollContainerToBottom]);
 
   const jumpToBottom = useCallback(() => {
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, []);
+    scrollContainerToBottom(true);
+  }, [scrollContainerToBottom]);
 
   // AI streaming 중 — 컨테이너만 무조건 바닥으로 따라감.
-  // isStreaming은 chatStore 로컬 상태로 "이 사용자가 보낸 메시지에 대한 응답"일 때만 true
-  // (파트너 트리거는 aiResponding이라 별도 분기). 즉 본인이 보고 싶어 보낸 응답이므로
-  // near-bottom 체크 없이 항상 따라가는 게 맞음.
-  //
-  // 예전엔 isNearBottomRef 가드를 뒀는데, 사용자 발화 직후 smooth scroll이
-  // 끝나기 전에 AI 토큰이 들어오면 scrollHeight가 커져 near-bottom이 깨지는
-  // race condition 때문에 자동 스크롤이 죽는 케이스가 있었음. 제거.
+  // isStreaming은 chatStore 로컬 상태로 "이 사용자가 보낸 메시지에 대한 응답"일 때만 true.
   useEffect(() => {
     if (!isStreaming) return;
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [isStreaming, streamingContent]);
+    scrollContainerToBottom(false);
+  }, [isStreaming, streamingContent, scrollContainerToBottom]);
 
   // AI 응답 완료 직후 — true → false 전환에서 한 번 더 부드럽게 바닥으로.
-  // (마지막 토큰 들어오면서 살짝 잘려 보이는 케이스 방지)
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreaming;
     if (!wasStreaming || isStreaming) return;
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    });
-  }, [isStreaming]);
+    requestAnimationFrame(() => scrollContainerToBottom(true));
+  }, [isStreaming, scrollContainerToBottom]);
 
   // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
   // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
