@@ -13,7 +13,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-categories"]',
     title: "주제별 게시판",
     description:
-      "정상인가요(견적 검증), 투어/이용 후기, 꿀팁, 결혼 끝 AMA 등으로 나뉘어 있어요. 원하는 주제만 골라 볼 수 있어요.",
+      "정상인가요(견적 검증), 투어/이용 후기, 꿀팁, 결혼 끝 Q&A 등으로 나뉘어 있어요. 원하는 주제만 골라 볼 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="community-composer"]',
@@ -25,7 +25,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-write"]',
     title: "자세한 후기·질문 쓰기",
     description:
-      "사진·가격·계약 내용을 정리해 글로 올리면 다음 예비부부가 덜 헤매요. 협찬이면 협찬으로 표시할 수 있고, 아모라가 빠진 항목·추가금 위험을 자동 분석해 알려줘요.",
+      "사진·가격·계약 내용을 정리해 글로 올리면 다음 예비부부가 덜 헤매요. 협찬이면 협찬으로 표시할 수 있고, 가격 정보를 함께 적으면 아모라가 적정성 댓글을 자동으로 달아줘요.",
   },
   {
     selector: '[data-tutorial-target="community-right"]',

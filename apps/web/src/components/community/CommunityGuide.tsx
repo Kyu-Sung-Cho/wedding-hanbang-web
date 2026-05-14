@@ -315,8 +315,8 @@ function SlideAmora() {
             { icon: Shield, label: "계약서 검토" },
             { icon: TrendingUp, label: "예산 자동 반영" },
             { icon: Camera, label: "일정 자동 등록" },
-            { icon: Heart, label: "커플 메시지 코칭" },
-            { icon: AlertTriangle, label: "실수 방지 레이더" },
+            { icon: Heart, label: "양가·상견례 코칭" },
+            { icon: AlertTriangle, label: "숨은 비용 경고" },
           ].map((chip) => (
             <span
               key={chip.label}
