@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { FileSearch, Search, PenSquare, Menu, X, User, Store } from "lucide-react";
+import { FileSearch, Search, PenSquare, Menu, X, Store, CalendarCheck, Bookmark, Users as UsersIcon, Activity, Settings as SettingsIcon } from "lucide-react";
 import MyToolsWidget from "@/components/community/MyToolsWidget";
+import UserMenu from "@/components/community/UserMenu";
 
 export default function CommunityNav() {
   const router = useRouter();
@@ -126,12 +127,7 @@ export default function CommunityNav() {
             </Link>
 
             {user ? (
-              <Link
-                href="/settings"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAFAF8] hover:text-[#1A1A1F] transition-all"
-              >
-                <User className="w-5 h-5" />
-              </Link>
+              <UserMenu />
             ) : (
               <Link
                 href="/login"
@@ -210,6 +206,38 @@ export default function CommunityNav() {
               <PenSquare className="w-5 h-5" />
               글쓰기
             </Link>
+
+            {user && (
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {[
+                  { href: "/bookings", label: "내 예약", Icon: CalendarCheck },
+                  { href: "/community/my", label: "내 활동", Icon: Activity },
+                  { href: "/favorites", label: "즐겨찾기", Icon: Bookmark },
+                  { href: "/community/cohort", label: "동기방", Icon: UsersIcon },
+                ].map((item) => {
+                  const Icon = item.Icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
+                    >
+                      <Icon className="w-4 h-4 text-[#795252]" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                <Link
+                  href="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm text-[#928980] hover:text-[#1A1A1F] transition-colors"
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                  설정
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
