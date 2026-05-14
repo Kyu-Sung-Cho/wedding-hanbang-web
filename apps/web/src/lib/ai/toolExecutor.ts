@@ -1195,22 +1195,27 @@ async function executeCheckVendorAvailability(
     };
   }
 
-  // 타임슬롯 조회
-  const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
-  const slotFk = productId ? "product_id" : "vendor_id";
-  const slotFkValue = productId || vendorId;
+  // 타임슬롯 조회 — product 슬롯 없으면 vendor 슬롯으로 폴백
+  // (get_available_slots / create_booking 의 폴백 로직과 동일하게 맞춤).
+  type SlotRow2 = { day: number; hour: number; available: boolean; max_bookings: number };
+  const fetchSlotsFor = async (table: string, fk: string, value: string): Promise<SlotRow2[]> => {
+    let q = admin
+      .from(table)
+      .select("day, hour, available, max_bookings")
+      .eq(fk, value)
+      .eq("available", true);
+    if (targetDay !== undefined) q = q.eq("day", targetDay);
+    const { data } = await q;
+    return (data ?? []) as SlotRow2[];
+  };
 
-  let slotQuery = admin
-    .from(slotTable)
-    .select("day, hour, available, max_bookings")
-    .eq(slotFk, slotFkValue)
-    .eq("available", true);
-
-  if (targetDay !== undefined) {
-    slotQuery = slotQuery.eq("day", targetDay);
+  let slots: SlotRow2[] = [];
+  if (productId) {
+    slots = await fetchSlotsFor("product_timeslots", "product_id", productId);
   }
-
-  const { data: slots } = await slotQuery;
+  if (slots.length === 0) {
+    slots = await fetchSlotsFor("vendor_timeslots", "vendor_id", vendorId);
+  }
 
   // 향후 7일 예약 수 확인
   const today = new Date();
@@ -1239,7 +1244,7 @@ async function executeCheckVendorAvailability(
   }
 
   const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
-  const availableSlots = (slots ?? []).map((s) => {
+  const availableSlots = slots.map((s) => {
     const dateStr = dayToDate.get(s.day);
     const timeStr = `${String(s.hour).padStart(2, "0")}:00`;
     const currentBookings = dateStr ? (bookingCountMap.get(`${dateStr}:${timeStr}`) ?? 0) : 0;
@@ -1567,30 +1572,29 @@ async function executeGetAvailableSlots(
     };
   }
 
-  // 타임슬롯 조회 (우선순위: staff > product > vendor)
-  let slotTable: string;
-  let slotFk: string;
-  let slotFkValue: string;
+  // 타임슬롯 조회 (우선순위: staff > product > vendor).
+  // 특화 슬롯(staff/product)이 비어있으면 vendor 기본 슬롯으로 폴백.
+  // 의미: 스태프/상품에 별도 일정 등록 안 했으면 업체 영업시간 그대로 사용.
+  type SlotRow = { day: number; hour: number; available: boolean; max_bookings: number };
+  const fetchSlots = async (table: string, fk: string, value: string) => {
+    const { data } = await admin
+      .from(table)
+      .select("day, hour, available, max_bookings")
+      .eq(fk, value)
+      .eq("available", true);
+    return (data ?? []) as SlotRow[];
+  };
 
+  let slots: SlotRow[] = [];
   if (staffId) {
-    slotTable = "staff_timeslots";
-    slotFk = "staff_id";
-    slotFkValue = staffId;
-  } else if (productId) {
-    slotTable = "product_timeslots";
-    slotFk = "product_id";
-    slotFkValue = productId;
-  } else {
-    slotTable = "vendor_timeslots";
-    slotFk = "vendor_id";
-    slotFkValue = vendorId;
+    slots = await fetchSlots("staff_timeslots", "staff_id", staffId);
   }
-
-  const { data: slots } = await admin
-    .from(slotTable)
-    .select("day, hour, available, max_bookings")
-    .eq(slotFk, slotFkValue)
-    .eq("available", true);
+  if (slots.length === 0 && productId) {
+    slots = await fetchSlots("product_timeslots", "product_id", productId);
+  }
+  if (slots.length === 0) {
+    slots = await fetchSlots("vendor_timeslots", "vendor_id", vendorId);
+  }
 
   // 향후 14일 예약 수 확인
   const today = new Date();
@@ -1638,7 +1642,7 @@ async function executeGetAvailableSlots(
     remaining: number;
   }[] = [];
 
-  for (const slot of slots ?? []) {
+  for (const slot of slots) {
     const dates = dayToDates.get(slot.day) ?? [];
     for (const dateStr of dates) {
       const timeStr = `${String(slot.hour).padStart(2, "0")}:00`;
@@ -1747,22 +1751,31 @@ async function executeCreateBooking(
     }
   }
 
-  // 타임슬롯 용량 확인
-  const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
-  const slotFk = productId ? "product_id" : "vendor_id";
-  const slotFkValue = productId || vendorId;
+  // 타임슬롯 용량 확인 — product 슬롯 없으면 vendor 슬롯으로 폴백
+  // (get_available_slots 의 폴백 로직과 동일하게 맞춤).
   const bookingDay = (new Date(date).getDay() + 6) % 7;
   const bookingHour = parseInt(time.split(":")[0], 10);
 
-  const { data: slotData } = await admin
-    .from(slotTable)
-    .select("max_bookings")
-    .eq(slotFk, slotFkValue)
-    .eq("day", bookingDay)
-    .eq("hour", bookingHour)
-    .eq("available", true)
-    .limit(1)
-    .single();
+  const fetchSlotCapacity = async (table: string, fk: string, value: string) => {
+    const { data } = await admin
+      .from(table)
+      .select("max_bookings")
+      .eq(fk, value)
+      .eq("day", bookingDay)
+      .eq("hour", bookingHour)
+      .eq("available", true)
+      .limit(1)
+      .maybeSingle();
+    return data as { max_bookings: number } | null;
+  };
+
+  let slotData: { max_bookings: number } | null = null;
+  if (productId) {
+    slotData = await fetchSlotCapacity("product_timeslots", "product_id", productId);
+  }
+  if (!slotData) {
+    slotData = await fetchSlotCapacity("vendor_timeslots", "vendor_id", vendorId);
+  }
 
   if (!slotData) {
     return {
