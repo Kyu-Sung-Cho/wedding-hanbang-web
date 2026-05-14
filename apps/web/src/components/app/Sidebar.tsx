@@ -45,13 +45,14 @@ const menuItems = [
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
+  // 업체 관련 메뉴 묶음 — 둘러보기·예약·즐겨찾기는 한 흐름으로
   { href: "/vendors", icon: Store, label: "업체 찾기" },
   { href: "/bookings", icon: Ticket, label: "내 예약" },
+  { href: "/favorites", icon: Bookmark, label: "내 즐겨찾기" },
   { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
   { href: "/money", icon: Banknote, label: "축의금 관리" },
   { href: "/scripts", icon: Mic, label: "AI 대본" },
   { href: "/community", icon: Users, label: "커뮤니티" },
-  { href: "/favorites", icon: Bookmark, label: "내 즐겨찾기" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/settings", icon: Settings, label: "설정" },
 ]
