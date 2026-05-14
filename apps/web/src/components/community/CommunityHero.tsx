@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Handshake } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface CommunityHeroProps {
   postCount?: number;
@@ -9,6 +11,21 @@ interface CommunityHeroProps {
 
 export default function CommunityHero({ postCount = 0, topVendor }: CommunityHeroProps) {
   const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개 글` : "실시간 글";
+
+  // 로그인 유저에겐 hero 숨김 — 이미 커뮤니티를 이해한 재방문자라 매번 안내 노출이 불필요.
+  // 비로그인엔 그대로 노출하여 온보딩 컨텍스트 제공.
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setIsLoggedIn(true);
+    });
+  }, []);
+
+  if (isLoggedIn) return null;
 
   return (
     <section className="rounded-lg border border-[#e4ded9] bg-[#fffdfb] px-4 py-5 sm:px-6 lg:px-7">
