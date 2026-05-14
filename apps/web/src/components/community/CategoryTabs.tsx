@@ -81,7 +81,7 @@ export default function CategoryTabs() {
               isActive("/community/quote-check") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
             }`}
           />
-          <span className="text-sm">견적진단</span>
+          <span className="text-sm">견적 체크</span>
         </Link>
 
         <Link
@@ -184,7 +184,7 @@ export default function CategoryTabs() {
                 : "text-[#504444] bg-white border border-[#e4e2e1] hover:bg-[#f6f3f2]"
             }`}
           >
-            견적진단
+            견적 체크
           </Link>
           {COMMUNITY_CATEGORIES.map((cat) => {
             const href = `/community/${cat.key}`;

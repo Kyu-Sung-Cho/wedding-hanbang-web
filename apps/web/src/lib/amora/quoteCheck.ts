@@ -179,67 +179,72 @@ function getSummaryCopy(result: {
 }) {
   const minHidden = Math.round(result.estimatedHiddenMinManwon);
   const maxHidden = Math.round(result.estimatedHiddenMaxManwon);
+  // 핵심 원칙: 견적의 좋고 나쁨을 평가하지 않음. 사실만 기술.
+  //  - 빠진 항목 개수
+  //  - 한국 평균 대비 위치 (참고)
+  //  - 계약 전 확인 권유
+  // "투명도 등급", "안전/위험" 같은 판단 단어는 사용하지 않음.
 
-  // 하이엔드: 가격 비교 메시지 완전 제거. 함정 분석에만 집중.
+  // 하이엔드: 가격 비교 메시지 완전 제거.
   if (result.priceTier === "highend") {
     if (result.verdict === "danger") {
       return {
-        title: `이 가격대 견적에 ${result.missingCriticalCount}개 필수 항목이 빠져 있습니다. 투명도 ${result.grade}등급`,
-        text: `프리미엄·하이엔드 견적에서도 필수 항목 누락은 똑같이 발생합니다. 빠진 ${result.missingCriticalCount}개 항목과 약 ${minHidden}~${maxHidden}만원의 추가금 리스크가 열려 있습니다.`,
-        action: "가격이 비싸다는 의미가 아닙니다. 이 가격대 견적에 어떤 함정이 빠져 있는지 — 계약 전 항목별로 답변을 받으세요.",
+        title: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았어요`,
+        text: `프리미엄·하이엔드 견적이라도 항목 누락은 동일하게 발생해요. 빠진 ${result.missingCriticalCount}개 항목 기준으로 약 ${minHidden}~${maxHidden}만원의 추가 청구 가능성이 있어요.`,
+        action: "가격이 적정하다·과하다는 판단이 아닙니다. 빠진 항목별로 업체 답변을 받아 계약 여부는 본인이 결정하세요.",
       };
     }
     if (result.verdict === "caution") {
       return {
-        title: `이 가격대 견적, 확인이 더 필요한 항목이 있습니다. 투명도 ${result.grade}등급`,
-        text: `가격대와 무관하게 빠지기 쉬운 함정 항목들이 견적에서 확인되지 않았습니다.`,
+        title: `확인이 더 필요한 항목 ${result.missingCriticalCount}개가 있어요`,
+        text: `가격대와 무관하게 빠지기 쉬운 항목들이 견적에서 확인되지 않았어요.`,
         action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
       };
     }
     return {
-      title: `이 가격대 견적, 함정은 대체로 닫혀 있습니다. 투명도 ${result.grade}등급`,
-      text: `프리미엄 가격대지만 필수 항목이 충분히 명시되어 있고 추가금 리스크가 낮습니다. 환불·취소·원본 제공 조건만 계약서에 남기면 안전합니다.`,
-      action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지만 마지막으로 확인하세요.",
+      title: `주요 항목 대부분이 견적서에 명시되어 있어요`,
+      text: `필수 항목이 충분히 명시돼 있고 추가금 리스크가 낮은 편이에요. 환불·취소·원본 제공 조건은 계약서로 남겨두면 좋아요.`,
+      action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지 마지막으로 확인하세요.",
     };
   }
 
-  // 이상하게 낮은 가격: bait pricing 경고 강화
+  // 이상하게 낮은 가격: bait pricing 시그널만 알려줌 (판단 아님)
   if (result.priceTier === "suspicious_low") {
     if (result.verdict === "danger") {
       return {
-        title: `미끼 가격 의심 신호입니다. 투명도 ${result.grade}등급`,
-        text: `시장 평균보다 현저히 낮은 견적에 필수 항목 ${result.missingCriticalCount}개가 빠져 있습니다. 계약 후 약 ${minHidden}~${maxHidden}만원이 별도로 청구될 가능성이 높습니다.`,
-        action: "낮은 견적일수록 빠진 항목과 추가금 상한을 계약서로 반드시 받으세요. 구두 약속은 신뢰하지 마세요.",
+        title: `한국 평균보다 현저히 낮은 견적 + 필수 항목 ${result.missingCriticalCount}개 누락`,
+        text: `평균보다 낮은 견적인데 필수 항목 ${result.missingCriticalCount}개가 빠져 있어요. 빠진 항목 기준 약 ${minHidden}~${maxHidden}만원이 추가 청구될 패턴이 흔해요.`,
+        action: "낮은 견적일수록 빠진 항목과 추가금 상한을 계약서로 받아두세요. 구두 약속은 변경되기 쉬워요.",
       };
     }
     return {
-      title: `가격은 낮지만 함정 확인이 필요합니다. 투명도 ${result.grade}등급`,
-      text: `시장 평균 대비 낮은 견적입니다. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 더 꼼꼼히 확인하세요.`,
+      title: `한국 평균 대비 낮은 견적이에요`,
+      text: `가격이 평균 대비 낮아요. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 누락 항목을 꼼꼼히 보세요.`,
       action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
     };
   }
 
-  // 일반 가격대: 기존 메시지 유지 (가격 비교 포함)
+  // 일반 가격대
   if (result.verdict === "danger") {
     return {
-      title: `계약 전 멈춤 신호입니다. 투명도 ${result.grade}등급`,
-      text: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았고, 추가금이 약 ${minHidden}~${maxHidden}만원까지 열려 있습니다.`,
+      title: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았어요`,
+      text: `빠진 ${result.missingCriticalCount}개 항목 기준으로 약 ${minHidden}~${maxHidden}만원의 추가 청구 가능성이 열려 있어요.`,
       action: "계약금 입금 전 포함/미포함 항목과 추가금 상한을 문자나 계약서로 받아두세요.",
     };
   }
 
   if (result.verdict === "caution") {
     return {
-      title: `나쁘진 않지만 확인이 더 필요합니다. 투명도 ${result.grade}등급`,
-      text: `가격 자체보다 빠진 항목이 문제일 수 있습니다. 특히 필수/고빈도 추가금 항목을 먼저 확인해야 합니다.`,
+      title: `확인이 더 필요한 항목이 있어요`,
+      text: `가격 자체보다 빠진 항목이 영향을 줄 수 있어요. 특히 필수/고빈도 추가금 항목을 먼저 확인해 보세요.`,
       action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
     };
   }
 
   return {
-    title: `대체로 투명한 견적입니다. 투명도 ${result.grade}등급`,
-    text: `확인된 항목이 충분하고 예상 추가금 리스크가 낮습니다. 그래도 취소/변경/원본 제공 조건은 계약서에 남겨두는 편이 안전합니다.`,
-    action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지만 마지막으로 확인하세요.",
+    title: `주요 항목이 대체로 견적서에 명시되어 있어요`,
+    text: `확인된 항목이 충분하고 예상 추가금 리스크가 낮아요. 취소·변경·원본 제공 조건은 계약서로 남겨두면 안전해요.`,
+    action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지 마지막으로 확인하세요.",
   };
 }
 

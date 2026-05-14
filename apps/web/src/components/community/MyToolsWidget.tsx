@@ -13,7 +13,7 @@ interface ToolCard {
 const QUICK_TOOLS: ToolCard[] = [
   {
     href: "/community/quote-check",
-    label: "견적진단",
+    label: "견적 체크",
     description: "추가금·누락 항목 확인",
     icon: FileSearch,
   },
@@ -26,7 +26,7 @@ const QUICK_TOOLS: ToolCard[] = [
   {
     href: "/dashboard",
     label: "내 준비실",
-    description: "진단 결과를 다음 행동으로",
+    description: "체크리스트 결과를 다음 행동으로",
     icon: LayoutDashboard,
   },
 ];

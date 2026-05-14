@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, ShieldCheck, AlertTriangle } from "lucide-react";
+import { ArrowRight, AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
@@ -95,7 +95,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!data) {
     return {
-      title: "진단 결과를 찾을 수 없습니다 — 웨딩한방",
+      title: "결과를 찾을 수 없습니다 — 웨딩한방",
     };
   }
 
@@ -104,8 +104,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const missingTotal =
     data.analysis.missingCriticalCount + data.analysis.missingHighCount;
 
-  const title = `${regionLabel} ${categoryLabel} ${formatManwon(data.analysis.quotePriceManwon)} 견적 — 빠진 항목 ${missingTotal}개 발견`;
-  const description = `${data.analysis.summaryTitle} · ${data.analysis.summaryText} · 예상 추가금 ${formatManwon(data.analysis.estimatedHiddenMinManwon)}~${formatManwon(data.analysis.estimatedHiddenMaxManwon)}`;
+  const title = `${regionLabel} ${categoryLabel} ${formatManwon(data.analysis.quotePriceManwon)} 견적 체크리스트 — 빠진 항목 ${missingTotal}개`;
+  const description = `${data.analysis.summaryTitle} · ${data.analysis.summaryText} · 추가금 추정 ${formatManwon(data.analysis.estimatedHiddenMinManwon)}~${formatManwon(data.analysis.estimatedHiddenMaxManwon)}`;
 
   return {
     title,
@@ -120,10 +120,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+// 평가 라벨 대신, 빠진 항목 강도만 시각화
 const VERDICT_STYLES = {
-  safe: { icon: ShieldCheck, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "안전" },
-  caution: { icon: AlertTriangle, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "확인 필요" },
-  danger: { icon: AlertTriangle, color: "text-red-700", bg: "bg-red-50", border: "border-red-200", label: "재검토 필요" },
+  safe: { icon: CheckCircle2, color: "text-[#1b1c1c]", bg: "bg-white", border: "border-[#e4e2e1]", label: "확인 완료 항목 위주" },
+  caution: { icon: ClipboardCheck, color: "text-[#795252]", bg: "bg-[#fffdfb]", border: "border-[#e4d8d1]", label: "확인 필요한 항목 있음" },
+  danger: { icon: AlertTriangle, color: "text-amber-800", bg: "bg-amber-50", border: "border-amber-200", label: "필수 항목 누락 있음" },
 } as const;
 
 export default async function PublicQuoteResultPage({ params }: PageProps) {
@@ -143,8 +144,8 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
     analysis.missingCriticalCount + analysis.missingHighCount + analysis.missingMediumCount;
 
   const shareUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://hanbang.ai"}/quote/${data.id}`;
-  const shareTitle = `${regionLabel} ${categoryLabel} ${formatManwon(analysis.quotePriceManwon)} 견적 진단`;
-  const shareText = `${analysis.summaryTitle} — 빠진 항목 ${missingTotal}개, 예상 추가금 ${formatManwon(analysis.estimatedHiddenMinManwon)}~${formatManwon(analysis.estimatedHiddenMaxManwon)}`;
+  const shareTitle = `${regionLabel} ${categoryLabel} ${formatManwon(analysis.quotePriceManwon)} 견적 체크리스트`;
+  const shareText = `${analysis.summaryTitle} — 빠진 항목 ${missingTotal}개, 추가금 추정 ${formatManwon(analysis.estimatedHiddenMinManwon)}~${formatManwon(analysis.estimatedHiddenMaxManwon)}`;
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -155,7 +156,7 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
             href="/"
             className="inline-block text-xs uppercase tracking-[0.18em] text-[#928980]"
           >
-            웨딩한방 · 견적 진단
+            웨딩한방 · 견적 체크리스트
           </Link>
         </div>
 
@@ -176,10 +177,8 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
           <div className={`mt-5 flex items-center gap-3 rounded-xl border ${verdictStyle.border} ${verdictStyle.bg} px-4 py-3`}>
             <VerdictIcon className={`h-5 w-5 ${verdictStyle.color}`} />
             <div>
-              <div className={`text-sm font-medium ${verdictStyle.color}`}>
-                {verdictStyle.label} · 투명도 {analysis.grade}등급
-              </div>
-              <div className="text-xs text-[#625b4d]">투명도 점수 {analysis.score}/100</div>
+              <div className={`text-sm font-medium ${verdictStyle.color}`}>{verdictStyle.label}</div>
+              <div className="text-xs text-[#625b4d]">평가가 아닌 빠진 항목 카운트입니다</div>
             </div>
           </div>
 
@@ -188,14 +187,14 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
           {/* 숫자 요약 */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-lg bg-[#f6f3f2] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">시세 대비</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">한국 평균 대비 (참고)</div>
               <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
                 {analysis.priceDiffPercent >= 0 ? "+" : ""}
                 {analysis.priceDiffPercent}%
               </div>
             </div>
             <div className="rounded-lg bg-[#f6f3f2] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">예상 추가금</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">빠진 항목 추가금 추정</div>
               <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
                 {formatManwon(analysis.estimatedHiddenMinManwon)}~{formatManwon(analysis.estimatedHiddenMaxManwon)}
               </div>
@@ -215,25 +214,24 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
             href="/community/quote-check"
             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#946a6a]"
           >
-            내 견적도 30초에 진단받기 · 무료
+            내 견적도 체크리스트로 보기 · 무료
             <ArrowRight className="h-4 w-4" />
           </Link>
         </section>
 
-        {/* 출처 + AI 고지 */}
+        {/* 출처 + 고지 */}
         <div className="mt-6 space-y-3 rounded-xl border border-[#e4e2e1] bg-white px-5 py-4 text-xs leading-relaxed text-[#625b4d]">
           <p>
             <strong className="text-[#1b1c1c]">출처:</strong> {analysis.sourceNote}
           </p>
           <p>
-            본 진단은 AI 생성 결과이며 공정거래위원회 표준계약서·한국소비자원 참가격 기준의 참고 정보입니다.
-            최종 계약 판단은 본인이 직접 확인하시고, 고위험 케이스는 전문가 검토를 권장합니다.
+            견적의 좋고 나쁨을 평가하는 도구가 아닙니다. 결혼 처음 준비하면 빠뜨리기 쉬운 항목과 한국소비자원 평균 가격을 참고로 보여드릴 뿐이에요. 각자 예산·우선순위에 따라 적정선이 다르니, 최종 판단은 본인이 직접 하시고 큰 의사결정은 전문가 검토를 권장합니다.
           </p>
         </div>
 
         <p className="mt-4 text-center text-xs text-[#928980]">
           <Link href="/" className="underline hover:text-[#795252]">
-            웨딩한방 — 한국 첫 웨딩 견적 진단 엔진
+            웨딩한방 — 결혼 준비 체크리스트
           </Link>
         </p>
       </div>

@@ -19,9 +19,9 @@ interface EmptyFeedStarterProps {
 const STARTERS = [
   {
     href: "/community/quote-check",
-    label: "아모라 견적진단",
-    title: "받은 견적서의 빠진 항목과 예상 추가금 먼저 확인하기",
-    meta: "AI 진단",
+    label: "아모라 견적 체크리스트",
+    title: "받은 견적서에 빠진 항목과 추가금 추정 먼저 확인하기",
+    meta: "체크리스트",
     icon: FileSearch,
   },
   {
@@ -78,7 +78,7 @@ export default function EmptyFeedStarter({
             href="/community/quote-check"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a]"
           >
-            견적 진단하기
+            체크리스트 보기
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>

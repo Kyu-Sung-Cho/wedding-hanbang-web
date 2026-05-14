@@ -14,7 +14,7 @@ export default function FeedComposer() {
           <FileSearch className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-[#1b1c1c]">아모라 견적진단</div>
+          <div className="text-sm font-medium text-[#1b1c1c]">아모라 견적 체크리스트</div>
           <div className="mt-0.5 truncate text-sm text-[#928980]">
             견적가보다 빠진 항목과 추가금 리스크를 먼저 확인해요
           </div>

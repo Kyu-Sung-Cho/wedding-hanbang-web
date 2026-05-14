@@ -37,7 +37,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-service-link"]',
     title: "아모라가 묶어주는 메인 도구로",
     description:
-      "AI 아모라가 견적 진단·계약서 검토·예산·일정·커플 합의 메시지·본식 타임라인까지 전부 하나로 묶어줘요. 채팅·예산·일정 도구는 여기로 들어가세요.",
+      "AI 아모라가 견적 체크리스트·계약서 풀이·예산·일정·커플 합의 메시지·본식 타임라인까지 전부 하나로 묶어줘요. 채팅·예산·일정 도구는 여기로 들어가세요.",
   },
 ];
 

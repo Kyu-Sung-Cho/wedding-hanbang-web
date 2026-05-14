@@ -9,13 +9,10 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Copy,
-  FileSearch,
   Loader2,
   MessageCircle,
   PenLine,
   Share2,
-  ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
@@ -63,24 +60,25 @@ const SEVERITY_STYLES = {
   medium: "border-[#e4e2e1] bg-[#f6f3f2] text-[#625b4d]",
 } as const;
 
+// 톤: 평가가 아닌 정보 노출 — 빠진 항목이 많을수록 시각적 강도만 올림.
 const VERDICT_STYLES = {
   safe: {
-    icon: ShieldCheck,
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    text: "text-emerald-700",
+    icon: CheckCircle2,
+    bg: "bg-white",
+    border: "border-[#e4e2e1]",
+    text: "text-[#1b1c1c]",
   },
   caution: {
-    icon: AlertTriangle,
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-700",
+    icon: ClipboardCheck,
+    bg: "bg-[#fffdfb]",
+    border: "border-[#e4d8d1]",
+    text: "text-[#795252]",
   },
   danger: {
     icon: AlertTriangle,
-    bg: "bg-red-50",
-    border: "border-red-200",
-    text: "text-red-700",
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    text: "text-amber-800",
   },
 } as const;
 
@@ -147,11 +145,11 @@ export default function AmoraQuoteCheckPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "견적 진단에 실패했습니다.");
+      if (!res.ok) throw new Error(data.error ?? "결과를 가져오지 못했습니다.");
       setResult(data.analysis as AmoraQuoteCheckResult);
       setSavedId(typeof data.savedId === "string" ? data.savedId : null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "견적 진단에 실패했습니다.");
+      setError(err instanceof Error ? err.message : "결과를 가져오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -183,14 +181,15 @@ export default function AmoraQuoteCheckPage() {
             <div className="flex flex-col gap-4 border-b border-[#f0efed] pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#d9c8c8] bg-[#fffdfb] px-3 py-1 text-xs font-medium text-[#795252]">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Amora Quote Check
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  계약 전 체크리스트
                 </div>
                 <h1 className="font-serif-kr text-3xl text-[#1b1c1c] sm:text-4xl">
-                  이 견적 정상인가요?
+                  견적에 빠진 게 없는지 같이 봐드려요
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625b4d] sm:text-base">
-                  견적 금액보다 중요한 건 빠진 항목입니다. 아모라가 시세, 숨은비용, 계약 전 질문을 한 번에 정리합니다.
+                  결혼 처음 준비하면 놓치기 쉬운 항목 + 한국소비자원 평균 가격 + 계약 전 업체에 물어볼 질문을 정리해 드려요.
+                  견적이 좋다·나쁘다를 판단하는 게 아니라, 빠진 게 없는지 확인하는 체크리스트입니다.
                 </p>
               </div>
               <Link
@@ -310,8 +309,8 @@ export default function AmoraQuoteCheckPage() {
               disabled={loading}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
-              아모라로 견적 진단하기
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+              체크리스트 결과 보기
             </button>
           </section>
 
@@ -327,19 +326,22 @@ export default function AmoraQuoteCheckPage() {
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
           <section className="rounded-xl border border-[#e4e2e1] bg-white p-5">
-            <h2 className="font-serif-kr text-2xl text-[#1b1c1c]">아모라가 차별점이 되는 이유</h2>
+            <h2 className="font-serif-kr text-2xl text-[#1b1c1c]">이 체크리스트, 솔직히 말하면</h2>
             <div className="mt-4 space-y-3 text-sm leading-6 text-[#625b4d]">
               <p>
-                업체 추천보다 먼저 필요한 건 계약 전 안전장치입니다. 견적을 확인하는 순간마다 숨은비용 데이터가 쌓이고, 그 데이터가 다음 커플의 기준이 됩니다.
+                견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 결혼 처음 준비하면 모르고 빠뜨릴 수 있는 항목들을 한 번에 보여주는 체크리스트예요.
               </p>
               <p>
-                웨딩한방은 유료 광고 순위가 아니라 견적 투명도, 증빙 후기, 계약 조건으로 신뢰를 쌓아야 합니다.
+                가격 비교는 한국소비자원 평균을 참고로만 표시해요. 예산·우선순위·하객 규모에 따라 같은 가격도 적정선이 달라지니, 판단은 본인이 하세요.
+              </p>
+              <p>
+                계약 전 빠진 항목을 업체에 한 번이라도 묻고 답변을 받으면 — 그게 가장 큰 안전장치예요.
               </p>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-              <Metric label="체크" value="견적" />
-              <Metric label="보호" value="계약" />
-              <Metric label="축적" value="시세" />
+              <Metric label="확인" value="항목" />
+              <Metric label="참고" value="평균" />
+              <Metric label="준비" value="질문" />
             </div>
           </section>
         </aside>
@@ -449,7 +451,7 @@ function ResultPanel({
     const missing =
       result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
     const title = `${result.summaryTitle}`;
-    const text = `${formatManwon(result.quotePriceManwon)} 견적 진단 — 빠진 항목 ${missing}개, 예상 추가금 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
+    const text = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — 빠진 항목 ${missing}개, 추가금 추정 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
 
     if (typeof navigator.share === "function") {
       try {
@@ -551,25 +553,24 @@ function ResultPanel({
           <div>
             <h2 className={`text-xl font-semibold ${style.text}`}>{result.summaryTitle}</h2>
             <p className="mt-2 text-sm leading-6 text-[#504444]">{result.summaryText}</p>
+            <p className="mt-2 text-xs leading-5 text-[#928980]">
+              평가가 아니라 빠진 항목 카운트입니다. 각자 예산·우선순위에 따라 적정선은 다를 수 있어요.
+            </p>
           </div>
-        </div>
-        <div className="rounded-lg bg-white px-4 py-3 text-center">
-          <div className={`text-3xl font-bold ${style.text}`}>{result.grade}</div>
-          <div className="text-xs text-[#928980]">{result.score}점</div>
         </div>
       </div>
 
-      {/* 메트릭 카드 — 하이엔드는 가격 비교(시세 기준) 숨김, 함정 분석에 집중 */}
+      {/* 메트릭 카드 — 하이엔드는 한국 평균 비교 숨김 */}
       <div className={`mt-5 grid gap-3 ${result.showPriceComparison ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-        <ResultMetric label="견적가" value={formatManwon(result.quotePriceManwon)} />
+        <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
         {result.showPriceComparison && (
-          <ResultMetric label="시세 기준" value={formatManwon(result.marketMedianManwon)} />
+          <ResultMetric label="한국 평균 (참고)" value={formatManwon(result.marketMedianManwon)} />
         )}
         <ResultMetric
-          label="예상 추가금"
+          label="빠진 항목 추가금 추정"
           value={`${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`}
         />
-        <ResultMetric label="예상 총액" value={`${formatManwon(result.estimatedTotalMinManwon)}~${formatManwon(result.estimatedTotalMaxManwon)}`} />
+        <ResultMetric label="합산 추정 (참고)" value={`${formatManwon(result.estimatedTotalMinManwon)}~${formatManwon(result.estimatedTotalMaxManwon)}`} />
       </div>
 
       <div className="mt-5 rounded-lg bg-white p-4">
@@ -599,12 +600,13 @@ function ResultPanel({
 
       {result.redFlags.length > 0 && (
         <div className="mt-4 rounded-lg bg-white p-4">
-          <h3 className="text-sm font-semibold text-[#1b1c1c]">감지된 리스크</h3>
+          <h3 className="text-sm font-semibold text-[#1b1c1c]">참고: 자주 보이는 패턴</h3>
+          <p className="mt-1 text-xs text-[#928980]">아래는 입력한 견적과 비슷한 형태에서 흔히 나타난 패턴이에요. 단정은 아니에요.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {result.redFlags.map((flag) => (
-              <div key={flag.id} className="rounded-lg border border-red-100 bg-red-50 px-3 py-3">
-                <div className="text-sm font-medium text-red-700">{flag.name}</div>
-                <div className="mt-1 text-xs leading-5 text-red-700/75">{flag.description}</div>
+              <div key={flag.id} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                <div className="text-sm font-medium text-amber-800">{flag.name}</div>
+                <div className="mt-1 text-xs leading-5 text-amber-800/80">{flag.description}</div>
               </div>
             ))}
           </div>
@@ -637,7 +639,7 @@ function ResultPanel({
             <p className="text-xs leading-5 text-[#625b4d]">
               <strong className="text-[#1b1c1c]">고민되면 친구·파트너에게 보내세요.</strong>
               <br className="sm:hidden" />
-              공유 페이지에는 견적가·등급·요약만 표시되고 메모/업체명은 빠집니다.
+              공유 페이지에는 견적가·빠진 항목 요약만 표시되고 메모·업체명은 빠집니다.
             </p>
             <button
               type="button"

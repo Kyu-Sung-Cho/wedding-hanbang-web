@@ -31,7 +31,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
       <section className="rounded-lg border border-[#d9c8c8] bg-[#795252] p-4 text-white shadow-[0_8px_24px_rgba(121,82,82,0.14)]">
         <div className="mb-3 flex items-center gap-2.5">
           <Sparkles className="h-4 w-4 text-[#dee6c4]" />
-          <h3 className="font-serif-kr text-lg">아모라 견적진단</h3>
+          <h3 className="font-serif-kr text-lg">아모라 견적 체크리스트</h3>
         </div>
         <p className="text-sm leading-relaxed text-white/80">
           받은 견적서에서 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.
@@ -40,7 +40,7 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
           href="/community/quote-check"
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fff8f5]"
         >
-          바로 진단하기
+          체크리스트 보기
           <ArrowRight className="h-4 w-4" />
         </Link>
       </section>

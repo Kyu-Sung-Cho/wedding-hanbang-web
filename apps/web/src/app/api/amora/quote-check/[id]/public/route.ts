@@ -14,7 +14,7 @@ export async function GET(
   try {
     const { id } = await params;
     if (!id || typeof id !== "string") {
-      return NextResponse.json({ error: "잘못된 진단 ID입니다." }, { status: 400 });
+      return NextResponse.json({ error: "잘못된 ID입니다." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -26,11 +26,11 @@ export async function GET(
 
     if (error) {
       console.error("Public quote check fetch error:", error.message);
-      return NextResponse.json({ error: "진단 결과를 불러올 수 없습니다." }, { status: 500 });
+      return NextResponse.json({ error: "결과를 불러올 수 없습니다." }, { status: 500 });
     }
 
     if (!data) {
-      return NextResponse.json({ error: "진단 결과를 찾을 수 없습니다." }, { status: 404 });
+      return NextResponse.json({ error: "결과를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const analysis = data.analysis as AmoraQuoteCheckResult;
@@ -67,7 +67,7 @@ export async function GET(
       { headers: { "Cache-Control": "public, max-age=300, s-maxage=300" } }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "진단 결과를 불러올 수 없습니다.";
+    const message = err instanceof Error ? err.message : "결과를 불러올 수 없습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -166,10 +166,10 @@ function SlideChat() {
         아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-base text-[#504444] text-center mb-5">
-        채팅 한 줄로 견적 진단부터 커플 합의까지
+        채팅 한 줄로 견적 체크리스트부터 커플 합의까지
       </p>
 
-      {/* Mock 채팅 UI: 견적 진단 시나리오 */}
+      {/* Mock 채팅 UI: 견적 체크리스트 시나리오 */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
@@ -215,7 +215,7 @@ function SlideChat() {
           <p className="text-sm text-[#928980] mb-1.5 text-center">아모라가 다 챙겨줘요</p>
           <div className="flex flex-wrap justify-center gap-1.5">
             {[
-              "견적 진단",
+              "견적 체크리스트",
               "계약서 풀이",
               "예산 자동",
               "일정 자동",

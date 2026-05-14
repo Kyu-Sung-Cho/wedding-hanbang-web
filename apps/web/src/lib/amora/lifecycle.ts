@@ -326,7 +326,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
         title: "받은 견적은 계약 전 한번 점검해요",
         body: "원본, 수정본, 헬퍼비, 얼리스타트처럼 나중에 붙는 비용을 먼저 확인해요.",
         href: "/community/quote-check",
-        cta: "견적 진단",
+        cta: "견적 체크리스트",
         severity: "warning",
         iconKey: "quote",
       });

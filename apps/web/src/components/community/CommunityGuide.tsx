@@ -273,15 +273,15 @@ function SlideAmora() {
         </div>
       </div>
 
-      {/* 아모라 견적 진단 카드 mockup */}
+      {/* 아모라 견적 체크리스트 카드 mockup */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6f3f2] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#C9A96E] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-base text-[#1b1c1c] font-medium">아모라 견적 진단</span>
-            <span className="text-sm text-[#B5ADA3] font-light">방금 분석 완료</span>
+            <span className="text-base text-[#1b1c1c] font-medium">아모라 견적 체크리스트</span>
+            <span className="text-sm text-[#B5ADA3] font-light">방금 정리 완료</span>
           </div>
         </div>
         <div className="px-4 pb-3">
@@ -311,7 +311,7 @@ function SlideAmora() {
         <p className="text-sm text-[#928980] mb-2 text-left">아모라 하나가 다 연결돼 있어요</p>
         <div className="flex flex-wrap gap-1.5">
           {[
-            { icon: FileSearch, label: "견적 진단" },
+            { icon: FileSearch, label: "견적 체크리스트" },
             { icon: Shield, label: "계약서 검토" },
             { icon: TrendingUp, label: "예산 자동 반영" },
             { icon: Camera, label: "일정 자동 등록" },

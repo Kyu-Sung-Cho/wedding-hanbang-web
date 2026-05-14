@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
       { headers: { "Cache-Control": "private, no-store, max-age=0" } }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "견적 진단에 실패했습니다.";
+    const message = err instanceof Error ? err.message : "체크리스트 결과를 가져오지 못했습니다.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

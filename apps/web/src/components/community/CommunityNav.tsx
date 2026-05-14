@@ -115,7 +115,7 @@ export default function CommunityNav() {
               className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
             >
               <FileSearch className="w-4 h-4" />
-              견적진단
+              견적 체크
             </Link>
 
             <Link
@@ -195,7 +195,7 @@ export default function CommunityNav() {
               className="flex items-center justify-center gap-2 px-5 py-3 text-base font-medium text-[#795252] bg-[#795252]/10 rounded-full hover:bg-[#795252]/15 transition-all"
             >
               <FileSearch className="w-5 h-5" />
-              견적진단
+              견적 체크
             </Link>
 
             <Link
