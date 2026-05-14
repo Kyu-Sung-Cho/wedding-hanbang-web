@@ -76,22 +76,28 @@ export const CATEGORY_MAP = Object.fromEntries(
 ) as Record<CommunityCategory, CommunityCategoryInfo>;
 
 // 광고 표시 시스템 (필수 선택)
+// 색맹 친화 팔레트 — Hue(파랑/노랑/회색) + 명도/채도 + 아이콘 3중으로 구분.
+// 색을 못 봐도 아이콘 모양으로 인식 가능. WCAG 색 의존 금지 원칙 준수.
 export const AD_DISCLOSURE_OPTIONS = [
   {
     key: "general",
     label: "일반",
     shortLabel: "일반",
     description: "내가 직접 쓴 글입니다. 어떤 혜택도 받지 않았어요.",
-    color: "#22C55E",
-    bgColor: "#F0FDF4",
+    color: "#0284C7",       // sky-600 — cool blue
+    bgColor: "#F0F9FF",     // sky-50
+    borderColor: "#BAE6FD", // sky-200
+    icon: "check",
   },
   {
     key: "sponsored",
     label: "협찬",
     shortLabel: "협찬",
     description: "혜택을 받고 작성한 글입니다. (할인, 무료 제공 등)",
-    color: "#EAB308",
-    bgColor: "#FEFCE8",
+    color: "#A16207",       // amber-700 — 진한 amber, 흰 배경 대비 충분
+    bgColor: "#FEFCE8",     // yellow-50
+    borderColor: "#FDE68A", // amber-200
+    icon: "star",
     requiresDetail: true,
   },
   {
@@ -99,8 +105,10 @@ export const AD_DISCLOSURE_OPTIONS = [
     label: "광고",
     shortLabel: "광고",
     description: "업체 공식 광고입니다. 추천/검색 알고리즘에 반영되지 않아요.",
-    color: "#EF4444",
-    bgColor: "#FEF2F2",
+    color: "#334155",       // slate-700 — neutral gray, 위험 시그널 X
+    bgColor: "#F1F5F9",     // slate-100
+    borderColor: "#CBD5E1", // slate-300
+    icon: "megaphone",
   },
 ] as const;
 

@@ -11,6 +11,8 @@ import {
   HeartHandshake,
   BookOpen,
   ArrowRight,
+  Check,
+  Megaphone,
 } from "lucide-react";
 
 export const metadata = {
@@ -165,17 +167,26 @@ export default function CommunityAboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
             {[
               {
-                color: "bg-sage-500",
+                Icon: Check,
+                color: "#0284C7",
+                bg: "#F0F9FF",
+                border: "#BAE6FD",
                 label: "일반",
                 desc: "직접 경험한 솔직한 글",
               },
               {
-                color: "bg-[#C9A96E]",
+                Icon: Star,
+                color: "#A16207",
+                bg: "#FEFCE8",
+                border: "#FDE68A",
                 label: "협찬",
                 desc: "혜택을 받았지만 솔직하게",
               },
               {
-                color: "bg-[#795252]",
+                Icon: Megaphone,
+                color: "#334155",
+                bg: "#F1F5F9",
+                border: "#CBD5E1",
                 label: "광고",
                 desc: "광고는 표시하고, 추천에서 제외",
               },
@@ -185,8 +196,12 @@ export default function CommunityAboutPage() {
                 className="bg-white rounded-2xl border border-[#f0efed] p-5 sm:p-6 text-center"
               >
                 <div
-                  className={`w-3 h-3 rounded-full ${rule.color} mx-auto mb-3`}
-                />
+                  className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center border"
+                  style={{ backgroundColor: rule.bg, borderColor: rule.border, color: rule.color }}
+                  aria-hidden
+                >
+                  <rule.Icon className="w-5 h-5" strokeWidth={2.5} />
+                </div>
                 <div className="text-base font-semibold text-[#1b1c1c] mb-1">
                   {rule.label}
                 </div>

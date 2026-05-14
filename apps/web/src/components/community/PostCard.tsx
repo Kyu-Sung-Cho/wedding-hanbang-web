@@ -16,6 +16,7 @@ import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
+import AdDisclosureBadge from "./AdDisclosureBadge";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -189,11 +190,8 @@ export default function PostCard({ post }: PostCardProps) {
                 )}
                 <span className="text-xs sm:text-sm text-[#504444]">{timeAgo(post.created_at)}</span>
 
-                {post.ad_disclosure === "sponsored" && (
-                  <span className="px-2 py-0.5 rounded bg-[#FEFCE8] text-[#A16207] text-xs font-medium">협찬</span>
-                )}
-                {post.ad_disclosure === "ad" && (
-                  <span className="px-2 py-0.5 rounded bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">광고</span>
+                {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
+                  <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
                 )}
               </div>
             </div>

@@ -20,6 +20,8 @@ import {
   FileSearch,
   AlertTriangle,
   Heart,
+  Check,
+  Megaphone,
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_community_guide_seen";
@@ -434,12 +436,39 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
       <div className="w-full max-w-[360px] flex flex-col gap-2.5 mb-6">
         {[
-          { color: "bg-sage-500", label: "일반", desc: "직접 경험한 솔직한 글" },
-          { color: "bg-[#C9A96E]", label: "협찬", desc: "혜택 받았지만 솔직하게" },
-          { color: "bg-[#795252]", label: "광고", desc: "광고는 표시하고, 추천에서 제외" },
+          {
+            Icon: Check,
+            color: "#0284C7",
+            bg: "#F0F9FF",
+            border: "#BAE6FD",
+            label: "일반",
+            desc: "직접 경험한 솔직한 글",
+          },
+          {
+            Icon: Star,
+            color: "#A16207",
+            bg: "#FEFCE8",
+            border: "#FDE68A",
+            label: "협찬",
+            desc: "혜택 받았지만 솔직하게",
+          },
+          {
+            Icon: Megaphone,
+            color: "#334155",
+            bg: "#F1F5F9",
+            border: "#CBD5E1",
+            label: "광고",
+            desc: "광고는 표시하고, 추천에서 제외",
+          },
         ].map((rule, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#fcf9f8] border border-[#f6f3f2]">
-            <div className={`w-3 h-3 rounded-full ${rule.color} shrink-0`} />
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border"
+              style={{ backgroundColor: rule.bg, borderColor: rule.border, color: rule.color }}
+              aria-hidden
+            >
+              <rule.Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </div>
             <span className="text-base text-[#1b1c1c] font-semibold min-w-[40px]">{rule.label}</span>
             <span className="text-sm text-[#504444] font-light">— {rule.desc}</span>
           </div>

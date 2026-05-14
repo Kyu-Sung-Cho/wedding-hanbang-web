@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, FileSearch, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, FileSearch, Sparkles, TrendingUp, Check, Star, Megaphone } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface PopularTag {
   vendor_name: string;
@@ -90,9 +91,9 @@ export default function RightSidebar({ popularTags = [], weekly }: RightSidebarP
           <h3 className="font-serif-kr text-lg text-[#1b1c1c]">커뮤니티 원칙</h3>
         </div>
         <div className="space-y-2.5 text-sm">
-          <RuleDot color="bg-sage-500" label="일반" text="직접 쓴 글" />
-          <RuleDot color="bg-[#625b4d]" label="협찬" text="혜택 받은 글" />
-          <RuleDot color="bg-[#795252]" label="광고" text="추천 알고리즘 미반영" />
+          <RuleDot Icon={Check} fg="#0284C7" bg="#F0F9FF" border="#BAE6FD" label="일반" text="직접 쓴 글" />
+          <RuleDot Icon={Star} fg="#A16207" bg="#FEFCE8" border="#FDE68A" label="협찬" text="혜택 받은 글" />
+          <RuleDot Icon={Megaphone} fg="#334155" bg="#F1F5F9" border="#CBD5E1" label="광고" text="추천 알고리즘 미반영" />
         </div>
         <p className="mt-4 text-xs leading-relaxed text-[#504444]">
           표시가 정확해야 정보가 오래 살아남습니다.
@@ -132,10 +133,30 @@ function MetricRow({
   );
 }
 
-function RuleDot({ color, label, text }: { color: string; label: string; text: string }) {
+function RuleDot({
+  Icon,
+  fg,
+  bg,
+  border,
+  label,
+  text,
+}: {
+  Icon: LucideIcon;
+  fg: string;
+  bg: string;
+  border: string;
+  label: string;
+  text: string;
+}) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${color}`} />
+      <span
+        className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
+        style={{ backgroundColor: bg, borderColor: border, color: fg }}
+        aria-hidden
+      >
+        <Icon className="h-3 w-3" strokeWidth={2.5} />
+      </span>
       <div className="min-w-0">
         <span className="font-medium text-[#1b1c1c]">{label}</span>
         <span className="text-[#504444]"> -- {text}</span>

@@ -33,6 +33,7 @@ import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import ServiceCTA from "@/components/community/ServiceCTA";
 import Avatar from "@/components/community/Avatar";
+import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import type { PollWithOptions } from "@/types/community.types";
@@ -429,15 +430,10 @@ export default function PostDetailPage() {
                   </>
                 )}
 
-                {/* 광고 표시 배지 */}
-                {post.ad_disclosure === "sponsored" && (
-                  <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEFCE8] text-[#A16207] text-xs font-medium">
-                    협찬
-                  </span>
-                )}
-                {post.ad_disclosure === "ad" && (
-                  <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-xs font-medium">
-                    광고
+                {/* 광고 표시 배지 — 색맹 친화: 색 + 아이콘 */}
+                {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
+                  <span className="ml-1 inline-block">
+                    <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
                   </span>
                 )}
                 {post.is_verified_review && (
