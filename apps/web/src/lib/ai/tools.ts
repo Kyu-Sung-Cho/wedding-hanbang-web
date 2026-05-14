@@ -112,6 +112,56 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
   {
+    name: "apply_budget_plan",
+    description:
+      "예산 인터뷰 완료 후 카테고리별 배분을 한 번에 적용합니다. 사용자가 '이대로 적용', '좋아 그렇게 해줘'처럼 명시적으로 확정한 경우에만 호출하세요. 총 예산도 함께 갱신되며, allocations 합계는 total_budget과 같거나 작아야 합니다 (남으면 reserve로 자동 처리). rationale 필드는 customer_insights에 저장되어 다음 추천에 활용됩니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        total_budget: {
+          type: "number",
+          description: "총 결혼 예산 (원 단위). 신혼여행·예물·신혼집 포함 통합 예산.",
+        },
+        allocations: {
+          type: "array",
+          description:
+            "카테고리별 배분 리스트. 인터뷰에서 1순위로 드러난 카테고리는 평균 +20~30%, 양보 카테고리는 평균 -20~30%로 가중치 조정. 합계가 total_budget보다 작으면 잔여분은 자동으로 reserve(예비비)로 할당됩니다.",
+          items: {
+            type: "object",
+            properties: {
+              category: {
+                type: "string",
+                enum: [
+                  "meeting", "venue", "studio", "dress", "makeup", "ring",
+                  "hanbok", "yedan", "honeymoon", "houseware", "housing",
+                  "invitation", "snap", "shoes", "bouquet", "gift", "mc",
+                  "ham", "pyebaek", "reserve",
+                ],
+                description: "카테고리 키",
+              },
+              budget: {
+                type: "number",
+                description: "이 카테고리 배분 금액 (원 단위)",
+              },
+              rationale: {
+                type: "string",
+                description:
+                  "왜 이 비율로 잡았는지 한 줄 (예: '신혼여행 우선순위 1순위라 평균 +25%', '예단은 양보 카테고리라 평균 -30%'). 인터뷰에서 사용자가 표명한 가치관과 연결.",
+              },
+            },
+            required: ["category", "budget"],
+          },
+        },
+        intake_summary: {
+          type: "string",
+          description:
+            "인터뷰에서 드러난 사용자 우선순위·가치관·제약 1~3줄 요약. 나중에 vendor 추천 시 이 요약이 자동 참조되므로 구체적으로 작성. 예: '신혼여행을 가장 중요하게 봄(앨범보다 경험 중시), 예단은 양보 가능, 양가 도움 1500만원 있음, 평일 결혼식 선호'.",
+        },
+      },
+      required: ["total_budget", "allocations", "intake_summary"],
+    },
+  },
+  {
     name: "add_custom_category",
     description:
       "기존 20개 카테고리에 없는 새로운 예산 항목을 추가합니다. '웨딩카 50만원 썼어', '포토부스 예산 30만원으로 해줘' 등 기존 카테고리에 없는 항목에 사용합니다.",

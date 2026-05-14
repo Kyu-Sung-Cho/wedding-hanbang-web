@@ -122,6 +122,8 @@ export async function executeTool(
         return await executeUpdateVenue(toolInput, context);
       case "update_category_budget":
         return await executeUpdateCategoryBudget(toolInput, context);
+      case "apply_budget_plan":
+        return await executeApplyBudgetPlan(toolInput, context);
       case "add_custom_category":
         return await executeAddCustomCategory(toolInput, context);
       case "delete_category":
@@ -324,6 +326,120 @@ async function executeUpdateCategoryBudget(
     toolOutput: { category, label, ...updates },
     success: true,
     displayMessage: `${label} ${changes.join(", ")}(으)로 설정되었습니다.`,
+  };
+}
+
+// 예산 인터뷰 후 카테고리 일괄 배분 — 가중치 반영된 plan 한 번에 적용.
+// allocations 합계가 total_budget 보다 작으면 잔여분은 reserve(예비비)로 자동 배정.
+// intake_summary 는 decision_nodes 에 preference 로 저장돼 나중에 vendor 매칭 시 자동 참조됨.
+async function executeApplyBudgetPlan(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const totalBudget = input.total_budget as number;
+  const allocations = (input.allocations ?? []) as Array<{
+    category: string;
+    budget: number;
+    rationale?: string;
+  }>;
+  const intakeSummary = (input.intake_summary as string | undefined) ?? "";
+
+  if (!Array.isArray(allocations) || allocations.length === 0) {
+    throw new Error("allocations 가 비어 있어 예산 계획을 적용할 수 없습니다.");
+  }
+
+  // 합계 검증 — 초과 시 차단, 미달 시 잔여분 reserve 로 보강
+  const allocSum = allocations.reduce((acc, a) => acc + (Number(a.budget) || 0), 0);
+  if (allocSum > totalBudget) {
+    throw new Error(
+      `카테고리 합계(${formatWon(allocSum)})가 총 예산(${formatWon(totalBudget)})을 초과합니다.`
+    );
+  }
+
+  // 잔여분이 있으면 reserve 에 자동 추가
+  const remainder = totalBudget - allocSum;
+  const finalAllocations = [...allocations];
+  if (remainder > 0) {
+    const reserveIdx = finalAllocations.findIndex((a) => a.category === "reserve");
+    if (reserveIdx >= 0) {
+      finalAllocations[reserveIdx] = {
+        ...finalAllocations[reserveIdx],
+        budget: finalAllocations[reserveIdx].budget + remainder,
+      };
+    } else {
+      finalAllocations.push({
+        category: "reserve",
+        budget: remainder,
+        rationale: "총 예산 잔여분 자동 배정",
+      });
+    }
+  }
+
+  // progress 갱신 — 기존 status/checklist 보존하면서 budget 만 덮어쓰기
+  const newProgress: Record<string, unknown> = { ...ctx.weddingContext.progress };
+  for (const alloc of finalAllocations) {
+    const existing = (newProgress[alloc.category] ?? {
+      category: alloc.category,
+      status: "not_started",
+    }) as Record<string, unknown>;
+    newProgress[alloc.category] = {
+      ...existing,
+      category: alloc.category,
+      budget: alloc.budget,
+    };
+  }
+
+  const admin = getAdminClient();
+
+  // 총 예산 + progress 한 번에 갱신
+  const { error: journeyError } = await admin
+    .from("wedding_journeys")
+    .update({ total_budget: totalBudget, progress: newProgress })
+    .eq("couple_id", ctx.coupleId);
+  if (journeyError) throw journeyError;
+
+  // 컨텍스트도 즉시 동기화
+  ctx.weddingContext.budget = totalBudget;
+  ctx.weddingContext.progress = newProgress as ExecutionContext["weddingContext"]["progress"];
+
+  // intake_summary 를 decision_nodes 에 preference 로 저장 (있을 때만)
+  // 다음 vendor 추천 / 갈등 중재 시 system prompt 에 자동 주입됨.
+  if (intakeSummary && intakeSummary.trim().length > 0) {
+    try {
+      await admin.from("decision_nodes").insert({
+        couple_id: ctx.coupleId,
+        category: "preference",
+        decision_type: "considering",
+        title: "예산 인터뷰에서 드러난 우선순위",
+        value: intakeSummary.trim(),
+        reasoning: allocations
+          .filter((a) => a.rationale && a.rationale.trim().length > 0)
+          .map((a) => `${CATEGORY_LABELS[a.category] ?? a.category}: ${a.rationale}`)
+          .join(" / "),
+        confidence: 0.85,
+        source: "amora_budget_intake",
+      });
+    } catch (insightErr) {
+      // 저장 실패해도 예산 적용 자체는 성공으로 처리 — 사용자 흐름 우선
+      console.warn("budget intake summary 저장 실패(무시):", insightErr);
+    }
+  }
+
+  const lines = finalAllocations
+    .filter((a) => a.budget > 0)
+    .map((a) => `  • ${CATEGORY_LABELS[a.category] ?? a.category}: ${formatWon(a.budget)}`)
+    .join("\n");
+
+  return {
+    toolName: "apply_budget_plan",
+    toolInput: input,
+    toolOutput: {
+      total_budget: totalBudget,
+      applied_count: finalAllocations.length,
+      remainder_to_reserve: remainder,
+    },
+    success: true,
+    displayMessage: `총 예산 ${formatWon(totalBudget)} 기준 카테고리 ${finalAllocations.length}개 배분 적용 완료${remainder > 0 ? ` (잔여 ${formatWon(remainder)} 예비비로 자동 배정)` : ""}.\n${lines}`,
   };
 }
 
