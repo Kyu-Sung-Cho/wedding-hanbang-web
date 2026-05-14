@@ -18,6 +18,22 @@ export type AmoraQuoteRegion = "seoul" | "gyeonggi" | "busan" | "daegu" | "other
 export type AmoraQuoteScope = "national" | "seoul";
 export type AmoraQuoteVerdict = "safe" | "caution" | "danger";
 
+// 가격대 자동 분류 — 한국소비자원 중위가 대비 multiplier 기반.
+// 정부 통계가 분위(p25/p75)를 제공하지 않으므로, 한국 결혼 시장의 일반적 분포
+// (표준편차 ≈ 중위가의 25~35%)를 가정한 합리적 boundary.
+// 사용자가 명시적으로 override 가능.
+export type AmoraPriceTier =
+  | "suspicious_low" // < 60%: 이상하게 쌈 (bait pricing 의심)
+  | "standard"       // 60~130%: 일반 가격대 (정부 통계와 직접 비교)
+  | "premium"        // 130~200%: 프리미엄 가격대 (비교 톤다운)
+  | "highend";       // > 200%: 하이엔드 (가격 비교 무의미, 함정 분석에만 집중)
+
+const PRICE_TIER_BOUNDARIES = {
+  suspiciousLowMax: 0.6,
+  standardMax: 1.3,
+  premiumMax: 2.0,
+} as const;
+
 export interface AmoraQuoteCheckInput {
   category: AmoraQuoteCategory;
   region: AmoraQuoteRegion;
@@ -25,6 +41,8 @@ export interface AmoraQuoteCheckInput {
   includedItemIds: string[];
   vendorName?: string;
   memo?: string;
+  /** 사용자 보정 — 자동 분류가 안 맞을 때 명시적으로 override */
+  userPriceTierOverride?: AmoraPriceTier;
 }
 
 export interface AmoraQuoteCheckItem {
@@ -48,6 +66,12 @@ export interface AmoraQuoteCheckResult {
   quotePriceManwon: number;
   marketMedianManwon: number;
   priceDiffPercent: number;
+  /** 자동 분류된 가격대 (사용자 override 적용 후) */
+  priceTier: AmoraPriceTier;
+  /** 시스템이 추론한 원래 가격대 — UI에서 "보정됨" 표시할 때 사용 */
+  priceTierAutoInferred: AmoraPriceTier;
+  /** highend는 가격 비교 메시지를 숨김 — UI 분기에 사용 */
+  showPriceComparison: boolean;
   estimatedHiddenMinManwon: number;
   estimatedHiddenMaxManwon: number;
   estimatedTotalMinManwon: number;
@@ -132,6 +156,18 @@ function getVerdict(
   return "safe";
 }
 
+function classifyPriceTier(
+  quotePriceManwon: number,
+  marketMedianManwon: number
+): AmoraPriceTier {
+  if (marketMedianManwon <= 0) return "standard";
+  const ratio = quotePriceManwon / marketMedianManwon;
+  if (ratio < PRICE_TIER_BOUNDARIES.suspiciousLowMax) return "suspicious_low";
+  if (ratio < PRICE_TIER_BOUNDARIES.standardMax) return "standard";
+  if (ratio < PRICE_TIER_BOUNDARIES.premiumMax) return "premium";
+  return "highend";
+}
+
 function getSummaryCopy(result: {
   verdict: AmoraQuoteVerdict;
   grade: string;
@@ -139,11 +175,55 @@ function getSummaryCopy(result: {
   estimatedHiddenMinManwon: number;
   estimatedHiddenMaxManwon: number;
   priceDiffPercent: number;
+  priceTier: AmoraPriceTier;
 }) {
+  const minHidden = Math.round(result.estimatedHiddenMinManwon);
+  const maxHidden = Math.round(result.estimatedHiddenMaxManwon);
+
+  // 하이엔드: 가격 비교 메시지 완전 제거. 함정 분석에만 집중.
+  if (result.priceTier === "highend") {
+    if (result.verdict === "danger") {
+      return {
+        title: `이 가격대 견적에 ${result.missingCriticalCount}개 필수 항목이 빠져 있습니다. 투명도 ${result.grade}등급`,
+        text: `프리미엄·하이엔드 견적에서도 필수 항목 누락은 똑같이 발생합니다. 빠진 ${result.missingCriticalCount}개 항목과 약 ${minHidden}~${maxHidden}만원의 추가금 리스크가 열려 있습니다.`,
+        action: "가격이 비싸다는 의미가 아닙니다. 이 가격대 견적에 어떤 함정이 빠져 있는지 — 계약 전 항목별로 답변을 받으세요.",
+      };
+    }
+    if (result.verdict === "caution") {
+      return {
+        title: `이 가격대 견적, 확인이 더 필요한 항목이 있습니다. 투명도 ${result.grade}등급`,
+        text: `가격대와 무관하게 빠지기 쉬운 함정 항목들이 견적에서 확인되지 않았습니다.`,
+        action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
+      };
+    }
+    return {
+      title: `이 가격대 견적, 함정은 대체로 닫혀 있습니다. 투명도 ${result.grade}등급`,
+      text: `프리미엄 가격대지만 필수 항목이 충분히 명시되어 있고 추가금 리스크가 낮습니다. 환불·취소·원본 제공 조건만 계약서에 남기면 안전합니다.`,
+      action: "계약서에 포함 항목과 환불 기준이 같은 내용으로 적혀 있는지만 마지막으로 확인하세요.",
+    };
+  }
+
+  // 이상하게 낮은 가격: bait pricing 경고 강화
+  if (result.priceTier === "suspicious_low") {
+    if (result.verdict === "danger") {
+      return {
+        title: `미끼 가격 의심 신호입니다. 투명도 ${result.grade}등급`,
+        text: `시장 평균보다 현저히 낮은 견적에 필수 항목 ${result.missingCriticalCount}개가 빠져 있습니다. 계약 후 약 ${minHidden}~${maxHidden}만원이 별도로 청구될 가능성이 높습니다.`,
+        action: "낮은 견적일수록 빠진 항목과 추가금 상한을 계약서로 반드시 받으세요. 구두 약속은 신뢰하지 마세요.",
+      };
+    }
+    return {
+      title: `가격은 낮지만 함정 확인이 필요합니다. 투명도 ${result.grade}등급`,
+      text: `시장 평균 대비 낮은 견적입니다. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 더 꼼꼼히 확인하세요.`,
+      action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
+    };
+  }
+
+  // 일반 가격대: 기존 메시지 유지 (가격 비교 포함)
   if (result.verdict === "danger") {
     return {
       title: `계약 전 멈춤 신호입니다. 투명도 ${result.grade}등급`,
-      text: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았고, 추가금이 약 ${Math.round(result.estimatedHiddenMinManwon)}~${Math.round(result.estimatedHiddenMaxManwon)}만원까지 열려 있습니다.`,
+      text: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았고, 추가금이 약 ${minHidden}~${maxHidden}만원까지 열려 있습니다.`,
       action: "계약금 입금 전 포함/미포함 항목과 추가금 상한을 문자나 계약서로 받아두세요.",
     };
   }
@@ -206,8 +286,16 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
   const estimatedTotalMinManwon = input.quotePriceManwon + estimatedHiddenMinManwon;
   const estimatedTotalMaxManwon = input.quotePriceManwon + estimatedHiddenMaxManwon;
 
+  // 가격대 자동 분류 — 사용자 override 있으면 우선 적용
+  const priceTierAutoInferred = classifyPriceTier(input.quotePriceManwon, marketMedianManwon);
+  const priceTier = input.userPriceTierOverride ?? priceTierAutoInferred;
+  const showPriceComparison = priceTier !== "highend";
+
   const redFlags = [];
-  if (priceDiffPercent < -30) redFlags.push(RED_FLAGS.find((flag) => flag.id === "bait_pricing"));
+  // 미끼 가격 신호 — suspicious_low 분류이거나 가격이 시장 대비 30% 이상 낮으면
+  if (priceTier === "suspicious_low" || priceDiffPercent < -30) {
+    redFlags.push(RED_FLAGS.find((flag) => flag.id === "bait_pricing"));
+  }
   if (missingCritical.length > 0) redFlags.push(RED_FLAGS.find((flag) => flag.id === "essential_as_option"));
   if (included.length < 5) redFlags.push(RED_FLAGS.find((flag) => flag.id === "price_opacity"));
 
@@ -218,6 +306,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     estimatedHiddenMinManwon,
     estimatedHiddenMaxManwon,
     priceDiffPercent,
+    priceTier,
   });
 
   const contractQuestions = [...missingCritical, ...missingHigh]
@@ -235,6 +324,9 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     quotePriceManwon: input.quotePriceManwon,
     marketMedianManwon,
     priceDiffPercent,
+    priceTier,
+    priceTierAutoInferred,
+    showPriceComparison,
     estimatedHiddenMinManwon,
     estimatedHiddenMaxManwon,
     estimatedTotalMinManwon,

@@ -13,6 +13,7 @@ import {
   Loader2,
   MessageCircle,
   PenLine,
+  Share2,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -20,10 +21,32 @@ import {
   AMORA_QUOTE_CATEGORY_LABELS,
   AMORA_QUOTE_REGION_LABELS,
   getQuoteCheckItems,
+  type AmoraPriceTier,
   type AmoraQuoteCategory,
   type AmoraQuoteCheckResult,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+
+const PRICE_TIER_LABELS: Record<AmoraPriceTier, string> = {
+  suspicious_low: "이상하게 낮은 가격대",
+  standard: "일반 가격대",
+  premium: "프리미엄 가격대",
+  highend: "하이엔드 가격대",
+};
+
+const PRICE_TIER_DESCRIPTIONS: Record<AmoraPriceTier, string> = {
+  suspicious_low: "시장 평균보다 현저히 낮음 — 미끼 가격 의심",
+  standard: "한국소비자원 중위가 기준 일반 가격대",
+  premium: "중위가의 1.3~2배 — 프리미엄급",
+  highend: "중위가의 2배+ — 가격 비교 의미 적음. 함정 분석 중심으로 봐주세요.",
+};
+
+const PRICE_TIER_PILL_STYLES: Record<AmoraPriceTier, string> = {
+  suspicious_low: "bg-amber-50 text-amber-700 border-amber-200",
+  standard: "bg-sky-50 text-sky-700 border-sky-200",
+  premium: "bg-violet-50 text-violet-700 border-violet-200",
+  highend: "bg-slate-100 text-slate-700 border-slate-300",
+};
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
@@ -73,8 +96,10 @@ export default function AmoraQuoteCheckPage() {
   const [memo, setMemo] = useState("");
   const [includedItemIds, setIncludedItemIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [priceTierOverride, setPriceTierOverride] = useState<AmoraPriceTier | null>(null);
 
   const items = useMemo(() => getQuoteCheckItems(category, region), [category, region]);
   const requiredItems = items.filter((item) => item.severity === "critical");
@@ -101,10 +126,11 @@ export default function AmoraQuoteCheckPage() {
     });
   };
 
-  const submit = async () => {
+  const submit = async (overrideTier?: AmoraPriceTier | null) => {
     setError(null);
     setLoading(true);
     setResult(null);
+    setSavedId(null);
 
     try {
       const res = await fetch("/api/amora/quote-check", {
@@ -117,16 +143,28 @@ export default function AmoraQuoteCheckPage() {
           vendorName,
           memo,
           includedItemIds: [...includedItemIds],
+          userPriceTierOverride: overrideTier ?? priceTierOverride ?? undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "견적 진단에 실패했습니다.");
       setResult(data.analysis as AmoraQuoteCheckResult);
+      setSavedId(typeof data.savedId === "string" ? data.savedId : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "견적 진단에 실패했습니다.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTierOverride = (tier: AmoraPriceTier) => {
+    setPriceTierOverride(tier);
+    void submit(tier);
+  };
+
+  const clearTierOverride = () => {
+    setPriceTierOverride(null);
+    void submit(null);
   };
 
   return (
@@ -268,7 +306,7 @@ export default function AmoraQuoteCheckPage() {
 
             <button
               type="button"
-              onClick={submit}
+              onClick={() => submit()}
               disabled={loading}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a] disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -277,7 +315,14 @@ export default function AmoraQuoteCheckPage() {
             </button>
           </section>
 
-          {result && <ResultPanel result={result} />}
+          {result && (
+            <ResultPanel
+              result={result}
+              savedId={savedId}
+              onTierOverride={handleTierOverride}
+              onClearTierOverride={clearTierOverride}
+            />
+          )}
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
@@ -363,10 +408,24 @@ function ItemGroup({
   );
 }
 
-function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
+function ResultPanel({
+  result,
+  savedId,
+  onTierOverride,
+  onClearTierOverride,
+}: {
+  result: AmoraQuoteCheckResult;
+  savedId: string | null;
+  onTierOverride: (tier: AmoraPriceTier) => void;
+  onClearTierOverride: () => void;
+}) {
   const style = VERDICT_STYLES[result.verdict];
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareSharing, setShareSharing] = useState(false);
+  const [showTierMenu, setShowTierMenu] = useState(false);
+  const isOverridden = result.priceTier !== result.priceTierAutoInferred;
 
   const copyQuestions = async () => {
     const text = [
@@ -384,8 +443,106 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     }
   };
 
+  const shareResult = async () => {
+    if (!savedId) return;
+    const url = `${window.location.origin}/quote/${savedId}`;
+    const missing =
+      result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
+    const title = `${result.summaryTitle}`;
+    const text = `${formatManwon(result.quotePriceManwon)} 견적 진단 — 빠진 항목 ${missing}개, 예상 추가금 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
+
+    if (typeof navigator.share === "function") {
+      try {
+        setShareSharing(true);
+        await navigator.share({ title, text, url });
+      } catch {
+        // 취소 등 — 무시
+      } finally {
+        setShareSharing(false);
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      window.prompt("이 링크를 복사해 공유하세요", `${text}\n${url}`);
+    }
+  };
+
   return (
     <section className={`mt-5 rounded-xl border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
+      {/* 가격대 분류 배너 — 사용자가 어느 가격대로 분석됐는지 명확히 + 보정 옵션 */}
+      <div className="mb-4 rounded-lg border border-white/60 bg-white/70 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${PRICE_TIER_PILL_STYLES[result.priceTier]}`}
+              >
+                {PRICE_TIER_LABELS[result.priceTier]}
+              </span>
+              {isOverridden && (
+                <span className="text-[11px] text-[#928980]">
+                  · 직접 보정함 (자동: {PRICE_TIER_LABELS[result.priceTierAutoInferred]})
+                </span>
+              )}
+            </div>
+            <p className="mt-1.5 text-xs leading-5 text-[#625b4d] sm:text-sm">
+              {PRICE_TIER_DESCRIPTIONS[result.priceTier]}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-start sm:items-end">
+            <button
+              type="button"
+              onClick={() => setShowTierMenu((v) => !v)}
+              className="text-xs font-medium text-[#795252] underline-offset-2 hover:underline"
+            >
+              {showTierMenu ? "닫기" : "이 분석이 안 맞아요"}
+            </button>
+            {isOverridden && (
+              <button
+                type="button"
+                onClick={onClearTierOverride}
+                className="mt-1 text-xs text-[#928980] underline-offset-2 hover:underline"
+              >
+                자동 분류로 되돌리기
+              </button>
+            )}
+          </div>
+        </div>
+        {showTierMenu && (
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(["suspicious_low", "standard", "premium", "highend"] as AmoraPriceTier[]).map(
+              (tier) => (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => {
+                    onTierOverride(tier);
+                    setShowTierMenu(false);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                    result.priceTier === tier
+                      ? "border-[#795252] bg-[#fffdfb] text-[#1b1c1c]"
+                      : "border-[#e4e2e1] bg-white text-[#625b4d] hover:border-[#d9c8c8] hover:bg-[#fffdfb]"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-[#1b1c1c]">
+                    {PRICE_TIER_LABELS[tier]}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-4 text-[#928980]">
+                    {PRICE_TIER_DESCRIPTIONS[tier]}
+                  </div>
+                </button>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white ${style.text}`}>
@@ -402,9 +559,12 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-4">
+      {/* 메트릭 카드 — 하이엔드는 가격 비교(시세 기준) 숨김, 함정 분석에 집중 */}
+      <div className={`mt-5 grid gap-3 ${result.showPriceComparison ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <ResultMetric label="견적가" value={formatManwon(result.quotePriceManwon)} />
-        <ResultMetric label="시세 기준" value={formatManwon(result.marketMedianManwon)} />
+        {result.showPriceComparison && (
+          <ResultMetric label="시세 기준" value={formatManwon(result.marketMedianManwon)} />
+        )}
         <ResultMetric
           label="예상 추가금"
           value={`${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`}
@@ -470,6 +630,37 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
           익명 사례로 공유하기
         </Link>
       </div>
+
+      {savedId && (
+        <div className="mt-3 rounded-lg border border-[#e4e2e1] bg-white p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-[#625b4d]">
+              <strong className="text-[#1b1c1c]">고민되면 친구·파트너에게 보내세요.</strong>
+              <br className="sm:hidden" />
+              공유 페이지에는 견적가·등급·요약만 표시되고 메모/업체명은 빠집니다.
+            </p>
+            <button
+              type="button"
+              onClick={shareResult}
+              disabled={shareSharing}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#795252] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb] disabled:opacity-60"
+            >
+              {shareCopied ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  링크 복사됨
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-3.5 w-3.5" />
+                  결과 공유하기
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       <p className="mt-3 text-xs leading-5 text-[#928980]">{result.sourceNote}</p>
     </section>
   );

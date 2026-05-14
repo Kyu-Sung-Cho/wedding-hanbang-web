@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   analyzeAmoraQuoteCheck,
+  type AmoraPriceTier,
   type AmoraQuoteCategory,
   type AmoraQuoteCheckInput,
   type AmoraQuoteRegion,
@@ -14,6 +15,12 @@ export const dynamic = "force-dynamic";
 
 const CATEGORY_SET = new Set<AmoraQuoteCategory>(["sdm_package", "studio", "dress", "makeup"]);
 const REGION_SET = new Set<AmoraQuoteRegion>(["seoul", "gyeonggi", "busan", "daegu", "other"]);
+const PRICE_TIER_SET = new Set<AmoraPriceTier>([
+  "suspicious_low",
+  "standard",
+  "premium",
+  "highend",
+]);
 const LEAD_CATEGORY_BY_QUOTE_CATEGORY: Record<AmoraQuoteCategory, string> = {
   sdm_package: "sdm_package",
   studio: "studio",
@@ -28,6 +35,7 @@ interface QuoteCheckBody {
   includedItemIds?: string[];
   vendorName?: string;
   memo?: string;
+  userPriceTierOverride?: string;
 }
 
 function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
@@ -47,6 +55,12 @@ function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
     throw new Error("견적 금액은 1만원 이상 1억원 이하로 입력해주세요.");
   }
 
+  const override = body.userPriceTierOverride;
+  const userPriceTierOverride =
+    override && PRICE_TIER_SET.has(override as AmoraPriceTier)
+      ? (override as AmoraPriceTier)
+      : undefined;
+
   return {
     category: category as AmoraQuoteCategory,
     region: region as AmoraQuoteRegion,
@@ -56,6 +70,7 @@ function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
       : [],
     vendorName: body.vendorName ? sanitizeText(body.vendorName).slice(0, 80) : undefined,
     memo: body.memo ? sanitizeText(body.memo).slice(0, 2000) : undefined,
+    userPriceTierOverride,
   };
 }
 
