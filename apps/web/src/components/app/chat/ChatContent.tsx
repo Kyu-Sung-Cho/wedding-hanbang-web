@@ -162,14 +162,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     });
   }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
-  // 자동 스크롤 정책 — 사용자 요청으로 메시지 수신/송신 시 자동 스크롤 모두 제거.
-  // 이전엔 scrollIntoView()를 썼는데, 이게 부모 체인 모든 스크롤 컨테이너를 함께 움직여서
-  // 메시지 컨테이너 + 페이지 전체가 같이 내려가는 부작용이 있었음 (사용자 신고).
+  // 자동 스크롤 정책 — 페이지 전체는 절대 안 건드림, 메시지 컨테이너만 움직임.
+  // 이전 사고: scrollIntoView()가 부모 체인 모두 끌고 내려가서 페이지까지 같이 움직임.
+  // 해결: el.scrollTo / el.scrollTop 로 컨테이너만 스크롤 (페이지 영향 없음).
   //
-  // 남긴 자동 동작은 두 가지 뿐:
-  //   1) 첫 진입 시 1회 — 가장 아래(최신 메시지)로 컨테이너만 스크롤 (페이지는 안 건드림)
-  //   2) "↓" 플로팅 버튼 — 사용자가 직접 누르면 컨테이너만 바닥으로
-  // 그 외엔 스크롤이 알아서 움직이지 않음.
+  // 자동 동작:
+  //   1) 첫 진입 시 1회 — 가장 아래로 즉시 스크롤 (컨테이너만)
+  //   2) 본인이 보낸 메시지 — 컨테이너 바닥으로 부드럽게
+  //   3) AI streaming 중 — 사용자가 바닥 근처(<120px)면 따라 내려감, 위면 가만히
+  //   4) AI 응답 완료 직후 — 사용자가 바닥 근처면 한 번 더 바닥으로 (잘림 방지)
+  //   5) "↓" 플로팅 버튼 — 사용자가 직접 누르면 바닥으로
 
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const hasInitialScrolledRef = useRef(false);
@@ -227,6 +229,32 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
+
+  // AI streaming 중 — 사용자가 바닥 근처(<120px)면 컨테이너만 즉시 따라 내려감.
+  // 사용자가 위로 올라가 있으면 (isNearBottomRef.current === false) 절대 안 건드림.
+  // el.scrollTop 직접 대입 → 토큰 들어오는 속도에 맞춰 즉시, 페이지 영향 없음.
+  useEffect(() => {
+    if (!isStreaming) return;
+    if (!isNearBottomRef.current) return;
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [isStreaming, streamingContent]);
+
+  // AI 응답 완료 직후 — true → false 전환에서 한 번 더 부드럽게 바닥으로.
+  // (streaming 중 따라가다가 마지막 한 줄이 잘려 보이는 케이스 방지)
+  const prevStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    prevStreamingRef.current = isStreaming;
+    if (!wasStreaming || isStreaming) return;
+    if (!isNearBottomRef.current) return;
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+  }, [isStreaming]);
 
   // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
   // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
