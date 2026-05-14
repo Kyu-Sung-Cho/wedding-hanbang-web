@@ -133,6 +133,48 @@ function syncToolResult(result: ToolExecutionResult) {
       });
       break;
     }
+    case "apply_budget_plan": {
+      // 예산 인터뷰 결과 일괄 반영 — total_budget + 모든 allocations 의 budget 필드 갱신.
+      // 서버 executor 는 잔여분을 reserve 로 자동 보강하므로 input.allocations 외에 reserve 도
+      // 별도로 검사. toolOutput.remainder_to_reserve 가 있으면 reserve 카테고리에 추가 가산.
+      const totalBudget = result.toolOutput.total_budget as number | undefined;
+      const allocations = (result.toolInput.allocations ?? []) as Array<{
+        category: string;
+        budget: number;
+      }>;
+      const remainder = (result.toolOutput.remainder_to_reserve as number | undefined) ?? 0;
+      const curProgress = authStore.journey?.progress ?? {};
+      const nextProgress: Record<string, unknown> = { ...curProgress };
+      for (const alloc of allocations) {
+        const existing = (nextProgress[alloc.category] ?? {
+          category: alloc.category,
+          status: "not_started",
+        }) as Record<string, unknown>;
+        nextProgress[alloc.category] = {
+          ...existing,
+          category: alloc.category,
+          budget: alloc.budget,
+        };
+      }
+      // 잔여분이 reserve 로 자동 추가됐다면 그것도 반영
+      if (remainder > 0) {
+        const reserveExisting = (nextProgress.reserve ?? {
+          category: "reserve",
+          status: "not_started",
+        }) as Record<string, unknown>;
+        const reserveAllocated = allocations.find((a) => a.category === "reserve")?.budget ?? 0;
+        nextProgress.reserve = {
+          ...reserveExisting,
+          category: "reserve",
+          budget: reserveAllocated + remainder,
+        };
+      }
+      authStore.updateJourneyLocal({
+        ...(totalBudget !== undefined ? { total_budget: totalBudget } : {}),
+        progress: nextProgress as typeof curProgress,
+      });
+      break;
+    }
     case "add_custom_category": {
       const customKey = result.toolOutput.key as string;
       const customLabel = result.toolInput.label as string;
