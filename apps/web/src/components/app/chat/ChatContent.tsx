@@ -230,25 +230,28 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
-  // AI streaming 중 — 사용자가 바닥 근처(<120px)면 컨테이너만 즉시 따라 내려감.
-  // 사용자가 위로 올라가 있으면 (isNearBottomRef.current === false) 절대 안 건드림.
-  // el.scrollTop 직접 대입 → 토큰 들어오는 속도에 맞춰 즉시, 페이지 영향 없음.
+  // AI streaming 중 — 컨테이너만 무조건 바닥으로 따라감.
+  // isStreaming은 chatStore 로컬 상태로 "이 사용자가 보낸 메시지에 대한 응답"일 때만 true
+  // (파트너 트리거는 aiResponding이라 별도 분기). 즉 본인이 보고 싶어 보낸 응답이므로
+  // near-bottom 체크 없이 항상 따라가는 게 맞음.
+  //
+  // 예전엔 isNearBottomRef 가드를 뒀는데, 사용자 발화 직후 smooth scroll이
+  // 끝나기 전에 AI 토큰이 들어오면 scrollHeight가 커져 near-bottom이 깨지는
+  // race condition 때문에 자동 스크롤이 죽는 케이스가 있었음. 제거.
   useEffect(() => {
     if (!isStreaming) return;
-    if (!isNearBottomRef.current) return;
     const el = messagesContainerRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [isStreaming, streamingContent]);
 
   // AI 응답 완료 직후 — true → false 전환에서 한 번 더 부드럽게 바닥으로.
-  // (streaming 중 따라가다가 마지막 한 줄이 잘려 보이는 케이스 방지)
+  // (마지막 토큰 들어오면서 살짝 잘려 보이는 케이스 방지)
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreaming;
     if (!wasStreaming || isStreaming) return;
-    if (!isNearBottomRef.current) return;
     const el = messagesContainerRef.current;
     if (!el) return;
     requestAnimationFrame(() => {
