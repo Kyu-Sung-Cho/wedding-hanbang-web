@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock } from "lucide-react";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
+import AiMessageFooter from "@/components/common/AiMessageFooter";
+import MediationCard, { type MediationBlock } from "@/components/app/chat/MediationCard";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -290,10 +292,9 @@ export default function ChatBubble({
           <span className="text-sm text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
-          {/* AI 생성 배지 — AI 기본법 고지 (원칙 P6) */}
-          <div className="inline-flex items-center gap-1 text-[11px] text-[#504444]/60 ml-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/40" />
-            AI 생성
+          {/* AI 답변 푸터 — 캐논 v2 §5 법적 안전판 (AI 생성 + 출처 + 전문가 검토 권장) */}
+          <div className="ml-1 mt-1">
+            <AiMessageFooter />
           </div>
           {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
           {isRecentAi && (
@@ -323,6 +324,11 @@ export default function ChatBubble({
 
   // 사용자 메시지에서 선택 태그 숨김
   const displayContent = stripSelectionTags(content);
+
+  // 갈등 중재 시각 카드 — AI가 [mediation] 마커로 응답하면 백엔드가 metadata.mediation에 추출.
+  const mediationBlock: MediationBlock | undefined = message.metadata?.mediation as
+    | MediationBlock
+    | undefined;
 
   // 이미지 URL 목록
   const imageUrls = message.metadata?.imageUrls ?? [];
@@ -427,6 +433,7 @@ export default function ChatBubble({
             {displayContent}
           </p>
         </div>
+        {mediationBlock && <MediationCard block={mediationBlock} />}
         <span className="text-sm text-[#B5ADA3] ml-1">
           {formatTime(created_at)}
         </span>

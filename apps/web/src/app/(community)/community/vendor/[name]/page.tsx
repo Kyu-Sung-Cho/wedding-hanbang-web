@@ -535,29 +535,84 @@ function BookingSection({
 }
 
 function NoBookingFallback({ name }: { name: string }) {
+  // 데모/온보딩용 미리보기 슬롯 — 진짜 데이터가 아님을 명시. 실제 예약은 연동 후 가능.
+  const previewDays = ["오늘", "내일", "금"];
+  const previewHours = [11, 13, 15, 17];
   return (
-    <section className="bg-gradient-to-br from-[#fcf9f8] to-white border border-[#F0EFED] rounded-2xl p-6 sm:p-8">
-      <div className="flex items-start gap-4">
-        <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#795252]/15 to-[#795252]/5 flex items-center justify-center">
-          <Sparkles className="w-6 h-6 text-[#795252]" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1.5">
-            이 업체는 아직 예약 연동 전입니다
-          </h2>
-          <p className="text-sm text-[#504444] leading-relaxed mb-4">
-            <span className="font-medium text-[#1A1A1F]">{name}</span>은(는) 커뮤니티
-            데이터(언급수·평균 가격·추가금 발생률)는 모이고 있지만, 실시간 슬롯 예약은 곧
-            오픈됩니다. 지금은 받은 견적의 함정을 먼저 진단해 보세요.
-          </p>
-          <Link
-            href="/community/quote-check"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#795252] text-white text-sm font-medium hover:bg-[#946a6a] transition-colors"
+    <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
+      <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[#1A1A1F]">
+          <Calendar className="w-4 h-4 text-[#795252]" />
+          <h2
+            className="font-serif text-lg font-medium"
+            style={{ fontFamily: "'Noto Serif KR', serif" }}
           >
-            <FileSearch className="w-4 h-4" />
-            아모라 견적 진단 받기
-          </Link>
+            예약 가능 시간
+          </h2>
         </div>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fcf9f8] border border-[#F0EFED] text-[11px] text-[#928980]">
+          연동 준비 중
+        </span>
+      </div>
+
+      <div className="px-5 sm:px-6 py-5">
+        <div className="bg-[#fcf9f8] border border-[#F0EFED] rounded-xl p-4 flex items-start gap-3 mb-4">
+          <Sparkles className="w-5 h-5 text-[#795252] shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[#1A1A1F] mb-0.5">
+              <span className="font-semibold">{name}</span>은(는) 아직 예약 연동 전입니다
+            </p>
+            <p className="text-xs text-[#504444] leading-relaxed">
+              커뮤니티 데이터는 모이고 있지만 실시간 슬롯은 곧 오픈됩니다. 아래는 슬롯 UI
+              미리보기 — 연동 완료된 업체는 이 화면에서 바로 예약합니다.
+            </p>
+          </div>
+        </div>
+
+        {/* 미리보기 슬롯 — 클릭 비활성 */}
+        <div className="opacity-60 pointer-events-none select-none">
+          <div className="flex gap-2 overflow-x-auto mb-3">
+            {previewDays.map((d, i) => (
+              <div
+                key={d}
+                className={`flex flex-col items-center justify-center px-3.5 py-2 rounded-xl border ${
+                  i === 0
+                    ? "border-[#795252] bg-[#795252] text-white"
+                    : "border-[#F0EFED] bg-white text-[#1A1A1F]"
+                } min-w-[64px]`}
+              >
+                <span className="text-[11px] font-medium opacity-80">
+                  {["일", "월", "화", "수", "목", "금", "토"][(new Date().getDay() + i) % 7]}
+                </span>
+                <span className="text-sm font-semibold mt-0.5">{d}</span>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {previewHours.map((h) => (
+              <div
+                key={h}
+                className="rounded-lg px-2.5 py-3 text-center bg-[#fffdfb] border border-[#d9c8c8] text-[#795252]"
+              >
+                <div className="text-sm font-semibold">{h}:00</div>
+                <div className="text-[10px] mt-0.5">잔여 2</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fcf9f8] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-xs text-[#928980] leading-relaxed">
+          연동 완료까지는 받은 견적을 먼저 진단하고, 계약 함정을 확인해 보세요.
+        </p>
+        <Link
+          href="/community/quote-check"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#795252] text-white text-sm font-medium hover:bg-[#946a6a] transition-colors shrink-0"
+        >
+          <FileSearch className="w-4 h-4" />
+          아모라 견적 진단 받기
+        </Link>
       </div>
     </section>
   );

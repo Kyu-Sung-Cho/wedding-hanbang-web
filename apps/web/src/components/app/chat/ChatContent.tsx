@@ -67,6 +67,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [clearStep, setClearStep] = useState<
     "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
   >("closed");
+  const [nowMs, setNowMs] = useState(0);
   const [showNewChatBanner, setShowNewChatBanner] = useState(false);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -75,6 +76,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
   const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
   const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
+
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now());
+    updateNow();
+    const timer = window.setInterval(updateNow, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -488,15 +496,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   // 파트너 typing freshness — broadcast 후 5초 안 → "지금 입력 중"으로 간주
   const partnerTypingActive =
-    !!presence.partnerTyping && Date.now() - presence.partnerTyping.updated_at < 5000;
+    !!presence.partnerTyping && nowMs > 0 && nowMs - presence.partnerTyping.updated_at < 5000;
 
   // AI 응답 중 추론 — 마지막 shared 메시지가 사람(나/파트너)이고 30초 이내면 AI가 응답 중
   // (서버 broadcast 인프라 없이 메시지 타임스탬프로만 추론)
   const aiResponding = (() => {
+    if (nowMs === 0) return null;
     const sharedMessages = messages.filter((m) => m.visibility === "shared");
     const last = sharedMessages[sharedMessages.length - 1];
     if (!last || last.sender_role === "ai") return null;
-    const ageMs = Date.now() - new Date(last.created_at).getTime();
+    const ageMs = nowMs - new Date(last.created_at).getTime();
     if (ageMs > 30_000) return null;
     return { triggered_by_user_id: last.sender_id, triggered_at: last.created_at };
   })();
@@ -1007,7 +1016,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     VENDOR_TOOL_NAMES.has(result.toolName) ? (
                       <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={attemptSend} disabled={isStreaming} />
                     ) : (
-                      <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
+                      <div
+                        key={`${msg.id}-tool-${i}`}
+                        className="animate-fade-in"
+                        style={{ animationDelay: `${i * 120}ms` }}
+                      >
+                        <ActionCard result={result} />
+                      </div>
                     )
                   )}
               </div>

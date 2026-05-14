@@ -10,6 +10,7 @@ import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
 import { maybeExtractDecision } from "@/lib/ai/extract-decision";
+import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
@@ -596,18 +597,13 @@ export async function POST(request: Request) {
     guestCount: rawPreferences.guestCount ?? null,
   } : null;
 
-  // 대화 요약 — 프라이버시 가드: chat_summaries 테이블에 visibility 컬럼이 없으므로
-  // shared/private 혼합 가능성. private 응답에는 summary 사용 안 함 (절대 누설 금지).
-  // shared 응답엔 일단 사용 (대부분 shared 대화 위주로 요약된 것으로 가정).
-  // TODO: chat_summaries에 visibility 컬럼 추가 후 정확히 분리.
-  const summariesData = visibility === "shared"
-    ? ((summariesResult.data ?? []) as Array<{
-        summary: string;
-        created_at: string;
-        message_count: number | null;
-        to_message_id: string | null;
-      }>)
-    : [];
+  // 대화 요약은 visibility별 RLS 정책을 통해 shared/bride/groom 범위가 분리된다.
+  const summariesData = (summariesResult.data ?? []) as Array<{
+    summary: string;
+    created_at: string;
+    message_count: number | null;
+    to_message_id: string | null;
+  }>;
   const chatSummaries = summariesData.map((s) => s.summary);
 
   // Memory Step A: 마지막 요약 watermark (trigger용)
@@ -837,9 +833,11 @@ export async function POST(request: Request) {
 
           // tool use가 없으면 최종 응답 (이미 토큰별로 스트리밍됨)
           if (result.toolUseBlocks.length === 0) {
-            const { cleanText, suggestions } = extractSuggestions(
+            const { cleanText: afterSuggest, suggestions } = extractSuggestions(
               result.fullText
             );
+            // 갈등 중재 마커 추출 — 본문에서 [mediation]...[/mediation] 제거 + 4필드 metadata로
+            const { cleanText, mediation } = extractMediation(afterSuggest);
 
             if (suggestions.length > 0) {
               send({ type: "suggestions", suggestions });
@@ -852,7 +850,7 @@ export async function POST(request: Request) {
               coupleId,
               cleanText,
               clientRequestId,
-              metadata: { toolResults, toolsUsed, senderName },
+              metadata: { toolResults, toolsUsed, senderName, ...(mediation ? { mediation } : {}) },
               stageTag,
               specialistType,
               visibility,
@@ -871,6 +869,7 @@ export async function POST(request: Request) {
                 specialistType,
                 serverMessageId,
                 serverCreatedAt,
+                ...(mediation ? { mediation } : {}),
               },
             });
 
@@ -944,7 +943,6 @@ export async function POST(request: Request) {
           ]);
 
           const toolResultContents: ContentBlockParam[] = [];
-          let hasUIRenderedTool = false;
           // 유저 메시지에 [quote_analysis] 태그가 있는지 확인
           const roundLastUserMsg = currentMessages.filter((m) => m.role === "user").pop();
           const roundLastUserText = typeof roundLastUserMsg?.content === "string"
@@ -956,7 +954,6 @@ export async function POST(request: Request) {
 
           for (const toolUse of result.toolUseBlocks) {
             toolsUsed.push(toolUse.name);
-            if (UI_RENDERED_TOOLS.has(toolUse.name)) hasUIRenderedTool = true;
 
             // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움
             if (toolUse.name === "analyze_quote" && !hasQuoteAnalysisTag) {
@@ -1010,9 +1007,10 @@ export async function POST(request: Request) {
         }
         if (finalResult.model) lastModel = finalResult.model;
 
-        const { cleanText, suggestions } = extractSuggestions(
+        const { cleanText: afterSuggest2, suggestions } = extractSuggestions(
           finalResult.fullText
         );
+        const { cleanText, mediation } = extractMediation(afterSuggest2);
 
         if (suggestions.length > 0) {
           send({ type: "suggestions", suggestions });
@@ -1024,7 +1022,7 @@ export async function POST(request: Request) {
           coupleId,
           cleanText,
           clientRequestId,
-          metadata: { toolResults, toolsUsed, senderName },
+          metadata: { toolResults, toolsUsed, senderName, ...(mediation ? { mediation } : {}) },
           stageTag,
           specialistType,
           visibility,
@@ -1041,6 +1039,7 @@ export async function POST(request: Request) {
             specialistType,
             serverMessageId: insertResult2.id,
             serverCreatedAt: insertResult2.createdAt,
+            ...(mediation ? { mediation } : {}),
           },
         });
 

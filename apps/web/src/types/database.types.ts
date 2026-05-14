@@ -97,6 +97,14 @@ export interface ChatMessageMetadata {
   // D3 — 서버가 계산한 stage/specialist를 SSE로 클라이언트에 전달
   stageTag?: import("./moat.types").StageTag;
   specialistType?: import("./moat.types").SpecialistType;
+  // 커플 갈등 중재 — AI 응답에서 [mediation]...[/mediation] 마커가 추출되면 백엔드가 채움.
+  // 클라이언트는 ChatBubble에서 MediationCard로 시각화.
+  mediation?: {
+    empathy?: string;
+    translation?: string;
+    data?: string;
+    resolution?: string;
+  };
 }
 
 export interface ChatMessage {
