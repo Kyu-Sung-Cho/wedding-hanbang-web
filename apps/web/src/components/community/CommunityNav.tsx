@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { FileSearch, Search, PenSquare, Menu, X, User } from "lucide-react";
+import { FileSearch, Search, PenSquare, Menu, X, User, Store } from "lucide-react";
 import MyToolsWidget from "@/components/community/MyToolsWidget";
 
 export default function CommunityNav() {
@@ -102,6 +102,14 @@ export default function CommunityNav() {
             {user && <MyToolsWidget variant="nav" />}
 
             <Link
+              href="/vendors"
+              className="hidden md:flex items-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] hover:text-[#795252] transition-colors"
+            >
+              <Store className="w-4 h-4" />
+              업체 둘러보기
+            </Link>
+
+            <Link
               href="/community/quote-check"
               className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
             >
@@ -175,6 +183,15 @@ export default function CommunityNav() {
             </form>
 
             {user && <MyToolsWidget variant="sidebar" />}
+
+            <Link
+              href="/vendors"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 px-5 py-3 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
+            >
+              <Store className="w-5 h-5" />
+              업체 둘러보기
+            </Link>
 
             <Link
               href="/community/quote-check"

@@ -83,12 +83,70 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(50);
 
+    // 실제 vendor DB 매칭 — 이름이 비슷한 승인된 vendor가 있으면 예약 연동 가능.
+    // 정확 매칭 우선, 없으면 부분 매칭. 데모 환경의 mock vendor도 함께 검색.
+    const { data: exactVendor } = await service
+      .from("vendors")
+      .select(
+        "id, name, category, region, address, thumbnail_url, rating, review_count, price_min, price_max, price_range, description"
+      )
+      .eq("name", name)
+      .eq("status", "approved")
+      .maybeSingle();
+
+    let vendorMatch = exactVendor;
+    if (!vendorMatch) {
+      const { data: fuzzyVendor } = await service
+        .from("vendors")
+        .select(
+          "id, name, category, region, address, thumbnail_url, rating, review_count, price_min, price_max, price_range, description"
+        )
+        .ilike("name", `%${name}%`)
+        .eq("status", "approved")
+        .limit(1)
+        .maybeSingle();
+      vendorMatch = fuzzyVendor;
+    }
+
+    let products: Array<{
+      id: string;
+      name: string;
+      price: number;
+      discount_price: number | null;
+      duration: number | null;
+      is_popular: boolean;
+    }> = [];
+
+    if (vendorMatch) {
+      const { data: productData } = await service
+        .from("vendor_products")
+        .select("id, name, price, discount_price, duration, is_popular, sort_order")
+        .eq("vendor_id", vendorMatch.id)
+        .eq("is_active", true)
+        .order("is_popular", { ascending: false })
+        .order("sort_order", { ascending: true })
+        .limit(3);
+      products = (productData ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        discount_price: p.discount_price,
+        duration: p.duration,
+        is_popular: !!p.is_popular,
+      }));
+    }
+
     const postsWithAuthors = await attachAuthorProfiles(
       service,
       (posts ?? []) as CommunityPostWithAuthorId[]
     );
 
-    return NextResponse.json({ tag: tag ?? null, posts: postsWithAuthors });
+    return NextResponse.json({
+      tag: tag ?? null,
+      posts: postsWithAuthors,
+      vendor: vendorMatch ?? null,
+      products,
+    });
   } catch (err) {
     console.error("Vendor tag detail error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
