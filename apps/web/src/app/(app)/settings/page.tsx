@@ -17,6 +17,7 @@ import {
   Save,
   X,
   Trash2,
+  MapPin,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -38,9 +39,11 @@ export default function SettingsPage() {
   const [editingName, setEditingName] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
+  const [editingVenue, setEditingVenue] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
+  const [venueInput, setVenueInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -111,6 +114,14 @@ export default function SettingsPage() {
     setEditingBudget(false);
   };
 
+  // 예식장 저장 — 빈 문자열은 null로 (미정 상태)
+  const saveVenue = async () => {
+    setSaving(true);
+    await updateJourney({ venue: venueInput.trim() || null });
+    setSaving(false);
+    setEditingVenue(false);
+  };
+
   const DELETE_REASONS = [
     { value: "unsatisfied", label: "서비스 불만족" },
     { value: "alternative", label: "다른 서비스 이용" },
@@ -165,6 +176,8 @@ export default function SettingsPage() {
   const budgetStr = totalBudget > 0
     ? `₩${(totalBudget / 10000).toLocaleString()}만원`
     : "미설정";
+  const venue = journey?.venue ?? null;
+  const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
 
   const partnerName = partner?.name;
   const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
@@ -222,7 +235,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+        <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
           <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
             <Calendar className="w-6 h-6 text-[#795252] flex-shrink-0" />
@@ -250,6 +263,43 @@ export default function SettingsPage() {
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
                     className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 예식장 — 온보딩에서 입력되는 값이지만 설정에서 양쪽이 같이 보고 수정할 수 있게 노출 */}
+          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
+            <MapPin className="w-6 h-6 text-[#795252] flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-[#B5ADA3]">예식장</p>
+              {editingVenue ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <input
+                    type="text"
+                    value={venueInput}
+                    onChange={(e) => setVenueInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveVenue()}
+                    placeholder="예: 더 라움, 호텔 A"
+                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+                    autoFocus
+                  />
+                  <button onClick={saveVenue} disabled={saving} className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                    <Save className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setEditingVenue(false)} className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[17px] font-medium text-[#1A1A1F] truncate">{venueStr}</p>
+                  <button
+                    onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
+                    className="w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
