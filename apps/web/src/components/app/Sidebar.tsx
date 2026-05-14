@@ -19,6 +19,8 @@ import {
   Mic,
   BarChart3,
   Bookmark,
+  Store,
+  Ticket,
 } from "lucide-react";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
@@ -26,15 +28,15 @@ const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/invitations", "/money", "/scripts"];
 
 // 베타 단계 업체 메뉴 숨김 — 런칭 D-30 진입으로 해제 (2026-04-30).
-// 등록 업체 0개여도 페이지에서 카테고리 칩 + 빈 상태 안내가 보이도록 메뉴 노출.
 const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 
-// 사이드바에서만 숨김 (페이지/라우트는 살아있음 — 직접 URL 접근 가능).
-// vendors·bookings·fitting은 업체 공급망이 충분해질 때 재노출.
+// 캐논 v2 §11 동결 영역: 페이지/라우트는 살아있되 사이드바 메인 동선에서 격하.
+// /vendors·/bookings은 데모 단계에서 다시 노출 — 캐치테이블 흐름을 평가자가
+// 직접 확인해야 하는 핵심 차별 기능이라 격하 정책에서 제외.
+// /fitting·/scripts는 Phase 2까지 격하 유지.
 const SIDEBAR_HIDDEN: string[] = [
-  "/vendors",
-  "/bookings",
   "/fitting",
+  "/scripts",
 ];
 
 const menuItems = [
@@ -43,6 +45,8 @@ const menuItems = [
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
+  { href: "/vendors", icon: Store, label: "업체 찾기" },
+  { href: "/bookings", icon: Ticket, label: "내 예약" },
   { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
   { href: "/money", icon: Banknote, label: "축의금 관리" },
   { href: "/scripts", icon: Mic, label: "AI 대본" },
