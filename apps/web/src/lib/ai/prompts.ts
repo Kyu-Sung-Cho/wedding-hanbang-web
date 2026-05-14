@@ -276,17 +276,48 @@ export function getWeddingPlannerSystemPrompt(context: {
     summarySection = `\n### 이전 대화 요약\n${summaryLines}`;
   }
 
-  // 사용자 성향 프로필 섹션 생성
+  // 사용자 성향 프로필 섹션 생성 — 코드 키를 한국어 라벨로 변환해 AI가 명확히 인지하게 함
+  const STYLE_LABEL: Record<string, string> = {
+    minimal: "미니멀 (깔끔·심플)",
+    classic: "클래식 (전통·격식)",
+    fancy: "화려한 (특별·럭셔리)",
+    natural: "자연스러운 (편안·자유)",
+  };
+  const BUDGET_LABEL: Record<string, string> = {
+    saving: "절약형 (최소한·합리)",
+    balanced: "가성비 (꼭 필요한 곳에 투자)",
+    premium: "프리미엄 (최고 퀄리티 선호)",
+  };
+  const GUEST_LABEL: Record<string, string> = {
+    under50: "50명 이하 (스몰웨딩)",
+    "50to100": "50~100명",
+    "100to200": "100~200명",
+    "200to300": "200~300명",
+    over300: "300명 이상",
+  };
+
   const prefs = context.preferences;
   let preferencesSection = "";
   if (prefs && (prefs.weddingStyle || (prefs.priorities && prefs.priorities.length > 0) || prefs.budgetAttitude || prefs.guestCount)) {
-    const styleLine = prefs.weddingStyle ? `- 웨딩 스타일: ${prefs.weddingStyle}` : "- 웨딩 스타일: 미설정";
+    const styleLine = prefs.weddingStyle
+      ? `- 웨딩 스타일: ${STYLE_LABEL[prefs.weddingStyle] ?? prefs.weddingStyle}`
+      : "- 웨딩 스타일: 미설정";
     const priorityLine = prefs.priorities && prefs.priorities.length > 0
       ? `- 우선순위: ${prefs.priorities.map((k) => CATEGORY_LABELS[k] ?? k).join(", ")}`
       : "- 우선순위: 미설정";
-    const budgetAttLine = prefs.budgetAttitude ? `- 예산 성향: ${prefs.budgetAttitude}` : "- 예산 성향: 미설정";
-    const guestLine = prefs.guestCount ? `- 하객 규모: ${prefs.guestCount}명` : "- 하객 규모: 미설정";
-    preferencesSection = `\n## 사용자 성향 프로필\n${styleLine}\n${priorityLine}\n${budgetAttLine}\n${guestLine}`;
+    const budgetAttLine = prefs.budgetAttitude
+      ? `- 예산 성향: ${BUDGET_LABEL[prefs.budgetAttitude] ?? prefs.budgetAttitude}`
+      : "- 예산 성향: 미설정";
+    const guestLine = prefs.guestCount
+      ? `- 하객 규모: ${GUEST_LABEL[prefs.guestCount] ?? prefs.guestCount}`
+      : "- 하객 규모: 미설정";
+    preferencesSection =
+      `\n## 사용자 성향 프로필 (설정에서 입력한 값 — 다시 묻지 말 것)\n` +
+      `${styleLine}\n${priorityLine}\n${budgetAttLine}\n${guestLine}\n` +
+      `\n**중요:** 이 값들은 사용자가 이미 설정 페이지에서 명시한 정보. ` +
+      `예산 계획·업체 추천·일정 짤 때 이 값을 그대로 활용하고, 사용자에게 다시 물어보지 마. ` +
+      `예: 하객 규모가 "200~300명"이면 "하객 몇 분 오세요?"라고 묻지 말고 200~300명 기준으로 바로 계산. ` +
+      `값을 바꾸고 싶다는 명시적 의사가 있을 때만 재확인.`;
   }
 
   // 행동 패턴 인사이트 생성
