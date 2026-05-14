@@ -117,6 +117,22 @@ export async function GET(
       is_popular: boolean;
     }> = [];
 
+    interface StaffLite {
+      id: string;
+      name: string;
+      role: string | null;
+      description: string | null;
+    }
+    let staff: StaffLite[] = [];
+
+    interface SlotLite {
+      day: number;
+      hour: number;
+      max_bookings: number;
+    }
+    let vendorSlots: SlotLite[] = [];
+    const staffSlots: Record<string, SlotLite[]> = {};
+
     if (vendorMatch) {
       const { data: productData } = await service
         .from("vendor_products")
@@ -134,6 +150,47 @@ export async function GET(
         duration: p.duration,
         is_popular: !!p.is_popular,
       }));
+
+      const { data: staffData } = await service
+        .from("vendor_staff")
+        .select("id, name, role, description, sort_order")
+        .eq("vendor_id", vendorMatch.id)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      staff = (staffData ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        role: s.role,
+        description: s.description,
+      }));
+
+      const { data: vendorSlotData } = await service
+        .from("vendor_timeslots")
+        .select("day, hour, max_bookings")
+        .eq("vendor_id", vendorMatch.id)
+        .eq("available", true);
+      vendorSlots = (vendorSlotData ?? []).map((s) => ({
+        day: s.day,
+        hour: s.hour,
+        max_bookings: s.max_bookings ?? 1,
+      }));
+
+      if (staff.length > 0) {
+        const staffIds = staff.map((s) => s.id);
+        const { data: staffSlotData } = await service
+          .from("staff_timeslots")
+          .select("staff_id, day, hour, max_bookings")
+          .in("staff_id", staffIds)
+          .eq("available", true);
+        for (const row of staffSlotData ?? []) {
+          if (!staffSlots[row.staff_id]) staffSlots[row.staff_id] = [];
+          staffSlots[row.staff_id].push({
+            day: row.day,
+            hour: row.hour,
+            max_bookings: row.max_bookings ?? 1,
+          });
+        }
+      }
     }
 
     const postsWithAuthors = await attachAuthorProfiles(
@@ -146,6 +203,9 @@ export async function GET(
       posts: postsWithAuthors,
       vendor: vendorMatch ?? null,
       products,
+      staff,
+      vendorSlots,
+      staffSlots,
     });
   } catch (err) {
     console.error("Vendor tag detail error:", err);

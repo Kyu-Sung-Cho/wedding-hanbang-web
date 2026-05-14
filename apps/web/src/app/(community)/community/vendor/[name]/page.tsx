@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Tag,
   FileSearch,
+  Users,
 } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { VendorTagInfo, PostWithAuthor } from "@/types/community.types";
@@ -42,46 +43,84 @@ interface VendorProductLite {
   is_popular: boolean;
 }
 
+interface StaffLite {
+  id: string;
+  name: string;
+  role: string | null;
+  description: string | null;
+}
+
+interface SlotLite {
+  day: number;        // 0=월 ~ 6=일
+  hour: number;       // 0~23
+  max_bookings: number;
+}
+
 interface ApiResponse {
   tag: VendorTagInfo | null;
   posts: PostWithAuthor[];
   vendor: VendorMatch | null;
   products: VendorProductLite[];
+  staff: StaffLite[];
+  vendorSlots: SlotLite[];
+  staffSlots: Record<string, SlotLite[]>;
 }
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-// 데모용 슬롯 생성 — vendor_timeslots 테이블 미연동 시 fallback.
-// 실제 슬롯 연동되면 이 함수만 fetch로 교체.
-function generateDemoSlots(seedKey: string): Array<{
+// JavaScript Date.getDay()는 0=일 ~ 6=토.
+// 우리 DB의 day 컬럼은 0=월 ~ 6=일 (vendor_portal_system 스키마 주석).
+// 변환 함수.
+function jsDayToDbDay(jsDay: number): number {
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+interface DaySlotGroup {
   date: Date;
   slots: Array<{ hour: number; available: boolean; remaining: number }>;
-}> {
-  // seed 기반 deterministic — 같은 vendor면 항상 같은 슬롯 보여주게
-  let seed = 0;
-  for (let i = 0; i < seedKey.length; i++) seed = (seed * 31 + seedKey.charCodeAt(i)) >>> 0;
-  const random = () => {
-    seed = (seed * 1103515245 + 12345) >>> 0;
-    return seed / 0xffffffff;
-  };
+}
 
-  const days: Array<{
-    date: Date;
-    slots: Array<{ hour: number; available: boolean; remaining: number }>;
-  }> = [];
+/**
+ * 실제 vendor_timeslots / staff_timeslots 기반으로 앞으로 7일 슬롯 생성.
+ * - 선택된 staff가 있으면 그 staff의 슬롯만, 없으면 vendor 단위 슬롯.
+ * - max_bookings를 remaining(잔여)으로 사용 (실제 예약 카운트는 데모용으로 무시).
+ * - 슬롯 비어있는 시간대도 같이 표시(disabled). 시간 범위는 데이터에서 추출.
+ */
+function buildSlotsFromData(slots: SlotLite[]): DaySlotGroup[] {
+  if (slots.length === 0) return [];
+
+  // 시간 범위 — 데이터에 있는 가장 빠른~늦은 시간을 그리드 범위로 사용
+  let minHour = 24;
+  let maxHour = 0;
+  for (const s of slots) {
+    if (s.hour < minHour) minHour = s.hour;
+    if (s.hour > maxHour) maxHour = s.hour;
+  }
+  if (minHour > maxHour) {
+    minHour = 10;
+    maxHour = 18;
+  }
+
+  // (day, hour) → max_bookings 인덱싱
+  const lookup = new Map<string, number>();
+  for (const s of slots) {
+    lookup.set(`${s.day}:${s.hour}`, s.max_bookings);
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const days: DaySlotGroup[] = [];
   for (let d = 0; d < 7; d++) {
     const date = new Date(today);
     date.setDate(today.getDate() + d);
-    const slots: Array<{ hour: number; available: boolean; remaining: number }> = [];
-    for (let h = 10; h <= 18; h++) {
-      const r = random();
-      const available = r > 0.35;
-      slots.push({ hour: h, available, remaining: available ? Math.ceil(random() * 3) : 0 });
+    const dbDay = jsDayToDbDay(date.getDay());
+    const daySlots: Array<{ hour: number; available: boolean; remaining: number }> = [];
+    for (let h = minHour; h <= maxHour; h++) {
+      const remaining = lookup.get(`${dbDay}:${h}`) ?? 0;
+      daySlots.push({ hour: h, available: remaining > 0, remaining });
     }
-    days.push({ date, slots });
+    days.push({ date, slots: daySlots });
   }
   return days;
 }
@@ -105,6 +144,7 @@ export default function VendorDetailPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,10 +167,16 @@ export default function VendorDetailPage() {
     };
   }, [decodedName]);
 
-  const demoSlots = useMemo(
-    () => (data?.vendor ? generateDemoSlots(data.vendor.id) : []),
-    [data?.vendor]
-  );
+  // 실제 슬롯 — staff 선택 시 staff_timeslots, 미선택 시 vendor_timeslots.
+  const activeSlots: SlotLite[] = useMemo(() => {
+    if (!data?.vendor) return [];
+    if (selectedStaffId && data.staffSlots[selectedStaffId]) {
+      return data.staffSlots[selectedStaffId];
+    }
+    return data.vendorSlots;
+  }, [data, selectedStaffId]);
+
+  const dayGroups = useMemo(() => buildSlotsFromData(activeSlots), [activeSlots]);
 
   if (loading) {
     return (
@@ -238,7 +284,10 @@ export default function VendorDetailPage() {
           products={products}
           selectedProductId={selectedProductId}
           onSelectProduct={setSelectedProductId}
-          demoSlots={demoSlots}
+          staff={data?.staff ?? []}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+          dayGroups={dayGroups}
           selectedDayIndex={selectedDayIndex}
           onSelectDay={setSelectedDayIndex}
         />
@@ -339,7 +388,10 @@ function BookingSection({
   products,
   selectedProductId,
   onSelectProduct,
-  demoSlots,
+  staff,
+  selectedStaffId,
+  onSelectStaff,
+  dayGroups,
   selectedDayIndex,
   onSelectDay,
 }: {
@@ -347,16 +399,16 @@ function BookingSection({
   products: VendorProductLite[];
   selectedProductId: string | null;
   onSelectProduct: (id: string) => void;
-  demoSlots: Array<{
-    date: Date;
-    slots: Array<{ hour: number; available: boolean; remaining: number }>;
-  }>;
+  staff: StaffLite[];
+  selectedStaffId: string | null;
+  onSelectStaff: (id: string | null) => void;
+  dayGroups: DaySlotGroup[];
   selectedDayIndex: number;
   onSelectDay: (idx: number) => void;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const selectedDay = demoSlots[selectedDayIndex];
+  const selectedDay = dayGroups[selectedDayIndex];
 
   return (
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
@@ -417,10 +469,63 @@ function BookingSection({
         </div>
       )}
 
+      {/* 스태프 선택 — 데이터 있을 때만 */}
+      {staff.length > 0 && (
+        <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED]">
+          <p className="text-xs font-medium text-[#928980] mb-2.5 uppercase tracking-wider">
+            담당자
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onSelectStaff(null)}
+              className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm transition-all ${
+                selectedStaffId === null
+                  ? "border border-[#795252] bg-[#795252] text-white"
+                  : "border border-[#F0EFED] bg-white text-[#504444] hover:border-[#d9c8c8]"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              담당자 무관
+            </button>
+            {staff.map((s) => {
+              const selected = s.id === selectedStaffId;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onSelectStaff(s.id)}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm text-left transition-all ${
+                    selected
+                      ? "border border-[#795252] bg-[#fffdfb] text-[#1A1A1F]"
+                      : "border border-[#F0EFED] bg-white text-[#504444] hover:border-[#d9c8c8] hover:bg-[#fffdfb]"
+                  }`}
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-medium text-[#1A1A1F]">{s.name}</span>
+                    {s.role && (
+                      <span className="text-[10px] text-[#928980] mt-0.5">{s.role}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {selectedStaffId && (
+            <p className="mt-2 text-[11px] text-[#928980] leading-relaxed">
+              {staff.find((s) => s.id === selectedStaffId)?.description}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* 날짜 탭 */}
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] overflow-x-auto">
         <div className="flex gap-2 min-w-max">
-          {demoSlots.map((day, idx) => {
+          {dayGroups.length === 0 && (
+            <p className="text-sm text-[#928980] py-2">예약 가능 시간이 등록되지 않았습니다.</p>
+          )}
+          {dayGroups.map((day, idx) => {
             const isToday = day.date.getTime() === today.getTime();
             const tomorrow = new Date(today);
             tomorrow.setDate(today.getDate() + 1);
