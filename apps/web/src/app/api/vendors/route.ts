@@ -2,6 +2,20 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct } from "@/lib/utils/vendorMapper";
 
+// 카테고리 alias — DB에는 영어 슬러그·한글 라벨·변형이 섞여 들어가 있어서,
+// 한 카테고리 선택 시 가능한 모든 표기를 OR로 매칭한다.
+// 새 카테고리 vendor가 추가되면 여기 값 한 줄만 추가하면 됨.
+const CATEGORY_ALIASES: Record<string, string[]> = {
+  "스튜디오": ["스튜디오", "studio", "wedding_studio", "사진"],
+  "드레스": ["드레스", "dress", "wedding_dress"],
+  "메이크업": ["메이크업", "makeup", "hair_makeup", "헤어메이크업", "헤어/메이크업"],
+  "예식장": ["예식장", "venue", "wedding_hall", "웨딩홀", "hall"],
+  "한복": ["한복", "hanbok"],
+  "예물": ["예물", "jewelry", "ring"],
+  "신혼여행": ["신혼여행", "honeymoon", "travel"],
+  "기타": ["기타", "other", "etc"],
+};
+
 export async function GET(req: Request) {
   try {
     const supabase = await createClientFromRequest(req);
@@ -13,12 +27,14 @@ export async function GET(req: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
 
+    // 캐논 v2: ai_recommend 우선 정렬 제거. 평점 + 등록순으로만.
+    // (Phase 2에서 "조건 공개"/"검증 참여" 기반 설명 가능한 랭킹으로 재도입 예정)
     let query = supabase
       .from("vendors")
       .select("*", { count: "exact" })
       .eq("status", "approved")
-      .order("ai_recommend", { ascending: false })
       .order("rating", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     // ID 목록으로 필터 (찜한 업체 등)
@@ -30,7 +46,8 @@ export async function GET(req: Request) {
     }
 
     if (category) {
-      query = query.eq("category", category);
+      const aliases = CATEGORY_ALIASES[category] ?? [category];
+      query = query.in("category", aliases);
     }
 
     if (search) {
