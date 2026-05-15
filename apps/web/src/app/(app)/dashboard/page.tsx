@@ -38,6 +38,7 @@ import { useState, useEffect, useMemo } from "react";
 import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { CategoryChecklistTemplate } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import { getEvents } from "@/utils/scheduleEvents";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ServiceGuide from "@/components/app/ServiceGuide";
 import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
@@ -307,6 +308,20 @@ export default function DashboardPage() {
 
   // 다음 주요 마일스톤 (가장 긴급한 태스크)
   const nextMilestone = urgentTasks[0];
+
+  // 다가오는 예약/일정 이벤트 — progress.__events 에서 향후 60일 이내 정렬
+  // 예약(create_booking 자동 sync)이 여기에 자동 등록됨.
+  const upcomingEvents = useMemo(() => {
+    const events = getEvents(progress as Record<string, unknown>);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + 60);
+    const horizonStr = horizon.toISOString().slice(0, 10);
+    return events
+      .filter((e) => e.date >= todayStr && e.date <= horizonStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [progress]);
 
   // 커플 활동 피드 (파트너의 진행 상태 변경 기반)
   const partnerActivities = useMemo(() => {
@@ -723,6 +738,35 @@ export default function DashboardPage() {
           <div className="mb-8">
             <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5 font-light">다가오는 일정</h3>
 
+            {/* 예약/일정 이벤트 (있으면 우선 노출 — create_booking 자동 sync 결과) */}
+            {upcomingEvents.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {upcomingEvents.map((ev) => {
+                  const evDate = new Date(ev.date);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const daysUntil = Math.round((evDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                  const dateLabel = `${evDate.getMonth() + 1}/${evDate.getDate()} (${["일","월","화","수","목","금","토"][evDate.getDay()]})`;
+                  return (
+                    <Link
+                      key={ev.id}
+                      href="/schedule"
+                      className="flex items-center gap-4 p-4 rounded-xl bg-[#fcf9f8] hover:bg-[#f6f3f2] transition-colors group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-[#795252]/10 flex items-center justify-center shrink-0">
+                        <CalendarCheck className="w-6 h-6 text-[#795252]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base text-[#1b1c1c] font-medium truncate">{ev.title}</p>
+                        <p className="text-sm text-[#504444]">{dateLabel} · {daysUntil === 0 ? "오늘" : daysUntil === 1 ? "내일" : `${daysUntil}일 뒤`}</p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-[#B5ADA3] group-hover:translate-x-1 transition-transform shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
             {nextMilestone ? (
               <button
                 onClick={() => setSelectedCategory(nextMilestone.key)}
@@ -748,7 +792,7 @@ export default function DashboardPage() {
                 </div>
                 <ArrowRight className="w-5 h-5 text-[#504444] group-hover:translate-x-1 transition-transform" />
               </button>
-            ) : (
+            ) : upcomingEvents.length === 0 ? (
               <div className="flex items-center gap-5 p-5 rounded-xl bg-[#f6f3f2]">
                 <div className="w-14 h-14 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
                   <Check className="w-7 h-7 text-sage-500" />
@@ -758,7 +802,7 @@ export default function DashboardPage() {
                   <p className="text-base text-[#504444]">현재 급한 일정은 없어요</p>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* 빠른 실행 */}
