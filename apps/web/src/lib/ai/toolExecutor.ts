@@ -1902,15 +1902,17 @@ async function executeCreateBooking(
       .single();
     const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
 
-    // 1) 일정 이벤트
+    // 1) 일정 이벤트 — 시간은 title 맨 앞에 배치해 캘린더 뷰에서 바로 보이게.
+    //    (ScheduleEvent 타입에 별도 time 필드 없음. memo 에 묻히면 사용자가 못 봄)
     const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
     const nowIso = new Date().toISOString();
-    const eventTitle = `${vendor.name}${productName ? ` ${productName}` : ""} ${staffName ? `(${staffName}) ` : ""}— 투어/상담`;
+    const vendorLabel = `${vendor.name}${productName ? ` ${productName}` : ""}`;
+    const eventTitle = `${time} ${vendorLabel} 투어/상담${staffName ? ` (${staffName})` : ""}`;
     const newEvent: ScheduleEvent = {
       id: `evt_booking_${booking.id.slice(0, 8)}`,
       date,
       title: eventTitle,
-      memo: `${time} 예약 — 자동 등록 (booking ${booking.id.slice(0, 8)})`,
+      memo: `예약 자동 등록 · booking ${booking.id.slice(0, 8)}${amount > 0 ? ` · ${(amount / 10000).toLocaleString()}만원` : ""}`,
       categoryKey: categoryKey ?? undefined,
       createdAt: nowIso,
       updatedAt: nowIso,
