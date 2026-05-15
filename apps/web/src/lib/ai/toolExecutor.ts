@@ -1596,12 +1596,15 @@ async function executeGetAvailableSlots(
     slots = await fetchSlots("vendor_timeslots", "vendor_id", vendorId);
   }
 
-  // 향후 14일 예약 수 확인
+  // 향후 90일 예약 수 확인 — 결혼 준비 특성상 3개월 이상 앞 슬롯도 자주 조회됨
+  // (드레스·스튜디오는 보통 6~9개월 전 투어. 14일은 너무 짧아 사용자가 묻는
+  // "8월", "다음 달" 같은 자연 질의에 빈 결과 반환되는 문제 있었음).
+  const LOOKAHEAD_DAYS = 90;
   const today = new Date();
   const dateStrings: string[] = [];
   const dayToDates = new Map<number, string[]>();
 
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < LOOKAHEAD_DAYS; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const dateStr = d.toISOString().split("T")[0];
@@ -1680,7 +1683,7 @@ async function executeGetAvailableSlots(
     success: true,
     displayMessage: availableSlots.length > 0
       ? `${vendor.name} 예약 가능 시간 ${availableSlots.length}개 (${firstDate} ~ ${lastDate})`
-      : `${vendor.name}은(는) 향후 14일간 예약 가능한 시간이 없습니다.`,
+      : `${vendor.name}은(는) 향후 ${LOOKAHEAD_DAYS}일간 예약 가능한 시간이 없습니다.`,
   };
 }
 
