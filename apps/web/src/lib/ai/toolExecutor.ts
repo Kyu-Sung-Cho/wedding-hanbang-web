@@ -1696,10 +1696,10 @@ async function executeCreateBooking(
   const time = input.time as string;
   const memo = (input.memo as string) || "";
 
-  // 업체 이름
+  // 업체 이름·카테고리 (카테고리는 예산 자동 차감 매핑용)
   const { data: vendor } = await admin
     .from("vendors")
-    .select("name")
+    .select("name, category")
     .eq("id", vendorId)
     .single();
 
@@ -1826,6 +1826,75 @@ async function executeCreateBooking(
 
   if (error) throw error;
 
+  // 예약 성공 후 자동 동기화:
+  //  1) 일정(__events)에 투어/상담 이벤트 자동 추가 → /schedule 캘린더에 즉시 노출
+  //  2) 해당 카테고리(progress[category].spent)에 예약 금액 누적 → /budget 진행률 즉시 갱신
+  // 둘 다 wedding_journeys.progress JSON 한 번의 UPDATE 로 일괄 처리.
+  // 실패해도 예약 자체는 이미 성공이므로 silent.
+  let scheduleAdded = false;
+  let budgetUpdated = false;
+  try {
+    const categoryKey = (vendor.category as string | null) ?? null;
+
+    // 최신 progress 조회 (ctx.weddingContext.progress 가 stale 일 수 있어 fresh fetch)
+    const { data: journeyRow } = await admin
+      .from("wedding_journeys")
+      .select("progress")
+      .eq("couple_id", ctx.coupleId)
+      .single();
+    const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
+
+    // 1) 일정 이벤트
+    const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
+    const nowIso = new Date().toISOString();
+    const eventTitle = `${vendor.name}${productName ? ` ${productName}` : ""} ${staffName ? `(${staffName}) ` : ""}— 투어/상담`;
+    const newEvent: ScheduleEvent = {
+      id: `evt_booking_${booking.id.slice(0, 8)}`,
+      date,
+      title: eventTitle,
+      memo: `${time} 예약 — 자동 등록 (booking ${booking.id.slice(0, 8)})`,
+      categoryKey: categoryKey ?? undefined,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    const nextProgress: Record<string, unknown> = {
+      ...progress,
+      __events: [...events, newEvent],
+    };
+
+    // 2) 예산 카테고리 spent 누적 (categoryKey 있고 amount > 0 일 때만)
+    if (categoryKey && amount > 0) {
+      const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
+      const prevSpent = (cat.spent as number | undefined) ?? 0;
+      nextProgress[categoryKey] = {
+        ...cat,
+        spent: prevSpent + amount,
+      };
+      budgetUpdated = true;
+    }
+
+    const { error: progressErr } = await admin
+      .from("wedding_journeys")
+      .update({ progress: nextProgress })
+      .eq("couple_id", ctx.coupleId);
+
+    if (!progressErr) {
+      scheduleAdded = true;
+      ctx.weddingContext.progress = nextProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+    }
+  } catch (syncErr) {
+    // sync 실패해도 예약 자체는 성공 상태 유지 — 사용자에게 동기화 실패만 자연스럽게 알림
+    console.error("[create_booking] auto-sync (schedule+budget) failed (non-fatal):", syncErr);
+  }
+
+  // 자동 동기화 결과를 응답 메시지에 반영
+  const syncNote = scheduleAdded
+    ? budgetUpdated
+      ? " (일정·예산에 자동 반영했어요)"
+      : " (일정에 자동 등록했어요)"
+    : "";
+
   return {
     toolName: "create_booking",
     toolInput: input,
@@ -1838,9 +1907,11 @@ async function executeCreateBooking(
       time,
       amount,
       status: "pending",
+      scheduleAdded,
+      budgetUpdated,
     },
     success: true,
-    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})`,
+    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}`,
   };
 }
 
