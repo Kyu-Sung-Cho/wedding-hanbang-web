@@ -383,11 +383,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const partnerTypingActive =
     !!presence.partnerTyping && nowMs > 0 && nowMs - presence.partnerTyping.updated_at < 5000;
 
-  // AI 응답 중 추론 — 마지막 shared 메시지가 사람(나/파트너)이고 30초 이내면 AI가 응답 중
-  // (서버 broadcast 인프라 없이 메시지 타임스탬프로만 추론)
+  // AI 응답 중 추론 — 마지막 shared 메시지가 사람이고 30초 이내면 AI 응답 중.
+  // ⚠️ "상대방에게" 보낸 메시지(metadata.target === "partner")는 제외 — 그건 AI 가
+  // 호출되지 않고 단순 커플 간 대화이므로 응답 대기 표시되면 안 됨.
+  // 서버 측 갈등 감지기는 별도로 돌고, 트리거되면 mediation 메시지로 자동 등장.
   const aiResponding = (() => {
     if (nowMs === 0) return null;
-    const sharedMessages = messages.filter((m) => m.visibility === "shared");
+    const sharedMessages = messages.filter(
+      (m) => m.visibility === "shared" && m.metadata?.target !== "partner"
+    );
     const last = sharedMessages[sharedMessages.length - 1];
     if (!last || last.sender_role === "ai") return null;
     const ageMs = nowMs - new Date(last.created_at).getTime();
