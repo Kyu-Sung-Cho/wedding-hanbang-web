@@ -419,9 +419,22 @@ function TimeslotPicker({
       time: string;
       remaining: number;
     }[];
+    fallbackSlots?: {
+      date: string;
+      dayLabel: string;
+      hour: number;
+      time: string;
+      remaining: number;
+    }[];
+    filterLabel?: string | null;
   };
 
-  const slots = output.slots ?? [];
+  // 1차: 사용자가 지정한 월/날짜의 슬롯. 비어있으면 인접 월 fallback 슬롯으로 자동 대체.
+  const primary = output.slots ?? [];
+  const fallback = output.fallbackSlots ?? [];
+  const filterLabel = output.filterLabel ?? "";
+  const usingFallback = primary.length === 0 && fallback.length > 0;
+  const slots = primary.length > 0 ? primary : fallback;
 
   // 날짜별 그룹핑
   const grouped = new Map<string, typeof slots>();
@@ -456,7 +469,9 @@ function TimeslotPicker({
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-[#B5ADA3]" />
             <p className="text-base text-[#928980]">
-              향후 14일간 예약 가능한 시간이 없습니다
+              {filterLabel
+                ? `${filterLabel}에 예약 가능한 시간이 없습니다`
+                : "예약 가능한 시간이 없습니다"}
             </p>
           </div>
         </div>
@@ -474,8 +489,15 @@ function TimeslotPicker({
             <p className="text-lg font-semibold text-[#1A1A1F]">예약 가능 시간</p>
           </div>
           <p className="text-sm text-[#928980] mt-1">
-            {output.vendorName} · 원하시는 시간을 선택해 주세요
+            {output.vendorName}
+            {filterLabel && !usingFallback ? ` · ${filterLabel}` : ""}
+            {" · 원하시는 시간을 선택해 주세요"}
           </p>
+          {usingFallback && (
+            <p className="mt-2 text-xs text-[#9A6B62] bg-[#C4967E]/10 rounded px-2 py-1.5 inline-block">
+              💡 {filterLabel}에는 빈 시간이 없어 인접한 시기의 슬롯을 보여드려요
+            </p>
+          )}
         </div>
 
         {/* 날짜별 슬롯 */}

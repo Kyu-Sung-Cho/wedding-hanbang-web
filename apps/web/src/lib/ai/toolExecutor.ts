@@ -1555,6 +1555,12 @@ async function executeGetAvailableSlots(
   const admin = getAdminClient();
   const vendorId = input.vendor_id as string;
   const productId = input.product_id as string | undefined;
+  const targetMonth = (input.target_month as string | undefined)?.match(/^\d{4}-\d{2}$/)
+    ? (input.target_month as string)
+    : undefined;
+  const targetDate = (input.target_date as string | undefined)?.match(/^\d{4}-\d{2}-\d{2}$/)
+    ? (input.target_date as string)
+    : undefined;
   const staffId = input.staff_id as string | undefined;
 
   // 업체 이름
@@ -1666,8 +1672,56 @@ async function executeGetAvailableSlots(
   // 날짜+시간 순으로 정렬
   availableSlots.sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour);
 
-  const firstDate = availableSlots[0]?.date;
-  const lastDate = availableSlots[availableSlots.length - 1]?.date;
+  // 사용자 지정 기간(month/date)이 있으면 필터링.
+  // 비어있을 때 인접 월(전월/다음월) 슬롯을 fallbackSlots 로 따로 전달해
+  // AI 가 "8월은 없는데 7/9월은 있어요" 식으로 자연스럽게 안내하게 함.
+  const monthOf = (s: string) => s.slice(0, 7); // YYYY-MM
+  let primarySlots = availableSlots;
+  let fallbackSlots: typeof availableSlots = [];
+  let filterLabel = "";
+
+  if (targetDate) {
+    filterLabel = targetDate;
+    primarySlots = availableSlots.filter((s) => s.date === targetDate);
+    if (primarySlots.length === 0) {
+      // 그 날 없으면 같은 월에서 가까운 날짜 4개 제안
+      fallbackSlots = availableSlots
+        .filter((s) => monthOf(s.date) === monthOf(targetDate))
+        .slice(0, 8);
+    }
+  } else if (targetMonth) {
+    filterLabel = `${targetMonth.slice(5, 7)}월`;
+    primarySlots = availableSlots.filter((s) => monthOf(s.date) === targetMonth);
+    if (primarySlots.length === 0) {
+      // 인접 월 (전월·다음월) 슬롯 모음
+      const [y, m] = targetMonth.split("-").map(Number);
+      const prevMonth = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, "0")}`;
+      const nextMonth = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}`;
+      fallbackSlots = availableSlots.filter((s) => {
+        const mo = monthOf(s.date);
+        return mo === prevMonth || mo === nextMonth;
+      });
+    }
+  }
+
+  const firstDate = primarySlots[0]?.date;
+  const lastDate = primarySlots[primarySlots.length - 1]?.date;
+  const fallbackFirstDate = fallbackSlots[0]?.date;
+  const fallbackLastDate = fallbackSlots[fallbackSlots.length - 1]?.date;
+
+  // displayMessage 분기: 1) 필터된 슬롯 있음 / 2) 없는데 인접 슬롯은 있음 / 3) 다 없음
+  let displayMessage: string;
+  if (primarySlots.length > 0) {
+    displayMessage = filterLabel
+      ? `${vendor.name} ${filterLabel} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`
+      : `${vendor.name} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`;
+  } else if (fallbackSlots.length > 0) {
+    displayMessage = `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackFirstDate} ~ ${fallbackLastDate} 중 ${fallbackSlots.length}개 슬롯이 가능해요.`;
+  } else {
+    displayMessage = filterLabel
+      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
+      : `${vendor.name}은(는) 향후 ${LOOKAHEAD_DAYS}일간 예약 가능한 시간이 없습니다.`;
+  }
 
   return {
     toolName: "get_available_slots",
@@ -1677,13 +1731,14 @@ async function executeGetAvailableSlots(
       vendorName: vendor.name,
       productId: productId || null,
       staffId: staffId || null,
-      slots: availableSlots,
-      count: availableSlots.length,
+      slots: primarySlots,
+      count: primarySlots.length,
+      // 필터 결과가 0이고 인접 월 슬롯이 있을 때만 fallback 노출 (UI 도 활용 가능)
+      fallbackSlots: primarySlots.length === 0 ? fallbackSlots : [],
+      filterLabel: filterLabel || null,
     },
     success: true,
-    displayMessage: availableSlots.length > 0
-      ? `${vendor.name} 예약 가능 시간 ${availableSlots.length}개 (${firstDate} ~ ${lastDate})`
-      : `${vendor.name}은(는) 향후 ${LOOKAHEAD_DAYS}일간 예약 가능한 시간이 없습니다.`,
+    displayMessage,
   };
 }
 

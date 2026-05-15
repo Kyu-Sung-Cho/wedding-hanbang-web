@@ -578,7 +578,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "get_available_slots",
     description:
-      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요.",
+      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주를 지정하면 target_month 또는 target_date 를 함께 넘기세요 — 그러면 그 기간만 필터링합니다 (비어있으면 인접 월 슬롯이 follow-up 으로 제시됩니다).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -593,6 +593,16 @@ export const WEDDING_TOOLS: Tool[] = [
         staff_id: {
           type: "string",
           description: "스태프 ID (선택). 스태프별 타임슬롯 확인",
+        },
+        target_month: {
+          type: "string",
+          description:
+            "특정 월 필터 (YYYY-MM 형식, 예: '2026-08'). 사용자가 '8월', '다음 달', '8월쯤' 같이 월 단위로 묻는 경우 사용. 결과가 0이면 시스템이 자동으로 인접 월(전월/다음월) 슬롯도 함께 반환.",
+        },
+        target_date: {
+          type: "string",
+          description:
+            "특정 일자 필터 (YYYY-MM-DD 형식). 사용자가 '이번 주 토요일' 같이 구체 날짜를 말했을 때 사용. target_month 보다 우선.",
         },
       },
       required: ["vendor_id"],
