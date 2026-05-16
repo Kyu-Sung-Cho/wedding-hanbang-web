@@ -86,6 +86,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  // streaming 중 자동 따라가기 의도 — 사용자가 메시지 보내면 true, 사용자가 직접
+  // 스크롤 올리면 false. 매 토큰마다 끌어내리는 yank 방지.
+  const followStreamRef = useRef(false);
   const lastMsgCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
@@ -224,37 +227,65 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     lastMsgCountRef.current = messages.length;
   }, [messages.length, scrollContainerToBottom]);
 
-  // 본인이 방금 보낸 메시지면 컨테이너만 부드럽게 바닥으로 — 자기 메시지가 화면 밖에
-  // 떨어지는 일 방지. AI/파트너 메시지에는 적용 안 함 (위에서 옛날 대화 읽고 있을 수 있어서).
+  // 본인이 방금 보낸 메시지면 컨테이너만 부드럽게 바닥으로 + streaming follow 모드 활성.
+  // AI/파트너 메시지에는 적용 안 함 (위에서 옛날 대화 읽고 있을 수 있어서).
   useEffect(() => {
     const prevCount = lastMsgCountRef.current;
     const currCount = messages.length;
     lastMsgCountRef.current = currCount;
-    if (currCount <= prevCount) return; // 새 메시지 없음
+    if (currCount <= prevCount) return;
     const last = messages[currCount - 1];
     if (!last) return;
-    if (last.sender_id !== profile?.id) return; // 본인 거 아님 → 가만히
+    if (last.sender_id !== profile?.id) return;
+    // 본인이 보낸 메시지 → 응답을 보고 싶다는 명시적 의사. streaming 동안 따라감.
+    followStreamRef.current = true;
     requestAnimationFrame(() => scrollContainerToBottom(true));
   }, [messages, profile?.id, scrollContainerToBottom]);
+
+  // 사용자 wheel/touch 로 위로 스크롤 시 follow 즉시 해제 — 옛 메시지 읽기 가능.
+  // 프로그래매틱 스크롤은 wheel/touchmove 이벤트를 발생시키지 않으므로 분리됨.
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) followStreamRef.current = false; // 위로 스크롤
+    };
+    const handleTouch = () => {
+      // 터치 드래그 시작 → 사용자가 직접 조작. follow 중단.
+      followStreamRef.current = false;
+    };
+    el.addEventListener("wheel", handleWheel, { passive: true });
+    el.addEventListener("touchmove", handleTouch, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("touchmove", handleTouch);
+    };
+  }, []);
 
   const jumpToBottom = useCallback(() => {
     scrollContainerToBottom(true);
   }, [scrollContainerToBottom]);
 
-  // AI streaming 중 — 컨테이너만 무조건 바닥으로 따라감.
-  // isStreaming은 chatStore 로컬 상태로 "이 사용자가 보낸 메시지에 대한 응답"일 때만 true.
+  // AI streaming 중 — followStreamRef 가 true 일 때만 컨테이너 바닥으로 따라감.
+  // 사용자가 메시지 보내면 follow=true 가 되고, wheel/touch 로 올리면 false 로 풀림.
+  // 매 토큰마다 강제 yank 하던 race-condition 회피 (codex P2 review fix).
   useEffect(() => {
     if (!isStreaming) return;
+    if (!followStreamRef.current) return;
     scrollContainerToBottom(false);
   }, [isStreaming, streamingContent, scrollContainerToBottom]);
 
-  // AI 응답 완료 직후 — true → false 전환에서 한 번 더 부드럽게 바닥으로.
+  // AI 응답 완료 직후 — true → false 전환에서 한 번 더 부드럽게 바닥으로,
+  // 단 사용자가 아직 follow 모드일 때만. 그 후 follow 해제.
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreaming;
     if (!wasStreaming || isStreaming) return;
-    requestAnimationFrame(() => scrollContainerToBottom(true));
+    if (followStreamRef.current) {
+      requestAnimationFrame(() => scrollContainerToBottom(true));
+    }
+    followStreamRef.current = false; // 응답 완료 → 다음 발화까지 자동 follow 안 함
   }, [isStreaming, scrollContainerToBottom]);
 
   // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.

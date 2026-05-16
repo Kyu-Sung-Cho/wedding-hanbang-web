@@ -1195,8 +1195,10 @@ async function executeCheckVendorAvailability(
     };
   }
 
-  // 타임슬롯 조회 — product 슬롯 없으면 vendor 슬롯으로 폴백
-  // (get_available_slots / create_booking 의 폴백 로직과 동일하게 맞춤).
+  // 타임슬롯 조회 — product 가 자체 일정을 정의했으면 그것만 사용, 아니면 vendor 일정.
+  // ⚠️ 이전 폴백 버그: "product_timeslots 에서 그 시간 슬롯 없으면 vendor 로 떨어짐"
+  // → 상품이 제공 안 하는 시간에도 예약 가능해짐. 이번엔 "product 가 슬롯 자체를
+  // 하나도 안 정의했을 때만" vendor 로 폴백.
   type SlotRow2 = { day: number; hour: number; available: boolean; max_bookings: number };
   const fetchSlotsFor = async (table: string, fk: string, value: string): Promise<SlotRow2[]> => {
     let q = admin
@@ -1208,12 +1210,19 @@ async function executeCheckVendorAvailability(
     const { data } = await q;
     return (data ?? []) as SlotRow2[];
   };
+  const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
+    const { count } = await admin
+      .from(table)
+      .select("*", { count: "exact", head: true })
+      .eq(fk, value);
+    return (count ?? 0) > 0;
+  };
 
   let slots: SlotRow2[] = [];
-  if (productId) {
+  const productOwnsSchedule = productId ? await hasAnyRows("product_timeslots", "product_id", productId) : false;
+  if (productOwnsSchedule && productId) {
     slots = await fetchSlotsFor("product_timeslots", "product_id", productId);
-  }
-  if (slots.length === 0) {
+  } else {
     slots = await fetchSlotsFor("vendor_timeslots", "vendor_id", vendorId);
   }
 
@@ -1579,8 +1588,9 @@ async function executeGetAvailableSlots(
   }
 
   // 타임슬롯 조회 (우선순위: staff > product > vendor).
-  // 특화 슬롯(staff/product)이 비어있으면 vendor 기본 슬롯으로 폴백.
-  // 의미: 스태프/상품에 별도 일정 등록 안 했으면 업체 영업시간 그대로 사용.
+  // ⚠️ 이전 폴백 버그: "현재 필터 조건에 슬롯 없으면 상위 테이블로 폴백" →
+  // 스태프/상품이 제공 안 하는 시간에도 예약 가능. 이번엔 "해당 엔티티가
+  // 자체 일정 row를 하나도 안 정의했을 때만" 폴백.
   type SlotRow = { day: number; hour: number; available: boolean; max_bookings: number };
   const fetchSlots = async (table: string, fk: string, value: string) => {
     const { data } = await admin
@@ -1590,29 +1600,61 @@ async function executeGetAvailableSlots(
       .eq("available", true);
     return (data ?? []) as SlotRow[];
   };
+  const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
+    const { count } = await admin
+      .from(table)
+      .select("*", { count: "exact", head: true })
+      .eq(fk, value);
+    return (count ?? 0) > 0;
+  };
 
   let slots: SlotRow[] = [];
-  if (staffId) {
+  const staffOwnsSchedule = staffId ? await hasAnyRows("staff_timeslots", "staff_id", staffId) : false;
+  const productOwnsSchedule = productId ? await hasAnyRows("product_timeslots", "product_id", productId) : false;
+  if (staffOwnsSchedule && staffId) {
     slots = await fetchSlots("staff_timeslots", "staff_id", staffId);
-  }
-  if (slots.length === 0 && productId) {
+  } else if (productOwnsSchedule && productId) {
     slots = await fetchSlots("product_timeslots", "product_id", productId);
-  }
-  if (slots.length === 0) {
+  } else {
     slots = await fetchSlots("vendor_timeslots", "vendor_id", vendorId);
   }
 
-  // 향후 90일 예약 수 확인 — 결혼 준비 특성상 3개월 이상 앞 슬롯도 자주 조회됨
-  // (드레스·스튜디오는 보통 6~9개월 전 투어. 14일은 너무 짧아 사용자가 묻는
-  // "8월", "다음 달" 같은 자연 질의에 빈 결과 반환되는 문제 있었음).
-  const LOOKAHEAD_DAYS = 90;
+  // 조회 범위 동적 생성 — target_month/target_date 가 있으면 그 주변,
+  // 없으면 향후 90일. 이전 버그: 90일 고정 윈도우라 "내년 8월" 같은 먼 미래
+  // 쿼리에서 주간 반복 슬롯이 있어도 0개 반환.
+  //
+  // 정책:
+  //  - target_date 있음 → 그 날 ±14일 (인접일 fallback 커버)
+  //  - target_month 있음 → 전월 1일 ~ 다음 월 말일 (3개월 윈도우)
+  //  - 둘 다 없음 → 오늘 ~ 오늘+90일 (기본)
+  //  - rangeStart 가 오늘보다 과거면 오늘로 잘라냄 (과거 슬롯 무효)
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let rangeStart = new Date(today);
+  let rangeEnd = new Date(today);
+  rangeEnd.setDate(today.getDate() + 89);
+
+  if (targetDate) {
+    const td = new Date(targetDate + "T00:00:00");
+    if (!isNaN(td.getTime())) {
+      rangeStart = new Date(td); rangeStart.setDate(td.getDate() - 14);
+      rangeEnd = new Date(td); rangeEnd.setDate(td.getDate() + 14);
+    }
+  } else if (targetMonth) {
+    const [y, m] = targetMonth.split("-").map(Number);
+    if (Number.isFinite(y) && Number.isFinite(m)) {
+      rangeStart = new Date(y, m - 2, 1);          // 전월 1일
+      rangeEnd = new Date(y, m + 1, 0);            // 다음월 말일
+    }
+  }
+  if (rangeStart < today) rangeStart = new Date(today);
+  // 하드 캡 — 너무 먼 미래 쿼리 방어 (180일 이내)
+  const HARD_CAP = new Date(today); HARD_CAP.setDate(today.getDate() + 180);
+  if (rangeEnd > HARD_CAP) rangeEnd = HARD_CAP;
+
   const dateStrings: string[] = [];
   const dayToDates = new Map<number, string[]>();
-
-  for (let i = 0; i < LOOKAHEAD_DAYS; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
+  for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split("T")[0];
     const day = (d.getDay() + 6) % 7; // 0=월 ~ 6=일
     dateStrings.push(dateStr);
@@ -1720,7 +1762,7 @@ async function executeGetAvailableSlots(
   } else {
     displayMessage = filterLabel
       ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
-      : `${vendor.name}은(는) 향후 ${LOOKAHEAD_DAYS}일간 예약 가능한 시간이 없습니다.`;
+      : `${vendor.name}은(는) 조회 범위 (${rangeStart.toISOString().split("T")[0]} ~ ${rangeEnd.toISOString().split("T")[0]}) 내에 예약 가능한 시간이 없습니다.`;
   }
 
   return {
@@ -1809,8 +1851,9 @@ async function executeCreateBooking(
     }
   }
 
-  // 타임슬롯 용량 확인 — product 슬롯 없으면 vendor 슬롯으로 폴백
-  // (get_available_slots 의 폴백 로직과 동일하게 맞춤).
+  // 타임슬롯 용량 확인 — product/staff 가 자체 일정을 정의했으면 그것만 검사.
+  // ⚠️ 이전 폴백 버그: 현재 시간에 슬롯 없으면 vendor로 폴백 → product 가
+  // 제공 안 하는 시간 예약 통과. 이번엔 "row 존재 여부"로 분기.
   const bookingDay = (new Date(date).getDay() + 6) % 7;
   const bookingHour = parseInt(time.split(":")[0], 10);
 
@@ -1826,12 +1869,22 @@ async function executeCreateBooking(
       .maybeSingle();
     return data as { max_bookings: number } | null;
   };
+  const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
+    const { count } = await admin
+      .from(table)
+      .select("*", { count: "exact", head: true })
+      .eq(fk, value);
+    return (count ?? 0) > 0;
+  };
 
   let slotData: { max_bookings: number } | null = null;
-  if (productId) {
+  const staffOwnsSchedule = staffId ? await hasAnyRows("staff_timeslots", "staff_id", staffId) : false;
+  const productOwnsSchedule = productId ? await hasAnyRows("product_timeslots", "product_id", productId) : false;
+  if (staffOwnsSchedule && staffId) {
+    slotData = await fetchSlotCapacity("staff_timeslots", "staff_id", staffId);
+  } else if (productOwnsSchedule && productId) {
     slotData = await fetchSlotCapacity("product_timeslots", "product_id", productId);
-  }
-  if (!slotData) {
+  } else {
     slotData = await fetchSlotCapacity("vendor_timeslots", "vendor_id", vendorId);
   }
 
