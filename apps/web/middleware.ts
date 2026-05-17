@@ -17,14 +17,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * 다음 경로 제외:
-     * - _next/static, _next/image (Next 정적 자산)
-     * - favicon.ico, public 정적 파일
-     * - api/auth/callback (OAuth 콜백은 인증 전이라 가드 불필요)
-     * 그 외 모든 경로는 updateSession 통과 (공개 경로는 그 안에서 즉시 NextResponse.next).
-     */
-    "/((?!_next/static|_next/image|favicon.ico|api/auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
-  ],
+  // Next 정적·favicon 만 제외. 나머지는 updateSession 내부의 isProtectedPath 로 다시
+  // 좁힘. 정규식 단순화 — 복잡한 negative lookahead 가 Next 16 Turbopack 빌드의
+  // nft.json (Node File Trace) 생성에 문제를 일으키는 케이스가 있음.
+  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
 };
