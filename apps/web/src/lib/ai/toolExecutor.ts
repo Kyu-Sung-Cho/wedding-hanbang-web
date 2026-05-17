@@ -1963,6 +1963,11 @@ async function executeCreateBooking(
   let budgetExceededBy = 0;
   let categoryBudgetLimit = 0;
   let categoryLabelForOver = "";
+  // client-side authStore.journey.progress merge 용 — chatStore 가 받아 즉시 갱신.
+  // (이 없으면 /schedule, /budget 페이지가 새로고침 전까지 stale 상태)
+  let syncedEvent: ScheduleEvent | null = null;
+  let syncedCategoryKey: string | null = null;
+  let syncedNewSpent: number | null = null;
   try {
     const categoryKey = (vendor.category as string | null) ?? null;
 
@@ -1996,11 +2001,13 @@ async function executeCreateBooking(
     };
 
     // 2) 예산 카테고리 spent 누적 (categoryKey 있고 amount > 0 일 때만)
+    let computedNewSpent: number | null = null;
     if (categoryKey && amount > 0) {
       const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
       const prevSpent = (cat.spent as number | undefined) ?? 0;
       const catBudget = (cat.budget as number | undefined) ?? 0;
       const newSpent = prevSpent + amount;
+      computedNewSpent = newSpent;
       nextProgress[categoryKey] = {
         ...cat,
         spent: newSpent,
@@ -2023,6 +2030,10 @@ async function executeCreateBooking(
     if (!progressErr) {
       scheduleAdded = true;
       ctx.weddingContext.progress = nextProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+      // server-side commit 성공 시에만 client merge 데이터 채움
+      syncedEvent = newEvent;
+      syncedCategoryKey = categoryKey;
+      syncedNewSpent = computedNewSpent;
     }
   } catch (syncErr) {
     // sync 실패해도 예약 자체는 성공 상태 유지 — 사용자에게 동기화 실패만 자연스럽게 알림
@@ -2058,6 +2069,11 @@ async function executeCreateBooking(
       budgetExceededBy,
       categoryBudgetLimit,
       categoryLabel: categoryLabelForOver || null,
+      // client (chatStore) 가 authStore.journey.progress 즉시 merge 용. server commit
+      // 성공한 경우에만 채워짐. /schedule, /budget 페이지의 stale 문제 회피.
+      syncedEvent,
+      syncedCategoryKey,
+      syncedNewSpent,
     },
     success: true,
     displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}`,

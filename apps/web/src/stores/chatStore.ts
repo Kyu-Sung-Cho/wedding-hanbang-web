@@ -297,6 +297,49 @@ function syncToolResult(result: ToolExecutionResult) {
       });
       break;
     }
+    case "create_booking": {
+      // 예약 성공 시 server 가 wedding_journeys.progress 에 event 추가 + spent 누적.
+      // client authStore 도 같이 갱신 안 하면 /schedule, /budget 페이지가 새로고침
+      // 전까지 stale. toolOutput 에 syncedEvent / syncedCategoryKey / syncedNewSpent
+      // 가 server commit 성공 시 채워져 옴 — 그대로 merge.
+      if (!result.success) break;
+      const syncedEvent = result.toolOutput.syncedEvent as
+        | { id: string; date: string; title: string; memo?: string; categoryKey?: string; createdAt: string; updatedAt: string }
+        | null
+        | undefined;
+      const syncedCategoryKey = result.toolOutput.syncedCategoryKey as string | null | undefined;
+      const syncedNewSpent = result.toolOutput.syncedNewSpent as number | null | undefined;
+      if (!syncedEvent && !syncedCategoryKey) break;
+
+      const currentProgress = authStore.journey?.progress ?? {};
+      const nextProgress: Record<string, unknown> = { ...currentProgress };
+
+      // 1) __events 에 새 event 추가 (id 로 중복 방지 — 같은 booking 두 번 들어가지 않게)
+      if (syncedEvent) {
+        const events = ((nextProgress as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
+        if (!events.some((e) => e.id === syncedEvent.id)) {
+          (nextProgress as Record<string, unknown>).__events = [...events, syncedEvent];
+        }
+      }
+
+      // 2) 카테고리 spent 갱신 (server 가 누적한 최종값 그대로 덮어쓰기)
+      if (syncedCategoryKey && typeof syncedNewSpent === "number") {
+        const existingCat = (nextProgress[syncedCategoryKey] ?? {
+          category: syncedCategoryKey,
+          status: "not_started",
+        }) as Record<string, unknown>;
+        nextProgress[syncedCategoryKey] = {
+          ...existingCat,
+          category: syncedCategoryKey,
+          spent: syncedNewSpent,
+        };
+      }
+
+      authStore.updateJourneyLocal({
+        progress: nextProgress as typeof currentProgress,
+      });
+      break;
+    }
   }
 }
 
