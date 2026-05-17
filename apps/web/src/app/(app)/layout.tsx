@@ -1,67 +1,39 @@
-"use client";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import AppClientLayout from "./AppClientLayout";
 
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+/**
+ * (app) 그룹 서버 컴포넌트 가드.
+ *
+ * Next 16 + Turbopack + Vercel 모노레포에서 root middleware deploy 가 실패하는
+ * 버그가 있어, 보호 라우트는 layout 서버 컴포넌트에서 인증 체크하도록 변경.
+ *
+ * - 비인증 → /login 으로 redirect (서버 사이드)
+ * - 데모 모드 (demo_mode 쿠키) → 통과 허용
+ * - 인증 OK → AppClientLayout 으로 렌더링 위임
+ *
+ * 이전엔 클라이언트 사이드 가드만 있어서 JS 우회 시 보호 라우트 접근 가능.
+ * 이제 서버에서 user 검증 후 응답하므로 직접 fetch / JS 비활성 환경에서도 안전.
+ */
+export default async function AppServerGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const cookieStore = await cookies();
+  const isDemo = cookieStore.get("demo_mode")?.value === "true";
 
-import { useAuthStore } from "@/stores/authStore";
-import Sidebar from "@/components/app/Sidebar";
-import TopNav from "@/components/app/TopNav";
-import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
-import AiNoticeFooter from "@/components/common/AiNoticeFooter";
-import { usePageViewTracker } from "@/hooks/useEventTracker";
-
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const pathname = usePathname();
-  const isChatPage = pathname === "/chat";
-  const { initialize, isInitialized, isLoading } = useAuthStore();
-
-  // 페이지뷰 클릭스트림 자동 추적
-  usePageViewTracker();
-
-  useEffect(() => {
-    if (!isInitialized) initialize();
-  }, [initialize, isInitialized]);
-
-  if (!isInitialized || isLoading) {
-    return (
-      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-[#795252] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-[13px] text-[#B5ADA3]">로딩 중...</p>
-        </div>
-      </div>
-    );
+  // 데모 모드는 인증 우회 (기존 middleware 와 동일 정책)
+  if (!isDemo) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      redirect("/login");
+    }
   }
 
-  return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="md:ml-[280px]">
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} />
-        <main className="p-8 max-md:p-5">{children}</main>
-
-        {/* AI 기본법 고지 — 원칙 P6 실체화 */}
-        <div className="px-8 pb-10 max-md:px-5">
-          <AiNoticeFooter variant="light" />
-        </div>
-      </div>
-
-      {/* AI 채팅 사이드 패널 */}
-      <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
-
-      {/* 플로팅 AI 버튼 (/chat 페이지에서는 숨김, 패널 열리면 숨김) */}
-      {!isChatPage && !chatPanelOpen && (
-        <button
-          onClick={() => setChatPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.3)] hover:shadow-[0_6px_28px_rgba(121,82,82,0.4)] hover:scale-105 active:scale-95 transition-all duration-200"
-          title="아모라 AI 상담"
-        >
-          <Sparkles className="w-6 h-6" />
-        </button>
-      )}
-    </div>
-  );
+  return <AppClientLayout>{children}</AppClientLayout>;
 }

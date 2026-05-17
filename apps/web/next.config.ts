@@ -9,12 +9,6 @@ const nextConfig: NextConfig = {
     root: repoRoot,
   },
 
-  // Node.js 런타임 middleware 활성화 — Next 16 + Turbopack + Vercel 모노레포에서
-  // Edge middleware 의 nft.json 누락 deploy 실패 회피용.
-  experimental: {
-    nodeMiddleware: true,
-  },
-
   // gzip/brotli 압축 활성화
   compress: true,
 
