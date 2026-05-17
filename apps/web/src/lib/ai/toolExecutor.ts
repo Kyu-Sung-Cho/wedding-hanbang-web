@@ -1210,11 +1210,15 @@ async function executeCheckVendorAvailability(
     const { data } = await q;
     return (data ?? []) as SlotRow2[];
   };
+  // "엔티티가 자체 active 일정 row 를 정의했는가" — available=false row 만 있으면
+  // 사실상 정의 안 한 것과 동일하게 취급해 vendor 로 폴백 (이전엔 모든 row 가
+  // 비활성이어도 product 권위로 잡혀 vendor 슬롯이 가려지는 버그 있었음).
   const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
     const { count } = await admin
       .from(table)
       .select("*", { count: "exact", head: true })
-      .eq(fk, value);
+      .eq(fk, value)
+      .eq("available", true);
     return (count ?? 0) > 0;
   };
 
@@ -1602,11 +1606,14 @@ async function executeGetAvailableSlots(
       .eq("available", true);
     return (data ?? []) as SlotRow[];
   };
+  // "엔티티가 자체 active 일정 row 를 정의했는가" — available=false row 만 있으면
+  // 사실상 정의 안 한 것과 동일하게 취급해 vendor 로 폴백.
   const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
     const { count } = await admin
       .from(table)
       .select("*", { count: "exact", head: true })
-      .eq(fk, value);
+      .eq(fk, value)
+      .eq("available", true);
     return (count ?? 0) > 0;
   };
 

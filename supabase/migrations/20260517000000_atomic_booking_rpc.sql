@@ -52,13 +52,14 @@ BEGIN
   v_hour := SPLIT_PART(p_booking_time, ':', 1)::INT;
   v_booking_time_typed := p_booking_time::time;
 
-  -- staff/product 자체 일정 정의 여부 (특정 시간 슬롯 유무가 아닌 row 존재 여부)
+  -- staff/product 자체 active 일정 정의 여부. available=FALSE row 만 있으면
+  -- 정의 안 한 것과 동일하게 vendor 폴백 (toolExecutor.ts hasAnyRows 와 일관).
   IF p_staff_id IS NOT NULL THEN
-    SELECT EXISTS(SELECT 1 FROM staff_timeslots WHERE staff_id = p_staff_id)
+    SELECT EXISTS(SELECT 1 FROM staff_timeslots WHERE staff_id = p_staff_id AND available = TRUE)
       INTO v_staff_has_schedule;
   END IF;
   IF p_product_id IS NOT NULL THEN
-    SELECT EXISTS(SELECT 1 FROM product_timeslots WHERE product_id = p_product_id)
+    SELECT EXISTS(SELECT 1 FROM product_timeslots WHERE product_id = p_product_id AND available = TRUE)
       INTO v_product_has_schedule;
   END IF;
 
