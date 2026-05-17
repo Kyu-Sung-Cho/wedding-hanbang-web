@@ -173,6 +173,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 대상 글 접근 권한 검증 — user-scoped client 로 SELECT 시 RLS 가 visibility
+    // (public/members/draft) + 소유자 규칙을 자동 적용. 이전엔 이 검사 없이 바로
+    // service-role 로 insert 해서 비공개·삭제된·존재하지 않는 글에도 댓글 작성
+    // 가능했음 (보안 + 정합성 이슈).
+    const { data: targetPost, error: postFetchError } = await supabase
+      .from("community_posts")
+      .select("id, visibility")
+      .eq("id", post_id)
+      .maybeSingle();
+
+    if (postFetchError) {
+      console.error("Post access check error:", postFetchError);
+      return NextResponse.json(
+        { error: "게시글 접근 확인에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (!targetPost) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
+        { status: 404 }
+      );
+    }
+
     const serviceClient = getServiceClient();
 
     // 커뮤니티 프로필 자동 생성

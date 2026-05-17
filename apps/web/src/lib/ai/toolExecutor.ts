@@ -1851,91 +1851,49 @@ async function executeCreateBooking(
     }
   }
 
-  // 타임슬롯 용량 확인 — product/staff 가 자체 일정을 정의했으면 그것만 검사.
-  // ⚠️ 이전 폴백 버그: 현재 시간에 슬롯 없으면 vendor로 폴백 → product 가
-  // 제공 안 하는 시간 예약 통과. 이번엔 "row 존재 여부"로 분기.
-  const bookingDay = (new Date(date).getDay() + 6) % 7;
-  const bookingHour = parseInt(time.split(":")[0], 10);
+  // Atomic booking via Postgres RPC — TOCTOU 방어.
+  // 이전엔 SELECT max_bookings → COUNT existing → INSERT 를 3단계 client 호출로
+  // 수행해 동시 호출 시 둘 다 capacity 통과 → 둘 다 INSERT → 초과 발생.
+  // RPC 안에서 SELECT ... FOR UPDATE 로 timeslot row 락 + COUNT + INSERT 를
+  // 단일 트랜잭션 처리 → 동시 호출 직렬화. slot fallback 로직 (staff > product
+  // > vendor, "엔티티가 자체 일정 row 정의했을 때만" 폴백) 도 RPC 내부에 포함.
+  // (migration: supabase/migrations/20260517000000_atomic_booking_rpc.sql)
+  const { data: bookingIdResult, error: rpcError } = await admin.rpc("create_booking_atomic", {
+    p_vendor_id: vendorId,
+    p_couple_id: ctx.coupleId,
+    p_booking_date: date,
+    p_booking_time: time,
+    p_product_id: productId ?? null,
+    p_staff_id: staffId ?? null,
+    p_booking_type: "consultation",
+    p_bride_name: brideName,
+    p_groom_name: groomName,
+    p_contact_phone: contactPhone,
+    p_amount: amount,
+    p_memo: memo,
+  });
 
-  const fetchSlotCapacity = async (table: string, fk: string, value: string) => {
-    const { data } = await admin
-      .from(table)
-      .select("max_bookings")
-      .eq(fk, value)
-      .eq("day", bookingDay)
-      .eq("hour", bookingHour)
-      .eq("available", true)
-      .limit(1)
-      .maybeSingle();
-    return data as { max_bookings: number } | null;
-  };
-  const hasAnyRows = async (table: string, fk: string, value: string): Promise<boolean> => {
-    const { count } = await admin
-      .from(table)
-      .select("*", { count: "exact", head: true })
-      .eq(fk, value);
-    return (count ?? 0) > 0;
-  };
-
-  let slotData: { max_bookings: number } | null = null;
-  const staffOwnsSchedule = staffId ? await hasAnyRows("staff_timeslots", "staff_id", staffId) : false;
-  const productOwnsSchedule = productId ? await hasAnyRows("product_timeslots", "product_id", productId) : false;
-  if (staffOwnsSchedule && staffId) {
-    slotData = await fetchSlotCapacity("staff_timeslots", "staff_id", staffId);
-  } else if (productOwnsSchedule && productId) {
-    slotData = await fetchSlotCapacity("product_timeslots", "product_id", productId);
-  } else {
-    slotData = await fetchSlotCapacity("vendor_timeslots", "vendor_id", vendorId);
+  if (rpcError) {
+    const msg = rpcError.message || "";
+    if (msg.includes("slot_unavailable")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: {}, success: false,
+        displayMessage: "해당 시간은 예약이 불가능합니다.",
+      };
+    }
+    if (msg.includes("slot_full")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: {}, success: false,
+        displayMessage: "해당 시간의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.",
+      };
+    }
+    throw rpcError;
   }
 
-  if (!slotData) {
-    return {
-      toolName: "create_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "해당 시간은 예약이 불가능합니다.",
-    };
-  }
-
-  // 기존 예약 수 확인
-  const { count: existingCount } = await admin
-    .from("vendor_bookings")
-    .select("*", { count: "exact", head: true })
-    .eq("vendor_id", vendorId)
-    .eq("booking_date", date)
-    .eq("booking_time", time)
-    .neq("status", "cancelled");
-
-  if ((existingCount ?? 0) >= slotData.max_bookings) {
-    return {
-      toolName: "create_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "해당 시간의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.",
-    };
-  }
-
-  // 예약 생성
-  const { data: booking, error } = await admin
-    .from("vendor_bookings")
-    .insert({
-      vendor_id: vendorId,
-      couple_id: ctx.coupleId,
-      product_id: productId,
-      staff_id: staffId,
-      booking_date: date,
-      booking_time: time,
-      booking_type: "consultation",
-      bride_name: brideName,
-      groom_name: groomName,
-      contact_phone: contactPhone,
-      status: "pending",
-      amount,
-      is_paid: false,
-      memo,
-    })
-    .select("id")
-    .single();
-
-  if (error) throw error;
+  // RPC 는 UUID 반환. 하위 auto-sync 코드는 booking.id 형태로 참조하므로 객체로 래핑.
+  const booking = { id: bookingIdResult as unknown as string };
 
   // 예약 성공 후 자동 동기화:
   //  1) 일정(__events)에 투어/상담 이벤트 자동 추가 → /schedule 캘린더에 즉시 노출

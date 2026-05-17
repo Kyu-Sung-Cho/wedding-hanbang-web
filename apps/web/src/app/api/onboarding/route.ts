@@ -199,24 +199,36 @@ export async function POST(request: Request) {
         );
       }
 
-      // 4. 커플에 합류
+      // 4. 커플에 합류 — 동시 join race 방어 (atomic conditional update).
+      //
+      // 이전 버그: 위 3 단계 read-then-write 사이에 다른 사용자가 동일 역할로
+      // join 하면 두 update 모두 같은 row 를 덮어써서 한 명의 데이터가 손실.
+      // 해결: WHERE 절에 `<role>_id IS NULL` 추가. Postgres row-level lock 으로
+      // 직렬화되어 후속 update 는 0 rows affected → race loser 가 명시적 에러 받음.
       const coupleUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (role === "bride") {
-        coupleUpdate.bride_id = user.id;
-      } else {
-        coupleUpdate.groom_id = user.id;
-      }
+      const roleField = role === "bride" ? "bride_id" : "groom_id";
+      coupleUpdate[roleField] = user.id;
 
-      const { error: coupleUpdateError } = await admin
+      const { data: updatedRows, error: coupleUpdateError } = await admin
         .from("couples")
         .update(coupleUpdate)
-        .eq("id", couple.id);
+        .eq("id", couple.id)
+        .is(roleField, null)
+        .select("id");
 
       if (coupleUpdateError) {
         console.error("[온보딩 조인] 커플 업데이트 에러:", coupleUpdateError);
         return NextResponse.json(
           { error: `커플 연동 실패: ${coupleUpdateError.message}` },
           { status: 500 }
+        );
+      }
+
+      // affected rows 0 → race 에서 졌거나 그 사이 다른 사용자가 슬롯 차지
+      if (!updatedRows || updatedRows.length === 0) {
+        return NextResponse.json(
+          { error: "방금 다른 사용자가 이 자리로 연동했어요. 다시 시도해주세요." },
+          { status: 409 }
         );
       }
 

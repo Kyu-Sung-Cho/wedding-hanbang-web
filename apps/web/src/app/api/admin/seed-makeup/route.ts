@@ -179,12 +179,12 @@ function generateTimeslots(vendorId: string) {
 }
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("x-service-key");
-  if (authHeader !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const { authorized } = await verifyAdmin(req);
-    if (!authorized) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // 인증: 관리자 로그인만 허용. 이전엔 x-service-key 헤더로 service_role_key 를
+  // 직접 전달하는 bypass 가 있었으나, DB 루트 시크릿을 HTTP 토큰으로 쓰는 안티패턴
+  // 이므로 제거. service_role 은 서버 사이드 admin client 에서만 사용.
+  const { authorized } = await verifyAdmin(req);
+  if (!authorized) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };

@@ -147,25 +147,37 @@ hanbang-web/
 
 ## 🎨 디자인 시스템
 
-앱과 동일한 컬러 팔레트:
+앱과 동일한 컬러 팔레트 (실제 [globals.css](apps/web/src/app/globals.css) 기준 — 이 문서는 ground truth 아니므로 globals.css 가 항상 우선):
 
 ```css
-/* Primary - Noir */
---noir-800: #1A1A1F;
+/* Primary - Noir / Atelier */
+--noir-800: #1C1917;
 --noir-900: #0D0D0F;
+--noir-soft: #2D2D33;
+--charcoal: #4A4A52;
 
-/* Accent - Rose Champagne */
---rose-500: #C4967E;
---rose-600: #9A6B62;
+/* Accent - Atelier Dusty Rose (브랜드 메인 brown) */
+--rose-500: #795252;      /* 버튼·헤더 그라데이션 시작 */
+--rose-600: #946a6a;      /* 그라데이션 끝 */
+--rose-light: #D4AFA0;
+--rose-pale: #E8D5CD;
+
+/* 보조 액센트 — Rose Champagne (일부 컴포넌트에서 raw 사용) */
+/* #C4967E / #9A6B62 — 새 코드는 가능하면 위 rose-* 토큰 사용 */
 
 /* Background - Warm Ivory */
---ivory-50: #FDFCFA;
---ivory-100: #FAF8F5;
---ivory-200: #F5F2ED;
+--ivory-50: #fcf9f8;
+--ivory-100: #fcf9f8;
+--ivory-200: #f6f3f2;
+--ivory-warm: #FAF7F2;
+--ivory-deep: #F5F0E8;
 
 /* Taupe */
 --taupe-400: #B5ADA3;
---taupe-500: #928980;
+--taupe-500: #504444;
+
+/* Sage (secondary) */
+--sage-500: #5a6147;
 
 /* Gold */
 --gold: #C9A96E;

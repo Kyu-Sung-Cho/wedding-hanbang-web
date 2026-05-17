@@ -46,69 +46,48 @@ export async function POST(req: Request) {
       }
     }
 
-    const bookingDate = new Date(date);
-    const dayOfWeek = (bookingDate.getDay() + 6) % 7; // 0=월 ~ 6=일
-    const bookingHour = parseInt(time.split(":")[0], 10);
+    // Atomic booking via Postgres RPC — TOCTOU 방어.
+    // 이전엔 capacity COUNT → INSERT 를 client 호출 2단계로 수행해 동시 호출 시
+    // 둘 다 capacity 통과 후 둘 다 INSERT → max_bookings 초과. RPC 가 timeslot row
+    // FOR UPDATE 락 + COUNT + INSERT 단일 트랜잭션 → 직렬화.
+    // (migration: 20260517000000_atomic_booking_rpc.sql)
+    const { data: bookingId, error: rpcError } = await supabase.rpc("create_booking_atomic", {
+      p_vendor_id: vendorId,
+      p_couple_id: profile?.couple_id || null,
+      p_booking_date: date,
+      p_booking_time: time,
+      p_product_id: productId || null,
+      p_staff_id: staffId || null,
+      p_booking_type: "consultation",
+      p_bride_name: brideName || "",
+      p_groom_name: groomName || "",
+      p_contact_phone: contactPhone || "",
+      p_amount: amount,
+      p_memo: memo || "",
+    });
 
-    // 용량 검증: 타임슬롯의 max_bookings 체크
-    const slotTable = productId ? "product_timeslots" : "vendor_timeslots";
-    const slotFk = productId ? "product_id" : "vendor_id";
-    const slotFkValue = productId || vendorId;
-
-    const { data: slot } = await supabase
-      .from(slotTable)
-      .select("max_bookings, available")
-      .eq(slotFk, slotFkValue)
-      .eq("day", dayOfWeek)
-      .eq("hour", bookingHour)
-      .single();
-
-    if (slot && !slot.available) {
-      return NextResponse.json({ error: "해당 시간은 예약이 불가능합니다." }, { status: 409 });
-    }
-
-    const maxBookings = slot?.max_bookings ?? 1;
-
-    // 해당 날짜/시간의 기존 예약 수 확인 (취소 제외)
-    const { count: existingCount } = await supabase
-      .from("vendor_bookings")
-      .select("id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .eq("booking_date", date)
-      .eq("booking_time", time)
-      .neq("status", "cancelled");
-
-    if ((existingCount ?? 0) >= maxBookings) {
-      return NextResponse.json(
-        { error: "해당 시간은 예약이 마감되었습니다." },
-        { status: 409 }
-      );
-    }
-
-    const { data: booking, error } = await supabase
-      .from("vendor_bookings")
-      .insert({
-        vendor_id: vendorId,
-        product_id: productId || null,
-        staff_id: staffId || null,
-        couple_id: profile?.couple_id || null,
-        booking_date: date,
-        booking_time: time,
-        booking_type: "consultation",
-        bride_name: brideName || "",
-        groom_name: groomName || "",
-        contact_phone: contactPhone || "",
-        status: "pending",
-        amount,
-        is_paid: false,
-        memo: memo || "",
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Booking create error:", error);
+    if (rpcError) {
+      const msg = rpcError.message || "";
+      if (msg.includes("slot_unavailable")) {
+        return NextResponse.json({ error: "해당 시간은 예약이 불가능합니다." }, { status: 409 });
+      }
+      if (msg.includes("slot_full")) {
+        return NextResponse.json({ error: "해당 시간은 예약이 마감되었습니다." }, { status: 409 });
+      }
+      console.error("Booking create RPC error:", rpcError);
       return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });
+    }
+
+    // RPC 는 UUID 만 반환. 응답에서 full row 가 필요하므로 다시 조회.
+    const { data: booking, error: fetchError } = await supabase
+      .from("vendor_bookings")
+      .select("*")
+      .eq("id", bookingId as unknown as string)
+      .single();
+
+    if (fetchError || !booking) {
+      console.error("Booking fetch after RPC error:", fetchError);
+      return NextResponse.json({ error: "예약 조회에 실패했습니다." }, { status: 500 });
     }
 
     // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)

@@ -182,12 +182,10 @@ function generateTimeslots(vendorId: string) {
 }
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("x-service-key");
-  if (authHeader !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const { authorized } = await verifyAdmin(req);
-    if (!authorized) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // 인증: 관리자 로그인만 허용. service_role_key 를 HTTP 헤더로 받는 bypass 제거.
+  const { authorized } = await verifyAdmin(req);
+  if (!authorized) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };
