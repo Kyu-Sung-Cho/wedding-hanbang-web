@@ -12,6 +12,10 @@
 -- 슬롯 폴백 우선순위: staff > product > vendor.
 -- 단, "엔티티가 자체 일정 row 를 하나도 안 정의했을 때만" 상위로 폴백.
 -- (특정 시간만 없는 경우 폴백 X — 상품이 제공 안 하는 시간 예약 방어).
+--
+-- 타입 주의: vendor_bookings.booking_time 컬럼이 TIME 타입이라 TEXT 입력을
+-- 받아도 내부에서 ::time 캐스팅 필요. 1차 deploy 후 WHERE 비교에서 타입
+-- 불일치 에러 (operator does not exist: time = text) 발생해 fix 반영.
 
 CREATE OR REPLACE FUNCTION public.create_booking_atomic(
   p_vendor_id UUID,
@@ -39,10 +43,14 @@ DECLARE
   v_booking_id UUID;
   v_staff_has_schedule BOOLEAN := FALSE;
   v_product_has_schedule BOOLEAN := FALSE;
+  -- vendor_bookings.booking_time 이 TIME 타입이라 TEXT 그대로 비교 불가 →
+  -- 한 번 ::time 으로 변환해서 COUNT WHERE / INSERT 양쪽에서 재사용.
+  v_booking_time_typed TIME;
 BEGIN
-  -- 요일 (0=월~6=일) — PG EXTRACT(DOW): 0=일~6=토 → +6 mod 7 로 월요일=0 로 정렬
+  -- 요일 (0=월~6=일) — PG EXTRACT(DOW): 0=일~6=토 → +6 mod 7 로 월요일=0 정렬
   v_day := (EXTRACT(DOW FROM p_booking_date)::INT + 6) % 7;
   v_hour := SPLIT_PART(p_booking_time, ':', 1)::INT;
+  v_booking_time_typed := p_booking_time::time;
 
   -- staff/product 자체 일정 정의 여부 (특정 시간 슬롯 유무가 아닌 row 존재 여부)
   IF p_staff_id IS NOT NULL THEN
@@ -91,12 +99,12 @@ BEGIN
       DETAIL = 'No timeslot configured for this day/hour';
   END IF;
 
-  -- 락 보호하에 기존 예약 수 COUNT
+  -- 락 보호하에 기존 예약 수 COUNT (TIME 컬럼이라 ::time 변환된 변수 사용)
   SELECT COUNT(*) INTO v_existing_count
   FROM vendor_bookings
   WHERE vendor_id = p_vendor_id
     AND booking_date = p_booking_date
-    AND booking_time = p_booking_time
+    AND booking_time = v_booking_time_typed
     AND status <> 'cancelled';
 
   IF v_existing_count >= v_max_bookings THEN
@@ -113,7 +121,7 @@ BEGIN
     status, amount, is_paid, memo
   ) VALUES (
     p_vendor_id, p_couple_id, p_product_id, p_staff_id,
-    p_booking_date, p_booking_time, p_booking_type,
+    p_booking_date, v_booking_time_typed, p_booking_type,
     p_bride_name, p_groom_name, p_contact_phone,
     'pending', p_amount, FALSE, p_memo
   ) RETURNING id INTO v_booking_id;
