@@ -2151,6 +2151,21 @@ async function executeCancelBooking(
   const admin = getAdminClient();
   const bookingId = input.booking_id as string;
 
+  // booking_id 형식 방어 — AI 가 placeholder/추측 id 보내는 경우 silent skip.
+  // (현실 발생 케이스: 사용자 "응 취소해줘" 같은 vague 발화에 AI 가 cancel_booking
+  // 을 두 번 호출 — 한 번은 진짜 id, 한 번은 hallucinated id. 두 번째 fail 카드가
+  // 사용자에게 노이즈로 노출되는 문제. UUID 형식 아니면 hidden=true 로 표시해
+  // BookingCancelCard 가 렌더 자체를 skip.)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!bookingId || typeof bookingId !== "string" || !UUID_RE.test(bookingId)) {
+    return {
+      toolName: "cancel_booking", toolInput: input,
+      toolOutput: { hidden: true, reason: "invalid_booking_id" },
+      success: true,
+      displayMessage: "",
+    };
+  }
+
   // 예약 조회 (본인 커플의 예약인지 확인). create_booking 의 sync 역연산에 필요한
   // amount 도 같이 가져옴 (spent 차감 계산).
   const { data: booking, error: fetchError } = await admin
@@ -2161,10 +2176,12 @@ async function executeCancelBooking(
     .single();
 
   if (fetchError || !booking) {
+    // 같은 turn 중복 호출 또는 hallucinated id 케이스 — UI 노이즈 회피로 hidden.
     return {
       toolName: "cancel_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "예약을 찾을 수 없거나 권한이 없습니다.",
+      toolOutput: { hidden: true, reason: "not_found_or_unauthorized" },
+      success: true,
+      displayMessage: "",
     };
   }
 

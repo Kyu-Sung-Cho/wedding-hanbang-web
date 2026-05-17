@@ -427,6 +427,17 @@ function TimeslotPicker({
       remaining: number;
     }[];
     filterLabel?: string | null;
+    _debug?: {
+      slotSource?: string;
+      slotsLoaded?: number;
+      rangeStart?: string;
+      rangeEnd?: string;
+      expanded?: number;
+      primary?: number;
+      fallback?: number;
+      targetMonthResolved?: string | null;
+      targetDateResolved?: string | null;
+    };
   };
 
   // 1차: 사용자가 지정한 월/날짜의 슬롯. 비어있으면 인접 월 fallback 슬롯으로 자동 대체.
@@ -463,6 +474,7 @@ function TimeslotPicker({
   };
 
   if (slots.length === 0) {
+    const dbg = output._debug;
     return (
       <div className="flex justify-start ml-14 my-2">
         <div className="rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-sm max-w-[440px]">
@@ -474,6 +486,15 @@ function TimeslotPicker({
                 : "예약 가능한 시간이 없습니다"}
             </p>
           </div>
+          {dbg && (
+            <pre className="mt-2 text-[10px] text-[#B5ADA3] font-mono leading-tight whitespace-pre-wrap break-all">
+              {`src=${dbg.slotSource ?? "-"} loaded=${dbg.slotsLoaded ?? "-"}
+range=${dbg.rangeStart ?? "-"}~${dbg.rangeEnd ?? "-"}
+expanded=${dbg.expanded ?? "-"} primary=${dbg.primary ?? "-"} fallback=${dbg.fallback ?? "-"}
+targetMonth=${dbg.targetMonthResolved ?? "-"} targetDate=${dbg.targetDateResolved ?? "-"}
+vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${output.staffId ?? "-"}`}
+            </pre>
+          )}
         </div>
       </div>
     );
@@ -674,6 +695,11 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
 // ── D-2. 예약 취소 확인 카드 ──
 
 function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
+  // hidden 플래그 — invalid booking_id 또는 중복 호출 시 server 가 silent return.
+  // 사용자에게 fail/redundant 카드 노출 회피.
+  const hiddenOutput = result.toolOutput as { hidden?: boolean } | null;
+  if (hiddenOutput?.hidden) return null;
+
   const output = result.toolOutput as {
     bookingId: string;
     vendorName: string;

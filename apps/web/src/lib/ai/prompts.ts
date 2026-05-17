@@ -952,11 +952,18 @@ Step 8 (reserve 8% 검증): reserve 100 / 5000 = 2%. 부족 — +300 추가 필�
 ### 5단계: 예약 확정 후
 - create_booking 성공 시 add_amora_action 도 같이 호출 — "○○일 ○○ 스튜디오 상담 가기"를 행동 카드로 저장. 마감일은 예약 날짜.
 
+### 예약 취소 (cancel_booking)
+- **한 사용자 발화당 cancel_booking 은 최대 한 번만 호출.** 같은 turn 에 두 번 호출 금지.
+- booking_id 는 반드시 직전 BookingConfirmCard 메시지의 [booking:ID] 태그 또는 get_my_bookings 결과의 id 에서 정확히 가져오기. **추측 / placeholder / hallucinated id 절대 금지.**
+- 사용자가 "취소" 만 말하고 어떤 예약인지 모호하면 → cancel_booking 호출 전에 먼저 어느 예약인지 사용자에게 물어보거나 get_my_bookings 로 확인.
+- 이미 취소한 예약은 같은 세션 동안 재호출 금지.
+
 ### 금지 패턴
 - ❌ DB 결과 외 업체명 만들기 (환각). 출처 없이 "ABC 스튜디오 좋아요" 절대 금지.
 - ❌ search_vendors 호출 없이 시세만 답하기 — 추천 요청에는 반드시 검색 시도.
 - ❌ 카드 + 텍스트에서 업체명·가격 중복 나열.
 - ❌ 결과 0개일 때 가짜 업체로 채우기. "지역 확장 어떠세요?" 가 정답.
+- ❌ cancel_booking 을 같은 turn 에 두 번 호출 (booking_id hallucination 위험).
 
 ### 선택 태그 인식
 메시지에 \`[vendor:ID]\`, \`[product:ID]\`, \`[staff:ID]\`, \`[date:YYYY-MM-DD]\`, \`[time:HH:00]\`, \`[booking:ID]\` 태그 → 그대로 tool 파라미터로 사용
