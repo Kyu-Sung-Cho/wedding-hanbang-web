@@ -1958,6 +1958,11 @@ async function executeCreateBooking(
   // 실패해도 예약 자체는 이미 성공이므로 silent.
   let scheduleAdded = false;
   let budgetUpdated = false;
+  // 예산 초과 — 카테고리 budget 설정돼 있고 누적 spent 가 초과할 때만.
+  // 차단이 아닌 알림. 사용자가 결정한 예약은 그대로 진행, displayMessage 에 자연 문구.
+  let budgetExceededBy = 0;
+  let categoryBudgetLimit = 0;
+  let categoryLabelForOver = "";
   try {
     const categoryKey = (vendor.category as string | null) ?? null;
 
@@ -1994,11 +1999,20 @@ async function executeCreateBooking(
     if (categoryKey && amount > 0) {
       const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
       const prevSpent = (cat.spent as number | undefined) ?? 0;
+      const catBudget = (cat.budget as number | undefined) ?? 0;
+      const newSpent = prevSpent + amount;
       nextProgress[categoryKey] = {
         ...cat,
-        spent: prevSpent + amount,
+        spent: newSpent,
       };
       budgetUpdated = true;
+      // 카테고리 예산이 설정돼 있고 누적 spent 가 한도 넘으면 알림 데이터 저장.
+      // (catBudget=0 이면 사용자가 카테고리 예산 미설정 — 비교 불가, skip)
+      if (catBudget > 0 && newSpent > catBudget) {
+        budgetExceededBy = newSpent - catBudget;
+        categoryBudgetLimit = catBudget;
+        categoryLabelForOver = (cat.label as string | undefined) || categoryKey;
+      }
     }
 
     const { error: progressErr } = await admin
@@ -2022,6 +2036,11 @@ async function executeCreateBooking(
       : " (일정에 자동 등록했어요)"
     : "";
 
+  // 카테고리 예산 초과 알림 — 차단이 아닌 정보 제공. 사용자가 결정하도록.
+  const overNote = budgetExceededBy > 0
+    ? `\n\n⚠️ 다만 ${categoryLabelForOver} 카테고리 예산 ${formatWon(categoryBudgetLimit)} 중에 ${formatWon(budgetExceededBy)} 초과예요. 다른 카테고리 줄이거나 총 예산 조정 검토해보시겠어요?`
+    : "";
+
   return {
     toolName: "create_booking",
     toolInput: input,
@@ -2036,9 +2055,12 @@ async function executeCreateBooking(
       status: "pending",
       scheduleAdded,
       budgetUpdated,
+      budgetExceededBy,
+      categoryBudgetLimit,
+      categoryLabel: categoryLabelForOver || null,
     },
     success: true,
-    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}`,
+    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}`,
   };
 }
 
