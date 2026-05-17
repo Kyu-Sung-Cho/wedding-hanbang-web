@@ -1564,10 +1564,14 @@ async function executeGetAvailableSlots(
   const admin = getAdminClient();
   const vendorId = input.vendor_id as string;
   const productId = input.product_id as string | undefined;
-  const targetMonth = (input.target_month as string | undefined)?.match(/^\d{4}-\d{2}$/)
+  // target_month / target_date: AI 가 사용자 발화에서 추출해 넘기는 필터.
+  // ⚠️ defensive: AI 가 종종 과거 연도(예: 2025-08)를 보내는 경우 있음 — 모델이
+  // 현재 연도를 정확히 모를 때. 아래 range 계산 단계에서 과거이면 다음 미래
+  // 인스턴스 (가장 가까운 같은 달) 로 자동 재매핑.
+  let targetMonth = (input.target_month as string | undefined)?.match(/^\d{4}-\d{2}$/)
     ? (input.target_month as string)
     : undefined;
-  const targetDate = (input.target_date as string | undefined)?.match(/^\d{4}-\d{2}-\d{2}$/)
+  let targetDate = (input.target_date as string | undefined)?.match(/^\d{4}-\d{2}-\d{2}$/)
     ? (input.target_date as string)
     : undefined;
   const staffId = input.staff_id as string | undefined;
@@ -1634,17 +1638,36 @@ async function executeGetAvailableSlots(
   let rangeEnd = new Date(today);
   rangeEnd.setDate(today.getDate() + 89);
 
+  // AI 가 과거 연-월/일을 보내는 경우 미래의 같은 월/일로 자동 재매핑.
+  // 사용자 의도는 "그 달/날짜" 인데 AI 가 연도를 잘못 추론할 수 있음.
+  const remapToFuture = (year: number, monthIdx: number): number => {
+    // (year, monthIdx) 가 today 보다 과거이면 가장 가까운 미래 같은 월
+    if (year > today.getFullYear()) return year;
+    if (year === today.getFullYear() && monthIdx >= today.getMonth()) return year;
+    // 과거 → 올해 또는 내년의 같은 월
+    return monthIdx >= today.getMonth() ? today.getFullYear() : today.getFullYear() + 1;
+  };
+
   if (targetDate) {
     const td = new Date(targetDate + "T00:00:00");
     if (!isNaN(td.getTime())) {
+      // 과거 날짜면 같은 월·일의 미래 인스턴스로 재매핑
+      if (td < today) {
+        const effYear = remapToFuture(td.getFullYear(), td.getMonth());
+        td.setFullYear(effYear);
+        targetDate = `${effYear}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
+      }
       rangeStart = new Date(td); rangeStart.setDate(td.getDate() - 14);
       rangeEnd = new Date(td); rangeEnd.setDate(td.getDate() + 14);
     }
   } else if (targetMonth) {
-    const [y, m] = targetMonth.split("-").map(Number);
-    if (Number.isFinite(y) && Number.isFinite(m)) {
-      rangeStart = new Date(y, m - 2, 1);          // 전월 1일
-      rangeEnd = new Date(y, m + 1, 0);            // 다음월 말일
+    const [reqY, m] = targetMonth.split("-").map(Number);
+    if (Number.isFinite(reqY) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      const effYear = remapToFuture(reqY, m - 1);
+      rangeStart = new Date(effYear, m - 2, 1);          // 전월 1일
+      rangeEnd = new Date(effYear, m + 1, 0);            // 다음월 말일
+      // 필터에 사용될 targetMonth 도 effective 연도로 동기화
+      targetMonth = `${effYear}-${String(m).padStart(2, "0")}`;
     }
   }
   if (rangeStart < today) rangeStart = new Date(today);
