@@ -1592,9 +1592,7 @@ async function executeGetAvailableSlots(
   }
 
   // 타임슬롯 조회 (우선순위: staff > product > vendor).
-  // ⚠️ 이전 폴백 버그: "현재 필터 조건에 슬롯 없으면 상위 테이블로 폴백" →
-  // 스태프/상품이 제공 안 하는 시간에도 예약 가능. 이번엔 "해당 엔티티가
-  // 자체 일정 row를 하나도 안 정의했을 때만" 폴백.
+  // "엔티티가 자체 일정 row 정의했을 때만" 폴백 (특정 시간 누락이 아닌 row 존재 여부).
   type SlotRow = { day: number; hour: number; available: boolean; max_bookings: number };
   const fetchSlots = async (table: string, fk: string, value: string) => {
     const { data } = await admin
@@ -1613,14 +1611,18 @@ async function executeGetAvailableSlots(
   };
 
   let slots: SlotRow[] = [];
+  let slotSource: "staff" | "product" | "vendor" = "vendor";
   const staffOwnsSchedule = staffId ? await hasAnyRows("staff_timeslots", "staff_id", staffId) : false;
   const productOwnsSchedule = productId ? await hasAnyRows("product_timeslots", "product_id", productId) : false;
   if (staffOwnsSchedule && staffId) {
     slots = await fetchSlots("staff_timeslots", "staff_id", staffId);
+    slotSource = "staff";
   } else if (productOwnsSchedule && productId) {
     slots = await fetchSlots("product_timeslots", "product_id", productId);
+    slotSource = "product";
   } else {
     slots = await fetchSlots("vendor_timeslots", "vendor_id", vendorId);
+    slotSource = "vendor";
   }
 
   // 조회 범위 동적 생성 — target_month/target_date 가 있으면 그 주변,
@@ -1675,10 +1677,19 @@ async function executeGetAvailableSlots(
   const HARD_CAP = new Date(today); HARD_CAP.setDate(today.getDate() + 180);
   if (rangeEnd > HARD_CAP) rangeEnd = HARD_CAP;
 
+  // 로컬 컴포넌트 기반 YYYY-MM-DD 포맷 — toISOString 의 UTC 변환 부작용
+  // (KST/PST 등 비-UTC 서버에서 ±1 일 어긋남) 방지.
+  const fmtYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mo}-${da}`;
+  };
+
   const dateStrings: string[] = [];
   const dayToDates = new Map<number, string[]>();
   for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split("T")[0];
+    const dateStr = fmtYMD(d);
     const day = (d.getDay() + 6) % 7; // 0=월 ~ 6=일
     dateStrings.push(dateStr);
     if (!dayToDates.has(day)) dayToDates.set(day, []);
@@ -1783,9 +1794,12 @@ async function executeGetAvailableSlots(
   } else if (fallbackSlots.length > 0) {
     displayMessage = `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackFirstDate} ~ ${fallbackLastDate} 중 ${fallbackSlots.length}개 슬롯이 가능해요.`;
   } else {
+    // 디버그: 왜 0 인지 내부 상태 노출. slotsLoaded=0 이면 fetchSlots 실패,
+    // expanded=0 이면 dayToDates 매칭 실패, filtered=0 이면 month 필터 mismatch.
+    const dbg = `src=${slotSource} slotsLoaded=${slots.length} range=${fmtYMD(rangeStart)}~${fmtYMD(rangeEnd)} expanded=${availableSlots.length} primary=${primarySlots.length} fallback=${fallbackSlots.length} targetMonth=${targetMonth ?? "-"} targetDate=${targetDate ?? "-"}`;
     displayMessage = filterLabel
-      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
-      : `${vendor.name}은(는) 조회 범위 (${rangeStart.toISOString().split("T")[0]} ~ ${rangeEnd.toISOString().split("T")[0]}) 내에 예약 가능한 시간이 없습니다.`;
+      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다. [debug: ${dbg}]`
+      : `${vendor.name}은(는) 조회 범위 (${fmtYMD(rangeStart)} ~ ${fmtYMD(rangeEnd)}) 내에 예약 가능한 시간이 없습니다. [debug: ${dbg}]`;
   }
 
   return {
@@ -1801,6 +1815,18 @@ async function executeGetAvailableSlots(
       // 필터 결과가 0이고 인접 월 슬롯이 있을 때만 fallback 노출 (UI 도 활용 가능)
       fallbackSlots: primarySlots.length === 0 ? fallbackSlots : [],
       filterLabel: filterLabel || null,
+      // debug breadcrumbs (root cause 추적용 — 안정화되면 제거)
+      _debug: {
+        slotSource,
+        slotsLoaded: slots.length,
+        rangeStart: fmtYMD(rangeStart),
+        rangeEnd: fmtYMD(rangeEnd),
+        expanded: availableSlots.length,
+        primary: primarySlots.length,
+        fallback: fallbackSlots.length,
+        targetMonthResolved: targetMonth ?? null,
+        targetDateResolved: targetDate ?? null,
+      },
     },
     success: true,
     displayMessage,
