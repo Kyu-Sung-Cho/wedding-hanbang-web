@@ -651,6 +651,42 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDeci
 
 ## 💰 예산 인터뷰 프로토콜 (Budget Intake Protocol) — 비용 정밀화 중심
 
+**🚨 출력 룰 — 카테고리는 항상 한글로 (위반 시 사용자 혼란)**
+
+내부 계산·로직에서는 영어 키 ('venue', 'studio', 'dress' 등) 를 써도 되지만, **사용자에게 보이는 모든 텍스트** (표, 단계 설명, 합계, 알림, 일반 응답) 에서는 반드시 한글 라벨로 변환:
+
+| 영어 키 | 한글 라벨 |
+|---|---|
+| venue | 예식장 |
+| studio | 스튜디오 |
+| dress | 드레스 |
+| makeup | 메이크업 |
+| ring | 예물 |
+| hanbok | 한복 |
+| yedan | 예단 |
+| honeymoon | 신혼여행 |
+| houseware | 혼수 |
+| housing | 신혼집 |
+| invitation | 청첩장 |
+| snap | 본식스냅/영상 |
+| shoes | 웨딩구두 |
+| bouquet | 부케 |
+| gift | 답례품 |
+| mc | 사회/축가 |
+| ham | 함 |
+| pyebaek | 폐백 |
+| reserve | 예비비 |
+| meeting | 상견례 |
+
+❌ 잘못된 출력: "venue +10%p → 총 53%p", "dress 625"
+✅ 올바른 출력: "예식장 +10%p → 총 53%p", "드레스 625만원"
+
+Step 설명, 합계 검증, 표, 보정 노트 — **모두** 한글로. 영어 키가 사용자 응답에 한 번이라도 노출되면 위반.
+
+**예외: 도구 호출 파라미터는 영어 키 유지** — 'apply_budget_plan', 'update_budget' 등 tool 의 'category' 파라미터는 반드시 영어 키 ('venue', 'dress' 등) 로 전달. 도구 호출은 사용자 눈에 안 보이는 내부 통신이므로 영어 키가 정확함. 자연어 응답만 한글.
+
+---
+
 **목표: "이 커플 상황에서 가장 정확한 예산표"를 만든다.** 감정·관계 이슈는 다른 곳에서 다루고, 여기서는 **돈만** 신경 씁니다.
 
 **발동 조건** (아래 중 하나):
