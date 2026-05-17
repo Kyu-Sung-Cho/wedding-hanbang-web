@@ -2151,10 +2151,11 @@ async function executeCancelBooking(
   const admin = getAdminClient();
   const bookingId = input.booking_id as string;
 
-  // 예약 조회 (본인 커플의 예약인지 확인)
+  // 예약 조회 (본인 커플의 예약인지 확인). create_booking 의 sync 역연산에 필요한
+  // amount 도 같이 가져옴 (spent 차감 계산).
   const { data: booking, error: fetchError } = await admin
     .from("vendor_bookings")
-    .select("id, vendor_id, product_id, booking_date, booking_time, status")
+    .select("id, vendor_id, product_id, booking_date, booking_time, status, amount")
     .eq("id", bookingId)
     .eq("couple_id", ctx.coupleId)
     .single();
@@ -2193,14 +2194,82 @@ async function executeCancelBooking(
 
   if (updateError) throw updateError;
 
-  // 업체/상품 이름 조회
-  const { data: vendor } = await admin.from("vendors").select("name").eq("id", booking.vendor_id).single();
+  // 업체 (name + category) / 상품 이름 조회 — category 는 spent 차감 매핑용
+  const { data: vendor } = await admin
+    .from("vendors")
+    .select("name, category")
+    .eq("id", booking.vendor_id)
+    .single();
   const vendorName = vendor?.name ?? "업체";
+  const categoryKey = (vendor?.category as string | null) ?? null;
   let productName = "";
   if (booking.product_id) {
     const { data: product } = await admin.from("vendor_products").select("name").eq("id", booking.product_id).single();
     productName = product?.name ?? "";
   }
+
+  // create_booking 자동 동기화 역연산:
+  //  1) __events 에서 `evt_booking_{id 앞 8자}` 제거
+  //  2) progress[category].spent 에서 amount 차감 (음수 방지 — Math.max(0, ...))
+  // 둘 다 단일 progress UPDATE 로. 실패해도 취소 자체는 이미 성공 상태 유지.
+  const eventIdToRemove = `evt_booking_${bookingId.slice(0, 8)}`;
+  const cancelAmount = (booking.amount as number | undefined) ?? 0;
+  let scheduleRemoved = false;
+  let budgetReverted = false;
+  let syncedNewSpent: number | null = null;
+  try {
+    const { data: journeyRow } = await admin
+      .from("wedding_journeys")
+      .select("progress")
+      .eq("couple_id", ctx.coupleId)
+      .single();
+    const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
+    const nextProgress: Record<string, unknown> = { ...progress };
+
+    // 1) events 제거
+    const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
+    const filtered = events.filter((e) => e.id !== eventIdToRemove);
+    if (filtered.length !== events.length) {
+      nextProgress.__events = filtered;
+      scheduleRemoved = true;
+    }
+
+    // 2) spent 차감 (categoryKey 있고 amount > 0 일 때만)
+    if (categoryKey && cancelAmount > 0) {
+      const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
+      const prevSpent = (cat.spent as number | undefined) ?? 0;
+      const newSpent = Math.max(0, prevSpent - cancelAmount);
+      syncedNewSpent = newSpent;
+      nextProgress[categoryKey] = {
+        ...cat,
+        spent: newSpent,
+      };
+      budgetReverted = true;
+    }
+
+    // 변경 사항 있을 때만 UPDATE (불필요 round-trip 회피)
+    if (scheduleRemoved || budgetReverted) {
+      const { error: progressErr } = await admin
+        .from("wedding_journeys")
+        .update({ progress: nextProgress })
+        .eq("couple_id", ctx.coupleId);
+      if (progressErr) {
+        scheduleRemoved = false;
+        budgetReverted = false;
+        syncedNewSpent = null;
+      } else {
+        ctx.weddingContext.progress = nextProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+      }
+    }
+  } catch (syncErr) {
+    console.error("[cancel_booking] auto-revert (schedule+budget) failed (non-fatal):", syncErr);
+  }
+
+  const revertNote = scheduleRemoved
+    ? budgetReverted
+      ? " (일정·예산에서도 자동 정리했어요)"
+      : " (일정에서도 자동 정리했어요)"
+    : "";
 
   return {
     toolName: "cancel_booking",
@@ -2212,9 +2281,15 @@ async function executeCancelBooking(
       date: booking.booking_date,
       time: booking.booking_time,
       status: "cancelled",
+      // client (chatStore) 가 authStore.journey.progress 즉시 merge 용.
+      scheduleRemoved,
+      budgetReverted,
+      syncedEventIdRemoved: scheduleRemoved ? eventIdToRemove : null,
+      syncedCategoryKey: budgetReverted ? categoryKey : null,
+      syncedNewSpent,
     },
     success: true,
-    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})`,
+    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})${revertNote}`,
   };
 }
 

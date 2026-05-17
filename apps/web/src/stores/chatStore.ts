@@ -340,6 +340,43 @@ function syncToolResult(result: ToolExecutionResult) {
       });
       break;
     }
+    case "cancel_booking": {
+      // create_booking 의 역연산 — server 가 progress 에서 event 제거 + spent 차감.
+      // toolOutput 에 syncedEventIdRemoved / syncedCategoryKey / syncedNewSpent 가
+      // server commit 성공 시 채워져 옴.
+      if (!result.success) break;
+      const eventIdRemoved = result.toolOutput.syncedEventIdRemoved as string | null | undefined;
+      const cancelCategoryKey = result.toolOutput.syncedCategoryKey as string | null | undefined;
+      const cancelNewSpent = result.toolOutput.syncedNewSpent as number | null | undefined;
+      if (!eventIdRemoved && !cancelCategoryKey) break;
+
+      const cancelCurrent = authStore.journey?.progress ?? {};
+      const cancelNext: Record<string, unknown> = { ...cancelCurrent };
+
+      // 1) __events 에서 해당 booking event 제거
+      if (eventIdRemoved) {
+        const events = ((cancelNext as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
+        (cancelNext as Record<string, unknown>).__events = events.filter((e) => e.id !== eventIdRemoved);
+      }
+
+      // 2) 카테고리 spent 를 server 가 차감한 최종값으로 덮어쓰기
+      if (cancelCategoryKey && typeof cancelNewSpent === "number") {
+        const existingCat = (cancelNext[cancelCategoryKey] ?? {
+          category: cancelCategoryKey,
+          status: "not_started",
+        }) as Record<string, unknown>;
+        cancelNext[cancelCategoryKey] = {
+          ...existingCat,
+          category: cancelCategoryKey,
+          spent: cancelNewSpent,
+        };
+      }
+
+      authStore.updateJourneyLocal({
+        progress: cancelNext as typeof cancelCurrent,
+      });
+      break;
+    }
   }
 }
 
