@@ -34,9 +34,13 @@ const BETA_HIDDEN_VENDOR_PATHS: string[] = [];
 // /vendors·/bookings은 데모 단계에서 다시 노출 — 캐치테이블 흐름을 평가자가
 // 직접 확인해야 하는 핵심 차별 기능이라 격하 정책에서 제외.
 // /fitting·/scripts는 Phase 2까지 격하 유지.
+// /vendors는 이슈 #12 (팀 요청)에 따라 베타 단계 동안 메뉴에서 숨김 —
+// 등록 업체 수가 부족해 미완성 페이지를 노출하지 않기 위함. 라우트·AI 추천 카드·
+// /vendors/[id]·/favorites는 모두 살아있음. 업체 DB 충분히 쌓이면 이 항목 제거.
 const SIDEBAR_HIDDEN: string[] = [
   "/fitting",
   "/scripts",
+  "/vendors",
 ];
 
 const menuItems = [
@@ -97,7 +101,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* 로고 영역 */}
         <div className="flex items-center justify-between px-6 h-[72px]">
           <Link href="/dashboard" className="font-serif-kr italic text-2xl text-[#795252] font-light tracking-tight">
-            <Logo size="sm" />
+            <Logo size="sm" bordered />
           </Link>
           <button
             onClick={onClose}

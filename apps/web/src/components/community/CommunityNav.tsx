@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { FileSearch, Search, PenSquare, Menu, X, Store, CalendarCheck, Bookmark, Users as UsersIcon, Activity, Settings as SettingsIcon } from "lucide-react";
+import { FileSearch, Search, PenSquare, Menu, X, CalendarCheck, Bookmark, Users as UsersIcon, Activity, Settings as SettingsIcon } from "lucide-react";
 import MyToolsWidget from "@/components/community/MyToolsWidget";
 import UserMenu from "@/components/community/UserMenu";
 
@@ -102,13 +102,7 @@ export default function CommunityNav() {
           <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
             {user && <MyToolsWidget variant="nav" />}
 
-            <Link
-              href="/vendors"
-              className="hidden md:flex items-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] hover:text-[#795252] transition-colors"
-            >
-              <Store className="w-4 h-4" />
-              업체 둘러보기
-            </Link>
+            {/* 이슈 #12: 업체 탐색 메뉴 숨김 (베타 단계, 업체 DB 충분히 쌓이면 복구) */}
 
             <Link
               href="/community/quote-check"
@@ -180,14 +174,7 @@ export default function CommunityNav() {
 
             {user && <MyToolsWidget variant="sidebar" />}
 
-            <Link
-              href="/vendors"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-5 py-3 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
-            >
-              <Store className="w-5 h-5" />
-              업체 둘러보기
-            </Link>
+            {/* 이슈 #12: 모바일 메뉴에서도 업체 탐색 숨김 */}
 
             <Link
               href="/community/quote-check"
