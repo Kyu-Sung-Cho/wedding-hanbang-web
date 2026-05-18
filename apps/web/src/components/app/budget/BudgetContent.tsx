@@ -319,6 +319,7 @@ function BudgetRow({
   spent,
   status,
   payer,
+  totalBudget,
   onBudgetChange,
   onSpentChange,
   onSpentReset,
@@ -332,6 +333,7 @@ function BudgetRow({
   spent: number;
   status: string;
   payer: PayerType;
+  totalBudget: number;
   onBudgetChange: (key: string, val: number) => void;
   onSpentChange: (key: string, val: number) => void;
   onSpentReset: (key: string) => void;
@@ -340,6 +342,8 @@ function BudgetRow({
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
+  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
+  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
@@ -427,6 +431,9 @@ function BudgetRow({
           label={`${label} 예산`}
           highlight="budget"
         />
+        {totalShare > 0 && (
+          <span className="text-[10px] text-[#B5ADA3] mt-0.5">총예산의 {totalShare}%</span>
+        )}
       </div>
 
       {/* 상태 + 삭제 (데스크탑 전용 — 모바일은 라벨 옆에 배치) */}
@@ -461,6 +468,7 @@ function BudgetCard({
   spent,
   status,
   payer,
+  totalBudget,
   onBudgetChange,
   onSpentChange,
   onSpentReset,
@@ -474,6 +482,7 @@ function BudgetCard({
   spent: number;
   status: string;
   payer: PayerType;
+  totalBudget: number;
   onBudgetChange: (key: string, val: number) => void;
   onSpentChange: (key: string, val: number) => void;
   onSpentReset: (key: string) => void;
@@ -482,6 +491,8 @@ function BudgetCard({
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
+  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
+  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
@@ -524,7 +535,9 @@ function BudgetCard({
       {/* 진행 바 */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-[#B5ADA3]">진행률</span>
+          <span className="text-xs text-[#B5ADA3]">
+            진행률{totalShare > 0 ? <span className="ml-1.5 text-[#B5ADA3]/70">· 총예산의 {totalShare}%</span> : null}
+          </span>
           <span className={`text-xs font-medium ${
             isOver ? "text-red-400" : percent >= 100 ? "text-sage-500" : "text-[#504444]"
           }`}>
@@ -1230,6 +1243,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                   spent={getCategorySpent(key)}
                   status={getStatusLabel(key)}
                   payer={getCategoryPayer(key)}
+                  totalBudget={totalBudget}
                   onBudgetChange={handleBudgetChange}
                   onSpentChange={handleSpentChange}
                   onSpentReset={handleSpentReset}
@@ -1267,6 +1281,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                 spent={getCategorySpent(key)}
                 status={getStatusLabel(key)}
                 payer={getCategoryPayer(key)}
+                totalBudget={totalBudget}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
                 onSpentReset={handleSpentReset}
@@ -1287,6 +1302,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
               spent={getCategorySpent(cat.key)}
               status={getStatusLabel(cat.key)}
               payer={getCategoryPayer(cat.key)}
+              totalBudget={totalBudget}
               onBudgetChange={handleBudgetChange}
               onSpentChange={handleSpentChange}
               onSpentReset={handleSpentReset}
