@@ -92,6 +92,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const lastMsgCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // input 외부 비움(전송 후 등) 시 textarea 높이 리셋
+  useEffect(() => {
+    if (input === "" && textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  }, [input]);
   const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
@@ -1191,20 +1199,30 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
+              // auto-resize: 줄 수에 따라 높이 자동 조절 (최대 ~5줄)
+              const ta = e.currentTarget;
+              ta.style.height = "auto";
+              ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
               // typing broadcast — 디바운스는 store 내부에서 처리, 여기선 매 입력마다 콜
               if (coupleId && profile?.id && (profile.role === "bride" || profile.role === "groom")) {
                 notifyTyping({ coupleId, userId: profile.id, senderRole: profile.role });
               }
             }}
             onKeyDown={(e) => {
+              // Shift+Enter: 줄바꿈 (기본 동작 유지). Enter 단독: 전송.
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 attemptSend();
+                // 전송 후 높이 리셋
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = "auto";
+                }
               }
             }}
             onPaste={handlePaste}
@@ -1216,7 +1234,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   : "무엇이든 물어보세요…"
             }
             disabled={isStreaming}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[16px] sm:text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[16px] sm:text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[120px] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}
