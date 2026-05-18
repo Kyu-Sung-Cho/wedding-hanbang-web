@@ -19,25 +19,48 @@ import type { InteractionType, SpecialistType } from "@/types/moat.types";
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
 // 출처: Anthropic 공식 가격 (2026년 기준)
-const MODEL_COSTS: Record<string, { in: number; out: number }> = {
-  "claude-opus-4-7": { in: 15 / 1_000_000, out: 75 / 1_000_000 },
-  "claude-sonnet-4-6": { in: 3 / 1_000_000, out: 15 / 1_000_000 },
-  "claude-haiku-4-5-20251001": { in: 0.8 / 1_000_000, out: 4 / 1_000_000 },
+// cache_write = 표준 input × 1.25 (캐시 생성 시 25% premium)
+// cache_read  = 표준 input × 0.10 (캐시 hit 시 90% 할인)
+const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number; cacheRead: number }> = {
+  "claude-opus-4-7": {
+    in: 15 / 1_000_000, out: 75 / 1_000_000,
+    cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000,
+  },
+  "claude-sonnet-4-6": {
+    in: 3 / 1_000_000, out: 15 / 1_000_000,
+    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
+  },
+  "claude-haiku-4-5-20251001": {
+    in: 0.8 / 1_000_000, out: 4 / 1_000_000,
+    cacheWrite: 1.0 / 1_000_000, cacheRead: 0.08 / 1_000_000,
+  },
   // 기존 호환 모델 (scripts/generate에서 쓰는 구 버전)
-  "claude-sonnet-4-20250514": { in: 3 / 1_000_000, out: 15 / 1_000_000 },
+  "claude-sonnet-4-20250514": {
+    in: 3 / 1_000_000, out: 15 / 1_000_000,
+    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
+  },
 };
 
 function calcCostUsd(
   model: string | null | undefined,
   tokensIn: number | null | undefined,
-  tokensOut: number | null | undefined
+  tokensOut: number | null | undefined,
+  cacheCreationTokens?: number | null,
+  cacheReadTokens?: number | null
 ): number | null {
   if (!model || tokensIn == null || tokensOut == null) return null;
   // 모델명 부분 매칭 (버전 suffix 허용)
   const key = Object.keys(MODEL_COSTS).find((k) => model.startsWith(k)) ?? null;
   if (!key) return null;
   const rate = MODEL_COSTS[key];
-  return tokensIn * rate.in + tokensOut * rate.out;
+  // tokensIn 은 Anthropic 기준 '캐시 안 된 input' 만 포함 (cache_creation/cache_read 와 분리).
+  // 셋 다 별도 가격으로 합산.
+  return (
+    tokensIn * rate.in +
+    tokensOut * rate.out +
+    (cacheCreationTokens ?? 0) * rate.cacheWrite +
+    (cacheReadTokens ?? 0) * rate.cacheRead
+  );
 }
 
 // -------------------------------------------
@@ -61,6 +84,10 @@ export interface AIInteractionLogInput {
   model?: string | null;
   tokensInput?: number | null;
   tokensOutput?: number | null;
+  /** Prompt caching: 캐시 생성 시 사용된 input 토큰 (cache_write, 25% premium) */
+  cacheCreationTokens?: number | null;
+  /** Prompt caching: 캐시 hit 시 사용된 input 토큰 (cache_read, 90% 할인) */
+  cacheReadTokens?: number | null;
   /** 미리 계산된 cost — 없으면 내부에서 MODEL_COSTS 기반 자동 계산 */
   costUsd?: number | null;
   metadata?: Record<string, unknown> | null;
@@ -99,7 +126,24 @@ export async function logAIInteraction(
 
     const cost =
       params.costUsd ??
-      calcCostUsd(params.model, params.tokensInput, params.tokensOutput);
+      calcCostUsd(
+        params.model,
+        params.tokensInput,
+        params.tokensOutput,
+        params.cacheCreationTokens,
+        params.cacheReadTokens
+      );
+
+    // cache 토큰은 metadata 에 동봉 (schema 변경 없이 추적 가능)
+    const baseMetadata = params.metadata ?? {};
+    const metadataWithCache =
+      params.cacheCreationTokens || params.cacheReadTokens
+        ? {
+            ...baseMetadata,
+            cache_creation_input_tokens: params.cacheCreationTokens ?? 0,
+            cache_read_input_tokens: params.cacheReadTokens ?? 0,
+          }
+        : baseMetadata;
 
     const { error } = await admin.from("ai_interactions_log").insert({
       user_id: params.userId ?? null,
@@ -120,7 +164,7 @@ export async function logAIInteraction(
       tokens_input: params.tokensInput ?? null,
       tokens_output: params.tokensOutput ?? null,
       cost_usd: cost,
-      metadata: params.metadata ?? {},
+      metadata: metadataWithCache,
     });
 
     if (error) {

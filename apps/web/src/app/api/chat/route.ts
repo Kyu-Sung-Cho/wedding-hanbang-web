@@ -805,6 +805,9 @@ export async function POST(request: Request) {
       const turnStartedAt = startLatencyClock();
       let totalTokensIn = 0;
       let totalTokensOut = 0;
+      // Prompt caching: cache_write / cache_read 토큰도 별도 집계 — 비용 정확 계산용
+      let totalCacheCreationTokens = 0;
+      let totalCacheReadTokens = 0;
       let lastModel: string | undefined;
 
       try {
@@ -828,6 +831,8 @@ export async function POST(request: Request) {
           if (result.usage) {
             totalTokensIn += result.usage.input_tokens ?? 0;
             totalTokensOut += result.usage.output_tokens ?? 0;
+            totalCacheCreationTokens += result.usage.cache_creation_input_tokens ?? 0;
+            totalCacheReadTokens += result.usage.cache_read_input_tokens ?? 0;
           }
           if (result.model) lastModel = result.model;
 
@@ -886,6 +891,8 @@ export async function POST(request: Request) {
               model: lastModel,
               tokensInput: totalTokensIn || null,
               tokensOutput: totalTokensOut || null,
+              cacheCreationTokens: totalCacheCreationTokens || null,
+              cacheReadTokens: totalCacheReadTokens || null,
               metadata: {
                 stage_tag: stageTag,
                 tools_used: toolsUsed,
@@ -1004,6 +1011,8 @@ export async function POST(request: Request) {
         if (finalResult.usage) {
           totalTokensIn += finalResult.usage.input_tokens ?? 0;
           totalTokensOut += finalResult.usage.output_tokens ?? 0;
+          totalCacheCreationTokens += finalResult.usage.cache_creation_input_tokens ?? 0;
+          totalCacheReadTokens += finalResult.usage.cache_read_input_tokens ?? 0;
         }
         if (finalResult.model) lastModel = finalResult.model;
 
@@ -1085,6 +1094,8 @@ export async function POST(request: Request) {
           model: lastModel,
           tokensInput: totalTokensIn || null,
           tokensOutput: totalTokensOut || null,
+          cacheCreationTokens: totalCacheCreationTokens || null,
+          cacheReadTokens: totalCacheReadTokens || null,
           metadata: {
             stage_tag: stageTag,
             tools_used: toolsUsed,
@@ -1117,6 +1128,8 @@ export async function POST(request: Request) {
           model: lastModel,
           tokensInput: totalTokensIn || null,
           tokensOutput: totalTokensOut || null,
+          cacheCreationTokens: totalCacheCreationTokens || null,
+          cacheReadTokens: totalCacheReadTokens || null,
           metadata: {
             stage_tag: stageTag,
           },
