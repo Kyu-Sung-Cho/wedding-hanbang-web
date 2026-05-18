@@ -4,6 +4,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelPayment } from "@/lib/toss/client";
 import { PaymentRow, paymentRowToModel } from "@/types/contract.types";
+import type { ScheduleEvent } from "@/types/database.types";
 
 export async function POST(
   req: Request,
@@ -118,11 +119,66 @@ export async function POST(
       })
       .eq("id", payment.contract_id);
 
-    // 예약 상태 업데이트
-    await admin
+    // 예약 상태 업데이트 — sync 용으로 결과(amount, vendor_id, couple_id) 함께 받음
+    const { data: bookingForSync } = await admin
       .from("vendor_bookings")
       .update({ status: "cancelled", payment_status: "refunded" })
-      .eq("id", payment.booking_id);
+      .eq("id", payment.booking_id)
+      .select("id, couple_id, amount, vendor_id")
+      .single();
+
+    // 예약 취소에 따른 일정·예산 역동기화 — chat path executeCancelBooking,
+    // vendor portal PATCH 와 동일 패턴. 사용자가 환불 버튼으로 취소했을 때
+    // 대시보드 '다가오는 일정'과 예산 spent 에서도 자동 정리. (이슈: 취소된
+    // booking이 progress.__events에 남아 AI 컨텍스트와 대시보드에 계속 노출됨)
+    if (bookingForSync?.couple_id) {
+      try {
+        const { data: vendorRow } = await admin
+          .from("vendors")
+          .select("category")
+          .eq("id", bookingForSync.vendor_id)
+          .single();
+        const categoryKey = (vendorRow?.category as string | null) ?? null;
+        const eventIdToRemove = `evt_booking_${bookingForSync.id.slice(0, 8)}`;
+        const cancelAmount = (bookingForSync.amount as number | undefined) ?? 0;
+
+        const { data: journeyRow } = await admin
+          .from("wedding_journeys")
+          .select("progress")
+          .eq("couple_id", bookingForSync.couple_id)
+          .single();
+        const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
+        const nextProgress: Record<string, unknown> = { ...progress };
+
+        const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
+        const filtered = events.filter((e) => e.id !== eventIdToRemove);
+        let changed = false;
+        if (filtered.length !== events.length) {
+          nextProgress.__events = filtered;
+          changed = true;
+        }
+
+        if (categoryKey && cancelAmount > 0) {
+          const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
+          const prevSpent = (cat.spent as number | undefined) ?? 0;
+          nextProgress[categoryKey] = {
+            ...cat,
+            spent: Math.max(0, prevSpent - cancelAmount),
+          };
+          changed = true;
+        }
+
+        if (changed) {
+          await admin
+            .from("wedding_journeys")
+            .update({ progress: nextProgress })
+            .eq("couple_id", bookingForSync.couple_id);
+        }
+      } catch (syncErr) {
+        // sync 실패해도 환불 자체는 이미 성공 — non-fatal
+        console.error("[refund] auto-revert (schedule+budget) failed:", syncErr);
+      }
+    }
 
     return NextResponse.json({
       payment: paymentRowToModel(updated as PaymentRow),
