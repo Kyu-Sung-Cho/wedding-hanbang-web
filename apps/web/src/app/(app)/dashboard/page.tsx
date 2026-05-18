@@ -33,6 +33,7 @@ import {
   Box,
   Heart,
   MoreHorizontal,
+  Plus,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { CHECKLIST_MAP, CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -736,7 +737,17 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           {/* 다가오는 일정 */}
           <div className="mb-8">
-            <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5 font-light">다가오는 일정</h3>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] font-light">다가오는 일정</h3>
+              <Link
+                href="/schedule?new=1"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-[#795252] bg-[#795252]/8 hover:bg-[#795252]/15 transition-colors"
+                aria-label="일정 추가"
+              >
+                <Plus className="w-4 h-4" />
+                일정 추가
+              </Link>
+            </div>
 
             {/* 예약/일정 이벤트 (있으면 우선 노출 — create_booking 자동 sync 결과) */}
             {upcomingEvents.length > 0 && (

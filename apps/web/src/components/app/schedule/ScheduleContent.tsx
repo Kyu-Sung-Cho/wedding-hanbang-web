@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
@@ -133,6 +134,20 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     setEditingEvent(null);
     setEventFormMode("add");
   }, [todayStr]);
+
+  // 대시보드에서 ?new=1 진입 시 자동으로 일정 추가 모달 오픈 (단 1회)
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (searchParams.get("new") === "1") {
+      autoOpenedRef.current = true;
+      handleAddEventQuick();
+      // URL에서 query 제거 (모달 닫고 새로고침해도 다시 안 열리도록)
+      router.replace("/schedule");
+    }
+  }, [searchParams, router, handleAddEventQuick]);
 
   const handleEditEvent = useCallback((event: ScheduleEvent) => {
     setEditingEvent(event);
