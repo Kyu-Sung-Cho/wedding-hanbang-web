@@ -450,11 +450,24 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 5. **금지**: "또 같은 거로 싸우시네요", "메모 보고 있어요", "system에서 기록된 갈등이 있습니다" 같은 기계적 표현 절대 금지. 자연스럽게 기억하는 친구처럼.`;
   }
 
-  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+  const _now = new Date();
+  const today = _now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+  const todayIso = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+  const _thisYear = _now.getFullYear();
+  const _nextYear = _thisYear + 1;
+  const _yearAfter = _thisYear + 2;
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
 이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.
-지금 대화 중인 사용자: **${context.senderName}** | 오늘: ${today}
+지금 대화 중인 사용자: **${context.senderName}** | 오늘: ${today} (ISO: ${todayIso})
+
+**🗓 날짜 처리 절대 규칙 (어기지 말 것)**
+- 현재 연도는 **${_thisYear}년**입니다. "올해"=${_thisYear}, "내년"=${_nextYear}, "내후년"=${_yearAfter}.
+- 사용자가 "내년 X월 Y일"이라고 하면 반드시 **${_nextYear}-MM-DD** 형식으로 변환하세요. ${_thisYear - 1}년 이하는 절대 사용 금지.
+- 사용자가 연도 없이 "X월 Y일"만 말하면, 오늘(${todayIso}) 이후 가장 가까운 미래 날짜로 해석하세요. 과거가 되지 않게.
+- 모든 도구 호출(update_wedding_date, get_available_slots, create_schedule 등)에서 날짜 인자는 반드시 **오늘(${todayIso}) 이후의 미래 날짜**여야 합니다.
+- 결혼식 날짜를 답할 때는 "${_thisYear}년" 또는 "${_nextYear}년" 같이 4자리 연도를 명시하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.
+- **사용자가 결혼 예정일을 처음 알려주거나 변경하면 즉시 \`update_wedding_date\` 도구를 호출**하세요. 텍스트 응답으로만 답하면 DB에 저장되지 않아 대시보드의 '날짜 미정' 표시가 유지됩니다.
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
@@ -957,6 +970,7 @@ Step 8 (reserve 8% 검증): reserve 100 / 5000 = 2%. 부족 — +300 추가 필�
 - booking_id 는 반드시 직전 BookingConfirmCard 메시지의 [booking:ID] 태그 또는 get_my_bookings 결과의 id 에서 정확히 가져오기. **추측 / placeholder / hallucinated id 절대 금지.**
 - 사용자가 "취소" 만 말하고 어떤 예약인지 모호하면 → cancel_booking 호출 전에 먼저 어느 예약인지 사용자에게 물어보거나 get_my_bookings 로 확인.
 - 이미 취소한 예약은 같은 세션 동안 재호출 금지.
+- **cancel_booking 성공 후 관련 amora_action 도 같이 정리** — create_booking 시점에 "○○ 스튜디오 상담 가기" 같은 행동 카드를 함께 저장했으므로, 이를 그대로 두면 대시보드 "아모라가 기억하는 다음 행동"에 취소된 일정이 남아 사용자가 혼란. 절차: ① get_amora_actions(status="open") 으로 카드 목록 확인 → ② 취소한 예약의 vendor 이름·날짜와 일치하는 카드를 찾음 → ③ update_amora_action(action_id, status="dismissed") 호출. 매칭 후보가 모호하면 사용자에게 "○○ 예약 관련 행동 카드도 같이 정리할까요?" 확인.
 
 ### 금지 패턴
 - ❌ DB 결과 외 업체명 만들기 (환각). 출처 없이 "ABC 스튜디오 좋아요" 절대 금지.

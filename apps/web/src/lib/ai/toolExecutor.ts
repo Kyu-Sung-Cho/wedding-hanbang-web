@@ -228,6 +228,51 @@ async function executeUpdateWeddingDate(
   const newDate = input.wedding_date as string;
   const oldDate = ctx.weddingContext.weddingDate;
 
+  // 1) YYYY-MM-DD 포맷 검증
+  if (typeof newDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+    return {
+      toolName: "update_wedding_date",
+      toolInput: input,
+      toolOutput: {
+        error: "invalid_format",
+        message: `'wedding_date'는 YYYY-MM-DD 형식이어야 합니다. 받은 값: ${String(newDate)}`,
+      },
+      success: false,
+      displayMessage: `날짜 형식이 잘못되었습니다. 다시 시도해주세요.`,
+    };
+  }
+
+  // 2) 유효한 달력 날짜인지 (예: 2026-02-31 거부)
+  const parsed = new Date(`${newDate}T00:00:00`);
+  if (isNaN(parsed.getTime())) {
+    return {
+      toolName: "update_wedding_date",
+      toolInput: input,
+      toolOutput: { error: "invalid_date", message: `유효하지 않은 날짜: ${newDate}` },
+      success: false,
+      displayMessage: `유효하지 않은 날짜입니다: ${newDate}`,
+    };
+  }
+
+  // 3) 과거 날짜 거부 — AI 연도 추론 실수 방어 (오늘 자정 기준)
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (parsed < todayStart) {
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return {
+      toolName: "update_wedding_date",
+      toolInput: input,
+      toolOutput: {
+        error: "past_date_rejected",
+        attempted: newDate,
+        today: todayIso,
+        message: `${newDate}는 오늘(${todayIso}) 이전입니다. 결혼 예정일은 미래 날짜여야 합니다. 사용자에게 정확한 연도를 다시 확인하세요. (예: '내년 3월 12일' → ${now.getFullYear() + 1}-03-12)`,
+      },
+      success: false,
+      displayMessage: `과거 날짜(${newDate})는 결혼 예정일로 설정할 수 없습니다.`,
+    };
+  }
+
   const admin = getAdminClient();
   const { error } = await admin
     .from("wedding_journeys")
@@ -239,7 +284,7 @@ async function executeUpdateWeddingDate(
   ctx.weddingContext.weddingDate = newDate;
 
   const dDay = Math.ceil(
-    (new Date(newDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
 
   return {
