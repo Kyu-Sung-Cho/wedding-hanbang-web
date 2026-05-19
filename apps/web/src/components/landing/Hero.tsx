@@ -14,7 +14,7 @@ export default function Hero() {
       />
 
       <div className="relative z-10 max-w-[1240px] w-full mx-auto">
-        <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-[clamp(40px,6vw,112px)] items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-[clamp(48px,7vw,112px)] items-center">
           {/* 좌측 카피 */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -24,11 +24,11 @@ export default function Hero() {
           >
             {/* Display H1 */}
             <h1 className="font-serif-kr text-[clamp(34px,6vw,68px)] text-noir-800 leading-[1.2] tracking-[-0.015em] font-light">
-              이 견적,
+              당신만의
               <br />
-              계약해도
+              AI 웨딩 플래너,
               <br />
-              <em className="not-italic text-rose-500">괜찮을까요?</em>
+              <em className="not-italic text-rose-500">아모라.</em>
             </h1>
 
             {/* 얇은 rose 구분선 */}
@@ -36,27 +36,27 @@ export default function Hero() {
 
             {/* Sub */}
             <p className="text-charcoal text-[15px] md:text-[17px] leading-[1.85] font-light max-w-[520px] mx-auto md:mx-0">
-              30초 안에 빠진 항목·예상 추가금·
+              당신도 모르는 당신의 선호를 끌어내고,
               <br />
-              표준계약서 위반 조항을 확인합니다.
+              파트너와 합의로 가도록 중재하고,
               <br />
-              한국 첫 웨딩 견적 진단 엔진, 아모라.
+              6개월 전 결정까지 기억합니다.
             </p>
 
             {/* CTA */}
             <div className="flex flex-col sm:flex-row gap-5 sm:gap-10 mt-12 items-center md:items-start">
               <Link
-                href="/community/quote-check"
+                href="/beta"
                 className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
               >
-                30초 견적 진단 시작 · 무료
+                베타 50쌍 한정 모집
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
               <Link
-                href="/beta"
+                href="/chat"
                 className="inline-flex items-center text-[14px] md:text-[15px] text-taupe-500 font-light tracking-[0.02em] hover:text-noir-800 transition-colors"
               >
-                베타 50쌍 한정 모집
+                아모라와 먼저 대화해보기
               </Link>
             </div>
           </motion.div>
@@ -91,17 +91,17 @@ export default function Hero() {
               </div>
 
               <p className="font-serif-kr text-[20px] md:text-[24px] text-noir-800 leading-[1.55] font-light mb-3">
-                강남 스튜디오
+                지난주에
                 <br />
-                <em className="not-italic text-rose-500">&ldquo;320만원 견적&rdquo;</em>
+                <em className="not-italic text-rose-500">&ldquo;양가 상견례 부담&rdquo;</em>
                 <br />
-                분석 완료.
+                말씀하셨죠.
               </p>
 
               <p className="font-serif-kr text-[16px] md:text-[18px] text-charcoal leading-[1.7] font-light">
-                빠진 항목 4개,
+                오늘 그 이야기,
                 <br />
-                예상 추가금 80만원 발견.
+                이어가 볼까요?
               </p>
 
               <p className="mt-10 pt-6 border-t border-platinum/60 text-[11px] md:text-[12px] tracking-[0.22em] text-taupe-400 font-medium">
