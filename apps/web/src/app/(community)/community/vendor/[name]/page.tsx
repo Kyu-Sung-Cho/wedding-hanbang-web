@@ -68,6 +68,24 @@ interface ApiResponse {
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
+// DB에 저장된 영어 enum (studio/dress/makeup/venue/hanbok/jewelry/honeymoon/other)을
+// 화면에 표시할 한글 라벨로 변환. vendorMapper.categoryToKorean과 동일한 매핑이지만
+// 이 페이지는 community vendor-tags API 응답을 직접 쓰므로 별도 변환.
+const CATEGORY_KR: Record<string, string> = {
+  studio: "스튜디오",
+  dress: "드레스",
+  makeup: "메이크업",
+  venue: "예식장",
+  hanbok: "한복",
+  jewelry: "예물",
+  honeymoon: "신혼여행",
+  other: "기타",
+};
+function categoryLabel(raw: string | null | undefined): string {
+  if (!raw) return "업체";
+  return CATEGORY_KR[raw] ?? raw;
+}
+
 // JavaScript Date.getDay()는 0=일 ~ 6=토.
 // 우리 DB의 day 컬럼은 0=월 ~ 6=일 (vendor_portal_system 스키마 주석).
 // 변환 함수.
@@ -218,7 +236,7 @@ export default function VendorDetailPage() {
               {decodedName}
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-sm text-[#878680]">
-              <span>{vendor?.category ?? tag?.category ?? "업체"}</span>
+              <span>{categoryLabel(vendor?.category ?? tag?.category)}</span>
               {(vendor?.region || tag?.region) && (
                 <>
                   <span>·</span>
