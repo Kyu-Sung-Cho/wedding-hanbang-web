@@ -57,7 +57,7 @@ function SlideEmpathy() {
         ))}
       </div>
 
-      <h2 className="font-serif-kr text-4xl font-normal text-[#1b1c1c] mb-3 leading-snug">
+      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] mb-2 sm:mb-3 leading-snug">
         혼자 고민하지 마세요
       </h2>
       <p className="text-[17px] text-[#504444] font-light leading-relaxed max-w-[340px]">
@@ -342,7 +342,7 @@ function SlideAmora() {
 function SlideHowToUse() {
   return (
     <div className="flex flex-col items-center px-6">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] mb-6 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] mb-4 sm:mb-6 leading-snug">
         이렇게 활용하세요
       </h2>
 
@@ -430,7 +430,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
         <Shield className="w-8 h-8 text-white" />
       </div>
 
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] mb-5 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] mb-4 sm:mb-5 leading-snug">
         우리의 약속
       </h2>
 
@@ -568,7 +568,7 @@ export default function CommunityGuide() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
-      <div className="relative w-full max-w-[560px] mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl">
         {/* 상단 진행 바 */}
         <div className="h-1 bg-[#f6f3f2]">
           <div
@@ -591,8 +591,10 @@ export default function CommunityGuide() {
           </button>
         </div>
 
-        {/* 슬라이드 */}
-        <div className="relative overflow-hidden" style={{ minHeight: "500px" }}>
+        {/* 슬라이드 — 모바일은 min-height 줄여 화면 가득 채움 회피 */}
+        <div
+          className="relative overflow-hidden min-h-[360px] sm:min-h-[500px]"
+        >
           <div
             className="py-4 flex flex-col items-center transition-all duration-300 ease-out"
             style={{

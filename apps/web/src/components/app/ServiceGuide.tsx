@@ -74,7 +74,7 @@ function SlideWelcome() {
 function SlideDashboard() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         대시보드
       </h2>
       <p className="text-base text-[#504444] text-center mb-6">
@@ -162,7 +162,7 @@ function SlideDashboard() {
 function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-base text-[#504444] text-center mb-5">
@@ -241,7 +241,7 @@ function SlideChat() {
 function SlideBudget() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         예산 관리
       </h2>
       <p className="text-base text-[#504444] text-center mb-6">
@@ -346,7 +346,7 @@ function SlideBudget() {
 function SlideCouple() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         파트너와 함께
       </h2>
       <p className="text-base text-[#504444] text-center mb-6">
@@ -428,9 +428,9 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
   onNeverShowChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col items-center px-6 pt-6 pb-2">
-      {/* 로고 */}
-      <div className="relative w-24 h-24 mb-6">
+    <div className="flex flex-col items-center px-6 pt-4 pb-2 sm:pt-6">
+      {/* 로고 — 모바일에선 작게 */}
+      <div className="relative w-16 h-16 sm:w-24 sm:h-24 mb-4 sm:mb-6">
         <Image
           src="/images/logo-512-transparent.png"
           alt="웨딩한방"
@@ -439,10 +439,10 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         />
       </div>
 
-      <h2 className="font-serif-kr text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-3">
+      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
         준비되셨나요?
       </h2>
-      <p className="text-[17px] text-[#504444] text-center mb-8">
+      <p className="text-sm sm:text-[17px] text-[#504444] text-center mb-5 sm:mb-8">
         무료로 모든 기능을 이용할 수 있어요
       </p>
 
