@@ -35,6 +35,7 @@ import ServiceCTA from "@/components/community/ServiceCTA";
 import Avatar from "@/components/community/Avatar";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
+import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import type { PollWithOptions } from "@/types/community.types";
 
@@ -478,6 +479,13 @@ export default function PostDetailPage() {
                 {post.title}
               </h1>
 
+              {/* 카드 게시물 슬라이드 — 본문 위에 인스타 캐러셀로 렌더 */}
+              {!isMembersOnly && Array.isArray(post.slides) && post.slides.length > 0 && (
+                <div className="mb-4">
+                  <SlideCarousel slides={post.slides} aspect="4/5" />
+                </div>
+              )}
+
               {/* 본문 */}
               <div className="relative">
                 {isMembersOnly ? (
@@ -516,8 +524,8 @@ export default function PostDetailPage() {
                 )}
               </div>
 
-              {/* 이미지 갤러리 */}
-              {!isMembersOnly && post.images && post.images.length > 0 && (
+              {/* 이미지 갤러리 — 카드 게시물(슬라이드)이면 위 캐러셀이 담당하므로 숨김 */}
+              {!isMembersOnly && (!post.slides || post.slides.length === 0) && post.images && post.images.length > 0 && (
                 <div className="mt-4">
                   <div
                     className={`grid gap-2 ${

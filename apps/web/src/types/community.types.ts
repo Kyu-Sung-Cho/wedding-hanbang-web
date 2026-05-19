@@ -64,6 +64,17 @@ export interface AiComment {
   generated_at: string;
 }
 
+// 카드 게시물 (인스타 캐러셀 형식)의 슬라이드 한 장.
+// type=image 면 url에 정적 이미지/GIF, type=video 면 mp4/webm/mov URL.
+export interface SlideMedia {
+  type: "image" | "video";
+  url: string;
+  width?: number;
+  height?: number;
+  /** 영상일 때 미리보기 썸네일 (선택). 비워두면 첫 프레임 자동 사용. */
+  thumbnail_url?: string;
+}
+
 export interface CommunityPost {
   id: string;
   author_id: string;
@@ -71,6 +82,8 @@ export interface CommunityPost {
   title: string;
   content: string;
   images: string[];
+  /** 카드 게시물(인스타 캐러셀 형식)일 때 슬라이드 배열. 일반 글이면 null. */
+  slides: SlideMedia[] | null;
   visibility: PostVisibility;
   ad_disclosure: AdDisclosure;
   sponsorship_detail: string | null;
@@ -327,6 +340,8 @@ export interface CreatePostInput {
   title: string;
   content: string;
   images?: string[];
+  /** 카드 게시물(인스타 캐러셀 형식)일 때 슬라이드 배열. 비우면 일반 글. */
+  slides?: SlideMedia[] | null;
   visibility?: PostVisibility;
   vendor_tags?: string[];
   tags?: string[];
@@ -342,6 +357,7 @@ export interface UpdatePostInput {
   title?: string;
   content?: string;
   images?: string[];
+  slides?: SlideMedia[] | null;
   visibility?: PostVisibility;
   vendor_tags?: string[];
   tags?: string[];

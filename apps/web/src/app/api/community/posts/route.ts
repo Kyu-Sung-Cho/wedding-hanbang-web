@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
       title: rawTitle,
       content: rawContent,
       images: rawImages,
+      slides: rawSlides,
       visibility,
       vendor_tags: rawVendorTags,
       tags: rawTags,
@@ -321,6 +322,7 @@ export async function POST(req: NextRequest) {
       title: string;
       content: string;
       images?: string[];
+      slides?: Array<{ type?: string; url?: string; width?: number; height?: number; thumbnail_url?: string }> | null;
       visibility: PostVisibility;
       vendor_tags?: string[];
       tags?: string[];
@@ -398,6 +400,30 @@ export async function POST(req: NextRequest) {
       .slice(0, 10)
       .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
 
+    // 카드 게시물(인스타 캐러셀) 슬라이드 검증.
+    // 최대 10장, 각 슬라이드는 { type: 'image'|'video', url: https:// } 필수.
+    // 잘못된 형식은 자동으로 제거. 결과 배열이 비면 null로 저장 (일반 글로 처리).
+    let slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> | null = null;
+    if (Array.isArray(rawSlides) && rawSlides.length > 0) {
+      const cleaned = rawSlides
+        .slice(0, 10)
+        .filter((s) => s && typeof s.url === "string" && s.url.startsWith("https://"))
+        .map((s) => {
+          const type: "image" | "video" = s.type === "video" ? "video" : "image";
+          const out: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
+            type,
+            url: s.url as string,
+          };
+          if (typeof s.width === "number" && s.width > 0) out.width = Math.min(8192, Math.round(s.width));
+          if (typeof s.height === "number" && s.height > 0) out.height = Math.min(8192, Math.round(s.height));
+          if (typeof s.thumbnail_url === "string" && s.thumbnail_url.startsWith("https://")) {
+            out.thumbnail_url = s.thumbnail_url;
+          }
+          return out;
+        });
+      if (cleaned.length > 0) slides = cleaned;
+    }
+
     if (!category || !visibility) {
       return NextResponse.json(
         { error: "필수 항목을 입력해주세요." },
@@ -443,6 +469,7 @@ export async function POST(req: NextRequest) {
         title,
         content,
         images: images ?? [],
+        slides,
         visibility,
         vendor_tags: vendor_tags ?? [],
         tags: tags ?? [],

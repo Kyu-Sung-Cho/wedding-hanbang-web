@@ -20,6 +20,7 @@ import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityStore } from "@/stores/communityStore";
 import ImageUploader from "@/components/community/ImageUploader";
+import SlideBuilder from "@/components/community/SlideBuilder";
 import TagInput from "@/components/community/TagInput";
 import VendorTagPicker from "@/components/community/VendorTagPicker";
 import AdDisclosureModal from "@/components/community/AdDisclosureModal";
@@ -34,7 +35,10 @@ import type {
   CreatePollInput,
   AdDisclosure,
   PriceData,
+  SlideMedia,
 } from "@/types/community.types";
+
+type PostMode = "regular" | "slides";
 
 // 로컬스토리지 키
 const DRAFT_KEY = "community_post_draft";
@@ -61,6 +65,8 @@ interface DraftData {
   priceData?: PriceData | null;
   poll?: CreatePollInput | null;
   inlineImages?: InlineImageEntry[];
+  postMode?: PostMode;
+  slides?: SlideMedia[];
   savedAt: number;
 }
 
@@ -142,6 +148,10 @@ function PostWriteContent() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
   const [poll, setPoll] = useState<CreatePollInput | null>(null);
   const [showAdModal, setShowAdModal] = useState(false);
+
+  // 카드 게시물(인스타 캐러셀) 모드 — 일반 글이면 "regular", 옆으로 넘기는 슬라이드면 "slides"
+  const [postMode, setPostMode] = useState<PostMode>("regular");
+  const [slides, setSlides] = useState<SlideMedia[]>([]);
 
   // UI 상태
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,6 +238,11 @@ function PostWriteContent() {
         if (post.ad_disclosure) setAdDisclosure(post.ad_disclosure);
         if (post.sponsorship_detail) setSponsorshipDetail(post.sponsorship_detail);
         if (post.price_data) setPriceData(post.price_data);
+        // 카드 게시물(슬라이드)이면 모드를 그대로 복원
+        if (Array.isArray(post.slides) && post.slides.length > 0) {
+          setPostMode("slides");
+          setSlides(post.slides);
+        }
 
         // 초기 상태 저장
         initialFormRef.current = JSON.stringify({
@@ -276,6 +291,8 @@ function PostWriteContent() {
       if (draft.priceData) setPriceData(draft.priceData);
       if (draft.inlineImages?.length) setInlineImages(draft.inlineImages);
       if (draft.poll) setPoll(draft.poll);
+      if (draft.postMode === "slides") setPostMode("slides");
+      if (draft.slides?.length) setSlides(draft.slides);
       setDraftRestored(true);
     } catch {
       // 파싱 실패 시 무시
@@ -346,9 +363,18 @@ function PostWriteContent() {
       images,
       tags,
       vendorTags,
+      postMode,
+      slides,
     });
     // 아무것도 입력하지 않은 빈 상태는 변경으로 취급하지 않음
-    const isEmpty = !category && !title && !content && images.length === 0 && tags.length === 0 && vendorTags.length === 0;
+    const isEmpty =
+      !category &&
+      !title &&
+      !content &&
+      images.length === 0 &&
+      tags.length === 0 &&
+      vendorTags.length === 0 &&
+      slides.length === 0;
     if (isEmpty) {
       setHasUnsavedChanges(false);
     } else if (isEditMode) {
@@ -356,7 +382,7 @@ function PostWriteContent() {
     } else {
       setHasUnsavedChanges(true);
     }
-  }, [category, title, content, visibility, images, tags, vendorTags, isEditMode]);
+  }, [category, title, content, visibility, images, tags, vendorTags, postMode, slides, isEditMode]);
 
   // beforeunload 경고
   useEffect(() => {
@@ -387,10 +413,12 @@ function PostWriteContent() {
         priceData,
         poll,
         inlineImages: inlineImages.length > 0 ? inlineImages : undefined,
+        postMode,
+        slides: slides.length > 0 ? slides : undefined,
         savedAt: Date.now(),
       };
-      // 비어있으면 저장하지 않음
-      if (!title && !content && !category) return;
+      // 비어있으면 저장하지 않음 (카드 모드면 슬라이드 한 장만 있어도 저장)
+      if (!title && !content && !category && slides.length === 0) return;
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
         // 자동 저장 표시
@@ -404,7 +432,7 @@ function PostWriteContent() {
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages]);
+  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -421,8 +449,13 @@ function PostWriteContent() {
   // 선택된 카테고리 정보
   const categoryInfo = category ? CATEGORY_MAP[category] : null;
 
-  // 유효성 검사
-  const isValid = category && title.trim().length > 0 && content.trim().length > 0;
+  // 유효성 검사 — 카드 모드면 본문 대신 슬라이드 1장 이상 필수
+  const isValid =
+    !!category &&
+    title.trim().length > 0 &&
+    (postMode === "slides"
+      ? slides.length > 0
+      : content.trim().length > 0);
 
   // 본문 인라인 이미지 삽입 — 커서 위치에 <img> 태그를 끼움
   const insertAtCursor = useCallback((snippet: string) => {
@@ -542,8 +575,17 @@ function PostWriteContent() {
   // 제출
   const handleSubmit = async (asDraft = false) => {
     if (isSubmitting) return;
-    if (!category || !title.trim() || !content.trim()) {
-      setError("카테고리, 제목, 내용을 모두 입력해 주세요.");
+    if (!category || !title.trim()) {
+      setError("카테고리와 제목을 입력해 주세요.");
+      return;
+    }
+    if (postMode === "slides") {
+      if (slides.length === 0) {
+        setError("카드 게시물에는 이미지나 영상이 최소 1장 이상 필요해요.");
+        return;
+      }
+    } else if (!content.trim()) {
+      setError("내용을 입력해 주세요.");
       return;
     }
 
@@ -577,15 +619,21 @@ function PostWriteContent() {
           }
         : null;
 
-    // 발행 직전 토큰 → <img> HTML 변환 (저장 형식은 항상 HTML)
-    const serializedContent = tokensToHtml(content.trim(), inlineImages);
+    // 발행 직전 토큰 → <img> HTML 변환 (저장 형식은 항상 HTML).
+    // 카드 모드면 본문은 캡션이라 짧고 토큰도 없으니 sanitize만 따로 처리.
+    const serializedContent =
+      postMode === "slides"
+        ? sanitizeHtml(content.trim() || "")
+        : tokensToHtml(content.trim(), inlineImages);
 
     const input: CreatePostInput = {
       category,
       title: title.trim(),
       content: serializedContent,
       visibility: asDraft ? "draft" : visibility,
-      images,
+      // 카드 게시물은 슬라이드만 사용 — 별도 갤러리 이미지는 전송하지 않음
+      images: postMode === "slides" ? [] : images,
+      slides: postMode === "slides" ? slides : null,
       tags,
       vendor_tags: vendorTags,
       ad_disclosure: adDisclosure,
@@ -703,7 +751,33 @@ function PostWriteContent() {
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-6">
+        {/* 모드 토글 — 일반 글 / 인스타 캐러셀(카드 게시물) */}
+        <div className="mb-6 inline-flex bg-white border border-[#e4e2e1] rounded-full p-1 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+          <button
+            type="button"
+            onClick={() => setPostMode("regular")}
+            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+              postMode === "regular"
+                ? "bg-[#795252] text-white shadow-sm"
+                : "text-[#504444] hover:text-[#1b1c1c]"
+            }`}
+          >
+            일반 글
+          </button>
+          <button
+            type="button"
+            onClick={() => setPostMode("slides")}
+            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+              postMode === "slides"
+                ? "bg-[#795252] text-white shadow-sm"
+                : "text-[#504444] hover:text-[#1b1c1c]"
+            }`}
+          >
+            카드 게시물 (옆으로 넘기기)
+          </button>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-5 xl:gap-6">
           {/* 메인 영역: 제목 + 본문 */}
           <div className="flex-1 space-y-8">
             {/* 제목 */}
@@ -724,11 +798,25 @@ function PostWriteContent() {
               </p>
             </section>
 
+            {/* 카드 게시물(인스타 캐러셀) 빌더 — 슬라이드 모드 전용 */}
+            {postMode === "slides" && (
+              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                  슬라이드 <span className="text-[#795252]">*</span>
+                </label>
+                <SlideBuilder slides={slides} onChange={setSlides} max={10} />
+              </section>
+            )}
+
             {/* 작성/미리보기 탭 */}
             <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-base font-medium text-[#1b1c1c]">
-                  내용 <span className="text-[#795252]">*</span>
+                  {postMode === "slides" ? (
+                    <>캡션 <span className="text-[#928980] text-sm font-normal">(선택)</span></>
+                  ) : (
+                    <>내용 <span className="text-[#795252]">*</span></>
+                  )}
                 </label>
                 <div className="flex bg-[#e4e2e1] rounded-lg p-0.5">
                   <button
@@ -773,7 +861,11 @@ function PostWriteContent() {
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
-                      placeholder="내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                      placeholder={
+                        postMode === "slides"
+                          ? "이 카드 게시물의 캡션을 한 줄로 적어보세요. (선택)"
+                          : "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                      }
                       maxLength={CONTENT_MAX_LENGTH}
                       className={`w-full px-4 py-3 text-lg text-[#1b1c1c] bg-[#f6f3f2] border rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#795252] focus:ring-1 focus:ring-[#795252]/30 transition-colors resize-none leading-relaxed min-h-[200px] ${
                         isDraggingImage
@@ -791,35 +883,39 @@ function PostWriteContent() {
                     )}
                   </div>
 
-                  {/* 인라인 도구바 — 이미지/GIF 삽입 */}
+                  {/* 인라인 도구바 — 이미지/GIF 삽입. 카드 모드는 캡션이라 도구바 숨김. */}
                   <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <input
-                        ref={inlineImageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void handleInsertImage(f);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => inlineImageInputRef.current?.click()}
-                        disabled={insertingImage}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#795252] bg-[#fcf9f8] border border-[#e4e2e1] rounded-lg hover:border-[#795252] hover:bg-white transition-colors disabled:opacity-60"
-                        title="본문 안 커서 위치에 이미지/GIF 삽입"
-                      >
-                        {insertingImage ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <ImagePlus className="w-4 h-4" />
-                        )}
-                        본문에 이미지/GIF 삽입
-                      </button>
-                      {insertImageError && (
-                        <span className="text-xs text-red-500">{insertImageError}</span>
+                      {postMode === "regular" && (
+                        <>
+                          <input
+                            ref={inlineImageInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) void handleInsertImage(f);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => inlineImageInputRef.current?.click()}
+                            disabled={insertingImage}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#795252] bg-[#fcf9f8] border border-[#e4e2e1] rounded-lg hover:border-[#795252] hover:bg-white transition-colors disabled:opacity-60"
+                            title="본문 안 커서 위치에 이미지/GIF 삽입"
+                          >
+                            {insertingImage ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <ImagePlus className="w-4 h-4" />
+                            )}
+                            본문에 이미지/GIF 삽입
+                          </button>
+                          {insertImageError && (
+                            <span className="text-xs text-red-500">{insertImageError}</span>
+                          )}
+                        </>
                       )}
                     </div>
                     <p className={`text-sm ${contentCountColor}`}>
@@ -827,8 +923,8 @@ function PostWriteContent() {
                     </p>
                   </div>
 
-                  {/* 본문에 삽입된 이미지 썸네일 — 토큰이 어떤 이미지인지 시각 확인 + 제거 */}
-                  {inlineImages.length > 0 && (
+                  {/* 본문에 삽입된 이미지 썸네일 — 토큰이 어떤 이미지인지 시각 확인 + 제거. 카드 모드에서는 숨김. */}
+                  {postMode === "regular" && inlineImages.length > 0 && (
                     <div className="mt-3 p-3 bg-[#fcf9f8] border border-[#f0eeec] rounded-lg">
                       <p className="text-xs font-medium text-[#928980] uppercase tracking-widest mb-2">
                         본문 안 이미지 {inlineImages.length}장
@@ -886,16 +982,18 @@ function PostWriteContent() {
               )}
             </section>
 
-            {/* 이미지/영상 업로드 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#1b1c1c] mb-3">
-                이미지/영상
-              </label>
-              <ImageUploader images={images} onChange={setImages} max={5} />
-            </section>
+            {/* 이미지/영상 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
+            {postMode === "regular" && (
+              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-base font-medium text-[#1b1c1c] mb-3">
+                  이미지/영상
+                </label>
+                <ImageUploader images={images} onChange={setImages} max={5} />
+              </section>
+            )}
 
-            {/* 투표 (폴) — 수정 모드에서는 비활성화 */}
-            {!isEditMode && (
+            {/* 투표 (폴) — 수정 모드에서는 비활성화. 카드 게시물도 폴 없이 깔끔하게 유지. */}
+            {!isEditMode && postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <PollEditor value={poll} onChange={setPoll} />
               </section>
@@ -903,7 +1001,7 @@ function PostWriteContent() {
           </div>
 
           {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
-          <div className="lg:w-72 shrink-0 space-y-6">
+          <div className="lg:w-[260px] xl:w-[280px] shrink-0 space-y-5 xl:space-y-6">
             {/* 카테고리 선택 */}
             <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-base font-medium text-[#1b1c1c] mb-3">

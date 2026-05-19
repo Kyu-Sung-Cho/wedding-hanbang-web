@@ -3,7 +3,9 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import type { UpdatePostInput, PollWithOptions } from "@/types/community.types";
+import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
+
+const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -195,12 +197,15 @@ export async function PATCH(
       );
     }
 
-    // 작성자 확인
-    const { data: existingPost } = await supabase
+    const userIsAdmin = await isAdmin(user.id);
+    const readClient = userIsAdmin ? getServiceClient() : supabase;
+
+    // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
+    const { data: existingPost } = await readClient
       .from("community_posts")
       .select("author_id")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (!existingPost) {
       return NextResponse.json(
@@ -209,7 +214,7 @@ export async function PATCH(
       );
     }
 
-    if (existingPost.author_id !== user.id && !(await isAdmin(user.id))) {
+    if (existingPost.author_id !== user.id && !userIsAdmin) {
       return NextResponse.json(
         { error: "수정 권한이 없습니다." },
         { status: 403 }
@@ -244,7 +249,32 @@ export async function PATCH(
         .slice(0, 10)
         .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
     }
-    if (body.visibility !== undefined) updateData.visibility = body.visibility;
+    // 카드 게시물 슬라이드 — null 명시 시 일반 글로 되돌림, 배열이면 카드 게시물로 갱신.
+    if (body.slides !== undefined) {
+      if (body.slides === null || (Array.isArray(body.slides) && body.slides.length === 0)) {
+        updateData.slides = null;
+      } else if (Array.isArray(body.slides)) {
+        updateData.slides = body.slides
+          .slice(0, 10)
+          .filter((s: { url?: string }) => s && typeof s.url === "string" && s.url.startsWith("https://"))
+          .map((s: { type?: string; url?: string; width?: number; height?: number; thumbnail_url?: string }) => ({
+            type: s.type === "video" ? "video" : "image",
+            url: s.url as string,
+            ...(typeof s.width === "number" && s.width > 0 ? { width: Math.min(8192, Math.round(s.width)) } : {}),
+            ...(typeof s.height === "number" && s.height > 0 ? { height: Math.min(8192, Math.round(s.height)) } : {}),
+            ...(typeof s.thumbnail_url === "string" && s.thumbnail_url.startsWith("https://") ? { thumbnail_url: s.thumbnail_url } : {}),
+          }));
+      }
+    }
+    if (body.visibility !== undefined) {
+      if (!VALID_POST_VISIBILITIES.includes(body.visibility)) {
+        return NextResponse.json(
+          { error: "잘못된 공개 범위입니다." },
+          { status: 400 }
+        );
+      }
+      updateData.visibility = body.visibility;
+    }
     if (body.vendor_tags !== undefined) updateData.vendor_tags = (body.vendor_tags ?? []).slice(0, 5);
     if (body.tags !== undefined) {
       updateData.tags = (body.tags ?? [])
@@ -255,7 +285,8 @@ export async function PATCH(
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
     updateData.updated_at = new Date().toISOString();
 
-    const { data: updatedPost, error } = await supabase
+    const writeClient = userIsAdmin ? getServiceClient() : supabase;
+    const { data: updatedPost, error } = await writeClient
       .from("community_posts")
       .update(updateData)
       .eq("id", id)
@@ -308,12 +339,15 @@ export async function DELETE(
       );
     }
 
-    // 작성자 확인
-    const { data: existingPost } = await supabase
+    const userIsAdmin = await isAdmin(user.id);
+    const readClient = userIsAdmin ? serviceClient : supabase;
+
+    // 작성자 확인. 관리자는 숨김/신고 글까지 처리할 수 있어야 한다.
+    const { data: existingPost } = await readClient
       .from("community_posts")
       .select("author_id")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (!existingPost) {
       return NextResponse.json(
@@ -322,7 +356,7 @@ export async function DELETE(
       );
     }
 
-    if (existingPost.author_id !== user.id && !(await isAdmin(user.id))) {
+    if (existingPost.author_id !== user.id && !userIsAdmin) {
       return NextResponse.json(
         { error: "삭제 권한이 없습니다." },
         { status: 403 }

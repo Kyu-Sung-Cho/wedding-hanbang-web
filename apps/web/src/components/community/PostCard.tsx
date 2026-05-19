@@ -11,6 +11,8 @@ import {
   BarChart3,
   Heart,
   Check,
+  Layers,
+  Play,
 } from "lucide-react";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
@@ -75,9 +77,17 @@ export default function PostCard({ post }: PostCardProps) {
   const author = post.author ?? { nickname: "익명" };
 
   // 이미지 처리
-  // 첨부 이미지 우선, 없으면 본문 인라인 이미지 fallback
+  // 카드 게시물(슬라이드) > 첨부 이미지 > 본문 인라인 이미지 fallback
+  const slides = post.slides ?? [];
+  const hasSlides = slides.length > 0;
+  const firstSlide = hasSlides ? slides[0] : null;
+  const isVideoSlide = firstSlide?.type === "video";
+  const slideThumb = firstSlide
+    ? firstSlide.thumbnail_url || (isVideoSlide ? null : firstSlide.url)
+    : null;
+
   const images = post.images ?? [];
-  const thumbUrl = images[0] ?? firstInlineImage;
+  const thumbUrl = slideThumb ?? images[0] ?? firstInlineImage;
   const hasImage = !!thumbUrl;
 
   // 카테고리 배지 스타일
@@ -163,7 +173,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] lg:p-5">
+    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] sm:p-5">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt) && (
         <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
@@ -197,7 +207,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-lg sm:text-[19px] lg:text-xl font-serif-kr text-[#1b1c1c] mb-2.5 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#1b1c1c] mb-2.5 hover:text-[#795252] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#795252] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
@@ -274,7 +284,7 @@ export default function PostCard({ post }: PostCardProps) {
               </span>
             </div>
 
-            <div className="flex items-center gap-3 text-[#504444] flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-[#504444] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"
@@ -337,19 +347,45 @@ export default function PostCard({ post }: PostCardProps) {
           </div>
         </div>
 
-        {/* 이미지 (있으면 오른쪽) — 첨부 이미지 우선, 없으면 본문 인라인 첫 이미지 */}
-        {hasImage && thumbUrl && (
+        {/* 썸네일 (오른쪽) — 카드 게시물 > 첨부 이미지 > 본문 인라인 fallback */}
+        {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
           <Link
             href={`/community/post/${post.id}`}
-            className="w-full h-40 sm:w-36 sm:h-36 lg:w-40 lg:h-40 2xl:w-44 2xl:h-44 rounded-lg overflow-hidden shrink-0"
+            className="relative w-full h-40 sm:w-28 sm:h-28 xl:w-32 xl:h-32 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F]"
           >
-            <Image
-              src={thumbUrl}
-              alt=""
-              width={256}
-              height={256}
-              className="w-full h-full object-cover"
-            />
+            {thumbUrl ? (
+              <Image
+                src={thumbUrl}
+                alt=""
+                width={256}
+                height={256}
+                className="w-full h-full object-cover"
+              />
+            ) : firstSlide ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video
+                src={firstSlide.url}
+                preload="metadata"
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : null}
+
+            {/* 카드 게시물 인디케이터 — 슬라이드 N장 / 영상 표시 */}
+            {hasSlides && (
+              <>
+                <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-black/65 text-white text-[10px] font-medium backdrop-blur-sm">
+                  <Layers className="w-3 h-3" />
+                  {slides.length}
+                </span>
+                {isVideoSlide && (
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <Play className="w-7 h-7 text-white/95 fill-white/95 drop-shadow" />
+                  </span>
+                )}
+              </>
+            )}
           </Link>
         )}
       </div>
