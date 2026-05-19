@@ -35,10 +35,10 @@ function SlideWelcome() {
       </div>
 
       {/* 타이틀 — 모바일 사이즈 다운 */}
-      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
         결혼 준비,{"\n"}이제 혼자 고민하지 마세요
       </h2>
-      <p className="text-sm sm:text-[17px] text-[#504444] text-center mb-5 sm:mb-8">
+      <p className="text-sm sm:text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
         웨딩한방이 처음부터 끝까지 함께합니다
       </p>
 
@@ -77,7 +77,7 @@ function SlideDashboard() {
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         대시보드
       </h2>
-      <p className="text-base text-[#504444] text-center mb-6">
+      <p className="text-sm sm:text-base text-[#504444] text-center mb-6">
         한눈에 보는 결혼 준비 현황
       </p>
 
@@ -165,7 +165,7 @@ function SlideChat() {
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         아모라 — 모든 걸 연결하는 중심
       </h2>
-      <p className="text-base text-[#504444] text-center mb-5">
+      <p className="text-sm sm:text-base text-[#504444] text-center mb-5">
         채팅 한 줄로 견적 체크리스트부터 커플 합의까지
       </p>
 
@@ -244,7 +244,7 @@ function SlideBudget() {
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         예산 관리
       </h2>
-      <p className="text-base text-[#504444] text-center mb-6">
+      <p className="text-sm sm:text-base text-[#504444] text-center mb-6">
         숨은 비용까지 관리
       </p>
 
@@ -349,7 +349,7 @@ function SlideCouple() {
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
         파트너와 함께
       </h2>
-      <p className="text-base text-[#504444] text-center mb-6">
+      <p className="text-sm sm:text-base text-[#504444] text-center mb-6">
         모든 변경사항이 실시간으로 동기화
       </p>
 
@@ -439,10 +439,10 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         />
       </div>
 
-      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
         준비되셨나요?
       </h2>
-      <p className="text-sm sm:text-[17px] text-[#504444] text-center mb-5 sm:mb-8">
+      <p className="text-sm sm:text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
         무료로 모든 기능을 이용할 수 있어요
       </p>
 

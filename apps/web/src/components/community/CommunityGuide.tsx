@@ -57,10 +57,10 @@ function SlideEmpathy() {
         ))}
       </div>
 
-      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] mb-2 sm:mb-3 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] mb-2 sm:mb-3 leading-snug">
         혼자 고민하지 마세요
       </h2>
-      <p className="text-[17px] text-[#504444] font-light leading-relaxed max-w-[340px]">
+      <p className="text-sm sm:text-base text-[#504444] font-light leading-relaxed max-w-[340px]">
         같은 고민을 했던 선배 신부·신랑들이
         <br />
         솔직한 경험을 나누는 공간이에요
