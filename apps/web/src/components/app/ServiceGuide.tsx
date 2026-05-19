@@ -38,7 +38,7 @@ function SlideWelcome() {
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
         결혼 준비,{"\n"}이제 혼자 고민하지 마세요
       </h2>
-      <p className="text-sm sm:text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
+      <p className="text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
         웨딩한방이 처음부터 끝까지 함께합니다
       </p>
 
@@ -624,9 +624,9 @@ export default function ServiceGuide() {
           </div>
         </div>
 
-        {/* 슬라이드 콘텐츠 — 모바일에서 height 조여서 화면 가득 채우는 느낌 회피 */}
+        {/* 슬라이드 콘텐츠 — 모바일에선 짧은 슬라이드가 viewport 가득 채우지 않도록 min-h 제거 */}
         <div
-          className={`min-h-[360px] sm:min-h-[480px] transition-all duration-200 ease-out ${
+          className={`sm:min-h-[480px] transition-all duration-200 ease-out ${
             slidePhase === "fading-out"
               ? "opacity-0 scale-[0.96]"
               : slidePhase === "fading-in"
@@ -670,16 +670,15 @@ export default function ServiceGuide() {
             </div>
           )}
 
-          {/* 도트 인디케이터 */}
-          <div className="flex items-center justify-center gap-2 mt-4">
+          {/* 도트 인디케이터 — 모든 점 동일 사이즈, active 만 색 진하게.
+              no-min-tap 으로 글로벌 button min-height:40px 제외 (안 그러면 큰 막대로 확대됨). */}
+          <div className="flex items-center justify-center gap-1.5 mt-4">
             {Array.from({ length: TOTAL_SLIDES }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
-                className={`rounded-full transition-all duration-300 ${
-                  i === current
-                    ? "w-6 h-2 bg-[#795252]"
-                    : "w-2 h-2 bg-[#B5ADA3]/40 hover:bg-[#B5ADA3]/70"
+                className={`no-min-tap w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                  i === current ? "bg-[#795252]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
                 }`}
                 aria-label={`슬라이드 ${i + 1}`}
               />

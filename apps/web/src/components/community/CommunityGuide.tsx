@@ -591,9 +591,9 @@ export default function CommunityGuide() {
           </button>
         </div>
 
-        {/* 슬라이드 — 모바일은 min-height 줄여 화면 가득 채움 회피 */}
+        {/* 슬라이드 — 모바일에선 min-h 제거해 짧은 슬라이드가 화면 가득 채우지 않음 */}
         <div
-          className="relative overflow-hidden min-h-[360px] sm:min-h-[500px]"
+          className="relative overflow-hidden sm:min-h-[500px]"
         >
           <div
             className="py-4 flex flex-col items-center transition-all duration-300 ease-out"
@@ -630,15 +630,15 @@ export default function CommunityGuide() {
             </div>
           )}
 
-          <div className="flex items-center justify-center gap-2 mt-5">
+          {/* 도트 인디케이터 — 모든 점 동일 사이즈, active 만 색 진하게.
+              no-min-tap 으로 글로벌 button min-height:40px 제외. */}
+          <div className="flex items-center justify-center gap-1.5 mt-5">
             {Array.from({ length: TOTAL_SLIDES }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i, i > current ? "next" : "prev")}
-                className={`rounded-full transition-all duration-300 ${
-                  i === current
-                    ? "w-6 h-2 bg-[#795252]"
-                    : "w-2 h-2 bg-[#B5ADA3]/40 hover:bg-[#B5ADA3]/70"
+                className={`no-min-tap w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                  i === current ? "bg-[#795252]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
                 }`}
                 aria-label={`슬라이드 ${i + 1}`}
               />
