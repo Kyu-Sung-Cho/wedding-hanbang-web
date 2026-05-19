@@ -599,17 +599,18 @@ export default function ServiceGuide() {
             : "opacity-0 scale-95 translate-y-4"
         }`}
       >
-        {/* 상단 헤더: 페이지 번호 + 건너뛰기 */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-2">
-          <span className="text-sm text-[#B5ADA3] font-medium">
+        {/* 상단 헤더: 페이지 번호 + 건너뛰기 — 모바일에서 컴팩트하게.
+            no-min-tap 으로 글로벌 button min-height:40px 회피 (텍스트 버튼이라 부피 큼). */}
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-3 sm:pt-5 pb-1 sm:pb-2">
+          <span className="text-xs sm:text-sm text-[#B5ADA3] font-medium tabular-nums">
             {current + 1}/{TOTAL_SLIDES}
           </span>
           <button
             onClick={close}
-            className="flex items-center gap-1 text-sm text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
+            className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
           >
             건너뛰기
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
 
