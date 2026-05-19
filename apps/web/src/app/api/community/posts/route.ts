@@ -379,7 +379,9 @@ export async function POST(req: NextRequest) {
     }
 
     const content = sanitizeHtml(rawContent ?? "").slice(0, 50000);
-    if (!content || content.trim().length === 0) {
+    // 카드 게시물(슬라이드)이면 캡션이 비어도 허용 — 슬라이드 자체가 본문 역할.
+    const hasSlides = Array.isArray(rawSlides) && rawSlides.length > 0;
+    if (!hasSlides && (!content || content.trim().length === 0)) {
       return NextResponse.json(
         { error: "내용을 입력해주세요." },
         { status: 400 }

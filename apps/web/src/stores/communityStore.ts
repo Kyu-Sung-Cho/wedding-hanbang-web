@@ -251,7 +251,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         body: JSON.stringify(input),
       });
       if (!res.ok) {
-        set({ errorMessage: "게시글 작성에 실패했습니다." });
+        // 서버가 구체적인 에러를 주면 그대로 노출 (예: "내용을 입력해주세요.", 컬럼 없음 등)
+        let serverMsg: string | null = null;
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (typeof data?.error === "string" && data.error.length > 0) {
+            serverMsg = data.error;
+          }
+        } catch {
+          /* JSON 파싱 실패는 무시 — 기본 메시지로 fallback */
+        }
+        set({ errorMessage: serverMsg ?? "게시글 작성에 실패했습니다." });
         return null;
       }
       const data = (await res.json()) as {

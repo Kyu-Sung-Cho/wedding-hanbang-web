@@ -645,14 +645,20 @@ function PostWriteContent() {
     try {
       if (isEditMode && editId) {
         const success = await updatePost(editId, input);
-        if (!success) throw new Error("수정에 실패했습니다.");
+        if (!success) {
+          const storeErr = useCommunityStore.getState().errorMessage;
+          throw new Error(storeErr || "수정에 실패했습니다.");
+        }
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
         setHasUnsavedChanges(false);
         router.push(`/community/post/${editId}`);
       } else {
         const postId = await createPost(input);
-        if (!postId) throw new Error("작성에 실패했습니다.");
+        if (!postId) {
+          const storeErr = useCommunityStore.getState().errorMessage;
+          throw new Error(storeErr || "작성에 실패했습니다.");
+        }
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
         setHasUnsavedChanges(false);

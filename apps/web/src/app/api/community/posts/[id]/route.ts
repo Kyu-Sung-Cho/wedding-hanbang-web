@@ -236,7 +236,12 @@ export async function PATCH(
     }
     if (body.content !== undefined) {
       const content = sanitizeHtml(body.content).slice(0, 50000);
-      if (content.trim().length === 0) {
+      // 카드 게시물(슬라이드)이면 캡션 비어도 허용. 그 외엔 본문 필수.
+      const willHaveSlides =
+        body.slides === undefined
+          ? false // 슬라이드 변경 없으면 일반 글 규칙 적용
+          : Array.isArray(body.slides) && body.slides.length > 0;
+      if (!willHaveSlides && content.trim().length === 0) {
         return NextResponse.json(
           { error: "내용을 입력해주세요." },
           { status: 400 }
