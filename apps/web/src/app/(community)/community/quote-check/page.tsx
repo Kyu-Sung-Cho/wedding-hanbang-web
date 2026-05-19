@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Copy,
+  Instagram,
   Loader2,
   MessageCircle,
   PenLine,
@@ -32,10 +33,11 @@ const PRICE_TIER_LABELS: Record<AmoraPriceTier, string> = {
 };
 
 const PRICE_TIER_DESCRIPTIONS: Record<AmoraPriceTier, string> = {
-  suspicious_low: "시장 평균보다 현저히 낮음 — 미끼 가격 의심",
-  standard: "한국소비자원 중위가 기준 일반 가격대",
-  premium: "중위가의 1.3~2배 — 프리미엄급",
-  highend: "중위가의 2배+ — 가격 비교 의미 적음. 함정 분석 중심으로 봐주세요.",
+  suspicious_low: "시장 평균보다 현저히 낮은 견적이에요 — 미끼 가격일 수 있어요",
+  standard: "한국소비자원 중위가 기준의 일반 가격대예요",
+  premium: "한국 평균의 1.3~2배 가격대예요 — 프리미엄 급",
+  highend:
+    "한국 평균의 2배 이상이라 평균값과의 비교는 의미가 적어요. 가격 비교 대신 빠진 항목과 추가금 가능성에 집중해서 봐주세요.",
 };
 
 const PRICE_TIER_PILL_STYLES: Record<AmoraPriceTier, string> = {
@@ -426,8 +428,71 @@ function ResultPanel({
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareSharing, setShareSharing] = useState(false);
+  const [instaCopied, setInstaCopied] = useState(false);
   const [showTierMenu, setShowTierMenu] = useState(false);
   const isOverridden = result.priceTier !== result.priceTierAutoInferred;
+
+  // missingItems 중 추가금 발생 가능성이 높은 것 우선 — 공유/포스트 노출용
+  const topMissing = useMemo(() => {
+    const order = { critical: 0, high: 1, medium: 2 } as const;
+    return [...result.missingItems]
+      .sort((a, b) => order[a.severity] - order[b.severity])
+      .slice(0, 8);
+  }, [result.missingItems]);
+
+  // 아모라 채팅에 그대로 던질 수 있는 컨텍스트 메시지
+  const chatPrompt = useMemo(() => {
+    const lines = [
+      `방금 견적 체크를 돌렸어. ${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적이야.`,
+      `결과 요약: ${result.summaryTitle}`,
+      result.summaryText,
+    ];
+    if (topMissing.length > 0) {
+      lines.push("");
+      lines.push("빠진 항목:");
+      topMissing.forEach((item) => {
+        lines.push(
+          `- ${item.name} (평균 ${formatManwon(item.priceManwon)}, ${item.severity === "critical" ? "필수" : item.severity === "high" ? "추가금" : "선택"})`
+        );
+      });
+    }
+    lines.push("");
+    lines.push("이 중에 계약 전에 꼭 확인해야 할 항목이랑, 업체에 어떻게 물어보면 좋을지 알려줘.");
+    return lines.join("\n");
+  }, [result, topMissing]);
+
+  // "익명 사례로 공유하기" 게시글 prefill
+  const postTitle = useMemo(
+    () =>
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적, 이거 빠진 거 정상인가요?`,
+    [result]
+  );
+  const postContent = useMemo(() => {
+    const lines = [
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적 받았는데 체크리스트 돌려보니까 빠진 항목이 있어서 공유 + 의견 받고 싶어요.`,
+      "",
+      `📌 ${result.summaryTitle}`,
+      result.summaryText,
+      "",
+    ];
+    if (topMissing.length > 0) {
+      lines.push("⚠️ 견적서에서 확인 안 된 항목");
+      topMissing.forEach((item) => {
+        const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
+        lines.push(`- ${tag} ${item.name} — 평균 ${formatManwon(item.priceManwon)}`);
+      });
+      lines.push("");
+    }
+    lines.push(
+      `예상 추가 청구: ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`
+    );
+    lines.push("");
+    lines.push("이거 보통 이렇게 빠지나요? 추가 질문 받습니다 🙏");
+    return lines.join("\n");
+  }, [result, topMissing]);
+
+  const chatHref = `/chat?prefill=${encodeURIComponent(chatPrompt)}`;
+  const postWriteHref = `/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`;
 
   const copyQuestions = async () => {
     const text = [
@@ -445,13 +510,24 @@ function ResultPanel({
     }
   };
 
+  // 공유 텍스트 — 빠진 세부 항목까지 포함 (이슈 6)
+  const buildShareText = (compact = false) => {
+    const head = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — ${result.summaryTitle}`;
+    const meta = `빠진 항목 ${result.missingCriticalCount + result.missingHighCount + result.missingMediumCount}개 · 추가금 추정 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
+    if (compact || topMissing.length === 0) return `${head}\n${meta}`;
+
+    const detailLines = topMissing.slice(0, 5).map((item) => {
+      const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
+      return `${tag} ${item.name} (평균 ${formatManwon(item.priceManwon)})`;
+    });
+    return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
+  };
+
   const shareResult = async () => {
     if (!savedId) return;
     const url = `${window.location.origin}/quote/${savedId}`;
-    const missing =
-      result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
     const title = `${result.summaryTitle}`;
-    const text = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — 빠진 항목 ${missing}개, 추가금 추정 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
+    const text = buildShareText(false);
 
     if (typeof navigator.share === "function") {
       try {
@@ -472,6 +548,22 @@ function ResultPanel({
     } catch {
       window.prompt("이 링크를 복사해 공유하세요", `${text}\n${url}`);
     }
+  };
+
+  // 인스타그램은 웹에서 텍스트 직접 공유가 안 되므로 — 텍스트를 클립보드로 복사하고
+  // 인스타그램을 새 탭으로 열어줌. 사용자가 스토리/DM/게시물에 붙여넣어 공유.
+  const shareToInstagram = async () => {
+    if (!savedId) return;
+    const url = `${window.location.origin}/quote/${savedId}`;
+    const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setInstaCopied(true);
+      setTimeout(() => setInstaCopied(false), 2500);
+    } catch {
+      window.prompt("아래 텍스트를 복사해 인스타그램에 붙여넣으세요", text);
+    }
+    window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -618,14 +710,14 @@ function ResultPanel({
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
-          href="/chat"
+          href={chatHref}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#946a6a]"
         >
           <MessageCircle className="h-4 w-4" />
           아모라에게 이어서 묻기
         </Link>
         <Link
-          href="/community/post/write?category=is_normal"
+          href={postWriteHref}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-semibold text-[#795252] transition-colors hover:bg-[#fffdfb]"
         >
           <PenLine className="h-4 w-4" />
@@ -635,30 +727,49 @@ function ResultPanel({
 
       {savedId && (
         <div className="mt-3 rounded-lg border border-[#e4e2e1] bg-white p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3">
             <p className="text-xs leading-5 text-[#625b4d]">
               <strong className="text-[#1b1c1c]">고민되면 친구·파트너에게 보내세요.</strong>
-              <br className="sm:hidden" />
-              공유 페이지에는 견적가·빠진 항목 요약만 표시되고 메모·업체명은 빠집니다.
+              <br />
+              공유 텍스트에는 견적가, 요약, 빠진 항목 세부 리스트가 포함돼요. 메모·업체명은 제외됩니다.
             </p>
-            <button
-              type="button"
-              onClick={shareResult}
-              disabled={shareSharing}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#795252] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb] disabled:opacity-60"
-            >
-              {shareCopied ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  링크 복사됨
-                </>
-              ) : (
-                <>
-                  <Share2 className="h-3.5 w-3.5" />
-                  결과 공유하기
-                </>
-              )}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <button
+                type="button"
+                onClick={shareResult}
+                disabled={shareSharing}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#795252] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb] disabled:opacity-60"
+              >
+                {shareCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    링크·세부항목 복사됨
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="h-3.5 w-3.5" />
+                    카톡·메시지로 공유
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={shareToInstagram}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#d4c2c2] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+              >
+                {instaCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    복사 완료 · 인스타에 붙여넣기
+                  </>
+                ) : (
+                  <>
+                    <Instagram className="h-3.5 w-3.5" />
+                    인스타 공유 (텍스트 복사)
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

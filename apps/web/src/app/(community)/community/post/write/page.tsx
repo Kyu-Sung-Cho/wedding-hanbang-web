@@ -122,12 +122,17 @@ function PostWriteContent() {
   const prefillKind = searchParams.get("prefill");
   const prefillSlug = searchParams.get("slug");
   const prefillMsg = searchParams.get("msg");
+  // 견적 체크 → "익명 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
+  const prefillTitle = searchParams.get("title");
+  const prefillBody = searchParams.get("body");
   const requestedCategory = searchParams.get("category");
   const initialCategory = COMMUNITY_CATEGORIES.some((c) => c.key === requestedCategory)
     ? (requestedCategory as CommunityCategory)
     : null;
   const isPrefillGuestbook =
     prefillKind === "guestbook" && !!prefillSlug && !!prefillMsg && !isEditMode;
+  const isPrefillQuoteCheck =
+    prefillKind === "quote_check" && (!!prefillTitle || !!prefillBody) && !isEditMode;
 
   const { createPost, updatePost } = useCommunityStore();
 
@@ -298,6 +303,18 @@ function PostWriteContent() {
       // 파싱 실패 시 무시
     }
   }, [isEditMode, authChecked]);
+
+  // 견적 체크 → "익명 사례로 공유하기" prefill (이슈 #3)
+  // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
+  const quotePrefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!isPrefillQuoteCheck || !authChecked || quotePrefillAppliedRef.current) return;
+    quotePrefillAppliedRef.current = true;
+    if (prefillTitle) setTitle(prefillTitle.slice(0, TITLE_MAX_LENGTH));
+    if (prefillBody) setContent(prefillBody.slice(0, CONTENT_MAX_LENGTH));
+    // category는 URL ?category= 가 이미 initialCategory 로 잡혀 있음
+    setDraftRestored(false);
+  }, [isPrefillQuoteCheck, authChecked, prefillTitle, prefillBody]);
 
   // 방명록 메시지 → 커뮤니티 후기 prefill (오너가 자기 방명록에서 트리거)
   useEffect(() => {

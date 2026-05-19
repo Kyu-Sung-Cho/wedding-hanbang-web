@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search } from "lucide-react";
 import type { ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -100,6 +101,26 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       textareaRef.current.style.height = "auto";
     }
   }, [input]);
+
+  // URL ?prefill=... 로 진입했을 때 (예: 견적 체크 → "아모라에게 이어서 묻기")
+  // input에 미리 채워주고 query string은 한 번 비움 (새로고침 시 재기입 방지).
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = searchParams?.get("prefill");
+    if (!prefill) return;
+    prefillAppliedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInput(prefill);
+    // URL 정리 — prefill만 제거
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("prefill");
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [searchParams, router]);
   const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 

@@ -172,6 +172,8 @@ function getSummaryCopy(result: {
   verdict: AmoraQuoteVerdict;
   grade: string;
   missingCriticalCount: number;
+  missingHighCount: number;
+  missingMediumCount: number;
   estimatedHiddenMinManwon: number;
   estimatedHiddenMaxManwon: number;
   priceDiffPercent: number;
@@ -179,25 +181,47 @@ function getSummaryCopy(result: {
 }) {
   const minHidden = Math.round(result.estimatedHiddenMinManwon);
   const maxHidden = Math.round(result.estimatedHiddenMaxManwon);
+  const critical = result.missingCriticalCount;
+  const nonCritical = result.missingHighCount + result.missingMediumCount;
+  const totalMissing = critical + nonCritical;
+
+  // 빠진 항목 표기 — 필수와 비필수를 분리해서 "0개인데 추가금 발생?" 모순을 제거.
+  // 예) 필수 2개, 비필수 3개 → "필수 2개, 비필수 3개 (총 5개)"
+  // 예) 필수 0개, 비필수 5개 → "비필수 5개"
+  function missingPhrase() {
+    if (critical > 0 && nonCritical > 0) return `필수 ${critical}개와 추가금 항목 ${nonCritical}개`;
+    if (critical > 0) return `필수 ${critical}개`;
+    if (nonCritical > 0) return `추가금/선택 항목 ${nonCritical}개`;
+    return "";
+  }
   // 핵심 원칙: 견적의 좋고 나쁨을 평가하지 않음. 사실만 기술.
-  //  - 빠진 항목 개수
+  //  - 빠진 항목 개수 (필수 / 비필수 분리)
   //  - 한국 평균 대비 위치 (참고)
   //  - 계약 전 확인 권유
-  // "투명도 등급", "안전/위험" 같은 판단 단어는 사용하지 않음.
 
   // 하이엔드: 가격 비교 메시지 완전 제거.
   if (result.priceTier === "highend") {
     if (result.verdict === "danger") {
+      const phrase = missingPhrase();
       return {
-        title: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았어요`,
-        text: `프리미엄·하이엔드 견적이라도 항목 누락은 동일하게 발생해요. 빠진 ${result.missingCriticalCount}개 항목 기준으로 약 ${minHidden}~${maxHidden}만원의 추가 청구 가능성이 있어요.`,
+        title:
+          critical > 0
+            ? `필수 항목 ${critical}개가 견적서에서 확인되지 않았어요`
+            : `추가금이 붙기 쉬운 항목 ${nonCritical}개가 견적서에서 확인되지 않았어요`,
+        text:
+          critical > 0
+            ? `프리미엄·하이엔드 견적이라도 항목 누락은 동일하게 발생해요. 빠진 ${phrase} 기준으로 약 ${minHidden}~${maxHidden}만원이 추가 청구될 수 있어요.`
+            : `필수 항목은 모두 확인됐어요. 다만 빠진 ${phrase}에서 약 ${minHidden}~${maxHidden}만원이 추가 청구될 수 있어요 — 가격대와 무관하게 자주 누락되는 항목들이에요.`,
         action: "가격이 적정하다·과하다는 판단이 아닙니다. 빠진 항목별로 업체 답변을 받아 계약 여부는 본인이 결정하세요.",
       };
     }
     if (result.verdict === "caution") {
       return {
-        title: `확인이 더 필요한 항목 ${result.missingCriticalCount}개가 있어요`,
-        text: `가격대와 무관하게 빠지기 쉬운 항목들이 견적에서 확인되지 않았어요.`,
+        title:
+          critical > 0
+            ? `확인이 더 필요한 필수 항목 ${critical}개가 있어요`
+            : `확인이 더 필요한 항목이 있어요`,
+        text: `가격대와 무관하게 빠지기 쉬운 항목들이 견적에서 확인되지 않았어요. (필수 ${critical}개 · 추가금/선택 ${nonCritical}개)`,
         action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
       };
     }
@@ -211,24 +235,35 @@ function getSummaryCopy(result: {
   // 이상하게 낮은 가격: bait pricing 시그널만 알려줌 (판단 아님)
   if (result.priceTier === "suspicious_low") {
     if (result.verdict === "danger") {
+      const phrase = missingPhrase();
       return {
-        title: `한국 평균보다 현저히 낮은 견적 + 필수 항목 ${result.missingCriticalCount}개 누락`,
-        text: `평균보다 낮은 견적인데 필수 항목 ${result.missingCriticalCount}개가 빠져 있어요. 빠진 항목 기준 약 ${minHidden}~${maxHidden}만원이 추가 청구될 패턴이 흔해요.`,
+        title:
+          critical > 0
+            ? `한국 평균보다 현저히 낮은 견적 + 필수 항목 ${critical}개 누락`
+            : `한국 평균보다 현저히 낮은 견적 + 추가금 항목 ${nonCritical}개 누락`,
+        text: `평균보다 낮은 견적인데 ${phrase}이 빠져 있어요. 빠진 항목 기준 약 ${minHidden}~${maxHidden}만원이 추가 청구될 패턴이 흔해요.`,
         action: "낮은 견적일수록 빠진 항목과 추가금 상한을 계약서로 받아두세요. 구두 약속은 변경되기 쉬워요.",
       };
     }
     return {
       title: `한국 평균 대비 낮은 견적이에요`,
-      text: `가격이 평균 대비 낮아요. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 누락 항목을 꼼꼼히 보세요.`,
+      text: `가격이 평균 대비 낮아요. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 누락 항목을 꼼꼼히 보세요. (빠진 항목 ${totalMissing}개)`,
       action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
     };
   }
 
   // 일반 가격대
   if (result.verdict === "danger") {
+    const phrase = missingPhrase();
     return {
-      title: `필수 항목 ${result.missingCriticalCount}개가 견적서에서 확인되지 않았어요`,
-      text: `빠진 ${result.missingCriticalCount}개 항목 기준으로 약 ${minHidden}~${maxHidden}만원의 추가 청구 가능성이 열려 있어요.`,
+      title:
+        critical > 0
+          ? `필수 항목 ${critical}개가 견적서에서 확인되지 않았어요`
+          : `추가금이 붙기 쉬운 항목 ${nonCritical}개가 견적서에서 확인되지 않았어요`,
+      text:
+        critical > 0
+          ? `빠진 ${phrase} 기준으로 약 ${minHidden}~${maxHidden}만원의 추가 청구 가능성이 열려 있어요.`
+          : `필수 항목은 모두 확인됐어요. 빠진 ${phrase}에서 약 ${minHidden}~${maxHidden}만원이 추가 청구될 수 있어요.`,
       action: "계약금 입금 전 포함/미포함 항목과 추가금 상한을 문자나 계약서로 받아두세요.",
     };
   }
@@ -236,7 +271,7 @@ function getSummaryCopy(result: {
   if (result.verdict === "caution") {
     return {
       title: `확인이 더 필요한 항목이 있어요`,
-      text: `가격 자체보다 빠진 항목이 영향을 줄 수 있어요. 특히 필수/고빈도 추가금 항목을 먼저 확인해 보세요.`,
+      text: `가격 자체보다 빠진 항목이 영향을 줄 수 있어요. (필수 ${critical}개 · 추가금/선택 ${nonCritical}개) 특히 필수/고빈도 추가금 항목을 먼저 확인해 보세요.`,
       action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
     };
   }
@@ -308,6 +343,8 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     verdict,
     grade,
     missingCriticalCount: missingCritical.length,
+    missingHighCount: missingHigh.length,
+    missingMediumCount: missingMedium.length,
     estimatedHiddenMinManwon,
     estimatedHiddenMaxManwon,
     priceDiffPercent,

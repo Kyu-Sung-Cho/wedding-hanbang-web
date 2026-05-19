@@ -104,13 +104,16 @@ export default function CommunityNav() {
 
             {/* 이슈 #12: 업체 탐색 메뉴 숨김 (베타 단계, 업체 DB 충분히 쌓이면 복구) */}
 
-            <Link
-              href="/community/quote-check"
-              className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
-            >
-              <FileSearch className="w-4 h-4" />
-              견적 체크
-            </Link>
+            {/* 로그인 사용자는 MyToolsWidget 안에 견적 체크가 포함됨 → 중복 방지로 비로그인일 때만 단독 노출 */}
+            {!user && (
+              <Link
+                href="/community/quote-check"
+                className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
+              >
+                <FileSearch className="w-4 h-4" />
+                견적 체크
+              </Link>
+            )}
 
             <Link
               href="/community/post/write"
