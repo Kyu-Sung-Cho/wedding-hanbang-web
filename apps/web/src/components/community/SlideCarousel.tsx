@@ -109,7 +109,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
         </div>
       )}
 
-      {/* 점 인디케이터 (하단) */}
+      {/* 점 인디케이터 (하단) — no-min-tap 클래스로 글로벌 button min-height:40px 제외 */}
       {total > 1 && (
         <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
           {slides.map((_, i) => (
@@ -118,7 +118,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
               type="button"
               onClick={() => go(i)}
               aria-label={`${i + 1}번 슬라이드로 이동`}
-              className={`transition-all rounded-full ${
+              className={`no-min-tap transition-all rounded-full ${
                 i === index ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/60 hover:bg-white/80"
               }`}
             />

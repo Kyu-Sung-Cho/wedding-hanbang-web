@@ -23,9 +23,9 @@ const TOTAL_SLIDES = 6;
 // ─── Slide 1: Welcome ────────────────────────────────────────────────
 function SlideWelcome() {
   return (
-    <div className="flex flex-col items-center px-6 pt-4 pb-2">
-      {/* 로고 */}
-      <div className="relative w-24 h-24 mb-6">
+    <div className="flex flex-col items-center px-6 pt-2 pb-2 sm:pt-4">
+      {/* 로고 — 모바일에선 작게 */}
+      <div className="relative w-16 h-16 sm:w-24 sm:h-24 mb-4 sm:mb-6">
         <Image
           src="/images/logo-512-transparent.png"
           alt="웨딩한방"
@@ -34,11 +34,11 @@ function SlideWelcome() {
         />
       </div>
 
-      {/* 타이틀 */}
-      <h2 className="font-serif-kr text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-3">
+      {/* 타이틀 — 모바일 사이즈 다운 */}
+      <h2 className="font-serif-kr text-2xl sm:text-4xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
         결혼 준비,{"\n"}이제 혼자 고민하지 마세요
       </h2>
-      <p className="text-[17px] text-[#504444] text-center mb-8">
+      <p className="text-sm sm:text-[17px] text-[#504444] text-center mb-5 sm:mb-8">
         웨딩한방이 처음부터 끝까지 함께합니다
       </p>
 
@@ -593,7 +593,7 @@ export default function ServiceGuide() {
       }}
     >
       <div
-        className={`relative w-full max-w-[560px] mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
+        className={`relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl transition-all duration-300 ${
           entered
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-95 translate-y-4"
@@ -623,9 +623,9 @@ export default function ServiceGuide() {
           </div>
         </div>
 
-        {/* 슬라이드 콘텐츠 */}
+        {/* 슬라이드 콘텐츠 — 모바일에서 height 조여서 화면 가득 채우는 느낌 회피 */}
         <div
-          className={`min-h-[480px] transition-all duration-200 ease-out ${
+          className={`min-h-[360px] sm:min-h-[480px] transition-all duration-200 ease-out ${
             slidePhase === "fading-out"
               ? "opacity-0 scale-[0.96]"
               : slidePhase === "fading-in"
