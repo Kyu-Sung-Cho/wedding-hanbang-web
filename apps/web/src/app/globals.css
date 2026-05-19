@@ -455,3 +455,71 @@ html {
   max-width: 100vw;
 }
 
+/* ===========================================================================
+ * B 강화 — 페이지별 max-w-* / 큰 fixed width / 그리드 가 화면에 비례하게
+ * 자동 조정. 페이지 코드 0줄 수정.
+ *
+ * 디자인 의도가 큰 hero·랜딩 영역이 위 cap을 피하고 싶으면 className에
+ * .no-fluid-cap 추가하면 viewport cap 무시.
+ * ========================================================================= */
+
+/* max-w-* 가 viewport보다 클 때 자동 한 단계 다운 — 모든 화면 폭에서 좌우 여백 보장 */
+@media (max-width: 1535px) {
+  :where(.max-w-7xl):not(.no-fluid-cap) { max-width: min(80rem, 95vw) !important; }
+  :where(.max-w-6xl):not(.no-fluid-cap) { max-width: min(72rem, 94vw) !important; }
+  :where(.max-w-5xl):not(.no-fluid-cap) { max-width: min(64rem, 92vw) !important; }
+  :where(.max-w-4xl):not(.no-fluid-cap) { max-width: min(56rem, 92vw) !important; }
+  :where(.max-w-3xl):not(.no-fluid-cap) { max-width: min(48rem, 92vw) !important; }
+}
+
+/* 1024 이하에서 arbitrary 큰 폭 — 자동 95vw cap */
+@media (max-width: 1023px) {
+  :where([class*="w-\\[1"]):not(.no-fluid-cap) { max-width: 95vw; }
+  :where([class*="max-w-\\[1"]):not(.no-fluid-cap) { max-width: 95vw !important; }
+}
+
+/* 부모 컨테이너에 좌우 padding 없으면 자동 최소 padding 보장 — main / section / article */
+:where(main, section, article):not(.no-auto-pad) {
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
+}
+
+/* fixed/sticky 모달·드롭다운이 viewport 폭 넘지 않게 — 추가 안전망 */
+[class*="fixed"][class*="left-"], [class*="fixed"][class*="right-"] {
+  max-width: 100vw;
+}
+
+/* SVG/이미지가 명시적 width 없을 때 자동 cap — 디자인 깨짐 방지 */
+:where(picture, figure) {
+  max-width: 100%;
+}
+
+/* 긴 한글 단어 (URL/이메일/긴 한자 영문 혼합) 자동 wrap — 카드/버블 밖으로 안 삐져나가게 */
+:where(p, span, li, h1, h2, h3, h4, h5, h6, blockquote, .text-pretty):not(.no-wrap-fix) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  /* CJK 우선 keep-all, 영문 단어가 너무 길면 anywhere fallback */
+}
+
+/* 큰 화면(≥1920) 에서 본문 letter-spacing/line-height 살짝 풀어주기 — 빈약 방지 */
+@media (min-width: 1920px) {
+  body {
+    font-size: 16.5px;
+  }
+}
+
+/* 한 단계 더 — 4K(≥2560) 에서는 컨테이너 자체를 살짝 확장 */
+@media (min-width: 2560px) {
+  :where(.max-w-7xl):not(.no-fluid-cap) { max-width: 1440px !important; }
+  :where(.max-w-6xl):not(.no-fluid-cap) { max-width: 1280px !important; }
+  body { font-size: 17px; }
+}
+
+/* 그리드 안전망 — 작은 화면에서 너무 많은 컬럼이 좁아져서 깨지는 패턴 차단.
+ * sm: prefix 없는 cols-2/3/4 가 모바일에서 너무 좁아지면 자동 1열로. */
+@media (max-width: 480px) {
+  :where(.grid-cols-4):not(.no-grid-collapse) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  :where(.grid-cols-3):not(.no-grid-collapse) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* cols-2 는 모바일에서도 2열 유지 (보통 의도된 카드 배치) */
+}
+
