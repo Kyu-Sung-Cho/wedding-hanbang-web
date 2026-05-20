@@ -662,14 +662,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-    <div className="max-w-[800px] mx-auto h-full flex flex-col">
+    <div className="max-w-[900px] mx-auto h-full flex flex-col">
       {/* 상단 툴바 */}
-      <div className="flex items-center justify-between px-2 pb-3 pt-1">
+      <div className="flex items-center justify-between px-2 pb-2.5 pt-1">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-[#795252]" />
-          <span className="font-serif-kr text-[22px] font-light text-[#1A1A1F]">아모라 상담</span>
+          <Sparkles className="w-4 h-4 text-[#795252]" />
+          <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">아모라 상담</span>
           {messages.length > 0 && (
-            <span className="text-sm text-[#B5ADA3]">({messages.length})</span>
+            <span className="text-xs text-[#B5ADA3]">({messages.length})</span>
           )}
         </div>
         <div className="flex items-center gap-1.5">

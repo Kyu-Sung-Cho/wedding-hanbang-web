@@ -261,7 +261,7 @@ export default function ChatBubble({
           <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <div className="text-[15px] sm:text-[17px] text-[#1A1A1F] leading-relaxed break-words">
+            <div className="text-[14px] sm:text-[15px] text-[#1A1A1F] leading-relaxed break-words">
               {renderAiMarkdown(cleanText)}
             </div>
             {partNumbers.length > 0 && (
@@ -387,7 +387,7 @@ export default function ChatBubble({
           <div
             className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-5 py-4 shadow-sm`}
           >
-            <p className="text-[17px] text-white leading-relaxed whitespace-pre-wrap">
+            <p className="text-[15px] text-white leading-relaxed whitespace-pre-wrap">
               {displayContent}
             </p>
           </div>
@@ -429,7 +429,7 @@ export default function ChatBubble({
         <div
           className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm`}
         >
-          <p className="text-[17px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+          <p className="text-[15px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
             {displayContent}
           </p>
         </div>
