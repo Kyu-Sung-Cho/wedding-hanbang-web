@@ -662,7 +662,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-    <div className="max-w-[900px] mx-auto h-full flex flex-col">
+    <div className="max-w-[1080px] mx-auto h-full flex flex-col">
       {/* 상단 툴바 */}
       <div className="flex items-center justify-between px-2 pb-2.5 pt-1">
         <div className="flex items-center gap-2">
@@ -1266,7 +1266,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   : "무엇이든 물어보세요…"
             }
             disabled={isStreaming}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[16px] sm:text-[17px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[120px] overflow-y-auto"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[15px] sm:text-[15px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[120px] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}

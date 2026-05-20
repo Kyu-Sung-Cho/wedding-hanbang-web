@@ -41,7 +41,7 @@ export default function StreamingBubble({
           <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm">
             <div className="flex items-center gap-2 py-0.5">
               <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" />
-              <span className="text-[15px] sm:text-base text-[#928980]">
+              <span className="text-[13px] sm:text-[14px] text-[#928980]">
                 답변을 정리하고 있어요…
               </span>
             </div>
