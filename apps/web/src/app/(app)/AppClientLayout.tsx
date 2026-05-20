@@ -41,10 +41,16 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-[280px]">
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
-        <main className="p-8 max-md:p-5">{children}</main>
+        {/* 채팅 페이지는 ChatGPT 스타일로 main 영역 전체 사용 — 좌측 카테고리
+            사이드바 외 가용 폭을 다 쓰도록 main padding 축소. 다른 페이지는
+            기존 p-8 유지. */}
+        <main className={isChatPage ? "px-3 py-3 sm:px-4 sm:py-4" : "p-8 max-md:p-5"}>
+          {children}
+        </main>
 
-        {/* AI 기본법 고지 — 원칙 P6 실체화 */}
-        <div className="px-8 pb-10 max-md:px-5">
+        {/* AI 기본법 고지 — 원칙 P6 실체화. 채팅 페이지에선 footer가 채팅 폭을
+            제한하지 않도록 양 옆 padding 만 살짝 줄임. */}
+        <div className={isChatPage ? "px-3 pb-6 sm:px-4" : "px-8 pb-10 max-md:px-5"}>
           <AiNoticeFooter variant="light" />
         </div>
       </div>

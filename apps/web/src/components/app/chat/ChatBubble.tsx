@@ -242,7 +242,7 @@ export default function ChatBubble({
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
     return (
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[85%]">
+      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
         {/* AI 아바타 — 모바일에선 작게 */}
         <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -401,7 +401,7 @@ export default function ChatBubble({
 
   // 상대방 메시지: 왼쪽 정렬
   return (
-    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[85%]">
+    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
       {/* 아바타 — 모바일 작게 */}
       <div
         className={`flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}

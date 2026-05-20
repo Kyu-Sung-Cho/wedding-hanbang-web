@@ -31,7 +31,7 @@ export default function StreamingBubble({
       )}
 
       {/* 항상 thinking 인디케이터만 — 텍스트는 done 이벤트에서 한 번에 렌더 */}
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[85%]">
+      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
         <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
