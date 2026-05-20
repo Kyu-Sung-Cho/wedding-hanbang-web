@@ -464,11 +464,11 @@ function TimeslotPicker({
       `[time:${slot.time}]`,
     ].filter(Boolean).join("");
 
-    // 날짜 포맷 (3/15(토))
-    const d = new Date(slot.date);
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    const dateLabel = `${month}/${day}(${slot.dayLabel})`;
+    // 날짜 포맷 (3/15(토)) — slot.date 는 "YYYY-MM-DD" 문자열이므로 timezone 영향
+    // 받지 않게 직접 파싱 (new Date("YYYY-MM-DD") 은 UTC 자정으로 해석돼 해외
+    // timezone 사용자에게 ±1일 어긋날 수 있음).
+    const [, ymM, ymD] = slot.date.split("-");
+    const dateLabel = `${Number(ymM)}/${Number(ymD)}(${slot.dayLabel})`;
 
     onSend?.(`${dateLabel} ${slot.time} 예약할게요 ${tags}`);
   };
@@ -524,9 +524,10 @@ vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${outpu
         {/* 날짜별 슬롯 */}
         <div className="px-5 py-4 flex flex-col gap-3.5 max-h-[340px] overflow-y-auto">
           {Array.from(grouped.entries()).map(([date, dateSlots]) => {
-            const d = new Date(date);
-            const month = d.getMonth() + 1;
-            const day = d.getDate();
+            // date 는 "YYYY-MM-DD" 문자열 — timezone-free 하게 직접 파싱
+            const [, ymM, ymD] = date.split("-");
+            const month = Number(ymM);
+            const day = Number(ymD);
             const dayLabel = dateSlots[0].dayLabel;
             const isWeekend = dayLabel === "토" || dayLabel === "일";
 
@@ -587,9 +588,12 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
     );
   }
 
-  const d = new Date(output.date);
+  // output.date 는 "YYYY-MM-DD" — timezone-free 파싱 (new Date 는 UTC 자정 해석)
+  const [ymY, ymM, ymD] = output.date.split("-");
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const dateLabel = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]})`;
+  // 요일 계산: UTC.Date 로 같은 ymd 생성 후 getUTCDay (브라우저 timezone 무관)
+  const weekdayIdx = new Date(Date.UTC(Number(ymY), Number(ymM) - 1, Number(ymD))).getUTCDay();
+  const dateLabel = `${ymY}.${ymM}.${ymD} (${DAYS[weekdayIdx]})`;
 
   const handleCancel = () => {
     setCancelled(true);
@@ -719,9 +723,12 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
     );
   }
 
-  const d = new Date(output.date);
+  // output.date 는 "YYYY-MM-DD" — timezone-free 파싱 (new Date 는 UTC 자정 해석)
+  const [ymY, ymM, ymD] = output.date.split("-");
   const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const dateLabel = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]})`;
+  // 요일 계산: UTC.Date 로 같은 ymd 생성 후 getUTCDay (브라우저 timezone 무관)
+  const weekdayIdx = new Date(Date.UTC(Number(ymY), Number(ymM) - 1, Number(ymD))).getUTCDay();
+  const dateLabel = `${ymY}.${ymM}.${ymD} (${DAYS[weekdayIdx]})`;
 
   return (
     <div className="flex justify-start ml-14 my-2">
