@@ -1014,15 +1014,18 @@ export default function DashboardPage() {
                 >
                   <div
                     onClick={() => setSelectedCategory(key)}
-                    className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl"
+                    className="flex flex-col gap-2 px-4 py-3 sm:px-5 sm:py-4 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl xl:flex-row xl:items-center xl:justify-between"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base text-[#1b1c1c] font-medium">{label}</span>
+                    {/* 카테고리 라벨 + 진행 카운트 — min-w-0 으로 좁은 폭에서도
+                        한 글자씩 wrap 안 되게 (Windows 배율 ≥150% 등에서 카드가
+                        좁아지는 케이스 보호) */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm sm:text-base text-[#1b1c1c] font-medium whitespace-nowrap">{label}</span>
                       {total > 0 && (
-                        <span className="text-sm text-[#504444]">{done}/{total}</span>
+                        <span className="text-xs sm:text-sm text-[#504444] whitespace-nowrap">{done}/{total}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                       {(["not_started", "in_progress", "completed"] as const).map((s) => {
                         const opt = STATUS_STYLES[s];
                         return (
@@ -1032,7 +1035,7 @@ export default function DashboardPage() {
                               e.stopPropagation();
                               handleStatusChange(key, s);
                             }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                               status === s
                                 ? `${opt.color} text-white`
                                 : "bg-white/60 text-[#504444] hover:bg-white"
@@ -1042,7 +1045,7 @@ export default function DashboardPage() {
                           </button>
                         );
                       })}
-                      <ChevronRight className="w-4 h-4 text-[#504444] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                      <ChevronRight className="w-4 h-4 text-[#504444] opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0" />
                     </div>
                   </div>
                 </div>
