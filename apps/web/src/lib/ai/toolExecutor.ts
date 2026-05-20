@@ -29,6 +29,12 @@ import {
   HIDDEN_COSTS, RED_FLAGS, getGradeFromScore, estimateHiddenCosts,
   type HiddenCostItem, type RedFlag,
 } from "@/constants/hiddenCosts";
+import {
+  ymdInKst,
+  kstMidnightFromYmd,
+  todayKstMidnight,
+  addDaysUtc,
+} from "@/lib/utils/kstDate";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -911,14 +917,12 @@ function executeGetScheduleEvents(
   ctx: ExecutionContext
 ): ToolExecutionResult {
   const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymdInKst();
   const fromDate = (input.from_date as string) || today;
 
   let toDate = input.to_date as string;
   if (!toDate) {
-    const d = new Date(fromDate);
-    d.setDate(d.getDate() + 30);
-    toDate = d.toISOString().slice(0, 10);
+    toDate = ymdInKst(addDaysUtc(kstMidnightFromYmd(fromDate), 30));
   }
 
   const filtered = events
@@ -1275,15 +1279,19 @@ async function executeCheckVendorAvailability(
     slots = await fetchSlotsFor("vendor_timeslots", "vendor_id", vendorId);
   }
 
-  // 향후 7일 예약 수 확인
-  const today = new Date();
+  // 향후 7일 예약 수 확인 — KST 기준 (서버 UTC 자정 ≠ 한국 자정)
+  const today = todayKstMidnight();
   const dateStrings: string[] = [];
   const dayToDate = new Map<number, string>();
+  // KST 자정의 Date 객체에서 getUTCDay() 를 그대로 쓰면 전날 요일이 나옴.
+  // YMD 문자열을 UTC로 다시 만든 뒤 getUTCDay() 로 KST 요일을 정확히 구함.
+  const kstDayOfWeek = (ymd: string): number => {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // 0=월 ~ 6=일
+  };
   for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const dateStr = d.toISOString().split("T")[0];
-    const day = (d.getDay() + 6) % 7;
+    const dateStr = ymdInKst(addDaysUtc(today, i));
+    const day = kstDayOfWeek(dateStr);
     dateStrings.push(dateStr);
     if (!dayToDate.has(day)) dayToDate.set(day, dateStr);
   }
@@ -1686,63 +1694,81 @@ async function executeGetAvailableSlots(
   //  - target_month 있음 → 전월 1일 ~ 다음 월 말일 (3개월 윈도우)
   //  - 둘 다 없음 → 오늘 ~ 오늘+90일 (기본)
   //  - rangeStart 가 오늘보다 과거면 오늘로 잘라냄 (과거 슬롯 무효)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let rangeStart = new Date(today);
-  let rangeEnd = new Date(today);
-  rangeEnd.setDate(today.getDate() + 89);
+  //
+  // 모든 비교/포맷은 KST 기준 — 서버는 UTC라 자정 근처에서 ±1일 어긋남.
+  const today = todayKstMidnight();
+  const todayYmd = ymdInKst(today);
+  const todayYear = Number(todayYmd.slice(0, 4));
+  const todayMonthIdx = Number(todayYmd.slice(5, 7)) - 1;
+  let rangeStart = today;
+  let rangeEnd = addDaysUtc(today, 89);
 
   // AI 가 과거 연-월/일을 보내는 경우 미래의 같은 월/일로 자동 재매핑.
   // 사용자 의도는 "그 달/날짜" 인데 AI 가 연도를 잘못 추론할 수 있음.
   const remapToFuture = (year: number, monthIdx: number): number => {
-    // (year, monthIdx) 가 today 보다 과거이면 가장 가까운 미래 같은 월
-    if (year > today.getFullYear()) return year;
-    if (year === today.getFullYear() && monthIdx >= today.getMonth()) return year;
+    if (year > todayYear) return year;
+    if (year === todayYear && monthIdx >= todayMonthIdx) return year;
     // 과거 → 올해 또는 내년의 같은 월
-    return monthIdx >= today.getMonth() ? today.getFullYear() : today.getFullYear() + 1;
+    return monthIdx >= todayMonthIdx ? todayYear : todayYear + 1;
   };
 
   if (targetDate) {
-    const td = new Date(targetDate + "T00:00:00");
+    // KST 자정으로 파싱 — Vercel UTC + "T00:00:00" 조합은 한국 사용자에게 어제로 보임
+    let td = kstMidnightFromYmd(targetDate);
     if (!isNaN(td.getTime())) {
       // 과거 날짜면 같은 월·일의 미래 인스턴스로 재매핑
       if (td < today) {
-        const effYear = remapToFuture(td.getFullYear(), td.getMonth());
-        td.setFullYear(effYear);
-        targetDate = `${effYear}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
+        const tdYmd = ymdInKst(td);
+        const tdYear = Number(tdYmd.slice(0, 4));
+        const tdMonthIdx = Number(tdYmd.slice(5, 7)) - 1;
+        const tdDay = Number(tdYmd.slice(8, 10));
+        const effYear = remapToFuture(tdYear, tdMonthIdx);
+        targetDate = `${effYear}-${String(tdMonthIdx + 1).padStart(2, "0")}-${String(tdDay).padStart(2, "0")}`;
+        td = kstMidnightFromYmd(targetDate);
       }
-      rangeStart = new Date(td); rangeStart.setDate(td.getDate() - 14);
-      rangeEnd = new Date(td); rangeEnd.setDate(td.getDate() + 14);
+      rangeStart = addDaysUtc(td, -14);
+      rangeEnd = addDaysUtc(td, 14);
     }
   } else if (targetMonth) {
     const [reqY, m] = targetMonth.split("-").map(Number);
     if (Number.isFinite(reqY) && Number.isFinite(m) && m >= 1 && m <= 12) {
       const effYear = remapToFuture(reqY, m - 1);
-      rangeStart = new Date(effYear, m - 2, 1);          // 전월 1일
-      rangeEnd = new Date(effYear, m + 1, 0);            // 다음월 말일
+      // 전월 1일 ~ 다음월 말일 — KST 기준 YMD 문자열로 만들고 KST 자정으로 변환
+      const prevMonth = m - 1; // m-2+1
+      const prevMonthYear = prevMonth < 1 ? effYear - 1 : effYear;
+      const prevMonthM = prevMonth < 1 ? 12 : prevMonth;
+      const nextMonth = m + 1;
+      const nextMonthYear = nextMonth > 12 ? effYear + 1 : effYear;
+      const nextMonthM = nextMonth > 12 ? 1 : nextMonth;
+      // 다음월 1일 - 1일 = 다음월 말일. KST 기준으로 계산.
+      const nextMonthFirstYmd = `${nextMonthYear}-${String(nextMonthM).padStart(2, "0")}-01`;
+      rangeStart = kstMidnightFromYmd(`${prevMonthYear}-${String(prevMonthM).padStart(2, "0")}-01`);
+      rangeEnd = addDaysUtc(kstMidnightFromYmd(nextMonthFirstYmd), -1);
       // 필터에 사용될 targetMonth 도 effective 연도로 동기화
       targetMonth = `${effYear}-${String(m).padStart(2, "0")}`;
     }
   }
-  if (rangeStart < today) rangeStart = new Date(today);
+  if (rangeStart < today) rangeStart = today;
   // 하드 캡 — 너무 먼 미래 쿼리 방어 (180일 이내)
-  const HARD_CAP = new Date(today); HARD_CAP.setDate(today.getDate() + 180);
+  const HARD_CAP = addDaysUtc(today, 180);
   if (rangeEnd > HARD_CAP) rangeEnd = HARD_CAP;
 
-  // 로컬 컴포넌트 기반 YYYY-MM-DD 포맷 — toISOString 의 UTC 변환 부작용
-  // (KST/PST 등 비-UTC 서버에서 ±1 일 어긋남) 방지.
-  const fmtYMD = (d: Date) => {
-    const y = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, "0");
-    const da = String(d.getDate()).padStart(2, "0");
-    return `${y}-${mo}-${da}`;
+  // KST 기준 YYYY-MM-DD 포맷. getDay 도 KST 요일이 나오도록 ymd 문자열로 다시 파싱
+  // (단순 Date.getUTCDay 는 KST 자정 ≠ UTC 자정 차이 때문에 ±1일 어긋날 위험).
+  const fmtYMD = (d: Date) => ymdInKst(d);
+  const dayOfWeekKst = (ymd: string): number => {
+    // ymd "YYYY-MM-DD" → ISO 요일 (0=월, 6=일)
+    const parts = ymd.split("-").map(Number);
+    const utc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+    const day = new Date(utc).getUTCDay(); // 0=일, 6=토
+    return (day + 6) % 7;
   };
 
   const dateStrings: string[] = [];
   const dayToDates = new Map<number, string[]>();
-  for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(rangeStart); d <= rangeEnd; d = addDaysUtc(d, 1)) {
     const dateStr = fmtYMD(d);
-    const day = (d.getDay() + 6) % 7; // 0=월 ~ 6=일
+    const day = dayOfWeekKst(dateStr); // 0=월 ~ 6=일
     dateStrings.push(dateStr);
     if (!dayToDates.has(day)) dayToDates.set(day, []);
     dayToDates.get(day)!.push(dateStr);

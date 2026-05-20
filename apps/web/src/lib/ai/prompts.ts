@@ -2,6 +2,7 @@ import { CATEGORY_LABELS } from "./toolExecutor";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
+import { ymdInKst, koreanDateInKst } from "@/lib/utils/kstDate";
 
 // 사용자 행동 패턴 분석 → 개인화된 인사이트 생성
 function generateBehaviorInsights(context: {
@@ -239,7 +240,7 @@ export function getWeddingPlannerSystemPrompt(context: {
   // 일정 이벤트 포맷 (다가오는 일정만, 최대 10개)
   let scheduleSection = "";
   if (context.scheduleEvents.length > 0) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = ymdInKst();
     const upcoming = context.scheduleEvents
       .filter((e) => e.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -450,10 +451,13 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 5. **금지**: "또 같은 거로 싸우시네요", "메모 보고 있어요", "system에서 기록된 갈등이 있습니다" 같은 기계적 표현 절대 금지. 자연스럽게 기억하는 친구처럼.`;
   }
 
+  // KST 기준으로 통일 — Vercel 서버는 UTC라 _now.getFullYear/Month/Date 가
+  // 한국 새벽엔 어제 날짜를 반환. 시스템 프롬프트가 잘못된 "오늘"을 주면 AI가
+  // 사용자 명시 날짜("8월 1일")를 슬롯 조회/예약 시 ±1일 어긋난 날짜로 처리.
   const _now = new Date();
-  const today = _now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
-  const todayIso = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
-  const _thisYear = _now.getFullYear();
+  const today = koreanDateInKst(_now);
+  const todayIso = ymdInKst(_now);
+  const _thisYear = Number(todayIso.slice(0, 4));
   const _nextYear = _thisYear + 1;
   const _yearAfter = _thisYear + 2;
 
