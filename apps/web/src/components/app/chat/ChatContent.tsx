@@ -961,7 +961,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   isRecentAi={recentAiIds.has(msg.id)}
                 />
                 {hasToolResults &&
-                  msg.metadata!.toolResults!.map((result, i) =>
+                  // 같은 메시지 안에서 동일한 (toolName, success, displayMessage)
+                  // 조합으로 중복된 카드는 1개만 표시. AI 가 DB 부족 등으로 같은
+                  // tool 을 여러 번 호출해 같은 실패 메시지가 줄줄이 나오는 경우 방어.
+                  (() => {
+                    const seen = new Set<string>();
+                    return msg.metadata!.toolResults!.filter((result) => {
+                      const key = `${result.toolName}::${result.success}::${(result.displayMessage ?? "").trim()}`;
+                      if (seen.has(key)) return false;
+                      seen.add(key);
+                      return true;
+                    });
+                  })().map((result, i) =>
                     VENDOR_TOOL_NAMES.has(result.toolName) ? (
                       <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={attemptSend} disabled={isStreaming} />
                     ) : (

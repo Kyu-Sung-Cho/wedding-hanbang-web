@@ -274,6 +274,16 @@ export default function ActionCard({ result }: ActionCardProps) {
   // get_wedding_info는 AI가 텍스트로 안내하므로 카드 불필요
   if (result.toolName === "get_wedding_info") return null;
 
+  // 의미 없는 결과(실패 + 메시지 없음 / 결과 텅 빔)는 카드를 그리지 않는다.
+  // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
+  // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
+  // 정책: 실패 + (메시지 비었거나 ⌜오류⌟·⌜실패⌟ 같은 시스템성 단어) → 안 그림.
+  const msg = (result.displayMessage ?? "").trim();
+  const outputEmpty =
+    !result.toolOutput ||
+    (typeof result.toolOutput === "object" && Object.keys(result.toolOutput).length === 0);
+  if (!result.success && (msg === "" || outputEmpty)) return null;
+
   const icon = getIcon(result.toolName);
   const title = getTitle(result.toolName);
   const accentColor = getAccentColor(result.toolName);

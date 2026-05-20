@@ -434,7 +434,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         isRecentAi={recentAiIds.has(msg.id)}
                       />
                       {hasToolResults &&
-                        msg.metadata!.toolResults!.map((result, i) =>
+                        // 같은 메시지 안에서 동일 (toolName, success, displayMessage)
+                        // 중복 카드 1개만 표시 — DB 부족 등으로 반복 실패 시 X 카드
+                        // 줄줄이 나오는 문제 방어.
+                        (() => {
+                          const seen = new Set<string>();
+                          return msg.metadata!.toolResults!.filter((result) => {
+                            const key = `${result.toolName}::${result.success}::${(result.displayMessage ?? "").trim()}`;
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                          });
+                        })().map((result, i) =>
                           VENDOR_TOOL_NAMES.has(result.toolName) ? (
                             <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
                           ) : (

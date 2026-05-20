@@ -94,7 +94,30 @@ function VendorRecommendCards({
   };
 
   const vendors = output.vendors ?? [];
-  if (vendors.length === 0) return null;
+
+  // DB에 매칭 업체가 0건일 때 — "AI 웨딩플래너인데 빈 카드/실패 X 표시가 줄줄이"
+  // 라는 인상 대신, 베타 안내 카드 1개로 깔끔하게 노출.
+  if (vendors.length === 0) {
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div className="rounded-xl border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
+              <Sparkles className="w-5 h-5 text-[#C4967E]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[#1A1A1F]">업체 추천은 준비 중이에요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+                지금은 업체 데이터베이스를 검수·정리하고 있어요. 곧 지역·예산·스타일에 맞는
+                실제 후보를 보여드릴 수 있게 준비 중입니다. 그동안 견적 체크·예산·일정 정리는
+                바로 도와드릴 수 있어요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-start ml-14 my-2">
@@ -792,7 +815,27 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
   };
 
   const places = output.places ?? [];
-  if (places.length === 0) return null;
+  if (places.length === 0) {
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div className="rounded-xl border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
+              <MapPin className="w-5 h-5 text-[#C4967E]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[#1A1A1F]">
+                {output.query ? `'${output.query}' 근처 결과를 못 찾았어요` : "근처 장소 검색 결과가 없어요"}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+                다른 키워드로 다시 물어봐 주시거나, 좀 더 넓은 지역으로 알려주시면 다시 찾아볼게요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // 블로그 리뷰 수 포맷
   const formatCount = (n: number) => {
