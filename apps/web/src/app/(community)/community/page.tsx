@@ -490,13 +490,7 @@ function CommunityFeedContent() {
           <div className="mb-4 rounded-lg border border-[#e4e2e1] bg-white p-4">
             <TrendingPosts />
           </div>
-          <RightSidebar
-            popularTags={vendorTags}
-            weekly={{
-              newPostsThisWeek: total,
-              topVendor: vendorTags[0]?.vendor_name ?? null,
-            }}
-          />
+          <RightSidebar />
 
           {/* 인기 태그 (해시태그) */}
           {popularTags.length > 0 && (
