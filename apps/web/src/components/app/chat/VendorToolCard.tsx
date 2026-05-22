@@ -625,40 +625,40 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
   };
 
   return (
-    <div className="flex justify-start ml-14 my-2">
-      <div className={`rounded-xl border shadow-sm w-full max-w-[440px] overflow-hidden ${
+    <div className="flex justify-start ml-11 my-1.5">
+      <div className={`rounded-xl border shadow-sm w-full max-w-[24rem] overflow-hidden ${
         cancelled ? "border-gray-200 bg-gray-50" : "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white"
       }`}>
         {/* 헤더 */}
-        <div className="px-5 pt-4 pb-2.5 flex items-center gap-2.5">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+        <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
             cancelled ? "bg-gray-400" : "bg-emerald-500"
           }`}>
-            <CheckCircle2 className="w-5 h-5 text-white" />
+            <CheckCircle2 className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-[#1A1A1F]">
-              {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다!"}
+            <p className="text-sm font-semibold text-[#1A1A1F]">
+              {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다"}
             </p>
-            <p className="text-sm text-[#928980]">
-              {cancelled ? "취소 처리 중입니다" : "업체 확인 후 최종 확정됩니다"}
+            <p className="text-xs text-[#928980]">
+              {cancelled ? "취소 처리 중" : "업체 확인 후 최종 확정"}
             </p>
           </div>
         </div>
 
         {/* 상세 */}
-        <div className="px-5 pb-4">
-          <div className="rounded-lg bg-white border border-black/[0.04] px-4 py-3 flex flex-col gap-2">
+        <div className="px-4 pb-3">
+          <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#C4967E]" />
-              <span className="text-sm text-[#928980]">업체</span>
-              <span className="text-sm font-medium text-[#1A1A1F] ml-auto">{output.vendorName}</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#C4967E]" />
+              <span className="text-xs text-[#928980]">업체</span>
+              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">{output.vendorName}</span>
             </div>
             {output.productName && (
               <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#C4967E]" />
-                <span className="text-sm text-[#928980]">상품</span>
-                <span className="text-sm font-medium text-[#1A1A1F] ml-auto">
+                <Package className="w-3.5 h-3.5 text-[#C4967E]" />
+                <span className="text-xs text-[#928980]">상품</span>
+                <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
                   {output.productName}
                   {output.amount > 0 && ` (${formatPrice(output.amount)})`}
                 </span>
@@ -666,15 +666,15 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             )}
             {output.staffName && (
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#C4967E]" />
-                <span className="text-sm text-[#928980]">담당</span>
-                <span className="text-sm font-medium text-[#1A1A1F] ml-auto">{output.staffName}</span>
+                <Users className="w-3.5 h-3.5 text-[#C4967E]" />
+                <span className="text-xs text-[#928980]">담당</span>
+                <span className="text-xs font-medium text-[#1A1A1F] ml-auto">{output.staffName}</span>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#C4967E]" />
-              <span className="text-sm text-[#928980]">일시</span>
-              <span className="text-sm font-medium text-[#1A1A1F] ml-auto">
+              <Clock className="w-3.5 h-3.5 text-[#C4967E]" />
+              <span className="text-xs text-[#928980]">일시</span>
+              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
                 {dateLabel} {output.time}
               </span>
             </div>
@@ -682,21 +682,21 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
 
           {/* 취소 버튼 */}
           {!cancelled && (
-            <div className="mt-2.5">
+            <div className="mt-2">
               {showCancelConfirm ? (
-                <div className="flex items-center justify-between bg-red-50 rounded-lg px-4 py-2.5">
-                  <p className="text-sm text-red-600">예약을 취소할까요?</p>
-                  <div className="flex gap-2">
+                <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-red-600">예약을 취소할까요?</p>
+                  <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
-                      className="px-3 py-1.5 text-sm rounded-md bg-white border border-black/[0.06] text-[#928980]"
+                      className="px-2.5 py-1 text-xs rounded-md bg-white border border-black/[0.06] text-[#928980]"
                     >
                       아니요
                     </button>
                     <button
                       onClick={handleCancel}
                       disabled={disabled}
-                      className="px-3 py-1.5 text-sm rounded-md bg-red-500 text-white disabled:opacity-40"
+                      className="px-2.5 py-1 text-xs rounded-md bg-red-500 text-white disabled:opacity-40"
                     >
                       취소하기
                     </button>
@@ -706,7 +706,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                 <button
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={disabled}
-                  className="text-sm text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
+                  className="text-xs text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
                 >
                   예약 취소
                 </button>

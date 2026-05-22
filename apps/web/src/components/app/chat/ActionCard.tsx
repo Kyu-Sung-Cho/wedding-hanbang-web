@@ -24,25 +24,25 @@ interface ActionCardProps {
 function getIcon(toolName: string) {
   switch (toolName) {
     case "update_budget":
-      return <Wallet className="w-5 h-5" />;
+      return <Wallet className="w-4 h-4" />;
     case "update_wedding_date":
-      return <Calendar className="w-5 h-5" />;
+      return <Calendar className="w-4 h-4" />;
     case "update_task_status":
-      return <CheckCircle2 className="w-5 h-5" />;
+      return <CheckCircle2 className="w-4 h-4" />;
     case "update_venue":
-      return <MapPin className="w-5 h-5" />;
+      return <MapPin className="w-4 h-4" />;
     case "get_budget_summary":
-      return <BarChart3 className="w-5 h-5" />;
+      return <BarChart3 className="w-4 h-4" />;
     case "get_schedule_summary":
-      return <ListChecks className="w-5 h-5" />;
+      return <ListChecks className="w-4 h-4" />;
     case "add_amora_action":
     case "get_amora_actions":
     case "update_amora_action":
-      return <Sparkles className="w-5 h-5" />;
+      return <Sparkles className="w-4 h-4" />;
     case "get_wedding_info":
-      return <Info className="w-5 h-5" />;
+      return <Info className="w-4 h-4" />;
     default:
-      return <Info className="w-5 h-5" />;
+      return <Info className="w-4 h-4" />;
   }
 }
 
@@ -165,17 +165,17 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
   if (actions.length === 0) return null;
 
   return (
-    <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
+    <div className="mt-2.5 pt-2.5 border-t border-black/[0.06] space-y-1.5">
       {actions.map((action) => (
-        <div key={action.id} className="rounded-lg bg-white/70 border border-black/[0.04] p-3">
+        <div key={action.id} className="rounded-lg bg-white/70 border border-black/[0.04] p-2.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#1A1A1F] leading-snug">{action.title}</p>
+              <p className="text-xs font-semibold text-[#1A1A1F] leading-snug">{action.title}</p>
               {action.description && (
-                <p className="mt-1 text-xs leading-relaxed text-[#504444]">{action.description}</p>
+                <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-[#504444]">{action.description}</p>
               )}
             </div>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${
+            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.625rem] font-semibold ${
               action.priority === "high"
                 ? "bg-red-50 text-red-600"
                 : action.priority === "low"
@@ -185,7 +185,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
               {getActionPriorityLabel(action.priority)}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-[#928980]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.625rem] text-[#928980]">
             <span>{getActionStatusLabel(action.status)}</span>
             {action.dueDate && <span>· {action.dueDate}까지</span>}
           </div>
@@ -293,20 +293,20 @@ export default function ActionCard({ result }: ActionCardProps) {
   const isAmoraActionTool = result.toolName === "add_amora_action" || result.toolName === "get_amora_actions" || result.toolName === "update_amora_action";
 
   return (
-    <div className="flex justify-start ml-14 my-2">
+    <div className="flex justify-start ml-11 my-1.5">
       <div
-        className={`rounded-xl border ${accentColor} px-5 py-4 max-w-[400px] w-full shadow-sm`}
+        className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-1.5 mb-1.5">
           <span className="text-[#C4967E]">{icon}</span>
-          <span className="text-base font-semibold text-[#1A1A1F]">{title}</span>
+          <span className="text-sm font-semibold text-[#1A1A1F]">{title}</span>
           {result.success ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto" />
           ) : (
-            <XCircle className="w-5 h-5 text-red-400 ml-auto" />
+            <XCircle className="w-4 h-4 text-red-400 ml-auto" />
           )}
         </div>
-        <p className="text-sm text-[#928980] leading-relaxed">
+        <p className="text-xs text-[#928980] leading-relaxed">
           {result.displayMessage}
         </p>
 
