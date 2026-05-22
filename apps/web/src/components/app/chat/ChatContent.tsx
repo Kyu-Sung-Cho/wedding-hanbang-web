@@ -660,11 +660,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-    <div className="mx-auto h-full flex flex-col w-full max-w-[64rem]">
+    <div className="h-full flex flex-col w-full">
       {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
-          이전 사고: 헤더 / 검색바 / 탭 3개 row 가 따로 떨어져 화면 위쪽을 차지.
-          ChatGPT 룩처럼 한 줄로 합쳐 콘텐츠 영역을 더 확보. */}
-      <div className="flex items-center gap-2 px-2 pb-2 pt-1">
+          ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
+          viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
+          가운데 정렬. */}
+      <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[64rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
         <div className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
           <button
@@ -897,9 +898,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-      {/* 채팅 영역 — 페이지 자체가 채팅창이 되도록 카드 박스 제거 (이전 사고:
-          bg-white rounded-2xl shadow 가 "창 안의 창" 인상을 주었음). */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-2 sm:px-3 py-4">
+      {/* 채팅 영역 — 컨테이너는 full-width 라 스크롤바가 viewport 우측 가장자리.
+          안쪽 reading column wrapper 에서 메시지가 가운데 reading 폭으로 정렬. */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4">
+        <div className="w-full max-w-[64rem] mx-auto px-2 sm:px-3 space-y-4">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
@@ -1026,6 +1028,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* 최신 메시지로 ↓ 점프 — 사용자가 바닥에서 240px+ 위로 올라가 있을 때만 */}
@@ -1176,29 +1179,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        {/* 대상 토글 — 모바일은 grid 2-col로 동등 폭, sm 이상은 inline */}
+        {/* 대상 토글 — 한 단계 컴팩트 (px/py/font 톤다운) */}
         {activeTab === "shared" && (
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 mb-2.5 px-0.5 sm:px-1">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1">
             <button
               onClick={() => setMessageTarget("ai")}
-              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-all whitespace-nowrap ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               아모라에게
             </button>
             <button
               onClick={() => setMessageTarget("partner")}
-              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2 rounded-full text-[13px] sm:text-sm font-medium transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-all whitespace-nowrap ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
               }`}
             >
-              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <Heart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               상대방에게
             </button>
           </div>
@@ -1223,10 +1226,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word)"
           >
-            <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />
+            <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           <textarea
@@ -1269,7 +1272,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => attemptSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : isPrivate
@@ -1278,10 +1281,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }`}
           >
             {messageTarget === "partner"
-              ? <Heart className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
+              ? <Heart className="w-4 h-4 sm:w-[1.125rem] sm:h-[1.125rem]" />
               : isPrivate
-                ? <Lock className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
-                : <Send className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" />
+                ? <Lock className="w-4 h-4 sm:w-[1.125rem] sm:h-[1.125rem]" />
+                : <Send className="w-4 h-4 sm:w-[1.125rem] sm:h-[1.125rem]" />
             }
           </button>
         </div>
