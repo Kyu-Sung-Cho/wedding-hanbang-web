@@ -1014,7 +1014,7 @@ export default function DashboardPage() {
                 >
                   <div
                     onClick={() => setSelectedCategory(key)}
-                    className="flex flex-col gap-2 px-4 py-3 sm:px-5 sm:py-4 cursor-pointer hover:bg-black/[0.02] transition-all group rounded-xl 2xl:flex-row 2xl:items-center 2xl:justify-between"
+                    className="flex flex-col gap-2 px-4 py-3 sm:px-5 sm:py-4 cursor-pointer hover:bg-black/[0.02] transition-colors group rounded-xl"
                   >
                     {/* 카테고리 라벨 + 진행 카운트 — min-w-0 으로 좁은 폭에서도
                         한 글자씩 wrap 안 되게 (Windows 배율 ≥150% 등에서 카드가
