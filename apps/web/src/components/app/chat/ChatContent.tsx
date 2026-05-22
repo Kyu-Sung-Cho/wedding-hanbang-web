@@ -662,7 +662,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-    <div className="mx-auto h-full flex flex-col w-full">
+    <div className="mx-auto h-full flex flex-col w-full max-w-[64rem]">
       {/* 상단 툴바 */}
       <div className="flex items-center justify-between px-2 pb-2.5 pt-1">
         <div className="flex items-center gap-2">
