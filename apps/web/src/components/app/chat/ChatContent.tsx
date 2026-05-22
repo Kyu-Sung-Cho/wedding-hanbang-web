@@ -596,7 +596,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </p>
           <a
             href="/login"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] transition-colors"
           >
             로그인하기
           </a>
@@ -624,7 +624,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </p>
           <a
             href="/onboarding"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
           >
             <Sparkles className="w-4 h-4" />
             온보딩 시작하기
@@ -671,7 +671,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => { setActiveTab("shared"); setMessageTarget("ai"); }}
             disabled={isStreaming}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === "shared"
                 ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                 : "text-[#928980] hover:text-[#504444]"
@@ -686,7 +686,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => { setActiveTab("private"); setMessageTarget("ai"); }}
             disabled={isStreaming}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === "private"
                 ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                 : "text-[#928980] hover:text-[#504444]"
@@ -1036,7 +1036,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <button
           type="button"
           onClick={jumpToBottom}
-          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[#795252] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-all"
+          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[#795252] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-colors"
           aria-label="최신 메시지로"
           title="최신 메시지로"
         >
@@ -1097,7 +1097,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   setPendingSend(null);
                   void handleSend(t);
                 }}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-all"
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
               >
                 그래도 보내기
               </button>
@@ -1129,7 +1129,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 </p>
                 <button
                   onClick={handleManualMediation}
-                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
                   아모라에게 도움 요청하기
@@ -1184,7 +1184,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1">
             <button
               onClick={() => setMessageTarget("ai")}
-              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-colors whitespace-nowrap ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
@@ -1195,7 +1195,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             </button>
             <button
               onClick={() => setMessageTarget("partner")}
-              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-colors whitespace-nowrap ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
@@ -1207,7 +1207,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-all ${
+        <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
             : isPrivate
@@ -1272,7 +1272,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => attemptSend()}
             disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : isPrivate

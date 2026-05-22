@@ -486,7 +486,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </p>
                       <button
                         onClick={requestMediation}
-                        className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[0.6875rem] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-all"
+                        className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[0.6875rem] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-colors"
                       >
                         <Sparkles className="w-3 h-3" />
                         아모라에게 상담 요청하기
@@ -535,7 +535,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <button
                     onClick={() => setMessageTarget("ai")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
@@ -546,7 +546,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   </button>
                   <button
                     onClick={() => setMessageTarget("partner")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"

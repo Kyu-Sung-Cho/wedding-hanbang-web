@@ -175,7 +175,7 @@ function VendorRecommendCards({
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
                   bg-[#795252] text-white text-sm font-medium
                   hover:bg-[#946a6a] active:scale-[0.98]
-                  disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Package className="w-4 h-4" />
                 상품·스태프 보기
@@ -288,7 +288,7 @@ function VendorDetailCard({
                     key={p.id}
                     onClick={() => handleProductSelect(p.id)}
                     disabled={disabled || confirmed}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5"
                         : "border-black/[0.06] hover:border-[#C4967E]/30 bg-white"
@@ -372,7 +372,7 @@ function VendorDetailCard({
                     key={s.id}
                     onClick={() => setSelectedStaff(isSelected ? null : s.id)}
                     disabled={disabled || confirmed}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                         : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
@@ -386,7 +386,7 @@ function VendorDetailCard({
               <button
                 onClick={() => setSelectedStaff(null)}
                 disabled={disabled || confirmed}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
                   ${selectedStaff === null
                     ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                     : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
@@ -407,7 +407,7 @@ function VendorDetailCard({
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
                 bg-[#795252] text-white text-base font-medium
                 hover:bg-[#946a6a] active:scale-[0.98]
-                disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />
               예약 가능 시간 확인
@@ -567,7 +567,7 @@ vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${outpu
                       disabled={disabled}
                       className="px-4 py-2 rounded-lg border border-black/[0.06] text-sm
                         text-[#1A1A1F] hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
-                        active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <span className="font-medium">{slot.time}</span>
                       {slot.remaining <= 2 && (
@@ -866,7 +866,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
         {places.map((p, idx) => (
           <div
             key={p.id}
-            className="rounded-xl border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-all overflow-hidden"
+            className="rounded-xl border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-colors overflow-hidden"
           >
             {/* 메인 컨텐츠 */}
             <div className="px-5 pt-4 pb-3.5">

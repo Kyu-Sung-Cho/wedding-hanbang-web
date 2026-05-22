@@ -121,7 +121,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-2.5 pl-4 pr-4 py-2.5 text-sm transition-all duration-200 ${
+                  className={`flex items-center gap-2.5 pl-4 pr-4 py-2.5 text-sm transition-colors duration-200 ${
                     isActive
                       ? "bg-[#795252]/10 text-[#795252] font-semibold rounded-xl mr-3"
                       : "text-[#504444] hover:text-[#795252] hover:bg-white/60 rounded-xl mr-3"
@@ -150,7 +150,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-2.5 px-4 py-2.5 mt-2 rounded-xl text-sm text-[#795252] bg-white hover:bg-[#795252]/5 shadow-sm transition-all w-full"
+            className="flex items-center gap-2.5 px-4 py-2.5 mt-2 rounded-xl text-sm text-[#795252] bg-white hover:bg-[#795252]/5 shadow-sm transition-colors w-full"
           >
             <LogOut className="w-4 h-4" />
             로그아웃
