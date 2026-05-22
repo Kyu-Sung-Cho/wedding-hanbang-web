@@ -663,16 +663,44 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
     <div className="mx-auto h-full flex flex-col w-full max-w-[64rem]">
-      {/* 상단 툴바 */}
-      <div className="flex items-center justify-between px-2 pb-2.5 pt-1">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#795252]" />
-          <span className="font-serif-kr text-lg font-light text-[#1A1A1F]">아모라 상담</span>
-          {messages.length > 0 && (
-            <span className="text-xs text-[#B5ADA3]">({messages.length})</span>
-          )}
+      {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
+          이전 사고: 헤더 / 검색바 / 탭 3개 row 가 따로 떨어져 화면 위쪽을 차지.
+          ChatGPT 룩처럼 한 줄로 합쳐 콘텐츠 영역을 더 확보. */}
+      <div className="flex items-center gap-2 px-2 pb-2 pt-1">
+        {/* 탭 — 좌측 차지 (메인 동작) */}
+        <div className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
+          <button
+            onClick={() => { setActiveTab("shared"); setMessageTarget("ai"); }}
+            disabled={isStreaming}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              activeTab === "shared"
+                ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                : "text-[#928980] hover:text-[#504444]"
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            함께 대화
+            {messages.length > 0 && (
+              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({messages.length})</span>
+            )}
+          </button>
+          <button
+            onClick={() => { setActiveTab("private"); setMessageTarget("ai"); }}
+            disabled={isStreaming}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              activeTab === "private"
+                ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                : "text-[#928980] hover:text-[#504444]"
+            }`}
+            title="아모라와 1:1 — 상대방에게 보이지 않습니다"
+          >
+            <Lock className="w-4 h-4" />
+            나만 (상담)
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
+
+        {/* 액션 — 우측 (검색/정보/새채팅) */}
+        <div className="flex items-center gap-0.5 shrink-0">
           <button
             onClick={() => {
               setSearchOpen((v) => {
@@ -680,7 +708,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 return !v;
               });
             }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
               searchOpen
                 ? "text-[#795252] bg-[#795252]/10"
                 : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
@@ -689,27 +717,27 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             title="대화 검색"
           >
             <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">검색</span>
           </button>
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
               infoPanelOpen
                 ? "text-[#795252] bg-[#795252]/10"
                 : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
             }`}
+            aria-label="정보 패널"
+            title="정보 패널"
           >
             <PanelRightOpen className="w-4 h-4" />
-            정보
           </button>
-
           {messages.length > 0 && (
             <button
               onClick={openNewChatModal}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+              className="flex items-center justify-center w-9 h-9 rounded-lg text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+              aria-label="새 채팅"
+              title="새 채팅"
             >
               <RefreshCw className="w-4 h-4" />
-              새 채팅
             </button>
           )}
         </div>
@@ -739,35 +767,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           )}
         </div>
       )}
-
-      {/* 채팅 탭 — 함께 / 나만 */}
-      <div className="flex items-center gap-1 mx-2 mb-3 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
-        <button
-          onClick={() => { setActiveTab("shared"); setMessageTarget("ai"); }}
-          disabled={isStreaming}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            activeTab === "shared"
-              ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-              : "text-[#928980] hover:text-[#504444]"
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          함께 대화
-        </button>
-        <button
-          onClick={() => { setActiveTab("private"); setMessageTarget("ai"); }}
-          disabled={isStreaming}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            activeTab === "private"
-              ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-              : "text-[#928980] hover:text-[#504444]"
-          }`}
-          title="아모라와 1:1 — 상대방에게 보이지 않습니다"
-        >
-          <Lock className="w-4 h-4" />
-          나만 (상담)
-        </button>
-      </div>
 
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
@@ -900,8 +899,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       )}
 
-      {/* 채팅 영역 */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-3 sm:px-4 py-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      {/* 채팅 영역 — 페이지 자체가 채팅창이 되도록 카드 박스 제거 (이전 사고:
+          bg-white rounded-2xl shadow 가 "창 안의 창" 인상을 주었음). */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-4 space-y-4 px-2 sm:px-3 py-4">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
