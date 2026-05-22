@@ -37,22 +37,28 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
+    <div className={isChatPage ? "h-screen overflow-hidden bg-[#FAFAF8]" : "min-h-screen bg-[#FAFAF8]"}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="md:ml-[280px]">
+      <div className={isChatPage ? "md:ml-[280px] h-screen flex flex-col" : "md:ml-[280px]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
-        {/* 채팅 페이지는 ChatGPT 스타일로 main 영역 전체 사용 — 좌측 카테고리
-            사이드바 외 가용 폭을 다 쓰도록 main padding 축소. 다른 페이지는
-            기존 p-8 유지. */}
-        <main className={isChatPage ? "px-3 py-3 sm:px-4 sm:py-4" : "p-8 max-md:p-5"}>
-          {children}
-        </main>
-
-        {/* AI 기본법 고지 — 원칙 P6 실체화. 채팅 페이지에선 footer가 채팅 폭을
-            제한하지 않도록 양 옆 padding 만 살짝 줄임. */}
-        <div className={isChatPage ? "px-3 pb-6 sm:px-4" : "px-8 pb-10 max-md:px-5"}>
-          <AiNoticeFooter variant="light" />
-        </div>
+        {/* 채팅 페이지는 ChatGPT 스타일 풀스크린 — TopNav(72px) 외 영역을
+            main 이 모두 차지하고, 내부에서 메시지만 스크롤, 입력박스는 하단
+            고정. 페이지 스크롤 자체가 없어 "스크롤 두 개" 문제 해소.
+            다른 페이지는 기존 layout 유지. */}
+        {isChatPage ? (
+          <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {children}
+          </main>
+        ) : (
+          <>
+            <main className="p-8 max-md:p-5">{children}</main>
+            {/* AI 기본법 고지 — 원칙 P6. 채팅 외 페이지에서만 노출.
+                채팅에선 ChatGPT 룩 + 입력박스 항상 보이도록 footer 제거. */}
+            <div className="px-8 pb-10 max-md:px-5">
+              <AiNoticeFooter variant="light" />
+            </div>
+          </>
+        )}
       </div>
 
       {/* AI 채팅 사이드 패널 */}

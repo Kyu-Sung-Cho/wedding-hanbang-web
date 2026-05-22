@@ -644,9 +644,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   return (
     <div
-      className={`relative ${
-        embedded ? "h-full" : "h-[calc(100dvh-144px)]"
-      } transition-all duration-300 bg-[#FAFAF8] ${infoPanelOpen ? "md:pr-[390px]" : ""}`}
+      className={`relative h-full transition-all duration-300 bg-[#FAFAF8] ${infoPanelOpen ? "md:pr-[390px]" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
