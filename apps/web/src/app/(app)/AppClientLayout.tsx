@@ -39,7 +39,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   return (
     <div className={isChatPage ? "h-screen overflow-hidden bg-[#FAFAF8]" : "min-h-screen bg-[#FAFAF8]"}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={isChatPage ? "md:ml-[17.5rem] h-screen flex flex-col" : "md:ml-[17.5rem]"}>
+      <div className={isChatPage ? "md:ml-[16rem] h-screen flex flex-col" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
         {/* 채팅 페이지는 ChatGPT 스타일 풀스크린 — TopNav(72px) 외 영역을
             main 이 모두 차지하고, 내부에서 메시지만 스크롤, 입력박스는 하단
@@ -51,11 +51,18 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
           </main>
         ) : (
           <>
-            <main className="p-8 max-md:p-5">{children}</main>
+            {/* (app) 페이지 메인 컨테이너 — 커뮤니티 메인 폭(1120px = 70rem)
+                과 통일. 1440px+ 큰 화면에서 그리드가 무한정 늘어나는 것
+                방지하고 reading width 유지. */}
+            <main className="p-8 max-md:p-5">
+              <div className="max-w-[70rem] mx-auto">{children}</div>
+            </main>
             {/* AI 기본법 고지 — 원칙 P6. 채팅 외 페이지에서만 노출.
                 채팅에선 ChatGPT 룩 + 입력박스 항상 보이도록 footer 제거. */}
             <div className="px-8 pb-10 max-md:px-5">
-              <AiNoticeFooter variant="light" />
+              <div className="max-w-[70rem] mx-auto">
+                <AiNoticeFooter variant="light" />
+              </div>
             </div>
           </>
         )}

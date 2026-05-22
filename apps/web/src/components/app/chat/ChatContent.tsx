@@ -665,7 +665,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
           viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
           가운데 정렬. */}
-      <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[64rem] mx-auto">
+      <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
         <div className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
           <button
@@ -901,7 +901,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 채팅 영역 — 컨테이너는 full-width 라 스크롤바가 viewport 우측 가장자리.
           안쪽 reading column wrapper 에서 메시지가 가운데 reading 폭으로 정렬. */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4">
-        <div className="w-full max-w-[64rem] mx-auto px-2 sm:px-3 space-y-4">
+        <div className="w-full max-w-[70rem] mx-auto px-2 sm:px-3 space-y-4">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
