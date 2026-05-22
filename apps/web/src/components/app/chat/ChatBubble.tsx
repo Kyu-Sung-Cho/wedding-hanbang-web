@@ -189,7 +189,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <div
           key={idx}
-          className="font-serif-kr font-semibold text-[16px] sm:text-[18px] text-[#1A1A1F] mt-3 first:mt-0 mb-1"
+          className="font-serif-kr font-semibold text-base sm:text-lg text-[#1A1A1F] mt-3 first:mt-0 mb-1"
         >
           {renderInlineMd(headingMatch[2], `h-${idx}`)}
         </div>
@@ -242,7 +242,7 @@ export default function ChatBubble({
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
     return (
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
+      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
         {/* AI 아바타 — 모바일에선 작게 */}
         <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -261,7 +261,7 @@ export default function ChatBubble({
           <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <div className="text-[13px] sm:text-[14px] text-[#1A1A1F] leading-relaxed break-words">
+            <div className="text-xs sm:text-sm text-[#1A1A1F] leading-relaxed break-words">
               {renderAiMarkdown(cleanText)}
             </div>
             {partNumbers.length > 0 && (
@@ -387,7 +387,7 @@ export default function ChatBubble({
           <div
             className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-5 py-4 shadow-sm`}
           >
-            <p className="text-[14px] text-white leading-relaxed whitespace-pre-wrap">
+            <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
               {displayContent}
             </p>
           </div>
@@ -401,7 +401,7 @@ export default function ChatBubble({
 
   // 상대방 메시지: 왼쪽 정렬
   return (
-    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
+    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
       {/* 아바타 — 모바일 작게 */}
       <div
         className={`flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}
@@ -429,7 +429,7 @@ export default function ChatBubble({
         <div
           className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm`}
         >
-          <p className="text-[14px] text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+          <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
             {displayContent}
           </p>
         </div>

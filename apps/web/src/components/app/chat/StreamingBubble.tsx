@@ -31,7 +31,7 @@ export default function StreamingBubble({
       )}
 
       {/* 항상 thinking 인디케이터만 — 텍스트는 done 이벤트에서 한 번에 렌더 */}
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[860px]">
+      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
         <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
@@ -41,7 +41,7 @@ export default function StreamingBubble({
           <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm">
             <div className="flex items-center gap-2 py-0.5">
               <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" />
-              <span className="text-[13px] sm:text-[14px] text-[#928980]">
+              <span className="text-xs sm:text-sm text-[#928980]">
                 답변을 정리하고 있어요…
               </span>
             </div>

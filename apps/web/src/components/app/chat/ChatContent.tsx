@@ -667,7 +667,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       <div className="flex items-center justify-between px-2 pb-2.5 pt-1">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[#795252]" />
-          <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">아모라 상담</span>
+          <span className="font-serif-kr text-lg font-light text-[#1A1A1F]">아모라 상담</span>
           {messages.length > 0 && (
             <span className="text-xs text-[#B5ADA3]">({messages.length})</span>
           )}
@@ -1147,7 +1147,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 입력창 — ChatGPT 스타일로 reading width 유지 + 가운데 정렬 */}
-      <div className="px-0 sm:px-2 pt-3 pb-2 w-full max-w-[860px] mx-auto">
+      <div className="px-0 sm:px-2 pt-3 pb-2 w-full max-w-[53.75rem] mx-auto">
         {/* 첨부 미리보기 */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-2 px-1 sm:px-2 flex-wrap">
@@ -1266,7 +1266,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   : "무엇이든 물어보세요…"
             }
             disabled={isStreaming}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[15px] sm:text-[15px] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[120px] overflow-y-auto"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}
