@@ -704,13 +704,13 @@ export default function DashboardPage() {
 
           <div className="flex justify-between items-end gap-3 mb-6">
             <div className="min-w-0">
-              <p className="font-serif-kr text-2xl sm:text-3xl text-[#1b1c1c] font-light mb-1 break-words">
+              <p className="h-page mb-1 break-words">
                 {formatBudget(spentBudget)}
               </p>
               <p className="text-sm text-[#504444]">사용한 금액</p>
             </div>
             <div className="text-right min-w-0">
-              <p className="font-serif-kr text-2xl sm:text-3xl text-[#1b1c1c] font-light mb-1 break-words">
+              <p className="h-page mb-1 break-words">
                 {formatBudget(totalBudget)}
               </p>
               <p className="text-sm text-[#504444]">전체 예산</p>
@@ -893,7 +893,7 @@ export default function DashboardPage() {
             <div className={`${partnerActivities.length > 0 ? "lg:col-span-3" : "lg:col-span-5"} bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <AlertCircle className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">지금 해야 할 것</h3>
+                <h3 className="h-section">지금 해야 할 것</h3>
               </div>
               <div className="flex flex-col gap-3">
                 {urgentTasks.map((task) => {
@@ -941,7 +941,7 @@ export default function DashboardPage() {
             <div className={`${urgentTasks.length > 0 ? "lg:col-span-2" : "lg:col-span-5"} bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}>
               <div className="flex items-center gap-2 mb-5">
                 <Users className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">커플 활동</h3>
+                <h3 className="h-section">커플 활동</h3>
               </div>
               <div className="flex flex-col gap-2">
                 {partnerActivities.map((activity) => {
@@ -988,7 +988,7 @@ export default function DashboardPage() {
               <p className="text-sm tracking-[0.2em] uppercase text-[#795252] font-medium mb-1">
                 Progress
               </p>
-              <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">카테고리별 진행 상태</h3>
+              <h3 className="h-section">카테고리별 진행 상태</h3>
             </div>
             <Link href="/schedule" className="text-sm sm:text-base text-[#795252] font-medium flex items-center gap-1 hover:gap-2 transition-all flex-shrink-0 whitespace-nowrap">
               전체 보기 <ArrowRight className="w-4 h-4" />
@@ -1061,7 +1061,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-5 h-5 text-[#795252]" />
-            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">시작 가이드</h3>
+            <h3 className="h-section">시작 가이드</h3>
           </div>
           <div className="flex flex-col gap-1">
             {[

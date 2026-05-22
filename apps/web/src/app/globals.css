@@ -116,10 +116,10 @@
   }
 }
 
-/* 섹션 헤더 (h2) — 카드/그룹 제목 */
+/* 섹션 헤더 (h2) — 카드/그룹 제목. font-light(300) 톤으로 통일 */
 .h-section {
   font-family: 'Noto Serif KR', serif;
-  font-weight: 400;
+  font-weight: 300;
   color: #1b1c1c;
   font-size: 1.25rem;          /* text-xl */
   line-height: 1.35;
@@ -133,7 +133,7 @@
 /* 카드 안 헤더 (h3) — 작은 카드 안의 타이틀 */
 .h-card {
   font-family: 'Noto Serif KR', serif;
-  font-weight: 500;
+  font-weight: 400;
   color: #1b1c1c;
   font-size: 1.125rem;         /* text-lg */
   line-height: 1.4;

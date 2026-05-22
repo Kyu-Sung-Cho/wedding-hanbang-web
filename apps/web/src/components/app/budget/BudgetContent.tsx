@@ -618,7 +618,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
         <div className="flex items-center gap-3 min-w-0">
           <ShoppingBag className="w-6 h-6 text-[#795252]" />
           <div className="min-w-0">
-            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">내 예약 내역</h3>
+            <h3 className="h-section">내 예약 내역</h3>
             {!loading && <p className="text-sm text-[#B5ADA3] mt-0.5">{activeBookings.length}건 진행 중</p>}
           </div>
         </div>
@@ -1098,7 +1098,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             <div className="flex items-start sm:items-center justify-between gap-3 mb-4 flex-wrap">
               <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">BUDGET BREAKDOWN</p>
-                <h2 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">카테고리별 배분</h2>
+                <h2 className="h-section">카테고리별 배분</h2>
               </div>
               <p className="text-sm text-[#504444]">
                 <span className="font-medium text-[#1b1c1c]">{spentPercent}%</span> 사용 /{" "}
@@ -1136,7 +1136,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
               <Users className="w-6 h-6 text-[#795252]" />
               <div>
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">PAYER SUMMARY</p>
-                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">분담 현황</h3>
+                <h3 className="h-section">분담 현황</h3>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
@@ -1217,12 +1217,12 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
               </div>
               <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">SDM PACKAGE</p>
-                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">스드메 패키지</h3>
+                <h3 className="h-section">스드메 패키지</h3>
                 <p className="text-sm text-[#504444] mt-0.5">스튜디오 · 드레스 · 메이크업</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c] break-words">
+              <p className="h-section break-words">
                 {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3] text-base sm:text-lg">/ {formatWonFull(sdmBudget)}</span>
               </p>
               <p className="text-sm text-[#504444] mt-1">
@@ -1259,7 +1259,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
         <div className="flex items-center justify-between gap-3 mb-4 animate-fade-in flex-wrap">
           <div className="min-w-0">
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">OTHER CATEGORIES</p>
-            <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">기타 카테고리</h3>
+            <h3 className="h-section">기타 카테고리</h3>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-[#B5ADA3]">
             <Pencil className="w-4 h-4 text-[#795252]/50" />
@@ -1333,7 +1333,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
               </div>
               <div className="min-w-0">
                 <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">HIDDEN COSTS</p>
-                <h3 className="font-serif-kr text-xl sm:text-2xl font-light text-[#1b1c1c]">숨은 비용 체크</h3>
+                <h3 className="h-section">숨은 비용 체크</h3>
                 <p className="text-sm text-[#504444] mt-1">
                   {hiddenCostWarnings.length > 0
                     ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에 추가 비용 주의가 필요해요.`
