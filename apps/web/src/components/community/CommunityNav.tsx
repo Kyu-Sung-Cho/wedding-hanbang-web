@@ -58,7 +58,7 @@ export default function CommunityNav() {
           <div className="flex items-center gap-2.5 shrink-0">
             <Link
               href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl sm:text-[22px] text-[#1A1A1F]"
+              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl sm:text-[1.375rem] text-[#1A1A1F]"
             >
               웨딩한방
             </Link>

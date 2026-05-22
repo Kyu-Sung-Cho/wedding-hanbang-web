@@ -516,7 +516,7 @@ function CommunityFeedContent() {
             <Link
               href="/"
               data-tutorial-target="community-service-link"
-              className="text-[12px] text-[#504444] hover:text-[#795252] transition-colors duration-200 tracking-widest uppercase"
+              className="text-xs text-[#504444] hover:text-[#795252] transition-colors duration-200 tracking-widest uppercase"
             >
               웨딩한방 서비스 둘러보기 →
             </Link>

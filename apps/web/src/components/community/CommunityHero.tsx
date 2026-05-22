@@ -41,7 +41,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
             <br className="hidden sm:block" /> 여기서 같이 확인해요.
           </h1>
 
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#504444] sm:text-[15px]">
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#504444] sm:text-[0.9375rem]">
             받은 견적이 애매할 때, 투어 후기가 궁금할 때, 계약 전에 물어볼 것이 있을 때
             비슷한 상황의 예비부부와 익명으로 나눕니다.
           </p>

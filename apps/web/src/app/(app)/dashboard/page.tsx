@@ -392,7 +392,7 @@ export default function DashboardPage() {
       {couple && !partner && inviteCode && (
         <div className="bg-white rounded-2xl p-6 mb-8 flex items-center justify-between max-md:flex-col max-md:gap-3 animate-fade-in shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <div>
-            <p className="text-[17px] font-medium text-[#1b1c1c]">
+            <p className="text-[1.0625rem] font-medium text-[#1b1c1c]">
               파트너에게 초대 코드를 공유하세요
             </p>
             <p className="text-base text-[#504444] mt-1">
@@ -425,12 +425,12 @@ export default function DashboardPage() {
             <p className="mb-4 text-xs font-semibold tracking-[0.24em] text-[#8a5f5b] uppercase">
               Wedding command room
             </p>
-            <h1 className="font-serif-kr text-[28px] leading-tight text-[#1b1c1c] sm:text-[36px] lg:text-[44px]">
+            <h1 className="font-serif-kr text-[1.75rem] leading-tight text-[#1b1c1c] sm:text-[2.25rem] lg:text-[2.75rem]">
               오늘도 실수 없이,
               <br />
               우리다운 결혼식으로.
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#504444] sm:text-[15px] sm:leading-7">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#504444] sm:text-[0.9375rem] sm:leading-7">
               아모라가 일정, 예산, 견적, 청첩장, 식후 감사 인사까지 이어서 챙겨요.
               지금 화면만 봐도 다음 행동이 보이도록 정리해둘게요.
             </p>
@@ -508,7 +508,7 @@ export default function DashboardPage() {
                 <span className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${item.tone}`}>
                   <item.icon className="h-5 w-5" />
                 </span>
-                <p className="text-[15px] font-semibold leading-snug text-[#1b1c1c]">{item.title}</p>
+                <p className="text-[0.9375rem] font-semibold leading-snug text-[#1b1c1c]">{item.title}</p>
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-[#504444]">{item.text}</p>
                 <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#795252]">
                   {item.cta}
@@ -622,7 +622,7 @@ export default function DashboardPage() {
                 </div>
 
                 <Link href={action.href ?? "/dashboard"} className="group min-w-0">
-                  <p className="text-[15px] font-semibold leading-snug text-[#1b1c1c] group-hover:text-[#795252]">
+                  <p className="text-[0.9375rem] font-semibold leading-snug text-[#1b1c1c] group-hover:text-[#795252]">
                     {action.title}
                   </p>
                   {action.description && (
@@ -655,7 +655,7 @@ export default function DashboardPage() {
         ) : (
           <div className="rounded-xl border border-dashed border-[#ddd1ca] bg-[#fffdfb] px-5 py-6 text-center">
             <Sparkles className="mx-auto h-7 w-7 text-[#795252]" />
-            <p className="mt-3 text-[15px] font-semibold text-[#1b1c1c]">
+            <p className="mt-3 text-[0.9375rem] font-semibold text-[#1b1c1c]">
               아직 저장된 행동은 없어요
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[#504444]">
@@ -861,7 +861,7 @@ export default function DashboardPage() {
               </div>
               <MessageCircle className="h-7 w-7 text-[#8c9566]" />
             </div>
-            <p className="text-[15px] leading-7 text-[#504444]">
+            <p className="text-[0.9375rem] leading-7 text-[#504444]">
               가격표보다 중요한 건 실제 예비부부의 질문과 계약 전 확인이에요.
               견적, 업체 응대, 가족 고민을 혼자 판단하지 않도록 모아둘게요.
             </p>
@@ -915,7 +915,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[17px] font-medium text-[#1b1c1c]">{task.label}</span>
+                          <span className="text-[1.0625rem] font-medium text-[#1b1c1c]">{task.label}</span>
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${task.urgencyColor} ${
                             task.urgency === "overdue"
                               ? "bg-red-100"
