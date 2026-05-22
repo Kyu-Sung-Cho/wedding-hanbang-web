@@ -252,7 +252,7 @@ export default function ChatBubble({
           <span className="text-base font-medium text-[#928980] flex items-center gap-1.5">
             아모라
             {aiIsPrivate && (
-              <span className="inline-flex items-center gap-1 text-[12px] text-[#5a6147] font-normal">
+              <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
                 <Lock className="w-3 h-3" />
                 나만 보기
               </span>

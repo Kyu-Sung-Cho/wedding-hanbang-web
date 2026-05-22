@@ -175,7 +175,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
                 <p className="mt-1 text-xs leading-relaxed text-[#504444]">{action.description}</p>
               )}
             </div>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${
               action.priority === "high"
                 ? "bg-red-50 text-red-600"
                 : action.priority === "low"
@@ -185,7 +185,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
               {getActionPriorityLabel(action.priority)}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[#928980]">
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-[#928980]">
             <span>{getActionStatusLabel(action.status)}</span>
             {action.dueDate && <span>· {action.dueDate}까지</span>}
           </div>

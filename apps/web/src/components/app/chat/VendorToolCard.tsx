@@ -510,7 +510,7 @@ function TimeslotPicker({
             </p>
           </div>
           {dbg && (
-            <pre className="mt-2 text-[10px] text-[#B5ADA3] font-mono leading-tight whitespace-pre-wrap break-all">
+            <pre className="mt-2 text-[0.625rem] text-[#B5ADA3] font-mono leading-tight whitespace-pre-wrap break-all">
               {`src=${dbg.slotSource ?? "-"} loaded=${dbg.slotsLoaded ?? "-"}
 range=${dbg.rangeStart ?? "-"}~${dbg.rangeEnd ?? "-"}
 expanded=${dbg.expanded ?? "-"} primary=${dbg.primary ?? "-"} fallback=${dbg.fallback ?? "-"}

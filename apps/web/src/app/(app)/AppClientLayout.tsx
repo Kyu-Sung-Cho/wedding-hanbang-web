@@ -39,7 +39,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   return (
     <div className={isChatPage ? "h-screen overflow-hidden bg-[#FAFAF8]" : "min-h-screen bg-[#FAFAF8]"}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={isChatPage ? "md:ml-[280px] h-screen flex flex-col" : "md:ml-[280px]"}>
+      <div className={isChatPage ? "md:ml-[17.5rem] h-screen flex flex-col" : "md:ml-[17.5rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
         {/* 채팅 페이지는 ChatGPT 스타일 풀스크린 — TopNav(72px) 외 영역을
             main 이 모두 차지하고, 내부에서 메시지만 스크롤, 입력박스는 하단

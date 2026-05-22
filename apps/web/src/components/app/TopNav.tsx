@@ -62,7 +62,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-[72px] bg-[#FAFAF8]/90 backdrop-blur-[12px] flex items-center justify-between px-8 max-md:px-5">
+      <header className="sticky top-0 z-30 h-[4.5rem] bg-[#FAFAF8]/90 backdrop-blur-[12px] flex items-center justify-between px-8 max-md:px-5">
         <div className="flex items-center gap-4">
           <button
             onClick={onMenuToggle}
@@ -103,7 +103,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             >
               <Bell className="w-6 h-6" />
               {newCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#795252] text-white text-[11px] font-medium flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#795252] text-white text-[0.6875rem] font-medium flex items-center justify-center">
                   {newCount > 9 ? "9+" : newCount}
                 </span>
               )}

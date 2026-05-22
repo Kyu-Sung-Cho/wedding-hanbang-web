@@ -133,7 +133,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
           </div>
           <div>
             <p className="text-sm text-white/70 font-medium">AI 견적 체크</p>
-            <p className="text-[17px] text-white font-semibold">
+            <p className="text-[1.0625rem] text-white font-semibold">
               {vendorName || CATEGORY_LABELS[category]} — {quotePrice}만원
             </p>
           </div>
@@ -308,7 +308,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-white/50 font-medium tracking-wider uppercase">AI 견적 분석 리포트</p>
-            <p className="text-[17px] text-white font-medium mt-1">
+            <p className="text-[1.0625rem] text-white font-medium mt-1">
               {vendorName || CATEGORY_LABELS[category] || "스드메"} 견적
             </p>
           </div>
