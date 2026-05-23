@@ -40,6 +40,13 @@ interface ChatStoreState {
   error: string | null;
   initialLoadDone: boolean;
 
+  // 본인의 view-reset timestamp — "새 채팅(내 화면만)" 누른 시점.
+  // pollNewMessages 등 후속 fetch 에서 이 시점 이전 메시지는 필터링.
+  // 이전 사고: poll 이 lastMsg 기준으로만 since 잡아서 새 채팅 직후
+  // cleared 메시지가 다시 들어왔음.
+  sharedClearedAt: string | null;
+  privateClearedAt: string | null;
+
   // Presence — Realtime broadcast로 동기화되는 상대방/AI 활동 상태
   presence: ChatPresence;
 
@@ -550,6 +557,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   suggestions: [],
   error: null,
   initialLoadDone: false,
+  sharedClearedAt: null,
+  privateClearedAt: null,
   presence: { partnerTyping: null, aiResponding: null },
 
   // 메시지 로드 — 스트리밍 중이면 스킵
@@ -600,7 +609,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           return true;
         });
 
-      set({ messages: allMessages });
+      // cleared_at 도 store 에 저장 — pollNewMessages 가 활용
+      set({ messages: allMessages, sharedClearedAt, privateClearedAt });
     } catch (err) {
       console.error("채팅 로드 에러:", err);
       set({ error: "채팅을 불러오지 못했습니다." });
@@ -636,7 +646,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const fetched = data.map((m) => dbRowToMessage(m as Record<string, unknown>));
       set((s) => {
         const existing = new Set(s.messages.map((m) => m.id));
-        const toAdd = fetched.filter((m) => !existing.has(m.id));
+        // cleared_at 이전 메시지는 무시 — "새 채팅" 후 cleared 메시지가
+        // 다시 들어오는 문제 방지 (이전 사고)
+        const toAdd = fetched.filter((m) => {
+          if (existing.has(m.id)) return false;
+          if (m.visibility === "shared" && s.sharedClearedAt) {
+            if (new Date(m.created_at) <= new Date(s.sharedClearedAt)) return false;
+          }
+          if (
+            (m.visibility === "bride_private" || m.visibility === "groom_private") &&
+            s.privateClearedAt
+          ) {
+            if (new Date(m.created_at) <= new Date(s.privateClearedAt)) return false;
+          }
+          return true;
+        });
         if (toAdd.length === 0) return s;
         return { messages: [...s.messages, ...toAdd] };
       });
@@ -1025,14 +1049,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   // 대화 초기화
   clearMessages: async (coupleId, mode) => {
     const isDemo = document.cookie.includes("demo_mode=true");
+    // 서버 응답에서 받은 clearedAt 사용 — DB·클라이언트 동기화
+    let serverClearedAt: string | null = null;
     if (!isDemo) {
-      await fetch("/api/chat/messages", {
+      const res = await fetch("/api/chat/messages", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ coupleId, mode }),
       });
+      const data = await res.json().catch(() => ({}));
+      serverClearedAt = typeof data?.clearedAt === "string" ? data.clearedAt : null;
     }
-    // 로컬 state에서 영향받는 메시지만 제거 (탭별)
+    const nowIso = serverClearedAt ?? new Date().toISOString();
+
+    // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
+    // (pollNewMessages 가 cleared_at 이후 메시지만 추가하도록 보장)
     set((s) => {
       const filtered = s.messages.filter((m) => {
         if (mode === "view_reset_shared" || mode === "delete_shared") {
@@ -1043,7 +1074,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         }
         return true;
       });
-      return { messages: filtered, suggestions: [] };
+      const next: Partial<ChatStoreState> = { messages: filtered, suggestions: [] };
+      if (mode === "view_reset_shared" || mode === "delete_shared") {
+        next.sharedClearedAt = nowIso;
+      }
+      if (mode === "view_reset_private" || mode === "delete_private") {
+        next.privateClearedAt = nowIso;
+      }
+      return next as ChatStoreState;
     });
   },
 
@@ -1210,6 +1248,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       suggestions: [],
       error: null,
       initialLoadDone: false,
+      sharedClearedAt: null,
+      privateClearedAt: null,
       presence: { partnerTyping: null, aiResponding: null },
     });
   },

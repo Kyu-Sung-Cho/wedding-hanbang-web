@@ -134,14 +134,41 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     };
   }, [coupleId, isDemo, loadMessages, subscribeToMessages]);
 
-  // 탭 복귀 시 놓친 메시지 safety-net fetch
-  // (Realtime 구독이 백그라운드에서 끊겼을 때 커버)
+  // 탭 복귀 시 놓친 메시지 safety-net fetch (Realtime 구독이 백그라운드에서
+  // 끊겼을 때 커버). 단:
+  // 1) 마지막 fetch 후 60초 이내면 skip (pollNewMessages 가 3초마다 돌고 있어
+  //    잠깐 탭 전환은 굳이 재fetch 불필요)
+  // 2) loadMessages 가 messages 배열을 새로 set 하면서 메시지 컨테이너의
+  //    scrollTop 이 reset 되는 부수효과 → 사용자가 보던 위치가 맨 위로
+  //    날아감. fetch 전에 scrollTop 저장 → fetch 후 복원.
+  const lastVisibilityFetchRef = useRef(0);
   useEffect(() => {
     if (!coupleId || isDemo) return;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        loadMessages(coupleId);
-      }
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastVisibilityFetchRef.current < 60_000) return; // 60s throttle
+      lastVisibilityFetchRef.current = now;
+
+      // 현재 스크롤 위치 저장
+      const el = messagesContainerRef.current;
+      const prevScrollTop = el?.scrollTop ?? 0;
+      const prevWasNearBottom = el
+        ? el.scrollHeight - el.scrollTop - el.clientHeight < 120
+        : true;
+
+      await loadMessages(coupleId);
+
+      // 복원 — DOM update 후 다음 frame 에서
+      requestAnimationFrame(() => {
+        const elNow = messagesContainerRef.current;
+        if (!elNow) return;
+        if (prevWasNearBottom) {
+          elNow.scrollTop = elNow.scrollHeight;
+        } else {
+          elNow.scrollTop = prevScrollTop;
+        }
+      });
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
