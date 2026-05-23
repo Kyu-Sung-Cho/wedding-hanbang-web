@@ -177,48 +177,121 @@ function renderInlineMd(text: string, prefix: string): React.ReactNode {
   });
 }
 
-// AI 메시지 라이트 마크다운 렌더 (### 헤더, **bold**, - 불릿)
+// markdown table row 파싱 — "| a | b | c |" → ["a", "b", "c"]
+function parseTableRow(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
+  return trimmed
+    .slice(1, -1)
+    .split("|")
+    .map((c) => c.trim());
+}
+
+// separator row 여부 ("|---|---|" 또는 "|:---|---:|" 등)
+function isTableSeparator(line: string): boolean {
+  const cells = parseTableRow(line);
+  if (!cells) return false;
+  return cells.every((c) => /^:?-+:?$/.test(c));
+}
+
+// AI 메시지 라이트 마크다운 렌더 (### 헤더, **bold**, - 불릿, | 테이블)
 function renderAiMarkdown(text: string): React.ReactNode {
   const lines = text.split("\n");
   const blocks: React.ReactNode[] = [];
-  lines.forEach((line, idx) => {
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
     const trimmed = line.trim();
+
+    // 테이블 감지 — 현재 줄이 table row이고 다음 줄이 separator 이면 표.
+    const headerCells = parseTableRow(line);
+    if (headerCells && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      // 데이터 row 수집
+      const dataRows: string[][] = [];
+      let j = i + 2;
+      while (j < lines.length) {
+        const row = parseTableRow(lines[j]);
+        if (!row) break;
+        dataRows.push(row);
+        j++;
+      }
+      blocks.push(
+        <div key={`t-${i}`} className="my-2 overflow-x-auto rounded-lg border border-[#E8DDD3] bg-white/60">
+          <table className="w-full text-xs sm:text-[0.8125rem] border-collapse">
+            <thead>
+              <tr className="bg-[#FAF7F2]">
+                {headerCells.map((c, ci) => (
+                  <th
+                    key={ci}
+                    className="px-2.5 py-1.5 text-left font-semibold text-[#1A1A1F] border-b border-[#E8DDD3]"
+                  >
+                    {renderInlineMd(c, `th-${i}-${ci}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 1 ? "bg-[#FAF7F2]/40" : ""}>
+                  {row.map((c, ci) => (
+                    <td
+                      key={ci}
+                      className="px-2.5 py-1.5 text-[#1A1A1F] border-b border-[#E8DDD3]/60 align-top"
+                    >
+                      {renderInlineMd(c, `td-${i}-${ri}-${ci}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      i = j;
+      continue;
+    }
+
     // 헤더 (###, ##, #)
     const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
     if (headingMatch) {
       blocks.push(
         <div
-          key={idx}
+          key={i}
           className="font-serif-kr font-semibold text-base sm:text-lg text-[#1A1A1F] mt-3 first:mt-0 mb-1"
         >
-          {renderInlineMd(headingMatch[2], `h-${idx}`)}
+          {renderInlineMd(headingMatch[2], `h-${i}`)}
         </div>
       );
-      return;
+      i++;
+      continue;
     }
     // 불릿 (-, *)
     const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
     if (bulletMatch) {
       blocks.push(
-        <div key={idx} className="flex gap-2 my-0.5">
+        <div key={i} className="flex gap-2 my-0.5">
           <span className="text-[#C4967E] flex-shrink-0">•</span>
-          <span className="flex-1">{renderInlineMd(bulletMatch[1], `b-${idx}`)}</span>
+          <span className="flex-1">{renderInlineMd(bulletMatch[1], `b-${i}`)}</span>
         </div>
       );
-      return;
+      i++;
+      continue;
     }
     // 빈 줄 → 간격
     if (trimmed === "") {
-      blocks.push(<div key={idx} className="h-2" />);
-      return;
+      blocks.push(<div key={i} className="h-2" />);
+      i++;
+      continue;
     }
     // 일반 라인
     blocks.push(
-      <div key={idx} className="leading-relaxed">
-        {renderInlineMd(line, `p-${idx}`)}
+      <div key={i} className="leading-relaxed">
+        {renderInlineMd(line, `p-${i}`)}
       </div>
     );
-  });
+    i++;
+  }
   return blocks;
 }
 
