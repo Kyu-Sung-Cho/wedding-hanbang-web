@@ -141,6 +141,9 @@ interface AuthState {
   initialize: () => Promise<void>;
   updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<void>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
+  /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
+   *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
+  refreshJourney: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<Profile, "name">>) => Promise<void>;
   signOut: () => Promise<void>;
   reset: () => void;
@@ -230,6 +233,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { journey } = get();
     if (!journey) return;
     set({ journey: { ...journey, ...updates } });
+  },
+
+  // 서버에서 journey 만 강제 재fetch — AI 도구 실행 후 클라이언트 sync 안전망
+  refreshJourney: async () => {
+    const { isDemo } = get();
+    if (isDemo) return;
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.journey) {
+        set({ journey: data.journey });
+      }
+    } catch (err) {
+      console.error("refreshJourney 실패:", err);
+    }
   },
 
   updateJourney: async (updates) => {
