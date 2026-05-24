@@ -105,6 +105,18 @@ export interface ChatMessageMetadata {
     data?: string;
     resolution?: string;
   };
+  // 함께 대화 새로 시작 — 상호 동의 요청. 한 사용자가 "둘 다 새로시작"을 누르면
+  // chat_messages 에 메시지가 인서트되고 metadata.clearRequest 로 식별.
+  // 상대방이 [동의] 누르면 양쪽 cleared_at 갱신, [거절] 누르면 status 만 변경.
+  clearRequest?: {
+    type: "shared";
+    requestedBy: string;          // user id
+    requestedByRole?: "bride" | "groom";
+    requestedAt: string;          // ISO
+    status: "pending" | "accepted" | "declined";
+    respondedBy?: string;
+    respondedAt?: string;
+  };
 }
 
 export interface ChatMessage {

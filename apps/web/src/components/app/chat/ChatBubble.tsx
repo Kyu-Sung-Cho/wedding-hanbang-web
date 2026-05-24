@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2 } from "lucide-react";
+import { useChatStore } from "@/stores/chatStore";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import AiMessageFooter from "@/components/common/AiMessageFooter";
 import MediationCard, { type MediationBlock } from "@/components/app/chat/MediationCard";
@@ -308,6 +309,17 @@ export default function ChatBubble({
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
 
+  // 함께 대화 새로 시작 — 동의 요청 메시지는 별도 카드로 렌더 (양쪽에 보임)
+  if (message.metadata?.clearRequest) {
+    return (
+      <ClearRequestCard
+        message={message}
+        isRequester={isCurrentUser}
+        createdAt={created_at}
+      />
+    );
+  }
+
   // AI 메시지
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
@@ -510,6 +522,97 @@ export default function ChatBubble({
         <span className="text-sm text-[#B5ADA3] ml-1">
           {formatTime(created_at)}
         </span>
+      </div>
+    </div>
+  );
+}
+
+
+// ── 함께 대화 새로시작 동의 카드 ──
+// 양쪽 동의 후에만 cleared_at 갱신 → 일방적 데이터 손실 방지 (이전 사고).
+function ClearRequestCard({
+  message,
+  isRequester,
+  createdAt,
+}: {
+  message: ChatMessage;
+  isRequester: boolean;
+  createdAt: string;
+}) {
+  const cr = message.metadata?.clearRequest;
+  const respondToClearRequest = useChatStore((s) => s.respondToClearRequest);
+  const [pending, setPending] = useState<"accept" | "decline" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!cr) return null;
+
+  const isPending = cr.status === "pending";
+  const isAccepted = cr.status === "accepted";
+  const isDeclined = cr.status === "declined";
+
+  const handle = async (action: "accept" | "decline") => {
+    setPending(action);
+    setError(null);
+    const result = await respondToClearRequest(message.id, action);
+    if (!result.ok) {
+      setError(result.error ?? "응답에 실패했어요.");
+      setPending(null);
+    }
+  };
+
+  return (
+    <div className="flex justify-center w-full my-2">
+      <div className="w-full max-w-[28rem] rounded-xl border border-[#E8DDD3] bg-gradient-to-br from-[#FAF7F2] to-white shadow-sm px-4 py-3">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#795252]/10">
+            <RefreshCw className="w-3.5 h-3.5 text-[#795252]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#1A1A1F]">
+              {isAccepted
+                ? "함께 새로 시작했어요"
+                : isDeclined
+                  ? "함께 새로시작 요청이 거절됐어요"
+                  : "함께 대화 새로시작 제안"}
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-[#504444]">
+              {isAccepted
+                ? "양쪽 화면이 깨끗하게 정리됐어요. 데이터는 보존돼 있어요."
+                : isDeclined
+                  ? "기존 대화는 그대로 유지돼요."
+                  : isRequester
+                    ? "상대방 동의를 기다리는 중이에요. 동의하면 양쪽 화면이 정리돼요."
+                    : "상대방이 함께 새로 시작하자고 제안했어요. 동의하면 양쪽 화면이 정리돼요."}
+            </p>
+
+            {/* pending + 상대방 → 액션 버튼 */}
+            {isPending && !isRequester && (
+              <div className="mt-2.5 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => handle("accept")}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#795252] text-white text-xs font-medium hover:bg-[#946a6a] disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {pending === "accept" ? "처리 중..." : "동의"}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => handle("decline")}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-[#E8DDD3] text-[#504444] text-xs font-medium hover:bg-[#FAF7F2] disabled:opacity-50"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                  거절
+                </button>
+              </div>
+            )}
+            {error && (
+              <p className="mt-2 text-xs text-red-500">{error}</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

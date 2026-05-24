@@ -80,6 +80,15 @@ interface ChatStoreState {
     coupleId: string,
     mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private"
   ) => Promise<void>;
+
+  /** "함께 대화 새로 시작" 요청을 상대방에게 보냄 — 양쪽 동의 시에만 화면 정리.
+   *  이전 사고: 한쪽이 누르면 양쪽 DB 즉시 삭제 → 일방적 데이터 손실. */
+  requestSharedClear: (coupleId: string) => Promise<{ ok: boolean; error?: string }>;
+  /** 받은 요청에 동의/거절 응답. accept 시 양쪽 cleared_at 갱신됨. */
+  respondToClearRequest: (
+    messageId: string,
+    action: "accept" | "decline"
+  ) => Promise<{ ok: boolean; error?: string }>;
   subscribeToMessages: (coupleId: string) => () => void;
 
   /** 입력창에서 호출 — 디바운스된 typing broadcast (자동 stop 포함) */
@@ -1085,6 +1094,51 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     });
   },
 
+  // "둘 다 새로시작" 요청 보내기
+  requestSharedClear: async (coupleId: string) => {
+    try {
+      const res = await fetch("/api/chat/clear-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request", coupleId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data?.error ?? "요청 실패" };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
+    }
+  },
+
+  // 받은 요청에 동의/거절
+  respondToClearRequest: async (messageId: string, action: "accept" | "decline") => {
+    try {
+      const res = await fetch("/api/chat/clear-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, messageId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data?.error ?? "응답 실패" };
+
+      // accept 의 경우 양쪽 cleared_at 이 갱신됨 — 본인 store 도 즉시 반영
+      if (action === "accept" && typeof data?.clearedAt === "string") {
+        set((s) => {
+          // cleared_at 이전 shared 메시지 제거 (clear-request 메시지 자체는
+          // 동일 created_at 이라 살아남음 — 카드 상태 업데이트로 표시).
+          const filtered = s.messages.filter((m) => {
+            if (m.visibility !== "shared") return true;
+            return new Date(m.created_at) >= new Date(data.clearedAt);
+          });
+          return { messages: filtered, sharedClearedAt: data.clearedAt };
+        });
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
+    }
+  },
+
   subscribeToMessages: (coupleId: string) => {
     const supabase = createClient();
     let currentChannel: ReturnType<typeof supabase.channel> | null = null;
@@ -1144,6 +1198,40 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
                   ? { presence: { ...s.presence, partnerTyping: null } }
                   : {}),
               };
+            });
+          }
+        )
+        // 메시지 UPDATE — clearRequest 동의/거절 변화 등을 양쪽에 즉시 반영
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "chat_messages",
+            filter: `couple_id=eq.${coupleId}`,
+          },
+          (payload) => {
+            const updated = dbRowToMessage(payload.new as Record<string, unknown>);
+            set((s) => {
+              // 본인 메시지 list 갱신
+              const idx = s.messages.findIndex((m) => m.id === updated.id);
+              const nextMessages = idx >= 0
+                ? s.messages.map((m, i) => (i === idx ? updated : m))
+                : s.messages;
+
+              // clearRequest 가 accepted 로 바뀐 케이스 — 요청자(본인) 화면에도
+              // 즉시 cleared_at 적용. respondToClearRequest 호출자(=수락자)는
+              // 이미 본인 store 에서 갱신했음. 여기서는 요청자 측만 처리.
+              const cr = updated.metadata?.clearRequest;
+              if (cr?.status === "accepted") {
+                const clearedAt = updated.created_at;
+                const filtered = nextMessages.filter((m) => {
+                  if (m.visibility !== "shared") return true;
+                  return new Date(m.created_at) >= new Date(clearedAt);
+                });
+                return { messages: filtered, sharedClearedAt: clearedAt };
+              }
+              return { messages: nextMessages };
             });
           }
         )

@@ -59,6 +59,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     subscribeToMessages,
     pollNewMessages,
     notifyTyping,
+    requestSharedClear,
   } = useChatStore();
   const [input, setInput] = useState("");
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
@@ -836,11 +837,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </button>
                   <button
                     onClick={() => setClearStep("shared_confirm_both")}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-xl border border-[#E8DDD3] bg-[#FAF7F2]/50 hover:bg-[#FAF7F2] transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-red-600 mb-1">둘 다 새로 시작</div>
+                    <div className="text-[14.5px] font-medium text-[#795252] mb-1">둘 다 새로 시작 (상대방 동의 필요)</div>
                     <div className="text-[12px] text-[#504444]">
-                      두 분 모두의 함께 대화 기록을 영구 삭제합니다. <strong>복구 불가</strong>.
+                      상대방에게 동의 요청을 보내요. 상대방이 [동의] 누르면 양쪽 화면이
+                      깨끗하게 정리됩니다. <strong>데이터는 보존</strong>돼서 안전해요.
                     </div>
                   </button>
                 </div>
@@ -856,16 +858,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               </>
             )}
 
-            {/* Step 1b: 함께 대화 둘 다 — 추가 확인 */}
+            {/* Step 1b: 함께 대화 둘 다 — 동의 요청 확인 */}
             {clearStep === "shared_confirm_both" && (
               <>
-                <h3 className="text-lg font-semibold text-red-600 mb-2">정말 둘 다 삭제할까요?</h3>
+                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">상대방에게 동의 요청 보낼게요</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
-                  두 분의 함께 대화 기록 전부가 사라지고 <strong>복구할 수 없어요</strong>.
+                  채팅에 동의 카드가 올라가고 상대방이 [동의] 누르면 양쪽 화면이
+                  정리됩니다. 거절되면 그대로 유지돼요.
                   <br />
-                  상대방은 영문도 모르고 빈 화면을 보게 됩니다.
-                  <br />
-                  <span className="text-[#928980] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
+                  <span className="text-[#928980] text-[12.5px]">데이터는 보존되므로 안전합니다 (view-reset).</span>
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -876,10 +877,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     돌아가기
                   </button>
                   <button
-                    onClick={() => performClear("delete_shared")}
-                    className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+                    onClick={async () => {
+                      if (!coupleId) return;
+                      const result = await requestSharedClear(coupleId);
+                      if (!result.ok) {
+                        // 실패 시 별도 처리 안 함 — 사용자가 다시 시도 가능
+                      }
+                      setClearStep("closed");
+                    }}
+                    className="px-4 py-2 text-sm rounded-lg bg-[#795252] text-white hover:bg-[#946a6a]"
                   >
-                    네, 둘 다 삭제
+                    동의 요청 보내기
                   </button>
                 </div>
               </>
