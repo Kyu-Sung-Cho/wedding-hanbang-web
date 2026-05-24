@@ -770,6 +770,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         </div>
       </div>
 
+      {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
+          AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
+      <div className="w-full max-w-[70rem] mx-auto px-2 pb-2">
+        <div
+          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
+          title="아모라 답변은 Anthropic Claude 가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
+        >
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/50" />
+            AI 생성
+          </span>
+          <span className="text-[#D5C9C0]">·</span>
+          <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
+          <span className="text-[#D5C9C0]">·</span>
+          <span>전문가 검토 권장</span>
+          <span className="text-[#D5C9C0]">·</span>
+          <a
+            href="/ai-policy"
+            className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
+          >
+            AI 정책
+          </a>
+        </div>
+      </div>
+
       {/* 검색 바 — 헤더 아래 토글 */}
       {searchOpen && (
         <div className="mx-2 mb-2 flex items-center gap-2 px-3 py-2 bg-white border border-[#F0EFED] rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
