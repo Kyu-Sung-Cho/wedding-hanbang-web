@@ -2636,11 +2636,14 @@ async function executeSearchNearbyPlaces(
       }
     );
 
-    // 3단계: 블로그 검색으로 보강 (병렬, 개별 타임아웃 3초, 실패해도 무시)
+    // 3단계: 블로그 검색으로 보강 (병렬, 개별 타임아웃 3초, 실패해도 무시).
+    // 가게 이름을 큰따옴표로 묶어 네이버 블로그 검색에 정확 매칭 — 이전엔
+    // unquoted 쿼리라 "강남 식당" 같은 일반 매칭이 잡혀 blog.total 이 수십만
+    // 단위로 부풀려졌음. 사용자에게 잘못된 후기 수로 보임.
     const blogResults = await Promise.allSettled(
       basePlaces.map(async (place: { name: string; address: string }) => {
         const blogResponse = await fetchWithTimeout(
-          `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(place.name + " " + place.address + " 가격 후기")}&display=3&sort=sim`,
+          `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(`"${place.name}" 후기`)}&display=3&sort=sim`,
           { headers: naverHeaders },
           3000
         );

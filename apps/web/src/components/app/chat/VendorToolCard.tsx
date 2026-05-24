@@ -897,8 +897,11 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                       </span>
                     )}
                     {p.blogReviewCount > 0 && (
-                      <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium">
-                        후기 {formatCount(p.blogReviewCount)}
+                      <span
+                        className="text-sm px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium"
+                        title="네이버 블로그에서 이 가게가 언급된 글 수 (정확한 후기 수와 다를 수 있어요)"
+                      >
+                        블로그 {formatCount(p.blogReviewCount)}+
                       </span>
                     )}
                   </div>
