@@ -61,10 +61,11 @@ export function useEventTracker() {
 }
 
 // 페이지뷰 자동 추적 훅 (클릭스트림)
-export function usePageViewTracker() {
+export function usePageViewTracker(enabled = true) {
   const lastPath = useRef("");
 
   useEffect(() => {
+    if (!enabled) return;
     if (typeof window === "undefined") return;
 
     const trackPageView = () => {
@@ -92,12 +93,12 @@ export function usePageViewTracker() {
     observer.observe(document.body, { childList: true, subtree: true });
 
     return () => observer.disconnect();
-  }, []);
+  }, [enabled]);
 }
 
 // 체류시간 자동 추적 훅
 export function useViewDuration(vendorId?: string, productId?: string) {
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!vendorId) return;

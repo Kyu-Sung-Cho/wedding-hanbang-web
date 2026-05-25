@@ -1,66 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
-
-import { useAuthStore } from "@/stores/authStore";
+import AiNoticeFooter from "@/components/common/AiNoticeFooter";
+import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
-import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
-import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
+import { useAuthStore } from "@/stores/authStore";
 
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const pathname = usePathname();
   const isChatPage = pathname === "/chat";
-  const { initialize, isInitialized, isLoading } = useAuthStore();
+  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
-  // 페이지뷰 클릭스트림 자동 추적
-  usePageViewTracker();
+  usePageViewTracker(isInitialized && !isDemo);
 
   useEffect(() => {
-    if (!isInitialized) initialize();
+    if (!isInitialized) void initialize();
   }, [initialize, isInitialized]);
 
   if (!isInitialized || isLoading) {
     return (
-      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#fffdf7]">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-[#795252] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-[13px] text-[#B5ADA3]">로딩 중...</p>
+          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#061a34] border-t-transparent" />
+          <p className="text-[13px] font-medium text-[#7a8290]">준비실을 불러오는 중...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={isChatPage ? "h-screen overflow-hidden bg-[#FAFAF8]" : "min-h-screen bg-[#FAFAF8]"}>
+    <div
+      className={
+        isChatPage
+          ? "h-screen overflow-hidden bg-[#fffdf7]"
+          : "min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_48%,#fbf8ee_100%)]"
+      }
+    >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={isChatPage ? "md:ml-[16rem] h-screen flex flex-col" : "md:ml-[16rem]"}>
+      <div className={isChatPage ? "flex h-screen flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
-        {/* 채팅 페이지는 ChatGPT 스타일 풀스크린 — TopNav(72px) 외 영역을
-            main 이 모두 차지하고, 내부에서 메시지만 스크롤, 입력박스는 하단
-            고정. 페이지 스크롤 자체가 없어 "스크롤 두 개" 문제 해소.
-            다른 페이지는 기존 layout 유지. */}
         {isChatPage ? (
-          <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            {children}
-          </main>
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
         ) : (
           <>
-            {/* (app) 페이지 메인 컨테이너 — 커뮤니티 메인 폭(1120px = 70rem)
-                과 통일. 1440px+ 큰 화면에서 그리드가 무한정 늘어나는 것
-                방지하고 reading width 유지. */}
-            <main className="p-8 max-md:p-5">
-              <div className="max-w-[70rem] mx-auto">{children}</div>
+            <main className="p-6 max-md:p-4">
+              <div className="mx-auto max-w-[76rem]">{children}</div>
             </main>
-            {/* AI 기본법 고지 — 원칙 P6. 채팅 외 페이지에서만 노출.
-                채팅에선 ChatGPT 룩 + 입력박스 항상 보이도록 footer 제거. */}
-            <div className="px-8 pb-10 max-md:px-5">
-              <div className="max-w-[70rem] mx-auto">
+            <div className="px-6 pb-10 max-md:px-4">
+              <div className="mx-auto max-w-[76rem]">
                 <AiNoticeFooter variant="light" />
               </div>
             </div>
@@ -68,17 +61,17 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         )}
       </div>
 
-      {/* AI 채팅 사이드 패널 */}
       <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
 
-      {/* 플로팅 AI 버튼 (/chat 페이지에서는 숨김, 패널 열리면 숨김) */}
       {!isChatPage && !chatPanelOpen && (
         <button
+          type="button"
           onClick={() => setChatPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.3)] hover:shadow-[0_6px_28px_rgba(121,82,82,0.4)] hover:scale-105 active:scale-95 transition-colors duration-200"
+          className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5"
           title="아모라 AI 상담"
+          aria-label="아모라 AI 상담"
         >
-          <Sparkles className="w-6 h-6" />
+          <Sparkles className="h-6 w-6" />
         </button>
       )}
     </div>

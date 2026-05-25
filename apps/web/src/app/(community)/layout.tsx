@@ -65,7 +65,7 @@ function CommunityFooter() {
           title="서비스"
           items={[
             { label: "커뮤니티", href: "/community" },
-            { label: "서비스 소개", href: "/service" },
+            { label: "서비스", href: "/dashboard" },
             { label: "아모라 상담", href: "/chat" },
             { label: "예산 관리", href: "/budget" },
             { label: "일정 관리", href: "/schedule" },
@@ -101,10 +101,10 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/service"
+            href="/dashboard"
             className="mt-4 inline-flex items-center rounded-full border border-[#c9a96e]/70 px-4 py-2 text-[12px] font-semibold text-[#ecd7a4] transition-colors hover:bg-[#c9a96e]/10"
           >
-            서비스 소개 바로가기
+            서비스 바로가기
             <Mail className="ml-2 h-3.5 w-3.5" />
           </Link>
         </div>

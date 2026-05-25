@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Menu, Bell, Search } from "lucide-react";
-import { useAuthStore } from "@/stores/authStore";
-import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
-import NotificationPanel from "@/components/app/NotificationPanel";
+import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import NotificationPanel from "@/components/app/NotificationPanel";
+import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
+import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "대시보드",
-  "/chat": "아모라 AI 플래너",
+  "/dashboard": "준비실",
+  "/chat": "아모라 상담",
   "/budget": "예산 관리",
   "/market-prices": "시세 정보",
   "/schedule": "일정 관리",
-  "/favorites": "내 즐겨찾기",
+  "/favorites": "즐겨찾기",
   "/etiquette": "예절 가이드",
   "/settings": "설정",
   "/invitations": "모바일 청첩장",
   "/money": "축의금 관리",
-  "/scripts": "AI 대본",
 };
 
 interface TopNavProps {
@@ -29,81 +28,70 @@ interface TopNavProps {
 
 export default function TopNav({ onMenuToggle }: TopNavProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const title = pageTitles[pathname] || "웨딩한방";
+  const title = pageTitles[pathname] ?? "웨딩한방";
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
-
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const today = useMemo(() => new Date(), []);
 
-  // D-day 계산 (hydration-safe)
-  const [today, setToday] = useState<Date | null>(null);
-  useEffect(() => { setToday(new Date()); }, []);
-
-  const weddingDate = journey?.wedding_date
-    ? new Date(journey.wedding_date)
-    : null;
-  const dday = weddingDate && today
-    ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
-
+  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const dday =
+    weddingDate
+      ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
   const progress = journey?.progress ?? {};
-  const { notifications, newCount, dismiss, dismissAll } = useNotifications(
-    weddingDate,
-    progress,
-    prefs
-  );
+  const { notifications, newCount, dismiss, dismissAll } = useNotifications(weddingDate, progress, prefs);
 
-  const handleCategoryClick = (categoryKey: string) => {
+  function handleCategoryClick(categoryKey: string) {
     setShowNotifications(false);
     setSelectedCategory(categoryKey);
-  };
+  }
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-[4.5rem] bg-[#FAFAF8]/90 backdrop-blur-[12px] flex items-center justify-between px-8 max-md:px-5">
+      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
         <div className="flex items-center gap-4">
           <button
+            type="button"
             onClick={onMenuToggle}
-            className="md:hidden w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[#F6F3F2] transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#071629] md:hidden"
+            aria-label="메뉴 열기"
           >
-            <Menu className="w-6 h-6 text-[#504444]" />
+            <Menu className="h-5 w-5" />
           </button>
-          <h1 className="font-serif-kr italic text-2xl font-light text-[#795252] tracking-tight">
-            {title}
-          </h1>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
+            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{title}</h1>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* D-day 배지 */}
-          {dday !== null && dday > 0 && (
-            <div className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#795252] animate-pulse" />
-              <span className="font-display text-base font-medium text-[#795252]">D-{dday}</span>
-              <span className="text-sm text-[#B5ADA3] font-light">결혼식까지</span>
-            </div>
-          )}
-          {dday === null && (
-            <div className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white rounded-full shadow-[0_4px_14px_0_rgba(121,82,82,0.08)]">
-              <span className="text-base text-[#B5ADA3]">날짜 미정</span>
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-4 py-2 sm:flex">
+            <span className="h-2 w-2 rounded-full bg-[#b68a3a]" />
+            <span className="text-[13px] font-semibold text-[#071629]">
+              {dday === null ? "예식일 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
+            </span>
+          </div>
 
-          {/* 검색 */}
-          <button className="w-11 h-11 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors">
-            <Search className="w-6 h-6" />
+          <button
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
+            aria-label="검색"
+          >
+            <Search className="h-5 w-5" />
           </button>
 
-          {/* 알림 */}
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative w-11 h-11 flex items-center justify-center rounded-xl text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] transition-colors"
+              type="button"
+              onClick={() => setShowNotifications((value) => !value)}
+              className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
+              aria-label="알림"
             >
-              <Bell className="w-6 h-6" />
+              <Bell className="h-5 w-5" />
               {newCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#795252] text-white text-[0.6875rem] font-medium flex items-center justify-center">
+                <span className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#061a34] px-1 text-[10px] font-semibold text-white">
                   {newCount > 9 ? "9+" : newCount}
                 </span>
               )}
@@ -124,7 +112,6 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
         </div>
       </header>
 
-      {/* 알림에서 열린 체크리스트 모달 */}
       <CategoryChecklistModal
         categoryKey={selectedCategory ?? ""}
         isOpen={!!selectedCategory}

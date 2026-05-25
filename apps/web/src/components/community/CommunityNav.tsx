@@ -11,7 +11,7 @@ import { useAuthStore } from "@/stores/authStore";
 const navItems = [
   { href: "/community", label: "커뮤니티" },
   { href: "/community/about", label: "커뮤니티 소개" },
-  { href: "/service", label: "서비스 소개" },
+  { href: "/dashboard", label: "서비스" },
 ];
 
 export default function CommunityNav() {
