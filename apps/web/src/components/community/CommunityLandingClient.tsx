@@ -32,8 +32,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
-import CommunityGuide from "@/components/community/CommunityGuide";
-import CommunityTutorial from "@/components/community/CommunityTutorial";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
 import FeedComposer from "@/components/community/FeedComposer";
@@ -79,6 +77,14 @@ const periodLabels: Record<TimePeriod, string> = {
   week: "이번 주",
   month: "이번 달",
   all: "전체",
+};
+
+const categoryDisplayLabels: Record<CommunityCategory, string> = {
+  is_normal: "정상이야?",
+  tour_review: "후기",
+  tips_v2: "꿀팁",
+  ama: "AMA",
+  free: "자유",
 };
 
 const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
@@ -188,6 +194,24 @@ export default function CommunityLandingClient() {
   const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 3);
   const activeTotal = isSearching ? searchTotal : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
+  const fullFeedHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set("category", selectedCategory);
+    if (tagQuery) params.set("tag", tagQuery);
+    if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
+    if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
+    params.set("feed", "all");
+    return `/community?${params.toString()}#community-feed`;
+  }, [periodQuery, selectedCategory, sortQuery, tagQuery]);
+  const summaryFeedHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set("category", selectedCategory);
+    if (tagQuery) params.set("tag", tagQuery);
+    if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
+    if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
+    const query = params.toString();
+    return query ? `/community?${query}#community-feed` : "/community#community-feed";
+  }, [periodQuery, selectedCategory, sortQuery, tagQuery]);
 
   useEffect(() => {
     setSearchDraft(searchQuery);
@@ -369,10 +393,11 @@ export default function CommunityLandingClient() {
       <CommunityMain
         posts={visiblePosts}
         total={activeTotal}
+        selectedCategory={selectedCategory}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
-        fullFeedHref="/community?feed=all"
-        summaryFeedHref="/community"
+        fullFeedHref={fullFeedHref}
+        summaryFeedHref={summaryFeedHref}
         searchQuery={searchQuery}
         isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && posts.length === 0 : isLoading}
         errorMessage={isSearching ? null : errorMessage}
@@ -389,8 +414,6 @@ export default function CommunityLandingClient() {
       >
         <PenSquare className="h-5 w-5" />
       </Link>
-      <CommunityGuide />
-      <CommunityTutorial />
     </div>
   );
 }
@@ -616,6 +639,7 @@ function CategoryBar({
 function CommunityMain({
   posts,
   total,
+  selectedCategory,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -627,6 +651,7 @@ function CommunityMain({
 }: {
   posts: PostWithAuthor[];
   total: number;
+  selectedCategory: CommunityCategory | null;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -644,6 +669,7 @@ function CommunityMain({
       <LatestPosts
         posts={posts}
         total={total}
+        selectedCategory={selectedCategory}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -661,6 +687,7 @@ function CommunityMain({
 function LatestPosts({
   posts,
   total,
+  selectedCategory,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -672,6 +699,7 @@ function LatestPosts({
 }: {
   posts: PostWithAuthor[];
   total: number;
+  selectedCategory: CommunityCategory | null;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -681,12 +709,18 @@ function LatestPosts({
   errorMessage: string | null;
   clearError: () => void;
 }) {
+  const feedTitle = isSearching
+    ? "검색 결과"
+    : selectedCategory
+      ? `${categoryDisplayLabels[selectedCategory]} 글`
+      : "최신 글";
+
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
-            {isSearching ? "검색 결과" : "최신 글"}
+            {feedTitle}
           </h2>
           <p className="mt-1 text-[12px] font-medium text-[#7a8290]">
             {isSearching
