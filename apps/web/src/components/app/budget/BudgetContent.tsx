@@ -957,21 +957,6 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10"
         }
       >
-        {/* Embedded 모드에서만 작은 제목을 보여주고, 풀페이지는 상단 앱바 제목으로 충분하다. */}
-        {embedded && (
-          <header className="mb-6 sm:mb-8 animate-fade-in">
-            <p className="text-xs tracking-widest uppercase text-[#795252] mb-2 font-medium">
-              Budget Overview
-            </p>
-            <h1 className="font-serif-kr text-3xl sm:text-4xl italic text-[#795252] mb-1 leading-tight">
-              예산 관리
-            </h1>
-            <p className="text-sm sm:text-base text-[#504444]">
-              우리의 결혼 여정, 현명하게 계획해요.
-            </p>
-          </header>
-        )}
-
         {/* 상단 스탯 3개 - Editorial */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {/* Total Budget */}
