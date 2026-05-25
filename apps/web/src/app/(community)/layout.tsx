@@ -61,8 +61,26 @@ function CommunityFooter() {
           </div>
         </div>
 
-        <FooterColumn title="서비스" items={["커뮤니티", "시세 정보", "AI 견적진단", "이벤트", "공지사항"]} />
-        <FooterColumn title="정책" items={["이용약관", "개인정보처리방침", "윤리적인 커뮤니티 가이드", "청소년 보호정책", "제휴 / 제보문의"]} />
+        <FooterColumn
+          title="서비스"
+          items={[
+            { label: "커뮤니티", href: "/community" },
+            { label: "서비스 소개", href: "/service" },
+            { label: "아모라 상담", href: "/chat" },
+            { label: "예산 관리", href: "/budget" },
+            { label: "일정 관리", href: "/schedule" },
+          ]}
+        />
+        <FooterColumn
+          title="정책"
+          items={[
+            { label: "이용약관", href: "/terms" },
+            { label: "개인정보처리방침", href: "/privacy" },
+            { label: "AI 정책", href: "/ai-policy" },
+            { label: "커뮤니티 소개", href: "/community/about" },
+            { label: "제휴 / 제보문의", href: "/business" },
+          ]}
+        />
 
         <div>
           <h3 className="mb-3 text-[14px] font-semibold text-white">연락</h3>
@@ -83,7 +101,7 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/landing"
+            href="/service"
             className="mt-4 inline-flex items-center rounded-full border border-[#c9a96e]/70 px-4 py-2 text-[12px] font-semibold text-[#ecd7a4] transition-colors hover:bg-[#c9a96e]/10"
           >
             서비스 소개 바로가기
@@ -98,14 +116,14 @@ function CommunityFooter() {
   );
 }
 
-function FooterColumn({ title, items }: { title: string; items: string[] }) {
+function FooterColumn({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
   return (
     <div>
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <Link key={item} href="/community" className="text-[13px] font-medium text-white/65 hover:text-[#ecd7a4]">
-            {item}
+          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#ecd7a4]">
+            {item.label}
           </Link>
         ))}
       </div>
