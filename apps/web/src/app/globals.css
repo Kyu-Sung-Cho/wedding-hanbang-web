@@ -501,3 +501,181 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   animation: hb-motion-fallback 0.6s 2s forwards;
 }
 
+/* ===========================================================================
+ * Service app theme bridge
+ * ---------------------------------------------------------------------------
+ * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
+ * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /dashboard, /chat,
+ * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
+ * 네이비·골드·아이보리 톤으로 통일한다.
+ * ========================================================================= */
+.hanbang-service-theme {
+  color: #071629;
+  --hb-navy: #061a34;
+  --hb-navy-soft: #0d2b52;
+  --hb-gold: #b68a3a;
+  --hb-gold-deep: #9d6f36;
+  --hb-ivory: #fffdf7;
+  --hb-ivory-warm: #fff8ec;
+  --hb-line: #eadfc9;
+  --hb-muted: #7a8290;
+  --hb-text: #071629;
+  --hb-body: #34445a;
+  --hb-success: #607044;
+}
+
+.hanbang-service-theme [class~="text-[#795252]"],
+.hanbang-service-theme [class~="text-[#946a6a]"],
+.hanbang-service-theme [class~="text-rose-500"],
+.hanbang-service-theme [class~="text-rose-600"] {
+  color: var(--hb-gold-deep) !important;
+}
+
+.hanbang-service-theme [class~="text-[#795252]/50"],
+.hanbang-service-theme [class~="text-[#946a6a]/50"],
+.hanbang-service-theme [class~="text-rose-500/50"] {
+  color: rgba(157, 111, 54, 0.55) !important;
+}
+
+.hanbang-service-theme [class~="text-[#1b1c1c]"],
+.hanbang-service-theme [class~="text-[#1A1A1F]"],
+.hanbang-service-theme [class~="text-noir-800"],
+.hanbang-service-theme [class~="text-charcoal"] {
+  color: var(--hb-text) !important;
+}
+
+.hanbang-service-theme [class~="text-[#504444]"],
+.hanbang-service-theme [class~="text-taupe-500"] {
+  color: var(--hb-body) !important;
+}
+
+.hanbang-service-theme [class~="text-[#B5ADA3]"],
+.hanbang-service-theme [class~="text-[#928980]"],
+.hanbang-service-theme [class~="text-taupe-400"] {
+  color: var(--hb-muted) !important;
+}
+
+.hanbang-service-theme [class~="text-sage-500"] {
+  color: var(--hb-success) !important;
+}
+
+.hanbang-service-theme [class~="bg-[#795252]"],
+.hanbang-service-theme [class~="bg-[#946a6a]"],
+.hanbang-service-theme [class~="bg-rose-500"],
+.hanbang-service-theme [class~="bg-rose-600"] {
+  background-color: var(--hb-navy) !important;
+}
+
+.hanbang-service-theme [class~="hover:bg-[#946a6a]"]:hover,
+.hanbang-service-theme [class~="hover:bg-rose-600"]:hover {
+  background-color: var(--hb-navy-soft) !important;
+}
+
+.hanbang-service-theme [class~="bg-[#795252]/5"],
+.hanbang-service-theme [class~="bg-[#795252]/10"],
+.hanbang-service-theme [class~="bg-[#795252]/15"],
+.hanbang-service-theme [class~="bg-rose-500/10"],
+.hanbang-service-theme [class~="bg-rose-500/20"],
+.hanbang-service-theme [class~="bg-[#D99C9C]/10"],
+.hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
+  background-color: rgba(182, 138, 58, 0.10) !important;
+}
+
+.hanbang-service-theme [class~="bg-[#f3e7e1]"],
+.hanbang-service-theme [class~="bg-[#f6f3f2]"],
+.hanbang-service-theme [class~="bg-[#F6F3F2]"],
+.hanbang-service-theme [class~="bg-[#fcf9f8]"],
+.hanbang-service-theme [class~="bg-ivory-100"],
+.hanbang-service-theme [class~="bg-ivory-warm"] {
+  background-color: var(--hb-ivory-warm) !important;
+}
+
+.hanbang-service-theme [class~="hover:bg-[#795252]/5"]:hover,
+.hanbang-service-theme [class~="hover:bg-[#795252]/10"]:hover,
+.hanbang-service-theme [class~="hover:bg-[#EDE7E5]"]:hover,
+.hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover,
+.hanbang-service-theme [class~="hover:bg-ivory-200"]:hover {
+  background-color: #fff3df !important;
+}
+
+.hanbang-service-theme [class~="bg-sage-500"] {
+  background-color: var(--hb-success) !important;
+}
+
+.hanbang-service-theme [class~="bg-sage-500/10"] {
+  background-color: #f4f8ee !important;
+}
+
+.hanbang-service-theme [class~="border-[#795252]"],
+.hanbang-service-theme [class~="border-[#795252]/20"],
+.hanbang-service-theme [class~="border-[#795252]/30"],
+.hanbang-service-theme [class~="border-[#795252]/40"],
+.hanbang-service-theme [class~="border-rose-500"],
+.hanbang-service-theme [class~="border-rose-500/30"],
+.hanbang-service-theme [class~="border-platinum"] {
+  border-color: var(--hb-line) !important;
+}
+
+.hanbang-service-theme [class~="hover:border-[#795252]"]:hover,
+.hanbang-service-theme [class~="hover:border-rose-500/30"]:hover {
+  border-color: var(--hb-gold) !important;
+}
+
+.hanbang-service-theme [class~="ring-[#795252]/10"],
+.hanbang-service-theme [class~="ring-[#795252]/20"],
+.hanbang-service-theme [class~="ring-[#795252]/30"],
+.hanbang-service-theme [class~="ring-rose-500/20"] {
+  --tw-ring-color: rgba(182, 138, 58, 0.22) !important;
+}
+
+.hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
+.hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
+.hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
+  --tw-ring-color: rgba(182, 138, 58, 0.28) !important;
+}
+
+.hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
+.hanbang-service-theme [class~="focus:border-rose-500"]:focus {
+  border-color: var(--hb-gold) !important;
+}
+
+.hanbang-service-theme [class~="accent-[#795252]"],
+.hanbang-service-theme [class~="accent-rose-500"] {
+  accent-color: var(--hb-gold) !important;
+}
+
+.hanbang-service-theme [class~="from-[#795252]"],
+.hanbang-service-theme [class~="from-rose-500"] {
+  --tw-gradient-from: var(--hb-navy) !important;
+  --tw-gradient-to: rgba(6, 26, 52, 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.hanbang-service-theme [class~="to-[#946a6a]"],
+.hanbang-service-theme [class~="to-[#D99C9C]"],
+.hanbang-service-theme [class~="to-[#E8B4B4]"],
+.hanbang-service-theme [class~="to-rose-600"] {
+  --tw-gradient-to: var(--hb-navy-soft) !important;
+}
+
+.hanbang-service-theme [class~="via-[#C9A96E]"],
+.hanbang-service-theme [class~="to-[#C9A96E]"],
+.hanbang-service-theme [class~="to-gold"] {
+  --tw-gradient-to: var(--hb-gold) !important;
+}
+
+.hanbang-service-theme [class~="shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"],
+.hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
+.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"],
+.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.25)]"] {
+  box-shadow: 0 14px 34px rgba(6, 26, 52, 0.16) !important;
+}
+
+.hanbang-service-theme [style*="rgb(121, 82, 82)"],
+.hanbang-service-theme [style*="rgb(148, 106, 106)"],
+.hanbang-service-theme [style*="#795252"],
+.hanbang-service-theme [style*="#946a6a"] {
+  background-color: var(--hb-gold) !important;
+  border-color: var(--hb-gold) !important;
+}
+

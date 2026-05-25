@@ -38,8 +38,8 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
     <div
       className={
         isChatPage
-          ? "h-screen overflow-hidden bg-[#fffdf7]"
-          : "min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_48%,#fbf8ee_100%)]"
+          ? "hanbang-service-theme h-screen overflow-hidden bg-[#fffdf7]"
+          : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_48%,#fbf8ee_100%)]"
       }
     >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
