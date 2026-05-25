@@ -143,9 +143,12 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     if (autoOpenedRef.current) return;
     if (searchParams.get("new") === "1") {
       autoOpenedRef.current = true;
-      handleAddEventQuick();
+      const timer = window.setTimeout(() => {
+        handleAddEventQuick();
+      }, 0);
       // URL에서 query 제거 (모달 닫고 새로고침해도 다시 안 열리도록)
       router.replace("/schedule");
+      return () => window.clearTimeout(timer);
     }
   }, [searchParams, router, handleAddEventQuick]);
 
@@ -242,8 +245,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10"
         }
       >
-        {/* 헤더 — 커뮤니티 모드는 컴팩트 (사이드바 타이틀 톤), 풀페이지는 hero 배너 */}
-        {embedded ? (
+        {/* Embedded 모드에서만 작은 제목을 보여주고, 풀페이지는 상단 앱바 제목으로 충분하다. */}
+        {embedded && (
           <header className="mb-6 sm:mb-8 animate-fade-in">
             <p className="text-xs tracking-widest uppercase text-[#795252] mb-2 font-medium">
               Schedule
@@ -255,33 +258,6 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               결혼식까지의 여정을 한눈에
             </p>
           </header>
-        ) : (
-          <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `
-                  radial-gradient(circle at 25% 50%, rgba(201, 169, 110, 0.35) 0%, transparent 55%),
-                  radial-gradient(circle at 75% 50%, rgba(121, 82, 82, 0.3) 0%, transparent 55%),
-                  linear-gradient(135deg, #f6f3f2 0%, #fcf9f8 50%, #dee6c4 100%)
-                `,
-              }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-transparent" />
-            <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
-              <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">
-                  SCHEDULE
-                </p>
-                <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight break-words">
-                  일정 관리
-                </h1>
-                <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
-                  결혼식까지의 여정을 한눈에
-                </p>
-              </div>
-            </div>
-          </section>
         )}
 
         {/* 3-column Stat Row */}
