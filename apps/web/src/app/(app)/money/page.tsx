@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useInvitationStore } from "@/stores/invitationStore";
 import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/invitation.types";
 import {
-  Plus, Search, Download, Wallet, Users, TrendingUp,
+  Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
 } from "lucide-react";
 
@@ -153,6 +153,7 @@ export default function MoneyPage() {
           <button
             onClick={handleExportCSV}
             disabled={moneyList.length === 0}
+            aria-label="축의금 CSV 다운로드"
             className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
           >
             <Download className="w-5 h-5" />
@@ -160,6 +161,7 @@ export default function MoneyPage() {
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
+            aria-label="축의금 추가 폼 열기"
             className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
           >
             <Plus className="w-5 h-5" />
@@ -275,6 +277,7 @@ export default function MoneyPage() {
           <button
             onClick={handleSubmit}
             disabled={!form.guest_name.trim() || !form.amount}
+            aria-label={editId ? "축의금 수정 저장" : "축의금 추가 저장"}
             className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-5 h-5" />
@@ -358,6 +361,7 @@ export default function MoneyPage() {
               <div className="flex gap-1 flex-shrink-0">
                 <button
                   onClick={() => handleEdit(money)}
+                  aria-label={`${money.guest_name} 축의금 수정`}
                   className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[#B5ADA3] hover:text-[#795252] transition-colors"
                 >
                   <Edit3 className="w-5 h-5" />
@@ -366,12 +370,14 @@ export default function MoneyPage() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => setDeleteConfirm(null)}
+                      aria-label={`${money.guest_name} 축의금 삭제 취소`}
                       className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm"
                     >
                       취소
                     </button>
                     <button
                       onClick={() => handleDelete(money.id)}
+                      aria-label={`${money.guest_name} 축의금 삭제 확정`}
                       className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -380,6 +386,7 @@ export default function MoneyPage() {
                 ) : (
                   <button
                     onClick={() => setDeleteConfirm(money.id)}
+                    aria-label={`${money.guest_name} 축의금 삭제`}
                     className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />

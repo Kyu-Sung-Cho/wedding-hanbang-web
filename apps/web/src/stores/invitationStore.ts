@@ -41,6 +41,7 @@ interface InvitationStoreState {
   // 축의금
   moneyList: CongratulatoryMoney[];
   moneyLoading: boolean;
+  moneyLocalMode: boolean;
 
   // AI 대본
   scripts: AiScript[];
@@ -96,6 +97,31 @@ interface InvitationStoreState {
   reset: () => void;
 }
 
+const DEMO_COUPLE_ID = "demo-couple";
+
+function isAuthFailure(res: Response) {
+  return res.status === 401 || res.status === 403;
+}
+
+function createLocalMoney(
+  data: Omit<CongratulatoryMoney, "id" | "couple_id" | "created_at" | "updated_at">
+): CongratulatoryMoney {
+  const now = new Date().toISOString();
+  return {
+    id: `local-money-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    couple_id: DEMO_COUPLE_ID,
+    guest_name: data.guest_name,
+    amount: data.amount,
+    side: data.side,
+    relation: data.relation ?? null,
+    method: data.method,
+    memo: data.memo ?? null,
+    received_at: data.received_at,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   templates: [],
   templatesLoading: false,
@@ -112,6 +138,7 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   stats: null,
   moneyList: [],
   moneyLoading: false,
+  moneyLocalMode: false,
   scripts: [],
   scriptsLoading: false,
   scriptStreaming: false,
@@ -396,10 +423,19 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   loadMoney: async (coupleId) => {
     set({ moneyLoading: true });
     try {
+      if (coupleId === DEMO_COUPLE_ID) {
+        set({ moneyList: [], moneyLocalMode: true });
+        return;
+      }
+
       const res = await fetch(`/api/money?coupleId=${coupleId}`);
+      if (isAuthFailure(res)) {
+        set({ moneyList: [], moneyLocalMode: true });
+        return;
+      }
       if (!res.ok) throw new Error("축의금 로딩 실패");
       const data = await res.json();
-      set({ moneyList: data.moneyList });
+      set({ moneyList: data.moneyList, moneyLocalMode: false });
     } catch (err) {
       console.error("축의금 로딩 에러:", err);
       set({ error: "축의금을 불러오지 못했습니다." });
@@ -409,12 +445,23 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   },
 
   addMoney: async (data) => {
+    if (get().moneyLocalMode) {
+      const localMoney = createLocalMoney(data);
+      set((s) => ({ moneyList: [localMoney, ...s.moneyList] }));
+      return;
+    }
+
     try {
       const res = await fetch("/api/money", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (isAuthFailure(res)) {
+        const localMoney = createLocalMoney(data);
+        set((s) => ({ moneyList: [localMoney, ...s.moneyList], moneyLocalMode: true }));
+        return;
+      }
       if (!res.ok) throw new Error("축의금 추가 실패");
       const result = await res.json();
       set((s) => ({ moneyList: [result.money, ...s.moneyList] }));
@@ -424,12 +471,30 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   },
 
   updateMoney: async (id, data) => {
+    if (get().moneyLocalMode) {
+      set((s) => ({
+        moneyList: s.moneyList.map((m) =>
+          m.id === id ? { ...m, ...data, updated_at: new Date().toISOString() } : m
+        ),
+      }));
+      return;
+    }
+
     try {
       const res = await fetch(`/api/money/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (isAuthFailure(res)) {
+        set((s) => ({
+          moneyList: s.moneyList.map((m) =>
+            m.id === id ? { ...m, ...data, updated_at: new Date().toISOString() } : m
+          ),
+          moneyLocalMode: true,
+        }));
+        return;
+      }
       if (!res.ok) throw new Error("축의금 수정 실패");
       const result = await res.json();
       set((s) => ({
@@ -441,8 +506,17 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
   },
 
   deleteMoney: async (id) => {
+    if (get().moneyLocalMode) {
+      set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id) }));
+      return;
+    }
+
     try {
       const res = await fetch(`/api/money/${id}`, { method: "DELETE" });
+      if (isAuthFailure(res)) {
+        set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id), moneyLocalMode: true }));
+        return;
+      }
       if (!res.ok) throw new Error("축의금 삭제 실패");
       set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id) }));
     } catch (err) {
@@ -562,6 +636,7 @@ export const useInvitationStore = create<InvitationStoreState>((set, get) => ({
       stats: null,
       moneyList: [],
       moneyLoading: false,
+      moneyLocalMode: false,
       scripts: [],
       scriptsLoading: false,
       scriptStreaming: false,

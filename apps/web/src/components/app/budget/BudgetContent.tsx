@@ -961,7 +961,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {/* Total Budget */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
-            <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
+            <Sparkles className="pointer-events-none absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs tracking-widest uppercase text-[#795252] font-medium">
                 TOTAL BUDGET
@@ -972,7 +972,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                     setTotalText(String(Math.round(totalBudget / 10000)));
                     setEditingTotal(true);
                   }}
-                  className="text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                  className="relative z-10 text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   title="총 예산 수정"
                 >
                   <Pencil className="w-4 h-4" />
@@ -1010,7 +1010,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
           {/* Spent */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
-            <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-sage-500/40" />
+            <TrendingUp className="pointer-events-none absolute top-6 right-6 w-6 h-6 text-sage-500/40" />
             <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
               SPENT
             </p>
@@ -1029,7 +1029,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
           {/* Remaining */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in sm:col-span-2 md:col-span-1">
-            <TrendingDown className={`absolute top-6 right-6 w-6 h-6 ${remaining >= 0 ? "text-[#C9A96E]/40" : "text-red-400/60"}`} />
+            <TrendingDown className={`pointer-events-none absolute top-6 right-6 w-6 h-6 ${remaining >= 0 ? "text-[#C9A96E]/40" : "text-red-400/60"}`} />
             <p className={`text-xs tracking-widest uppercase mb-4 font-medium ${remaining >= 0 ? "text-[#C9A96E]" : "text-red-400"}`}>
               REMAINING
             </p>

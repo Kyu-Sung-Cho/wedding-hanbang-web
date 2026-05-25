@@ -66,7 +66,7 @@ const fadeIn = {
 };
 
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, signOut, updateJourney, updateProfile } = useAuthStore();
+  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
@@ -92,16 +92,22 @@ export default function SettingsPage() {
   const [comingSoonToast, setComingSoonToast] = useState("");
 
   useEffect(() => {
-    if (couple) {
-      fetch("/api/couple/code")
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.inviteCode) setCoupleCode(d.inviteCode);
-          if (d.isFullyLinked) setIsFullyLinked(true);
-        })
-        .catch(() => {});
+    if (!couple) return;
+
+    if (isDemo) {
+      setCoupleCode(couple.invite_code ?? "WH-DEMO01");
+      setIsFullyLinked(Boolean(couple.bride_id && couple.groom_id));
+      return;
     }
-  }, [couple]);
+
+    fetch("/api/couple/code")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.inviteCode) setCoupleCode(d.inviteCode);
+        if (d.isFullyLinked) setIsFullyLinked(true);
+      })
+      .catch(() => {});
+  }, [couple, isDemo]);
 
   const handleCopy = () => {
     if (!coupleCode) return;
@@ -113,6 +119,11 @@ export default function SettingsPage() {
   const handleRegenerateCode = async () => {
     setRegenerating(true);
     try {
+      if (isDemo) {
+        setCoupleCode(`WH-DEMO${Math.floor(Math.random() * 90 + 10)}`);
+        return;
+      }
+
       const res = await fetch("/api/couple/code", { method: "POST" });
       const data = await res.json();
       if (res.ok && data.inviteCode) {
