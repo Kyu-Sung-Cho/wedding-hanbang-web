@@ -1,13 +1,10 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import AuthInitializer from "@/components/common/AuthInitializer";
 import { createClient } from "@/lib/supabase/client";
 
 export default function CommunityAuthInitializer() {
-  const pathname = usePathname();
-  const shouldAlwaysInitialize = pathname !== "/community";
   const [communityHasSession, setCommunityHasSession] = useState(
     () =>
       typeof document !== "undefined" &&
@@ -15,7 +12,6 @@ export default function CommunityAuthInitializer() {
   );
 
   useEffect(() => {
-    if (pathname !== "/community") return;
     if (communityHasSession) return;
 
     let cancelled = false;
@@ -29,8 +25,8 @@ export default function CommunityAuthInitializer() {
     return () => {
       cancelled = true;
     };
-  }, [communityHasSession, pathname]);
+  }, [communityHasSession]);
 
-  if (!shouldAlwaysInitialize && !communityHasSession) return null;
+  if (!communityHasSession) return null;
   return <AuthInitializer />;
 }
