@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-  title: "커뮤니티 소개 — 웨딩한방",
+  title: "웨딩한방 안내",
   description:
     "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 견적 체크리스트까지 한 곳에서.",
 };
@@ -28,7 +28,7 @@ export default function CommunityAboutPage() {
       <section className="px-4 sm:px-6 md:px-10 pt-16 sm:pt-24 pb-12 sm:pb-16">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xs tracking-[0.3em] text-[#9d6f36] mb-5 font-medium uppercase">
-            About the Community
+            Wedding Hanbang Guide
           </p>
           <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#071629] leading-[1.2] tracking-[-0.01em] mb-6">
             혼자 고민하지 마세요.

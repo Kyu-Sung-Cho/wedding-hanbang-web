@@ -88,10 +88,10 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
 };
 
 const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
-  { icon: HeartHandshake, label: "실제 후기 & 경험 공유" },
-  { icon: CalendarCheck, label: "검증된 정보 & 꿀팁" },
-  { icon: Users, label: "서로 돕는 커뮤니티" },
-  { icon: Heart, label: "함께 성장하는 예비부부" },
+  { icon: HeartHandshake, label: "실제 후기 공유" },
+  { icon: CalendarCheck, label: "가격·계약 질문" },
+  { icon: Users, label: "동기방 대화" },
+  { icon: Heart, label: "함께 준비" },
 ];
 
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
@@ -120,7 +120,7 @@ const promises: Array<{ icon: LucideIcon; title: string; desc: string }> = [
   { icon: Heart, title: "후기 맥락 보존", desc: "예산·지역·조건을 함께 남겨 비교가 가능하게 해요." },
   { icon: Users, title: "서로 존중해요", desc: "예비부부 관점에서 안전하게 질문하고 답해요." },
   { icon: LockKeyhole, title: "안전한 가이드", desc: "개인정보와 민감한 사연은 조심스럽게 다뤄요." },
-  { icon: HeartHandshake, title: "함께 만들어가요", desc: "커뮤니티의 실제 글과 행동이 서비스를 더 좋게 만들어요." },
+  { icon: HeartHandshake, title: "함께 개선해요", desc: "실제 글과 행동을 바탕으로 준비 도구를 더 좋게 만들어요." },
 ];
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
@@ -1130,7 +1130,7 @@ function BestPostsPanel() {
         </ol>
       )}
       <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
-        실제 커뮤니티 반응을 기준으로 보여드려요.
+        실제 반응을 기준으로 보여드려요.
       </p>
     </article>
   );
@@ -1156,7 +1156,7 @@ function BottomCards() {
       </article>
 
       <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">커뮤니티 데이터</h3>
+        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">카테고리 바로가기</h3>
         <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
           {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
             <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#fff8ec] px-2 py-3">
@@ -1205,7 +1205,7 @@ function TrustPromises() {
         <div className="mb-5 text-center">
           <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">우리가 지키는 약속</h2>
           <p className="mt-2 text-[13px] font-medium text-[#5d6879]">
-            올바른 정보를 공유하고, 모두가 믿고 쓸 수 있는 커뮤니티를 만들어요.
+            올바른 정보를 공유하고, 모두가 믿고 쓸 수 있는 공간을 만들어요.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

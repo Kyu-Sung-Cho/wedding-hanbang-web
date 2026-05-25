@@ -3,15 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu, PenSquare, X } from "lucide-react";
-import MyToolsWidget from "@/components/community/MyToolsWidget";
 import UserMenu from "@/components/community/UserMenu";
 import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
-  { href: "/community", label: "커뮤니티" },
-  { href: "/community/about", label: "커뮤니티 소개" },
-  { href: "/dashboard", label: "서비스" },
+  { href: "/community#community-feed", label: "후기·질문" },
+  { href: "/community/quote-check", label: "견적 체크" },
+  { href: "/dashboard", label: "준비실" },
 ];
 
 export default function CommunityNav() {
@@ -34,12 +33,12 @@ export default function CommunityNav() {
               </Link>
             </div>
           ))}
-          {profile && <MyToolsWidget variant="nav" />}
           <Link
-            href="/demo"
-            className="rounded-full bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+            href="/community/post/write"
+            className="inline-flex items-center gap-2 rounded-full bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
           >
-            아모라 체험하기
+            <PenSquare className="h-4 w-4" />
+            글쓰기
           </Link>
           {profile ? (
             <UserMenu />
@@ -80,13 +79,6 @@ export default function CommunityNav() {
             >
               <PenSquare className="h-4 w-4" />
               글쓰기
-            </Link>
-            <Link
-              href="/demo"
-              onClick={() => setMobileOpen(false)}
-              className="inline-flex items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[14px] font-semibold text-[#ecd7a4]"
-            >
-              아모라 체험하기
             </Link>
             {profile ? (
               <div className="flex justify-center py-2">

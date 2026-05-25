@@ -19,13 +19,13 @@ const QUICK_TOOLS: ToolCard[] = [
   },
   {
     href: "/chat",
-    label: "아모라 질문",
+    label: "아모라",
     description: "업체에 물어볼 말 정리",
     icon: MessageCircle,
   },
   {
     href: "/dashboard",
-    label: "내 준비실",
+    label: "준비실",
     description: "체크리스트 결과를 다음 행동으로",
     icon: LayoutDashboard,
   },

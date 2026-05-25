@@ -686,7 +686,7 @@ function NoBookingFallback({ name }: { name: string }) {
               <span className="font-semibold">{name}</span>은(는) 아직 예약 연동 전입니다
             </p>
             <p className="text-xs text-[#5d6879] leading-relaxed">
-              커뮤니티 데이터는 모이고 있지만 실시간 슬롯은 곧 오픈됩니다. 아래는 슬롯 UI
+              실제 후기 데이터는 모이고 있지만 실시간 슬롯은 곧 오픈됩니다. 아래는 슬롯 UI
               미리보기 — 연동 완료된 업체는 이 화면에서 바로 예약합니다.
             </p>
           </div>
