@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -59,7 +59,7 @@ const SEVERITY_LABELS = {
 const SEVERITY_STYLES = {
   critical: "border-red-200 bg-red-50 text-red-700",
   high: "border-amber-200 bg-amber-50 text-amber-700",
-  medium: "border-[#e4e2e1] bg-[#f6f3f2] text-[#625b4d]",
+  medium: "border-[#eadfc9] bg-[#fff8ec] text-[#5d6879]",
 } as const;
 
 // 톤: 평가가 아닌 정보 노출 — 빠진 항목이 많을수록 시각적 강도만 올림.
@@ -67,14 +67,14 @@ const VERDICT_STYLES = {
   safe: {
     icon: CheckCircle2,
     bg: "bg-white",
-    border: "border-[#e4e2e1]",
-    text: "text-[#1b1c1c]",
+    border: "border-[#eadfc9]",
+    text: "text-[#071629]",
   },
   caution: {
     icon: ClipboardCheck,
-    bg: "bg-[#fffdfb]",
-    border: "border-[#e4d8d1]",
-    text: "text-[#795252]",
+    bg: "bg-[#fff8ec]",
+    border: "border-[#eadfc9]",
+    text: "text-[#9d6f36]",
   },
   danger: {
     icon: AlertTriangle,
@@ -168,35 +168,35 @@ export default function AmoraQuoteCheckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8]">
+    <div className="min-h-screen bg-[#fffdf7]">
       <div className="mx-auto grid w-full max-w-[1480px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:py-7">
         <main className="min-w-0">
           <Link
             href="/community"
-            className="mb-4 inline-flex items-center gap-2 text-sm text-[#928980] transition-colors hover:text-[#795252]"
+            className="mb-4 inline-flex items-center gap-2 text-sm text-[#928980] transition-colors hover:text-[#9d6f36]"
           >
             <ArrowLeft className="h-4 w-4" />
             커뮤니티로 돌아가기
           </Link>
 
-          <section className="rounded-xl border border-[#e4e2e1] bg-white p-4 sm:p-5 lg:p-6">
+          <section className="rounded-xl border border-[#eadfc9] bg-white p-4 sm:p-5 lg:p-6">
             <div className="flex flex-col gap-4 border-b border-[#f0efed] pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#d9c8c8] bg-[#fffdfb] px-3 py-1 text-xs font-medium text-[#795252]">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#d8bb86] bg-[#fff8ec] px-3 py-1 text-xs font-medium text-[#9d6f36]">
                   <ClipboardCheck className="h-3.5 w-3.5" />
                   계약 전 체크리스트
                 </div>
-                <h1 className="font-serif-kr text-3xl text-[#1b1c1c] sm:text-4xl">
+                <h1 className="font-serif-kr text-3xl text-[#071629] sm:text-4xl">
                   견적에 빠진 게 없는지 같이 봐드려요
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625b4d] sm:text-base">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5d6879] sm:text-base">
                   결혼 처음 준비하면 놓치기 쉬운 항목 + 한국소비자원 평균 가격 + 계약 전 업체에 물어볼 질문을 정리해 드려요.
                   견적이 좋다·나쁘다를 판단하는 게 아니라, 빠진 게 없는지 확인하는 체크리스트입니다.
                 </p>
               </div>
               <Link
                 href="/community/post/write?category=is_normal"
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#e4e2e1] px-4 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#eadfc9] px-4 py-2.5 text-sm font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
               >
                 <ClipboardCheck className="h-4 w-4" />
                 커뮤니티에 같이 묻기
@@ -205,11 +205,11 @@ export default function AmoraQuoteCheckPage() {
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#1b1c1c]">분야</span>
+                <span className="mb-2 block text-sm font-medium text-[#071629]">분야</span>
                 <select
                   value={category}
                   onChange={(event) => resetSelection(event.target.value as AmoraQuoteCategory)}
-                  className="w-full rounded-lg border border-[#e4e2e1] bg-white px-3 py-3 text-sm text-[#1b1c1c] outline-none transition-colors focus:border-[#795252]"
+                  className="w-full rounded-lg border border-[#eadfc9] bg-white px-3 py-3 text-sm text-[#071629] outline-none transition-colors focus:border-[#9d6f36]"
                 >
                   {CATEGORY_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -220,7 +220,7 @@ export default function AmoraQuoteCheckPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#1b1c1c]">지역</span>
+                <span className="mb-2 block text-sm font-medium text-[#071629]">지역</span>
                 <select
                   value={region}
                   onChange={(event) => {
@@ -228,7 +228,7 @@ export default function AmoraQuoteCheckPage() {
                     setResult(null);
                     setError(null);
                   }}
-                  className="w-full rounded-lg border border-[#e4e2e1] bg-white px-3 py-3 text-sm text-[#1b1c1c] outline-none transition-colors focus:border-[#795252]"
+                  className="w-full rounded-lg border border-[#eadfc9] bg-white px-3 py-3 text-sm text-[#071629] outline-none transition-colors focus:border-[#9d6f36]"
                 >
                   {REGION_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -239,7 +239,7 @@ export default function AmoraQuoteCheckPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#1b1c1c]">견적 금액</span>
+                <span className="mb-2 block text-sm font-medium text-[#071629]">견적 금액</span>
                 <div className="relative">
                   <input
                     type="number"
@@ -250,7 +250,7 @@ export default function AmoraQuoteCheckPage() {
                       setQuotePrice(event.target.value);
                       setResult(null);
                     }}
-                    className="w-full rounded-lg border border-[#e4e2e1] bg-white px-3 py-3 pr-12 text-sm text-[#1b1c1c] outline-none transition-colors focus:border-[#795252]"
+                    className="w-full rounded-lg border border-[#eadfc9] bg-white px-3 py-3 pr-12 text-sm text-[#071629] outline-none transition-colors focus:border-[#9d6f36]"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#928980]">
                     만원
@@ -259,38 +259,38 @@ export default function AmoraQuoteCheckPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#1b1c1c]">업체명</span>
+                <span className="mb-2 block text-sm font-medium text-[#071629]">업체명</span>
                 <input
                   type="text"
                   value={vendorName}
                   onChange={(event) => setVendorName(event.target.value)}
                   placeholder="선택 입력"
-                  className="w-full rounded-lg border border-[#e4e2e1] bg-white px-3 py-3 text-sm text-[#1b1c1c] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#795252]"
+                  className="w-full rounded-lg border border-[#eadfc9] bg-white px-3 py-3 text-sm text-[#071629] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#9d6f36]"
                 />
               </label>
             </div>
 
             <label className="mt-4 block">
-              <span className="mb-2 block text-sm font-medium text-[#1b1c1c]">견적 메모</span>
+              <span className="mb-2 block text-sm font-medium text-[#071629]">견적 메모</span>
               <textarea
                 rows={3}
                 value={memo}
                 onChange={(event) => setMemo(event.target.value)}
                 placeholder="상담 중 들은 추가금, 계약 조건, 헷갈리는 문장을 적어두세요"
-                className="w-full resize-none rounded-lg border border-[#e4e2e1] bg-white px-3 py-3 text-sm text-[#1b1c1c] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#795252]"
+                className="w-full resize-none rounded-lg border border-[#eadfc9] bg-white px-3 py-3 text-sm text-[#071629] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#9d6f36]"
               />
             </label>
           </section>
 
-          <section className="mt-5 rounded-xl border border-[#e4e2e1] bg-white p-4 sm:p-5 lg:p-6">
+          <section className="mt-5 rounded-xl border border-[#eadfc9] bg-white p-4 sm:p-5 lg:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-[#1b1c1c]">견적서에 포함된 항목</h2>
+                <h2 className="text-lg font-semibold text-[#071629]">견적서에 포함된 항목</h2>
                 <p className="mt-1 text-sm text-[#928980]">
                   확인된 항목만 선택하면 빠진 비용을 계산합니다.
                 </p>
               </div>
-              <span className="rounded-full bg-[#f6f3f2] px-3 py-1 text-xs text-[#625b4d]">
+              <span className="rounded-full bg-[#fff8ec] px-3 py-1 text-xs text-[#5d6879]">
                 {includedItemIds.size}/{items.length}
               </span>
             </div>
@@ -309,7 +309,7 @@ export default function AmoraQuoteCheckPage() {
               type="button"
               onClick={() => submit()}
               disabled={loading}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(6,26,52,0.18)] transition-colors hover:bg-[#102a4d] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
               체크리스트 결과 보기
@@ -327,9 +327,9 @@ export default function AmoraQuoteCheckPage() {
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
-          <section className="rounded-xl border border-[#e4e2e1] bg-white p-5">
-            <h2 className="font-serif-kr text-2xl text-[#1b1c1c]">이 체크리스트, 솔직히 말하면</h2>
-            <div className="mt-4 space-y-3 text-sm leading-6 text-[#625b4d]">
+          <section className="rounded-xl border border-[#eadfc9] bg-white p-5">
+            <h2 className="font-serif-kr text-2xl text-[#071629]">이 체크리스트, 솔직히 말하면</h2>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-[#5d6879]">
               <p>
                 견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 결혼 처음 준비하면 모르고 빠뜨릴 수 있는 항목들을 한 번에 보여주는 체크리스트예요.
               </p>
@@ -369,7 +369,7 @@ function ItemGroup({
 
   return (
     <div className="mt-4">
-      <h3 className="mb-2 text-sm font-semibold text-[#1b1c1c]">{title}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-[#071629]">{title}</h3>
       <div className="grid gap-2 sm:grid-cols-2">
         {items.map((item) => {
           const active = selected.has(item.id);
@@ -380,20 +380,20 @@ function ItemGroup({
               onClick={() => onToggle(item.id)}
               className={`flex min-h-[64px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
                 active
-                  ? "border-[#795252] bg-[#fffdfb]"
-                  : "border-[#e4e2e1] bg-white hover:border-[#d9c8c8] hover:bg-[#fffdfb]"
+                  ? "border-[#9d6f36] bg-[#fff8ec]"
+                  : "border-[#eadfc9] bg-white hover:border-[#d8bb86] hover:bg-[#fff8ec]"
               }`}
             >
               <span
                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                  active ? "border-[#795252] bg-[#795252] text-white" : "border-[#d4c2c2] text-transparent"
+                  active ? "border-[#9d6f36] bg-[#9d6f36] text-white" : "border-[#d8bb86] text-transparent"
                 }`}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-[#1b1c1c]">{item.name}</span>
+                  <span className="text-sm font-medium text-[#071629]">{item.name}</span>
                   <span className={`rounded-full border px-2 py-0.5 text-[11px] ${SEVERITY_STYLES[item.severity]}`}>
                     {SEVERITY_LABELS[item.severity]}
                   </span>
@@ -584,7 +584,7 @@ function ResultPanel({
                 </span>
               )}
             </div>
-            <p className="mt-1.5 text-xs leading-5 text-[#625b4d] sm:text-sm">
+            <p className="mt-1.5 text-xs leading-5 text-[#5d6879] sm:text-sm">
               {PRICE_TIER_DESCRIPTIONS[result.priceTier]}
             </p>
           </div>
@@ -592,7 +592,7 @@ function ResultPanel({
             <button
               type="button"
               onClick={() => setShowTierMenu((v) => !v)}
-              className="text-xs font-medium text-[#795252] underline-offset-2 hover:underline"
+              className="text-xs font-medium text-[#9d6f36] underline-offset-2 hover:underline"
             >
               {showTierMenu ? "닫기" : "이 분석이 안 맞아요"}
             </button>
@@ -620,11 +620,11 @@ function ResultPanel({
                   }}
                   className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                     result.priceTier === tier
-                      ? "border-[#795252] bg-[#fffdfb] text-[#1b1c1c]"
-                      : "border-[#e4e2e1] bg-white text-[#625b4d] hover:border-[#d9c8c8] hover:bg-[#fffdfb]"
+                      ? "border-[#9d6f36] bg-[#fff8ec] text-[#071629]"
+                      : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#d8bb86] hover:bg-[#fff8ec]"
                   }`}
                 >
-                  <div className="text-sm font-medium text-[#1b1c1c]">
+                  <div className="text-sm font-medium text-[#071629]">
                     {PRICE_TIER_LABELS[tier]}
                   </div>
                   <div className="mt-0.5 text-[11px] leading-4 text-[#928980]">
@@ -644,7 +644,7 @@ function ResultPanel({
           </div>
           <div>
             <h2 className={`text-xl font-semibold ${style.text}`}>{result.summaryTitle}</h2>
-            <p className="mt-2 text-sm leading-6 text-[#504444]">{result.summaryText}</p>
+            <p className="mt-2 text-sm leading-6 text-[#5d6879]">{result.summaryText}</p>
             <p className="mt-2 text-xs leading-5 text-[#928980]">
               평가가 아니라 빠진 항목 카운트입니다. 각자 예산·우선순위에 따라 적정선은 다를 수 있어요.
             </p>
@@ -667,23 +667,23 @@ function ResultPanel({
 
       <div className="mt-5 rounded-lg bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-[#1b1c1c]">계약 전 그대로 보낼 질문</h3>
+          <h3 className="text-sm font-semibold text-[#071629]">계약 전 그대로 보낼 질문</h3>
           <button
             type="button"
             onClick={copyQuestions}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#e4e2e1] px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#eadfc9] px-3 py-2 text-xs font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "복사됨" : "질문 복사"}
           </button>
         </div>
-        <p className="mt-2 rounded-lg bg-[#fcf9f8] px-3 py-3 text-sm leading-6 text-[#625b4d]">
+        <p className="mt-2 rounded-lg bg-[#fffdf7] px-3 py-3 text-sm leading-6 text-[#5d6879]">
           {result.negotiationScript}
         </p>
         <ul className="mt-3 space-y-2">
           {result.contractQuestions.map((question) => (
-            <li key={question} className="flex gap-2 text-sm leading-6 text-[#1b1c1c]">
-              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#795252]" />
+            <li key={question} className="flex gap-2 text-sm leading-6 text-[#071629]">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#9d6f36]" />
               {question}
             </li>
           ))}
@@ -692,7 +692,7 @@ function ResultPanel({
 
       {result.redFlags.length > 0 && (
         <div className="mt-4 rounded-lg bg-white p-4">
-          <h3 className="text-sm font-semibold text-[#1b1c1c]">참고: 자주 보이는 패턴</h3>
+          <h3 className="text-sm font-semibold text-[#071629]">참고: 자주 보이는 패턴</h3>
           <p className="mt-1 text-xs text-[#928980]">아래는 입력한 견적과 비슷한 형태에서 흔히 나타난 패턴이에요. 단정은 아니에요.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {result.redFlags.map((flag) => (
@@ -705,20 +705,20 @@ function ResultPanel({
         </div>
       )}
 
-      <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#795252]">
+      <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#9d6f36]">
         {result.recommendedAction}
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={chatHref}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#946a6a]"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#102a4d]"
         >
           <MessageCircle className="h-4 w-4" />
           아모라에게 이어서 묻기
         </Link>
         <Link
           href={postWriteHref}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d9c8c8] bg-white px-4 py-3 text-sm font-semibold text-[#795252] transition-colors hover:bg-[#fffdfb]"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d8bb86] bg-white px-4 py-3 text-sm font-semibold text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
         >
           <PenLine className="h-4 w-4" />
           익명 사례로 공유하기
@@ -726,10 +726,10 @@ function ResultPanel({
       </div>
 
       {savedId && (
-        <div className="mt-3 rounded-lg border border-[#e4e2e1] bg-white p-3">
+        <div className="mt-3 rounded-lg border border-[#eadfc9] bg-white p-3">
           <div className="flex flex-col gap-3">
-            <p className="text-xs leading-5 text-[#625b4d]">
-              <strong className="text-[#1b1c1c]">고민되면 친구·파트너에게 보내세요.</strong>
+            <p className="text-xs leading-5 text-[#5d6879]">
+              <strong className="text-[#071629]">고민되면 친구·파트너에게 보내세요.</strong>
               <br />
               공유 텍스트에는 견적가, 요약, 빠진 항목 세부 리스트가 포함돼요. 메모·업체명은 제외됩니다.
             </p>
@@ -738,7 +738,7 @@ function ResultPanel({
                 type="button"
                 onClick={shareResult}
                 disabled={shareSharing}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#795252] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb] disabled:opacity-60"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#9d6f36] bg-white px-3 py-2 text-xs font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec] disabled:opacity-60"
               >
                 {shareCopied ? (
                   <>
@@ -755,7 +755,7 @@ function ResultPanel({
               <button
                 type="button"
                 onClick={shareToInstagram}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#d4c2c2] bg-white px-3 py-2 text-xs font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#d8bb86] bg-white px-3 py-2 text-xs font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
               >
                 {instaCopied ? (
                   <>
@@ -783,16 +783,16 @@ function ResultMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-white px-3 py-3">
       <div className="text-xs text-[#928980]">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-[#1b1c1c]">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[#071629]">{value}</div>
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-[#fcf9f8] px-3 py-3">
+    <div className="rounded-lg bg-[#fffdf7] px-3 py-3">
       <div className="text-xs text-[#928980]">{label}</div>
-      <div className="mt-1 text-base font-semibold text-[#795252]">{value}</div>
+      <div className="mt-1 text-base font-semibold text-[#9d6f36]">{value}</div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -287,7 +287,7 @@ export default function PostDetailPage() {
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#795252] hover:bg-[#946a6a] rounded-lg transition-all duration-200"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -508,7 +508,7 @@ export default function PostDetailPage() {
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#795252] hover:bg-[#946a6a] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -845,7 +845,7 @@ export default function PostDetailPage() {
                   <>
                     <Link
                       href={`/community/post/write?edit=${post.id}`}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#504444] transition-all duration-200 ml-auto whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#5d6879] transition-all duration-200 ml-auto whitespace-nowrap"
                     >
                       수정
                     </Link>

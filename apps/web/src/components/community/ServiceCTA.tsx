@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -89,7 +89,7 @@ export default function ServiceCTA({ category }: ServiceCTAProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#e4ded9] bg-[#fffdfb] px-4 py-4 sm:px-5">
+    <div className="rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-4 py-4 sm:px-5">
       <p className="mb-3 text-[11px] font-medium tracking-[0.2em] text-[#928980]">
         다음 행동
       </p>
@@ -127,19 +127,19 @@ function ServiceAction({
 }: CTAConfig) {
   return (
     <Link href={href} className="group flex items-start gap-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="mb-1 block text-[11px] font-medium text-[#928980]">{label}</span>
-        <span className="block text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
+        <span className="block text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
           {title}
         </span>
-        <span className="mt-1 block text-[13px] leading-relaxed text-[#625b4d]">
+        <span className="mt-1 block text-[13px] leading-relaxed text-[#5d6879]">
           {subtext}
         </span>
       </span>
-      <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#795252]" />
+      <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
     </Link>
   );
 }

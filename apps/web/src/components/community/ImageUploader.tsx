@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -254,7 +254,7 @@ export default function ImageUploader({
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#795252]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#9d6f36]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label={`파일 ${i + 1} 삭제`}
               >
                 <X className="w-3.5 h-3.5" />

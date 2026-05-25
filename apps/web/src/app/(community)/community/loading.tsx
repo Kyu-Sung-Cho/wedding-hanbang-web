@@ -1,9 +1,9 @@
-export default function CommunityFeedLoading() {
+﻿export default function CommunityFeedLoading() {
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
+    <div className="min-h-screen bg-[#fffdf7] flex flex-col">
       <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
         {/* 왼쪽 사이드바 skeleton — 실제 폭/배경 그대로 */}
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40">
+        <aside className="hidden xl:flex bg-[#fffdf7] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#eadfc9] z-40">
           {/* 헤더 */}
           <div className="mb-5 px-2 space-y-2">
             <div className="h-7 w-28 bg-[#ede8e6] rounded animate-pulse" />
@@ -11,7 +11,7 @@ export default function CommunityFeedLoading() {
           </div>
           {/* 동기방 카드 */}
           <div className="mb-4">
-            <div className="rounded-xl bg-gradient-to-br from-[#795252]/60 to-[#946a6a]/60 h-28 animate-pulse" />
+            <div className="rounded-xl bg-gradient-to-br from-[#9d6f36]/60 to-[#102a4d]/60 h-28 animate-pulse" />
           </div>
           {/* 카테고리 탭 */}
           <div className="space-y-2">
@@ -39,7 +39,7 @@ export default function CommunityFeedLoading() {
             </div>
 
             {/* 정렬 바 */}
-            <div className="flex items-center gap-3 px-1 border-b border-[#e4e2e1] pb-4">
+            <div className="flex items-center gap-3 px-1 border-b border-[#eadfc9] pb-4">
               <div className="h-8 w-16 bg-[#ede8e6] rounded-lg animate-pulse" />
               <div className="h-8 w-16 bg-[#ede8e6] rounded-lg animate-pulse" />
               <div className="h-8 w-20 bg-[#ede8e6] rounded-lg animate-pulse" />
@@ -73,7 +73,7 @@ export default function CommunityFeedLoading() {
         </main>
 
         {/* 오른쪽 사이드바 skeleton */}
-        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] bg-[#fcf9f8] space-y-4">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#eadfc9] sticky top-16 h-[calc(100vh-4rem)] bg-[#fffdf7] space-y-4">
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-48 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />

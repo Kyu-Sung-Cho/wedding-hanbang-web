@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo } from "react";
 import Link from "next/link";
@@ -78,10 +78,10 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
   return (
     <Link
       href={banner.href}
-      className="group block rounded-lg border border-[#e4ded9] bg-[#fffdfb] px-4 py-4 transition-colors hover:border-[#d9c8c8] hover:bg-white sm:px-5"
+      className="group block rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-4 py-4 transition-colors hover:border-[#d8bb86] hover:bg-white sm:px-5"
     >
       <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#795252] transition-colors group-hover:border-[#d9c8c8]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
           <Icon className="h-5 w-5" />
         </span>
 
@@ -89,15 +89,15 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
           <p className="mb-1 text-[11px] font-medium tracking-[0.18em] text-[#928980]">
             {banner.eyebrow}
           </p>
-          <p className="text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#795252]">
+          <p className="text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
             {banner.title}
           </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-[#625b4d]">
+          <p className="mt-1 text-[13px] leading-relaxed text-[#5d6879]">
             {banner.subtext}
           </p>
         </div>
 
-        <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#795252]" />
+        <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
       </div>
     </Link>
   );

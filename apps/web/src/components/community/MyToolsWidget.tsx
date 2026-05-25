@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { BarChart3, FileSearch, LayoutDashboard, MessageCircle } from "lucide-react";
@@ -47,9 +47,9 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
               key={tool.href}
               href={tool.href}
               title={`${tool.label} - ${tool.description}`}
-              className="group flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-[#504444] transition-all hover:bg-[#F5F0EE] hover:text-[#795252]"
+              className="group flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-[#5d6879] transition-all hover:bg-[#F5F0EE] hover:text-[#9d6f36]"
             >
-              <Icon className="h-4 w-4 text-[#795252]" />
+              <Icon className="h-4 w-4 text-[#9d6f36]" />
               <span className="hidden lg:inline">{tool.label}</span>
             </Link>
           );
@@ -60,8 +60,8 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
 
   return (
     <div className="mb-6">
-      <div className="mb-3 flex items-center gap-2 border-b border-[#e4e2e1] pb-2">
-        <BarChart3 className="h-4 w-4 text-[#795252]" />
+      <div className="mb-3 flex items-center gap-2 border-b border-[#eadfc9] pb-2">
+        <BarChart3 className="h-4 w-4 text-[#9d6f36]" />
         <h3 className="font-serif-kr text-lg text-[#1C1917]">준비 도구</h3>
       </div>
 
@@ -74,14 +74,14 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
               href={tool.href}
               className="group flex w-full items-start gap-3 rounded-xl bg-white p-3 text-left shadow-sm transition-all hover:bg-[#F5F0EE]/60"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white">
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[#1C1917] group-hover:text-[#795252]">
+                <p className="text-sm font-medium text-[#1C1917] group-hover:text-[#9d6f36]">
                   {tool.label}
                 </p>
-                <p className="mt-0.5 text-xs leading-snug text-[#504444]">
+                <p className="mt-0.5 text-xs leading-snug text-[#5d6879]">
                   {tool.description}
                 </p>
               </div>

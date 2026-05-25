@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -173,7 +173,7 @@ export default function NewGuestbookPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {submitting ? "만드는 중..." : "방명록 만들기"}
         </button>

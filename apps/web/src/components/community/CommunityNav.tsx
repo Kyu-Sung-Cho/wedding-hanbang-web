@@ -1,232 +1,105 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
-import { FileSearch, Search, PenSquare, Menu, X, CalendarCheck, Bookmark, Users as UsersIcon, Activity, Settings as SettingsIcon } from "lucide-react";
+import { Menu, PenSquare, X } from "lucide-react";
 import MyToolsWidget from "@/components/community/MyToolsWidget";
 import UserMenu from "@/components/community/UserMenu";
+import Logo from "@/components/ui/Logo";
+import { useAuthStore } from "@/stores/authStore";
+
+const navItems = [
+  { href: "/community", label: "커뮤니티" },
+  { href: "/community/about", label: "커뮤니티 소개" },
+  { href: "/landing", label: "서비스 소개" },
+];
 
 export default function CommunityNav() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") ?? "");
-
-  useEffect(() => {
-    setSearchQuery(searchParams.get("search") ?? "");
-  }, [searchParams]);
-
-  const handleSearch = () => {
-    const trimmed = searchQuery.trim();
-    if (!trimmed) return;
-    router.push(`/community?search=${encodeURIComponent(trimmed)}`);
-    setMobileMenuOpen(false);
-  };
-
-  const clearSearch = () => {
-    setSearchQuery("");
-    router.push("/community");
-  };
-
-  useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ? { id: data.user.id, email: data.user.email ?? undefined } : null);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? { id: session.user.id, email: session.user.email ?? undefined } : null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const profile = useAuthStore((state) => state.profile);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#F0EFED]">
-      <div className="mx-auto max-w-[1920px] px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 sm:gap-4 h-14 sm:h-16">
-          {/* 왼쪽: 로고 + 커뮤니티 */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Link
-              href="/"
-              className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl sm:text-[1.375rem] text-[#1A1A1F]"
-            >
-              웨딩한방
-            </Link>
-            <span className="hidden sm:inline text-[#B5ADA3]">/</span>
-            <Link href="/community" className="hidden sm:inline text-base text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors">
-              커뮤니티
-            </Link>
-          </div>
+    <header className="bg-[#fffdf7]">
+      <div className="mx-auto flex h-[76px] w-[calc(100%_-_48px)] max-w-[1300px] items-center justify-between">
+        <Link href="/community" className="inline-flex items-center whitespace-nowrap">
+          <Logo size="lg" />
+        </Link>
 
-          {/* 가운데: 검색바 */}
-          <form
-            onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
-            className="hidden sm:flex flex-1 max-w-xl mx-auto"
-          >
-            <div className="relative w-full">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3] cursor-pointer"
-                onClick={handleSearch}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="견적, 업체명, 계약조건 검색"
-                className="w-full pl-11 pr-11 py-2.5 text-sm bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] focus:bg-white transition-all"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
-                  aria-label="검색 초기화"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </form>
-
-          {/* 오른쪽: 준비 도구 + 글쓰기 + 유저/로그인 */}
-          <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-            {user && <MyToolsWidget variant="nav" />}
-
-            {/* 이슈 #12: 업체 탐색 메뉴 숨김 (베타 단계, 업체 DB 충분히 쌓이면 복구) */}
-
-            {/* 로그인 사용자는 MyToolsWidget 안에 견적 체크가 포함됨 → 중복 방지로 비로그인일 때만 단독 노출 */}
-            {!user && (
-              <Link
-                href="/community/quote-check"
-                className="hidden md:flex items-center gap-2 rounded-full bg-[#795252]/10 px-4 py-2 text-sm font-medium text-[#795252] transition-colors hover:bg-[#795252]/15"
-              >
-                <FileSearch className="w-4 h-4" />
-                견적 체크
+        <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
+          {navItems.map((item, index) => (
+            <div key={item.href} className="flex items-center gap-6">
+              {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
+              <Link href={item.href} className="transition-colors hover:text-[#b68a3a]">
+                {item.label}
               </Link>
-            )}
+            </div>
+          ))}
+          {profile && <MyToolsWidget variant="nav" />}
+          <Link
+            href="/demo"
+            className="rounded-full bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+          >
+            아모라 체험하기
+          </Link>
+          {profile ? (
+            <UserMenu />
+          ) : (
+            <Link href="/login" className="text-[14px] font-semibold text-[#071629] transition-colors hover:text-[#b68a3a]">
+              로그인
+            </Link>
+          )}
+        </nav>
 
+        <button
+          type="button"
+          onClick={() => setMobileOpen((value) => !value)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#071629] md:hidden"
+          aria-label="커뮤니티 메뉴"
+          aria-expanded={mobileOpen}
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+      {mobileOpen && (
+        <div className="border-t border-[#eadfc9] bg-[#fffdf7] md:hidden">
+          <div className="mx-auto flex w-[calc(100%_-_48px)] max-w-[1300px] flex-col gap-2 py-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className="rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[#071629] hover:bg-white"
+              >
+                {item.label}
+              </Link>
+            ))}
             <Link
               href="/community/post/write"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
+              onClick={() => setMobileOpen(false)}
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
             >
-              <PenSquare className="w-4 h-4" />
+              <PenSquare className="h-4 w-4" />
               글쓰기
             </Link>
-
-            {user ? (
-              <UserMenu />
+            <Link
+              href="/demo"
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[14px] font-semibold text-[#ecd7a4]"
+            >
+              아모라 체험하기
+            </Link>
+            {profile ? (
+              <div className="flex justify-center py-2">
+                <UserMenu />
+              </div>
             ) : (
               <Link
                 href="/login"
-                className="px-4 py-2 text-sm font-medium text-white bg-[#795252] rounded-full hover:bg-[#946a6a] transition-colors"
+                onClick={() => setMobileOpen(false)}
+                className="inline-flex items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
               >
                 로그인
               </Link>
-            )}
-
-            {/* 모바일 햄버거 */}
-            <button
-              type="button"
-              className="sm:hidden p-2.5 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors rounded-full hover:bg-[#FAFAF8]"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="메뉴"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 모바일 메뉴 */}
-      {mobileMenuOpen && (
-        <div className="sm:hidden border-t border-[#F0EFED] bg-white">
-          <div className="mx-auto max-w-[1600px] px-4 py-4 flex flex-col gap-3">
-            <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#B5ADA3] cursor-pointer"
-                onClick={handleSearch}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="견적, 업체명, 계약조건 검색"
-                className="w-full pl-11 pr-11 py-3 text-base bg-[#FAFAF8] border border-[#F0EFED] rounded-full placeholder-[#B5ADA3] text-[#1A1A1F] focus:outline-none focus:border-[#C4967E] focus:bg-white transition-all"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#B5ADA3] hover:text-[#1A1A1F] transition-colors"
-                  aria-label="검색 초기화"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </form>
-
-            {user && <MyToolsWidget variant="sidebar" />}
-
-            {/* 이슈 #12: 모바일 메뉴에서도 업체 탐색 숨김 */}
-
-            <Link
-              href="/community/quote-check"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-5 py-3 text-base font-medium text-[#795252] bg-[#795252]/10 rounded-full hover:bg-[#795252]/15 transition-all"
-            >
-              <FileSearch className="w-5 h-5" />
-              견적 체크
-            </Link>
-
-            <Link
-              href="/community/post/write"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-5 py-3 text-base text-[#1A1A1F] border border-[#F0EFED] rounded-full hover:bg-[#FAFAF8] transition-all"
-            >
-              <PenSquare className="w-5 h-5" />
-              글쓰기
-            </Link>
-
-            {user && (
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                {[
-                  { href: "/bookings", label: "내 예약", Icon: CalendarCheck },
-                  { href: "/community/my", label: "내 활동", Icon: Activity },
-                  { href: "/favorites", label: "즐겨찾기", Icon: Bookmark },
-                  { href: "/community/cohort", label: "동기방", Icon: UsersIcon },
-                ].map((item) => {
-                  const Icon = item.Icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm text-[#1A1A1F] border border-[#F0EFED] rounded-xl hover:bg-[#FAFAF8] transition-all"
-                    >
-                      <Icon className="w-4 h-4 text-[#795252]" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-                <Link
-                  href="/settings"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm text-[#928980] hover:text-[#1A1A1F] transition-colors"
-                >
-                  <SettingsIcon className="w-4 h-4" />
-                  설정
-                </Link>
-              </div>
             )}
           </div>
         </div>

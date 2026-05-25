@@ -1,264 +1,32 @@
-"use client";
-
-import { useEffect, useRef, useCallback, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { PenSquare } from "lucide-react";
-import { useCommunityStore } from "@/stores/communityStore";
-import {
-  COMMUNITY_CATEGORIES,
-  CATEGORY_MAP,
-} from "@/constants/communityCategories";
+﻿import { redirect } from "next/navigation";
+import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import type { CommunityCategory } from "@/types/community.types";
-import CategoryTabs from "@/components/community/CategoryTabs";
-import SortSelector from "@/components/community/SortSelector";
-import PostCard from "@/components/community/PostCard";
-import PostSkeleton from "@/components/community/PostSkeleton";
-import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
-import FeedComposer from "@/components/community/FeedComposer";
-import { withSessionCache } from "@/utils/sessionCache";
 
-interface PopularTag {
-  tag: string;
-  count: number;
-}
+const validCategories = new Set<CommunityCategory>(COMMUNITY_CATEGORIES.map((category) => category.key));
 
-const VALID_KEYS = COMMUNITY_CATEGORIES.map((c) => c.key);
+export default async function CategoryRedirectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ category: string }>;
+  searchParams?: Promise<{ tag?: string }>;
+}) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const category = resolvedParams.category as CommunityCategory;
 
-export default function CategoryFeedPage() {
-  const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const categoryParam = params.category as string;
-  const tagQuery = searchParams.get("tag") ?? "";
+  if (!validCategories.has(category)) {
+    redirect("/community");
+  }
 
-  const posts = useCommunityStore((s) => s.posts);
-  const isLoading = useCommunityStore((s) => s.isLoading);
-  const currentSort = useCommunityStore((s) => s.currentSort);
-  const currentPeriod = useCommunityStore((s) => s.currentPeriod);
-  const currentTag = useCommunityStore((s) => s.currentTag);
-  const total = useCommunityStore((s) => s.total);
+  const query = new URLSearchParams({
+    category,
+    feed: "all",
+  });
 
-  const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
-  const observerRef = useRef<HTMLDivElement>(null);
+  if (resolvedSearchParams?.tag) {
+    query.set("tag", resolvedSearchParams.tag);
+  }
 
-  useEffect(() => {
-    if (!VALID_KEYS.includes(categoryParam as CommunityCategory)) {
-      router.replace("/community");
-      return;
-    }
-    const store = useCommunityStore.getState();
-    store.setCategory(categoryParam as CommunityCategory);
-    store.setTag(tagQuery || null);
-    store.fetchPosts(true);
-  }, [categoryParam, currentSort, currentPeriod, tagQuery, router]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void withSessionCache("community:popular-tags", 10 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/popular-tags");
-      if (!res.ok) return [] as PopularTag[];
-      const data = await res.json();
-      return (data.tags ?? data ?? []) as PopularTag[];
-    }).then((tags) => {
-      if (!cancelled) setPopularTags(tags);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries;
-      const s = useCommunityStore.getState();
-      if (entry.isIntersecting && s.hasMore && !s.isLoading) {
-        s.fetchMorePosts();
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    const el = observerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(handleObserver, {
-      rootMargin: "200px",
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [handleObserver]);
-
-  const categoryInfo = CATEGORY_MAP[categoryParam as CommunityCategory];
-  if (!categoryInfo) return null;
-
-  return (
-    <div className="min-h-screen bg-[#fcf9f8] flex flex-col">
-      {/* 모바일 카테고리 */}
-      <div className="xl:hidden px-4 sm:px-6 pt-4">
-        <CategoryTabs />
-      </div>
-
-      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
-        {/* 왼쪽 사이드바 — community 페이지와 동일한 폭/스타일 */}
-        <aside className="hidden xl:flex bg-[#fcf9f8] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e4e2e1] z-40 overflow-y-auto">
-          <CategoryTabs />
-
-          <div className="mt-4 px-1">
-            <Link
-              href="/community/post/write"
-              className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-lg transition-all duration-200"
-            >
-              <PenSquare className="w-4 h-4" />
-              글쓰기
-            </Link>
-          </div>
-        </aside>
-
-        {/* 가운데: 메인 피드 — community 페이지와 동일한 padding/max-w */}
-        <main className="flex-1 min-w-0 px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6 overflow-y-auto">
-          <div className="max-w-[980px] mx-auto space-y-4 sm:space-y-5">
-            {/* 카테고리 헤더 */}
-            <div>
-              <h1 className="font-serif-kr text-2xl lg:text-3xl text-[#1b1c1c] mb-1">
-                {categoryInfo.label}
-              </h1>
-              <p className="text-sm text-[#878680]">
-                {categoryInfo.description}
-              </p>
-            </div>
-
-            {/* 정렬 바 — community 페이지와 동일 */}
-            <div className="flex items-center gap-3 px-1 border-b border-[#e4e2e1] pb-4">
-              <SortSelector
-                sort={currentSort}
-                period={currentPeriod}
-                onSortChange={(s) => useCommunityStore.getState().setSort(s)}
-                onPeriodChange={(p) => useCommunityStore.getState().setPeriod(p)}
-              />
-            </div>
-
-            <FeedComposer />
-
-            {/* 활성 태그 필터 표시 */}
-            {currentTag && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-[#928980]">필터:</span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
-                  #{currentTag}
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/community/${categoryParam}`)}
-                    className="ml-1 w-4 h-4 rounded-full bg-[#795252]/20 hover:bg-[#795252]/30 flex items-center justify-center text-[10px] leading-none"
-                    aria-label="태그 필터 제거"
-                  >
-                    ×
-                  </button>
-                </span>
-              </div>
-            )}
-
-            {/* 피드 — community 페이지와 동일 카드 간격 */}
-            {isLoading && posts.length === 0 ? (
-              <div className="space-y-5 sm:space-y-6">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <PostSkeleton key={i} />
-                ))}
-              </div>
-            ) : posts.length === 0 ? (
-              <EmptyFeedStarter
-                title={`${categoryInfo.label}에 아직 올라온 글이 없습니다`}
-                description="이 카테고리의 첫 이야기를 기다리고 있어요."
-              />
-            ) : (
-              <div className="space-y-5 sm:space-y-6">
-                {posts.map((post) => (
-                  <PostCard key={post.id} post={post} />
-                ))}
-                {isLoading && (
-                  <div className="space-y-5 sm:space-y-6">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <PostSkeleton key={`more-${i}`} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div ref={observerRef} className="h-1" />
-          </div>
-        </main>
-
-        {/* 오른쪽 사이드바 — community 페이지와 동일한 frame */}
-        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e4e2e1] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-[#fcf9f8] space-y-4">
-          <div className="bg-white rounded-xl border border-[#F0EFED] overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#F0EFED]">
-              <h3 className="text-base font-medium text-[#1A1A1F]">인기 카테고리</h3>
-            </div>
-            <div className="divide-y divide-[#F0EFED]">
-              {COMMUNITY_CATEGORIES.map((cat, i) => (
-                <Link
-                  key={cat.key}
-                  href={`/community/${cat.key}`}
-                  className={`flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF8] transition-colors duration-150 ${
-                    cat.key === categoryParam ? "bg-[#FAFAF8]" : ""
-                  }`}
-                >
-                  <span className="text-sm font-medium text-[#B5ADA3] w-5 tabular-nums">
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-[#1A1A1F] font-medium">
-                      {cat.label}
-                    </div>
-                    <div className="text-xs text-[#B5ADA3] truncate">
-                      {cat.description}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {popularTags.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#F0EFED] p-5">
-              <h3 className="text-base font-medium text-[#1A1A1F] mb-3">
-                인기 태그
-              </h3>
-              <div className="flex flex-wrap gap-2.5">
-                {popularTags.slice(0, 15).map((t) => (
-                  <Link
-                    key={t.tag}
-                    href={`/community/${categoryParam}?tag=${encodeURIComponent(t.tag)}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-full hover:bg-[#F0EFED] transition-colors duration-200"
-                  >
-                    #{t.tag}
-                    <span className="text-xs text-[#B5ADA3]">{t.count}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="bg-white rounded-xl border border-[#F0EFED] p-5">
-            <h2 className="font-serif text-lg font-medium text-[#1A1A1F] mb-1.5">
-              웨딩한방 커뮤니티
-            </h2>
-            <p className="text-sm text-[#878680] leading-relaxed mb-3">
-              예비 신랑신부를 위한 웨딩 정보 공유 공간
-            </p>
-            <div className="text-sm text-[#B5ADA3]">글 {total || 0}개</div>
-          </div>
-        </aside>
-      </div>
-
-      <Link
-        href="/community/post/write"
-        className="xl:hidden fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] rounded-full transition-all duration-200"
-        aria-label="글쓰기"
-      >
-        <PenSquare className="w-5 h-5" />
-      </Link>
-    </div>
-  );
+  redirect(`/community?${query.toString()}#community-feed`);
 }

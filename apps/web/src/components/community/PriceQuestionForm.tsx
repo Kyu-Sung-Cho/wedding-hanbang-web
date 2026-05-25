@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { HelpCircle } from "lucide-react";
@@ -55,7 +55,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
         </div>
         <div
           className={`w-10 h-6 rounded-full transition-colors relative ${
-            enabled ? "bg-[#795252]" : "bg-[#F0EFED]"
+            enabled ? "bg-[#9d6f36]" : "bg-[#F0EFED]"
           }`}
         >
           <div

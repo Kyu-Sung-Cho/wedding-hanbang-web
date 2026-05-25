@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
@@ -101,7 +101,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full bg-[#795252] text-white rounded-xl py-3 font-medium hover:bg-[#946a6a] transition-colors"
+          className="mt-6 w-full bg-[#9d6f36] text-white rounded-xl py-3 font-medium hover:bg-[#102a4d] transition-colors"
         >
           확인
         </button>

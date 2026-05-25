@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { Users, ChevronRight, Sparkles, Calendar } from "lucide-react";
@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all disabled:opacity-60"
+          className="w-full rounded-lg bg-gradient-to-br from-[#9d6f36] to-[#102a4d] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,7 +133,7 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#795252] to-[#946a6a] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(121,82,82,0.15)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.2)]"
+      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#9d6f36] to-[#102a4d] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
@@ -154,7 +154,7 @@ export default function CohortCard({
             return (
               <div
                 key={m.id}
-                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#795252] bg-[#C4967E] text-xs font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#9d6f36] bg-[#C4967E] text-xs font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element

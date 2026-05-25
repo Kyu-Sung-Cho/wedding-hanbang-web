@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -13,7 +13,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 // 으로 진입할 수 있는 단일 액션만 sidebar 상단에 노출.
 export default function RightSidebar() {
   return (
-    <section className="rounded-lg border border-[#d9c8c8] bg-[#795252] p-4 text-white shadow-[0_8px_24px_rgba(121,82,82,0.14)]">
+    <section className="rounded-lg border border-[#d8bb86] bg-[#9d6f36] p-4 text-white shadow-[0_8px_24px_rgba(6,26,52,0.14)]">
       <div className="mb-3 flex items-center gap-2.5">
         <Sparkles className="h-4 w-4 text-[#dee6c4]" />
         <h3 className="font-serif-kr text-lg">아모라 견적 체크리스트</h3>
@@ -23,7 +23,7 @@ export default function RightSidebar() {
       </p>
       <Link
         href="/community/quote-check"
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fff8f5]"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8f5]"
       >
         체크리스트 보기
         <ArrowRight className="h-4 w-4" />

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
@@ -176,7 +176,7 @@ function SlideItem({ slide, active }: { slide: SlideMedia; active: boolean }) {
   }
 
   return (
-    <div className="w-full shrink-0 relative bg-[#fcf9f8] flex items-center justify-center">
+    <div className="w-full shrink-0 relative bg-[#fffdf7] flex items-center justify-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={slide.url}

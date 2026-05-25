@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -25,28 +25,28 @@ const STARTERS = [
     icon: FileSearch,
   },
   {
-    href: "/community/is_normal",
+    href: "/community?category=is_normal&feed=all#community-feed",
     label: "정상인가요 게시판",
     title: "다른 예비부부의 견적/계약 질문 먼저 보기",
     meta: "사례 보기",
     icon: HelpCircle,
   },
   {
-    href: "/community/tour_review",
+    href: "/community?category=tour_review&feed=all#community-feed",
     label: "투어/이용 후기",
     title: "방문한 업체 경험과 실제 상담 포인트 공유하기",
     meta: "후기 공유",
     icon: Camera,
   },
   {
-    href: "/community/tips_v2",
+    href: "/community?category=tips_v2&feed=all#community-feed",
     label: "꿀팁",
     title: "계약 전 물어볼 질문과 숨은 추가금 체크리스트 모으기",
     meta: "체크리스트",
     icon: Lightbulb,
   },
   {
-    href: "/community/ama",
+    href: "/community?category=ama&feed=all#community-feed",
     label: "결혼 끝났다 AMA",
     title: "이미 끝낸 선배에게 현실적인 선택 기준 물어보기",
     meta: "경험 질문",
@@ -60,23 +60,23 @@ export default function EmptyFeedStarter({
 }: EmptyFeedStarterProps) {
   return (
     <div className="space-y-3">
-      <section className="rounded-lg border border-[#e4e2e1] bg-white p-4 sm:p-5">
+      <section className="rounded-[16px] border border-[#eadfc9] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.035)] sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#f6f3f2] px-2.5 py-1 text-xs font-medium text-[#795252]">
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#fbefd6] px-2.5 py-1 text-xs font-medium text-[#9d6f36]">
               <MessageSquarePlus className="h-3.5 w-3.5" />
               실제 사례 대기중
             </div>
-            <h3 className="font-serif-kr text-xl text-[#1b1c1c] sm:text-2xl">
+            <h3 className="font-serif-kr text-xl font-medium text-[#071629] sm:text-2xl">
               {title}
             </h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-[#504444]">
+            <p className="mt-1.5 text-sm font-medium leading-relaxed text-[#5d6879]">
               {description}
             </p>
           </div>
           <Link
             href="/community/quote-check"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.18)] transition-colors hover:bg-[#946a6a]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#061a34] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#102a4d]"
           >
             체크리스트 보기
             <ChevronRight className="h-4 w-4" />
@@ -91,16 +91,16 @@ export default function EmptyFeedStarter({
             <Link
               key={item.href}
               href={item.href}
-              className="group rounded-lg border border-[#e4e2e1] bg-white p-4 transition-colors hover:border-[#d4c2c2] hover:bg-[#fffdfb]"
+              className="group rounded-[16px] border border-[#eadfc9] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.03)] transition-colors hover:border-[#d8bb86] hover:bg-[#fff8ec]"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f6f3f2] text-[#795252]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#fbefd6] text-[#9d6f36]">
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-xs text-[#928980]">{item.meta}</span>
+                <span className="text-xs font-medium text-[#7a8290]">{item.meta}</span>
               </div>
-              <div className="text-sm font-medium text-[#795252]">{item.label}</div>
-              <div className="mt-1 text-sm leading-snug text-[#1b1c1c]">
+              <div className="text-sm font-semibold text-[#9d6f36]">{item.label}</div>
+              <div className="mt-1 text-sm font-medium leading-snug text-[#071629]">
                 {item.title}
               </div>
             </Link>

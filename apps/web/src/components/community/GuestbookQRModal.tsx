@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { X, Copy, Download, Check } from "lucide-react";
@@ -67,7 +67,7 @@ export default function GuestbookQRModal({ url, onClose }: GuestbookQRModalProps
             download="guestbook-qr.png"
             target="_blank"
             rel="noreferrer"
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-[#795252] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#946a6a] transition"
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-[#9d6f36] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#102a4d] transition"
           >
             <Download className="w-4 h-4" />
             다운로드

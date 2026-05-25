@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -67,7 +67,7 @@ export default function MyPostsPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
-              tab === t.key ? "bg-[#795252] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
+              tab === t.key ? "bg-[#9d6f36] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
             }`}
           >
             {t.label} {t.count > 0 && <span className="ml-1 opacity-60">{t.count}</span>}

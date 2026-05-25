@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -38,7 +38,7 @@ export default function Logo({ size = "md", variant = "default", showText = true
       {showText && (
         <span
           className="font-serif-kr font-medium leading-none"
-          style={{ fontSize: s.text, color: textColor, letterSpacing: "-0.02em" }}
+          style={{ fontSize: s.text, color: textColor, letterSpacing: 0 }}
         >
           웨딩한방
         </span>

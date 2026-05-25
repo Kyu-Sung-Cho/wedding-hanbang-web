@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -72,7 +72,7 @@ export default function CohortIndexPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#fcf9f8] text-sm text-[#928980]">
+      <div className="flex min-h-[60vh] items-center justify-center bg-[#fffdf7] text-sm text-[#928980]">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         동기방으로 이동 중...
       </div>
@@ -80,24 +80,24 @@ export default function CohortIndexPage() {
   }
 
   return (
-    <div className="min-h-[60vh] bg-[#fcf9f8] px-4 py-12 sm:px-6 lg:py-16">
-      <div className="mx-auto max-w-xl rounded-2xl border border-[#e4e2e1] bg-white p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="mb-3 flex items-center gap-2 text-[#795252]">
+    <div className="min-h-[60vh] bg-[#fffdf7] px-4 py-12 sm:px-6 lg:py-16">
+      <div className="mx-auto max-w-xl rounded-2xl border border-[#eadfc9] bg-white p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="mb-3 flex items-center gap-2 text-[#9d6f36]">
           <Users className="h-5 w-5" />
           <span className="text-xs font-medium uppercase tracking-widest">동기방</span>
         </div>
-        <h1 className="font-serif-kr text-2xl text-[#1b1c1c] sm:text-3xl">
+        <h1 className="font-serif-kr text-2xl text-[#071629] sm:text-3xl">
           같은 시기 예비부부와 함께
         </h1>
 
         {status === "unauth" && (
           <>
-            <p className="mt-3 text-sm leading-6 text-[#504444]">
+            <p className="mt-3 text-sm leading-6 text-[#5d6879]">
               동기방은 로그인 후 결혼 예정월 기준으로 자동 매칭돼요. 먼저 로그인해주세요.
             </p>
             <Link
               href="/login?redirect=/community/cohort"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#946a6a]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#102a4d]"
             >
               로그인하기
               <ArrowRight className="h-4 w-4" />
@@ -107,7 +107,7 @@ export default function CohortIndexPage() {
 
         {status === "need-date" && (
           <>
-            <p className="mt-3 text-sm leading-6 text-[#504444]">
+            <p className="mt-3 text-sm leading-6 text-[#5d6879]">
               결혼 예정일을 등록하면 같은 시기 예비부부들과 자동으로 매칭돼요.
             </p>
             <div className="mt-2 flex items-center gap-1.5 text-xs text-[#928980]">
@@ -116,7 +116,7 @@ export default function CohortIndexPage() {
             </div>
             <Link
               href="/onboarding"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#946a6a]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#102a4d]"
             >
               예정일 등록하기
               <ArrowRight className="h-4 w-4" />
@@ -126,12 +126,12 @@ export default function CohortIndexPage() {
 
         {status === "error" && (
           <>
-            <p className="mt-3 text-sm leading-6 text-[#504444]">
+            <p className="mt-3 text-sm leading-6 text-[#5d6879]">
               {errorMsg ?? "잠시 후 다시 시도해주세요."}
             </p>
             <Link
               href="/community"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#e4e2e1] bg-white px-4 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#eadfc9] bg-white px-4 py-2.5 text-sm font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
             >
               커뮤니티로 돌아가기
             </Link>
