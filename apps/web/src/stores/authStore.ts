@@ -115,7 +115,7 @@ const DEMO_JOURNEY: WeddingJourney = {
     __events: [
       { id: "evt_demo1", date: "2026-03-15", title: "드레스 2차 피팅", memo: "강남 드레스하우스 오후 2시", categoryKey: "dress", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
       { id: "evt_demo2", date: "2026-04-10", title: "메이크업 리허설", memo: "청담 메이크업샵", categoryKey: "makeup", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
-      { id: "evt_demo3", date: "2026-05-01", title: "청첩장 시안 확인", categoryKey: "invitation", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+      { id: "evt_demo3", date: "2026-05-01", title: "본식 스냅 작가 후보 비교", categoryKey: "snap", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
       { id: "evt_demo4", date: "2026-06-20", title: "상견례 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
     ],
   } as unknown as WeddingJourney["progress"],
@@ -128,6 +128,14 @@ function isDemoMode() {
   return document.cookie.includes("demo_mode=true");
 }
 
+function isTransientAuthFetchError(err: unknown) {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.name === "AbortError" ||
+    /failed to fetch|load failed|networkerror|aborted/i.test(err.message)
+  );
+}
+
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
@@ -138,7 +146,7 @@ interface AuthState {
   isInitialized: boolean;
   isDemo: boolean;
 
-  initialize: () => Promise<void>;
+  initialize: (options?: { force?: boolean }) => Promise<void>;
   updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<void>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
@@ -159,9 +167,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isInitialized: false,
   isDemo: false,
 
-  initialize: async () => {
-    if (get().isInitialized) return;
-    set({ isLoading: true });
+  initialize: async (options) => {
+    if (get().isInitialized && !options?.force) return;
+    if (!options?.force) set({ isLoading: true });
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
@@ -207,7 +215,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isLoading: false, isInitialized: true });
     } catch (err) {
-      console.error("Auth store init error:", err);
+      if (!isTransientAuthFetchError(err)) {
+        console.error("Auth store init error:", err);
+      }
 
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
@@ -247,7 +257,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ journey: data.journey });
       }
     } catch (err) {
-      console.error("refreshJourney 실패:", err);
+      if (!isTransientAuthFetchError(err)) {
+        console.error("refreshJourney 실패:", err);
+      }
     }
   },
 

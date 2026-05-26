@@ -13,7 +13,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-categories"]',
     title: "주제별 게시판",
     description:
-      "정상인가요(견적 검증), 투어/이용 후기, 꿀팁, 결혼 끝 Q&A 등으로 나뉘어 있어요. 원하는 주제만 골라 볼 수 있어요.",
+      "정상인가요(견적 검증), 투어/이용 후기, 꿀팁, 결혼 선배 Q&A 등으로 나뉘어 있어요. 원하는 주제만 골라 볼 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="community-composer"]',

@@ -8,6 +8,9 @@ export async function GET(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
+      if (req.headers.get("cookie")?.includes("demo_mode=true")) {
+        return NextResponse.json({ bookings: [] });
+      }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 

@@ -86,8 +86,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
   useEffect(() => {
     if (!isOpen || !template) return;
-    const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
-    setChecklist(merged);
+    const timer = window.setTimeout(() => {
+      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
+      setChecklist(merged);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isOpen, categoryKey, template, existing?.checklist]);
 
   const toggleItem = useCallback(

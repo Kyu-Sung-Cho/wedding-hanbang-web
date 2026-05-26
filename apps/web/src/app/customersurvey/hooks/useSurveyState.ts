@@ -49,15 +49,19 @@ export function useSurveyState() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [status, setStatus] = useState<SurveyStatus>('intro');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef<number | null>(null);
+  const [completionTimeSeconds, setCompletionTimeSeconds] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
 
   // 초기 로드: localStorage 확인
   useEffect(() => {
-    const draft = loadDraft();
-    if (draft && draft.answers && Object.keys(draft.answers).length > 0) {
-      setHasDraft(true);
-    }
+    const timer = window.setTimeout(() => {
+      const draft = loadDraft();
+      if (draft && draft.answers && Object.keys(draft.answers).length > 0) {
+        setHasDraft(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // 이어하기
@@ -68,7 +72,9 @@ export function useSurveyState() {
       setOtherTexts(draft.otherTexts ?? {});
       setCurrentSectionIndex(draft.currentSectionIndex ?? 0);
       setStatus('in_progress');
-      startTimeRef.current = draft.startTime ?? Date.now();
+      const startTime = draft.startTime ?? Date.now();
+      startTimeRef.current = startTime;
+      setCompletionTimeSeconds(Math.round((Date.now() - startTime) / 1000));
     }
     setHasDraft(false);
   }, []);
@@ -87,10 +93,21 @@ export function useSurveyState() {
         currentSectionIndex,
         status,
         errors: {},
-        startTime: startTimeRef.current,
+        startTime: startTimeRef.current ?? Date.now(),
       });
     }
   }, [answers, otherTexts, currentSectionIndex, status]);
+
+  useEffect(() => {
+    if (status !== 'in_progress') return;
+    const timer = window.setInterval(() => {
+      const startTime = startTimeRef.current;
+      if (startTime) {
+        setCompletionTimeSeconds(Math.round((Date.now() - startTime) / 1000));
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [status]);
 
   // 질문이 표시되어야 하는지 체크 (skip logic)
   const isQuestionVisible = useCallback(
@@ -209,6 +226,10 @@ export function useSurveyState() {
 
   // 제출 완료 처리
   const markCompleted = useCallback(() => {
+    const startTime = startTimeRef.current;
+    if (startTime) {
+      setCompletionTimeSeconds(Math.round((Date.now() - startTime) / 1000));
+    }
     setStatus('completed');
     clearDraft();
   }, []);
@@ -225,15 +246,13 @@ export function useSurveyState() {
   const startSurvey = useCallback(() => {
     setStatus('in_progress');
     startTimeRef.current = Date.now();
+    setCompletionTimeSeconds(0);
   }, []);
 
   // 총 진행률 계산
   const progress = status === 'in_progress'
     ? ((currentSectionIndex + 1) / sections.length) * 100
     : 0;
-
-  // 완료 시간 (초)
-  const completionTimeSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
 
   return {
     answers,

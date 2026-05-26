@@ -5,7 +5,12 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+    if (!user) {
+      if (request.headers.get("cookie")?.includes("demo_mode=true")) {
+        return NextResponse.json({ scripts: [] });
+      }
+      return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const coupleId = searchParams.get("coupleId");

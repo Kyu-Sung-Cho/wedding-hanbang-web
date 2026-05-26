@@ -12,7 +12,7 @@ const STORAGE_PREFIX = "b2b_survey_";
 
 export function useB2BSurvey(config: ShopConfig) {
   const storageKey = `${STORAGE_PREFIX}${config.shopType}`;
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<Status>("intro");
   const [currentSection, setCurrentSection] = useState(0);
@@ -23,19 +23,22 @@ export function useB2BSurvey(config: ShopConfig) {
 
   // localStorage에서 임시 저장 확인 (실제 답변이 있는 경우만 draft로 인정)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const data = JSON.parse(saved);
-        const hasAnswers = data.answers && Object.keys(data.answers).length > 0;
-        setHasDraft(hasAnswers);
-        if (!hasAnswers) {
-          localStorage.removeItem(storageKey);
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const data = JSON.parse(saved);
+          const hasAnswers = data.answers && Object.keys(data.answers).length > 0;
+          setHasDraft(hasAnswers);
+          if (!hasAnswers) {
+            localStorage.removeItem(storageKey);
+          }
         }
+      } catch {
+        // localStorage 접근 불가
       }
-    } catch {
-      // localStorage 접근 불가
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [storageKey]);
 
   // 자동 저장
@@ -180,7 +183,9 @@ export function useB2BSurvey(config: ShopConfig) {
 
   // 완료 시간 (초)
   const getCompletionTime = useCallback(() => {
-    return Math.round((Date.now() - startTimeRef.current) / 1000);
+    const startTime = startTimeRef.current;
+    if (!startTime) return 0;
+    return Math.round((Date.now() - startTime) / 1000);
   }, []);
 
   // 진행률

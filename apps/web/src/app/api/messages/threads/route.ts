@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       .eq("owner_id", user.id)
       .single();
 
-    let threads: Array<{
+    const threads: Array<{
       vendorId: string;
       customerId: string;
       vendorName: string;

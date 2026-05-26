@@ -59,7 +59,10 @@ export default function CalendarView({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const [today, setToday] = useState<Date | null>(null);
-  useEffect(() => { setToday(new Date()); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setToday(new Date()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // 마일스톤
   const milestones = useMemo(() => {

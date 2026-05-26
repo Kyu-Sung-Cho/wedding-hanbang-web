@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronUp, ChevronDown, Reply, Trash2, X, Sparkles } from "lucide-react";
+import { Heart, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { CommentWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
@@ -193,46 +193,21 @@ export default function CommentItem({
               </p>
             )}
 
-            {/* 액션 행: 투표, 답글, 삭제 */}
+            {/* 액션 행: 좋아요, 답글, 삭제 */}
             <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
-              {/* 인라인 투표 (green/red) */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
-                  className={`p-0.5 rounded transition-colors duration-200 ${
-                    comment.user_vote === 1
-                      ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
-                      : "hover:text-[#2E7D5A]"
-                  }`}
-                  aria-label="추천"
-                >
-                  <ChevronUp className="w-4 h-4" strokeWidth={comment.user_vote === 1 ? 2.5 : 2} />
-                </button>
-                <span
-                  className={`text-[13px] font-medium min-w-[1.25rem] text-center ${
-                    comment.user_vote === 1
-                      ? "text-[#2E7D5A]"
-                      : comment.user_vote === -1
-                      ? "text-[#D85A5A]"
-                      : "text-[#1A1A1F]"
-                  }`}
-                >
-                  {comment.upvote_count}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onVote(comment.id, comment.user_vote === -1 ? 0 : -1)}
-                  className={`p-0.5 rounded transition-colors duration-200 ${
-                    comment.user_vote === -1
-                      ? "text-[#D85A5A] bg-[#D85A5A]/10"
-                      : "hover:text-[#D85A5A]"
-                  }`}
-                  aria-label="비추천"
-                >
-                  <ChevronDown className="w-4 h-4" strokeWidth={comment.user_vote === -1 ? 2.5 : 2} />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
+                className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 transition-colors duration-200 ${
+                  comment.user_vote === 1
+                    ? "bg-[#fff8ec] text-[#C4967E]"
+                    : "hover:bg-[#FAFAF8] hover:text-[#C4967E]"
+                }`}
+                aria-label="댓글 좋아요"
+              >
+                <Heart className={`w-3.5 h-3.5 ${comment.user_vote === 1 ? "fill-current" : ""}`} />
+                {comment.upvote_count > 0 ? comment.upvote_count : "좋아요"}
+              </button>
 
               {/* 답글 버튼 (최상위 댓글에만) */}
               {!isReply && isLoggedIn && (

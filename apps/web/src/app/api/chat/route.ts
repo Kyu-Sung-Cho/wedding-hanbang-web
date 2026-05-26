@@ -209,6 +209,8 @@ function extractSuggestions(text: string): { cleanText: string; suggestions: str
   const patterns = [
     /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/,
     /\[suggestions\]\n([\s\S]*?)\[\/suggestions\]/,
+    /```\n?\[suggestion\]\n([\s\S]*?)\[\/suggestion\]\n?```/i,
+    /\[suggestion\]\n([\s\S]*?)\[\/suggestion\]/i,
   ];
 
   for (const regex of patterns) {
@@ -218,12 +220,18 @@ function extractSuggestions(text: string): { cleanText: string; suggestions: str
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-      const cleanText = text.replace(regex, "").trim();
+      const cleanText = stripSuggestionArtifacts(text.replace(regex, "")).trim();
       return { cleanText, suggestions };
     }
   }
 
-  return { cleanText: text, suggestions: [] };
+  return { cleanText: stripSuggestionArtifacts(text).trim(), suggestions: [] };
+}
+
+function stripSuggestionArtifacts(text: string): string {
+  return text
+    .replace(/^\s*\[(?:suggestion|suggestions|추천(?:\s*질문|\s*대화)?)\]\s*$/gim, "")
+    .replace(/\[(?:\/suggestion|\/suggestions)\]/gi, "");
 }
 
 // DOCX에서 텍스트 추출 (동적 import)

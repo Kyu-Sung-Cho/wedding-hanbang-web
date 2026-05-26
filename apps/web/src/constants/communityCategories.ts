@@ -12,13 +12,12 @@ export interface CommunityCategoryInfo {
   allowPriceForm: boolean;
 }
 
-// 커뮤니티 게시판
 export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   {
     key: "is_normal",
-    label: "이거 정상이야?",
-    shortLabel: "정상이야?",
-    description: "가격·상황·업체 대응이 정상인지 묻는 공간. AI가 자동으로 평균과 비교해 알려드려요.",
+    label: "이거 정상인가요?",
+    shortLabel: "정상인가요?",
+    description: "가격, 협상, 업체 응대가 적절한지 묻는 공간입니다. 아모라가 평균과 비교해 참고할 맥락을 더해줘요.",
     icon: "HelpCircle",
     color: "text-[#C4967E]",
     bgColor: "bg-[#FAF8F5]",
@@ -29,7 +28,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     key: "tour_review",
     label: "투어/이용 후기",
     shortLabel: "후기",
-    description: "스튜디오·드레스·메이크업·예식장 투어 및 이용 후기. 15초 후기와 상세 후기 모두 환영.",
+    description: "스튜디오, 드레스, 메이크업, 예식장 투어와 이용 후기를 공유합니다.",
     icon: "Camera",
     color: "text-[#C4967E]",
     bgColor: "bg-[#FAF8F5]",
@@ -40,7 +39,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     key: "tips_v2",
     label: "꿀팁",
     shortLabel: "꿀팁",
-    description: "절약팁, 협상팁, 숨은 할인, 비시즌 활용법, 계약서 체크 포인트.",
+    description: "계약 전 질문, 숨은 비용, 준비 순서처럼 도움이 되는 팁을 모읍니다.",
     icon: "Lightbulb",
     color: "text-[#C9A96E]",
     bgColor: "bg-[#FAF8F0]",
@@ -49,9 +48,9 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   },
   {
     key: "ama",
-    label: "결혼 끝났다 AMA",
-    shortLabel: "AMA",
-    description: "결혼 완료한 선배에게 무엇이든 물어보세요. Ask Me Anything.",
+    label: "결혼 선배 Q&A",
+    shortLabel: "선배 Q&A",
+    description: "결혼을 먼저 끝낸 선배에게 현실적인 선택 기준과 경험을 묻는 공간입니다.",
     icon: "GraduationCap",
     color: "text-[#1A1A1F]",
     bgColor: "bg-[#F0EFED]",
@@ -62,7 +61,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     key: "free",
     label: "자유게시판",
     shortLabel: "자유",
-    description: "시댁 고민, 메리지블루, 커플 갈등, 잡담, 하소연 — 무엇이든 편하게.",
+    description: "준비 중 생기는 고민, 잡담, 커플 대화처럼 가볍게 나누고 싶은 이야기를 올립니다.",
     icon: "MessageSquare",
     color: "text-[#878680]",
     bgColor: "bg-[#FAFAF8]",
@@ -75,28 +74,25 @@ export const CATEGORY_MAP = Object.fromEntries(
   COMMUNITY_CATEGORIES.map((c) => [c.key, c])
 ) as Record<CommunityCategory, CommunityCategoryInfo>;
 
-// 광고 표시 시스템 (필수 선택)
-// 색맹 친화 팔레트 — Hue(파랑/노랑/회색) + 명도/채도 + 아이콘 3중으로 구분.
-// 색을 못 봐도 아이콘 모양으로 인식 가능. WCAG 색 의존 금지 원칙 준수.
 export const AD_DISCLOSURE_OPTIONS = [
   {
     key: "general",
-    label: "일반",
+    label: "일반 글",
     shortLabel: "일반",
-    description: "내가 직접 쓴 글입니다. 어떤 혜택도 받지 않았어요.",
-    color: "#0284C7",       // sky-600 — cool blue
-    bgColor: "#F0F9FF",     // sky-50
-    borderColor: "#BAE6FD", // sky-200
+    description: "직접 경험하거나 궁금해서 작성하는 글입니다. 혜택이나 대가를 받지 않았어요.",
+    color: "#0284C7",
+    bgColor: "#F0F9FF",
+    borderColor: "#BAE6FD",
     icon: "check",
   },
   {
     key: "sponsored",
-    label: "협찬",
+    label: "협찬 포함",
     shortLabel: "협찬",
-    description: "혜택을 받고 작성한 글입니다. (할인, 무료 제공 등)",
-    color: "#A16207",       // amber-700 — 진한 amber, 흰 배경 대비 충분
-    bgColor: "#FEFCE8",     // yellow-50
-    borderColor: "#FDE68A", // amber-200
+    description: "할인, 무료 제공, 포인트 등 혜택을 받고 작성하는 글입니다.",
+    color: "#A16207",
+    bgColor: "#FEFCE8",
+    borderColor: "#FDE68A",
     icon: "star",
     requiresDetail: true,
   },
@@ -104,15 +100,14 @@ export const AD_DISCLOSURE_OPTIONS = [
     key: "ad",
     label: "광고",
     shortLabel: "광고",
-    description: "업체 공식 광고입니다. 추천/검색 알고리즘에 반영되지 않아요.",
-    color: "#334155",       // slate-700 — neutral gray, 위험 시그널 X
-    bgColor: "#F1F5F9",     // slate-100
-    borderColor: "#CBD5E1", // slate-300
+    description: "업체 공식 광고나 홍보 글입니다. 추천/검색 알고리즘에 반영되지 않아요.",
+    color: "#334155",
+    bgColor: "#F1F5F9",
+    borderColor: "#CBD5E1",
     icon: "megaphone",
   },
 ] as const;
 
-// 동기방 계약 카테고리
 export const COHORT_CONTRACT_CATEGORIES = [
   { key: "venue", label: "예식장" },
   { key: "studio", label: "스튜디오" },
@@ -124,32 +119,28 @@ export const COHORT_CONTRACT_CATEGORIES = [
   { key: "other", label: "기타" },
 ] as const;
 
-// 동기방 메시지 스레드 토픽
 export const COHORT_THREAD_TOPICS = [
-  { key: "price", label: "가격", icon: "💰" },
-  { key: "review", label: "후기", icon: "⭐" },
-  { key: "concern", label: "고민", icon: "💭" },
-  { key: "chat", label: "잡담", icon: "💬" },
+  { key: "price", label: "가격", icon: "₩" },
+  { key: "review", label: "후기", icon: "✓" },
+  { key: "concern", label: "고민", icon: "?" },
+  { key: "chat", label: "잡담", icon: "·" },
 ] as const;
 
-// 신고 사유
 export const REPORT_REASONS = [
   { key: "spam", label: "스팸/광고" },
-  { key: "abuse", label: "욕설/비방" },
-  { key: "ad", label: "업체 홍보글 (협찬 미표시)" },
-  { key: "inappropriate", label: "음란물/부적절" },
+  { key: "abuse", label: "욕설/비하" },
+  { key: "ad", label: "업체 홍보글(협찬 미표시)" },
+  { key: "inappropriate", label: "부적절한 내용" },
   { key: "other", label: "기타" },
 ] as const;
 
-// 레거시 호환: 비용공유 카테고리 (CostShareEditor용)
 export const COST_SHARE_CATEGORIES = COHORT_CONTRACT_CATEGORIES;
 
-// 하객 관계 (방명록)
 export const GUEST_RELATIONS = [
   { key: "university_friend", label: "대학친구" },
   { key: "work_colleague", label: "직장동료" },
   { key: "family", label: "가족" },
-  { key: "old_friend", label: "오래된 친구" },
+  { key: "old_friend", label: "오랜 친구" },
   { key: "partner", label: "파트너 지인" },
   { key: "other", label: "기타" },
 ] as const;

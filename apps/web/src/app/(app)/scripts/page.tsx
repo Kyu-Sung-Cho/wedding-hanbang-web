@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useInvitationStore } from "@/stores/invitationStore";
 import type { ScriptType } from "@/types/invitation.types";
 import {
-  Mic, Heart, BookOpen, Users, Mail, MessageSquare,
+  Mic, Heart, BookOpen, Users, MessageSquare,
   Plus, Trash2, Copy, Check, ChevronDown, ChevronUp,
   Sparkles, Loader2,
 } from "lucide-react";
@@ -15,7 +15,6 @@ const SCRIPT_TYPES: { key: ScriptType; label: string; desc: string; icon: typeof
   { key: "vow", label: "결혼 서약", desc: "감동적인 결혼 서약서", icon: Heart },
   { key: "parents_letter", label: "부모님 감사편지", desc: "부모님께 드리는 편지", icon: BookOpen },
   { key: "friend_speech", label: "축사", desc: "친구/지인 축사 원고", icon: Users },
-  { key: "invitation_text", label: "청첩장 인사말", desc: "모바일 청첩장용 인사말", icon: Mail },
   { key: "thank_you", label: "감사 인사", desc: "결혼식 후 감사 메시지", icon: MessageSquare },
 ];
 
@@ -76,8 +75,8 @@ export default function ScriptsPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight">AI 웨딩 대본</h1>
-          <p className="text-base text-[#B5ADA3] mt-2 font-light">AI가 작성하는 완벽한 웨딩 대본</p>
+          <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight">대본 리딩</h1>
+          <p className="text-base text-[#B5ADA3] mt-2 font-light">사회자 대본, 서약, 축사를 읽기 좋게 정리해요.</p>
         </div>
         <button
           onClick={() => setShowGenerator(true)}

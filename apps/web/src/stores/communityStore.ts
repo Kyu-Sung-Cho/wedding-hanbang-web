@@ -460,6 +460,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       currentTag: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       errorMessage: null, lastSyncedAt: null,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
+      communityProfile: null,
     });
   },
 }));

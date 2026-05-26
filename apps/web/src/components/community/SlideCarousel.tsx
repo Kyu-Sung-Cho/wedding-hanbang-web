@@ -86,9 +86,9 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
           type="button"
           onClick={() => go(index - 1)}
           aria-label="이전 슬라이드"
-          className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/85 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-70 sm:opacity-0 group-hover:opacity-100 hover:bg-white"
+          className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#061a34]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#061a34]"
         >
-          <ChevronLeft className="w-5 h-5 text-[#1A1A1F]" />
+          <ChevronLeft className="w-5 h-5 text-white" />
         </button>
       )}
       {index < total - 1 && (
@@ -96,17 +96,10 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
           type="button"
           onClick={() => go(index + 1)}
           aria-label="다음 슬라이드"
-          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/85 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-70 sm:opacity-0 group-hover:opacity-100 hover:bg-white"
+          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#061a34]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#061a34]"
         >
-          <ChevronRight className="w-5 h-5 text-[#1A1A1F]" />
+          <ChevronRight className="w-5 h-5 text-white" />
         </button>
-      )}
-
-      {/* 카운터 (우상단) */}
-      {total > 1 && (
-        <div className="absolute right-3 top-3 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-medium tabular-nums">
-          {index + 1} / {total}
-        </div>
       )}
 
       {/* 점 인디케이터 (하단) — no-min-tap 클래스로 글로벌 button min-height:40px 제외 */}
@@ -123,6 +116,9 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
               }`}
             />
           ))}
+          <span className="ml-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-white">
+            {index + 1}/{total}
+          </span>
         </div>
       )}
     </div>
@@ -137,7 +133,6 @@ function SlideItem({ slide, active }: { slide: SlideMedia; active: boolean }) {
   useEffect(() => {
     if (!active && videoRef.current) {
       videoRef.current.pause();
-      setPlaying(false);
     }
   }, [active]);
 

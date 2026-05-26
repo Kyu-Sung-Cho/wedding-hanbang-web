@@ -510,16 +510,19 @@ function EtiquettePageInner() {
 
   // localStorage에서 체크 상태 로드
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`etiquette_checks_${part.number}`);
-      if (saved) {
-        setCheckedItems(new Set(JSON.parse(saved)));
-      } else {
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(`etiquette_checks_${part.number}`);
+        if (saved) {
+          setCheckedItems(new Set(JSON.parse(saved)));
+        } else {
+          setCheckedItems(new Set());
+        }
+      } catch {
         setCheckedItems(new Set());
       }
-    } catch {
-      setCheckedItems(new Set());
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [part.number]);
 
   // 체크 상태 토글
@@ -568,8 +571,11 @@ function EtiquettePageInner() {
   // 파트 선택 시 콘텐츠 스크롤 맨 위로 + 섹션 초기화
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
-    setSelectedSection(null);
-    setSchedulePopover(null);
+    const timer = window.setTimeout(() => {
+      setSelectedSection(null);
+      setSchedulePopover(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [selectedPart]);
 
   // 섹션 선택 시 스크롤 맨 위로

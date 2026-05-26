@@ -13,8 +13,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
-  ChevronUp,
-  ChevronDown,
+  Heart,
   List,
   Eye,
   Wallet,
@@ -206,9 +205,9 @@ export default function PostDetailPage() {
     }
   }
 
-  // 투표 핸들러 (PostCard 패턴 - 녹색/빨간색)
+  // 좋아요 핸들러
   const handleVote = useCallback(
-    async (vote: 1 | -1) => {
+    async () => {
       if (!user) {
         setLoginToast(true);
         setTimeout(() => setLoginToast(false), 2000);
@@ -217,26 +216,15 @@ export default function PostDetailPage() {
       if (isVoting || !post) return;
 
       const prevVote = post.user_vote ?? null;
-      let newVote: 1 | -1 | null;
-      let delta = 0;
-
-      if (prevVote === vote) {
-        newVote = null;
-        delta = -vote;
-      } else if (prevVote === null) {
-        newVote = vote;
-        delta = vote;
-      } else {
-        newVote = vote;
-        delta = vote * 2;
-      }
+      const newVote: 1 | null = prevVote === 1 ? null : 1;
+      const delta = prevVote === 1 ? -1 : 1;
 
       setOptimisticVote(newVote);
       setOptimisticDelta(delta);
       setIsVoting(true);
 
       try {
-        await votePost(post.id, post.user_vote === vote ? 0 : vote);
+        await votePost(post.id, newVote === null ? 0 : 1);
       } catch {
         setOptimisticVote(undefined);
         setOptimisticDelta(0);
@@ -302,9 +290,10 @@ export default function PostDetailPage() {
   const categoryInfo = CATEGORY_MAP[post.category];
   const isAuthor = user && user.id === post.author_id;
 
-  // 투표 표시값 (낙관적 UI)
+  // 좋아요 표시값 (낙관적 UI)
   const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote ?? null);
-  const voteCount = post.upvote_count - post.downvote_count + optimisticDelta;
+  const voteCount = post.upvote_count + optimisticDelta;
+  const isLiked = displayVote === 1;
 
   // 작성자 정보 (PostCard 패턴)
   const author = post.author ?? { nickname: "익명", avatar_url: null, wedding_year: null, wedding_month: null };
@@ -338,47 +327,6 @@ export default function PostDetailPage() {
         {/* 메인 포스트 카드 */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] overflow-hidden">
           <div className="flex">
-            {/* 좌측 투표 스트립 (데스크탑) - 녹색 업/빨간색 다운 */}
-            <div className="hidden md:flex flex-col items-center w-14 bg-[#FAFAF8] rounded-l-2xl pt-5 shrink-0 gap-0.5">
-              <button
-                type="button"
-                onClick={() => handleVote(1)}
-                disabled={isVoting}
-                className={`p-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
-                  displayVote === 1
-                    ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
-                    : "text-[#B5ADA3] hover:text-[#2E7D5A]"
-                } disabled:opacity-50`}
-                aria-label="추천"
-              >
-                <ChevronUp className="w-5 h-5" strokeWidth={displayVote === 1 ? 2.5 : 2} />
-              </button>
-              <span
-                className={`text-sm font-semibold min-w-[1.5rem] text-center ${
-                  displayVote === 1
-                    ? "text-[#2E7D5A]"
-                    : displayVote === -1
-                    ? "text-[#D85A5A]"
-                    : "text-[#1A1A1F]"
-                }`}
-              >
-                {voteCount}
-              </span>
-              <button
-                type="button"
-                onClick={() => handleVote(-1)}
-                disabled={isVoting}
-                className={`p-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
-                  displayVote === -1
-                    ? "text-[#D85A5A] bg-[#D85A5A]/10"
-                    : "text-[#B5ADA3] hover:text-[#D85A5A]"
-                } disabled:opacity-50`}
-                aria-label="비추천"
-              >
-                <ChevronDown className="w-5 h-5" strokeWidth={displayVote === -1 ? 2.5 : 2} />
-              </button>
-            </div>
-
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4 sm:p-5">
               {/* 작성자 행: 아바타 + 닉네임 + 시간 + 카테고리 */}
@@ -744,46 +692,18 @@ export default function PostDetailPage() {
 
               {/* 액션바 — 모바일: wrap 허용 / 데스크탑: 한 줄 */}
               <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[#B5ADA3]">
-                {/* 모바일 투표 - 녹색/빨간색 (PostCard 패턴) — 44px 터치 타겟 확보 */}
-                <div className="md:hidden flex items-center gap-0.5 mr-1">
-                  <button
-                    type="button"
-                    onClick={() => handleVote(1)}
-                    disabled={isVoting}
-                    className={`min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded transition-colors duration-200 ${
-                      displayVote === 1
-                        ? "text-[#2E7D5A] bg-[#2E7D5A]/10"
-                        : "hover:text-[#2E7D5A]"
-                    } disabled:opacity-50`}
-                    aria-label="추천"
-                  >
-                    <ChevronUp className="w-5 h-5" strokeWidth={displayVote === 1 ? 2.5 : 2} />
-                  </button>
-                  <span
-                    className={`text-[14px] font-medium min-w-[1.25rem] text-center ${
-                      displayVote === 1
-                        ? "text-[#2E7D5A]"
-                        : displayVote === -1
-                        ? "text-[#D85A5A]"
-                        : "text-[#1A1A1F]"
-                    }`}
-                  >
-                    {voteCount}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleVote(-1)}
-                    disabled={isVoting}
-                    className={`min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded transition-colors duration-200 ${
-                      displayVote === -1
-                        ? "text-[#D85A5A] bg-[#D85A5A]/10"
-                        : "hover:text-[#D85A5A]"
-                    } disabled:opacity-50`}
-                    aria-label="비추천"
-                  >
-                    <ChevronDown className="w-5 h-5" strokeWidth={displayVote === -1 ? 2.5 : 2} />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleVote}
+                  disabled={isVoting}
+                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                    isLiked ? "bg-[#fff8ec] text-[#C4967E]" : "hover:bg-[#FAFAF8]"
+                  } disabled:opacity-50`}
+                  aria-label="좋아요"
+                >
+                  <Heart className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
+                  좋아요 {voteCount > 0 ? voteCount : ""}
+                </button>
 
                 {/* 댓글 수 */}
                 <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg cursor-default whitespace-nowrap">

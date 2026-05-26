@@ -12,6 +12,10 @@ interface Props {
   onComplete: () => void;
 }
 
+function seededUnit(seed: number) {
+  return ((seed * 9301 + 49297) % 233280) / 233280;
+}
+
 export default function OpeningAnimation({ type, colors, fonts, groomName, brideName, onComplete }: Props) {
   const [phase, setPhase] = useState(0);
   const [exiting, setExiting] = useState(false);
@@ -69,28 +73,28 @@ export default function OpeningAnimation({ type, colors, fonts, groomName, bride
     if (type === "sparkle" || type === "confetti") {
       for (let i = 0; i < 12; i++) {
         items.push({
-          left: `${10 + Math.random() * 80}%`,
-          top: `${10 + Math.random() * 80}%`,
-          delay: `${Math.random() * 1.5}s`,
-          duration: `${2 + Math.random()}s`,
+          left: `${10 + seededUnit(i + 1) * 80}%`,
+          top: `${10 + seededUnit(i + 17) * 80}%`,
+          delay: `${seededUnit(i + 33) * 1.5}s`,
+          duration: `${2 + seededUnit(i + 49)}s`,
         });
       }
     } else if (type === "snowFall") {
       for (let i = 0; i < 15; i++) {
         items.push({
-          left: `${Math.random() * 100}%`,
+          left: `${seededUnit(i + 65) * 100}%`,
           top: "-5%",
-          delay: `${Math.random() * 2}s`,
-          duration: `${3 + Math.random() * 2}s`,
+          delay: `${seededUnit(i + 81) * 2}s`,
+          duration: `${3 + seededUnit(i + 97) * 2}s`,
         });
       }
     } else if (type === "petalFall" || type === "leafFall") {
       for (let i = 0; i < 8; i++) {
         items.push({
-          left: `${10 + Math.random() * 80}%`,
+          left: `${10 + seededUnit(i + 113) * 80}%`,
           top: "-10%",
-          delay: `${Math.random() * 2}s`,
-          duration: `${4 + Math.random() * 2}s`,
+          delay: `${seededUnit(i + 129) * 2}s`,
+          duration: `${4 + seededUnit(i + 145) * 2}s`,
         });
       }
     }

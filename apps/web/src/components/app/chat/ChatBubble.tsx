@@ -217,8 +217,8 @@ function renderAiMarkdown(text: string): React.ReactNode {
         j++;
       }
       blocks.push(
-        <div key={`t-${i}`} className="my-2 overflow-x-auto rounded-lg border border-[#E8DDD3] bg-white/60">
-          <table className="w-full text-xs sm:text-[0.8125rem] border-collapse">
+        <div key={`t-${i}`} className="my-2 overflow-x-auto rounded-lg border border-[#E8DDD3] bg-white/80">
+          <table className="min-w-[34rem] w-full text-[0.8125rem] sm:text-sm border-collapse">
             <thead>
               <tr className="bg-[#FAF7F2]">
                 {headerCells.map((c, ci) => (
@@ -258,7 +258,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <div
           key={i}
-          className="font-serif-kr font-semibold text-base sm:text-lg text-[#1A1A1F] mt-3 first:mt-0 mb-1"
+          className="font-serif-kr font-semibold text-base sm:text-lg text-[#1A1A1F] mt-3 first:mt-0 mb-1.5"
         >
           {renderInlineMd(headingMatch[2], `h-${i}`)}
         </div>
@@ -267,12 +267,53 @@ function renderAiMarkdown(text: string): React.ReactNode {
       continue;
     }
     // 불릿 (-, *)
+    const checkboxMatch = trimmed.match(/^(?:[-*]\s*)?(?:\[( |x|X)\]|☐|□|✅|✓|✔)\s+(.+)$/);
+    if (checkboxMatch) {
+      const rawState = checkboxMatch[1];
+      const checked = rawState?.toLowerCase() === "x" || /^[✅✓✔]/.test(trimmed);
+      blocks.push(
+        <div
+          key={i}
+          className="my-1.5 flex items-start gap-2 rounded-lg border border-[#E8DDD3]/70 bg-white/70 px-3 py-2"
+        >
+          <span
+            className={`mt-0.5 flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center rounded border ${
+              checked
+                ? "border-[#2E7D5A] bg-[#2E7D5A]"
+                : "border-[#B5ADA3] bg-white"
+            }`}
+          >
+            {checked && <Check className="h-3 w-3 text-white" />}
+          </span>
+          <span className="min-w-0 flex-1 leading-relaxed">
+            {renderInlineMd(checkboxMatch[2], `cb-${i}`)}
+          </span>
+        </div>
+      );
+      i++;
+      continue;
+    }
+    const numberedMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+    if (numberedMatch) {
+      blocks.push(
+        <div key={i} className="my-1.5 flex items-start gap-2">
+          <span className="mt-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[#F3E7E1] px-1.5 text-[0.6875rem] font-semibold text-[#795252]">
+            {numberedMatch[1]}
+          </span>
+          <span className="min-w-0 flex-1 leading-relaxed">
+            {renderInlineMd(numberedMatch[2], `n-${i}`)}
+          </span>
+        </div>
+      );
+      i++;
+      continue;
+    }
     const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
     if (bulletMatch) {
       blocks.push(
-        <div key={i} className="flex gap-2 my-0.5">
-          <span className="text-[#C4967E] flex-shrink-0">•</span>
-          <span className="flex-1">{renderInlineMd(bulletMatch[1], `b-${i}`)}</span>
+        <div key={i} className="my-1 flex items-start gap-2">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#C4967E]" />
+          <span className="min-w-0 flex-1 leading-relaxed">{renderInlineMd(bulletMatch[1], `b-${i}`)}</span>
         </div>
       );
       i++;
@@ -345,7 +386,7 @@ export default function ChatBubble({
           <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <div className="text-xs sm:text-sm text-[#1A1A1F] leading-relaxed break-words">
+            <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
               {renderAiMarkdown(cleanText)}
             </div>
             {partNumbers.length > 0 && (

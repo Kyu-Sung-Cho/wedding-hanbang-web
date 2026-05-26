@@ -5,11 +5,15 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
     const includeDebug = process.env.NODE_ENV !== "production";
+    const isDemoRequest = request.headers.get("cookie")?.includes("demo_mode=true");
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
+      if (isDemoRequest) {
+        return NextResponse.json({ user: null, demo: true });
+      }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 

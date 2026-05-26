@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Loader2,
   Eye,
-  FileText,
   Globe,
   Users,
   Save,
@@ -22,8 +21,6 @@ import ImageUploader from "@/components/community/ImageUploader";
 import SlideBuilder from "@/components/community/SlideBuilder";
 import TagInput from "@/components/community/TagInput";
 import VendorTagPicker from "@/components/community/VendorTagPicker";
-import AdDisclosureModal from "@/components/community/AdDisclosureModal";
-import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
@@ -147,11 +144,10 @@ function PostWriteContent() {
   const [images, setImages] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [vendorTags, setVendorTags] = useState<string[]>([]);
-  const [adDisclosure, setAdDisclosure] = useState<AdDisclosure | null>(null);
+  const [adDisclosure, setAdDisclosure] = useState<AdDisclosure>("general");
   const [sponsorshipDetail, setSponsorshipDetail] = useState<string>("");
   const [priceData, setPriceData] = useState<PriceData | null>(null);
   const [poll, setPoll] = useState<CreatePollInput | null>(null);
-  const [showAdModal, setShowAdModal] = useState(false);
 
   // 카드 게시물(인스타 캐러셀) 모드 — 일반 글이면 "regular", 옆으로 넘기는 슬라이드면 "slides"
   const [postMode, setPostMode] = useState<PostMode>("regular");
@@ -423,7 +419,7 @@ function PostWriteContent() {
         images,
         tags,
         vendorTags,
-        adDisclosure: adDisclosure ?? undefined,
+        adDisclosure,
         sponsorshipDetail: sponsorshipDetail || undefined,
         priceData,
         poll,
@@ -612,10 +608,8 @@ function PostWriteContent() {
         return;
       }
     }
-
-    // 광고 표시 필수
-    if (!adDisclosure) {
-      setShowAdModal(true);
+    if (adDisclosure === "sponsored" && sponsorshipDetail.trim().length < 5) {
+      setError("협찬이 포함된 글은 받은 혜택을 5자 이상 적어주세요.");
       return;
     }
 
@@ -1060,7 +1054,6 @@ function PostWriteContent() {
                 {[
                   { key: "public" as PostVisibility, label: "전체 공개", icon: Globe },
                   { key: "members" as PostVisibility, label: "회원 공개", icon: Users },
-                  { key: "draft" as PostVisibility, label: "임시저장", icon: FileText },
                 ].map((opt) => {
                   const isSelected = visibility === opt.key;
                   return (
@@ -1103,25 +1096,66 @@ function PostWriteContent() {
             {/* 광고 표시 */}
             <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-base font-medium text-[#071629] mb-3">
-                광고 표시 <span className="text-[#C4967E]">*</span>
+                광고·협찬 포함 여부
               </label>
-              {adDisclosure ? (
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAdModal(true)}
-                  className="flex items-center justify-between w-full px-3 py-2 text-left bg-[#FAFAF8] border border-[#F0EFED] rounded-xl hover:border-[#C4967E] transition-colors"
+                  onClick={() => {
+                    setAdDisclosure("general");
+                    setSponsorshipDetail("");
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    adDisclosure === "general"
+                      ? "border-[#9d6f36] bg-[#9d6f36] text-white"
+                      : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#9d6f36]"
+                  }`}
                 >
-                  <AdDisclosureBadge adDisclosure={adDisclosure} sponsorshipDetail={sponsorshipDetail} />
-                  <span className="text-sm text-[#878680]">변경</span>
+                  아니요
                 </button>
-              ) : (
                 <button
                   type="button"
-                  onClick={() => setShowAdModal(true)}
-                  className="w-full px-3 py-2 text-base text-[#878680] bg-[#FAFAF8] border border-dashed border-[#F0EFED] rounded-xl hover:border-[#C4967E] hover:text-[#1A1A1F] transition-colors"
+                  onClick={() => setAdDisclosure("sponsored")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    adDisclosure !== "general"
+                      ? "border-[#9d6f36] bg-[#fff8ec] text-[#9d6f36]"
+                      : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#9d6f36]"
+                  }`}
                 >
-                  유형을 선택해주세요
+                  예
                 </button>
+              </div>
+              {adDisclosure !== "general" && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { key: "sponsored" as AdDisclosure, label: "협찬" },
+                      { key: "ad" as AdDisclosure, label: "광고" },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setAdDisclosure(option.key)}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                          adDisclosure === option.key
+                            ? "border-[#9d6f36] bg-[#9d6f36] text-white"
+                            : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#9d6f36]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  {adDisclosure === "sponsored" && (
+                    <textarea
+                      value={sponsorshipDetail}
+                      onChange={(event) => setSponsorshipDetail(event.target.value)}
+                      placeholder="받은 혜택을 적어주세요. 예: 드레스 피팅 1회 무료 제공"
+                      rows={3}
+                      className="w-full rounded-lg border border-[#eadfc9] bg-[#FAFAF8] px-3 py-2 text-sm text-[#071629] outline-none focus:border-[#9d6f36]"
+                    />
+                  )}
+                </div>
               )}
             </section>
 
@@ -1136,17 +1170,6 @@ function PostWriteContent() {
             )}
           </div>
         </div>
-
-        {/* 광고 표시 모달 */}
-        {showAdModal && (
-          <AdDisclosureModal
-            onSelect={({ adDisclosure: d, sponsorshipDetail: detail }) => {
-              setAdDisclosure(d);
-              setSponsorshipDetail(detail ?? "");
-              setShowAdModal(false);
-            }}
-          />
-        )}
 
         {/* 하단 버튼 - 데스크탑 */}
         <div className="hidden sm:flex items-center justify-between gap-3 mt-10 pt-6 border-t border-[#eadfc9]">

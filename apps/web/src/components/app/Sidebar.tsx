@@ -5,13 +5,16 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   BarChart3,
+  Building2,
   BookOpen,
+  CalendarClock,
   CalendarCheck,
+  FileText,
   LayoutDashboard,
   LogOut,
-  Mail,
   MessageCircle,
   Settings,
+  Shirt,
   Users,
   Wallet,
   X,
@@ -20,7 +23,7 @@ import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/stores/authStore";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-const hiddenInComingSoon = ["/invitations", "/money"];
+const hiddenInComingSoon = ["/money", "/fitting", "/scripts"];
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "준비실" },
@@ -28,9 +31,12 @@ const menuItems = [
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
   { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
+  { href: "/vendors", icon: Building2, label: "업체 탐색" },
+  { href: "/bookings", icon: CalendarClock, label: "예약 관리" },
   { href: "/community", icon: Users, label: "커뮤니티" },
+  { href: "/fitting", icon: Shirt, label: "드레스 피팅" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
-  { href: "/invitations", icon: Mail, label: "모바일 청첩장" },
+  { href: "/scripts", icon: FileText, label: "대본 리딩" },
   { href: "/money", icon: Banknote, label: "축의금 관리" },
   { href: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href));

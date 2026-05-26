@@ -1,49 +1,41 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { FileSearch, MessageSquarePlus, PenSquare, SearchCheck } from "lucide-react";
+import { ArrowRight, MessageCircleQuestion, PenSquare, Sparkles } from "lucide-react";
 
 export default function FeedComposer() {
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_0.78fr_auto]">
-      <Link
-        href="/community/quote-check"
-        className="group flex items-center gap-3 rounded-[14px] border border-[#eadfc9] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] hover:bg-[#fff8ec]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#fbefd6] text-[#9d6f36]">
-          <FileSearch className="h-4 w-4" />
+    <div className="flex flex-col gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 shadow-[0_6px_16px_rgba(8,22,38,0.025)] sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fbefd6] text-[#9d6f36]">
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[#071629]">
+            고민이 생겼다면, 아모라에게 먼저 물어보세요.
+          </p>
+          <p className="mt-0.5 text-xs font-medium text-[#7a8290]">
+            견적·계약 질문을 정리한 뒤 글쓰기에서 커뮤니티에 공유할 수 있어요.
+          </p>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-[#071629]">아모라 견적 체크리스트</div>
-          <div className="mt-0.5 truncate text-sm font-medium text-[#7a8290]">
-            견적가보다 빠진 항목과 추가금 리스크를 먼저 확인해요
-          </div>
-        </div>
-      </Link>
-
-      <Link
-        href="/community?category=is_normal&feed=all#community-feed"
-        className="group flex items-center gap-3 rounded-[14px] border border-[#eadfc9] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] hover:bg-[#fff8ec]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#f5f7ee] text-[#9d6f36]">
-          <SearchCheck className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-[#071629]">이거 정상인가요?</div>
-          <div className="mt-0.5 truncate text-sm font-medium text-[#7a8290]">
-            업체 답변과 계약 조건을 다른 사람들과 비교해요
-          </div>
-        </div>
-      </Link>
-
-      <Link
-        href="/community/post/write?category=is_normal"
-        className="group flex items-center justify-center gap-2 rounded-[14px] border border-[#eadfc9] bg-white px-4 py-3 text-sm font-semibold text-[#9d6f36] shadow-[0_8px_18px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] hover:bg-[#fff8ec] lg:min-w-[132px]"
-      >
-        <MessageSquarePlus className="h-4 w-4" />
-        같이 묻기
-        <PenSquare className="hidden h-4 w-4 sm:block" />
-      </Link>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Link
+          href="/chat"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 text-xs font-semibold text-[#9d6f36] transition-colors hover:border-[#d8bb86]"
+        >
+          <MessageCircleQuestion className="h-3.5 w-3.5" />
+          아모라
+        </Link>
+        <Link
+          href="/community/post/write"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#061a34] px-4 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(6,26,52,0.14)]"
+        >
+          글쓰기
+          <PenSquare className="h-3.5 w-3.5" />
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </div>
   );
 }

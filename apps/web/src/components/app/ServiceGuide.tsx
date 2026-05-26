@@ -494,18 +494,27 @@ export default function ServiceGuide() {
   const [slidePhase, setSlidePhase] = useState<"visible" | "fading-out" | "fading-in">("visible");
 
   useEffect(() => {
+    let entryFrame = 0;
+    let nestedFrame = 0;
+    const timer = window.setTimeout(() => {
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
         setVisible(true);
         // 약간 딜레이 후 엔트리 애니메이션
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => setEntered(true));
+        entryFrame = requestAnimationFrame(() => {
+          nestedFrame = requestAnimationFrame(() => setEntered(true));
         });
       }
     } catch {
       // localStorage 접근 실패 시 가이드 표시하지 않음
     }
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      cancelAnimationFrame(entryFrame);
+      cancelAnimationFrame(nestedFrame);
+    };
   }, []);
 
   const close = useCallback(() => {

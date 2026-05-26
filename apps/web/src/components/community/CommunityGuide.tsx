@@ -505,9 +505,12 @@ export default function CommunityGuide() {
   const [direction, setDirection] = useState<"next" | "prev">("next");
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
     try {
       if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
     } catch { /* */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const close = useCallback(() => {

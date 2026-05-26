@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { useAuthStore } from "@/stores/authStore";
 
 /**
@@ -13,6 +14,7 @@ import { useAuthStore } from "@/stores/authStore";
  */
 export default function AuthInitializer() {
   const { initialize, isInitialized } = useAuthStore();
+  useAuthSessionSync();
   useEffect(() => {
     if (!isInitialized) void initialize();
   }, [initialize, isInitialized]);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -97,9 +98,9 @@ export default function ResetPasswordPage() {
 
       <div className="relative z-10 w-full max-w-[420px] animate-fade-in">
         <div className="text-center mb-10">
-          <a href="/">
+          <Link href="/">
             <Logo size="md" />
-          </a>
+          </Link>
           <p className="text-[14px] text-taupe-500 font-light mt-3">
             새로운 비밀번호를 설정해주세요
           </p>

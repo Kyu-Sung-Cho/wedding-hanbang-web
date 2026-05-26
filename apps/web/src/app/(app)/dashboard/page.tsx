@@ -16,7 +16,6 @@ import {
   Gem,
   HeartHandshake,
   Home,
-  Mail,
   MessageCircle,
   Palette,
   Plane,
@@ -24,6 +23,7 @@ import {
   Shirt,
   Sparkles,
   Users,
+  Video,
   Wallet,
   X,
 } from "lucide-react";
@@ -62,6 +62,14 @@ const categories: CategoryMeta[] = [
     tasks: ["촬영 스타일 정하기", "원본·보정 포함 여부 확인", "촬영 일정 확정"],
   },
   {
+    key: "snap",
+    label: "본식 스냅/영상",
+    group: "기록",
+    due: "D-120 권장",
+    icon: Video,
+    tasks: ["스냅·영상 범위 결정", "작가 포트폴리오 3곳 비교", "당일 촬영 동선 협의"],
+  },
+  {
     key: "dress",
     label: "드레스",
     group: "스드메",
@@ -84,14 +92,6 @@ const categories: CategoryMeta[] = [
     due: "D-120 권장",
     icon: Gem,
     tasks: ["예산 정하기", "브랜드와 공방 비교", "수령 일정 확인"],
-  },
-  {
-    key: "invitation",
-    label: "청첩장",
-    group: "초대",
-    due: "D-45 권장",
-    icon: Mail,
-    tasks: ["문구 초안 작성", "모바일 청첩장 제작", "발송 명단 정리"],
   },
   {
     key: "honeymoon",

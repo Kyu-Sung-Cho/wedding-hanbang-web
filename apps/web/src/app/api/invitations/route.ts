@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 
 // 청첩장 목록 조회
 export async function GET(request: Request) {
@@ -77,6 +78,5 @@ export async function POST(request: Request) {
 }
 
 function generateSlug(): string {
-  const { randomBytes } = require("crypto");
   return randomBytes(8).toString("hex");
 }

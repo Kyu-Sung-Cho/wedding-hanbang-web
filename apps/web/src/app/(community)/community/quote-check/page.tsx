@@ -199,7 +199,7 @@ export default function AmoraQuoteCheckPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#eadfc9] px-4 py-2.5 text-sm font-medium text-[#9d6f36] transition-colors hover:bg-[#fff8ec]"
               >
                 <ClipboardCheck className="h-4 w-4" />
-                커뮤니티에 같이 묻기
+                글쓰기에서 공유하기
               </Link>
             </div>
 

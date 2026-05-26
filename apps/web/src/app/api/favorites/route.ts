@@ -8,6 +8,9 @@ export async function POST(req: Request) {
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      if (req.headers.get("cookie")?.includes("demo_mode=true")) {
+        return NextResponse.json({ isFavorite: false });
+      }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
@@ -92,6 +95,9 @@ export async function GET(req: NextRequest) {
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      if (req.headers.get("cookie")?.includes("demo_mode=true")) {
+        return NextResponse.json({ vendorIds: [], favorites: [] });
+      }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 

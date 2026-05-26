@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Shield, Loader2 } from "lucide-react";
@@ -362,19 +363,19 @@ export default function AdminLoginPage() {
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-6 mt-6">
-          <a
+          <Link
             href="/"
             className="text-[13px] text-white/40 hover:text-white/70 transition-colors"
           >
             &larr; 홈으로
-          </a>
+          </Link>
           <span className="text-white/10">|</span>
-          <a
+          <Link
             href="/login"
             className="text-[13px] text-white/40 hover:text-white/70 transition-colors"
           >
             고객 로그인
-          </a>
+          </Link>
         </div>
       </motion.div>
     </div>

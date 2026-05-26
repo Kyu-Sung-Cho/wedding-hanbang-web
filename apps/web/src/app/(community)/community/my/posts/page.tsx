@@ -3,11 +3,22 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
-import type { PostWithAuthor } from "@/types/community.types";
+import Avatar from "@/components/community/Avatar";
+import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
+
+const avatarOptions = ["🌿", "💍", "🌸", "🤍", "✨", "👑"];
+
+const rankLabels: Record<CommunityRank, string> = {
+  sprout: "새싹",
+  preparing: "준비중",
+  expert: "체크",
+  master: "마스터",
+  senior: "선배",
+};
 
 export default function MyPostsPage() {
   const router = useRouter();
@@ -15,6 +26,12 @@ export default function MyPostsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<"published" | "draft">("published");
+  const [profile, setProfile] = useState<CommunityProfile | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState("");
+  const [avatarInput, setAvatarInput] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,11 +48,37 @@ export default function MyPostsPage() {
 
   useEffect(() => {
     if (!userId) return;
-    setLoading(true);
-    fetch(`/api/community/posts?author_id=${userId}&limit=100`)
+    const timer = window.setTimeout(() => setLoading(true), 0);
+    const controller = new AbortController();
+    fetch(`/api/community/posts?author_id=${userId}&limit=100`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => { setPosts(data.posts ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setLoading(false);
+      });
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+    fetch("/api/community/profile", { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const nextProfile = data?.profile as CommunityProfile | undefined;
+        if (!nextProfile) return;
+        setProfile(nextProfile);
+        setNicknameInput(nextProfile.nickname);
+        setAvatarInput(nextProfile.avatar_url);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    return () => controller.abort();
   }, [userId]);
 
   const published = posts.filter((p) => p.visibility !== "draft");
@@ -48,6 +91,36 @@ export default function MyPostsPage() {
     if (res.ok) setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
+  const saveProfile = async () => {
+    if (!profile) return;
+    const nickname = nicknameInput.trim();
+    if (!nickname) {
+      setProfileMessage("닉네임을 입력해 주세요.");
+      return;
+    }
+    setProfileSaving(true);
+    setProfileMessage(null);
+    try {
+      const res = await fetch("/api/community/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname, avatar_url: avatarInput }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProfileMessage(data.error ?? "프로필 저장에 실패했습니다.");
+        return;
+      }
+      setProfile(data.profile);
+      setEditingProfile(false);
+      setProfileMessage("프로필이 저장되었습니다.");
+    } catch {
+      setProfileMessage("프로필 저장 중 오류가 발생했습니다.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
@@ -56,6 +129,94 @@ export default function MyPostsPage() {
         </Link>
         <h1 className="font-serif-kr text-[20px] text-noir-800">내 글</h1>
       </div>
+
+      {profile && (
+        <section className="mb-6 rounded-2xl border border-[#eadfc9] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
+          <div className="flex items-start gap-4">
+            <Avatar nickname={nicknameInput || profile.nickname} avatarUrl={avatarInput} size={56} />
+            <div className="min-w-0 flex-1">
+              {editingProfile ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={nicknameInput}
+                    onChange={(event) => setNicknameInput(event.target.value)}
+                    maxLength={20}
+                    className="h-10 w-full rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-3 text-sm font-medium text-[#071629] outline-none focus:border-[#9d6f36]"
+                    placeholder="커뮤니티 닉네임"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {avatarOptions.map((avatar) => (
+                      <button
+                        key={avatar}
+                        type="button"
+                        onClick={() => setAvatarInput(avatar)}
+                        className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-colors ${
+                          avatarInput === avatar
+                            ? "border-[#061a34] bg-[#061a34] text-white"
+                            : "border-[#eadfc9] bg-[#fffdf7] hover:border-[#9d6f36]"
+                        }`}
+                        aria-label={`${avatar} 아바타 선택`}
+                      >
+                        {avatar}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={saveProfile}
+                      disabled={profileSaving}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#061a34] px-4 text-xs font-semibold text-white disabled:opacity-60"
+                    >
+                      {profileSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingProfile(false);
+                        setNicknameInput(profile.nickname);
+                        setAvatarInput(profile.avatar_url);
+                        setProfileMessage(null);
+                      }}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 text-xs font-semibold text-[#7a8290]"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      취소
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-base font-semibold text-[#071629]">{profile.nickname}</p>
+                      <span className="rounded-full bg-[#fff8ec] px-2 py-0.5 text-[11px] font-medium text-[#9d6f36]">
+                        {rankLabels[profile.rank] ?? "회원"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#928980]">커뮤니티에 표시되는 프로필입니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNicknameInput(profile.nickname);
+                      setAvatarInput(profile.avatar_url);
+                      setEditingProfile(true);
+                    }}
+                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 text-xs font-semibold text-[#9d6f36]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    프로필 수정
+                  </button>
+                </div>
+              )}
+              {profileMessage && <p className="mt-3 text-xs font-medium text-[#9d6f36]">{profileMessage}</p>}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 탭 */}
       <div className="flex gap-2 mb-6">

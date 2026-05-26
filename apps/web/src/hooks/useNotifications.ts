@@ -35,10 +35,13 @@ export function useNotificationPrefs() {
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
     try {
       const stored = localStorage.getItem(PREFS_KEY);
       if (stored) setPrefs(JSON.parse(stored));
     } catch { /* ignore */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const togglePref = useCallback((key: keyof NotificationPrefs) => {
@@ -60,10 +63,13 @@ export function useNotifications(
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
     try {
       const stored = localStorage.getItem(DISMISSED_KEY);
       if (stored) setDismissedIds(JSON.parse(stored));
     } catch { /* ignore */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const dismiss = useCallback((id: string) => {

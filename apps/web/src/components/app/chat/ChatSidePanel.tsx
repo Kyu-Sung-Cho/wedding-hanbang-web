@@ -123,50 +123,53 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   useEffect(() => {
     if (mediationDismissed) return;
 
-    const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
-      { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
-      { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
-      { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
-      { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
-      { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
-    ];
+    const timer = window.setTimeout(() => {
+      const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
+        { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
+        { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
+        { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
+        { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
+        { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
+      ];
 
-    const recentPartnerMsgs = messages
-      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-6);
+      const recentPartnerMsgs = messages
+        .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
+        .slice(-6);
 
-    if (recentPartnerMsgs.length < 3) {
-      setShowMediationBanner(false);
-      return;
-    }
+      if (recentPartnerMsgs.length < 3) {
+        setShowMediationBanner(false);
+        return;
+      }
 
-    const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
-    const bothSides = senders.size >= 2;
+      const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
+      const bothSides = senders.size >= 2;
 
-    let totalScore = 0;
-    let messagesWithConflict = 0;
+      let totalScore = 0;
+      let messagesWithConflict = 0;
 
-    for (const msg of recentPartnerMsgs) {
-      let msgScore = 0;
-      for (const signal of CONFLICT_SIGNALS) {
-        for (const kw of signal.keywords) {
-          if (msg.content.includes(kw)) {
-            msgScore += signal.weight;
-            break;
+      for (const msg of recentPartnerMsgs) {
+        let msgScore = 0;
+        for (const signal of CONFLICT_SIGNALS) {
+          for (const kw of signal.keywords) {
+            if (msg.content.includes(kw)) {
+              msgScore += signal.weight;
+              break;
+            }
           }
         }
+        if (msgScore > 0) {
+          messagesWithConflict++;
+          totalScore += msgScore;
+        }
       }
-      if (msgScore > 0) {
-        messagesWithConflict++;
-        totalScore += msgScore;
-      }
-    }
 
-    if (bothSides) totalScore = Math.round(totalScore * 1.5);
+      if (bothSides) totalScore = Math.round(totalScore * 1.5);
 
-    const THRESHOLD = 7;
-    const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
-    setShowMediationBanner(isConflict);
+      const THRESHOLD = 7;
+      const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
+      setShowMediationBanner(isConflict);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [messages, mediationDismissed]);
 
   // 첨부파일 처리

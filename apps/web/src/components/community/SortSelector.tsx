@@ -12,7 +12,7 @@ interface SortSelectorProps {
 const SORT_OPTIONS: { key: PostSort; label: string }[] = [
   { key: "hot", label: "인기" },
   { key: "new", label: "최신" },
-  { key: "top", label: "추천" },
+  { key: "top", label: "좋아요" },
   { key: "my_cohort", label: "내 동기글" },
   { key: "my_posts", label: "내 글" },
 ];

@@ -40,17 +40,23 @@ export default function AmoraDirector({
 
   // 초기: 상태 복원
   useEffect(() => {
+    let shouldDismiss = false;
     try {
       const seen = JSON.parse(localStorage.getItem(STORAGE_KEY_SEEN) ?? "[]");
       seenMessages.current = new Set(seen);
 
       const dismissedUntil = parseInt(localStorage.getItem(STORAGE_KEY_DISMISSED) ?? "0");
       if (Date.now() < dismissedUntil) {
-        setDismissed(true);
+        shouldDismiss = true;
       }
     } catch {
       /* ignore */
     }
+
+    if (!shouldDismiss) return;
+
+    const timer = window.setTimeout(() => setDismissed(true), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // 컨텍스트 기반 메시지 선택
@@ -119,7 +125,8 @@ export default function AmoraDirector({
       .sort((a, b) => b.priority - a.priority);
 
     const picked = unseen[0] ?? null;
-    setCurrentMsg(picked);
+    const timer = window.setTimeout(() => setCurrentMsg(picked), 0);
+    return () => window.clearTimeout(timer);
   }, [context, categoryName, favoriteCount, hasPreferences, budgetOverage, userName, dismissed]);
 
   function markSeen() {
@@ -147,7 +154,7 @@ export default function AmoraDirector({
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-6 right-4 sm:right-6 z-40 animate-fade-in max-w-[calc(100vw-2rem)]">
+    <div className="fixed bottom-6 right-4 z-40 hidden max-w-[calc(100vw-2rem)] animate-fade-in sm:block sm:right-6">
       {/* 확장된 메시지 패널 */}
       {expanded && currentMsg ? (
         <div className="bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden border border-[#e4e2e1]/50">
@@ -211,14 +218,15 @@ export default function AmoraDirector({
         // 접힌 상태 — 플로팅 버블
         <button
           onClick={() => setExpanded(true)}
-          className="group relative flex items-center gap-3 pl-3 pr-4 sm:pr-5 py-3 rounded-full bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.16)] transition-all max-w-[calc(100vw-2rem)] sm:max-w-[300px]"
+          className="group relative flex items-center gap-3 rounded-full bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all hover:shadow-[0_12px_32px_rgba(0,0,0,0.16)] sm:max-w-[300px] sm:pr-5"
+          aria-label={currentMsg.title}
         >
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shrink-0 relative">
             <Sparkles className="w-5 h-5 text-[#dee6c4]" />
             {/* 알림 점 */}
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#C9A96E] border-2 border-white animate-pulse" />
           </div>
-          <span className="text-base text-[#1b1c1c] font-medium line-clamp-1 text-left">
+          <span className="hidden text-left text-base font-medium text-[#1b1c1c] line-clamp-1 sm:block">
             {currentMsg.title}
           </span>
         </button>

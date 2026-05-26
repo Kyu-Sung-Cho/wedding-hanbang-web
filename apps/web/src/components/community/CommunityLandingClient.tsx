@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Eye,
   Flame,
   Gift,
   Heart,
@@ -27,7 +28,6 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
-  ThumbsUp,
   Users,
   AlertCircle,
 } from "lucide-react";
@@ -43,11 +43,6 @@ import { useCommunityStore } from "@/stores/communityStore";
 import type { CommunityCategory, PostSort, PostWithAuthor, TimePeriod } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { withSessionCache } from "@/utils/sessionCache";
-
-interface PopularTag {
-  tag: string;
-  count: number;
-}
 
 interface VendorTag {
   vendor_name: string;
@@ -68,7 +63,7 @@ const periodValues: TimePeriod[] = ["week", "month", "all"];
 const sortLabels: Record<PostSort, string> = {
   hot: "인기순",
   new: "최신순",
-  top: "추천순",
+  top: "좋아요순",
   my_cohort: "내 동기글",
   my_posts: "내 글",
 };
@@ -80,10 +75,10 @@ const periodLabels: Record<TimePeriod, string> = {
 };
 
 const categoryDisplayLabels: Record<CommunityCategory, string> = {
-  is_normal: "정상이야?",
+  is_normal: "정상인가요?",
   tour_review: "후기",
   tips_v2: "꿀팁",
-  ama: "AMA",
+  ama: "선배 Q&A",
   free: "자유",
 };
 
@@ -185,7 +180,6 @@ export default function CommunityLandingClient() {
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotal, setSearchTotal] = useState(0);
-  const [popularTags, setPopularTags] = useState<PopularTag[]>([]);
   const [vendorTags, setVendorTags] = useState<VendorTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
 
@@ -297,15 +291,6 @@ export default function CommunityLandingClient() {
 
   useEffect(() => {
     let cancelled = false;
-    void withSessionCache("community:popular-tags", 10 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/popular-tags");
-      if (!res.ok) return [] as PopularTag[];
-      const data = await res.json();
-      return (data.tags ?? data ?? []) as PopularTag[];
-    }).then((tags) => {
-      if (!cancelled) setPopularTags(tags);
-    });
-
     void withSessionCache("community:vendor-tags:12", 10 * 60 * 1000, async () => {
       const res = await fetch("/api/community/vendor-tags?limit=12");
       if (!res.ok) return [] as VendorTag[];
@@ -366,21 +351,10 @@ export default function CommunityLandingClient() {
     useCommunityStore.getState().setPeriod(nextPeriod);
   }
 
-  const statItems = useMemo(
-    () => [
-      { label: isSearching ? "검색 결과" : "총 게시글", value: formatCount(activeTotal) },
-      { label: "현재 표시", value: formatCount(visiblePosts.length) },
-      { label: "인기 태그", value: popularTags[0]?.tag ? `#${popularTags[0].tag}` : "집계 중" },
-      { label: "정렬", value: sortLabels[currentSort] },
-    ],
-    [activeTotal, currentSort, isSearching, popularTags, visiblePosts.length]
-  );
-
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
       <Hero topVendor={vendorTags[0]?.vendor_name ?? null} />
       <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
-      <StatsStrip stats={statItems} />
       <CategoryBar
         selectedCategory={selectedCategory}
         currentSort={currentSort}
@@ -420,34 +394,34 @@ export default function CommunityLandingClient() {
 
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
-    <section className={`${shell} relative grid min-h-[465px] grid-cols-1 items-center gap-8 pt-4 md:grid-cols-2`}>
-      <div className="relative z-10 py-8">
-        <p className="mb-6 flex items-center gap-2 text-[15px] font-medium text-[#26364a]">
+    <section className={`${shell} relative grid grid-cols-1 items-center gap-5 pt-3 md:min-h-[340px] md:grid-cols-2 md:gap-8 md:pt-4`}>
+      <div className="relative z-10 py-5 md:py-6">
+        <p className="mb-4 flex items-center gap-2 text-[13px] font-medium text-[#26364a] md:mb-6 md:text-[15px]">
           예비부부가 함께 만드는 결혼 준비의 모든 것
           <Sparkles className="h-4 w-4 text-[#b68a3a]" />
         </p>
 
-        <h1 className="font-serif-kr text-[34px] font-medium leading-[1.35] text-[#061a34] sm:text-[36px] xl:text-[52px]">
+        <h1 className="font-serif-kr text-[31px] font-medium leading-[1.3] text-[#061a34] sm:text-[36px] xl:text-[46px]">
           경험을 나누고,
           <br />
           더 완벽한 <span className="text-[#b68a3a]">결혼을 준비해요.</span>
         </h1>
 
-        <p className="mt-7 text-[16px] font-medium leading-[1.9] text-[#38475c]">
+        <p className="mt-5 text-[14px] font-medium leading-[1.75] text-[#38475c] md:mt-7 md:text-[16px] md:leading-[1.9]">
           실제 후기와 정보로 현명하게 준비하고,
           <br />
           서로 돕고 나누며 행복한 결혼을 만들어 가요.
         </p>
 
-        <div className="mt-8 grid max-w-[590px] grid-cols-2 gap-1 sm:grid-cols-4">
+        <div className="mt-6 grid max-w-[590px] grid-cols-4 gap-1 md:mt-6">
           {heroSignals.map((item, index) => (
             <div
               key={item.label}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-[9px] px-3 text-center text-[12px] font-medium leading-snug text-[#34445a] ${
+              className={`flex min-h-[58px] flex-col items-center justify-center gap-2 px-1 text-center text-[11px] font-medium leading-snug text-[#34445a] md:min-h-[76px] md:gap-[9px] md:px-3 md:text-[12px] ${
                 index < heroSignals.length - 1 ? "sm:border-r sm:border-[#eadfc9]" : ""
               }`}
             >
-              <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
+              <item.icon className="h-6 w-6 stroke-[1.55] text-[#b68a3a] md:h-8 md:w-8" />
               <span>{item.label}</span>
             </div>
           ))}
@@ -460,7 +434,7 @@ function Hero({ topVendor }: { topVendor: string | null }) {
         )}
       </div>
 
-      <div className="relative min-h-[420px] self-stretch overflow-hidden rounded-bl-[64px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] max-md:rounded-[28px]">
+      <div className="relative hidden min-h-[300px] self-stretch overflow-hidden rounded-bl-[56px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:block">
         <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
         <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
       </div>
@@ -478,7 +452,7 @@ function SearchHub({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`${shell} rounded-[18px] border border-[#eadfc9] bg-white/80 px-8 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]`}>
+    <section className={`${shell} rounded-[16px] border border-[#eadfc9] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:rounded-[18px] md:px-6 md:py-4`}>
       <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
@@ -487,7 +461,7 @@ function SearchHub({
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
-            className="h-[50px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-8 pr-14 text-[15px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#b68a3a]"
+            className="h-11 w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-12 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#b68a3a] md:h-[50px] md:px-8 md:pr-14 md:text-[15px]"
           />
           <button
             type="submit"
@@ -499,39 +473,21 @@ function SearchHub({
         </label>
       </form>
 
-      <div className="mt-6 grid grid-cols-2 gap-y-5 sm:grid-cols-4 md:grid-cols-8">
+      <div className="mt-4 hidden grid-cols-2 gap-y-3 sm:grid-cols-4 md:grid md:grid-cols-8">
         {searchCategories.map((item, index) => (
           <Link
             key={item.label}
             href={buildCommunityHubHref(item)}
             aria-label={`${item.label} 보기`}
-            className={`flex flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] ${
+            className={`flex flex-col items-center gap-1.5 text-center text-[11px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] ${
               index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
             }`}
           >
-            <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
+            <item.icon className="h-6 w-6 stroke-[1.55] text-[#b68a3a]" />
             <span>{item.label}</span>
           </Link>
         ))}
       </div>
-    </section>
-  );
-}
-
-function StatsStrip({ stats }: { stats: Array<{ label: string; value: string }> }) {
-  return (
-    <section className={`${shell} mt-4 grid grid-cols-2 rounded-[16px] border border-[#eadfc9] bg-white/72 text-center shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:grid-cols-4`}>
-      {stats.map((item, index) => (
-        <div
-          key={item.label}
-          className={`flex min-h-[58px] items-center justify-center gap-5 px-4 text-[14px] ${
-            index < stats.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
-          }`}
-        >
-          <span className="font-medium text-[#7a8290]">{item.label}</span>
-          <strong className="truncate text-[17px] font-semibold text-[#071629]">{item.value}</strong>
-        </div>
-      ))}
     </section>
   );
 }
@@ -555,12 +511,12 @@ function CategoryBar({
 }) {
   return (
     <section
-      className={`${shell} mt-3 flex flex-wrap items-center gap-3 rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)]`}
+      className={`${shell} mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:gap-3 md:overflow-visible`}
       data-tutorial-target="community-categories"
     >
       <Link
         href="/community"
-        className={`min-w-[74px] rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
+        className={`min-w-[70px] shrink-0 rounded-full border px-4 py-2.5 text-center text-[13px] font-medium transition-colors md:min-w-[74px] md:px-5 md:py-3 md:text-[14px] ${
           selectedCategory
             ? "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
             : "border-[#061a34] bg-[#061a34] text-white"
@@ -572,7 +528,7 @@ function CategoryBar({
         <Link
           key={cat.key}
           href={buildCommunityCategoryHref(cat.key)}
-          className={`min-w-[84px] rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
+          className={`min-w-[76px] shrink-0 rounded-full border px-4 py-2.5 text-center text-[13px] font-medium transition-colors md:min-w-[84px] md:px-5 md:py-3 md:text-[14px] ${
             selectedCategory === cat.key
               ? "border-[#061a34] bg-[#061a34] text-white"
               : "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
@@ -581,13 +537,6 @@ function CategoryBar({
           {cat.shortLabel}
         </Link>
       ))}
-      <Link
-        href="/community/quote-check"
-        className="min-w-[96px] rounded-full border border-[#eadfc9] bg-white/70 px-5 py-3 text-center text-[14px] font-medium text-[#34445a] transition-colors hover:border-[#b68a3a] hover:text-[#b68a3a]"
-      >
-        견적 체크
-      </Link>
-
       {currentTag && (
         <button
           type="button"
@@ -598,7 +547,7 @@ function CategoryBar({
         </button>
       )}
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
+      <div className="ml-0 flex shrink-0 flex-nowrap items-center gap-2 md:ml-auto md:flex-wrap">
         <label className="relative">
           <span className="sr-only">정렬</span>
           <select
@@ -616,7 +565,7 @@ function CategoryBar({
         </label>
         {currentSort === "top" && (
           <label className="relative">
-            <span className="sr-only">추천 기간</span>
+          <span className="sr-only">좋아요 기간</span>
             <select
               value={currentPeriod}
               onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
@@ -762,12 +711,6 @@ function LatestPosts({
         </div>
       </div>
 
-      {!isSearching && (
-        <div className="mb-5" data-tutorial-target="community-composer">
-          <FeedComposer />
-        </div>
-      )}
-
       {errorMessage && (
         <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-sm text-[#34445a] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
@@ -812,7 +755,14 @@ function LatestPosts({
       ) : (
         <div className="divide-y divide-[#eadfc9]">
           {posts.map((post, index) => (
-            <CommunityPostRow key={post.id} post={post} priority={index < 2} />
+            <Fragment key={post.id}>
+              <CommunityPostRow post={post} priority={index < 2} />
+              {!isSearching && index === 0 && (
+                <div className="py-4" data-tutorial-target="community-composer">
+                  <FeedComposer />
+                </div>
+              )}
+            </Fragment>
           ))}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
@@ -923,14 +873,14 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid grid-cols-[150px_1fr] gap-5 py-4 first:pt-0 last:pb-0 max-sm:grid-cols-1"
+      className="relative grid grid-cols-[104px_1fr] gap-4 py-4 first:pt-0 last:pb-0 sm:grid-cols-[150px_1fr] sm:gap-5"
     >
       {toast && (
         <span className="absolute right-0 top-4 z-10 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
-      <div className="relative aspect-[1.92] overflow-hidden rounded-[10px] bg-[#f8f4ec]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:aspect-[1.92]">
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -988,12 +938,16 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             }`}
             aria-label="좋아요"
           >
-            <ThumbsUp className="h-4 w-4 stroke-[1.6]" />
+            <Heart className={`h-4 w-4 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
             {displayUpvoteCount}
           </button>
           <span className="inline-flex items-center gap-1 text-[#34445a]">
+            <Eye className="h-4 w-4 stroke-[1.6]" />
+            {post.view_count ?? 0}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#34445a]">
             <MessageCircle className="h-4 w-4 stroke-[1.6]" />
-            {post.comment_count ?? 0}
+            {(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}
           </span>
           <button
             type="button"

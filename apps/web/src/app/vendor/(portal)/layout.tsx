@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useVendorStore } from "@/stores/vendorStore";
@@ -33,9 +34,9 @@ export default function VendorPortalLayout({ children }: { children: React.React
         <div className="bg-white rounded-2xl p-10 max-w-md w-full text-center border border-black/[0.04]">
           <h2 className="font-serif-kr text-[20px] text-noir-800 mb-3">등록된 업체가 없습니다</h2>
           <p className="text-[14px] text-taupe-500 mb-6">업체를 먼저 등록해주세요.</p>
-          <a href="/vendor/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors">
+          <Link href="/vendor/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors">
             업체 등록하기
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -59,19 +60,19 @@ export default function VendorPortalLayout({ children }: { children: React.React
             승인되면 이메일로 안내드리겠습니다.
           </p>
           <div className="flex flex-col gap-3">
-            <a
+            <Link
               href="/vendor/profile"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors"
             >
               <FileEdit className="w-4 h-4" />
               프로필 미리보기 / 수정
-            </a>
-            <a
+            </Link>
+            <Link
               href="/"
               className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
             >
               ← 홈으로 돌아가기
-            </a>
+            </Link>
           </div>
         </div>
       </div>
@@ -100,19 +101,19 @@ export default function VendorPortalLayout({ children }: { children: React.React
             프로필 정보를 수정하신 후 다시 심사를 요청하실 수 있습니다.
           </p>
           <div className="flex flex-col gap-3">
-            <a
+            <Link
               href="/vendor/profile"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-noir-800 text-white text-[14px] font-medium hover:bg-noir-soft transition-colors"
             >
               <FileEdit className="w-4 h-4" />
               프로필 수정하기
-            </a>
-            <a
+            </Link>
+            <Link
               href="/"
               className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors"
             >
               ← 홈으로 돌아가기
-            </a>
+            </Link>
           </div>
         </div>
       </div>

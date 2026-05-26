@@ -77,6 +77,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
   const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
   const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
+  const myPrivateVisibility =
+    profile?.role === "groom"
+      ? "groom_private"
+      : profile?.role === "bride"
+        ? "bride_private"
+        : null;
+  const sharedMessageCount = messages.filter((m) => m.visibility === "shared").length;
+  const privateMessageCount = myPrivateVisibility
+    ? messages.filter((m) => m.visibility === myPrivateVisibility).length
+    : 0;
 
   useEffect(() => {
     const updateNow = () => setNowMs(Date.now());
@@ -158,7 +168,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         ? el.scrollHeight - el.scrollTop - el.clientHeight < 120
         : true;
 
-      await loadMessages(coupleId);
+      await pollNewMessages(coupleId);
 
       // 복원 — DOM update 후 다음 frame 에서
       requestAnimationFrame(() => {
@@ -173,7 +183,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [coupleId, isDemo, loadMessages]);
+  }, [coupleId, isDemo, pollNewMessages]);
 
   // Realtime 폴링 안전망 — 3초마다 새 메시지 fetch
   // (Realtime 구독이 작동 안 할 경우 최대 3초 딜레이로 동기화 보장)
@@ -190,7 +200,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 메시지가 threshold 넘으면 새 채팅 안내
   useEffect(() => {
     if (messages.length >= NEW_CHAT_THRESHOLD && !showNewChatBanner) {
-      setShowNewChatBanner(true);
+      const timer = window.setTimeout(() => setShowNewChatBanner(true), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [messages.length, showNewChatBanner]);
 
@@ -591,9 +602,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     async (mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private") => {
       if (!coupleId) return;
       greetingRequested.current = false;
-      await clearMessages(coupleId, mode);
-      setClearStep("closed");
-      setShowNewChatBanner(false);
+      try {
+        await clearMessages(coupleId, mode);
+        setClearStep("closed");
+        setShowNewChatBanner(false);
+      } catch {
+        // chatStore.error renders the failure; keep the modal open so the user can retry.
+      }
     },
     [coupleId, clearMessages]
   );
@@ -707,8 +722,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           >
             <Sparkles className="w-4 h-4" />
             함께 대화
-            {messages.length > 0 && (
-              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({messages.length})</span>
+            {sharedMessageCount > 0 && (
+              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({sharedMessageCount})</span>
             )}
           </button>
           <button
@@ -723,11 +738,22 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           >
             <Lock className="w-4 h-4" />
             나만 (상담)
+            {privateMessageCount > 0 && (
+              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({privateMessageCount})</span>
+            )}
           </button>
         </div>
 
         {/* 액션 — 우측 (검색/정보/새채팅) */}
         <div className="flex items-center gap-0.5 shrink-0">
+          <a
+            href="/ai-policy"
+            className="hidden sm:flex items-center justify-center h-9 px-2 rounded-lg text-[0.6875rem] font-medium text-[#928980] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+            aria-label="AI 정책"
+            title="AI 정책"
+          >
+            AI
+          </a>
           <button
             onClick={() => {
               setSearchOpen((v) => {
@@ -772,7 +798,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
           AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
-      <div className="w-full max-w-[70rem] mx-auto px-2 pb-2">
+      <div className="sr-only">
         <div
           className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
           title="아모라 답변은 Anthropic Claude 가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
@@ -977,7 +1003,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // (RLS가 이미 본인 private만 SELECT 허용하므로 클라이언트는 visibility로만 분기)
           const tabMessages = messages.filter((m) => {
             if (activeTab === "shared") return m.visibility === "shared";
-            return m.visibility === "bride_private" || m.visibility === "groom_private";
+            return !!myPrivateVisibility && m.visibility === myPrivateVisibility;
           });
 
           // 검색 필터 (검색어 trim 후 case-insensitive 부분 매치)

@@ -143,7 +143,7 @@ function ProductEditModal({ product, category, onSave, onClose }: {
   const config = CATEGORY_PRODUCT_FIELDS[category] ?? CATEGORY_PRODUCT_FIELDS["기타"];
   const isNew = !product;
 
-  const [form, setForm] = useState<VendorProduct>(product ?? {
+  const [form, setForm] = useState<VendorProduct>(() => product ?? {
     id: `p-new-${Date.now()}`,
     vendorId: "v1",
     name: "",

@@ -47,7 +47,7 @@ const STARTERS = [
   },
   {
     href: "/community?category=ama&feed=all#community-feed",
-    label: "결혼 끝났다 AMA",
+    label: "결혼 선배 Q&A",
     title: "이미 끝낸 선배에게 현실적인 선택 기준 물어보기",
     meta: "경험 질문",
     icon: CalendarCheck,

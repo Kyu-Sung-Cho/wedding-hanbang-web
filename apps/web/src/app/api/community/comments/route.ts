@@ -47,15 +47,15 @@ export async function GET(req: NextRequest) {
 
     // 작성자 프로필 별도 조회
     const commentAuthorIds = [...new Set((comments ?? []).map((c) => c.author_id))];
-    let commentAuthorMap: Record<string, { nickname: string; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
+    let commentAuthorMap: Record<string, { nickname: string; avatar_url: string | null; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
     if (commentAuthorIds.length > 0) {
       const { data: profiles } = await supabase
         .from("community_profiles")
-        .select("user_id, nickname, rank, wedding_year, wedding_month")
+        .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
         .in("user_id", commentAuthorIds);
       if (profiles) {
         commentAuthorMap = Object.fromEntries(
-          profiles.map((p) => [p.user_id, { nickname: p.nickname, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
+          profiles.map((p) => [p.user_id, { nickname: p.nickname, avatar_url: p.avatar_url, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
         );
       }
     }
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 트리 구조로 변환
-    const defaultAuthor = { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null };
+    const defaultAuthor = { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null };
     const commentsWithVotes = (comments ?? []).map((c) => ({
       ...c,
       author: commentAuthorMap[c.author_id] ?? defaultAuthor,
@@ -284,13 +284,13 @@ export async function POST(req: NextRequest) {
     // 작성자 프로필 추가
     const { data: creatorProfile } = await serviceClient
       .from("community_profiles")
-      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
       .eq("user_id", user.id)
       .single();
 
     const commentWithAuthor = {
       ...comment,
-      author: creatorProfile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
+      author: creatorProfile ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
     };
 
     return NextResponse.json({ comment: commentWithAuthor }, { status: 201 });

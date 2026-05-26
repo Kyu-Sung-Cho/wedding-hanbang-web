@@ -9,6 +9,7 @@ import {
   Bookmark,
   Pin,
   BarChart3,
+  Eye,
   Heart,
   Check,
   Layers,
@@ -187,7 +188,7 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         </div>
       )}
-      <div className={`flex ${hasImage ? "flex-col-reverse sm:flex-row" : ""} gap-4 sm:gap-5`}>
+      <div className={`flex ${hasImage ? "flex-row" : ""} gap-4 sm:gap-5`}>
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -313,8 +314,13 @@ export default function PostCard({ post }: PostCardProps) {
                 className="flex items-center gap-1 hover:text-[#9d6f36] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
-                <span className="text-sm">{post.comment_count}</span>
+                <span className="text-sm">{(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}</span>
               </Link>
+
+              <span className="flex items-center gap-1 text-[#5d6879]">
+                <Eye className="w-5 h-5 opacity-60" />
+                <span className="text-sm">{post.view_count ?? 0}</span>
+              </span>
 
               {/* 북마크 */}
               <button
@@ -351,7 +357,7 @@ export default function PostCard({ post }: PostCardProps) {
         {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
           <Link
             href={`/community/post/${post.id}`}
-            className="relative w-full h-40 sm:w-28 sm:h-28 xl:w-32 xl:h-32 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F]"
+            className="relative h-24 w-28 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
           >
             {thumbUrl ? (
               <Image

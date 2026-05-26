@@ -47,7 +47,10 @@ export default function UpcomingTab() {
 
   // hydration-safe: now는 클라이언트에서만 설정
   const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => { setNow(new Date()); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNow(new Date()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const imminentCategories = useMemo(
     () => getImminentCategories(progress, weddingDate),

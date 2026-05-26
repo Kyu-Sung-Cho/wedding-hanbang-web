@@ -87,6 +87,22 @@ const CATEGORY_RATIOS: Record<string, number> = {
   reserve: 0.03,
 };
 
+function hasFinalConsonant(value: string): boolean {
+  const chars = [...value.trim()];
+  const last = chars[chars.length - 1];
+  if (!last) return false;
+  const code = last.charCodeAt(0) - 0xac00;
+  return code >= 0 && code <= 11171 && code % 28 !== 0;
+}
+
+function subjectParticle(value: string) {
+  return hasFinalConsonant(value) ? "이" : "가";
+}
+
+function objectParticle(value: string) {
+  return hasFinalConsonant(value) ? "을" : "를";
+}
+
 function getAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -537,7 +553,7 @@ async function executeAddCustomCategory(
     toolInput: input,
     toolOutput: { key, label, ...updates },
     success: true,
-    displayMessage: `새 카테고리 "${label}"이(가) 추가되었습니다${desc}.`,
+    displayMessage: `새 카테고리 "${label}"${subjectParticle(label)} 추가되었습니다${desc}.`,
   };
 }
 
@@ -971,7 +987,7 @@ function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) 
   if (source === "quote") return "/community/quote-check";
   if (source === "budget") return "/budget";
   if (source === "schedule") return "/schedule";
-  if (categoryKey === "invitation") return "/invitations";
+  if (categoryKey === "invitation") return "/schedule";
   if (categoryKey === "mc" || categoryKey === "gift") return "/scripts";
   return "/dashboard";
 }
@@ -1031,7 +1047,7 @@ async function executeAddAmoraAction(
     toolInput: input,
     toolOutput: { action, actions_count: actions.filter((item) => item.status === "open").length },
     success: true,
-    displayMessage: `"${title}"을(를) 아모라 행동 카드에 저장했습니다.`,
+    displayMessage: `"${title}"${objectParticle(title)} 아모라 행동 카드에 저장했습니다.`,
   };
 }
 

@@ -56,8 +56,8 @@ const CTA_MAP: Record<string, CTAConfig> = {
   free: {
     icon: MessageCircle,
     label: "상담",
-    title: "혼자 판단하기 애매한 내용은 아모라와 이어서 이야기해보세요.",
-    subtext: "견적, 업체 응대, 가족 고민을 차분히 정리합니다.",
+    title: "이 이야기를 아모라와 짧게 정리해볼까요?",
+    subtext: "필요한 경우에만 상담으로 이어가요.",
     href: "/chat",
   },
 };
@@ -89,8 +89,8 @@ export default function ServiceCTA({ category }: ServiceCTAProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-4 py-4 sm:px-5">
-      <p className="mb-3 text-[11px] font-medium tracking-[0.2em] text-[#928980]">
+    <div className="rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-3 py-3 sm:px-4">
+      <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-[#928980]">
         다음 행동
       </p>
 
@@ -104,7 +104,7 @@ export default function ServiceCTA({ category }: ServiceCTAProps) {
 
       {secondaryCta ? (
         <>
-          <div className="my-3 border-t border-[#eee6e0]" />
+          <div className="my-2 border-t border-[#eee6e0]" />
           <ServiceAction
             href={secondaryCta.href}
             icon={secondaryCta.icon}
@@ -126,20 +126,20 @@ function ServiceAction({
   subtext,
 }: CTAConfig) {
   return (
-    <Link href={href} className="group flex items-start gap-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
-        <Icon className="h-5 w-5" />
+    <Link href={href} className="group flex items-start gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
+        <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="mb-1 block text-[11px] font-medium text-[#928980]">{label}</span>
-        <span className="block text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
+        <span className="mb-0.5 block text-[10px] font-medium text-[#928980]">{label}</span>
+        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
           {title}
         </span>
-        <span className="mt-1 block text-[13px] leading-relaxed text-[#5d6879]">
+        <span className="mt-0.5 block text-[12px] leading-snug text-[#5d6879]">
           {subtext}
         </span>
       </span>
-      <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
     </Link>
   );
 }

@@ -130,7 +130,10 @@ export async function PATCH(req: NextRequest) {
     );
     if (rlResult) return rlResult;
 
-    const { nickname: rawNickname } = (await req.json()) as { nickname: string };
+    const { nickname: rawNickname, avatar_url: rawAvatarUrl } = (await req.json()) as {
+      nickname?: string;
+      avatar_url?: string | null;
+    };
 
     // 닉네임 정화 및 검증
     const nickname = sanitizeText(rawNickname ?? "").slice(0, 20);
@@ -157,6 +160,20 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    let avatarUrl: string | null | undefined;
+    if (rawAvatarUrl !== undefined) {
+      const normalizedAvatar = sanitizeText(rawAvatarUrl ?? "").slice(0, 160);
+      const isEmojiAvatar = /\p{Emoji}/u.test(normalizedAvatar) && normalizedAvatar.length <= 4;
+      const isImageUrl = /^https?:\/\//i.test(normalizedAvatar) || normalizedAvatar.startsWith("/");
+      if (normalizedAvatar && !isEmojiAvatar && !isImageUrl) {
+        return NextResponse.json(
+          { error: "프로필 이미지는 이모지나 안전한 이미지 URL만 사용할 수 있습니다." },
+          { status: 400 }
+        );
+      }
+      avatarUrl = normalizedAvatar || null;
+    }
+
     const serviceClient = getServiceClient();
 
     // 닉네임 중복 확인
@@ -174,9 +191,12 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    const updatePayload: { nickname: string; avatar_url?: string | null } = { nickname: nickname.trim() };
+    if (avatarUrl !== undefined) updatePayload.avatar_url = avatarUrl;
+
     const { data: updatedProfile, error } = await serviceClient
       .from("community_profiles")
-      .update({ nickname: nickname.trim() })
+      .update(updatePayload)
       .eq("user_id", user.id)
       .select("*")
       .single();

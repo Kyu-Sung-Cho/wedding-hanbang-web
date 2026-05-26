@@ -8,6 +8,7 @@ import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
+import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
@@ -15,9 +16,11 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const pathname = usePathname();
   const isChatPage = pathname === "/chat";
+  const hasContextualAssistant = pathname.startsWith("/vendors");
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);
+  useAuthSessionSync(!isDemo);
 
   useEffect(() => {
     if (!isInitialized) void initialize();
@@ -63,7 +66,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
 
       <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
 
-      {!isChatPage && !chatPanelOpen && (
+      {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
         <button
           type="button"
           onClick={() => setChatPanelOpen(true)}

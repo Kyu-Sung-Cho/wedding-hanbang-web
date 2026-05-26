@@ -416,11 +416,11 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       iconKey: "chat",
     },
     {
-      id: "invitation",
-      label: "청첩장",
-      text: "초대와 하객 안내 준비",
-      href: "/invitations",
-      iconKey: "invitation",
+      id: "schedule",
+      label: "준비 일정",
+      text: "D-day별 급한 할 일 확인",
+      href: "/schedule",
+      iconKey: "schedule",
     },
     {
       id: "script",

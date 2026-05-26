@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Flame,
-  FileSearch,
   HelpCircle,
   Camera,
   Lightbulb,
@@ -68,54 +67,6 @@ export default function CategoryTabs() {
           <span className="text-sm">인기</span>
         </Link>
 
-        <Link
-          href="/community/quote-check"
-          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
-            isActive("/community/quote-check")
-              ? "bg-[#fff8ec] text-[#9d6f36] font-bold"
-              : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
-          }`}
-        >
-          <FileSearch
-            className={`mr-2.5 w-4 h-4 ${
-              isActive("/community/quote-check") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
-            }`}
-          />
-          <span className="text-sm">견적 체크</span>
-        </Link>
-
-        <Link
-          href="/community/my/bookmarks"
-          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
-            isActive("/community/my/bookmarks")
-              ? "bg-[#fff8ec] text-[#9d6f36] font-bold"
-              : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
-          }`}
-        >
-          <Bookmark
-            className={`mr-2.5 w-4 h-4 ${
-              isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
-            }`}
-          />
-          <span className="text-sm">북마크</span>
-        </Link>
-
-        <Link
-          href="/community/my/upvoted"
-          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
-            isActive("/community/my/upvoted")
-              ? "bg-[#fff8ec] text-[#9d6f36] font-bold"
-              : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
-          }`}
-        >
-          <ThumbsUp
-            className={`mr-2.5 w-4 h-4 ${
-              isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
-            }`}
-          />
-          <span className="text-sm">좋아요</span>
-        </Link>
-
         {/* 카테고리 섹션 */}
         <div className="pt-3">
           <button
@@ -161,6 +112,43 @@ export default function CategoryTabs() {
             })}
           </div>
         </div>
+
+        <div className="pt-3">
+          <div className="px-3 py-2 text-xs font-medium text-[#5d6879] uppercase tracking-wider">
+            내 활동
+          </div>
+          <Link
+            href="/community/my/bookmarks"
+            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+              isActive("/community/my/bookmarks")
+                ? "bg-[#fff8ec] text-[#9d6f36] font-bold"
+                : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
+            }`}
+          >
+            <Bookmark
+              className={`mr-2.5 w-4 h-4 ${
+                isActive("/community/my/bookmarks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+              }`}
+            />
+            <span className="text-sm">북마크</span>
+          </Link>
+
+          <Link
+            href="/community/my/upvoted"
+            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+              isActive("/community/my/upvoted")
+                ? "bg-[#fff8ec] text-[#9d6f36] font-bold"
+                : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
+            }`}
+          >
+            <ThumbsUp
+              className={`mr-2.5 w-4 h-4 ${
+                isActive("/community/my/upvoted") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+              }`}
+            />
+            <span className="text-sm">좋아요</span>
+          </Link>
+        </div>
       </nav>
 
       {/* 모바일/태블릿: 가로 스크롤 칩 */}
@@ -175,16 +163,6 @@ export default function CategoryTabs() {
             }`}
           >
             전체
-          </Link>
-          <Link
-            href="/community/quote-check"
-            className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
-              isActive("/community/quote-check")
-                ? "bg-[#9d6f36] text-white font-medium"
-                : "text-[#5d6879] bg-white border border-[#eadfc9] hover:bg-[#fff8ec]"
-            }`}
-          >
-            견적 체크
           </Link>
           {COMMUNITY_CATEGORIES.map((cat) => {
             const href = `/community/${cat.key}`;

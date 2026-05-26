@@ -19,6 +19,7 @@ import {
   Trash2,
   MapPin,
   Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -89,6 +90,10 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteReasonOther, setDeleteReasonOther] = useState("");
+  const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
+  const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
+  const [resettingWedding, setResettingWedding] = useState(false);
+  const [resetWeddingError, setResetWeddingError] = useState("");
   const [comingSoonToast, setComingSoonToast] = useState("");
 
   useEffect(() => {
@@ -242,6 +247,33 @@ export default function SettingsPage() {
       setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleResetWedding = async () => {
+    if (resetWeddingConfirmText !== "초기화합니다") return;
+    setResettingWedding(true);
+    setResetWeddingError("");
+
+    try {
+      const res = await fetch("/api/couple/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setResetWeddingError(data.error ?? "초기화에 실패했습니다.");
+        return;
+      }
+
+      document.cookie = "onboarding_complete=; path=/; max-age=0";
+      window.location.href = "/onboarding";
+    } catch {
+      setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setResettingWedding(false);
     }
   };
 
@@ -620,6 +652,29 @@ export default function SettingsPage() {
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
             </div>
           )}
+
+          {!isDemo && (
+            <button
+              type="button"
+              onClick={() => {
+                setResetWeddingConfirmText("");
+                setResetWeddingError("");
+                setShowResetWeddingModal(true);
+              }}
+              className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-10 h-10 rounded-full bg-[#F6F3F2] flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-[#795252]" />
+                </span>
+                <span>
+                  <span className="block text-base font-medium text-[#1A1A1F]">새 커플로 다시 시작</span>
+                  <span className="block text-sm text-[#928980]">현재 커플 연결을 끊고 온보딩으로 돌아갑니다.</span>
+                </span>
+              </span>
+              <ChevronRight className="w-5 h-5 text-[#B5ADA3] flex-shrink-0" />
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -727,6 +782,73 @@ export default function SettingsPage() {
           계정 탈퇴
         </button>
       </motion.div>
+
+      {/* 새 커플 시작 모달 */}
+      <AnimatePresence>
+        {showResetWeddingModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-[420px] bg-white rounded-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+            >
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[#F6F3F2] flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-[#795252]" />
+              </div>
+              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
+                새 커플로 다시 시작할까요?
+              </h3>
+              <p className="text-sm text-[#928980] text-center leading-relaxed mb-6">
+                현재 커플 연결을 끊고 온보딩으로 돌아갑니다.
+                <br />
+                내 계정은 유지되며, 새 파트너 코드로 다시 연결할 수 있어요.
+              </p>
+
+              <label className="block text-sm text-[#504444] mb-2">
+                확인을 위해 <span className="font-semibold text-[#795252]">초기화합니다</span>를 입력해주세요
+              </label>
+              <input
+                type="text"
+                value={resetWeddingConfirmText}
+                onChange={(e) => {
+                  setResetWeddingConfirmText(e.target.value);
+                  setResetWeddingError("");
+                }}
+                placeholder="초기화합니다"
+                className="w-full px-4 py-3 rounded-xl border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
+              />
+              {resetWeddingError && (
+                <p className="mt-3 text-sm text-red-500">{resetWeddingError}</p>
+              )}
+
+              <div className="mt-6 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetWeddingModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-[#F6F3F2] text-[#504444] font-medium hover:bg-[#EDE8E5] transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetWedding}
+                  disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
+                  className="flex-1 py-3 rounded-xl bg-[#795252] text-white font-medium hover:bg-[#946a6a] transition-colors disabled:opacity-40"
+                >
+                  {resettingWedding ? "초기화 중..." : "다시 시작"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 계정 탈퇴 모달 */}
       <AnimatePresence>

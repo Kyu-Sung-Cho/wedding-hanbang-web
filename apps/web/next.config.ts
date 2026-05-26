@@ -23,6 +23,31 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  async redirects() {
+    return [
+      {
+        source: "/invitations/:path*",
+        destination: "/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/community/chat",
+        destination: "/chat",
+        permanent: false,
+      },
+      {
+        source: "/community/schedule",
+        destination: "/schedule",
+        permanent: false,
+      },
+      {
+        source: "/community/budget",
+        destination: "/budget",
+        permanent: false,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

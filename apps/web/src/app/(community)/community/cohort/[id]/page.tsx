@@ -754,9 +754,21 @@ function renderMessageContent(text: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
+function rankIcon(rank?: string | null) {
+  const icons: Record<string, string> = {
+    sprout: "새싹",
+    preparing: "체크",
+    expert: "별",
+    master: "왕관",
+    senior: "하트",
+  };
+  return rank ? icons[rank] ?? "배지" : null;
+}
+
 function MessageBubble({ message }: { message: CohortMessage }) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
+  const rank = rankIcon(message.author?.rank);
   return (
     <div className="flex gap-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-xs font-medium text-white">
@@ -774,9 +786,9 @@ function MessageBubble({ message }: { message: CohortMessage }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-medium text-[#071629]">{nickname}</span>
-          {message.author?.rank && (
-            <span className="rounded-full bg-[#fff8ec] px-1.5 py-0.5 text-[11px] text-[#5d6879]">
-              {message.author?.rank}
+          {rank && (
+            <span className="rounded-full bg-[#fff8ec] px-1.5 py-0.5 text-[10px] text-[#9d6f36]" title={message.author?.rank}>
+              {rank}
             </span>
           )}
           <span className="text-xs text-[#928980]">
@@ -822,14 +834,17 @@ function PostPickerModal({
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    const url = query
-      ? `/api/community/search?q=${encodeURIComponent(query)}&limit=20`
-      : `/api/community/posts?sort=hot&limit=20`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : { posts: [] }))
-      .then((d) => setPosts(d.posts ?? []))
-      .finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      const url = query
+        ? `/api/community/search?q=${encodeURIComponent(query)}&limit=20`
+        : `/api/community/posts?sort=hot&limit=20`;
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : { posts: [] }))
+        .then((d) => setPosts(d.posts ?? []))
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [open, query]);
 
   if (!open) return null;
@@ -917,7 +932,10 @@ function InfoTab({
   }, [roomId]);
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => {
+      load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const statByCat = useMemo(() => {

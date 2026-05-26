@@ -43,7 +43,10 @@ export default function MobileCallbackPage() {
         setStatus("앱이 열리지 않으면 Expo Go 앱으로 직접 돌아가주세요.");
       }, 2000);
     } else {
-      setStatus("토큰을 받지 못했습니다. 다시 로그인해주세요.");
+      const timer = window.setTimeout(() => {
+        setStatus("토큰을 받지 못했습니다. 다시 로그인해주세요.");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, []);
 

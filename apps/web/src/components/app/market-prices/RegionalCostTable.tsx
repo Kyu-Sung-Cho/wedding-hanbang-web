@@ -9,6 +9,34 @@ interface RegionalCostTableProps {
 
 type SortKey = "total" | "meal" | "sdm" | "rental" | "decoration";
 
+function SortHeader({
+  label,
+  field,
+  sortKey,
+  sortAsc,
+  onSort,
+}: {
+  label: string;
+  field: SortKey;
+  sortKey: SortKey;
+  sortAsc: boolean;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <button
+      onClick={() => onSort(field)}
+      className={`text-right text-[11px] font-medium flex items-center gap-1 justify-end ${
+        sortKey === field ? "text-rose-500" : "text-taupe-500"
+      }`}
+    >
+      {label}
+      {sortKey === field && (
+        <span className="text-[9px]">{sortAsc ? "▲" : "▼"}</span>
+      )}
+    </button>
+  );
+}
+
 export default function RegionalCostTable({ periodId }: RegionalCostTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortAsc, setSortAsc] = useState(false);
@@ -32,20 +60,6 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
   }
 
   const selectedCost = selectedRegion ? costs.find(c => c.region === selectedRegion) : null;
-
-  const SortHeader = ({ label, field }: { label: string; field: SortKey }) => (
-    <button
-      onClick={() => handleSort(field)}
-      className={`text-right text-[11px] font-medium flex items-center gap-1 justify-end ${
-        sortKey === field ? "text-rose-500" : "text-taupe-500"
-      }`}
-    >
-      {label}
-      {sortKey === field && (
-        <span className="text-[9px]">{sortAsc ? "▲" : "▼"}</span>
-      )}
-    </button>
-  );
 
   return (
     <div className="space-y-4">
@@ -113,11 +127,11 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
           <thead>
             <tr className="border-b border-black/[0.06]">
               <th className="text-left py-3 px-2 text-[11px] font-medium text-taupe-500">지역</th>
-              <th className="text-right py-3 px-2"><SortHeader label="총비용" field="total" /></th>
-              <th className="text-right py-3 px-2"><SortHeader label="식대" field="meal" /></th>
-              <th className="text-right py-3 px-2"><SortHeader label="스드메" field="sdm" /></th>
-              <th className="text-right py-3 px-2"><SortHeader label="대관료" field="rental" /></th>
-              <th className="text-right py-3 px-2 max-md:hidden"><SortHeader label="꽃장식" field="decoration" /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="총비용" field="total" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="식대" field="meal" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="스드메" field="sdm" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="대관료" field="rental" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2 max-md:hidden"><SortHeader label="꽃장식" field="decoration" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
             </tr>
           </thead>
           <tbody>

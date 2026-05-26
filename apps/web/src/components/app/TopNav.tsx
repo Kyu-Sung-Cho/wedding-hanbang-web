@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
@@ -18,9 +18,20 @@ const pageTitles: Record<string, string> = {
   "/favorites": "즐겨찾기",
   "/etiquette": "예절 가이드",
   "/settings": "설정",
-  "/invitations": "모바일 청첩장",
   "/money": "축의금 관리",
 };
+
+const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
+  { prefix: "/vendors/favorites", title: "찜한 업체" },
+  { prefix: "/vendors", title: "업체 탐색" },
+  { prefix: "/bookings", title: "예약 관리" },
+  { prefix: "/fitting", title: "AI 드레스 피팅" },
+  { prefix: "/scripts", title: "대본 리딩" },
+];
+
+function getPageTitle(pathname: string) {
+  return pageTitles[pathname] ?? pageTitlePrefixes.find((item) => pathname.startsWith(item.prefix))?.title ?? "웨딩한방";
+}
 
 interface TopNavProps {
   onMenuToggle: () => void;
@@ -28,7 +39,8 @@ interface TopNavProps {
 
 export default function TopNav({ onMenuToggle }: TopNavProps) {
   const pathname = usePathname();
-  const title = pageTitles[pathname] ?? "웨딩한방";
+  const router = useRouter();
+  const title = getPageTitle(pathname);
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -76,8 +88,10 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
           <button
             type="button"
+            onClick={() => router.push("/vendors")}
             className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
-            aria-label="검색"
+            aria-label="업체 검색"
+            title="업체 검색"
           >
             <Search className="h-5 w-5" />
           </button>

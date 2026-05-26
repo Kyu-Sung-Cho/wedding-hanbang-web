@@ -22,6 +22,71 @@ import { determineStage } from "@/lib/ai/stage-router";
 import type { AmoraActionItem } from "@/lib/amora/actions";
 import { useAuthStore } from "./authStore";
 
+type ClearScope = "shared" | "private";
+
+function latestIso(...values: Array<string | null | undefined>): string | null {
+  const valid = values.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (valid.length === 0) return null;
+  return valid.reduce((latest, value) =>
+    new Date(value).getTime() > new Date(latest).getTime() ? value : latest
+  );
+}
+
+function clearStorageKey(coupleId: string, scope: ClearScope) {
+  const authState = useAuthStore.getState();
+  const userId = authState.profile?.id ?? authState.user?.id ?? "anonymous";
+  return `hanbang.chatClearedAt.${userId}.${coupleId}.${scope}`;
+}
+
+function readLocalClearedAt(coupleId: string, scope: ClearScope): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(clearStorageKey(coupleId, scope));
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalClearedAt(coupleId: string, scope: ClearScope, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(clearStorageKey(coupleId, scope), value);
+  } catch {
+    // localStorage can be unavailable in private browsing; server timestamp still applies.
+  }
+}
+
+function currentPrivateVisibility(): ChatMessage["visibility"] | null {
+  const role = useAuthStore.getState().profile?.role;
+  if (role === "bride") return "bride_private";
+  if (role === "groom") return "groom_private";
+  return null;
+}
+
+function canCurrentUserSeeMessage(message: ChatMessage): boolean {
+  if (message.visibility === "shared") return true;
+  return message.visibility === currentPrivateVisibility();
+}
+
+function isCurrentUserPrivateMessage(message: ChatMessage): boolean {
+  const myVisibility = currentPrivateVisibility();
+  return !!myVisibility && message.visibility === myVisibility;
+}
+
+function isAfterClearedAt(
+  message: ChatMessage,
+  sharedClearedAt: string | null,
+  privateClearedAt: string | null
+): boolean {
+  if (message.visibility === "shared" && sharedClearedAt) {
+    return new Date(message.created_at) > new Date(sharedClearedAt);
+  }
+  if (isCurrentUserPrivateMessage(message) && privateClearedAt) {
+    return new Date(message.created_at) > new Date(privateClearedAt);
+  }
+  return true;
+}
+
 /** 다른 사람(상대방 또는 AI)이 진행 중인 활동을 인지하기 위한 Presence 정보 */
 export interface ChatPresence {
   /** 상대방(파트너)이 입력 중일 때 그의 senderRole, 아니면 null */
@@ -107,6 +172,12 @@ const PROGRESS_AFFECTING_TOOLS = new Set([
   "toggle_checklist_item",
   "update_budget",
   "update_category_budget",
+  "apply_budget_plan",
+  "add_custom_category",
+  "delete_category",
+  "reset_category",
+  "add_amora_action",
+  "update_amora_action",
   "create_booking",
   "cancel_booking",
   "update_wedding_date",
@@ -615,23 +686,24 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (messagesErr) throw messagesErr;
       if (get().isStreaming) return;
 
-      const sharedClearedAt = (profileData as { shared_chat_cleared_at?: string | null })?.shared_chat_cleared_at ?? null;
-      const privateClearedAt = (profileData as { private_chat_cleared_at?: string | null })?.private_chat_cleared_at ?? null;
+      const currentState = get();
+      const sharedClearedAt = latestIso(
+        (profileData as { shared_chat_cleared_at?: string | null })?.shared_chat_cleared_at,
+        currentState.sharedClearedAt,
+        readLocalClearedAt(coupleId, "shared")
+      );
+      const privateClearedAt = latestIso(
+        (profileData as { private_chat_cleared_at?: string | null })?.private_chat_cleared_at,
+        currentState.privateClearedAt,
+        readLocalClearedAt(coupleId, "private")
+      );
 
       const allMessages = (messagesData ?? [])
         .map((m) => dbRowToMessage(m as Record<string, unknown>))
+        .filter(canCurrentUserSeeMessage)
         .filter((m) => {
           // 본인의 view-reset timestamp 적용
-          if (m.visibility === "shared" && sharedClearedAt) {
-            return new Date(m.created_at) > new Date(sharedClearedAt);
-          }
-          if (
-            (m.visibility === "bride_private" || m.visibility === "groom_private") &&
-            privateClearedAt
-          ) {
-            return new Date(m.created_at) > new Date(privateClearedAt);
-          }
-          return true;
+          return isAfterClearedAt(m, sharedClearedAt, privateClearedAt);
         });
 
       // cleared_at 도 store 에 저장 — pollNewMessages 가 활용
@@ -649,7 +721,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   // - id 기준 dedup → Realtime이 작동해도 중복 안 됨
   pollNewMessages: async (coupleId: string) => {
     const state = get();
-    if (state.isStreaming) return;
     if (!state.initialLoadDone) return; // 최초 로드 완료 전엔 스킵
 
     const lastMsg = state.messages[state.messages.length - 1];
@@ -666,9 +737,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .limit(50);
 
       if (error || !data?.length) return;
-      if (get().isStreaming) return; // fetch 사이 스트리밍 시작됐으면 스킵
-
-      const fetched = data.map((m) => dbRowToMessage(m as Record<string, unknown>));
+      const fetched = data
+        .map((m) => dbRowToMessage(m as Record<string, unknown>))
+        .filter(canCurrentUserSeeMessage)
+        .filter((m) => !get().isStreaming || m.sender_role !== "ai");
+      if (fetched.length === 0) return;
       set((s) => {
         const existing = new Set(s.messages.map((m) => m.id));
         // cleared_at 이전 메시지는 무시 — "새 채팅" 후 cleared 메시지가
@@ -678,10 +751,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (m.visibility === "shared" && s.sharedClearedAt) {
             if (new Date(m.created_at) <= new Date(s.sharedClearedAt)) return false;
           }
-          if (
-            (m.visibility === "bride_private" || m.visibility === "groom_private") &&
-            s.privateClearedAt
-          ) {
+          if (isCurrentUserPrivateMessage(m) && s.privateClearedAt) {
             if (new Date(m.created_at) <= new Date(s.privateClearedAt)) return false;
           }
           return true;
@@ -817,7 +887,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
 
     // AI 응답
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
+    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
 
     try {
       // 프라이버시 critical: visibility별로 컨텍스트 격리
@@ -935,7 +1005,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
     if (get().isStreaming) return;
 
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
+    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
 
     // 180초 타임아웃
     const abortController = new AbortController();
@@ -1002,7 +1072,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
     if (get().isStreaming) return;
 
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], error: null });
+    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
 
     const abortController = new AbortController();
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
@@ -1093,9 +1163,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         body: JSON.stringify({ coupleId, mode }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = typeof data?.error === "string" ? data.error : "채팅 정리에 실패했습니다.";
+        set({ error: message });
+        throw new Error(message);
+      }
       serverClearedAt = typeof data?.clearedAt === "string" ? data.clearedAt : null;
     }
     const nowIso = serverClearedAt ?? new Date().toISOString();
+    if (mode === "view_reset_shared" || mode === "delete_shared") {
+      writeLocalClearedAt(coupleId, "shared", nowIso);
+    }
+    if (mode === "view_reset_private" || mode === "delete_private") {
+      writeLocalClearedAt(coupleId, "private", nowIso);
+    }
 
     // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
     // (pollNewMessages 가 cleared_at 이후 메시지만 추가하도록 보장)
@@ -1105,7 +1186,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           return m.visibility !== "shared";
         }
         if (mode === "view_reset_private" || mode === "delete_private") {
-          return m.visibility !== "bride_private" && m.visibility !== "groom_private";
+          return !isCurrentUserPrivateMessage(m);
         }
         return true;
       });
@@ -1149,6 +1230,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       // accept 의 경우 양쪽 cleared_at 이 갱신됨 — 본인 store 도 즉시 반영
       if (action === "accept" && typeof data?.clearedAt === "string") {
+        const activeCoupleId = useAuthStore.getState().couple?.id;
+        if (activeCoupleId) writeLocalClearedAt(activeCoupleId, "shared", data.clearedAt);
         set((s) => {
           // cleared_at 이전 shared 메시지 제거 (clear-request 메시지 자체는
           // 동일 created_at 이라 살아남음 — 카드 상태 업데이트로 표시).
@@ -1211,6 +1294,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             set((s) => {
               const exists = s.messages.some((m) => m.id === newMsg.id);
               if (exists) return s;
+              if (!canCurrentUserSeeMessage(newMsg)) return s;
+              if (
+                newMsg.visibility === "shared" &&
+                s.sharedClearedAt &&
+                new Date(newMsg.created_at) <= new Date(s.sharedClearedAt)
+              ) {
+                return s;
+              }
+              if (
+                isCurrentUserPrivateMessage(newMsg) &&
+                s.privateClearedAt &&
+                new Date(newMsg.created_at) <= new Date(s.privateClearedAt)
+              ) {
+                return s;
+              }
 
               // 파트너의 새 메시지가 도착했다면 그의 typing indicator는 즉시 클리어
               // (이미 보냈으니까 더 이상 입력 중이 아님)
@@ -1220,6 +1318,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
               return {
                 messages: [...s.messages, newMsg],
+                ...(newMsg.sender_role !== "ai" ? { suggestions: [] } : {}),
                 ...(incomingFromPartnerTyping
                   ? { presence: { ...s.presence, partnerTyping: null } }
                   : {}),
@@ -1239,6 +1338,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           (payload) => {
             const updated = dbRowToMessage(payload.new as Record<string, unknown>);
             set((s) => {
+              if (!canCurrentUserSeeMessage(updated)) {
+                const nextMessages = s.messages.filter((m) => m.id !== updated.id);
+                return nextMessages.length === s.messages.length ? s : { messages: nextMessages };
+              }
               // 본인 메시지 list 갱신
               const idx = s.messages.findIndex((m) => m.id === updated.id);
               const nextMessages = idx >= 0
@@ -1251,6 +1354,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               const cr = updated.metadata?.clearRequest;
               if (cr?.status === "accepted") {
                 const clearedAt = updated.created_at;
+                writeLocalClearedAt(coupleId, "shared", clearedAt);
                 const filtered = nextMessages.filter((m) => {
                   if (m.visibility !== "shared") return true;
                   return new Date(m.created_at) >= new Date(clearedAt);

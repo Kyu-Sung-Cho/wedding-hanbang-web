@@ -116,7 +116,7 @@ export async function GET(
     // author 프로필 조회
     const { data: authorProfile } = await supabase
       .from("community_profiles")
-      .select("user_id, nickname, rank, wedding_year, wedding_month")
+      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
       .eq("user_id", post.author_id)
       .single();
 
@@ -163,7 +163,7 @@ export async function GET(
 
     return NextResponse.json({
       ...post,
-      author: authorProfile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
+      author: authorProfile ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
       vendor_details: vendorDetails,
       user_vote: userVote,
       user_bookmarked: userBookmarked,

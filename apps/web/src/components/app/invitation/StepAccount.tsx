@@ -35,13 +35,16 @@ export default function StepAccount() {
 
   useEffect(() => {
     if (accounts.length > 0) {
-      setForms(accounts.map((a) => ({
-        side: a.side as Side,
-        label: a.label,
-        bank: a.bank,
-        account_number: a.account_number,
-        holder: a.holder,
-      })));
+      const timer = window.setTimeout(() => {
+        setForms(accounts.map((a) => ({
+          side: a.side as Side,
+          label: a.label,
+          bank: a.bank,
+          account_number: a.account_number,
+          holder: a.holder,
+        })));
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [accounts]);
 
