@@ -30,7 +30,14 @@ function isDuplicate(key: string): boolean {
   return false;
 }
 
+function isDemoMode(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.includes("demo_mode=true");
+}
+
 async function sendEvent(eventType: string, options: TrackEventOptions = {}) {
+  if (isDemoMode()) return;
+
   const key = `${eventType}:${options.vendorId || ""}:${options.productId || ""}`;
   if (isDuplicate(key)) return;
 
