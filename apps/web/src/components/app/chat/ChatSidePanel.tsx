@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { ChatMessageTarget } from "@/types/database.types";
+import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "./ChatBubble";
@@ -67,6 +67,32 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coupleId = couple?.id;
   const hasCouplePartner = !!(couple?.bride_id && couple?.groom_id);
+
+  useEffect(() => {
+    if (!isOpen || !isDemo || !coupleId || !profile) return;
+
+    const welcomeMessage: ChatMessage = {
+      id: "demo-amora-sidepanel-welcome",
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      visibility: "shared",
+      content:
+        "안녕하세요, 저는 아모라예요. 데모에서는 실제 저장 없이 예산, 일정, 견적, 준비 체크리스트 상담 흐름을 미리 체험할 수 있어요. 지금 궁금한 준비 항목을 편하게 물어보세요.",
+      metadata: {},
+      created_at: new Date().toISOString(),
+    };
+
+    useChatStore.setState((state) => ({
+      initialLoadDone: true,
+      messages: state.messages.length > 0 ? state.messages : [welcomeMessage],
+      suggestions:
+        state.suggestions.length > 0
+          ? state.suggestions
+          : ["이번 주에 먼저 할 일 알려줘", "스냅 촬영 준비 체크해줘", "예산 배분 다시 봐줘"],
+      error: null,
+    }));
+  }, [isOpen, isDemo, coupleId, profile]);
 
   // 패널 열릴 때 채팅 초기화
   useEffect(() => {
@@ -300,7 +326,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     return null;
   };
 
-  const showEmpty = isDemo || !coupleId;
+  const showEmpty = !coupleId;
 
   return (
     <>

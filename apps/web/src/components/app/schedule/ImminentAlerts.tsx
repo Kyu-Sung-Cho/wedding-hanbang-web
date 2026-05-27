@@ -5,7 +5,6 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  ChevronRight,
   Users,
   Building2,
   Camera,
@@ -89,27 +88,35 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
       {/* 헤더 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#FAFAF8] transition-colors"
+        className="w-full flex items-start justify-between gap-3 px-5 py-4 hover:bg-[#FAFAF8] transition-colors sm:px-6"
       >
-        <div className="flex items-center gap-2.5">
-          <Clock className="w-5 h-5 text-[#795252]" />
-          <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">임박 체크리스트</h3>
-          <span className="text-sm text-[#B5ADA3]">{items.length}건</span>
-          {overdueCount > 0 && (
-            <span className="text-sm px-2 py-0.5 rounded-full bg-[#795252] text-white font-medium">
-              {overdueCount} 초과
-            </span>
-          )}
-          {urgentCount > 0 && (
-            <span className="text-sm px-2 py-0.5 rounded-full bg-[#946a6a] text-white font-medium">
-              {urgentCount} 긴급
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Clock className="w-5 h-5 shrink-0 text-[#795252]" />
+            <h3 className="min-w-0 truncate font-serif-kr text-[18px] font-light text-[#1A1A1F]">
+              임박 체크리스트
+            </h3>
+            <span className="shrink-0 text-sm text-[#B5ADA3]">{items.length}건</span>
+          </div>
+          {(overdueCount > 0 || urgentCount > 0) && (
+            <div className="mt-2 flex flex-wrap gap-1.5 pl-7">
+              {overdueCount > 0 && (
+                <span className="rounded-full bg-[#795252] px-2 py-0.5 text-xs font-medium text-white">
+                  {overdueCount} 초과
+                </span>
+              )}
+              {urgentCount > 0 && (
+                <span className="rounded-full bg-[#946a6a] px-2 py-0.5 text-xs font-medium text-white">
+                  {urgentCount} 긴급
+                </span>
+              )}
+            </div>
           )}
         </div>
         {expanded ? (
-          <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
+          <ChevronUp className="mt-0.5 w-5 h-5 shrink-0 text-[#B5ADA3]" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
+          <ChevronDown className="mt-0.5 w-5 h-5 shrink-0 text-[#B5ADA3]" />
         )}
       </button>
 
@@ -135,17 +142,19 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                   {/* 좌측 컬러 스트립 */}
                   <div className={`w-1 flex-shrink-0 ${styles.stripBg}`} />
 
-                  <div className="flex items-center gap-3 px-5 py-4 flex-1">
+                  <div className="grid flex-1 grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-4 sm:px-5">
                     {/* 아이콘 */}
-                    <div className={`w-11 h-11 rounded-xl ${styles.iconBox} flex items-center justify-center flex-shrink-0`}>
+                    <div className={`w-11 h-11 rounded-xl ${styles.iconBox} flex items-center justify-center`}>
                       <IconComp className={`w-5 h-5 ${styles.iconColor}`} />
                     </div>
 
                     {/* 카테고리 정보 */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-serif-kr text-base font-normal text-[#1A1A1F]">{item.label}</span>
-                        <span className="text-sm text-[#B5ADA3]">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 truncate font-serif-kr text-base font-normal text-[#1A1A1F]">
+                          {item.label}
+                        </span>
+                        <span className="shrink-0 text-sm text-[#B5ADA3]">
                           {item.doneCount}/{item.totalCount}
                         </span>
                       </div>
@@ -159,14 +168,11 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                     </div>
 
                     {/* D-day 뱃지 */}
-                    <span className={`text-sm px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${styles.badgeBg} ${styles.badgeText}`}>
+                    <span className={`rounded-full px-2.5 py-1 text-sm font-medium ${styles.badgeBg} ${styles.badgeText}`}>
                       {item.deadlineDaysLeft <= 0
                         ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
                         : `D-${item.deadlineDaysLeft}`}
                     </span>
-
-                    {/* 화살표 */}
-                    <ChevronRight className="w-4 h-4 text-[#B5ADA3] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                   </div>
                 </button>
               );

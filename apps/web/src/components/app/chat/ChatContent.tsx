@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search } from "lucide-react";
-import type { ChatMessageTarget } from "@/types/database.types";
+import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
@@ -134,6 +134,32 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, [searchParams, router]);
   const greetingRequested = useRef(false);
   const coupleId = couple?.id;
+
+  useEffect(() => {
+    if (!isDemo || !coupleId || !profile) return;
+
+    const welcomeMessage: ChatMessage = {
+      id: "demo-amora-welcome",
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      visibility: "shared",
+      content:
+        "안녕하세요, 저는 아모라예요. 데모에서는 실제 저장 없이 예산, 일정, 견적, 준비 체크리스트 상담 흐름을 미리 체험할 수 있어요. 지금 궁금한 준비 항목을 편하게 물어보세요.",
+      metadata: {},
+      created_at: new Date().toISOString(),
+    };
+
+    useChatStore.setState((state) => ({
+      initialLoadDone: true,
+      messages: state.messages.length > 0 ? state.messages : [welcomeMessage],
+      suggestions:
+        state.suggestions.length > 0
+          ? state.suggestions
+          : ["이번 주에 먼저 할 일 알려줘", "스냅 촬영 준비 체크해줘", "예산 배분 다시 봐줘"],
+      error: null,
+    }));
+  }, [coupleId, isDemo, profile]);
 
   // 메시지 로드 + 구독
   useEffect(() => {
@@ -620,30 +646,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         className={`${embedded ? "h-full" : "h-[calc(100dvh-144px)]"} flex items-center justify-center bg-[#FAFAF8]`}
       >
         <Loader2 className="w-7 h-7 text-[#795252] animate-spin" />
-      </div>
-    );
-  }
-
-  // 데모 모드
-  if (isDemo) {
-    return (
-      <div className="max-w-[800px] mx-auto h-[calc(100dvh-144px)] flex items-center justify-center bg-[#FAFAF8]">
-        <div className="text-center bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-10">
-          <Sparkles className="w-14 h-14 text-[#795252]/30 mx-auto mb-4" />
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] mb-2">
-            아모라는 로그인 후 이용할 수 있어요
-          </h3>
-          <p className="text-base text-[#504444] mb-6 leading-relaxed">
-            로그인하면 맞춤 웨딩 상담, 예산 관리,<br />
-            일정 체크리스트 등을 아모라가 도와드려요
-          </p>
-          <a
-            href="/login"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_8px_24px_rgba(121,82,82,0.2)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.25)] transition-colors"
-          >
-            로그인하기
-          </a>
-        </div>
       </div>
     );
   }
