@@ -20,7 +20,7 @@ export default function CommunityNav() {
   return (
     <header className="sticky top-0 z-30 border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 backdrop-blur-[14px]">
       <div className="flex h-[72px] w-full items-center justify-between px-5">
-        <Link href="/community" className="inline-flex items-center whitespace-nowrap">
+        <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
           <Logo size="md" />
         </Link>
 

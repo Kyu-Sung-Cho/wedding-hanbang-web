@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search } from "lucide-react";
@@ -72,10 +73,10 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div>
+          <Link href="/" className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50" aria-label="웨딩한방 홈으로 이동">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
             <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
-          </div>
+          </Link>
         </div>
 
         <div className="flex items-center gap-2">

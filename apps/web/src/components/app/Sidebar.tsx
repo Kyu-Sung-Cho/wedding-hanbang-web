@@ -69,7 +69,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         <div className="flex h-[72px] items-center justify-between px-5">
-          <Link href="/dashboard" className="inline-flex items-center whitespace-nowrap">
+          <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
             <Logo size="md" />
           </Link>
           <button
