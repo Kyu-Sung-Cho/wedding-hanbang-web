@@ -671,11 +671,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 14px 34px rgba(47, 41, 37, 0.16) !important;
 }
 
-.hanbang-service-theme [style*="rgb(121, 82, 82)"],
-.hanbang-service-theme [style*="rgb(148, 106, 106)"],
-.hanbang-service-theme [style*="#795252"],
-.hanbang-service-theme [style*="#946a6a"] {
+.hanbang-service-theme [style*="background-color: rgb(121, 82, 82)"],
+.hanbang-service-theme [style*="background-color: rgb(148, 106, 106)"],
+.hanbang-service-theme [style*="background-color: #795252"],
+.hanbang-service-theme [style*="background-color: #946a6a"] {
   background-color: var(--hb-gold) !important;
+}
+
+.hanbang-service-theme [style*="border-color: rgb(121, 82, 82)"],
+.hanbang-service-theme [style*="border-color: rgb(148, 106, 106)"],
+.hanbang-service-theme [style*="border-color: #795252"],
+.hanbang-service-theme [style*="border-color: #946a6a"] {
   border-color: var(--hb-gold) !important;
 }
 
