@@ -70,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         <div className="flex h-[72px] items-center justify-between px-5">
           <Link href="/dashboard" className="inline-flex items-center whitespace-nowrap">
-            <Logo size="sm" />
+            <Logo size="md" />
           </Link>
           <button
             type="button"

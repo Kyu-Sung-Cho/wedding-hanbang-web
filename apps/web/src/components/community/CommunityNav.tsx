@@ -21,7 +21,7 @@ export default function CommunityNav() {
     <header className="sticky top-0 z-30 border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 backdrop-blur-[14px]">
       <div className="flex h-[72px] w-full items-center justify-between px-5">
         <Link href="/community" className="inline-flex items-center whitespace-nowrap">
-          <Logo size="sm" />
+          <Logo size="md" />
         </Link>
 
         <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
