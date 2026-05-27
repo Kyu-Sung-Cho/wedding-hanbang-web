@@ -13,10 +13,14 @@ import {
   ExternalLink,
   FileText,
   Paperclip,
+  Flag,
+  X,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { monthToQuarter } from "@/utils/quarter";
 import type {
   CohortRoom,
   CohortMessage,
@@ -26,12 +30,13 @@ import type {
   CohortThreadTopic,
   CohortContractCategory,
   CohortEventType,
+  ReportReason,
 } from "@/types/community.types";
 
 // ────────────────────────────────────────
 // 상수
 // ────────────────────────────────────────
-const TAB_KEYS = ["chat", "info", "timeline"] as const;
+const TAB_KEYS = ["chat", "info", "events"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
@@ -100,6 +105,8 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
   const [tab, setTab] = useState<TabKey>("chat");
   const [room, setRoom] = useState<CohortRoom | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const roomName = formatCohortRoomName(room);
 
   // 초기 방 정보 로드
   useEffect(() => {
@@ -127,15 +134,15 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   return (
     <div className="min-h-screen bg-[#f8f4f1]">
       <div className="flex w-full max-w-[1920px] mx-auto">
-        {/* 왼쪽 사이드바 — 커뮤니티 메인 피드와 동일한 폭/사이즈 (w-64 2xl:w-72) */}
-        <aside className="hidden xl:flex flex-col w-64 2xl:w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-[#eadfc9] bg-[#f8f4f1] pt-6 pb-5 px-4 z-40">
+        {/* 왼쪽 사이드바 */}
+        <aside className="hidden xl:flex flex-col w-72 2xl:w-80 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-[#eadfc9] bg-[#f8f4f1] pt-7 pb-5 px-5 z-40">
           {/* 방 정보 */}
           <div className="mb-5 px-2">
             <p className="mb-2 text-[11px] font-medium text-[#928980] uppercase tracking-widest">
               WEDDING HANBANG
             </p>
-            <h2 className="font-serif-kr text-2xl text-[#071629] mb-1 break-words">
-              {room?.name ?? "동기방"}
+            <h2 className="font-serif-kr text-[28px] leading-tight text-[#071629] mb-1 break-words">
+              {roomName}
             </h2>
             <div className="flex items-center gap-1.5 text-xs text-[#5d6879]">
               <Users className="h-3.5 w-3.5" />
@@ -145,7 +152,11 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
           {/* 멤버 */}
           <div className="px-1 mb-5">
-            <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
+            <CohortMemberPreview
+              roomId={roomId}
+              memberCount={room?.member_count ?? 0}
+              onProfileOpen={setProfileUserId}
+            />
           </div>
 
           {/* 주제별 카테고리 */}
@@ -201,11 +212,19 @@ function CohortPageInner({ roomId }: { roomId: string }) {
           {/* 모바일/태블릿용 방 이름 헤더 */}
           <div className="xl:hidden px-4 sm:px-6 pt-4 pb-2 bg-[#f8f4f1]">
             <h2 className="font-serif-kr text-xl sm:text-2xl text-[#071629] mb-1 break-words">
-              {room?.name ?? "동기방"}
+              {roomName}
             </h2>
             <div className="flex items-center gap-1.5 text-xs text-[#5d6879]">
               <Users className="h-3.5 w-3.5" />
               <span>{room?.member_count ?? 0}명 참여</span>
+            </div>
+            <div className="mt-3 rounded-xl bg-white/70 p-3 shadow-[0_4px_18px_rgb(0,0,0,0.03)]">
+              <CohortMemberPreview
+                roomId={roomId}
+                memberCount={room?.member_count ?? 0}
+                onProfileOpen={setProfileUserId}
+                compact
+              />
             </div>
           </div>
 
@@ -225,19 +244,25 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 label="정보판"
               />
               <TabButton
-                active={tab === "timeline"}
-                onClick={() => setTab("timeline")}
+                active={tab === "events"}
+                onClick={() => setTab("events")}
                 icon={<Calendar className="h-4 w-4" />}
-                label="타임라인"
+                label="이벤트"
               />
             </div>
           </div>
 
           <div className="px-4 sm:px-5 xl:px-6 2xl:px-8 py-5 sm:py-6 flex-1">
             <div className="max-w-[1120px] mx-auto">
-              {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
+              {tab === "chat" && (
+                <ChatTab
+                  roomId={roomId}
+                  toastError={toast.error}
+                  onProfileOpen={setProfileUserId}
+                />
+              )}
               {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
-              {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
+              {tab === "events" && <EventsTab roomId={roomId} toastFn={toast} />}
             </div>
           </div>
         </main>
@@ -247,6 +272,12 @@ function CohortPageInner({ roomId }: { roomId: string }) {
           <CohortPopularPosts roomId={roomId} />
         </aside>
       </div>
+      <CohortProfileModal
+        roomId={roomId}
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+        toastFn={toast}
+      />
     </div>
   );
 }
@@ -287,9 +318,11 @@ function TabButton({
 function ChatTab({
   roomId,
   toastError,
+  onProfileOpen,
 }: {
   roomId: string;
   toastError: (msg: string) => void;
+  onProfileOpen: (userId: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<CohortMessage[]>([]);
@@ -544,7 +577,13 @@ function ChatTab({
             아직 메시지가 없어요. 첫 메시지를 남겨보세요.
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          messages.map((m) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onProfileOpen={onProfileOpen}
+            />
+          ))
         )}
       </div>
 
@@ -754,6 +793,13 @@ function renderMessageContent(text: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
+function formatCohortRoomName(room: CohortRoom | null): string {
+  if (!room) return "동기방";
+  const quarter = monthToQuarter(room.month);
+  const roomSuffix = room.room_number > 1 ? ` ${room.room_number}방` : "";
+  return `${room.year}년 ${quarter}분기 결혼 동기${roomSuffix}`;
+}
+
 function rankIcon(rank?: string | null) {
   const icons: Record<string, string> = {
     sprout: "새싹",
@@ -765,13 +811,25 @@ function rankIcon(rank?: string | null) {
   return rank ? icons[rank] ?? "배지" : null;
 }
 
-function MessageBubble({ message }: { message: CohortMessage }) {
+function MessageBubble({
+  message,
+  onProfileOpen,
+}: {
+  message: CohortMessage;
+  onProfileOpen: (userId: string) => void;
+}) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
   const rank = rankIcon(message.author?.rank);
+  const profileUserId = message.author?.user_id ?? message.author_id;
   return (
     <div className="flex gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-xs font-medium text-white">
+      <button
+        type="button"
+        onClick={() => onProfileOpen(profileUserId)}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-xs font-medium text-white ring-offset-2 transition hover:ring-2 hover:ring-[#9d6f36]/30 focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/40"
+        title={`${nickname} 프로필 보기`}
+      >
         {message.author?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -782,10 +840,16 @@ function MessageBubble({ message }: { message: CohortMessage }) {
         ) : (
           initial
         )}
-      </div>
+      </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-medium text-[#071629]">{nickname}</span>
+          <button
+            type="button"
+            onClick={() => onProfileOpen(profileUserId)}
+            className="text-sm font-medium text-[#071629] transition hover:text-[#9d6f36] focus:outline-none focus:text-[#9d6f36]"
+          >
+            {nickname}
+          </button>
           {rank && (
             <span className="rounded-full bg-[#fff8ec] px-1.5 py-0.5 text-[10px] text-[#9d6f36]" title={message.author?.rank}>
               {rank}
@@ -1184,9 +1248,9 @@ function ContractModal({
 }
 
 // ────────────────────────────────────────
-// 타임라인 탭
+// 이벤트 탭
 // ────────────────────────────────────────
-function TimelineTab({
+function EventsTab({
   roomId,
   toastFn,
 }: {
@@ -1202,7 +1266,7 @@ function TimelineTab({
       if (res.ok) {
         setEvents(data.events ?? []);
       } else {
-        toastFn.error(data.error ?? "타임라인 로드 실패");
+        toastFn.error(data.error ?? "이벤트 로드 실패");
       }
     })();
   }, [roomId, toastFn]);
@@ -1210,7 +1274,7 @@ function TimelineTab({
   if (events.length === 0) {
     return (
       <div className="rounded-xl bg-white p-8 text-center text-sm text-[#5d6879] shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        아직 타임라인 이벤트가 없어요.
+        아직 이벤트가 없어요.
       </div>
     );
   }
@@ -1254,6 +1318,317 @@ function TimelineTab({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+// 동기방 멤버 공개 프로필
+// ────────────────────────────────────────
+type CohortPublicProfilePayload = {
+  profile: {
+    user_id: string;
+    nickname: string;
+    avatar_url: string | null;
+    rank: string | null;
+    wedding_year: number | null;
+    wedding_month: number | null;
+    wedding_completed: boolean;
+    post_count: number;
+    comment_count: number;
+    total_upvotes_received: number;
+    created_at: string;
+  };
+  posts: Array<{
+    id: string;
+    title: string;
+    category: string;
+    created_at: string;
+    upvote_count: number;
+    comment_count: number;
+  }>;
+};
+
+const REPORT_REASON_OPTIONS: Array<{ value: ReportReason; label: string }> = [
+  { value: "spam", label: "스팸/도배" },
+  { value: "abuse", label: "비방/공격" },
+  { value: "ad", label: "광고/홍보" },
+  { value: "inappropriate", label: "부적절한 내용" },
+  { value: "other", label: "기타" },
+];
+
+const POST_CATEGORY_LABEL: Record<string, string> = {
+  is_normal: "정상인가요?",
+  tour_review: "후기",
+  tips_v2: "꿀팁",
+  ama: "선배 Q&A",
+  free: "자유",
+};
+
+function CohortProfileModal({
+  roomId,
+  userId,
+  onClose,
+  toastFn,
+}: {
+  roomId: string;
+  userId: string | null;
+  onClose: () => void;
+  toastFn: ToastFnLike;
+}) {
+  const [payload, setPayload] = useState<CohortPublicProfilePayload | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reason, setReason] = useState<ReportReason>("abuse");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    setPayload(null);
+    setReportOpen(false);
+    setDescription("");
+    setLoading(true);
+
+    fetch(`/api/community/profiles/${encodeURIComponent(userId)}?room_id=${encodeURIComponent(roomId)}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "프로필을 불러올 수 없습니다.");
+        if (!cancelled) setPayload(data as CohortPublicProfilePayload);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) toastFn.error(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, userId, toastFn]);
+
+  async function submitReport() {
+    if (!userId || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/community/cohort/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason, description }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toastFn.error(data.error ?? "신고 접수에 실패했습니다.");
+        return;
+      }
+      toastFn.success(
+        data.reviewRequired
+          ? "신고가 접수됐고 관리자 검토 기준에 도달했어요."
+          : "신고가 접수됐어요. 5명 이상 신고 시 관리자 검토 목록에 올라갑니다."
+      );
+      setReportOpen(false);
+      setDescription("");
+    } catch {
+      toastFn.error("네트워크 오류로 신고하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!userId) return null;
+
+  const profile = payload?.profile;
+  const nickname = profile?.nickname ?? "멤버";
+  const initial = nickname[0] ?? "?";
+  const quarterLabel =
+    profile?.wedding_year && profile?.wedding_month
+      ? `${profile.wedding_year}년 ${monthToQuarter(profile.wedding_month)}분기`
+      : "결혼 시기 미공개";
+  const rank = rankIcon(profile?.rank);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#eadfc9] px-5 py-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#928980]">
+              공개 프로필
+            </p>
+            <h3 className="mt-1 font-serif-kr text-2xl text-[#071629]">
+              {nickname}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-[#928980] transition hover:bg-[#fff8ec] hover:text-[#071629]"
+            title="닫기"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-[#5d6879]">
+            <Loader2 className="h-5 w-5 animate-spin text-[#9d6f36]" />
+            불러오는 중...
+          </div>
+        ) : profile ? (
+          <div className="max-h-[75vh] overflow-y-auto p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-lg font-medium text-white">
+                {profile.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.avatar_url}
+                    alt=""
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  initial
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-serif-kr text-xl text-[#071629]">{nickname}</p>
+                  {rank && (
+                    <span className="rounded-full bg-[#fff8ec] px-2 py-1 text-xs text-[#9d6f36]">
+                      {rank}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-[#5d6879]">{quarterLabel} 동기</p>
+                <p className="mt-1 text-xs text-[#928980]">
+                  공개 글과 커뮤니티 활동만 보여요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportOpen((v) => !v)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#eadfc9] px-4 py-2 text-sm font-medium text-[#5d6879] transition hover:border-red-300 hover:text-red-600"
+              >
+                <Flag className="h-4 w-4" />
+                신고
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[
+                { label: "공개 글", value: profile.post_count },
+                { label: "댓글", value: profile.comment_count },
+                { label: "받은 추천", value: profile.total_upvotes_received },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl bg-[#fff8ec] px-3 py-3 text-center">
+                  <p className="font-serif-kr text-xl text-[#071629]">{item.value ?? 0}</p>
+                  <p className="mt-1 text-xs text-[#928980]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {reportOpen && (
+              <div className="mt-5 rounded-xl border border-red-100 bg-red-50/40 p-4">
+                <p className="text-sm font-medium text-[#071629]">이 멤버 신고하기</p>
+                <p className="mt-1 text-xs text-[#5d6879]">
+                  같은 동기방 멤버의 신고가 5건 이상 모이면 관리자 검토 대상이 됩니다.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {REPORT_REASON_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setReason(option.value)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        reason === option.value
+                          ? "bg-red-600 text-white"
+                          : "bg-white text-[#5d6879] hover:text-red-600"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="상황을 간단히 적어주세요. 실명·연락처는 쓰지 마세요."
+                  rows={3}
+                  className="mt-3 w-full resize-none rounded-xl border border-red-100 bg-white px-3 py-2 text-sm text-[#071629] outline-none focus:ring-2 focus:ring-red-200"
+                />
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportOpen(false)}
+                    className="rounded-xl border border-[#eadfc9] px-4 py-2 text-sm text-[#5d6879]"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitReport}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    신고 접수
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="font-serif-kr text-lg text-[#071629]">최근 공개 글</h4>
+                <span className="text-xs text-[#928980]">
+                  공개 글만 표시
+                </span>
+              </div>
+              {payload.posts.length === 0 ? (
+                <div className="rounded-xl bg-[#fff8ec] p-5 text-center text-sm text-[#5d6879]">
+                  아직 공개 글이 없어요.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {payload.posts.map((post) => (
+                    <a
+                      key={post.id}
+                      href={`/community/post/${post.id}`}
+                      className="block rounded-xl border border-[#eadfc9] p-4 transition hover:border-[#9d6f36] hover:bg-[#fffdf7]"
+                    >
+                      <div className="flex items-center gap-2 text-xs text-[#928980]">
+                        <span className="rounded-full bg-[#fff8ec] px-2 py-0.5 text-[#9d6f36]">
+                          {POST_CATEGORY_LABEL[post.category] ?? post.category}
+                        </span>
+                        <span>{relativeTime(post.created_at)}</span>
+                      </div>
+                      <p className="mt-2 line-clamp-1 font-serif-kr text-lg text-[#071629]">
+                        {post.title}
+                      </p>
+                      <p className="mt-1 text-xs text-[#5d6879]">
+                        추천 {post.upvote_count ?? 0} · 댓글 {post.comment_count ?? 0}
+                      </p>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="py-16 text-center text-sm text-[#5d6879]">
+            프로필을 불러오지 못했어요.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1319,7 +1694,17 @@ const MEMBER_GRADIENTS = [
   "from-[#B39DDB] to-[#7E57C2]",
 ];
 
-function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCount: number }) {
+function CohortMemberPreview({
+  roomId,
+  memberCount,
+  onProfileOpen,
+  compact = false,
+}: {
+  roomId: string;
+  memberCount: number;
+  onProfileOpen: (userId: string) => void;
+  compact?: boolean;
+}) {
   const [members, setMembers] = useState<{ user_id: string; nickname: string; avatar_url?: string | null }[]>([]);
 
   useEffect(() => {
@@ -1350,27 +1735,38 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
         <h3 className="text-[11px] font-medium text-[#928980] uppercase tracking-wider">멤버</h3>
         <span className="text-xs text-[#5d6879]">{memberCount}명</span>
       </div>
-      <div className="flex flex-wrap gap-2 px-1">
+      <div className={`flex gap-2 px-1 ${compact ? "overflow-x-auto pb-1" : "flex-wrap"}`}>
         {members.slice(0, 8).map((m) => {
           const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
           return (
-            <div
+            <button
               key={m.user_id}
-              className="flex flex-col items-center gap-1 w-12"
+              type="button"
+              onClick={() => onProfileOpen(m.user_id)}
+              className={`${compact ? "w-14 flex-shrink-0" : "w-16"} flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/25`}
               title={m.nickname}
             >
-              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
-                {m.nickname[0]}
+              <div className={`h-11 w-11 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-sm font-medium shadow-sm`}>
+                {m.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.avatar_url}
+                    alt=""
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  m.nickname[0]
+                )}
               </div>
-              <span className="text-[10px] text-[#5d6879] truncate w-full text-center">
+              <span className="w-full truncate text-center text-[11px] text-[#5d6879]">
                 {m.nickname}
               </span>
-            </div>
+            </button>
           );
         })}
         {memberCount > 8 && (
-          <div className="flex flex-col items-center gap-1 w-12">
-            <div className="w-9 h-9 rounded-full bg-[#fff8ec] flex items-center justify-center text-xs text-[#5d6879] font-medium">
+          <div className={`${compact ? "w-14 flex-shrink-0" : "w-16"} flex flex-col items-center gap-1 px-1 py-1.5`}>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff8ec] text-xs font-medium text-[#5d6879]">
               +{memberCount - 8}
             </div>
           </div>

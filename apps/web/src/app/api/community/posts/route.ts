@@ -125,7 +125,8 @@ export async function GET(req: NextRequest) {
       const { data: myRooms } = await supabase
         .from("cohort_members")
         .select("room_id")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .eq("is_active", true);
       const roomIds = (myRooms ?? []).map((r) => r.room_id as string);
       if (roomIds.length === 0) {
         // 동기방 미가입 → 빈 결과 (UI에서 가입 유도)
@@ -135,7 +136,8 @@ export async function GET(req: NextRequest) {
       const { data: cohortMembers } = await supabase
         .from("cohort_members")
         .select("user_id")
-        .in("room_id", roomIds);
+        .in("room_id", roomIds)
+        .eq("is_active", true);
       const memberIds = [
         ...new Set((cohortMembers ?? []).map((m) => m.user_id as string)),
       ].filter((id) => id !== user.id);

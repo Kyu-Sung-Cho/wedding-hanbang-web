@@ -2,8 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortThreadTopic } from "@/types/community.types";
 
-// 멤버 확인 + 없으면 자동 가입
-async function ensureMember(
+async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
   userId: string
@@ -13,16 +12,12 @@ async function ensureMember(
     .select("id")
     .eq("room_id", roomId)
     .eq("user_id", userId)
+    .eq("is_active", true)
     .maybeSingle();
-  if (data) return true;
-  // 자동 가입 시도
-  const { error } = await supabase
-    .from("cohort_members")
-    .upsert({ room_id: roomId, user_id: userId, is_active: true }, { onConflict: "room_id,user_id" });
-  return !error;
+
+  return !!data;
 }
 
-// GET: 최근 50개 메시지 (옵션: thread_topic 필터)
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -35,16 +30,13 @@ export async function GET(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const member = await ensureMember(supabase, roomId, user.id);
+    const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
-        { error: "이 동기방 멤버가 아닙니다." },
+        { error: "해당 동기방의 활성 멤버만 이용할 수 있습니다." },
         { status: 403 }
       );
     }
@@ -54,9 +46,7 @@ export async function GET(
 
     let query = supabase
       .from("cohort_messages")
-      .select(
-        "*"
-      )
+      .select("*")
       .eq("room_id", roomId)
       .eq("is_deleted", false)
       .order("created_at", { ascending: false })
@@ -71,29 +61,39 @@ export async function GET(
     if (error) {
       console.error("Messages GET error:", error);
       return NextResponse.json(
-        { error: "메시지를 불러올 수 없습니다." },
+        { error: "메시지를 불러오지 못했습니다." },
         { status: 500 }
       );
     }
 
     const msgs = (data ?? []).reverse();
+    const authorIds = [...new Set(msgs.map((m) => m.author_id as string))];
+    let authorMap: Record<
+      string,
+      { user_id: string; nickname: string; avatar_url: string | null; rank: string }
+    > = {};
 
-    // author 프로필 별도 조회
-    const authorIds = [...new Set(msgs.map((m) => m.author_id))];
-    let authorMap: Record<string, { user_id: string; nickname: string; avatar_url: string | null; rank: string }> = {};
     if (authorIds.length > 0) {
       const { data: profiles } = await supabase
         .from("community_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", authorIds);
+
       if (profiles) {
-        authorMap = Object.fromEntries(profiles.map((p) => [p.user_id, p]));
+        authorMap = Object.fromEntries(
+          profiles.map((profile) => [profile.user_id as string, profile])
+        );
       }
     }
 
-    const messagesWithAuthor = msgs.map((m) => ({
-      ...m,
-      author: authorMap[m.author_id] ?? { user_id: m.author_id, nickname: "익명", avatar_url: null, rank: "sprout" },
+    const messagesWithAuthor = msgs.map((message) => ({
+      ...message,
+      author: authorMap[message.author_id as string] ?? {
+        user_id: message.author_id,
+        nickname: "익명",
+        avatar_url: null,
+        rank: "sprout",
+      },
     }));
 
     return NextResponse.json({ messages: messagesWithAuthor });
@@ -106,7 +106,6 @@ export async function GET(
   }
 }
 
-// POST: 메시지 작성
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -119,16 +118,13 @@ export async function POST(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const member = await ensureMember(supabase, roomId, user.id);
+    const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
-        { error: "이 동기방 멤버가 아닙니다." },
+        { error: "해당 동기방의 활성 멤버만 이용할 수 있습니다." },
         { status: 403 }
       );
     }
@@ -167,19 +163,26 @@ export async function POST(
       );
     }
 
-    // author 프로필 조회
     const { data: authorProfile } = await supabase
       .from("community_profiles")
       .select("user_id, nickname, avatar_url, rank")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    return NextResponse.json({
-      message: {
-        ...inserted,
-        author: authorProfile ?? { user_id: user.id, nickname: "익명", avatar_url: null, rank: "sprout" },
+    return NextResponse.json(
+      {
+        message: {
+          ...inserted,
+          author: authorProfile ?? {
+            user_id: user.id,
+            nickname: "익명",
+            avatar_url: null,
+            rank: "sprout",
+          },
+        },
       },
-    }, { status: 201 });
+      { status: 201 }
+    );
   } catch (err) {
     console.error("Message POST error:", err);
     return NextResponse.json(

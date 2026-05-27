@@ -126,6 +126,7 @@ type ReportStatus = "pending" | "reviewed" | "resolved" | "dismissed";
 
 interface AdminReport {
   id: string;
+  report_type?: "content" | "member";
   reporter_id: string;
   reporter_nickname: string;
   post_id: string | null;
@@ -149,6 +150,25 @@ interface AdminReport {
     author_id: string;
     post_id: string;
   } | null;
+  target_user: {
+    user_id: string;
+    nickname: string;
+    avatar_url?: string | null;
+    rank?: string | null;
+    wedding_year?: number | null;
+    wedding_month?: number | null;
+    post_count?: number | null;
+    comment_count?: number | null;
+  } | null;
+  room: {
+    id: string;
+    name: string;
+    year?: number;
+    month?: number;
+    room_number?: number;
+    member_count?: number;
+  } | null;
+  report_count?: number | null;
 }
 
 const REPORT_REASON_LABEL: Record<string, string> = {
@@ -252,13 +272,17 @@ export default function AdminPage() {
     }
   }, []);
 
-  async function updateReportStatus(reportId: string, status: ReportStatus) {
+  async function updateReportStatus(
+    reportId: string,
+    status: ReportStatus,
+    action?: "deactivate_member"
+  ) {
     setReportActionId(reportId);
     try {
       const res = await fetch(`/api/admin/reports/${reportId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, action }),
       });
       if (res.ok) {
         await loadReports(reportFilter);
@@ -1406,13 +1430,26 @@ export default function AdminPage() {
                 {reports.map((r) => {
                   const isPost = !!r.post;
                   const isComment = !!r.comment;
+                  const isMemberReport = r.report_type === "member";
                   const target = r.post ?? r.comment;
-                  const targetTitle = r.post?.title ?? "댓글";
-                  const targetPreview = (target?.content ?? "")
-                    .replace(/<[^>]*>/g, "")
-                    .replace(/\s+/g, " ")
-                    .trim()
-                    .slice(0, 200);
+                  const targetTitle = isMemberReport
+                    ? r.target_user?.nickname ?? "멤버"
+                    : r.post?.title ?? "댓글";
+                  const targetPreview = isMemberReport
+                    ? [
+                        r.room?.name ? `동기방: ${r.room.name}` : null,
+                        r.report_count ? `누적 신고 ${r.report_count}건` : "누적 신고 1건",
+                        r.target_user?.wedding_year && r.target_user?.wedding_month
+                          ? `${r.target_user.wedding_year}년 ${Math.ceil(r.target_user.wedding_month / 3)}분기`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : (target?.content ?? "")
+                        .replace(/<[^>]*>/g, "")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                        .slice(0, 200);
                   const statusInfo = REPORT_STATUS_LABEL[r.status];
                   const linkHref = r.post
                     ? `/community/post/${r.post.id}`
@@ -1434,8 +1471,13 @@ export default function AdminPage() {
                             {REPORT_REASON_LABEL[r.reason] ?? r.reason}
                           </span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-medium">
-                            {isPost ? "게시글" : isComment ? "댓글" : "—"}
+                            {isMemberReport ? "멤버 신고" : isPost ? "게시글" : isComment ? "댓글" : "—"}
                           </span>
+                          {isMemberReport && (r.report_count ?? 1) >= 5 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 font-medium">
+                              5명 기준 도달
+                            </span>
+                          )}
                           {r.post?.under_review && (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-gold/15 text-gold font-medium">
                               자동 검토
@@ -1451,7 +1493,16 @@ export default function AdminPage() {
                         <p className="text-xs text-taupe-500 mb-1">
                           신고자: <span className="text-noir-800 font-medium">{r.reporter_nickname}</span>
                         </p>
-                        {target ? (
+                        {isMemberReport ? (
+                          <>
+                            <p className="text-sm font-medium text-noir-800 mb-1 truncate">
+                              {targetTitle}
+                            </p>
+                            <p className="text-xs text-taupe-500 line-clamp-2">
+                              {targetPreview || "동기방 멤버 신고"}
+                            </p>
+                          </>
+                        ) : target ? (
                           <>
                             <p className="text-sm font-medium text-noir-800 mb-1 truncate">
                               {targetTitle}
@@ -1504,6 +1555,24 @@ export default function AdminPage() {
                           >
                             <Check className="w-3.5 h-3.5" />
                             처리됨으로 표시
+                          </button>
+                        )}
+                        {isMemberReport && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(
+                                "해당 멤버를 이 동기방에서 비활성화할까요? 관리자 검토 후 필요한 경우에만 사용해주세요."
+                              );
+                              if (ok) {
+                                void updateReportStatus(r.id, "resolved", "deactivate_member");
+                              }
+                            }}
+                            disabled={reportActionId === r.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-600 rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            <ShieldX className="w-3.5 h-3.5" />
+                            동기방 비활성화
                           </button>
                         )}
                         {r.status !== "dismissed" && (

@@ -1121,7 +1121,7 @@ function BestPostsPanel() {
 
 function BottomCards() {
   return (
-    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] md:grid-cols-[1fr_0.8fr_1fr]`}>
+    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] md:grid-cols-2`}>
       <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 한눈에 비교해보세요.</h2>
         <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
@@ -1136,19 +1136,6 @@ function BottomCards() {
           정보 비교 바로가기
           <ChevronRight className="ml-2 h-4 w-4" />
         </Link>
-      </article>
-
-      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">카테고리 바로가기</h3>
-        <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
-          {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
-            <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#fff8ec] px-2 py-3">
-              <b className="block text-[#071629]">{cat.shortLabel}</b>
-              <span className="mt-2 block text-[12px] text-[#7a8290]">글 보기</span>
-            </Link>
-          ))}
-        </div>
-        <p className="mt-4 text-[11px] font-medium text-[#9aa2af]">실제 게시글 기준으로 이어집니다.</p>
       </article>
 
       <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">

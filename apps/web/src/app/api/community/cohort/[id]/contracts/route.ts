@@ -12,6 +12,7 @@ async function assertMember(
     .select("id")
     .eq("room_id", roomId)
     .eq("user_id", userId)
+    .eq("is_active", true)
     .maybeSingle();
   return !!data;
 }

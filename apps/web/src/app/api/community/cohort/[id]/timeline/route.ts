@@ -2,8 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortEventType } from "@/types/community.types";
 
-// 멤버 확인 + 없으면 자동 가입 (메시지 API와 동일 패턴)
-async function ensureMember(
+async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
   userId: string
@@ -13,15 +12,12 @@ async function ensureMember(
     .select("id")
     .eq("room_id", roomId)
     .eq("user_id", userId)
+    .eq("is_active", true)
     .maybeSingle();
-  if (data) return true;
-  const { error } = await supabase
-    .from("cohort_members")
-    .upsert({ room_id: roomId, user_id: userId, is_active: true }, { onConflict: "room_id,user_id" });
-  return !error;
+
+  return !!data;
 }
 
-// GET: 최근 30개 타임라인 이벤트
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,16 +30,13 @@ export async function GET(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const member = await ensureMember(supabase, roomId, user.id);
+    const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
-        { error: "이 동기방 멤버가 아닙니다." },
+        { error: "해당 동기방의 활성 멤버만 이용할 수 있습니다." },
         { status: 403 }
       );
     }
@@ -56,36 +49,46 @@ export async function GET(
       .limit(30);
 
     if (error) {
-      console.error("Timeline GET error:", error);
+      console.error("Events GET error:", error);
       return NextResponse.json(
-        { error: "타임라인을 불러올 수 없습니다." },
+        { error: "이벤트를 불러오지 못했습니다." },
         { status: 500 }
       );
     }
 
     const events = data ?? [];
+    const userIds = [...new Set(events.map((event) => event.user_id as string))];
+    let userMap: Record<
+      string,
+      { user_id: string; nickname: string; avatar_url: string | null; rank: string }
+    > = {};
 
-    // 유저 프로필 별도 조회 (FK 조인 문제 회피)
-    const userIds = [...new Set(events.map((e) => e.user_id))];
-    let userMap: Record<string, { user_id: string; nickname: string; avatar_url: string | null; rank: string }> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("community_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", userIds);
+
       if (profiles) {
-        userMap = Object.fromEntries(profiles.map((p) => [p.user_id, p]));
+        userMap = Object.fromEntries(
+          profiles.map((profile) => [profile.user_id as string, profile])
+        );
       }
     }
 
-    const eventsWithUser = events.map((e) => ({
-      ...e,
-      user: userMap[e.user_id] ?? { user_id: e.user_id, nickname: "익명", avatar_url: null, rank: "sprout" },
+    const eventsWithUser = events.map((event) => ({
+      ...event,
+      user: userMap[event.user_id as string] ?? {
+        user_id: event.user_id,
+        nickname: "익명",
+        avatar_url: null,
+        rank: "sprout",
+      },
     }));
 
     return NextResponse.json({ events: eventsWithUser });
   } catch (err) {
-    console.error("Timeline GET error:", err);
+    console.error("Events GET error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -93,7 +96,6 @@ export async function GET(
   }
 }
 
-// POST: 이벤트 생성
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -106,16 +108,13 @@ export async function POST(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const member = await ensureMember(supabase, roomId, user.id);
+    const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
-        { error: "이 동기방 멤버가 아닙니다." },
+        { error: "해당 동기방의 활성 멤버만 이용할 수 있습니다." },
         { status: 403 }
       );
     }
@@ -127,7 +126,7 @@ export async function POST(
 
     if (!body.event_type) {
       return NextResponse.json(
-        { error: "이벤트 타입을 지정해주세요." },
+        { error: "이벤트 유형을 선택해주세요." },
         { status: 400 }
       );
     }
@@ -144,7 +143,7 @@ export async function POST(
       .single();
 
     if (error) {
-      console.error("Timeline insert error:", error);
+      console.error("Event insert error:", error);
       return NextResponse.json(
         { error: "이벤트 등록에 실패했습니다." },
         { status: 500 }
@@ -153,7 +152,7 @@ export async function POST(
 
     return NextResponse.json({ event: data }, { status: 201 });
   } catch (err) {
-    console.error("Timeline POST error:", err);
+    console.error("Event POST error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

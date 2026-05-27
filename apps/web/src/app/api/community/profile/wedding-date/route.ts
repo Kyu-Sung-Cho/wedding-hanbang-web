@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { monthToQuarter, quarterToMonth } from "@/utils/quarter";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -9,19 +10,36 @@ function getServiceClient() {
   );
 }
 
-// POST: 결혼 연/월 업데이트 + 동기방 자동 배정 (RPC 없이 직접 처리)
+function cohortRoomName(year: number, month: number, roomNumber = 1): string {
+  const suffix = roomNumber > 1 ? ` ${roomNumber}방` : "";
+  return `${year}년 ${monthToQuarter(month)}분기 결혼 동기${suffix}`;
+}
+
+async function refreshMemberCount(
+  supabase: ReturnType<typeof getServiceClient>,
+  roomId: string
+) {
+  const { count } = await supabase
+    .from("cohort_members")
+    .select("id", { count: "exact", head: true })
+    .eq("room_id", roomId)
+    .eq("is_active", true);
+
+  await supabase
+    .from("cohort_rooms")
+    .update({ member_count: count ?? 0 })
+    .eq("id", roomId);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClientFromRequest(req);
+    const authClient = await createClientFromRequest(req);
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const body = (await req.json()) as { year: number; month: number };
@@ -36,57 +54,70 @@ export async function POST(req: NextRequest) {
       year > 2100
     ) {
       return NextResponse.json(
-        { error: "올바른 연/월을 입력해주세요." },
+        { error: "올바른 결혼 시기를 입력해주세요." },
         { status: 400 }
       );
     }
 
-    const serviceClient = getServiceClient();
+    const supabase = getServiceClient();
+    const quarter = monthToQuarter(month);
+    const normalizedMonth = quarterToMonth(quarter);
 
-    // 프로필 업데이트
-    await serviceClient
+    await supabase
       .from("community_profiles")
-      .update({ wedding_year: year, wedding_month: month })
+      .update({ wedding_year: year, wedding_month: normalizedMonth })
       .eq("user_id", user.id);
 
-    // 분기 계산 (1→Q1, 4→Q2, 7→Q3, 10→Q4)
-    const quarter = Math.ceil(month / 3);
-    const quarterStartMonth = (quarter - 1) * 3 + 1;
-    const roomName = `${year}년 ${quarter}분기 동기방`;
+    const { data: staleMemberships } = await supabase
+      .from("cohort_members")
+      .select("room_id")
+      .eq("user_id", user.id)
+      .eq("is_active", true);
 
-    // 이미 다른 동기방 멤버인지 확인 → 있으면 비활성화
-    await serviceClient
+    await supabase
       .from("cohort_members")
       .update({ is_active: false })
       .eq("user_id", user.id)
       .eq("is_active", true);
 
-    // 해당 분기 방 찾기
-    let { data: room } = await serviceClient
+    const { data: availableRoom } = await supabase
       .from("cohort_rooms")
-      .select("id")
+      .select("*")
       .eq("year", year)
-      .eq("month", quarterStartMonth)
+      .eq("month", normalizedMonth)
       .eq("is_active", true)
+      .lt("member_count", 30)
+      .order("room_number", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    // 없으면 방 만들기
+    let room = availableRoom;
+
     if (!room) {
-      const { data: newRoom, error: createErr } = await serviceClient
+      const { data: existingRooms } = await supabase
+        .from("cohort_rooms")
+        .select("room_number")
+        .eq("year", year)
+        .eq("month", normalizedMonth)
+        .order("room_number", { ascending: false })
+        .limit(1);
+
+      const roomNumber = ((existingRooms?.[0]?.room_number as number | undefined) ?? 0) + 1;
+      const { data: newRoom, error: createErr } = await supabase
         .from("cohort_rooms")
         .insert({
           year,
-          month: quarterStartMonth,
-          room_number: 1,
-          name: roomName,
+          month: normalizedMonth,
+          room_number: roomNumber,
+          name: cohortRoomName(year, normalizedMonth, roomNumber),
           is_active: true,
           member_count: 0,
           message_count: 0,
         })
-        .select("id")
+        .select("*")
         .single();
 
-      if (createErr) {
+      if (createErr || !newRoom) {
         console.error("Create room error:", createErr);
         return NextResponse.json(
           { error: "동기방 생성에 실패했습니다." },
@@ -94,13 +125,17 @@ export async function POST(req: NextRequest) {
         );
       }
       room = newRoom;
+    } else if (room.name !== cohortRoomName(year, normalizedMonth, room.room_number as number)) {
+      await supabase
+        .from("cohort_rooms")
+        .update({ name: cohortRoomName(year, normalizedMonth, room.room_number as number) })
+        .eq("id", room.id);
     }
 
-    // 멤버 등록 (upsert)
-    const { error: memberErr } = await serviceClient
+    const { error: memberErr } = await supabase
       .from("cohort_members")
       .upsert(
-        { room_id: room!.id, user_id: user.id, is_active: true },
+        { room_id: room.id, user_id: user.id, is_active: true },
         { onConflict: "room_id,user_id" }
       );
 
@@ -112,19 +147,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // member_count 업데이트
-    const { count } = await serviceClient
-      .from("cohort_members")
-      .select("id", { count: "exact", head: true })
-      .eq("room_id", room!.id)
-      .eq("is_active", true);
+    const affectedRoomIds = [
+      ...new Set([
+        room.id as string,
+        ...((staleMemberships ?? []).map((m) => m.room_id as string)),
+      ]),
+    ];
+    await Promise.all(affectedRoomIds.map((roomId) => refreshMemberCount(supabase, roomId)));
 
-    await serviceClient
-      .from("cohort_rooms")
-      .update({ member_count: count ?? 1 })
-      .eq("id", room!.id);
-
-    return NextResponse.json({ room_id: room!.id });
+    return NextResponse.json({
+      room_id: room.id,
+      year,
+      quarter,
+      month: normalizedMonth,
+    });
   } catch (err) {
     console.error("wedding-date POST error:", err);
     return NextResponse.json(
