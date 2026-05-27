@@ -19,9 +19,9 @@ export default function CommunityNav() {
 
   return (
     <header className="bg-[#fffdf7]">
-      <div className="mx-auto flex h-[76px] w-[calc(100%_-_48px)] max-w-[1300px] items-center justify-between">
+      <div className="flex h-[72px] w-full items-center justify-between px-5">
         <Link href="/community" className="inline-flex items-center whitespace-nowrap">
-          <Logo size="lg" />
+          <Logo size="md" />
         </Link>
 
         <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
@@ -61,7 +61,7 @@ export default function CommunityNav() {
       </div>
       {mobileOpen && (
         <div className="border-t border-[#eadfc9] bg-[#fffdf7] md:hidden">
-          <div className="mx-auto flex w-[calc(100%_-_48px)] max-w-[1300px] flex-col gap-2 py-4">
+          <div className="flex w-full flex-col gap-2 px-5 py-4">
             {navItems.map((item) => (
               <Link
                 key={item.href}
