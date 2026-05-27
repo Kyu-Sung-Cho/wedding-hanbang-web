@@ -540,7 +540,7 @@ function CategoryBar({
 }) {
   return (
     <section
-      className={`${shell} mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:gap-3 md:overflow-visible`}
+      className={`${shell} mt-3 flex flex-wrap items-center gap-2 overflow-visible rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:gap-3`}
       data-tutorial-target="community-categories"
     >
       <Link
@@ -576,7 +576,7 @@ function CategoryBar({
         </button>
       )}
 
-      <div className="ml-0 flex shrink-0 flex-nowrap items-center gap-2 md:ml-auto md:flex-wrap">
+      <div className="ml-0 flex w-full shrink-0 flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto">
         <label className="relative">
           <span className="sr-only">정렬</span>
           <select

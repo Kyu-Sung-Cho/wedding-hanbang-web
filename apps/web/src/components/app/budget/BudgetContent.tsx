@@ -934,20 +934,6 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     setEditingTotal(false);
   };
 
-  // 카테고리 세그먼트 (Breakdown 바)
-  const breakdownSegments = visibleFixed
-    .map((c, idx) => ({
-      key: c.key,
-      label: c.label,
-      budget: getCategoryBudget(c.key),
-      color: [
-        "#795252", "#946a6a", "#C9A96E", "#5a6147", "#dee6c4",
-        "#b08968", "#a89b8c", "#8a7f6e", "#c49a8a", "#d4b896",
-      ][idx % 10],
-    }))
-    .filter((s) => s.budget > 0);
-  const breakdownTotal = breakdownSegments.reduce((s, c) => s + c.budget, 0);
-
   return (
     <div className={embedded ? "bg-[#fcf9f8]" : "min-h-screen bg-[#fcf9f8]"}>
       <div
@@ -1049,43 +1035,6 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             )}
           </div>
         </div>
-
-        {/* Budget Breakdown 바 */}
-        {breakdownTotal > 0 && (
-          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
-            <div className="flex items-start sm:items-center justify-between gap-3 mb-4 flex-wrap">
-              <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">BUDGET BREAKDOWN</p>
-                <h2 className="h-section">카테고리별 배분</h2>
-              </div>
-              <p className="text-sm text-[#504444]">
-                <span className="font-medium text-[#1b1c1c]">{spentPercent}%</span> 사용 /{" "}
-                <span className="font-medium text-[#1b1c1c]">{Math.max(0, 100 - spentPercent)}%</span> 남음
-              </p>
-            </div>
-            <div className="flex w-full h-4 rounded-full overflow-hidden bg-[#f6f3f2]">
-              {breakdownSegments.map((seg) => {
-                const widthPct = (seg.budget / breakdownTotal) * 100;
-                return (
-                  <div
-                    key={seg.key}
-                    className="h-full transition-all"
-                    style={{ width: `${widthPct}%`, backgroundColor: seg.color }}
-                    title={`${seg.label} · ${formatWonFull(seg.budget)}`}
-                  />
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4">
-              {breakdownSegments.slice(0, 10).map((seg) => (
-                <div key={seg.key} className="flex items-center gap-1.5 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
-                  <span className="text-[#504444]">{seg.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* 분담 현황 (Editorial Style) */}
         {totalSpent > 0 && (

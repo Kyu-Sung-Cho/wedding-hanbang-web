@@ -37,7 +37,7 @@ export default function Logo({ size = "md", variant = "default", showText = true
       </div>
       {showText && (
         <span
-          className="font-serif-kr font-medium leading-none"
+          className="font-serif-kr font-medium leading-tight"
           style={{ fontSize: s.text, color: textColor, letterSpacing: 0 }}
         >
           웨딩한방

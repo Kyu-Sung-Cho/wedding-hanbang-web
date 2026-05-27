@@ -74,7 +74,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           </button>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
-            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{title}</h1>
+            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
           </div>
         </div>
 
