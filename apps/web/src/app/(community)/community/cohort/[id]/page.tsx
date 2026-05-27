@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import Avatar from "@/components/community/Avatar";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { monthToQuarter } from "@/utils/quarter";
@@ -334,6 +335,7 @@ function ChatTab({
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // 사용자가 직접 위로 스크롤한 상태인지 — 위에 올라가 있으면 새 메시지 들어와도 자동 스크롤 안 함
   const isNearBottomRef = useRef(true);
   // 최초 메시지 로드 직후 1회만 즉시 바닥으로 (페이지 스크롤은 절대 건드리지 않음)
@@ -344,6 +346,16 @@ function ChatTab({
   const [mentionQuery, setMentionQuery] = useState("");
   const [members, setMembers] = useState<{ user_id: string; nickname: string }[]>([]);
   const [cursorPos, setCursorPos] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setCurrentUserId(data.user?.id ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   function insertPostTag(post: { id: string; title: string }) {
     const tag = `[post:${post.id}|${post.title}]`;
@@ -581,6 +593,7 @@ function ChatTab({
             <MessageBubble
               key={m.id}
               message={m}
+              isMine={currentUserId === m.author_id}
               onProfileOpen={onProfileOpen}
             />
           ))
@@ -813,35 +826,53 @@ function rankIcon(rank?: string | null) {
 
 function MessageBubble({
   message,
+  isMine,
   onProfileOpen,
 }: {
   message: CohortMessage;
+  isMine: boolean;
   onProfileOpen: (userId: string) => void;
 }) {
   const nickname = message.author?.nickname ?? "익명";
-  const initial = nickname[0] ?? "?";
   const rank = rankIcon(message.author?.rank);
   const profileUserId = message.author?.user_id ?? message.author_id;
+  const topicLabel = message.thread_topic
+    ? COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)?.label ?? message.thread_topic
+    : null;
+
+  if (isMine) {
+    return (
+      <div className="flex justify-end">
+        <div className="flex max-w-[82%] flex-col items-end sm:max-w-[70%]">
+          <div className="rounded-[18px] rounded-tr-[6px] bg-[#061a34] px-4 py-3 text-sm leading-relaxed text-white shadow-[0_8px_20px_rgba(6,26,52,0.13)]">
+            <div className="whitespace-pre-wrap break-words">
+              {renderMessageContent(message.content)}
+            </div>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-[11px] text-[#928980]">
+            {topicLabel && (
+              <span className="rounded-full bg-[#061a34]/10 px-2 py-0.5 text-[#9d6f36]">
+                {topicLabel}
+              </span>
+            )}
+            <span>{relativeTime(message.created_at)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex gap-3">
+    <div className="flex justify-start gap-2.5">
       <button
         type="button"
         onClick={() => onProfileOpen(profileUserId)}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-xs font-medium text-white ring-offset-2 transition hover:ring-2 hover:ring-[#9d6f36]/30 focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/40"
+        className="mt-0.5 shrink-0 rounded-full ring-offset-2 transition hover:ring-2 hover:ring-[#9d6f36]/30 focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/40"
         title={`${nickname} 프로필 보기`}
       >
-        {message.author?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={message.author?.avatar_url ?? ""}
-            alt=""
-            className="h-full w-full rounded-full object-cover"
-          />
-        ) : (
-          initial
-        )}
+        <Avatar nickname={nickname} avatarUrl={message.author?.avatar_url} size={38} />
       </button>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 max-w-[82%] sm:max-w-[70%]">
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
@@ -858,16 +889,17 @@ function MessageBubble({
           <span className="text-xs text-[#928980]">
             {relativeTime(message.created_at)}
           </span>
-          {message.thread_topic && (
+          {topicLabel && (
             <span className="rounded-full bg-[#9d6f36]/10 px-2 py-0.5 text-[11px] text-[#9d6f36]">
-              {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
-                ?.label ?? message.thread_topic}
+              {topicLabel}
             </span>
           )}
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-[#071629] leading-relaxed">
-          {renderMessageContent(message.content)}
-        </p>
+        <div className="mt-1 rounded-[18px] rounded-tl-[6px] bg-[#fff8ec] px-4 py-3 text-sm leading-relaxed text-[#071629] shadow-[0_6px_16px_rgba(8,22,38,0.045)]">
+          <div className="whitespace-pre-wrap break-words">
+            {renderMessageContent(message.content)}
+          </div>
+        </div>
       </div>
     </div>
   );
