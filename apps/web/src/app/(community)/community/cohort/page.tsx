@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Users, Sparkles, ArrowRight, Loader2 } from "lucide-react";
 
@@ -12,15 +12,70 @@ import { Users, Sparkles, ArrowRight, Loader2 } from "lucide-react";
  * - 비로그인 → 로그인 유도
  */
 export default function CohortIndexPage() {
+  return (
+    <Suspense fallback={<CohortLoading />}>
+      <CohortIndexPageInner />
+    </Suspense>
+  );
+}
+
+function CohortLoading() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center bg-[#fffdf7] text-sm text-[#928980]">
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      동기방으로 이동 중...
+    </div>
+  );
+}
+
+function CohortIndexPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "unauth" | "need-date" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const yearParam = searchParams.get("year");
+  const quarterParam = searchParams.get("quarter");
+  const selectedCohort = useMemo(() => {
+    const year = Number(yearParam);
+    const quarter = Number(quarterParam);
+    if (!Number.isInteger(year) || !Number.isInteger(quarter)) return null;
+    if (year < 2020 || year > 2100 || quarter < 1 || quarter > 4) return null;
+    return { year, quarter, month: (quarter - 1) * 3 + 1 };
+  }, [quarterParam, yearParam]);
+  const loginRedirect = selectedCohort
+    ? `/community/cohort?year=${selectedCohort.year}&quarter=${selectedCohort.quarter}`
+    : "/community/cohort";
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
+        if (selectedCohort) {
+          const assignRes = await fetch("/api/community/cohort", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ year: selectedCohort.year, month: selectedCohort.month }),
+          });
+          const assignData = await assignRes.json().catch(() => ({}));
+          if (cancelled) return;
+
+          if (assignRes.status === 401) {
+            setStatus("unauth");
+            return;
+          }
+
+          if (assignRes.ok && assignData?.room_id) {
+            router.replace(`/community/cohort/${assignData.room_id}`);
+            return;
+          }
+
+          setStatus("error");
+          setErrorMsg(assignData?.error ?? "선택한 동기방에 입장할 수 없어요.");
+          return;
+        }
+
         // 1. 가입된 방 조회
         const res = await fetch("/api/community/cohort", { cache: "no-store" });
         if (!res.ok) {
@@ -68,15 +123,10 @@ export default function CohortIndexPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, selectedCohort]);
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#fffdf7] text-sm text-[#928980]">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        동기방으로 이동 중...
-      </div>
-    );
+    return <CohortLoading />;
   }
 
   return (
@@ -96,7 +146,7 @@ export default function CohortIndexPage() {
               동기방은 로그인 후 결혼 예정월 기준으로 자동 매칭돼요. 먼저 로그인해주세요.
             </p>
             <Link
-              href="/login?redirect=/community/cohort"
+              href={`/login?redirect=${encodeURIComponent(loginRedirect)}`}
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#102a4d]"
             >
               로그인하기

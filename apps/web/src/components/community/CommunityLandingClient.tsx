@@ -108,11 +108,11 @@ const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string;
 ];
 
 const cohortPreviewRows = [
-  { period: "2026년 1분기 (1~3월)", note: "준비 시작" },
-  { period: "2026년 2분기 (4~6월)", note: "비교 활발" },
-  { period: "2026년 3분기 (7~9월)", note: "예약·후기" },
-  { period: "2026년 4분기 (10~12월)", note: "체크리스트" },
-  { period: "날짜 미정·하반기 이후", note: "일정 잡기" },
+  { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1", cta: "입장" },
+  { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
+  { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3", cta: "입장" },
+  { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
+  { period: "날짜 미정·하반기 이후", note: "일정 잡기", href: "/onboarding", cta: "설정" },
 ];
 
 const promises: Array<{ icon: LucideIcon; title: string; desc: string }> = [
@@ -1033,13 +1033,13 @@ function CohortPreviewPanel() {
         {cohortPreviewRows.map((row) => (
           <Link
             key={row.period}
-            href="/community/cohort"
+            href={row.href}
             className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#34445a] transition-colors hover:bg-[#fff8ec]"
           >
             <span className="min-w-0 flex-1 truncate">{row.period}</span>
             <span className="hidden text-[12px] font-medium text-[#7a8290] sm:inline">{row.note}</span>
             <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#d8bb86] bg-white px-4 text-[12px] font-semibold text-[#9d6f36]">
-              입장
+              {row.cta}
             </span>
           </Link>
         ))}
