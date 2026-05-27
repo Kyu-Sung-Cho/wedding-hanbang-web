@@ -63,7 +63,7 @@ interface TrendingPost {
   comment_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1300px]";
+const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[92rem]";
 const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
