@@ -117,8 +117,97 @@ function formatWon(amount: number): string {
   return `${Math.round(amount / 10000).toLocaleString()}만원`;
 }
 
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+const HH_00_RE = /^\d{2}:00$/;
+
+function isValidHourTime(value: string): boolean {
+  if (!HH_00_RE.test(value)) return false;
+  const hour = Number(value.slice(0, 2));
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23;
+}
+
+function toValidYmd(year: number, month: number, day: number): string | null {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    year < 2000 ||
+    year > 2100 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  const ymd = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return ymdInKst(kstMidnightFromYmd(ymd)) === ymd ? ymd : null;
+}
+
+function isValidYmd(value: string): boolean {
+  return YMD_RE.test(value) && ymdInKst(kstMidnightFromYmd(value)) === value;
+}
+
+function resolveMonthDayToFuture(
+  month: number,
+  day: number,
+  todayYmd: string,
+  modifier?: string
+): string | null {
+  const thisYear = Number(todayYmd.slice(0, 4));
+  let year = thisYear;
+
+  if (modifier) {
+    const compact = modifier.replace(/\s+/g, "");
+    if (compact === "내년") year = thisYear + 1;
+    else if (compact === "내후년") year = thisYear + 2;
+  } else {
+    const candidate = toValidYmd(year, month, day);
+    if (candidate && candidate < todayYmd) year += 1;
+  }
+
+  return toValidYmd(year, month, day);
+}
+
+function extractRequestedBookingDate(text: string | undefined, todayYmd = ymdInKst()): string | null {
+  if (!text) return null;
+
+  const candidates: Array<{ index: number; ymd: string }> = [];
+  const addCandidate = (index: number | undefined, ymd: string | null) => {
+    if (index !== undefined && ymd && YMD_RE.test(ymd)) {
+      candidates.push({ index, ymd });
+    }
+  };
+
+  for (const match of text.matchAll(/\[date:(\d{4}-\d{2}-\d{2})\]/gi)) {
+    addCandidate(match.index, match[1]);
+  }
+
+  for (const match of text.matchAll(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/g)) {
+    addCandidate(match.index, toValidYmd(Number(match[1]), Number(match[2]), Number(match[3])));
+  }
+
+  for (const match of text.matchAll(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/g)) {
+    addCandidate(match.index, toValidYmd(Number(match[1]), Number(match[2]), Number(match[3])));
+  }
+
+  for (const match of text.matchAll(/(내후년|내년|올해|이번\s*해|금년)?\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?/g)) {
+    const prefix = text.slice(Math.max(0, (match.index ?? 0) - 8), match.index ?? 0);
+    if (/\d{4}\s*년\s*$/.test(prefix)) continue;
+    addCandidate(
+      match.index,
+      resolveMonthDayToFuture(Number(match[2]), Number(match[3]), todayYmd, match[1])
+    );
+  }
+
+  candidates.sort((a, b) => a.index - b.index);
+  return candidates.at(-1)?.ymd ?? null;
+}
+
 interface ExecutionContext {
   coupleId: string;
+  currentUserText?: string;
   weddingContext: {
     weddingDate: string | null;
     budget: number;
@@ -1854,10 +1943,15 @@ async function executeGetAvailableSlots(
     filterLabel = targetDate;
     primarySlots = availableSlots.filter((s) => s.date === targetDate);
     if (primarySlots.length === 0) {
-      // 그 날 없으면 같은 월에서 가까운 날짜 4개 제안
-      fallbackSlots = availableSlots
-        .filter((s) => monthOf(s.date) === monthOf(targetDate))
-        .slice(0, 8);
+      // 그 날 없으면 예약은 진행하지 않고, 같은 달의 "이후 날짜"를 먼저 제안한다.
+      // 이전 날짜를 먼저 보여주면 사용자가 요청 날짜와 다른 날로 예약된 것처럼 느낄 수 있다.
+      const sameMonthSlots = availableSlots.filter((s) => monthOf(s.date) === monthOf(targetDate));
+      const afterSlots = sameMonthSlots.filter((s) => s.date > targetDate).slice(0, 8);
+      const beforeSlots = sameMonthSlots
+        .filter((s) => s.date < targetDate)
+        .sort((a, b) => b.date.localeCompare(a.date) || a.hour - b.hour)
+        .slice(0, Math.max(0, 8 - afterSlots.length));
+      fallbackSlots = [...afterSlots, ...beforeSlots];
     }
   } else if (targetMonth) {
     filterLabel = `${targetMonth.slice(5, 7)}월`;
@@ -1886,14 +1980,13 @@ async function executeGetAvailableSlots(
       ? `${vendor.name} ${filterLabel} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`
       : `${vendor.name} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`;
   } else if (fallbackSlots.length > 0) {
-    displayMessage = `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackFirstDate} ~ ${fallbackLastDate} 중 ${fallbackSlots.length}개 슬롯이 가능해요.`;
+    displayMessage = targetDate
+      ? `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 예약은 진행하지 않았고, 다른 날짜 후보 ${fallbackSlots.length}개를 참고용으로 보여드릴게요.`
+      : `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackFirstDate} ~ ${fallbackLastDate} 중 ${fallbackSlots.length}개 슬롯이 가능해요.`;
   } else {
-    // 디버그: 왜 0 인지 내부 상태 노출. slotsLoaded=0 이면 fetchSlots 실패,
-    // expanded=0 이면 dayToDates 매칭 실패, filtered=0 이면 month 필터 mismatch.
-    const dbg = `src=${slotSource} slotsLoaded=${slots.length} range=${fmtYMD(rangeStart)}~${fmtYMD(rangeEnd)} expanded=${availableSlots.length} primary=${primarySlots.length} fallback=${fallbackSlots.length} targetMonth=${targetMonth ?? "-"} targetDate=${targetDate ?? "-"}`;
     displayMessage = filterLabel
-      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다. [debug: ${dbg}]`
-      : `${vendor.name}은(는) 조회 범위 (${fmtYMD(rangeStart)} ~ ${fmtYMD(rangeEnd)}) 내에 예약 가능한 시간이 없습니다. [debug: ${dbg}]`;
+      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
+      : `${vendor.name}은(는) 조회 범위 (${fmtYMD(rangeStart)} ~ ${fmtYMD(rangeEnd)}) 내에 예약 가능한 시간이 없습니다.`;
   }
 
   return {
@@ -1906,6 +1999,8 @@ async function executeGetAvailableSlots(
       staffId: staffId || null,
       slots: primarySlots,
       count: primarySlots.length,
+      requestedDate: targetDate ?? null,
+      exactDateAvailable: targetDate ? primarySlots.length > 0 : null,
       // 필터 결과가 0이고 인접 월 슬롯이 있을 때만 fallback 노출 (UI 도 활용 가능)
       fallbackSlots: primarySlots.length === 0 ? fallbackSlots : [],
       filterLabel: filterLabel || null,
@@ -1938,6 +2033,41 @@ async function executeCreateBooking(
   const date = input.date as string;
   const time = input.time as string;
   const memo = (input.memo as string) || "";
+
+  if (!vendorId || !isValidYmd(date) || !isValidHourTime(time)) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: { error: "invalid_booking_input" },
+      success: false,
+      displayMessage: "예약을 만들려면 업체, 정확한 날짜(YYYY-MM-DD), 정각 시간(HH:00)이 필요합니다.",
+    };
+  }
+
+  const todayYmd = ymdInKst();
+  if (date < todayYmd) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: { error: "past_booking_date", attemptedDate: date, today: todayYmd },
+      success: false,
+      displayMessage: `예약 날짜 ${date}는 오늘(${todayYmd})보다 이전이라 예약을 진행하지 않았습니다. 미래 날짜로 다시 확인해 주세요.`,
+    };
+  }
+
+  const requestedDate = extractRequestedBookingDate(ctx.currentUserText, todayYmd);
+  if (requestedDate && requestedDate !== date) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {
+        error: "requested_date_mismatch",
+        requestedDate,
+        attemptedDate: date,
+      },
+      success: false,
+      displayMessage:
+        `사용자가 요청한 날짜는 ${requestedDate}인데 예약 시도 날짜가 ${date}라서 예약을 진행하지 않았습니다. ` +
+        "정확한 요청 날짜의 가능 시간만 다시 확인해 주세요.",
+    };
+  }
 
   // 업체 이름·카테고리 (카테고리는 예산 자동 차감 매핑용)
   const { data: vendor } = await admin

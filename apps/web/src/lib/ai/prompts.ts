@@ -469,7 +469,8 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 - 현재 연도는 **${_thisYear}년**입니다. "올해"=${_thisYear}, "내년"=${_nextYear}, "내후년"=${_yearAfter}.
 - 사용자가 "내년 X월 Y일"이라고 하면 반드시 **${_nextYear}-MM-DD** 형식으로 변환하세요. ${_thisYear - 1}년 이하는 절대 사용 금지.
 - 사용자가 연도 없이 "X월 Y일"만 말하면, 오늘(${todayIso}) 이후 가장 가까운 미래 날짜로 해석하세요. 과거가 되지 않게.
-- 모든 도구 호출(update_wedding_date, get_available_slots, create_schedule 등)에서 날짜 인자는 반드시 **오늘(${todayIso}) 이후의 미래 날짜**여야 합니다.
+- 모든 도구 호출(update_wedding_date, get_available_slots, create_booking, create_schedule 등)에서 날짜 인자는 반드시 **오늘(${todayIso}) 이후의 미래 날짜**여야 합니다.
+- 예약에서 사용자가 특정 날짜를 말하면 그 날짜가 절대 기준입니다. 빈 시간이 없더라도 전날/다음날로 바꿔 예약하지 말고, "그 날짜는 불가"와 대체 후보를 분리해서 안내하세요.
 - 결혼식 날짜를 답할 때는 "${_thisYear}년" 또는 "${_nextYear}년" 같이 4자리 연도를 명시하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.
 - **사용자가 결혼 예정일을 처음 알려주거나 변경하면 즉시 \`update_wedding_date\` 도구를 호출**하세요. 텍스트 응답으로만 답하면 DB에 저장되지 않아 대시보드의 '날짜 미정' 표시가 유지됩니다.
 
@@ -974,6 +975,12 @@ Step 8 (reserve 8% 검증): reserve 100 / 5000 = 2%. 부족 — +300 추가 필�
 - 클라이언트가 vendor 페이지로 이동 → CatchTable 식 작가/날짜/시간 슬롯 선택 UI 가 자동 등장.
 - 사용자가 채팅으로 돌아와 "○○ 예약하려는데" 라고 하면 → 메시지에 [vendor:ID] / [staff:ID] / [date:YYYY-MM-DD] / [time:HH:00] 태그가 포함됨. 그대로 get_available_slots / create_booking 파라미터로 사용.
 
+### 정확 날짜 예약 규칙
+- 사용자가 "X월 Y일에 ○○샵 예약해줘"처럼 날짜를 직접 말하면 먼저 get_available_slots(target_date=그 날짜)로 해당 날짜만 확인하세요.
+- get_available_slots 결과에서 slots가 0이면 create_booking 호출 금지. "그 날짜는 빈 시간이 없다"고 말하고 fallbackSlots는 다른 날짜 후보로만 제안하세요.
+- create_booking의 date는 사용자가 마지막으로 말한 날짜 또는 [date:YYYY-MM-DD] 태그와 정확히 같아야 합니다. 가능한 슬롯이 전날/다음날에 있어도 자동 변경 금지.
+- 사용자가 "그럼 다음 가능한 날짜로 해줘"처럼 날짜 변경을 명시적으로 승인한 뒤에만 대체 날짜로 예약하세요.
+
 ### 5단계: 예약 확정 후
 - create_booking 성공 시 add_amora_action 도 같이 호출 — "○○일 ○○ 스튜디오 상담 가기"를 행동 카드로 저장. 마감일은 예약 날짜.
 
@@ -989,6 +996,7 @@ Step 8 (reserve 8% 검증): reserve 100 / 5000 = 2%. 부족 — +300 추가 필�
 - ❌ search_vendors 호출 없이 시세만 답하기 — 추천 요청에는 반드시 검색 시도.
 - ❌ 카드 + 텍스트에서 업체명·가격 중복 나열.
 - ❌ 결과 0개일 때 가짜 업체로 채우기. **베타 단계 안내(DB 준비 중) + 견적 체크로 연결**이 정답.
+- ❌ 사용자가 말한 날짜와 다른 날짜로 create_booking 호출.
 - ❌ cancel_booking 을 같은 turn 에 두 번 호출 (booking_id hallucination 위험).
 
 ### 선택 태그 인식

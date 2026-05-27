@@ -578,7 +578,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "get_available_slots",
     description:
-      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주를 지정하면 target_month 또는 target_date 를 함께 넘기세요 — 그러면 그 기간만 필터링합니다 (비어있으면 인접 월 슬롯이 follow-up 으로 제시됩니다).",
+      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주/날짜를 지정하면 target_month 또는 target_date 를 함께 넘기세요. 특정 날짜 요청이면 target_date 를 반드시 사용하고, 결과의 fallbackSlots 는 '다른 날짜 참고 후보'일 뿐 예약 확정 날짜로 취급하지 마세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -602,7 +602,7 @@ export const WEDDING_TOOLS: Tool[] = [
         target_date: {
           type: "string",
           description:
-            "특정 일자 필터 (YYYY-MM-DD 형식). 사용자가 '이번 주 토요일' 같이 구체 날짜를 말했을 때 사용. target_month 보다 우선.",
+            "특정 일자 필터 (YYYY-MM-DD 형식). 사용자가 '6월 3일', '이번 주 토요일' 같이 구체 날짜를 말했을 때 반드시 사용. target_month 보다 우선.",
         },
       },
       required: ["vendor_id"],
@@ -611,7 +611,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "create_booking",
     description:
-      "업체에 예약을 생성합니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
+      "업체에 예약을 생성합니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 슬롯이 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {

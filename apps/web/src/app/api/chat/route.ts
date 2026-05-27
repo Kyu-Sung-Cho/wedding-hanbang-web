@@ -777,6 +777,7 @@ export async function POST(request: Request) {
 
   const executionContext = {
     coupleId,
+    currentUserText: lastUserText,
     weddingContext: {
       weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
       budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
