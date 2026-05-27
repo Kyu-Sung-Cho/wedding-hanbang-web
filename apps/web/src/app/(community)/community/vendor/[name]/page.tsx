@@ -727,14 +727,14 @@ function NoBookingFallback({ name }: { name: string }) {
 
       <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fffdf7] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-xs text-[#928980] leading-relaxed">
-          연동 완료까지는 받은 견적을 체크리스트로 먼저 정리해 보세요.
+          연동 완료까지는 받은 견적과 상담 내용을 아모라와 먼저 정리해 보세요.
         </p>
         <Link
-          href="/community/quote-check"
+          href="/chat"
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#9d6f36] text-white text-sm font-medium hover:bg-[#102a4d] transition-colors shrink-0"
         >
           <FileSearch className="w-4 h-4" />
-          아모라 견적 체크리스트 보기
+          아모라에게 물어보기
         </Link>
       </div>
     </section>

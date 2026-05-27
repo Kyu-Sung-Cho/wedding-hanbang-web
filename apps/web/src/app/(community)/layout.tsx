@@ -65,7 +65,7 @@ function CommunityFooter() {
           title="둘러보기"
           items={[
             { label: "후기·질문", href: "/community#community-feed" },
-            { label: "견적 체크", href: "/community/quote-check" },
+            { label: "가격·후기", href: "/community?category=tour_review&search=견적&feed=all#community-feed" },
             { label: "동기방", href: "/community/cohort" },
             { label: "글쓰기", href: "/community/post/write" },
             { label: "북마크", href: "/community/my/bookmarks" },

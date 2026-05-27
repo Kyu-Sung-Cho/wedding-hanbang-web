@@ -18,7 +18,7 @@ import {
 export const metadata = {
   title: "웨딩한방 안내",
   description:
-    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 견적 체크리스트까지 한 곳에서.",
+    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 상담까지 한 곳에서.",
 };
 
 export default function CommunityAboutPage() {
@@ -122,8 +122,8 @@ export default function CommunityAboutPage() {
               },
               {
                 icon: Sparkles,
-                title: "아모라 견적 체크리스트",
-                desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
+                title: "아모라 질문 정리",
+                desc: "받은 견적서와 업체 답변에서 다시 확인할 질문을 차분하게 정리해요.",
                 color: "from-[#102a4d]/20 to-[#102a4d]/5",
                 iconColor: "text-[#102a4d]",
               },

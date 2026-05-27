@@ -1123,31 +1123,31 @@ function BottomCards() {
   return (
     <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] md:grid-cols-2`}>
       <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 한눈에 비교해보세요.</h2>
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 글을 먼저 모아보세요.</h2>
         <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
-          후기와 견적 정보를 함께 보며
+          실제 후기와 견적 이야기를 보며
           <br />
-          나에게 맞는 선택지를 좁혀갈 수 있어요.
+          비슷한 조건의 선택지를 살펴볼 수 있어요.
         </p>
         <Link
-          href="/community/quote-check"
+          href="/community?category=tour_review&search=견적&feed=all#community-feed"
           className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
         >
-          정보 비교 바로가기
+          후기 · 가격 글 보기
           <ChevronRight className="ml-2 h-4 w-4" />
         </Link>
       </article>
 
       <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
         <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
-          AI 진단 무료
+          기준 준비 중
         </span>
-        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">아모라 견적진단</h2>
+        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">견적 기준을 더 탄탄하게 만들고 있어요.</h2>
         <p className="mt-2 max-w-[265px] text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-          받은 견적서에서 빠진 항목과 추가금 가능성을 먼저 확인해요.
+          동기방, 후기 글, 아모라 질문 데이터를 모아 실제로 도움이 되는 기준으로 다듬고 있어요.
         </p>
         <ul className="mt-3 space-y-1 text-[12px] font-medium text-[#34445a]">
-          {["평균 대비 참고 진단", "항목별 과소/과다 여부 분석", "계약 전 질문 리스트"].map((item) => (
+          {["동기방 가격 사례 축적", "후기 속 추가금 맥락 정리", "아모라 질문 데이터 반영"].map((item) => (
             <li key={item} className="flex items-center gap-2">
               <Check className="h-4 w-4 text-[#b68a3a]" />
               {item}
@@ -1155,11 +1155,11 @@ function BottomCards() {
           ))}
         </ul>
         <Link
-          href="/community/quote-check"
+          href="/chat"
           className="mt-4 inline-flex min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[12px] font-semibold text-white"
           data-tutorial-target="community-service-link"
         >
-          아모라 진단부터 시작하기
+          아모라에게 물어보기
           <ChevronRight className="ml-2 h-4 w-4" />
         </Link>
         <ClipboardCheck className="absolute bottom-4 right-6 h-[110px] w-[110px] rotate-6 text-[#c9a96e]/35" />

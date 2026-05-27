@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarCheck,
-  FileSearch,
   HelpCircle,
   MessageCircle,
   Wallet,
@@ -26,11 +25,11 @@ interface CTAConfig {
 
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
-    icon: FileSearch,
-    label: "견적 확인",
-    title: "이 견적, 계약 전에 한 번 더 확인해볼까요?",
-    subtext: "빠진 항목, 추가금 가능성, 업체에 물어볼 질문을 정리합니다.",
-    href: "/community/quote-check",
+    icon: MessageCircle,
+    label: "질문 정리",
+    title: "이 견적에서 더 물어볼 내용을 먼저 정리해볼까요?",
+    subtext: "조건과 맥락을 정리해 업체에 다시 확인할 질문을 다듬습니다.",
+    href: "/chat",
   },
   tour_review: {
     icon: MessageCircle,

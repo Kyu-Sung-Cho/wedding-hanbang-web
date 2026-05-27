@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { BarChart3, FileSearch, LayoutDashboard, MessageCircle } from "lucide-react";
+import { BarChart3, LayoutDashboard, MessageCircle } from "lucide-react";
 
 interface ToolCard {
   href: string;
@@ -12,10 +12,10 @@ interface ToolCard {
 
 const QUICK_TOOLS: ToolCard[] = [
   {
-    href: "/community/quote-check",
-    label: "견적 체크",
-    description: "추가금·누락 항목 확인",
-    icon: FileSearch,
+    href: "/community?category=tour_review&search=견적&feed=all#community-feed",
+    label: "가격 글",
+    description: "실제 사례 모아보기",
+    icon: BarChart3,
   },
   {
     href: "/chat",

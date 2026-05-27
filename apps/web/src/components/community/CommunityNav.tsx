@@ -9,7 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
   { href: "/community#community-feed", label: "후기·질문" },
-  { href: "/community/quote-check", label: "견적 체크" },
+  { href: "/community/cohort", label: "동기방" },
   { href: "/dashboard", label: "준비실" },
 ];
 

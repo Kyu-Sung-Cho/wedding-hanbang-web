@@ -273,14 +273,14 @@ function SlideAmora() {
         </div>
       </div>
 
-      {/* 아모라 견적 체크리스트 카드 mockup */}
+      {/* 아모라 질문 정리 카드 mockup */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#fff8ec] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#9d6f36] to-[#C9A96E] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-base text-[#071629] font-medium">아모라 견적 체크리스트</span>
+            <span className="text-base text-[#071629] font-medium">아모라 질문 정리</span>
             <span className="text-sm text-[#B5ADA3] font-light">방금 정리 완료</span>
           </div>
         </div>
@@ -288,9 +288,9 @@ function SlideAmora() {
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-left">
-              <div className="text-sm text-amber-800 font-semibold mb-0.5">원본 데이터 비용 누락</div>
+              <div className="text-sm text-amber-800 font-semibold mb-0.5">확인할 조건 발견</div>
               <div className="text-sm text-amber-700 leading-relaxed">
-                강남 평균 +40~80만원 추가될 가능성. 계약 전에 꼭 확인하세요.
+                원본 데이터 비용 포함 여부를 계약 전에 다시 확인해보세요.
               </div>
             </div>
           </div>
@@ -311,7 +311,7 @@ function SlideAmora() {
         <p className="text-sm text-[#928980] mb-2 text-left">아모라 하나가 다 연결돼 있어요</p>
         <div className="flex flex-wrap gap-1.5">
           {[
-            { icon: FileSearch, label: "견적 체크리스트" },
+            { icon: FileSearch, label: "견적 질문 정리" },
             { icon: Shield, label: "계약서 검토" },
             { icon: TrendingUp, label: "예산 자동 반영" },
             { icon: Camera, label: "일정 자동 등록" },
@@ -330,7 +330,7 @@ function SlideAmora() {
       </div>
 
       <p className="text-base text-[#5d6879] font-light text-center">
-        커뮤니티 글에서도 <span className="text-[#9d6f36] font-medium">아모라가 가격 댓글</span>로 적정한지 알려줘요
+        커뮤니티 글과 상담 내용을 바탕으로 <span className="text-[#9d6f36] font-medium">확인할 질문</span>을 정리해요
       </p>
     </div>
   );

@@ -21,10 +21,10 @@ interface BannerConfig {
 
 const BANNER_OPTIONS: BannerConfig[] = [
   {
-    eyebrow: "견적 확인",
-    title: "받은 견적에서 빠진 항목이 있는지 먼저 볼까요?",
-    subtext: "추가금 가능성과 계약 전 질문을 한 번에 정리합니다.",
-    href: "/community/quote-check",
+    eyebrow: "가격 사례",
+    title: "비슷한 조건의 후기와 가격 이야기를 먼저 볼까요?",
+    subtext: "실제 글과 동기방 대화를 바탕으로 판단 기준을 모아갑니다.",
+    href: "/community?category=tour_review&search=견적&feed=all#community-feed",
     icon: "quote",
   },
   {

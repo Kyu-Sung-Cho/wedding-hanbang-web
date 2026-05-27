@@ -5,9 +5,9 @@ import {
   CalendarCheck,
   Camera,
   ChevronRight,
-  FileSearch,
   HelpCircle,
   Lightbulb,
+  MessageCircle,
   MessageSquarePlus,
 } from "lucide-react";
 
@@ -18,11 +18,11 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
-    href: "/community/quote-check",
-    label: "아모라 견적 체크리스트",
-    title: "받은 견적서에 빠진 항목과 추가금 추정 먼저 확인하기",
-    meta: "체크리스트",
-    icon: FileSearch,
+    href: "/chat",
+    label: "아모라에게 물어보기",
+    title: "받은 견적에서 헷갈리는 항목을 질문으로 정리하기",
+    meta: "상담 정리",
+    icon: MessageCircle,
   },
   {
     href: "/community?category=is_normal&feed=all#community-feed",
@@ -75,10 +75,10 @@ export default function EmptyFeedStarter({
             </p>
           </div>
           <Link
-            href="/community/quote-check"
+            href="/community/post/write?category=is_normal"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#061a34] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#102a4d]"
           >
-            체크리스트 보기
+            사례 남기기
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
