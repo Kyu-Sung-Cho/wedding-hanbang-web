@@ -507,20 +507,20 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
  * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /dashboard, /chat,
  * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
- * 네이비·골드·아이보리 톤으로 통일한다.
+ * 먹색·골드·아이보리 톤으로 통일한다.
  * ========================================================================= */
 .hanbang-service-theme {
-  color: #071629;
-  --hb-navy: #061a34;
-  --hb-navy-soft: #0d2b52;
+  color: #2a2522;
+  --hb-navy: #2f2925;
+  --hb-navy-soft: #4b4038;
   --hb-gold: #b68a3a;
   --hb-gold-deep: #9d6f36;
   --hb-ivory: #fffdf7;
   --hb-ivory-warm: #fff8ec;
   --hb-line: #eadfc9;
-  --hb-muted: #7a8290;
-  --hb-text: #071629;
-  --hb-body: #34445a;
+  --hb-muted: #857a70;
+  --hb-text: #2a2522;
+  --hb-body: #514b45;
   --hb-success: #607044;
 }
 
@@ -668,7 +668,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.25)]"] {
-  box-shadow: 0 14px 34px rgba(6, 26, 52, 0.16) !important;
+  box-shadow: 0 14px 34px rgba(47, 41, 37, 0.16) !important;
 }
 
 .hanbang-service-theme [style*="rgb(121, 82, 82)"],
@@ -682,5 +682,96 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 /* 서비스 기능 화면에서는 랜딩형 대형 소개 배너를 사용하지 않는다. */
 .hanbang-service-theme section.relative.rounded-2xl.overflow-hidden.aspect-\[5\/3\].sm\:aspect-\[16\/5\].mb-8.animate-fade-in {
   display: none !important;
+}
+
+.hanbang-community-theme {
+  color: #2a2522;
+  --hb-navy: #2f2925;
+  --hb-navy-soft: #4b4038;
+  --hb-gold: #b68a3a;
+  --hb-gold-deep: #9d6f36;
+  --hb-ivory: #fffdf7;
+  --hb-ivory-warm: #fff8ec;
+  --hb-line: #eadfc9;
+  --hb-muted: #857a70;
+  --hb-text: #2a2522;
+  --hb-body: #514b45;
+  --hb-success: #607044;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#071629]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#102a4d]"] {
+  color: var(--hb-text) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:text-[#071629]"]:hover,
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="group-hover:text-[#071629]"]:is(:where(.group):hover *) {
+  color: var(--hb-text) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#34445a]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#5d6879]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#7a8290]"] {
+  color: var(--hb-body) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#071629]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#102a4d]"] {
+  background-color: var(--hb-navy) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
+  background-color: rgba(47, 41, 37, 0.10) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/35"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/45"] {
+  background-color: rgba(47, 41, 37, 0.40) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/82"] {
+  background-color: rgba(47, 41, 37, 0.82) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#061a34]"]:hover,
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#102a4d]"]:hover,
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:from-[#102a4d]"]:hover {
+  background-color: var(--hb-navy-soft) !important;
+  --tw-gradient-from: var(--hb-navy-soft) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#061a34]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#071629]"] {
+  border-color: var(--hb-navy) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#071629]"] {
+  --tw-gradient-from: var(--hb-navy) !important;
+  --tw-gradient-to: rgba(47, 41, 37, 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#0d2b52]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#2A2A30]"] {
+  --tw-gradient-to: var(--hb-navy-soft) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#102a4d]/20"] {
+  --tw-gradient-from: rgba(75, 64, 56, 0.20) !important;
+  --tw-gradient-to: rgba(75, 64, 56, 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]/5"] {
+  --tw-gradient-to: rgba(75, 64, 56, 0.05) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(6,26,52"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(8,22,38"] {
+  box-shadow: 0 14px 34px rgba(47, 41, 37, 0.14) !important;
 }
 

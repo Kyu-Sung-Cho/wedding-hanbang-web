@@ -12,7 +12,7 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#fffdf7]">
+    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
       <CommunityAuthInitializer />
       <Suspense fallback={<div className="h-[72px] bg-[#fffdf7]" />}>
         <CommunityNav />
@@ -36,7 +36,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#061a34_0%,#082342_62%,#041425_100%)] text-white">
+    <footer className="bg-[linear-gradient(135deg,#2f2925_0%,#4b4038_62%,#211d1a_100%)] text-white">
       <div className="mx-auto grid w-[calc(100%_-_48px)] max-w-[92rem] gap-9 py-8 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr]">
         <div>
           <FooterBrand />
