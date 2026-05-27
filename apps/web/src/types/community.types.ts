@@ -118,6 +118,22 @@ export interface PostWithAuthor extends CommunityPost {
   poll?: PollSummary | null;
 }
 
+export interface InitialCommunityFeed {
+  posts: PostWithAuthor[];
+  total: number;
+  hasMore: boolean;
+  fetchedAt: string;
+}
+
+export interface CommunityFeedQuery {
+  search?: string;
+  category?: string;
+  tag?: string;
+  sort?: string;
+  period?: string;
+  feed?: string;
+}
+
 export interface PostDetail extends PostWithAuthor {
   vendor_details: VendorTagInfo[];
   poll?: PollWithOptions | null;

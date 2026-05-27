@@ -7,6 +7,7 @@ import type {
   CommunityCategory,
   PostSort,
   TimePeriod,
+  InitialCommunityFeed,
   CreatePostInput,
   CreateCommentInput,
 } from "@/types/community.types";
@@ -35,6 +36,7 @@ interface CommunityState {
   communityProfile: CommunityProfile | null;
 
   // 액션
+  hydrateInitialFeed: (feed: InitialCommunityFeed) => void;
   fetchPosts: (reset?: boolean) => Promise<void>;
   fetchMorePosts: () => Promise<void>;
   fetchPostDetail: (id: string) => Promise<void>;
@@ -140,6 +142,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   commentsLoading: false,
   communityProfile: null,
 
+  hydrateInitialFeed: (feed) => {
+    set({
+      posts: feed.posts,
+      total: feed.total,
+      hasMore: feed.hasMore,
+      currentCategory: null,
+      currentSort: "new",
+      currentPeriod: "week",
+      currentTag: null,
+      currentPage: 1,
+      isLoading: false,
+      errorMessage: null,
+      lastSyncedAt: feed.fetchedAt,
+    });
+  },
+
   fetchPosts: async (reset = true) => {
     const { currentCategory, currentSort, currentPeriod, currentTag } = get();
     const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag);
@@ -162,7 +180,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         if (usingFreshCache) return; // fresh window — 네트워크 skip
         // stale → 백그라운드 refetch (loading은 안 켬)
       } else {
-        set({ isLoading: true, currentPage: 1, errorMessage: null });
+        set({ isLoading: get().posts.length === 0, currentPage: 1, errorMessage: null });
       }
     }
 

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Award,
@@ -40,7 +40,14 @@ import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategor
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
-import type { CommunityCategory, PostSort, PostWithAuthor, TimePeriod } from "@/types/community.types";
+import type {
+  CommunityCategory,
+  CommunityFeedQuery,
+  InitialCommunityFeed,
+  PostSort,
+  PostWithAuthor,
+  TimePeriod,
+} from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { withSessionCache } from "@/utils/sessionCache";
 
@@ -150,17 +157,22 @@ function getPostImage(post: PostWithAuthor) {
   return inline?.[1] ?? null;
 }
 
-export default function CommunityLandingClient() {
+export default function CommunityLandingClient({
+  initialFeed,
+  initialQuery = {},
+}: {
+  initialFeed?: InitialCommunityFeed;
+  initialQuery?: CommunityFeedQuery;
+}) {
   useCommunityRealtime();
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const searchQuery = searchParams.get("search") ?? "";
-  const categoryQuery = searchParams.get("category");
-  const tagQuery = searchParams.get("tag") ?? "";
-  const sortQuery = searchParams.get("sort");
-  const periodQuery = searchParams.get("period");
-  const feedQuery = searchParams.get("feed");
+  const searchQuery = initialQuery.search ?? "";
+  const categoryQuery = initialQuery.category ?? "";
+  const tagQuery = initialQuery.tag ?? "";
+  const sortQuery = initialQuery.sort ?? "";
+  const periodQuery = initialQuery.period ?? "";
+  const feedQuery = initialQuery.feed ?? "";
   const selectedCategory = COMMUNITY_CATEGORIES.some((category) => category.key === categoryQuery)
     ? (categoryQuery as CommunityCategory)
     : null;
@@ -185,8 +197,20 @@ export default function CommunityLandingClient() {
 
   const isSearching = searchQuery.trim().length > 0;
   const showFullFeed = feedQuery === "all";
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 3);
-  const activeTotal = isSearching ? searchTotal : total;
+  const canUseInitialFeed =
+    !isSearching &&
+    !showFullFeed &&
+    !selectedCategory &&
+    !tagQuery &&
+    (!sortQuery || sortQuery === "new") &&
+    !periodQuery &&
+    currentSort === "new" &&
+    currentPeriod === "week" &&
+    posts.length === 0 &&
+    Boolean(initialFeed?.posts.length);
+  const previewPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : previewPosts.slice(0, 3);
+  const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -282,6 +306,11 @@ export default function CommunityLandingClient() {
   }, [isSearching, searchHasMore, searchLoading, searchPage, searchQuery, selectedCategory]);
 
   useEffect(() => {
+    if (!canUseInitialFeed || !initialFeed) return;
+    useCommunityStore.getState().hydrateInitialFeed(initialFeed);
+  }, [canUseInitialFeed, initialFeed]);
+
+  useEffect(() => {
     if (isSearching) return;
     const store = useCommunityStore.getState();
     store.setCategory(selectedCategory);
@@ -373,7 +402,7 @@ export default function CommunityLandingClient() {
         fullFeedHref={fullFeedHref}
         summaryFeedHref={summaryFeedHref}
         searchQuery={searchQuery}
-        isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && posts.length === 0 : isLoading}
+        isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && visiblePosts.length === 0 : isLoading}
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
       />
