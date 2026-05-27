@@ -26,6 +26,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/",
+        destination: "/community",
+        permanent: false,
+      },
+      {
         source: "/invitations/:path*",
         destination: "/dashboard",
         permanent: false,
