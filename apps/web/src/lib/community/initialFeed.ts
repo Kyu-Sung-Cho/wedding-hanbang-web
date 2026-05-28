@@ -6,7 +6,7 @@ import type {
   PostWithAuthor,
 } from "@/types/community.types";
 
-const DEFAULT_LIMIT = 3;
+const DEFAULT_LIMIT = 12;
 
 function fallbackAuthor(userId: string): CommunityProfile {
   return {
@@ -52,7 +52,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
 
   try {
     const supabase = createAdminClient();
-    const safeLimit = Math.max(1, Math.min(10, limit));
+    const safeLimit = Math.max(1, Math.min(20, limit));
 
     const { data: posts, count, error } = await supabase
       .from("community_posts")

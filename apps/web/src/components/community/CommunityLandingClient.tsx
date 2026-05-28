@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,7 +31,6 @@ import {
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
-import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
@@ -205,10 +204,10 @@ export default function CommunityLandingClient({
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
-  const showFullFeed = feedQuery === "all";
+  const isSummaryFeed = feedQuery === "summary";
+  const showFullFeed = !isSummaryFeed;
   const canUseInitialFeed =
     !isSearching &&
-    !showFullFeed &&
     !selectedCategory &&
     !tagQuery &&
     (!sortQuery || sortQuery === "new") &&
@@ -218,9 +217,9 @@ export default function CommunityLandingClient({
     posts.length === 0 &&
     Boolean(initialFeed?.posts.length);
   const previewPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : previewPosts.slice(0, 3);
+  const visiblePosts = isSearching ? searchResults : isSummaryFeed ? previewPosts.slice(0, 8) : previewPosts;
   const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
-  const isPreviewFeed = !isSearching && !showFullFeed;
+  const isPreviewFeed = !isSearching && isSummaryFeed;
   const fullFeedHref = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedCategory) params.set("category", selectedCategory);
@@ -236,8 +235,8 @@ export default function CommunityLandingClient({
     if (tagQuery) params.set("tag", tagQuery);
     if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
     if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
-    const query = params.toString();
-    return query ? `/community?${query}#community-feed` : "/community#community-feed";
+    params.set("feed", "summary");
+    return `/community?${params.toString()}#community-feed`;
   }, [periodQuery, selectedCategory, sortQuery, tagQuery]);
 
   useEffect(() => {
@@ -411,6 +410,8 @@ export default function CommunityLandingClient({
         fullFeedHref={fullFeedHref}
         summaryFeedHref={summaryFeedHref}
         searchQuery={searchQuery}
+        currentSort={currentSort}
+        currentPeriod={currentPeriod}
         isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && visiblePosts.length === 0 : isLoading}
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
@@ -631,6 +632,8 @@ function CommunityMain({
   fullFeedHref,
   summaryFeedHref,
   searchQuery,
+  currentSort,
+  currentPeriod,
   isLoading,
   errorMessage,
   clearError,
@@ -643,6 +646,8 @@ function CommunityMain({
   fullFeedHref: string;
   summaryFeedHref: string;
   searchQuery: string;
+  currentSort: PostSort;
+  currentPeriod: TimePeriod;
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
@@ -650,7 +655,7 @@ function CommunityMain({
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 md:grid-cols-[1.48fr_0.92fr]`}
+      className={`${shell} mt-4 scroll-mt-24`}
     >
       <LatestPosts
         posts={posts}
@@ -661,11 +666,13 @@ function CommunityMain({
         fullFeedHref={fullFeedHref}
         summaryFeedHref={summaryFeedHref}
         searchQuery={searchQuery}
+        currentSort={currentSort}
+        currentPeriod={currentPeriod}
         isLoading={isLoading}
         errorMessage={errorMessage}
         clearError={clearError}
       />
-      <RightPanels />
+      <RightPanels currentSort={currentSort} />
     </section>
   );
 }
@@ -679,6 +686,8 @@ function LatestPosts({
   fullFeedHref,
   summaryFeedHref,
   searchQuery,
+  currentSort,
+  currentPeriod,
   isLoading,
   errorMessage,
   clearError,
@@ -691,19 +700,28 @@ function LatestPosts({
   fullFeedHref: string;
   summaryFeedHref: string;
   searchQuery: string;
+  currentSort: PostSort;
+  currentPeriod: TimePeriod;
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
 }) {
+  const sortTitleMap: Record<PostSort, string> = {
+    hot: "인기 글",
+    new: "최신 글",
+    top: `${periodLabels[currentPeriod]} 좋아요 글`,
+    my_cohort: "내 동기글",
+    my_posts: "내 글",
+  };
   const feedTitle = isSearching
     ? "검색 결과"
     : selectedCategory
-      ? `${categoryDisplayLabels[selectedCategory]} 글`
-      : "최신 글";
+      ? `${categoryDisplayLabels[selectedCategory]} ${sortTitleMap[currentSort]}`
+      : sortTitleMap[currentSort];
 
   return (
-    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)] md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
             {feedTitle}
@@ -712,8 +730,8 @@ function LatestPosts({
             {isSearching
               ? `"${searchQuery}" ${formatCount(total)}건`
               : isPreviewFeed
-                ? `최근 글 ${formatCount(posts.length)}개만 먼저 보여드려요`
-                : `실제 게시글 ${formatCount(total)}개`}
+                ? `요약으로 ${formatCount(posts.length)}개만 먼저 보여드려요`
+                : `${sortLabels[currentSort]}으로 ${formatCount(total)}개의 글을 보고 있어요`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -792,14 +810,7 @@ function LatestPosts({
       ) : (
         <div className="divide-y divide-[#eadfc9]">
           {posts.map((post, index) => (
-            <Fragment key={post.id}>
-              <CommunityPostRow post={post} priority={index < 2} />
-              {!isSearching && index === 0 && (
-                <div className="py-4" data-tutorial-target="community-composer">
-                  <FeedComposer />
-                </div>
-              )}
-            </Fragment>
+            <CommunityPostRow key={post.id} post={post} priority={index < 3} />
           ))}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
@@ -1011,11 +1022,11 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   );
 }
 
-function RightPanels() {
+function RightPanels({ currentSort }: { currentSort: PostSort }) {
   return (
-    <div className="space-y-[18px]" data-tutorial-target="community-right">
+    <div className={`mt-[18px] grid grid-cols-1 gap-[18px] ${currentSort === "hot" ? "" : "lg:grid-cols-[1.1fr_0.9fr]"}`} data-tutorial-target="community-right">
       <CohortPreviewPanel />
-      <BestPostsPanel />
+      {currentSort !== "hot" && <BestPostsPanel />}
     </div>
   );
 }
@@ -1027,7 +1038,7 @@ function BestPostsPanel() {
   useEffect(() => {
     let cancelled = false;
     void withSessionCache("community:landing:weekly-hot-posts:3", 5 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/posts?sort=hot&period=week&limit=3&page=1");
+      const res = await fetch("/api/community/posts?sort=top&period=week&limit=3&page=1");
       if (!res.ok) return [] as TrendingPost[];
       const json = await res.json();
       return (json.posts ?? []).slice(0, 3).map((post: TrendingPost) => ({
@@ -1054,7 +1065,7 @@ function BestPostsPanel() {
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
           이번 주 인기글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
         </h2>
-        <Link href="/community?sort=hot&period=week&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
+        <Link href="/community?sort=top&period=week&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
