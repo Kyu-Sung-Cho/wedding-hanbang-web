@@ -9,7 +9,6 @@ import {
   Award,
   Bookmark,
   CalendarCheck,
-  Check,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -19,22 +18,19 @@ import {
   Gift,
   Heart,
   HeartHandshake,
-  LockKeyhole,
+  ImageIcon,
   Megaphone,
   MessageCircle,
   PenSquare,
   RefreshCw,
   Search,
   Share2,
-  ShieldCheck,
   Sparkles,
-  Users,
   AlertCircle,
 } from "lucide-react";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
-import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
@@ -56,7 +52,7 @@ interface TrendingPost {
   comment_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1300px]";
+const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1210px]";
 const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -82,13 +78,6 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   free: "자유",
 };
 
-const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
-  { icon: HeartHandshake, label: "실제 후기 공유" },
-  { icon: CalendarCheck, label: "가격·계약 질문" },
-  { icon: Users, label: "동기방 대화" },
-  { icon: Heart, label: "함께 준비" },
-];
-
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
   { icon: CalendarCheck, label: "스드메 후기", query: "스드메", category: "tour_review" },
@@ -106,16 +95,6 @@ const cohortPreviewRows = [
   { period: "2026년 3분기 (7~9월)", note: "예약·후기" },
   { period: "2026년 4분기 (10~12월)", note: "체크리스트" },
   { period: "날짜 미정·하반기 이후", note: "일정 잡기" },
-];
-
-const promises: Array<{ icon: LucideIcon; title: string; desc: string }> = [
-  { icon: ShieldCheck, title: "정확한 정보", desc: "검증된 경험과 출처가 있는 정보가 더 잘 보이도록 관리해요." },
-  { icon: Gift, title: "사람 중심 공간", desc: "비방보다 맥락과 조언이 남는 대화를 지향해요." },
-  { icon: Megaphone, title: "광고 최소화", desc: "협찬·광고 표시는 명확하게 분리해 신뢰를 지켜요." },
-  { icon: Heart, title: "후기 맥락 보존", desc: "예산·지역·조건을 함께 남겨 비교가 가능하게 해요." },
-  { icon: Users, title: "서로 존중해요", desc: "예비부부 관점에서 안전하게 질문하고 답해요." },
-  { icon: LockKeyhole, title: "안전한 가이드", desc: "개인정보와 민감한 사연은 조심스럽게 다뤄요." },
-  { icon: HeartHandshake, title: "함께 개선해요", desc: "실제 글과 행동을 바탕으로 준비 도구를 더 좋게 만들어요." },
 ];
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
@@ -148,6 +127,18 @@ function getPostImage(post: PostWithAuthor) {
   if (post.images?.[0]) return post.images[0];
   const inline = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
   return inline?.[1] ?? null;
+}
+
+function getPostImages(post: PostWithAuthor) {
+  const slideImages =
+    post.slides
+      ?.map((slide) => slide.thumbnail_url || (slide.type === "image" ? slide.url : null))
+      .filter((url): url is string => Boolean(url)) ?? [];
+  const inline = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/gi)?.map((tag) => {
+    const match = tag.match(/src=["']([^"']+)["']/i);
+    return match?.[1] ?? "";
+  }).filter(Boolean) ?? [];
+  return [...slideImages, ...(post.images ?? []), ...inline].filter((url, index, arr) => arr.indexOf(url) === index);
 }
 
 export default function CommunityLandingClient() {
@@ -352,10 +343,12 @@ export default function CommunityLandingClient() {
   }
 
   return (
-    <div className="bg-[linear-gradient(180deg,#fbf8f2_0%,#ffffff_50%,#fbf8ee_100%)] text-[#263832]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,rgba(201,149,69,0.10),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbf6ed_58%,#fffaf2_100%)] text-[#1a2926]">
       <Hero topVendor={vendorTags[0]?.vendor_name ?? null} />
       <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
-      <CategoryBar
+      <CommunityMain
+        posts={visiblePosts}
+        total={activeTotal}
         selectedCategory={selectedCategory}
         currentSort={currentSort}
         currentPeriod={currentPeriod}
@@ -363,11 +356,6 @@ export default function CommunityLandingClient() {
         onSortChange={setSort}
         onPeriodChange={setPeriod}
         onClearTag={() => router.push("/community")}
-      />
-      <CommunityMain
-        posts={visiblePosts}
-        total={activeTotal}
-        selectedCategory={selectedCategory}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -376,9 +364,8 @@ export default function CommunityLandingClient() {
         isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && posts.length === 0 : isLoading}
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
+        vendorTags={vendorTags}
       />
-      <BottomCards />
-      <TrustPromises />
       <div ref={observerRef} className="h-1" />
       <Link
         href="/community/post/write"
@@ -394,49 +381,46 @@ export default function CommunityLandingClient() {
 
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
-    <section className={`${shell} relative grid grid-cols-1 items-center gap-5 pt-3 md:min-h-[340px] md:grid-cols-2 md:gap-8 md:pt-4`}>
-      <div className="relative z-10 py-5 md:py-6">
-        <p className="mb-4 flex items-center gap-2 text-[13px] font-medium text-[#36534E] md:mb-6 md:text-[15px]">
+    <section className={`${shell} relative mt-[18px] grid min-h-[282px] overflow-hidden rounded-[22px] border border-[#eadcc9] bg-[linear-gradient(90deg,#fffaf3_0%,#fff7ec_46%,rgba(255,255,255,0.05)_100%)] shadow-[0_10px_24px_rgba(50,36,17,0.055)] md:grid-cols-[1fr_1.25fr]`}>
+      <div className="relative z-10 px-7 py-9 sm:px-12">
+        <p className="mb-4 flex items-center gap-2 text-[13px] font-bold text-[#36534E] md:text-[15px]">
           예비부부가 함께 만드는 결혼 준비의 모든 것
-          <Sparkles className="h-4 w-4 text-[#36534E]" />
+          <Sparkles className="h-4 w-4 text-[#b47a2b]" />
         </p>
 
-        <h1 className="font-serif-kr text-[31px] font-medium leading-[1.3] text-[#263832] sm:text-[36px] xl:text-[46px]">
-          경험을 나누고,
+        <h1 className="font-serif-kr text-[38px] font-medium leading-[1.22] text-[#102b27] sm:text-[48px]">
+          결혼 준비,
           <br />
-          더 완벽한 <span className="text-[#36534E]">결혼을 준비해요.</span>
+          함께라서 든든해요
         </h1>
 
-        <p className="mt-5 text-[14px] font-medium leading-[1.75] text-[#5f5b52] md:mt-7 md:text-[16px] md:leading-[1.9]">
-          실제 후기와 정보로 현명하게 준비하고,
+        <p className="mt-5 text-[15px] font-semibold leading-[1.8] text-[#36534E] md:text-[16px]">
+          궁금한 것도, 설레는 순간도 서로 나누며
           <br />
-          서로 돕고 나누며 행복한 결혼을 만들어 가요.
+          더 완벽한 결혼을 준비해요.
         </p>
 
-        <div className="mt-6 grid max-w-[590px] grid-cols-4 gap-1 md:mt-6">
-          {heroSignals.map((item, index) => (
-            <div
-              key={item.label}
-              className={`flex min-h-[58px] flex-col items-center justify-center gap-2 px-1 text-center text-[11px] font-medium leading-snug text-[#5f5b52] md:min-h-[76px] md:gap-[9px] md:px-3 md:text-[12px] ${
-                index < heroSignals.length - 1 ? "sm:border-r sm:border-[#e5d8ca]" : ""
-              }`}
-            >
-              <item.icon className="h-6 w-6 stroke-[1.55] text-[#36534E] md:h-8 md:w-8" />
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
-
         {topVendor && (
-          <p className="mt-5 text-[12px] font-semibold text-[#7d7166]">
+          <p className="mt-5 text-[12px] font-bold text-[#7d7166]">
             지금 많이 언급되는 업체: <span className="text-[#36534E]">{topVendor}</span>
           </p>
         )}
       </div>
 
-      <div className="relative hidden min-h-[300px] self-stretch overflow-hidden rounded-bl-[56px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:block">
-        <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fbf8f2,rgba(255,253,247,0))]" />
-        <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
+      <div className="relative min-h-[238px] overflow-hidden md:min-h-full">
+        <Image
+          src="/images/amora-hero-bouquet-custom.png"
+          alt=""
+          fill
+          className="object-cover object-[center_47%]"
+          sizes="(min-width: 768px) 56vw, 100vw"
+          priority
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,253,248,0.98)_0%,rgba(255,253,248,0.96)_2%,rgba(255,253,248,0.18)_28%,rgba(255,253,248,0)_100%)]" />
+        <div className="absolute right-[12%] top-1/2 hidden -translate-y-1/2 border border-white/55 bg-[#fffaf3]/82 px-12 py-7 text-center shadow-[0_18px_44px_rgba(50,36,17,0.12)] backdrop-blur-[2px] sm:block">
+          <strong className="font-serif text-[42px] font-medium italic leading-none text-[#9a6720]">Amora</strong>
+          <span className="mt-2 block text-[10px] font-black tracking-[0.24em] text-[#815819]">A PRECIOUS PLANNER</span>
+        </div>
       </div>
     </section>
   );
@@ -452,43 +436,72 @@ function SearchHub({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`${shell} rounded-[16px] border border-[#e5d8ca] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:rounded-[18px] md:px-6 md:py-4`}>
-      <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
+    <section className={`${shell} mt-5 grid gap-5 md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_280px]`}>
+      <div className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-5 py-4 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
+        <div className="grid grid-cols-4 gap-y-3 md:grid-cols-8">
+          {searchCategories.map((item, index) => (
+            <Link
+              key={item.label}
+              href={buildCommunityHubHref(item)}
+              aria-label={`${item.label} 보기`}
+              className={`flex min-h-[46px] flex-col items-center justify-center gap-1.5 text-center text-[11px] font-black text-[#102b27] transition-colors hover:text-[#b47a2b] ${
+                index < searchCategories.length - 1 ? "md:border-r md:border-[#eadcc9]" : ""
+              }`}
+            >
+              <item.icon className="h-5 w-5 stroke-[1.85] text-[#b47a2b]" />
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="self-stretch">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
           <input
             name="search"
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
-            placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
-            className="h-11 w-full rounded-full border border-[#dfc9c1] bg-white/70 px-5 pr-12 text-[14px] font-medium text-[#263832] outline-none placeholder:text-[#b7aa9a] focus:border-[#36534E] md:h-[50px] md:px-8 md:pr-14 md:text-[15px]"
+            placeholder="커뮤니티 검색"
+            className="h-[60px] w-full rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-6 pr-14 text-[15px] font-bold text-[#263832] shadow-[0_10px_24px_rgba(50,36,17,0.045)] outline-none placeholder:text-[#b7aa9a] focus:border-[#36534E]"
           />
           <button
             type="submit"
             aria-label="검색"
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#36534E]"
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#b47a2b]"
           >
             <Search className="h-6 w-6" />
           </button>
         </label>
       </form>
+    </section>
+  );
+}
 
-      <div className="mt-4 hidden grid-cols-2 gap-y-3 sm:grid-cols-4 md:grid md:grid-cols-8">
-        {searchCategories.map((item, index) => (
+function ComposerPrompt() {
+  return (
+    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/90 p-7 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
+      <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">
+        어떤 고민이 있으신가요? 후기나 질문을 남겨보세요.
+      </h2>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {[
+          { href: "/community/post/write?category=tour_review", icon: PenSquare, label: "후기 쓰기" },
+          { href: "/community/post/write?category=is_normal", icon: MessageCircle, label: "질문하기" },
+          { href: "/community/post/write", icon: ImageIcon, label: "사진 올리기" },
+        ].map((item) => (
           <Link
             key={item.label}
-            href={buildCommunityHubHref(item)}
-            aria-label={`${item.label} 보기`}
-            className={`flex flex-col items-center gap-1.5 text-center text-[11px] font-medium text-[#5f5b52] transition-colors hover:text-[#36534E] ${
-              index < searchCategories.length - 1 ? "md:border-r md:border-[#e5d8ca]" : ""
-            }`}
+            href={item.href}
+            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[17px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
+            data-tutorial-target={item.label === "후기 쓰기" ? "community-write" : undefined}
           >
-            <item.icon className="h-6 w-6 stroke-[1.55] text-[#36534E]" />
-            <span>{item.label}</span>
+            <item.icon className="h-5 w-5 text-[#9a6720]" />
+            {item.label}
           </Link>
         ))}
       </div>
-    </section>
+    </article>
   );
 }
 
@@ -511,7 +524,7 @@ function CategoryBar({
 }) {
   return (
     <section
-      className={`${shell} mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-[16px] border border-[#e5d8ca] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:gap-3 md:overflow-visible`}
+      className="mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-[16px] border border-[#e5d8ca] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:gap-3 md:overflow-visible"
       data-tutorial-target="community-categories"
     >
       <Link
@@ -589,6 +602,12 @@ function CommunityMain({
   posts,
   total,
   selectedCategory,
+  currentSort,
+  currentPeriod,
+  currentTag,
+  onSortChange,
+  onPeriodChange,
+  onClearTag,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -597,10 +616,17 @@ function CommunityMain({
   isLoading,
   errorMessage,
   clearError,
+  vendorTags,
 }: {
   posts: PostWithAuthor[];
   total: number;
   selectedCategory: CommunityCategory | null;
+  currentSort: PostSort;
+  currentPeriod: TimePeriod;
+  currentTag: string | null;
+  onSortChange: (sort: PostSort) => void;
+  onPeriodChange: (period: TimePeriod) => void;
+  onClearTag: () => void;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -609,26 +635,39 @@ function CommunityMain({
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
+  vendorTags: VendorTag[];
 }) {
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-4 grid grid-cols-1 gap-[18px] scroll-mt-24 md:grid-cols-[1.48fr_0.92fr]`}
+      className={`${shell} mt-5 grid grid-cols-1 gap-[18px] scroll-mt-24 md:grid-cols-[minmax(0,1fr)_360px]`}
     >
-      <LatestPosts
-        posts={posts}
-        total={total}
-        selectedCategory={selectedCategory}
-        isSearching={isSearching}
-        isPreviewFeed={isPreviewFeed}
-        fullFeedHref={fullFeedHref}
-        summaryFeedHref={summaryFeedHref}
-        searchQuery={searchQuery}
-        isLoading={isLoading}
-        errorMessage={errorMessage}
-        clearError={clearError}
-      />
-      <RightPanels />
+      <div className="min-w-0">
+        <ComposerPrompt />
+        <CategoryBar
+          selectedCategory={selectedCategory}
+          currentSort={currentSort}
+          currentPeriod={currentPeriod}
+          currentTag={currentTag}
+          onSortChange={onSortChange}
+          onPeriodChange={onPeriodChange}
+          onClearTag={onClearTag}
+        />
+        <LatestPosts
+          posts={posts}
+          total={total}
+          selectedCategory={selectedCategory}
+          isSearching={isSearching}
+          isPreviewFeed={isPreviewFeed}
+          fullFeedHref={fullFeedHref}
+          summaryFeedHref={summaryFeedHref}
+          searchQuery={searchQuery}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          clearError={clearError}
+        />
+      </div>
+      <RightPanels vendorTags={vendorTags} />
     </section>
   );
 }
@@ -665,8 +704,9 @@ function LatestPosts({
       : "최신 글";
 
   return (
-    <article className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <article>
+      {(isSearching || !isPreviewFeed || selectedCategory) && (
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#eadcc9] bg-[#fffdf9]/90 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.04)]">
         <div>
           <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
             {feedTitle}
@@ -710,6 +750,7 @@ function LatestPosts({
           </Link>
         </div>
       </div>
+      )}
 
       {errorMessage && (
         <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fbf8f2] px-4 py-3 text-sm text-[#5f5b52] sm:flex-row sm:items-center sm:justify-between">
@@ -753,15 +794,10 @@ function LatestPosts({
           <EmptyFeedStarter />
         )
       ) : (
-        <div className="divide-y divide-[#e5d8ca]">
+        <div className="space-y-3">
           {posts.map((post, index) => (
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
-              {!isSearching && index === 0 && (
-                <div className="py-4" data-tutorial-target="community-composer">
-                  <FeedComposer />
-                </div>
-              )}
             </Fragment>
           ))}
           {!isPreviewFeed && isLoading && (
@@ -788,7 +824,9 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   const [voting, setVoting] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const imageUrl = getPostImage(post);
+  const imageUrls = getPostImages(post);
+  const imageUrl = imageUrls[0] ?? getPostImage(post);
+  const galleryImages = imageUrls.length > 0 ? imageUrls.slice(0, 3) : imageUrl ? [imageUrl] : [];
   const contentPreview = stripHtml(post.content).slice(0, 130);
   const displayVote = optimisticVote === undefined ? (post.user_vote ?? null) : optimisticVote;
   const displayUpvoteCount = (post.upvote_count ?? 0) + optimisticUpvoteDelta;
@@ -873,35 +911,20 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid grid-cols-[104px_1fr] gap-4 py-4 first:pt-0 last:pb-0 sm:grid-cols-[150px_1fr] sm:gap-5"
+      className="relative grid gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-5 shadow-[0_10px_24px_rgba(50,36,17,0.045)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(50,36,17,0.08)] lg:grid-cols-[minmax(0,1fr)_380px]"
     >
       {toast && (
         <span className="absolute right-0 top-4 z-10 rounded-full bg-[#36534E] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:aspect-[1.92]">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt=""
-            fill
-            className="object-cover transition-transform duration-500 hover:scale-105"
-            sizes="180px"
-            priority={priority}
-          />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#f6efe5] text-[#36534E]">
-            <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
-            <span className="text-[12px] font-medium">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
-          </div>
-        )}
-      </div>
-
       <div className="min-w-0">
-        <div className="mb-2 flex min-w-0 items-center gap-2">
+        <div className="mb-3 flex min-w-0 items-center gap-2">
           <span className="shrink-0 rounded-md bg-[#f6ead9] px-2 py-1 text-[12px] font-medium text-[#36534E]">
             {categoryInfo?.shortLabel ?? "커뮤니티"}
+          </span>
+          <span className="min-w-0 truncate text-[12px] font-bold text-[#8d8176]">
+            {post.author?.nickname ?? "익명"} · {timeAgo(post.created_at)}
           </span>
           {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
             <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
@@ -916,44 +939,47 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               투표
             </span>
           )}
-          <h3 className="min-w-0 flex-1 truncate font-serif-kr text-[18px] font-medium text-[#263832]">
-            {post.title}
-          </h3>
-          <Sparkles className="h-4 w-4 shrink-0 text-[#36534E]" />
         </div>
+        <h3 className="font-serif-kr text-[23px] font-medium leading-[1.32] text-[#102b27] sm:text-[26px]">
+          {post.title}
+          {post.is_weekly_best && <Sparkles className="ml-2 inline h-5 w-5 text-[#b47a2b]" />}
+        </h3>
         {contentPreview && (
-          <p className="line-clamp-2 text-[13px] font-medium leading-[1.7] text-[#635b51]">
+          <p className="mt-3 line-clamp-2 text-[15px] font-semibold leading-[1.75] text-[#36534E]">
             {contentPreview}
           </p>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-[12px] font-medium text-[#7d7166]">
-          <span>{post.author?.nickname ?? "익명"}</span>
-          <span>{timeAgo(post.created_at)}</span>
+
+        <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] font-black text-[#36534E]">
           <button
             type="button"
             onClick={handleLike}
             disabled={voting}
-            className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
-              isLiked ? "bg-[#EEF4F1] text-[#36534E]" : "text-[#5f5b52] hover:bg-[#f6efe5]"
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+              isLiked ? "bg-[#EEF4F1] text-[#36534E]" : "hover:bg-[#f6efe5]"
             }`}
             aria-label="좋아요"
           >
             <Heart className={`h-4 w-4 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
             {displayUpvoteCount}
           </button>
-          <span className="inline-flex items-center gap-1 text-[#5f5b52]">
+          <span className="inline-flex items-center gap-1">
+            <MessageCircle className="h-4 w-4 stroke-[1.6]" />
+            {post.comment_count ?? 0}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Share2 className="h-4 w-4 stroke-[1.6]" />
+            {Math.max(post.comment_count ?? 0, 0) + Math.max(displayUpvoteCount, 0)}
+          </span>
+          <span className="inline-flex items-center gap-1">
             <Eye className="h-4 w-4 stroke-[1.6]" />
             {post.view_count ?? 0}
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#5f5b52]">
-            <MessageCircle className="h-4 w-4 stroke-[1.6]" />
-            {(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}
           </span>
           <button
             type="button"
             onClick={handleBookmark}
             disabled={bookmarking}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+            className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
               bookmarked ? "bg-[#EEF4F1] text-[#36534E]" : "text-[#5f5b52] hover:bg-[#f6efe5]"
             }`}
             aria-label="북마크"
@@ -970,15 +996,48 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           </button>
         </div>
       </div>
+
+      <div className="grid min-h-[120px] grid-cols-3 gap-3 self-center lg:min-h-[88px]">
+        {galleryImages.length > 0 ? (
+          galleryImages.map((url, index) => (
+            <div
+              key={`${url}-${index}`}
+              className={`relative min-h-[120px] overflow-hidden rounded-[10px] bg-[#f8f4ec] lg:min-h-[88px] ${
+                galleryImages.length === 1 ? "col-span-3" : ""
+              }`}
+            >
+              <Image
+                src={url}
+                alt=""
+                fill
+                className="object-cover transition-transform duration-500 hover:scale-105"
+                sizes="130px"
+                priority={priority && index === 0}
+              />
+              {index === 2 && imageUrls.length > 3 && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-[22px] font-black text-white">
+                  +{imageUrls.length - 2}
+                </span>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="col-span-3 flex h-full min-h-[120px] flex-col items-center justify-center gap-2 rounded-[12px] bg-[#f6efe5] text-[#36534E]">
+            <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
+            <span className="text-[12px] font-bold">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
+          </div>
+        )}
+      </div>
     </Link>
   );
 }
 
-function RightPanels() {
+function RightPanels({ vendorTags }: { vendorTags: VendorTag[] }) {
   return (
     <div className="space-y-[18px]" data-tutorial-target="community-right">
       <CohortPreviewPanel />
       <BestPostsPanel />
+      <PopularTagsPanel vendorTags={vendorTags} />
     </div>
   );
 }
@@ -986,30 +1045,33 @@ function RightPanels() {
 function CohortPreviewPanel() {
   return (
     <article
-      className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
+      className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]"
       data-tutorial-target="community-cohort"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">동기방 함께 준비해요.</h2>
-          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#635b51]">
-            비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기부부 방</h2>
+          <p className="mt-2 text-[13px] font-bold leading-[1.65] text-[#36534E]">
+            함께 준비하는 동기부부와 실시간으로 소통해요!
           </p>
         </div>
-        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#36534E]">
+        <Link href="/community/cohort" className="shrink-0 text-[13px] font-black text-[#9a6720]">
           더보기
         </Link>
       </div>
-      <div className="divide-y divide-[#e5d8ca]">
-        {cohortPreviewRows.map((row) => (
+      <div className="space-y-2">
+        {cohortPreviewRows.map((row, index) => (
           <Link
             key={row.period}
             href="/community/cohort"
-            className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#5f5b52] transition-colors hover:bg-[#f6efe5]"
+            className="flex min-h-[42px] items-center gap-3 rounded-[12px] px-1 text-[14px] font-black text-[#102b27] transition-colors hover:bg-[#f6efe5]"
           >
+            <span className="shrink-0">👰🤵</span>
             <span className="min-w-0 flex-1 truncate">{row.period}</span>
-            <span className="hidden text-[12px] font-medium text-[#7d7166] sm:inline">{row.note}</span>
-            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#dfc9c1] bg-white px-4 text-[12px] font-semibold text-[#36534E]">
+            <span className="hidden text-[12px] font-black text-[#6e7974] sm:inline">
+              {formatCount([2314, 2981, 3427, 2765, 1876][index] ?? 1200)}명
+            </span>
+            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#eadcc9] bg-white px-3 text-[12px] font-black text-[#36534E]">
               입장
             </span>
           </Link>
@@ -1048,7 +1110,7 @@ function BestPostsPanel() {
   }, []);
 
   return (
-    <article className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
           BEST 글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
@@ -1090,116 +1152,28 @@ function BestPostsPanel() {
   );
 }
 
-function BottomCards() {
+function PopularTagsPanel({ vendorTags }: { vendorTags: VendorTag[] }) {
+  const fallbackTags = ["스드메 견적", "본식 드레스", "예산 2500", "예단 고민", "신혼여행 추천", "식전영상", "혼수 준비", "웨딩홀 계약"];
+  const tags = vendorTags.length > 0 ? vendorTags.slice(0, 8).map((tag) => tag.vendor_name) : fallbackTags;
+
   return (
-    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] md:grid-cols-[1fr_0.8fr_1fr]`}>
-      <article className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">가격 · 후기 한눈에 비교해보세요.</h2>
-        <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#635b51]">
-          후기와 견적 정보를 함께 보며
-          <br />
-          나에게 맞는 선택지를 좁혀갈 수 있어요.
-        </p>
-        <Link
-          href="/community/quote-check"
-          className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#36534E] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
-        >
-          정보 비교 바로가기
-          <ChevronRight className="ml-2 h-4 w-4" />
+    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">이번 주 인기 태그</h2>
+        <Link href="/community?sort=hot" className="text-[13px] font-black text-[#9a6720]">
+          더보기
         </Link>
-      </article>
-
-      <article className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h3 className="mb-4 text-[15px] font-semibold text-[#36534E]">카테고리 바로가기</h3>
-        <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
-          {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
-            <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#f6efe5] px-2 py-3">
-              <b className="block text-[#263832]">{cat.shortLabel}</b>
-              <span className="mt-2 block text-[12px] text-[#7d7166]">글 보기</span>
-            </Link>
-          ))}
-        </div>
-        <p className="mt-4 text-[11px] font-medium text-[#8d8176]">실제 게시글 기준으로 이어집니다.</p>
-      </article>
-
-      <article className="relative overflow-hidden rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[12px] font-medium text-[#36534E]">
-          AI 진단 무료
-        </span>
-        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">아모라 견적진단</h2>
-        <p className="mt-2 max-w-[265px] text-[13px] font-medium leading-[1.65] text-[#635b51]">
-          받은 견적서에서 빠진 항목과 추가금 가능성을 먼저 확인해요.
-        </p>
-        <ul className="mt-3 space-y-1 text-[12px] font-medium text-[#5f5b52]">
-          {["평균 대비 참고 진단", "항목별 과소/과다 여부 분석", "계약 전 질문 리스트"].map((item) => (
-            <li key={item} className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-[#36534E]" />
-              {item}
-            </li>
-          ))}
-        </ul>
-        <Link
-          href="/community/quote-check"
-          className="mt-4 inline-flex min-h-10 items-center rounded-full bg-[#36534E] px-5 text-[12px] font-semibold text-white"
-          data-tutorial-target="community-service-link"
-        >
-          아모라 진단부터 시작하기
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Link>
-        <ClipboardCheck className="absolute bottom-4 right-6 h-[110px] w-[110px] rotate-6 text-[#B89785]/35" />
-      </article>
-    </section>
-  );
-}
-
-function TrustPromises() {
-  return (
-    <section className={`${shell} mt-[18px] pb-8`}>
-      <div className="rounded-[18px] border border-[#e5d8ca] bg-white/82 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <div className="mb-5 text-center">
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">우리가 지키는 약속</h2>
-          <p className="mt-2 text-[13px] font-medium text-[#635b51]">
-            올바른 정보를 공유하고, 모두가 믿고 쓸 수 있는 공간을 만들어요.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {promises.slice(0, 3).map((promise) => (
-            <PromiseCard key={promise.title} {...promise} large />
-          ))}
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-          {promises.slice(3).map((promise) => (
-            <PromiseCard key={promise.title} {...promise} />
-          ))}
-        </div>
       </div>
-    </section>
-  );
-}
-
-function PromiseCard({
-  icon: Icon,
-  title,
-  desc,
-  large = false,
-}: {
-  icon: LucideIcon;
-  title: string;
-  desc: string;
-  large?: boolean;
-}) {
-  return (
-    <article
-      className={`flex items-center gap-4 rounded-[14px] border border-[#e5d8ca] bg-[#fbf8f2] p-5 ${
-        large ? "min-h-[105px]" : "min-h-[82px]"
-      }`}
-    >
-      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#e5d8ca] bg-white text-[#36534E]">
-        <Icon className="h-6 w-6 stroke-[1.55]" />
-      </span>
-      <div>
-        <h3 className="text-[14px] font-semibold text-[#36534E]">{title}</h3>
-        <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#635b51]">{desc}</p>
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <Link
+            key={tag}
+            href={`/community?tag=${encodeURIComponent(tag)}#community-feed`}
+            className="rounded-full border border-[#eadcc9] bg-white/72 px-3 py-2 text-[12px] font-black text-[#36534E] transition-colors hover:border-[#36534E] hover:bg-[#eaf3ef]"
+          >
+            # {tag}
+          </Link>
+        ))}
       </div>
     </article>
   );

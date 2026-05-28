@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, PenSquare, X } from "lucide-react";
+import { ChevronRight, Menu, X } from "lucide-react";
 import UserMenu from "@/components/community/UserMenu";
 import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
-  { href: "/community#community-feed", label: "후기·질문" },
-  { href: "/community/quote-check", label: "견적 체크" },
-  { href: "/dashboard", label: "준비실" },
+  { href: "/community", label: "커뮤니티" },
+  { href: "/community/about", label: "커뮤니티 소개" },
+  { href: "/dashboard", label: "서비스 소개" },
 ];
 
 export default function CommunityNav() {
@@ -18,7 +18,7 @@ export default function CommunityNav() {
   const profile = useAuthStore((state) => state.profile);
 
   return (
-    <header className="bg-[#fbf8f2]">
+    <header className="sticky top-0 z-50 border-b border-[#eadcc9]/70 bg-[#fffdf9]/88 backdrop-blur-[18px]">
       <div className="mx-auto flex h-[76px] w-[calc(100%_-_48px)] max-w-[1300px] items-center justify-between">
         <Link href="/community" className="inline-flex items-center whitespace-nowrap">
           <Logo size="lg" />
@@ -34,11 +34,11 @@ export default function CommunityNav() {
             </div>
           ))}
           <Link
-            href="/community/post/write"
-            className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-6 py-3 text-[14px] font-semibold text-[#ffffff] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+            href="/chat"
+            className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-6 py-3 text-[14px] font-semibold text-[#ffffff] shadow-[0_12px_28px_rgba(54,83,78,0.22)] transition-all hover:-translate-y-0.5 hover:bg-[#1f3d38]"
           >
-            <PenSquare className="h-4 w-4" />
-            글쓰기
+            아모라 체험하기
+            <ChevronRight className="h-4 w-4" />
           </Link>
           {profile ? (
             <UserMenu />
@@ -60,7 +60,7 @@ export default function CommunityNav() {
         </button>
       </div>
       {mobileOpen && (
-        <div className="border-t border-[#e5d8ca] bg-[#fbf8f2] md:hidden">
+        <div className="border-t border-[#e5d8ca] bg-[#fffdf9] md:hidden">
           <div className="mx-auto flex w-[calc(100%_-_48px)] max-w-[1300px] flex-col gap-2 py-4">
             {navItems.map((item) => (
               <Link
@@ -73,12 +73,12 @@ export default function CommunityNav() {
               </Link>
             ))}
             <Link
-              href="/community/post/write"
+              href="/chat"
               onClick={() => setMobileOpen(false)}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#e5d8ca] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E]"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[14px] font-semibold text-white"
             >
-              <PenSquare className="h-4 w-4" />
-              글쓰기
+              아모라 체험하기
+              <ChevronRight className="h-4 w-4" />
             </Link>
             {profile ? (
               <div className="flex justify-center py-2">
