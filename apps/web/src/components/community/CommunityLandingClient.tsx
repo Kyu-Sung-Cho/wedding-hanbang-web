@@ -1026,11 +1026,11 @@ function BestPostsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    void withSessionCache("community:landing:best-posts:5", 5 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
+    void withSessionCache("community:landing:weekly-hot-posts:3", 5 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/posts?sort=hot&period=week&limit=3&page=1");
       if (!res.ok) return [] as TrendingPost[];
       const json = await res.json();
-      return (json.posts ?? []).slice(0, 5).map((post: TrendingPost) => ({
+      return (json.posts ?? []).slice(0, 3).map((post: TrendingPost) => ({
         id: post.id,
         title: post.title,
         upvote_count: post.upvote_count,
@@ -1052,20 +1052,20 @@ function BestPostsPanel() {
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
-          BEST 글 <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
+          이번 주 인기글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
         </h2>
-        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
+        <Link href="/community?sort=hot&period=week&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
       {loading ? (
         <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, index) => (
+          {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="h-7 animate-pulse rounded-md bg-[#f3eadc]" />
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7a8290]">아직 인기글을 집계하고 있어요.</p>
+        <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 모으고 있어요.</p>
       ) : (
         <ol className="space-y-3">
           {posts.map((post, index) => (
@@ -1084,8 +1084,8 @@ function BestPostsPanel() {
           ))}
         </ol>
       )}
-      <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
-        실제 커뮤니티 반응을 기준으로 보여드려요.
+      <p className="mt-4 border-t border-[#eadfc9] pt-3 text-center text-[12px] font-medium text-[#9aa2af]">
+        최근 7일 반응을 기준으로 보여드려요.
       </p>
     </article>
   );
@@ -1129,61 +1129,55 @@ function CohortPreviewPanel() {
 
 function BottomCards() {
   return (
-    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] pb-8 md:grid-cols-[1fr_0.8fr_1fr]`}>
-      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 한눈에 비교해보세요.</h2>
-        <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
-          후기와 견적 정보를 함께 보며
-          <br />
-          나에게 맞는 선택지를 좁혀갈 수 있어요.
-        </p>
-        <Link
-          href="/community?category=tour_review&search=견적&feed=all#community-feed"
-          className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
-        >
-          정보 비교 바로가기
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Link>
-      </article>
+    <section className={`${shell} mt-[18px] pb-8`}>
+      <article className="relative overflow-hidden rounded-[22px] border border-[#eadfc9] bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(246,239,229,0.92)_48%,rgba(234,221,216,0.78)_100%)] p-6 shadow-[0_16px_42px_rgba(8,22,38,0.055)] md:grid md:grid-cols-[1.12fr_1fr_auto] md:items-center md:gap-8 md:p-8">
+        <div className="relative z-10">
+          <span className="inline-flex rounded-full border border-[#e5d8ca] bg-white/74 px-3 py-1 text-[12px] font-semibold text-[#7f5e58]">
+            커뮤니티 다음 단계
+          </span>
+          <h2 className="mt-4 font-serif-kr text-[26px] font-medium leading-[1.35] text-[#071629] md:text-[30px]">
+            찾은 정보는 웨딩 라운지에 바로 정리해요.
+          </h2>
+          <p className="mt-3 max-w-[560px] text-[13px] font-medium leading-[1.75] text-[#5d6879] md:text-[14px]">
+            마음에 둔 후기, 아모라에게 물어본 내용, 다음 예약 일정을 흩어두지 않고 한 화면에서 이어서 관리할 수 있어요.
+          </p>
+        </div>
 
-      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">커뮤니티 데이터</h3>
-        <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
-          {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
-            <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#fff8ec] px-2 py-3">
-              <b className="block text-[#071629]">{cat.shortLabel}</b>
-              <span className="mt-2 block text-[12px] text-[#7a8290]">글 보기</span>
+        <div className="relative z-10 mt-5 grid gap-2 sm:grid-cols-3 md:mt-0 md:grid-cols-1">
+          {journeyActions.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className="group flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#e5d8ca] bg-white/74 px-4 text-[13px] font-medium text-[#34445a] transition-colors hover:border-[#a77b74] hover:bg-white"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f6efe5] text-[#7f5e58]">
+                <item.icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <b className="block truncate text-[13px] text-[#071629]">{item.title}</b>
+                <span className="mt-0.5 block truncate text-[12px] text-[#7a8290]">{item.desc}</span>
+              </span>
             </Link>
           ))}
         </div>
-        <p className="mt-4 text-[11px] font-medium text-[#9aa2af]">실제 게시글 기준으로 이어집니다.</p>
-      </article>
 
-      <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-        <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
-          다음 행동
-        </span>
-        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">웨딩 라운지에 이어 담기</h2>
-        <p className="mt-2 max-w-[270px] text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-          커뮤니티에서 찾은 후기와 질문을 일정·예산·예약 관리로 자연스럽게 이어가세요.
-        </p>
-        <div className="mt-4 grid gap-2 text-[12px] font-medium text-[#34445a]">
-          {journeyActions.slice(1).map((item) => (
-            <Link key={item.title} href={item.href} className="inline-flex items-center gap-2">
-              <item.icon className="h-4 w-4 text-[#b68a3a]" />
-              {item.title}
-            </Link>
-          ))}
+        <div className="relative z-10 mt-6 flex items-center gap-4 md:mt-0 md:flex-col md:items-end">
+          <Link
+            href="/lounge"
+            className="inline-flex min-h-12 items-center rounded-full bg-[#061a34] px-6 text-[13px] font-semibold text-[#ecd7a4] shadow-[0_14px_30px_rgba(6,26,52,0.16)]"
+            data-tutorial-target="community-service-link"
+          >
+            웨딩 라운지 열기
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Link>
+          <span className="hidden text-right text-[12px] font-medium leading-[1.5] text-[#7a8290] md:block">
+            일정 · 예산 · 체크리스트를
+            <br />
+            한 화면으로 이어가요.
+          </span>
         </div>
-        <Link
-          href="/lounge"
-          className="mt-5 inline-flex min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[12px] font-semibold text-white"
-          data-tutorial-target="community-service-link"
-        >
-          웨딩 라운지 열기
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Link>
-        <ClipboardCheck className="absolute bottom-4 right-6 h-[110px] w-[110px] rotate-6 text-[#c9a96e]/35" />
+        <ClipboardCheck className="pointer-events-none absolute -bottom-8 right-[20%] h-[150px] w-[150px] rotate-6 text-[#c9a96e]/18 md:right-[12%]" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-[28%] bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.46))]" />
       </article>
     </section>
   );
