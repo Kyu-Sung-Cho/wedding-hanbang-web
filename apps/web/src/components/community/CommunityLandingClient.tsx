@@ -1026,22 +1026,22 @@ function RightPanels({ currentSort }: { currentSort: PostSort }) {
   return (
     <div className={`mt-[18px] grid grid-cols-1 gap-[18px] ${currentSort === "hot" ? "" : "lg:grid-cols-[1.1fr_0.9fr]"}`} data-tutorial-target="community-right">
       <CohortPreviewPanel />
-      {currentSort !== "hot" && <BestPostsPanel />}
+      {currentSort !== "hot" && <PopularPostsPanel />}
     </div>
   );
 }
 
-function BestPostsPanel() {
+function PopularPostsPanel() {
   const [posts, setPosts] = useState<TrendingPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    void withSessionCache("community:landing:weekly-hot-posts:3", 5 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/posts?sort=top&period=week&limit=3&page=1");
+    void withSessionCache("community:landing:popular-posts:5", 5 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
       if (!res.ok) return [] as TrendingPost[];
       const json = await res.json();
-      return (json.posts ?? []).slice(0, 3).map((post: TrendingPost) => ({
+      return (json.posts ?? []).slice(0, 5).map((post: TrendingPost) => ({
         id: post.id,
         title: post.title,
         upvote_count: post.upvote_count,
@@ -1063,9 +1063,9 @@ function BestPostsPanel() {
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
-          이번 주 인기글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
+          인기 글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
         </h2>
-        <Link href="/community?sort=top&period=week&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
+        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
@@ -1076,7 +1076,7 @@ function BestPostsPanel() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 모으고 있어요.</p>
+        <p className="text-[13px] font-medium text-[#7a8290]">인기 글을 모으고 있어요.</p>
       ) : (
         <ol className="space-y-3">
           {posts.map((post, index) => (
@@ -1096,7 +1096,7 @@ function BestPostsPanel() {
         </ol>
       )}
       <p className="mt-4 border-t border-[#eadfc9] pt-3 text-center text-[12px] font-medium text-[#9aa2af]">
-        최근 7일 반응을 기준으로 보여드려요.
+        좋아요와 댓글 반응을 기준으로 보여드려요.
       </p>
     </article>
   );
