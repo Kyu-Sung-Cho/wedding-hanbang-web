@@ -507,21 +507,21 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
  * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /dashboard, /chat,
  * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
- * 스톤 차콜·오이스터·세이지 톤으로 통일한다.
+ * 먹색·클레이·아이보리 톤으로 통일한다.
  * ========================================================================= */
 .hanbang-service-theme {
-  color: #2d2b28;
-  --hb-navy: #2d2b28;
-  --hb-navy-soft: #4b4843;
-  --hb-gold: #6f7467;
-  --hb-gold-deep: #555d54;
-  --hb-ivory: #f6f3ef;
-  --hb-ivory-warm: #ece8e2;
-  --hb-line: #ded8d1;
-  --hb-muted: #716d67;
-  --hb-text: #2d2b28;
-  --hb-body: #5d5953;
-  --hb-success: #687b6a;
+  color: #2f2a26;
+  --hb-navy: #2f2a26;
+  --hb-navy-soft: #4f4741;
+  --hb-gold: #a96856;
+  --hb-gold-deep: #7a4e43;
+  --hb-ivory: #f8f3ed;
+  --hb-ivory-warm: #f4ebe4;
+  --hb-line: #e7dad1;
+  --hb-muted: #766d66;
+  --hb-text: #2f2a26;
+  --hb-body: #5f5751;
+  --hb-success: #73896f;
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -534,7 +534,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="text-[#795252]/50"],
 .hanbang-service-theme [class~="text-[#946a6a]/50"],
 .hanbang-service-theme [class~="text-rose-500/50"] {
-  color: rgba(85, 93, 84, 0.58) !important;
+  color: rgba(157, 111, 54, 0.55) !important;
 }
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
@@ -578,7 +578,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="bg-rose-500/20"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/10"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
-  background-color: rgba(111, 116, 103, 0.11) !important;
+  background-color: rgba(182, 138, 58, 0.10) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#f3e7e1]"],
@@ -595,7 +595,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="hover:bg-[#EDE7E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-ivory-200"]:hover {
-  background-color: #efede8 !important;
+  background-color: #fff3df !important;
 }
 
 .hanbang-service-theme [class~="bg-sage-500"] {
@@ -625,13 +625,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="ring-[#795252]/20"],
 .hanbang-service-theme [class~="ring-[#795252]/30"],
 .hanbang-service-theme [class~="ring-rose-500/20"] {
-  --tw-ring-color: rgba(111, 116, 103, 0.24) !important;
+  --tw-ring-color: rgba(182, 138, 58, 0.22) !important;
 }
 
 .hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
 .hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
 .hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
-  --tw-ring-color: rgba(111, 116, 103, 0.30) !important;
+  --tw-ring-color: rgba(182, 138, 58, 0.28) !important;
 }
 
 .hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
@@ -647,7 +647,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="from-[#795252]"],
 .hanbang-service-theme [class~="from-rose-500"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(45, 43, 40, 0) !important;
+  --tw-gradient-to: rgba(6, 26, 52, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -691,18 +691,18 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-community-theme {
-  color: #2d2b28;
-  --hb-navy: #2d2b28;
-  --hb-navy-soft: #4b4843;
-  --hb-gold: #6f7467;
-  --hb-gold-deep: #555d54;
-  --hb-ivory: #f6f3ef;
-  --hb-ivory-warm: #ece8e2;
-  --hb-line: #ded8d1;
-  --hb-muted: #716d67;
-  --hb-text: #2d2b28;
-  --hb-body: #5d5953;
-  --hb-success: #687b6a;
+  color: #2f2a26;
+  --hb-navy: #2f2a26;
+  --hb-navy-soft: #4f4741;
+  --hb-gold: #a96856;
+  --hb-gold-deep: #7a4e43;
+  --hb-ivory: #f8f3ed;
+  --hb-ivory-warm: #f4ebe4;
+  --hb-line: #e7dad1;
+  --hb-muted: #766d66;
+  --hb-text: #2f2a26;
+  --hb-body: #5f5751;
+  --hb-success: #73896f;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
@@ -787,7 +787,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#071629]"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(45, 43, 40, 0) !important;
+  --tw-gradient-to: rgba(47, 41, 37, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -798,13 +798,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#102a4d]/20"] {
-  --tw-gradient-from: rgba(75, 72, 67, 0.20) !important;
-  --tw-gradient-to: rgba(75, 72, 67, 0) !important;
+  --tw-gradient-from: rgba(75, 64, 56, 0.20) !important;
+  --tw-gradient-to: rgba(75, 64, 56, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]/5"] {
-  --tw-gradient-to: rgba(75, 72, 67, 0.05) !important;
+  --tw-gradient-to: rgba(75, 64, 56, 0.05) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(6,26,52"],
