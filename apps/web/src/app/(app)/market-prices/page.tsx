@@ -64,83 +64,19 @@ export default function MarketPricesPage() {
         </p>
       </div>
 
-      {/* 가격표시제 안내 배너 — 원칙 P5 실체화 */}
-      <div className="bg-sage-500/5 border border-sage-500/10 rounded-xl p-4 mb-8 text-sm">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 text-sage-500 text-base leading-none" aria-hidden>📋</div>
-          <div className="flex-1">
-            <div className="font-medium mb-1 text-[#1b1c1c]">
-              정부 가격표시제 시행 중
-            </div>
-            <div className="text-[#504444] leading-relaxed">
-              2025년 11월부터 예식장·결혼준비대행업자는 가격을 공개해야 합니다.
-              단 시행 초기, 다수 vendor가 아직 공개하지 않은 상태입니다.
-              우리가 공공 데이터를 정리하고 실거래가를 보완합니다.
-            </div>
-            <div className="text-xs text-[#504444]/60 mt-1">
-              공정위 「중요한 표시·광고사항 고시」 개정, 2025.11 시행
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* National Anchor — 정부 공식 데이터 4개 */}
-      <section className="mb-12">
-        <div className="mb-6">
-          <h2 className="font-serif-kr text-2xl sm:text-3xl mb-2 text-[#1b1c1c] font-light">
-            결혼 비용, 숫자로 먼저 보기
-          </h2>
-          <p className="text-sm text-[#504444]">
-            정부 공식 데이터 기반. 모든 숫자엔 출처가 있습니다.
+      <details className="mb-6 rounded-xl border border-[#eadfc9] bg-white/70 px-4 py-3 text-sm text-[#504444]">
+        <summary className="cursor-pointer font-medium text-[#1b1c1c]">
+          공식 출처와 가격표시제 안내
+        </summary>
+        <div className="mt-3 space-y-1 leading-relaxed">
+          <p>
+            2025년 11월부터 예식장·결혼준비대행업자는 가격을 공개해야 합니다. 현재 화면은 한국소비자원 공개 데이터를 기준으로 정리한 참고 자료입니다.
+          </p>
+          <p className="text-xs text-[#928980]">
+            공정위 「중요한 표시·광고사항 고시」 개정, 2025.11 시행
           </p>
         </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Anchor 1 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">전국 평균 결혼비용</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
-              ₩21,010,000
-            </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
-              출처: 한국소비자원 참가격, 2025
-            </div>
-          </div>
-
-          {/* Anchor 2 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">스드메 추가금 평균</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
-              +₩1,740,000
-            </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
-              출처: 기획재정부 「결혼서비스 실태조사」, 2024
-            </div>
-          </div>
-
-          {/* Anchor 3 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">가격 정보 어려움</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
-              85.4%
-            </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
-              출처: 한국소비자원, 2024
-            </div>
-          </div>
-
-          {/* Anchor 4 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">추가비용 경험률</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
-              83.2%
-            </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
-              출처: 한국소비자원, 2024
-            </div>
-          </div>
-        </div>
-      </section>
+      </details>
 
       {/* 기간 선택 + 전국/서울 토글 */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
@@ -213,48 +149,6 @@ export default function MarketPricesPage() {
         데이터 출처: 한국소비자원 · {currentPeriod.label} 기준 · 단위: 만원
       </div>
 
-      {/* Give-to-Get CTA — 실거래가 공유 유도 (베타) */}
-      <section className="mt-16 mb-8">
-        <div className="bg-gradient-to-br from-[#795252]/5 to-sage-500/5 rounded-3xl p-8 sm:p-12">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs text-[#795252] bg-[#795252]/10 px-3 py-1 rounded-full mb-4">
-              🔒 Give-to-Get 베타
-            </span>
-
-            <h2 className="font-serif-kr text-2xl sm:text-3xl mb-4 text-[#1b1c1c] font-light">
-              더 깊은 데이터가 필요하세요?
-            </h2>
-
-            <p className="text-[#504444] mb-2">
-              정부 공식 데이터는 평균만 보여줍니다.
-            </p>
-            <p className="text-[#504444] mb-6">
-              실제 결혼한 커플들이 공유한 <strong>영수증 기반 실거래가</strong>를 보세요.
-            </p>
-
-            <div className="bg-white/60 rounded-xl p-4 mb-6 text-sm">
-              <div className="font-medium mb-2 text-[#1b1c1c]">어떻게 작동하나요?</div>
-              <ul className="space-y-1 text-[#504444]">
-                <li>1. 당신의 실거래가 1건을 공유합니다 (영수증 인증)</li>
-                <li>2. 다른 커플이 공유한 데이터 10건이 잠금 해제됩니다</li>
-                <li>3. 개인정보는 익명 처리되어 저장됩니다</li>
-              </ul>
-            </div>
-
-            <a
-              href="mailto:ceo@hanbang.ai?subject=%EC%8B%A4%EA%B1%B0%EB%9E%98%EA%B0%80%20%EA%B3%B5%EC%9C%A0%20%EC%8B%A0%EC%B2%AD"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#795252] text-white rounded-xl hover:bg-[#946a6a] transition-colors"
-            >
-              실거래가 공유 신청 →
-            </a>
-
-            <div className="mt-4 text-xs text-[#504444]">
-              * 정식 Give-to-Get Form은 2026년 5월 베타 시 오픈.
-              지금은 이메일로 관심 표명만 받습니다.
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

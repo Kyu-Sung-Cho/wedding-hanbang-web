@@ -6,19 +6,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  Award,
   Bookmark,
   CalendarCheck,
   ChevronDown,
   ChevronRight,
-  ClipboardCheck,
   ClipboardList,
   Eye,
   Flame,
   Gift,
   Heart,
   HeartHandshake,
-  Megaphone,
   MessageCircle,
   PenSquare,
   RefreshCw,
@@ -96,12 +93,8 @@ const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
   { icon: CalendarCheck, label: "스드메 후기", query: "스드메", category: "tour_review" },
-  { icon: ClipboardList, label: "예산 정보", query: "예산", category: "is_normal" },
-  { icon: Gift, label: "스토리 & 꿀팁", category: "tips_v2" },
-  { icon: Megaphone, label: "박람회 & 이벤트", query: "박람회" },
-  { icon: Award, label: "부케 & 드레스", query: "드레스", category: "tour_review" },
-  { icon: ClipboardCheck, label: "예단 & 혼수", query: "예단" },
-  { icon: CalendarCheck, label: "신혼여행", query: "신혼여행" },
+  { icon: ClipboardList, label: "가격 질문", query: "견적", category: "is_normal" },
+  { icon: Gift, label: "준비 꿀팁", category: "tips_v2" },
 ];
 
 const cohortPreviewRows = [
@@ -487,17 +480,17 @@ function SearchHub({
         </label>
       </form>
 
-      <div className="mt-6 grid grid-cols-2 gap-y-5 sm:grid-cols-4 md:grid-cols-8">
+      <div className="mt-5 grid grid-cols-2 gap-y-5 sm:grid-cols-4">
         {searchCategories.map((item, index) => (
           <Link
             key={item.label}
             href={buildCommunityHubHref(item)}
             aria-label={`${item.label} 보기`}
             className={`flex flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] ${
-              index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
+              index < searchCategories.length - 1 ? "sm:border-r sm:border-[#eadfc9]" : ""
             }`}
           >
-            <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
+            <item.icon className="h-7 w-7 stroke-[1.55] text-[#b68a3a]" />
             <span>{item.label}</span>
           </Link>
         ))}
