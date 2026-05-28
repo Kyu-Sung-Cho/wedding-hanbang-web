@@ -61,7 +61,7 @@ export default function MyGuestbooksPage() {
         </h1>
         <Link
           href="/community/guestbook/new"
-          className="inline-flex items-center gap-2 bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-5 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+          className="inline-flex items-center gap-2 bg-[#36534E] text-white rounded-xl py-3 px-5 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
         >
           <Plus className="w-4 h-4" />새 방명록 만들기
         </Link>
@@ -79,7 +79,7 @@ export default function MyGuestbooksPage() {
 
       {!loading && !error && items.length === 0 && (
         <div className="bg-white border border-[#F0EFED] rounded-2xl p-10 text-center">
-          <BookOpen className="w-12 h-12 text-[#C4967E] mx-auto mb-4" />
+          <BookOpen className="w-12 h-12 text-[#36534E] mx-auto mb-4" />
           <h2 className="font-serif text-xl font-medium text-[#1A1A1F] mb-2">
             아직 만든 방명록이 없어요
           </h2>
@@ -88,7 +88,7 @@ export default function MyGuestbooksPage() {
           </p>
           <Link
             href="/community/guestbook/new"
-            className="inline-flex items-center gap-2 bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+            className="inline-flex items-center gap-2 bg-[#36534E] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
           >
             <Plus className="w-4 h-4" />첫 방명록 만들기
           </Link>
@@ -130,14 +130,14 @@ export default function MyGuestbooksPage() {
                   <Link
                     href={`/guestbook/${gb.slug}`}
                     target="_blank"
-                    className="flex-1 text-center bg-[#7f5e58] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#36534e] transition"
+                    className="flex-1 text-center bg-[#36534E] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#2B423E] transition"
                   >
                     방명록 보기
                   </Link>
                   <button
                     type="button"
                     onClick={() => setQrUrl(url)}
-                    className="inline-flex items-center gap-1.5 bg-white border border-[#F0EFED] text-[#1A1A1F] rounded-xl py-2.5 px-4 text-sm hover:border-[#C4967E] transition"
+                    className="inline-flex items-center gap-1.5 bg-white border border-[#F0EFED] text-[#1A1A1F] rounded-xl py-2.5 px-4 text-sm hover:border-[#36534E] transition"
                   >
                     <QrCode className="w-4 h-4" />
                     QR 코드

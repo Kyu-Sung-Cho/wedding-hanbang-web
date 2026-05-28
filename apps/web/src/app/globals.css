@@ -512,17 +512,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme {
   color: #263832;
   --hb-navy: #36534e;
-  --hb-navy-soft: #4e6a62;
-  --hb-gold: #a77b74;
-  --hb-gold-deep: #7f5e58;
-  --hb-gold-light: #dfc9c1;
+  --hb-navy-soft: #2b423e;
+  --hb-gold: #36534e;
+  --hb-gold-deep: #36534e;
+  --hb-gold-light: rgba(54, 83, 78, 0.22);
   --hb-ivory: #fbf8f2;
   --hb-ivory-warm: #f6efe5;
   --hb-line: #e5d8ca;
   --hb-muted: #7d7166;
   --hb-text: #263832;
   --hb-body: #5f5b52;
-  --hb-success: #6d806e;
+  --hb-success: #36534e;
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -535,7 +535,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="text-[#795252]/50"],
 .hanbang-service-theme [class~="text-[#946a6a]/50"],
 .hanbang-service-theme [class~="text-rose-500/50"] {
-  color: rgba(127, 94, 88, 0.55) !important;
+  color: rgba(54, 83, 78, 0.55) !important;
 }
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
@@ -579,7 +579,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="bg-rose-500/20"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/10"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
-  background-color: rgba(167, 123, 116, 0.11) !important;
+  background-color: rgba(54, 83, 78, 0.10) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#f3e7e1]"],
@@ -626,13 +626,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="ring-[#795252]/20"],
 .hanbang-service-theme [class~="ring-[#795252]/30"],
 .hanbang-service-theme [class~="ring-rose-500/20"] {
-  --tw-ring-color: rgba(167, 123, 116, 0.24) !important;
+  --tw-ring-color: rgba(54, 83, 78, 0.24) !important;
 }
 
 .hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
 .hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
 .hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
-  --tw-ring-color: rgba(167, 123, 116, 0.30) !important;
+  --tw-ring-color: rgba(54, 83, 78, 0.30) !important;
 }
 
 .hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
@@ -676,7 +676,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [style*="background-color: rgb(148, 106, 106)"],
 .hanbang-service-theme [style*="background-color: #795252"],
 .hanbang-service-theme [style*="background-color: #946a6a"] {
-  background-color: var(--hb-gold) !important;
+  background-color: var(--hb-navy) !important;
 }
 
 .hanbang-service-theme [style*="border-color: rgb(121, 82, 82)"],
@@ -694,17 +694,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-community-theme {
   color: #263832;
   --hb-navy: #36534e;
-  --hb-navy-soft: #4e6a62;
-  --hb-gold: #a77b74;
-  --hb-gold-deep: #7f5e58;
-  --hb-gold-light: #dfc9c1;
+  --hb-navy-soft: #2b423e;
+  --hb-gold: #36534e;
+  --hb-gold-deep: #36534e;
+  --hb-gold-light: rgba(54, 83, 78, 0.22);
   --hb-ivory: #fbf8f2;
   --hb-ivory-warm: #f6efe5;
   --hb-line: #e5d8ca;
   --hb-muted: #7d7166;
   --hb-text: #263832;
   --hb-body: #5f5b52;
-  --hb-success: #6d806e;
+  --hb-success: #36534e;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
@@ -732,16 +732,16 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"] {
-  color: #efe1d9 !important;
+  color: #ffffff !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/30"] {
-  color: rgba(167, 123, 116, 0.30) !important;
+  color: rgba(54, 83, 78, 0.30) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/40"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/45"] {
-  color: rgba(167, 123, 116, 0.42) !important;
+  color: rgba(54, 83, 78, 0.42) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
@@ -773,7 +773,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/12"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/15"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/20"] {
-  background-color: rgba(167, 123, 116, 0.12) !important;
+  background-color: rgba(54, 83, 78, 0.12) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
@@ -828,7 +828,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]"] {
   --tw-gradient-from: var(--hb-gold) !important;
-  --tw-gradient-to: rgba(167, 123, 116, 0) !important;
+  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -844,8 +844,8 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]/20"] {
-  --tw-gradient-from: rgba(167, 123, 116, 0.20) !important;
-  --tw-gradient-to: rgba(167, 123, 116, 0) !important;
+  --tw-gradient-from: rgba(54, 83, 78, 0.20) !important;
+  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 

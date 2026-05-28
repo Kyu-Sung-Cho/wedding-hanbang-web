@@ -27,13 +27,13 @@ export default function CommunityAboutPage() {
       {/* ─── Hero ─── */}
       <section className="px-4 sm:px-6 md:px-10 pt-16 sm:pt-24 pb-12 sm:pb-16">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs tracking-[0.3em] text-[#7f5e58] mb-5 font-medium uppercase">
+          <p className="text-xs tracking-[0.3em] text-[#36534E] mb-5 font-medium uppercase">
             Wedding Hanbang Guide
           </p>
           <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#263832] leading-[1.2] tracking-[-0.01em] mb-6">
             혼자 고민하지 마세요.
             <br />
-            <em className="not-italic text-[#7f5e58]">함께 준비해요.</em>
+            <em className="not-italic text-[#36534E]">함께 준비해요.</em>
           </h1>
           <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed max-w-xl mx-auto">
             웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를
@@ -64,7 +64,7 @@ export default function CommunityAboutPage() {
               필요 이상의 비용을 치르거나, 후회되는 결정을 내리게 돼요.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
-              <span className="font-medium text-[#7f5e58]">웨딩한방 커뮤니티</span>는
+              <span className="font-medium text-[#36534E]">웨딩한방 커뮤니티</span>는
               실제 경험한 신랑신부들이 솔직한 후기와 가격 정보를 나누고,
               같은 시기에 결혼하는 동기들끼리 응원하는 공간이에요.
               혼자 고민하던 결정을 함께 풀어나가요.
@@ -89,8 +89,8 @@ export default function CommunityAboutPage() {
                 icon: MessageCircle,
                 title: "솔직한 후기 읽기",
                 desc: "스드메, 예식장, 신혼여행까지 — 직접 경험한 사람들의 가격, 사진, 평가를 한 번에 비교해요.",
-                color: "from-[#7f5e58]/15 to-[#7f5e58]/5",
-                iconColor: "text-[#7f5e58]",
+                color: "from-[#36534E]/15 to-[#36534E]/5",
+                iconColor: "text-[#36534E]",
               },
               {
                 icon: Users,
@@ -110,7 +110,7 @@ export default function CommunityAboutPage() {
                 icon: PenSquare,
                 title: "내 경험 나누기",
                 desc: "사진, 영상과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
-                color: "from-[#B89785]/20 to-[#B89785]/5",
+                color: "from-[#B89785]/20 to-[#2B423E]/5",
                 iconColor: "text-[#B89785]",
               },
               {
@@ -124,15 +124,15 @@ export default function CommunityAboutPage() {
                 icon: Sparkles,
                 title: "아모라 견적 체크리스트",
                 desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
-                color: "from-[#36534e]/20 to-[#36534e]/5",
-                iconColor: "text-[#36534e]",
+                color: "from-[#36534E]/20 to-[#2B423E]/5",
+                iconColor: "text-[#36534E]",
               },
             ].map((feature) => {
               const Icon = feature.icon;
               return (
                 <div
                   key={feature.title}
-                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[#7f5e58]/30 hover:shadow-sm transition-all"
+                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[#36534E]/30 hover:shadow-sm transition-all"
                 >
                   <div
                     className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center`}
@@ -214,7 +214,7 @@ export default function CommunityAboutPage() {
 
           <div className="bg-gradient-to-br from-[#fbf8f2] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
             <div className="flex items-start gap-4">
-              <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#B89785] flex items-center justify-center">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-[#36534E] flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -234,7 +234,7 @@ export default function CommunityAboutPage() {
       </section>
 
       {/* ─── 신뢰 기반 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[#263832] text-white">
+      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[#36534E] text-white">
         <div className="max-w-3xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
@@ -288,7 +288,7 @@ export default function CommunityAboutPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href="/community"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#36534E] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />

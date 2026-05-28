@@ -127,19 +127,19 @@ function ServiceAction({
 }: CTAConfig) {
   return (
     <Link href={href} className="group flex items-start gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#7f5e58] transition-colors group-hover:border-[#dfc9c1]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#36534E] transition-colors group-hover:border-[#dfc9c1]">
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="mb-0.5 block text-[10px] font-medium text-[#928980]">{label}</span>
-        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#7f5e58]">
+        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#36534E]">
           {title}
         </span>
         <span className="mt-0.5 block text-[12px] leading-snug text-[#635b51]">
           {subtext}
         </span>
       </span>
-      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#7f5e58]" />
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#36534E]" />
     </Link>
   );
 }

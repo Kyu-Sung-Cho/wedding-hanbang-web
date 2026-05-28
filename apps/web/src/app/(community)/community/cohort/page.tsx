@@ -82,7 +82,7 @@ export default function CohortIndexPage() {
   return (
     <div className="min-h-[60vh] bg-[#fbf8f2] px-4 py-12 sm:px-6 lg:py-16">
       <div className="mx-auto max-w-xl rounded-2xl border border-[#e5d8ca] bg-white p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="mb-3 flex items-center gap-2 text-[#7f5e58]">
+        <div className="mb-3 flex items-center gap-2 text-[#36534E]">
           <Users className="h-5 w-5" />
           <span className="text-xs font-medium uppercase tracking-widest">동기방</span>
         </div>
@@ -97,7 +97,7 @@ export default function CohortIndexPage() {
             </p>
             <Link
               href="/login?redirect=/community/cohort"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#7f5e58] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#36534e]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
             >
               로그인하기
               <ArrowRight className="h-4 w-4" />
@@ -116,7 +116,7 @@ export default function CohortIndexPage() {
             </div>
             <Link
               href="/onboarding"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#7f5e58] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#36534e]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
             >
               예정일 등록하기
               <ArrowRight className="h-4 w-4" />
@@ -131,7 +131,7 @@ export default function CohortIndexPage() {
             </p>
             <Link
               href="/community"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#e5d8ca] bg-white px-4 py-2.5 text-sm font-medium text-[#7f5e58] transition-colors hover:bg-[#f6efe5]"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#e5d8ca] bg-white px-4 py-2.5 text-sm font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
             >
               커뮤니티로 돌아가기
             </Link>

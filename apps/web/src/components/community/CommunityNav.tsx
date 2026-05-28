@@ -28,14 +28,14 @@ export default function CommunityNav() {
           {navItems.map((item, index) => (
             <div key={item.href} className="flex items-center gap-6">
               {index > 0 && <span className="h-4 w-px bg-[#e5d8ca]" aria-hidden />}
-              <Link href={item.href} className="transition-colors hover:text-[#a77b74]">
+              <Link href={item.href} className="transition-colors hover:text-[#36534E]">
                 {item.label}
               </Link>
             </div>
           ))}
           <Link
             href="/community/post/write"
-            className="inline-flex items-center gap-2 rounded-full bg-[#263832] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-6 py-3 text-[14px] font-semibold text-[#ffffff] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
           >
             <PenSquare className="h-4 w-4" />
             글쓰기
@@ -43,7 +43,7 @@ export default function CommunityNav() {
           {profile ? (
             <UserMenu />
           ) : (
-            <Link href="/login" className="text-[14px] font-semibold text-[#263832] transition-colors hover:text-[#a77b74]">
+            <Link href="/login" className="text-[14px] font-semibold text-[#263832] transition-colors hover:text-[#36534E]">
               로그인
             </Link>
           )}
@@ -75,7 +75,7 @@ export default function CommunityNav() {
             <Link
               href="/community/post/write"
               onClick={() => setMobileOpen(false)}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#e5d8ca] bg-white px-5 py-3 text-[14px] font-semibold text-[#7f5e58]"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#e5d8ca] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E]"
             >
               <PenSquare className="h-4 w-4" />
               글쓰기

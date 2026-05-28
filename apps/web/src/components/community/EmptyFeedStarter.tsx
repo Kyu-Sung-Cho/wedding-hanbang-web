@@ -63,7 +63,7 @@ export default function EmptyFeedStarter({
       <section className="rounded-[16px] border border-[#e5d8ca] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.035)] sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#eaddd8] px-2.5 py-1 text-xs font-medium text-[#7f5e58]">
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#EEF4F1] px-2.5 py-1 text-xs font-medium text-[#36534E]">
               <MessageSquarePlus className="h-3.5 w-3.5" />
               실제 사례 대기중
             </div>
@@ -76,7 +76,7 @@ export default function EmptyFeedStarter({
           </div>
           <Link
             href="/community/quote-check"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#263832] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#36534e]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#2B423E]"
           >
             체크리스트 보기
             <ChevronRight className="h-4 w-4" />
@@ -94,12 +94,12 @@ export default function EmptyFeedStarter({
               className="group rounded-[16px] border border-[#e5d8ca] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.03)] transition-colors hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#eaddd8] text-[#7f5e58]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#EEF4F1] text-[#36534E]">
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="text-xs font-medium text-[#7d7166]">{item.meta}</span>
               </div>
-              <div className="text-sm font-semibold text-[#7f5e58]">{item.label}</div>
+              <div className="text-sm font-semibold text-[#36534E]">{item.label}</div>
               <div className="mt-1 text-sm font-medium leading-snug text-[#263832]">
                 {item.title}
               </div>

@@ -11,7 +11,7 @@
           </div>
           {/* 동기방 카드 */}
           <div className="mb-4">
-            <div className="rounded-xl bg-gradient-to-br from-[#7f5e58]/60 to-[#36534e]/60 h-28 animate-pulse" />
+            <div className="rounded-xl bg-gradient-to-br from-[#36534E]/60 to-[#2B423E]/60 h-28 animate-pulse" />
           </div>
           {/* 카테고리 탭 */}
           <div className="space-y-2">

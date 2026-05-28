@@ -125,7 +125,7 @@ export default function CommentItem({
         </p>
         <Link
           href="/chat"
-          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#C4967E] bg-[#C4967E]/5 hover:bg-[#C4967E]/10 rounded-lg transition-colors duration-200"
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#36534E] bg-[#36534E]/5 hover:bg-[#36534E]/10 rounded-lg transition-colors duration-200"
         >
           {ctaText}
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -140,7 +140,7 @@ export default function CommentItem({
     <div
       className={`${
         isReply
-          ? "ml-6 pl-4 border-l border-[#F0EFED] hover:border-[#C4967E]/30"
+          ? "ml-6 pl-4 border-l border-[#F0EFED] hover:border-[#36534E]/30"
           : ""
       } ${
         isAmoraAI ? "bg-[#FAF8F5] rounded-xl -mx-1 px-1" : ""
@@ -150,7 +150,7 @@ export default function CommentItem({
         <div className="flex gap-2">
           {/* 아바타: 아모라는 특별 스타일 */}
           {isAmoraAI ? (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C4967E] to-[#B89785] flex items-center justify-center shrink-0 ring-2 ring-[#C4967E]/20">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#36534E] to-[#2B423E] flex items-center justify-center shrink-0 ring-2 ring-[#36534E]/20">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
           ) : (
@@ -166,13 +166,13 @@ export default function CommentItem({
           <div className="flex-1 min-w-0">
             {/* 작성자 정보 */}
             <div className="flex items-center gap-1.5 text-[13px]">
-              <span className={`font-medium ${isAmoraAI ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
+              <span className={`font-medium ${isAmoraAI ? "text-[#36534E]" : "text-[#1A1A1F]"}`}>
                 {nickname}
               </span>
 
               {/* 아모라 AI 배지 */}
               {isAmoraAI ? (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none bg-[#C4967E]/10 text-[#C4967E]">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none bg-[#36534E]/10 text-[#36534E]">
                   <Sparkles className="w-2.5 h-2.5" />
                   AI
                 </span>
@@ -200,8 +200,8 @@ export default function CommentItem({
                 onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
                 className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 transition-colors duration-200 ${
                   comment.user_vote === 1
-                    ? "bg-[#f6efe5] text-[#C4967E]"
-                    : "hover:bg-[#FAFAF8] hover:text-[#C4967E]"
+                    ? "bg-[#f6efe5] text-[#36534E]"
+                    : "hover:bg-[#FAFAF8] hover:text-[#36534E]"
                 }`}
                 aria-label="댓글 좋아요"
               >
@@ -218,7 +218,7 @@ export default function CommentItem({
                     if (showReplyInput) setReplyContent("");
                   }}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 ${
-                    showReplyInput ? "text-[#C4967E]" : ""
+                    showReplyInput ? "text-[#36534E]" : ""
                   }`}
                 >
                   {showReplyInput ? (
@@ -257,7 +257,7 @@ export default function CommentItem({
                   placeholder="답글을 작성해 주세요..."
                   rows={2}
                   maxLength={2000}
-                  className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+                  className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
                 />
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-[#B5ADA3]">
@@ -278,7 +278,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReplySubmit}
                       disabled={!replyContent.trim() || submittingReply}
-                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {submittingReply ? "등록 중..." : "등록"}
                     </button>

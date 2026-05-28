@@ -317,7 +317,7 @@ export default function VendorDetailPage() {
       <section className="mt-10">
         <h2 className="font-serif text-xl font-medium text-[#1A1A1F] mb-4">
           관련 게시글{" "}
-          {posts.length > 0 && <span className="text-[#C4967E]">{posts.length}</span>}
+          {posts.length > 0 && <span className="text-[#36534E]">{posts.length}</span>}
         </h2>
 
         {posts.length === 0 ? (
@@ -336,10 +336,10 @@ export default function VendorDetailPage() {
                 <Link
                   key={post.id}
                   href={`/community/post/${post.id}`}
-                  className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[#C4967E] transition"
+                  className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[#36534E] transition"
                 >
                   <div className="flex items-center gap-2 text-sm text-[#B5ADA3] mb-2">
-                    <span className="text-[#C4967E] font-medium">
+                    <span className="text-[#36534E] font-medium">
                       {post.author?.nickname ?? "익명"}
                     </span>
                     <span>·</span>
@@ -432,7 +432,7 @@ function BookingSection({
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[#1A1A1F]">
-          <Calendar className="w-4 h-4 text-[#7f5e58]" />
+          <Calendar className="w-4 h-4 text-[#36534E]" />
           <h2 className="font-serif text-lg font-medium" style={{ fontFamily: "'Noto Serif KR', serif" }}>
             예약 가능 시간
           </h2>
@@ -457,7 +457,7 @@ function BookingSection({
                   onClick={() => onSelectProduct(product.id)}
                   className={`group flex-1 min-w-[200px] text-left rounded-xl border px-4 py-3 transition-all ${
                     selected
-                      ? "border-[#7f5e58] bg-[#f6efe5] shadow-sm"
+                      ? "border-[#36534E] bg-[#f6efe5] shadow-sm"
                       : "border-[#F0EFED] bg-white hover:border-[#dfc9c1]"
                   }`}
                 >
@@ -471,7 +471,7 @@ function BookingSection({
                     )}
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-base font-semibold text-[#7f5e58]">
+                    <span className="text-base font-semibold text-[#36534E]">
                       {formatPrice(displayPrice)}
                     </span>
                     {product.discount_price && (
@@ -499,7 +499,7 @@ function BookingSection({
               onClick={() => onSelectStaff(null)}
               className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm transition-all ${
                 selectedStaffId === null
-                  ? "border border-[#7f5e58] bg-[#7f5e58] text-white"
+                  ? "border border-[#36534E] bg-[#36534E] text-white"
                   : "border border-[#F0EFED] bg-white text-[#635b51] hover:border-[#dfc9c1]"
               }`}
             >
@@ -515,7 +515,7 @@ function BookingSection({
                   onClick={() => onSelectStaff(s.id)}
                   className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm text-left transition-all ${
                     selected
-                      ? "border border-[#7f5e58] bg-[#f6efe5] text-[#1A1A1F]"
+                      ? "border border-[#36534E] bg-[#f6efe5] text-[#1A1A1F]"
                       : "border border-[#F0EFED] bg-white text-[#635b51] hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
                   }`}
                 >
@@ -559,7 +559,7 @@ function BookingSection({
                 onClick={() => onSelectDay(idx)}
                 className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-xl border transition-all min-w-[64px] ${
                   selected
-                    ? "border-[#7f5e58] bg-[#7f5e58] text-white"
+                    ? "border-[#36534E] bg-[#36534E] text-white"
                     : availableCount === 0
                       ? "border-[#F0EFED] bg-[#fafaf8] text-[#B5ADA3]"
                       : "border-[#F0EFED] bg-white text-[#1A1A1F] hover:border-[#dfc9c1]"
@@ -610,7 +610,7 @@ function BookingSection({
                   <div
                     className={`rounded-lg px-2.5 py-3 text-center transition-colors ${
                       available
-                        ? "bg-[#f6efe5] border border-[#dfc9c1] text-[#7f5e58] hover:bg-[#7f5e58] hover:text-white hover:border-[#7f5e58]"
+                        ? "bg-[#f6efe5] border border-[#dfc9c1] text-[#36534E] hover:bg-[#36534E] hover:text-white hover:border-[#36534E]"
                         : "bg-[#fafaf8] border border-[#f0efed] text-[#B5ADA3] cursor-not-allowed"
                     }`}
                   >
@@ -647,7 +647,7 @@ function BookingSection({
           href={`/vendors/${vendor.id}${
             selectedProductId ? `?product=${selectedProductId}` : ""
           }`}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#7f5e58] text-white text-sm font-medium hover:bg-[#36534e] transition-colors shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#36534E] text-white text-sm font-medium hover:bg-[#2B423E] transition-colors shrink-0"
         >
           업체 상세로 가기
           <ArrowRight className="w-4 h-4" />
@@ -665,7 +665,7 @@ function NoBookingFallback({ name }: { name: string }) {
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[#1A1A1F]">
-          <Calendar className="w-4 h-4 text-[#7f5e58]" />
+          <Calendar className="w-4 h-4 text-[#36534E]" />
           <h2
             className="font-serif text-lg font-medium"
             style={{ fontFamily: "'Noto Serif KR', serif" }}
@@ -680,7 +680,7 @@ function NoBookingFallback({ name }: { name: string }) {
 
       <div className="px-5 sm:px-6 py-5">
         <div className="bg-[#fbf8f2] border border-[#F0EFED] rounded-xl p-4 flex items-start gap-3 mb-4">
-          <Sparkles className="w-5 h-5 text-[#7f5e58] shrink-0 mt-0.5" />
+          <Sparkles className="w-5 h-5 text-[#36534E] shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-sm font-medium text-[#1A1A1F] mb-0.5">
               <span className="font-semibold">{name}</span>은(는) 아직 예약 연동 전입니다
@@ -700,7 +700,7 @@ function NoBookingFallback({ name }: { name: string }) {
                 key={d}
                 className={`flex flex-col items-center justify-center px-3.5 py-2 rounded-xl border ${
                   i === 0
-                    ? "border-[#7f5e58] bg-[#7f5e58] text-white"
+                    ? "border-[#36534E] bg-[#36534E] text-white"
                     : "border-[#F0EFED] bg-white text-[#1A1A1F]"
                 } min-w-[64px]`}
               >
@@ -715,7 +715,7 @@ function NoBookingFallback({ name }: { name: string }) {
             {previewHours.map((h) => (
               <div
                 key={h}
-                className="rounded-lg px-2.5 py-3 text-center bg-[#f6efe5] border border-[#dfc9c1] text-[#7f5e58]"
+                className="rounded-lg px-2.5 py-3 text-center bg-[#f6efe5] border border-[#dfc9c1] text-[#36534E]"
               >
                 <div className="text-sm font-semibold">{h}:00</div>
                 <div className="text-[10px] mt-0.5">잔여 2</div>
@@ -731,7 +731,7 @@ function NoBookingFallback({ name }: { name: string }) {
         </p>
         <Link
           href="/community/quote-check"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#7f5e58] text-white text-sm font-medium hover:bg-[#36534e] transition-colors shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#36534E] text-white text-sm font-medium hover:bg-[#2B423E] transition-colors shrink-0"
         >
           <FileSearch className="w-4 h-4" />
           아모라 견적 체크리스트 보기

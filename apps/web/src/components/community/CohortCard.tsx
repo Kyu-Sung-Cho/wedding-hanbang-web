@@ -68,7 +68,7 @@ export default function CohortCard({
     return (
       <div className="rounded-xl border border-[#F0EFED] bg-white p-5">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#C4967E]" />
+          <Sparkles className="h-4 w-4 text-[#36534E]" />
           <h3 className="font-serif text-base text-[#1A1A1F]">
             대략 언제쯤 결혼하시나요?
           </h3>
@@ -76,7 +76,7 @@ export default function CohortCard({
         <p className="mb-2 text-xs leading-relaxed text-[#878680]">
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
-        <p className="mb-4 text-[11px] leading-relaxed text-[#C4967E]">
+        <p className="mb-4 text-[11px] leading-relaxed text-[#36534E]">
           ✨ 정확한 날짜 몰라도 OK — 대략적인 분기로 가입할 수 있어요. 나중에 변경 가능합니다.
         </p>
 
@@ -84,7 +84,7 @@ export default function CohortCard({
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#36534E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[0, 1, 2].map((offset) => {
               const y = (now?.getFullYear() ?? year) + offset;
@@ -98,7 +98,7 @@ export default function CohortCard({
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#C4967E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#36534E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[
               { v: 1, label: "1분기" },
@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-lg bg-gradient-to-br from-[#7f5e58] to-[#36534e] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full rounded-lg bg-[#36534E] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,7 +133,7 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#7f5e58] to-[#36534e] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
+      className="group w-full rounded-xl border border-[#F0EFED] bg-[#36534E] p-5 text-left transition-all hover:border-[#36534E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
@@ -154,7 +154,7 @@ export default function CohortCard({
             return (
               <div
                 key={m.id}
-                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#7f5e58] bg-[#C4967E] text-xs font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#36534E] bg-[#36534E] text-xs font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element

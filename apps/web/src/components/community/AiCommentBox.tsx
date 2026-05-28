@@ -13,7 +13,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
       ? "#B89785"
       : aiComment.comparison === "unknown"
       ? "#928980"
-      : "#C4967E";
+      : "#36534E";
 
   const comparisonLabel =
     aiComment.comparison === "below"
@@ -31,10 +31,10 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
   return (
     <div
       className="bg-[#FAF8F5] rounded-2xl p-5 border-l-4"
-      style={{ borderLeftColor: "#C4967E" }}
+      style={{ borderLeftColor: "#36534E" }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} className="text-[#C4967E]" />
+        <Sparkles size={16} className="text-[#36534E]" />
         <span
           className="text-sm font-medium text-[#1A1A1F]"
           style={{ fontFamily: "'Noto Serif KR', serif" }}

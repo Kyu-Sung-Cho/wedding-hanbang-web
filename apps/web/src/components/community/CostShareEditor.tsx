@@ -120,7 +120,7 @@ export default function CostShareEditor({
       value={value || ""}
       onChange={(e) => onChangeVal(Math.min(Number(e.target.value) || 0, 999999))}
       placeholder={placeholder}
-      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   );
 
@@ -149,7 +149,7 @@ export default function CostShareEditor({
             <select
               value={data.region}
               onChange={(e) => updateField("region", e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors appearance-none"
+              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors appearance-none"
             >
               <option value="">선택하세요</option>
               {REGIONS.map((r) => (
@@ -177,7 +177,7 @@ export default function CostShareEditor({
               type="month"
               value={data.weddingDate}
               onChange={(e) => updateField("weddingDate", e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
             />
           </div>
         </div>
@@ -263,7 +263,7 @@ export default function CostShareEditor({
                           updateCategory(i, "vendor", e.target.value)
                         }
                         placeholder="업체명"
-                        className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+                        className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
                       />
                     </div>
                     <div>
@@ -298,7 +298,7 @@ export default function CostShareEditor({
                         updateCategory(i, "notes", e.target.value)
                       }
                       placeholder="참고사항"
-                      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+                      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
                     />
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export default function CostShareEditor({
           <div className="relative group">
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#928980] bg-[#FAF8F5] border border-dashed border-[#F5F2ED] rounded-xl hover:border-[#C4967E] hover:text-[#C4967E] transition-colors w-full justify-center"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#928980] bg-[#FAF8F5] border border-dashed border-[#F5F2ED] rounded-xl hover:border-[#36534E] hover:text-[#36534E] transition-colors w-full justify-center"
             >
               <Plus className="w-4 h-4" />
               항목 추가
@@ -349,7 +349,7 @@ export default function CostShareEditor({
             onChange={(e) => updateField("regretPoints", e.target.value)}
             placeholder="돌이켜 보면 아쉬웠던 점..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
           />
         </div>
 
@@ -362,7 +362,7 @@ export default function CostShareEditor({
             onChange={(e) => updateField("goodPoints", e.target.value)}
             placeholder="만족했던 선택이나 결정..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
           />
         </div>
 
@@ -375,7 +375,7 @@ export default function CostShareEditor({
             onChange={(e) => updateField("advice", e.target.value)}
             placeholder="예비 신랑신부에게 해주고 싶은 말..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
           />
         </div>
       </div>

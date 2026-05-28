@@ -72,7 +72,7 @@ export default function NewGuestbookPage() {
   }
 
   const inputCls =
-    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none text-base";
+    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none text-base";
 
   if (!authChecked) {
     return (
@@ -98,7 +98,7 @@ export default function NewGuestbookPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-              신부 이름 <span className="text-[#C4967E]">*</span>
+              신부 이름 <span className="text-[#36534E]">*</span>
             </label>
             <input
               type="text"
@@ -111,7 +111,7 @@ export default function NewGuestbookPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-              신랑 이름 <span className="text-[#C4967E]">*</span>
+              신랑 이름 <span className="text-[#36534E]">*</span>
             </label>
             <input
               type="text"
@@ -126,7 +126,7 @@ export default function NewGuestbookPage() {
 
         <div>
           <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            결혼 날짜 <span className="text-[#C4967E]">*</span>
+            결혼 날짜 <span className="text-[#36534E]">*</span>
           </label>
           <input
             type="date"
@@ -173,7 +173,7 @@ export default function NewGuestbookPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-[#36534E] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {submitting ? "만드는 중..." : "방명록 만들기"}
         </button>

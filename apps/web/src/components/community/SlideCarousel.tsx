@@ -86,7 +86,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
           type="button"
           onClick={() => go(index - 1)}
           aria-label="이전 슬라이드"
-          className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#263832]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#263832]"
+          className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
         >
           <ChevronLeft className="w-5 h-5 text-white" />
         </button>
@@ -96,7 +96,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
           type="button"
           onClick={() => go(index + 1)}
           aria-label="다음 슬라이드"
-          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#263832]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#263832]"
+          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
         >
           <ChevronRight className="w-5 h-5 text-white" />
         </button>

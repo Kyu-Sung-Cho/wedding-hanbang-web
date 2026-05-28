@@ -134,7 +134,7 @@ export default function VendorTagPicker({
               <button
                 type="button"
                 onClick={() => removeVendor(v.id)}
-                className="p-0.5 text-[#B5ADA3] hover:text-[#C4967E] transition-colors"
+                className="p-0.5 text-[#B5ADA3] hover:text-[#36534E] transition-colors"
                 aria-label={`${v.business_name} 제거`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -157,7 +157,7 @@ export default function VendorTagPicker({
                 if (results.length > 0) setIsOpen(true);
               }}
               placeholder="업체명 검색 (2글자 이상)"
-              className="w-full pl-10 pr-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
             />
           </div>
 
@@ -209,7 +209,7 @@ export default function VendorTagPicker({
                         </p>
                       </div>
                       {isSelected && (
-                        <span className="ml-auto text-xs text-[#C4967E]">
+                        <span className="ml-auto text-xs text-[#36534E]">
                           선택됨
                         </span>
                       )}

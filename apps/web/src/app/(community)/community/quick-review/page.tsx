@@ -25,7 +25,7 @@ export default function QuickReviewPage() {
   const [showAdModal, setShowAdModal] = useState(false);
 
   const inputCls =
-    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none text-base";
+    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none text-base";
 
   function validate(): string | null {
     if (!vendorName.trim()) return "업체명을 입력해주세요.";
@@ -178,7 +178,7 @@ export default function QuickReviewPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-[#36534E] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "후기 등록"}
         </button>

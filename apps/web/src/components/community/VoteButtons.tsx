@@ -56,7 +56,7 @@ export default function VoteButtons({
       onClick={handleLike}
       disabled={isVoting}
       className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm transition-colors disabled:opacity-50 ${
-        isLiked ? "bg-[#f6efe5] text-[#C4967E]" : "text-[#635b51] hover:bg-[#FAFAF8] hover:text-[#C4967E]"
+        isLiked ? "bg-[#f6efe5] text-[#36534E]" : "text-[#635b51] hover:bg-[#FAFAF8] hover:text-[#36534E]"
       }`}
       aria-label="좋아요"
     >

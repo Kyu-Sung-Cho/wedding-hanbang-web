@@ -111,7 +111,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             placeholder="댓글을 작성해 주세요..."
             rows={3}
             maxLength={2000}
-            className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+            className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
           />
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-[#B5ADA3]">
@@ -121,7 +121,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-base font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-base font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "등록"}
             </button>
@@ -134,7 +134,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             <p className="text-base text-[#878680]">
               <Link
                 href="/login"
-                className="text-[#C4967E] font-semibold hover:underline"
+                className="text-[#36534E] font-semibold hover:underline"
               >
                 로그인
               </Link>

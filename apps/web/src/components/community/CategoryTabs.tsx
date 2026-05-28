@@ -45,8 +45,8 @@ export default function CategoryTabs() {
           href="/community"
           className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
             isActive("/community") && pathname === "/community"
-              ? "bg-[#f6efe5] text-[#7f5e58] font-bold"
-              : "text-[#635b51] hover:bg-white hover:text-[#7f5e58]"
+              ? "bg-[#f6efe5] text-[#36534E] font-bold"
+              : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
           }`}
         >
           <Home
@@ -61,7 +61,7 @@ export default function CategoryTabs() {
 
         <Link
           href="/community?sort=hot"
-          className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[#635b51] hover:bg-white hover:text-[#7f5e58]"
+          className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[#635b51] hover:bg-white hover:text-[#36534E]"
         >
           <Flame className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
           <span className="text-sm">인기</span>
@@ -71,7 +71,7 @@ export default function CategoryTabs() {
         <div className="pt-3">
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-[#635b51] uppercase tracking-wider hover:text-[#7f5e58] transition-colors"
+            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-[#635b51] uppercase tracking-wider hover:text-[#36534E] transition-colors"
           >
             <span>카테고리</span>
             <ChevronDown
@@ -97,8 +97,8 @@ export default function CategoryTabs() {
                   href={href}
                   className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
                     active
-                      ? "bg-[#f6efe5] text-[#7f5e58] font-bold"
-                      : "text-[#635b51] hover:bg-white hover:text-[#7f5e58]"
+                      ? "bg-[#f6efe5] text-[#36534E] font-bold"
+                      : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
                   }`}
                 >
                   <Icon
@@ -121,8 +121,8 @@ export default function CategoryTabs() {
             href="/community/my/bookmarks"
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/bookmarks")
-                ? "bg-[#f6efe5] text-[#7f5e58] font-bold"
-                : "text-[#635b51] hover:bg-white hover:text-[#7f5e58]"
+                ? "bg-[#f6efe5] text-[#36534E] font-bold"
+                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
             }`}
           >
             <Bookmark
@@ -137,8 +137,8 @@ export default function CategoryTabs() {
             href="/community/my/upvoted"
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/upvoted")
-                ? "bg-[#f6efe5] text-[#7f5e58] font-bold"
-                : "text-[#635b51] hover:bg-white hover:text-[#7f5e58]"
+                ? "bg-[#f6efe5] text-[#36534E] font-bold"
+                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
             }`}
           >
             <ThumbsUp
@@ -158,7 +158,7 @@ export default function CategoryTabs() {
             href="/community"
             className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
               pathname === "/community"
-                ? "bg-[#7f5e58] text-white font-medium"
+                ? "bg-[#36534E] text-white font-medium"
                 : "text-[#635b51] bg-white border border-[#e5d8ca] hover:bg-[#f6efe5]"
             }`}
           >
@@ -173,7 +173,7 @@ export default function CategoryTabs() {
                 href={href}
                 className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
-                    ? "bg-[#7f5e58] text-white font-medium"
+                    ? "bg-[#36534E] text-white font-medium"
                     : "text-[#635b51] bg-white border border-[#e5d8ca] hover:bg-[#f6efe5]"
                 }`}
               >

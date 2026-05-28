@@ -57,7 +57,7 @@ export default function GuestbookQRModal({ url, onClose }: GuestbookQRModalProps
           <button
             type="button"
             onClick={handleCopy}
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-white border border-[#F0EFED] text-[#1A1A1F] rounded-xl py-2.5 px-4 text-sm hover:border-[#C4967E] transition"
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-white border border-[#F0EFED] text-[#1A1A1F] rounded-xl py-2.5 px-4 text-sm hover:border-[#36534E] transition"
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copied ? "복사됨" : "복사하기"}
@@ -67,7 +67,7 @@ export default function GuestbookQRModal({ url, onClose }: GuestbookQRModalProps
             download="guestbook-qr.png"
             target="_blank"
             rel="noreferrer"
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-[#7f5e58] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#36534e] transition"
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-[#36534E] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#2B423E] transition"
           >
             <Download className="w-4 h-4" />
             다운로드

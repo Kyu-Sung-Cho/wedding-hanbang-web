@@ -72,8 +72,8 @@ const typeConfig: Record<
   { border: string; iconBg: string; Icon: typeof CheckCircle }
 > = {
   success: {
-    border: "border-l-[#C4967E]",
-    iconBg: "text-[#C4967E]",
+    border: "border-l-[#36534E]",
+    iconBg: "text-[#36534E]",
     Icon: CheckCircle,
   },
   error: {

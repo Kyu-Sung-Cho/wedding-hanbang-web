@@ -79,7 +79,7 @@ export default function TrendingPosts() {
           <li key={p.id} className="group cursor-pointer">
             <Link href={`/community/post/${p.id}`} className="flex items-start space-x-3">
               <span
-                className={`text-[#7f5e58] font-serif-kr italic text-xl leading-none mt-0.5 ${
+                className={`text-[#36534E] font-serif-kr italic text-xl leading-none mt-0.5 ${
                   i === 0
                     ? ""
                     : i === 1
@@ -92,7 +92,7 @@ export default function TrendingPosts() {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div>
-                <h4 className="text-sm text-[#263832] group-hover:text-[#7f5e58] transition-colors line-clamp-2 leading-snug">
+                <h4 className="text-sm text-[#263832] group-hover:text-[#36534E] transition-colors line-clamp-2 leading-snug">
                   {p.title}
                 </h4>
                 <p className="text-xs text-[#635b51] mt-1">댓글 {p.comment_count}개</p>

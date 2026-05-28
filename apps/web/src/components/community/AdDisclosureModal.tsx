@@ -82,7 +82,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
               onChange={(e) => setDetail(e.target.value)}
               placeholder="예: 드레스 피팅 1회 무료 제공받음"
               rows={3}
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none resize-none text-sm"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none resize-none text-sm"
             />
           </div>
         )}
@@ -101,7 +101,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full bg-[#7f5e58] text-white rounded-xl py-3 font-medium hover:bg-[#36534e] transition-colors"
+          className="mt-6 w-full bg-[#36534E] text-white rounded-xl py-3 font-medium hover:bg-[#2B423E] transition-colors"
         >
           확인
         </button>

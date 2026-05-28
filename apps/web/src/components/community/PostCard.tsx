@@ -27,12 +27,12 @@ interface PostCardProps {
   post: PostWithAuthor;
 }
 
-// 카테고리별 배지 색상 (sage/rose/tertiary 변주)
+// 카테고리별 배지 색상 (soft neutrals + jade accent)
 const CATEGORY_BADGE_BG: Record<string, string> = {
   is_normal: "bg-[#dee6c4]/30 text-sage-500", // sage (secondary-container)
-  tour_review: "bg-[#dfc9c1]/30 text-[#7f5e58]", // rose (outline-variant + primary)
+  tour_review: "bg-[#dfc9c1]/30 text-[#36534E]", // warm outline + primary
   tips_v2: "bg-[#635b51]/15 text-[#635b51]", // tertiary
-  ama: "bg-[#7f5e58]/10 text-[#7f5e58]", // primary
+  ama: "bg-[#36534E]/10 text-[#36534E]", // primary
   free: "bg-[#dee6c4]/30 text-sage-500", // sage
 };
 
@@ -208,9 +208,9 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#263832] mb-2.5 hover:text-[#7f5e58] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#263832] mb-2.5 hover:text-[#36534E] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#7f5e58] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
                   </span>
                 )}
@@ -246,7 +246,7 @@ export default function PostCard({ post }: PostCardProps) {
                       className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
                         isClosed
                           ? "text-[#928980] bg-[#f6efe5] border-[#e5d8ca] hover:bg-white"
-                          : "text-[#7f5e58] bg-[#fbf8f2] border-[#f0eeec] hover:border-[#7f5e58] hover:bg-white"
+                          : "text-[#36534E] bg-[#fbf8f2] border-[#f0eeec] hover:border-[#36534E] hover:bg-white"
                       }`}
                       title={post.poll.question}
                     >
@@ -311,7 +311,7 @@ export default function PostCard({ post }: PostCardProps) {
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
-                className="flex items-center gap-1 hover:text-[#7f5e58] group"
+                className="flex items-center gap-1 hover:text-[#36534E] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
                 <span className="text-sm">{(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}</span>
@@ -328,14 +328,14 @@ export default function PostCard({ post }: PostCardProps) {
                 onClick={handleBookmark}
                 disabled={bookmarking}
                 className={`flex items-center group disabled:opacity-60 ${
-                  bookmarked ? "text-[#7f5e58]" : "hover:text-[#7f5e58]"
+                  bookmarked ? "text-[#36534E]" : "hover:text-[#36534E]"
                 }`}
                 aria-label="저장"
                 title="저장"
               >
                 <Bookmark
                   className="w-5 h-5 opacity-60 group-hover:opacity-100"
-                  fill={bookmarked ? "#7f5e58" : "none"}
+                  fill={bookmarked ? "#36534E" : "none"}
                 />
               </button>
 
@@ -343,7 +343,7 @@ export default function PostCard({ post }: PostCardProps) {
               <button
                 type="button"
                 onClick={handleShare}
-                className="flex items-center hover:text-[#7f5e58] group"
+                className="flex items-center hover:text-[#36534E] group"
                 aria-label="공유"
                 title="공유"
               >

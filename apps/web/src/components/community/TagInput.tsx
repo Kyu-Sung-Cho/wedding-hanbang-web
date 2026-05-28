@@ -54,7 +54,7 @@ export default function TagInput({ tags, onChange, max = 10 }: TagInputProps) {
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              className="p-0.5 hover:text-[#C4967E] transition-colors"
+              className="p-0.5 hover:text-[#36534E] transition-colors"
               aria-label={`${tag} 태그 삭제`}
             >
               <X className="w-3 h-3" />
@@ -72,7 +72,7 @@ export default function TagInput({ tags, onChange, max = 10 }: TagInputProps) {
             onKeyDown={handleKeyDown}
             placeholder="태그 입력 후 Enter"
             maxLength={20}
-            className="flex-1 px-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#C4967E] focus:ring-1 focus:ring-[#C4967E]/30 transition-colors"
+            className="flex-1 px-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
           />
           <button
             type="button"

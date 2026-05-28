@@ -47,7 +47,7 @@ function SlideEmpathy() {
             <div
               className={`px-4 py-3 rounded-2xl text-base leading-relaxed max-w-[280px] ${
                 bubble.align === "right"
-                  ? "bg-[#7f5e58]/10 text-[#263832] rounded-br-md"
+                  ? "bg-[#36534E]/10 text-[#263832] rounded-br-md"
                   : "bg-[#fbf8f2] text-[#263832] rounded-bl-md border border-[#f6efe5]"
               }`}
             >
@@ -78,8 +78,8 @@ function SlideRealReview() {
       {/* 시나리오 상황 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Search className="w-5 h-5 text-[#7f5e58]" />
-          <span className="text-base text-[#7f5e58] font-medium">
+          <Search className="w-5 h-5 text-[#36534E]" />
+          <span className="text-base text-[#36534E] font-medium">
             상황: 스드메 알아보는 중
           </span>
         </div>
@@ -131,10 +131,10 @@ function SlideRealReview() {
         </div>
         {/* 이미지 */}
         <div className="px-4 pb-3 flex gap-2">
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#7f5e58]/15 to-[#7f5e58]/5 border border-[#7f5e58]/10 flex items-center justify-center">
-            <Camera className="w-4 h-4 text-[#7f5e58]/40" />
+          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#36534E]/15 to-[#36534E]/5 border border-[#36534E]/10 flex items-center justify-center">
+            <Camera className="w-4 h-4 text-[#36534E]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#B89785]/15 to-[#B89785]/5 border border-[#B89785]/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#B89785]/15 to-[#2B423E]/5 border border-[#B89785]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[#B89785]/40" />
           </div>
           <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
@@ -158,7 +158,7 @@ function SlideRealReview() {
       </div>
 
       <p className="text-base text-[#635b51] font-light text-center">
-        <span className="text-[#7f5e58] font-medium">가격, 사진, 솔직한 평가</span>까지
+        <span className="text-[#36534E] font-medium">가격, 사진, 솔직한 평가</span>까지
         <br />
         직접 경험한 후기로 비교하세요
       </p>
@@ -175,8 +175,8 @@ function SlideCohort() {
       {/* 시나리오 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Users className="w-5 h-5 text-[#7f5e58]" />
-          <span className="text-base text-[#7f5e58] font-medium">
+          <Users className="w-5 h-5 text-[#36534E]" />
+          <span className="text-base text-[#36534E] font-medium">
             상황: 주변에 결혼 준비하는 친구가 없을 때
           </span>
         </div>
@@ -195,15 +195,15 @@ function SlideCohort() {
         </div>
         <div className="flex items-center mb-3">
           {[
-            "from-[#7f5e58] to-[#B89785]",
+            "from-[#36534E] to-[#2B423E]",
             "from-[#A8D8A8] to-sage-500",
             "from-[#7EB8D8] to-[#5A9CC0]",
             "from-[#B89785] to-[#DCC9A0]",
-            "from-[#D88B8B] to-[#36534e]",
+            "from-[#D88B8B] to-[#2B423E]",
           ].map((grad, i) => (
             <div
               key={i}
-              className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad} border-2 border-[#263832] ${i > 0 ? "-ml-2" : ""}`}
+              className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad} border-2 border-[#36534E] ${i > 0 ? "-ml-2" : ""}`}
               style={{ zIndex: 5 - i }}
             />
           ))}
@@ -236,7 +236,7 @@ function SlideCohort() {
           </div>
         </div>
         <div className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[#36534e] shrink-0 mt-0.5" />
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[#2B423E] shrink-0 mt-0.5" />
           <div>
             <div className="text-sm text-[#B5ADA3] mb-0.5">달빛웨딩</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
@@ -249,7 +249,7 @@ function SlideCohort() {
       </div>
 
       <p className="text-base text-[#635b51] font-light text-center">
-        <span className="text-[#7f5e58] font-medium">같은 시기에 결혼하는 동기들</span>과
+        <span className="text-[#36534E] font-medium">같은 시기에 결혼하는 동기들</span>과
         <br />
         정보도 나누고, 응원도 하고
       </p>
@@ -266,8 +266,8 @@ function SlideAmora() {
       {/* 시나리오 라벨 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Sparkles className="w-5 h-5 text-[#7f5e58]" />
-          <span className="text-base text-[#7f5e58] font-medium">
+          <Sparkles className="w-5 h-5 text-[#36534E]" />
+          <span className="text-base text-[#36534E] font-medium">
             혼자 판단하지 마세요 — AI 아모라가 같이 봐줘요
           </span>
         </div>
@@ -276,7 +276,7 @@ function SlideAmora() {
       {/* 아모라 견적 체크리스트 카드 mockup */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#B89785] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-full bg-[#36534E] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col items-start">
@@ -295,7 +295,7 @@ function SlideAmora() {
             </div>
           </div>
           <div className="bg-[#fbf8f2] border border-[#f6efe5] rounded-xl p-3 flex items-start gap-2">
-            <FileSearch className="w-4 h-4 text-[#7f5e58] shrink-0 mt-0.5" />
+            <FileSearch className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
             <div className="text-left">
               <div className="text-sm text-[#263832] font-semibold mb-0.5">업체에 물어볼 질문</div>
               <div className="text-sm text-[#635b51] leading-relaxed">
@@ -322,7 +322,7 @@ function SlideAmora() {
               key={chip.label}
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fbf8f2] border border-[#f6efe5] text-sm text-[#635b51]"
             >
-              <chip.icon className="w-3.5 h-3.5 text-[#7f5e58]" />
+              <chip.icon className="w-3.5 h-3.5 text-[#36534E]" />
               {chip.label}
             </span>
           ))}
@@ -330,7 +330,7 @@ function SlideAmora() {
       </div>
 
       <p className="text-base text-[#635b51] font-light text-center">
-        커뮤니티 글에서도 <span className="text-[#7f5e58] font-medium">아모라가 가격 댓글</span>로 적정한지 알려줘요
+        커뮤니티 글에서도 <span className="text-[#36534E] font-medium">아모라가 가격 댓글</span>로 적정한지 알려줘요
       </p>
     </div>
   );
@@ -349,8 +349,8 @@ function SlideHowToUse() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 1. 검색 */}
         <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#7f5e58]/20 to-[#7f5e58]/5 flex items-center justify-center shrink-0">
-            <Search className="w-5 h-5 text-[#7f5e58]" />
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#36534E]/20 to-[#36534E]/5 flex items-center justify-center shrink-0">
+            <Search className="w-5 h-5 text-[#36534E]" />
           </div>
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">검색으로 빠르게</div>
@@ -376,7 +376,7 @@ function SlideHowToUse() {
 
         {/* 3. 북마크 */}
         <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B89785]/20 to-[#B89785]/5 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B89785]/20 to-[#2B423E]/5 flex items-center justify-center shrink-0">
             <Star className="w-5 h-5 text-[#B89785]" />
           </div>
           <div className="text-left">
@@ -426,7 +426,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col items-center text-center px-6">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7f5e58] to-[#B89785] flex items-center justify-center mb-5">
+      <div className="w-16 h-16 rounded-2xl bg-[#36534E] flex items-center justify-center mb-5">
         <Shield className="w-8 h-8 text-white" />
       </div>
 
@@ -481,7 +481,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
       <button
         onClick={handleStart}
-        className="w-full max-w-[340px] py-3.5 bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all mb-3"
+        className="w-full max-w-[340px] py-3.5 bg-[#36534E] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all mb-3"
       >
         커뮤니티 둘러보기
       </button>
@@ -575,7 +575,7 @@ export default function CommunityGuide() {
         {/* 상단 진행 바 */}
         <div className="h-1 bg-[#f6efe5]">
           <div
-            className="h-full bg-gradient-to-r from-[#7f5e58] to-[#B89785] transition-all duration-500 rounded-full"
+            className="h-full bg-[#36534E] transition-all duration-500 rounded-full"
             style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
           />
         </div>
@@ -625,7 +625,7 @@ export default function CommunityGuide() {
               </button>
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-6 py-3 bg-[#7f5e58] hover:bg-[#36534e] text-white text-base font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1 px-6 py-3 bg-[#36534E] hover:bg-[#2B423E] text-white text-base font-medium rounded-xl transition-colors"
               >
                 다음
                 <ChevronRight className="w-4 h-4" />
@@ -641,7 +641,7 @@ export default function CommunityGuide() {
                 key={i}
                 onClick={() => goTo(i, i > current ? "next" : "prev")}
                 className={`no-min-tap w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-                  i === current ? "bg-[#7f5e58]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
+                  i === current ? "bg-[#36534E]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
                 }`}
                 aria-label={`슬라이드 ${i + 1}`}
               />

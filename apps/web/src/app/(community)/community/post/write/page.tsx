@@ -700,7 +700,7 @@ function PostWriteContent() {
   if (!authChecked) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-[#fbf8f2]">
-        <Loader2 className="w-8 h-8 text-[#7f5e58] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#36534E] animate-spin" />
       </div>
     );
   }
@@ -709,7 +709,7 @@ function PostWriteContent() {
   if (loadingPost) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-[#fbf8f2]">
-        <Loader2 className="w-8 h-8 text-[#7f5e58] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#36534E] animate-spin" />
       </div>
     );
   }
@@ -745,7 +745,7 @@ function PostWriteContent() {
           </h1>
           <div className="ml-auto flex items-center gap-2">
             {draftRestored && !isEditMode && (
-              <span className="text-sm text-[#7f5e58]">
+              <span className="text-sm text-[#36534E]">
                 임시저장 복원됨
               </span>
             )}
@@ -773,7 +773,7 @@ function PostWriteContent() {
             onClick={() => setPostMode("regular")}
             className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
               postMode === "regular"
-                ? "bg-[#7f5e58] text-white shadow-sm"
+                ? "bg-[#36534E] text-white shadow-sm"
                 : "text-[#635b51] hover:text-[#263832]"
             }`}
           >
@@ -784,7 +784,7 @@ function PostWriteContent() {
             onClick={() => setPostMode("slides")}
             className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
               postMode === "slides"
-                ? "bg-[#7f5e58] text-white shadow-sm"
+                ? "bg-[#36534E] text-white shadow-sm"
                 : "text-[#635b51] hover:text-[#263832]"
             }`}
           >
@@ -798,7 +798,7 @@ function PostWriteContent() {
             {/* 제목 */}
             <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-base font-medium text-[#263832] mb-2">
-                제목 <span className="text-[#7f5e58]">*</span>
+                제목 <span className="text-[#36534E]">*</span>
               </label>
               <input
                 type="text"
@@ -806,7 +806,7 @@ function PostWriteContent() {
                 onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
                 placeholder="제목을 입력하세요"
                 maxLength={TITLE_MAX_LENGTH}
-                className="w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#7f5e58] focus:ring-1 focus:ring-[#7f5e58]/30 transition-colors"
+                className="w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
               />
               <p className={`mt-2 text-sm text-right ${titleCountColor}`}>
                 {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
@@ -817,7 +817,7 @@ function PostWriteContent() {
             {postMode === "slides" && (
               <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-base font-medium text-[#263832] mb-3">
-                  슬라이드 <span className="text-[#7f5e58]">*</span>
+                  슬라이드 <span className="text-[#36534E]">*</span>
                 </label>
                 <SlideBuilder slides={slides} onChange={setSlides} max={10} />
               </section>
@@ -830,7 +830,7 @@ function PostWriteContent() {
                   {postMode === "slides" ? (
                     <>캡션 <span className="text-[#928980] text-sm font-normal">(선택)</span></>
                   ) : (
-                    <>내용 <span className="text-[#7f5e58]">*</span></>
+                    <>내용 <span className="text-[#36534E]">*</span></>
                   )}
                 </label>
                 <div className="flex bg-[#e5d8ca] rounded-lg p-0.5">
@@ -839,7 +839,7 @@ function PostWriteContent() {
                     onClick={() => setActiveTab("write")}
                     className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === "write"
-                        ? "bg-[#7f5e58] text-white shadow-sm"
+                        ? "bg-[#36534E] text-white shadow-sm"
                         : "text-[#635b51] hover:text-[#263832]"
                     }`}
                   >
@@ -851,7 +851,7 @@ function PostWriteContent() {
                     onClick={() => setActiveTab("preview")}
                     className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === "preview"
-                        ? "bg-[#7f5e58] text-white shadow-sm"
+                        ? "bg-[#36534E] text-white shadow-sm"
                         : "text-[#635b51] hover:text-[#263832]"
                     }`}
                   >
@@ -882,15 +882,15 @@ function PostWriteContent() {
                           : "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
                       }
                       maxLength={CONTENT_MAX_LENGTH}
-                      className={`w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#7f5e58] focus:ring-1 focus:ring-[#7f5e58]/30 transition-colors resize-none leading-relaxed min-h-[200px] ${
+                      className={`w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none leading-relaxed min-h-[200px] ${
                         isDraggingImage
-                          ? "border-[#7f5e58] ring-2 ring-[#7f5e58]/30 bg-white"
+                          ? "border-[#36534E] ring-2 ring-[#36534E]/30 bg-white"
                           : "border-[#e5d8ca]"
                       }`}
                     />
                     {isDraggingImage && (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-[#7f5e58]/8">
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md text-sm font-medium text-[#7f5e58]">
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-[#36534E]/8">
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md text-sm font-medium text-[#36534E]">
                           <ImagePlus className="w-4 h-4" />
                           여기에 놓아 본문에 삽입
                         </div>
@@ -917,7 +917,7 @@ function PostWriteContent() {
                             type="button"
                             onClick={() => inlineImageInputRef.current?.click()}
                             disabled={insertingImage}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#7f5e58] bg-[#fbf8f2] border border-[#e5d8ca] rounded-lg hover:border-[#7f5e58] hover:bg-white transition-colors disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#36534E] bg-[#fbf8f2] border border-[#e5d8ca] rounded-lg hover:border-[#36534E] hover:bg-white transition-colors disabled:opacity-60"
                             title="본문 안 커서 위치에 이미지/GIF 삽입"
                           >
                             {insertingImage ? (
@@ -1020,7 +1020,7 @@ function PostWriteContent() {
             {/* 카테고리 선택 */}
             <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-base font-medium text-[#263832] mb-3">
-                카테고리 <span className="text-[#7f5e58]">*</span>
+                카테고리 <span className="text-[#36534E]">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {COMMUNITY_CATEGORIES.map((cat) => {
@@ -1033,8 +1033,8 @@ function PostWriteContent() {
                       onClick={() => setCategory(cat.key)}
                       className={`flex items-center gap-2 px-3.5 py-3 sm:py-2.5 text-base font-medium rounded-lg border transition-all ${
                         isSelected
-                          ? "border-[#7f5e58] bg-[#7f5e58] text-white shadow-sm"
-                          : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58] hover:text-[#263832]"
+                          ? "border-[#36534E] bg-[#36534E] text-white shadow-sm"
+                          : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E] hover:text-[#263832]"
                       }`}
                     >
                       <Icon className="w-5 h-5 shrink-0" />
@@ -1063,8 +1063,8 @@ function PostWriteContent() {
                       onClick={() => setVisibility(opt.key)}
                       className={`flex items-center gap-2 w-full px-3 py-2 text-base font-medium rounded-lg border transition-all ${
                         isSelected
-                          ? "border-[#7f5e58] bg-[#7f5e58] text-white shadow-sm"
-                          : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58]"
+                          ? "border-[#36534E] bg-[#36534E] text-white shadow-sm"
+                          : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E]"
                       }`}
                     >
                       <opt.icon className="w-5 h-5" />
@@ -1107,8 +1107,8 @@ function PostWriteContent() {
                   }}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     adDisclosure === "general"
-                      ? "border-[#7f5e58] bg-[#7f5e58] text-white"
-                      : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58]"
+                      ? "border-[#36534E] bg-[#36534E] text-white"
+                      : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E]"
                   }`}
                 >
                   아니요
@@ -1118,8 +1118,8 @@ function PostWriteContent() {
                   onClick={() => setAdDisclosure("sponsored")}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     adDisclosure !== "general"
-                      ? "border-[#7f5e58] bg-[#f6efe5] text-[#7f5e58]"
-                      : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58]"
+                      ? "border-[#36534E] bg-[#f6efe5] text-[#36534E]"
+                      : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E]"
                   }`}
                 >
                   예
@@ -1138,8 +1138,8 @@ function PostWriteContent() {
                         onClick={() => setAdDisclosure(option.key)}
                         className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                           adDisclosure === option.key
-                            ? "border-[#7f5e58] bg-[#7f5e58] text-white"
-                            : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58]"
+                            ? "border-[#36534E] bg-[#36534E] text-white"
+                            : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E]"
                         }`}
                       >
                         {option.label}
@@ -1152,7 +1152,7 @@ function PostWriteContent() {
                       onChange={(event) => setSponsorshipDetail(event.target.value)}
                       placeholder="받은 혜택을 적어주세요. 예: 드레스 피팅 1회 무료 제공"
                       rows={3}
-                      className="w-full rounded-lg border border-[#e5d8ca] bg-[#FAFAF8] px-3 py-2 text-sm text-[#263832] outline-none focus:border-[#7f5e58]"
+                      className="w-full rounded-lg border border-[#e5d8ca] bg-[#FAFAF8] px-3 py-2 text-sm text-[#263832] outline-none focus:border-[#36534E]"
                     />
                   )}
                 </div>
@@ -1196,7 +1196,7 @@ function PostWriteContent() {
               type="button"
               onClick={() => handleSubmit(false)}
               disabled={isSubmitting || !isValid}
-              className="flex items-center justify-center gap-2 px-8 py-3.5 text-base font-medium text-white bg-gradient-to-br from-[#7f5e58] to-[#36534e] rounded-lg hover:from-[#36534e] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
+              className="flex items-center justify-center gap-2 px-8 py-3.5 text-base font-medium text-white bg-[#36534E] rounded-lg hover:bg-[#2B423E] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -1232,7 +1232,7 @@ function PostWriteContent() {
             type="button"
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting || !isValid}
-            className="flex-1 flex items-center justify-center gap-2 py-3 text-base font-medium text-white bg-gradient-to-br from-[#7f5e58] to-[#36534e] rounded-lg hover:from-[#36534e] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
+            className="flex-1 flex items-center justify-center gap-2 py-3 text-base font-medium text-white bg-[#36534E] rounded-lg hover:bg-[#2B423E] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

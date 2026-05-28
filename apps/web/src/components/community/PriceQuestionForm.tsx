@@ -48,14 +48,14 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
         className="w-full flex items-center justify-between"
       >
         <div className="flex items-center gap-2">
-          <HelpCircle size={18} className="text-[#C4967E]" />
+          <HelpCircle size={18} className="text-[#36534E]" />
           <span className="text-sm font-medium text-[#1A1A1F]">
             이 글은 가격 질문이에요
           </span>
         </div>
         <div
           className={`w-10 h-6 rounded-full transition-colors relative ${
-            enabled ? "bg-[#7f5e58]" : "bg-[#F0EFED]"
+            enabled ? "bg-[#36534E]" : "bg-[#F0EFED]"
           }`}
         >
           <div
@@ -73,7 +73,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
             <select
               value={vendorCategory}
               onChange={(e) => setVendorCategory(e.target.value as CohortContractCategory)}
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none bg-white"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none bg-white"
             >
               {COHORT_CONTRACT_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
@@ -93,7 +93,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
                 placeholder="예: 300"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
               />
             </div>
             <div>
@@ -105,7 +105,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
                 placeholder="예: 50"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
               />
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
                 placeholder="선택 사항"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
               />
             </div>
             <div>
@@ -128,7 +128,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="예: 서울 강남"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
               />
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
               onChange={(e) => setDetails(e.target.value)}
               rows={3}
               placeholder="포함 내역, 조건 등 (선택)"
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#C4967E] focus:outline-none resize-none text-sm"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none resize-none text-sm"
             />
           </div>
         </div>

@@ -52,7 +52,7 @@ export default function MyBookmarksPage() {
         <div className="py-16 text-center">
           <Bookmark className="w-10 h-10 text-[#B5ADA3]/40 mx-auto mb-3" />
           <p className="text-[14px] text-[#928980]">북마크한 글이 없습니다</p>
-          <Link href="/community" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors">
+          <Link href="/community" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors">
             커뮤니티 둘러보기
           </Link>
         </div>

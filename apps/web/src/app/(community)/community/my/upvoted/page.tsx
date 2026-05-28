@@ -75,7 +75,7 @@ export default function MyUpvotedPage() {
           <p className="text-[12px] text-[#B5ADA3] mb-4">마음에 드는 글에 좋아요를 눌러보세요</p>
           <Link
             href="/community"
-            className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors"
+            className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors"
           >
             커뮤니티 둘러보기
           </Link>

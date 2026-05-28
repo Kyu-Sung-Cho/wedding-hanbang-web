@@ -275,7 +275,7 @@ export default function PostDetailPage() {
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -305,7 +305,7 @@ export default function PostDetailPage() {
         <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
           <Link
             href="/community"
-            className="shrink-0 hover:text-[#C4967E] transition-colors"
+            className="shrink-0 hover:text-[#36534E] transition-colors"
           >
             커뮤니티
           </Link>
@@ -314,7 +314,7 @@ export default function PostDetailPage() {
               <span className="shrink-0 text-[#B5ADA3]">/</span>
               <Link
                 href={`/community/${post.category}`}
-                className="shrink-0 hover:text-[#C4967E] transition-colors"
+                className="shrink-0 hover:text-[#36534E] transition-colors"
               >
                 {categoryInfo.label}
               </Link>
@@ -347,7 +347,7 @@ export default function PostDetailPage() {
                 {/* 닉네임 */}
                 <Link
                   href={`/community?author_id=${post.author_id}`}
-                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#C4967E] transition-colors duration-200 whitespace-nowrap"
+                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#36534E] transition-colors duration-200 whitespace-nowrap"
                 >
                   {author.nickname}
                 </Link>
@@ -372,7 +372,7 @@ export default function PostDetailPage() {
                     <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
                       href={`/community/${post.category}`}
-                      className="text-[13px] font-medium text-[#C4967E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
+                      className="text-[13px] font-medium text-[#36534E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
                     </Link>
@@ -402,7 +402,7 @@ export default function PostDetailPage() {
               {/* 제목 */}
               <h1 className="text-xl sm:text-2xl md:text-[26px] lg:text-[28px] xl:text-3xl 2xl:text-4xl font-medium text-[#1A1A1F] leading-snug mb-3">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-4 h-4" />
                     PIN
                   </span>
@@ -419,7 +419,7 @@ export default function PostDetailPage() {
                   </span>
                 )}
                 {post.ai_comment && (
-                  <span className="inline-flex items-center gap-1 text-[#C4967E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
                     <Sparkles className="w-4 h-4" />
                     AI 분석
                   </span>
@@ -456,7 +456,7 @@ export default function PostDetailPage() {
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -697,7 +697,7 @@ export default function PostDetailPage() {
                   onClick={handleVote}
                   disabled={isVoting}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
-                    isLiked ? "bg-[#f6efe5] text-[#C4967E]" : "hover:bg-[#FAFAF8]"
+                    isLiked ? "bg-[#f6efe5] text-[#36534E]" : "hover:bg-[#FAFAF8]"
                   } disabled:opacity-50`}
                   aria-label="좋아요"
                 >
@@ -738,7 +738,7 @@ export default function PostDetailPage() {
                     toggleBookmark(post.id);
                   }}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
-                    post.user_bookmarked ? "text-[#C4967E]" : ""
+                    post.user_bookmarked ? "text-[#36534E]" : ""
                   }`}
                 >
                   <Bookmark
@@ -798,7 +798,7 @@ export default function PostDetailPage() {
                 ? `/community/${post.category}`
                 : "/community"
             }
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-all duration-200"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#B5ADA3] hover:text-[#36534E] transition-all duration-200"
           >
             <List className="w-4 h-4" />
             목록으로
@@ -833,7 +833,7 @@ export default function PostDetailPage() {
                 <div className="p-8 text-center">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#FAFAF8] flex items-center justify-center">
                     <svg
-                      className="w-6 h-6 text-[#C4967E]"
+                      className="w-6 h-6 text-[#36534E]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -882,19 +882,19 @@ export default function PostDetailPage() {
                           key={reason.value}
                           className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
                             reportReason === reason.value
-                              ? "border-[#C4967E] bg-[#C4967E]/5"
+                              ? "border-[#36534E] bg-[#36534E]/5"
                               : "border-[#F0EFED] hover:bg-[#FAFAF8]"
                           }`}
                         >
                           <div
                             className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                               reportReason === reason.value
-                                ? "border-[#C4967E]"
+                                ? "border-[#36534E]"
                                 : "border-[#B5ADA3]"
                             }`}
                           >
                             {reportReason === reason.value && (
-                              <div className="w-2 h-2 rounded-full bg-[#C4967E]" />
+                              <div className="w-2 h-2 rounded-full bg-[#36534E]" />
                             )}
                           </div>
                           <span className="text-sm text-[#1A1A1F]">
@@ -919,7 +919,7 @@ export default function PostDetailPage() {
                       placeholder="추가 설명 (선택)"
                       rows={3}
                       maxLength={500}
-                      className="mt-4 w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#C4967E] focus:shadow-[0_0_0_2px_rgba(196,150,126,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+                      className="mt-4 w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
                     />
                   </div>
 

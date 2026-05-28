@@ -156,9 +156,9 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 <button
                   key={t.key}
                   type="button"
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#635b51] hover:bg-white hover:text-[#7f5e58] transition-colors duration-200 text-left"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#635b51] hover:bg-white hover:text-[#36534E] transition-colors duration-200 text-left"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#7f5e58] opacity-70" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#36534E] opacity-70" />
                   {t.label}
                 </button>
               ))}
@@ -179,7 +179,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
           <div className="mt-auto pt-4" />
 
           {/* 아모라 CTA */}
-          <div className="mx-1 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] p-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]">
+          <div className="mx-1 rounded-xl bg-[#36534E] p-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-[#dee6c4]" />
               <span className="font-serif-kr text-base">AI 아모라</span>
@@ -189,7 +189,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
             </p>
             <a
               href="/chat"
-              className="block w-full text-center bg-white text-[#7f5e58] rounded-lg py-2 text-sm font-medium hover:bg-[#fbf8f2] transition-colors"
+              className="block w-full text-center bg-white text-[#36534E] rounded-lg py-2 text-sm font-medium hover:bg-[#fbf8f2] transition-colors"
             >
               대화하기
             </a>
@@ -271,8 +271,8 @@ function TabButton({
       onClick={onClick}
       className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 py-3.5 text-sm font-medium tracking-wide transition-colors ${
         active
-          ? "border-[#7f5e58] text-[#7f5e58]"
-          : "border-transparent text-[#635b51] hover:text-[#7f5e58]"
+          ? "border-[#36534E] text-[#36534E]"
+          : "border-transparent text-[#635b51] hover:text-[#36534E]"
       }`}
     >
       {icon}
@@ -556,7 +556,7 @@ function ChatTab({
             onClick={() => setThread("")}
             className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
-                ? "bg-[#7f5e58] text-white"
+                ? "bg-[#36534E] text-white"
                 : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
             }`}
           >
@@ -569,7 +569,7 @@ function ChatTab({
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
-                  ? "bg-[#7f5e58] text-white"
+                  ? "bg-[#36534E] text-white"
                   : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
               }`}
             >
@@ -588,7 +588,7 @@ function ChatTab({
                     onClick={() => selectMention(m)}
                     className="w-full text-left px-3 py-2 hover:bg-[#f6efe5] flex items-center gap-2 text-sm"
                   >
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] flex items-center justify-center text-white text-[10px]">
+                    <div className="w-6 h-6 rounded-full bg-[#36534E] flex items-center justify-center text-white text-[10px]">
                       {m.nickname[0]}
                     </div>
                     <span className="text-[#263832]">{m.nickname}</span>
@@ -607,7 +607,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={2}
-              className="w-full resize-none rounded-xl bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] sm:text-sm text-[#263832] outline-none focus:ring-2 focus:ring-[#7f5e58]/30 placeholder:text-[#B5ADA3]"
+              className="w-full resize-none rounded-xl bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] sm:text-sm text-[#263832] outline-none focus:ring-2 focus:ring-[#36534E]/30 placeholder:text-[#B5ADA3]"
             />
           </div>
           <input
@@ -641,7 +641,7 @@ function ChatTab({
               type="button"
               onClick={handleSend}
               disabled={sending || !input.trim()}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] py-2.5 sm:py-0 px-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-[#36534E] py-2.5 sm:py-0 px-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               <span className="sm:hidden text-sm font-medium">전송</span>
@@ -674,7 +674,7 @@ function FilterPill({
       onClick={onClick}
       className={`whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
-          ? "bg-[#7f5e58] text-white border-[#7f5e58]"
+          ? "bg-[#36534E] text-white border-[#36534E]"
           : "bg-white text-[#635b51] border-[#e5d8ca] hover:bg-[#f6efe5]"
       }`}
     >
@@ -709,16 +709,16 @@ function renderMessageContent(text: string): React.ReactNode {
           href={`/community/post/${postId}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#7f5e58]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
+          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#36534E]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
         >
-          <FileText className="w-4 h-4 text-[#7f5e58] shrink-0" />
+          <FileText className="w-4 h-4 text-[#36534E] shrink-0" />
           <span className="flex flex-col min-w-0">
             <span className="text-[11px] text-[#635b51] uppercase tracking-widest font-medium">커뮤니티 글</span>
-            <span className="font-serif-kr text-base text-[#263832] group-hover:text-[#7f5e58] line-clamp-1">
+            <span className="font-serif-kr text-base text-[#263832] group-hover:text-[#36534E] line-clamp-1">
               {postTitle}
             </span>
           </span>
-          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#7f5e58] shrink-0 ml-1" />
+          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#36534E] shrink-0 ml-1" />
         </a>
       );
     } else if (token.startsWith("[img:")) {
@@ -739,7 +739,7 @@ function renderMessageContent(text: string): React.ReactNode {
       parts.push(
         <span
           key={`m${match.index}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#7f5e58]/10 text-[#7f5e58] font-medium"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#36534E]/10 text-[#36534E] font-medium"
         >
           @{nickname}
         </span>
@@ -771,7 +771,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
   const rank = rankIcon(message.author?.rank);
   return (
     <div className="flex gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-xs font-medium text-white">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
         {message.author?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -787,7 +787,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-medium text-[#263832]">{nickname}</span>
           {rank && (
-            <span className="rounded-full bg-[#f6efe5] px-1.5 py-0.5 text-[10px] text-[#7f5e58]" title={message.author?.rank}>
+            <span className="rounded-full bg-[#f6efe5] px-1.5 py-0.5 text-[10px] text-[#36534E]" title={message.author?.rank}>
               {rank}
             </span>
           )}
@@ -795,7 +795,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
             {relativeTime(message.created_at)}
           </span>
           {message.thread_topic && (
-            <span className="rounded-full bg-[#7f5e58]/10 px-2 py-0.5 text-[11px] text-[#7f5e58]">
+            <span className="rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] text-[#36534E]">
               {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
                 ?.label ?? message.thread_topic}
             </span>
@@ -865,7 +865,7 @@ function PostPickerModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="제목으로 검색하거나 인기글에서 선택"
-            className="w-full px-4 py-3 bg-[#f6efe5] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#7f5e58]/30"
+            className="w-full px-4 py-3 bg-[#f6efe5] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#36534E]/30"
             autoFocus
           />
         </div>
@@ -885,7 +885,7 @@ function PostPickerModal({
                   }}
                   className="w-full text-left p-4 rounded-xl hover:bg-[#f6efe5] transition-colors group"
                 >
-                  <div className="font-serif-kr text-lg text-[#263832] group-hover:text-[#7f5e58] line-clamp-1">
+                  <div className="font-serif-kr text-lg text-[#263832] group-hover:text-[#36534E] line-clamp-1">
                     {p.title}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-sm text-[#635b51]">
@@ -950,7 +950,7 @@ function InfoTab({
       <button
         type="button"
         onClick={() => setModalOpen(true)}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
       >
         <Plus className="h-4 w-4" />
         내 계약 정보 등록
@@ -1104,7 +1104,7 @@ function ContractModal({
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
               placeholder="예) XX스튜디오"
-              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#C4967E]"
+              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             />
           </div>
 
@@ -1115,7 +1115,7 @@ function ContractModal({
               onChange={(e) =>
                 setCategory(e.target.value as CohortContractCategory)
               }
-              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#C4967E]"
+              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             >
               {COHORT_CONTRACT_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
@@ -1134,7 +1134,7 @@ function ContractModal({
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
-                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#C4967E]"
+                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
               />
             </div>
             <div>
@@ -1145,7 +1145,7 @@ function ContractModal({
                 type="number"
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
-                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#C4967E]"
+                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
               />
             </div>
           </div>
@@ -1156,7 +1156,7 @@ function ContractModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#C4967E]"
+              className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             />
           </div>
         </div>
@@ -1173,7 +1173,7 @@ function ContractModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-[#7f5e58] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#36534e] disabled:opacity-60"
+            className="flex-1 rounded-xl bg-[#36534E] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#2B423E] disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>
@@ -1226,7 +1226,7 @@ function TimelineTab({
             key={ev.id}
             className="flex items-start gap-3 rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-xs font-medium text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
               {ev.user?.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -1241,7 +1241,7 @@ function TimelineTab({
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[#263832] leading-relaxed">
                 예신{nickname}가{" "}
-                <span className="font-medium text-[#7f5e58]">{label}</span>{" "}
+                <span className="font-medium text-[#36534E]">{label}</span>{" "}
                 완료!
               </p>
               {ev.description && (
@@ -1271,7 +1271,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
       .catch(() => {});
   }, [roomId]);
 
-  const RANK_COLORS: Record<number, string> = { 0: "text-[#B89785]", 1: "text-[#B5ADA3]", 2: "text-[#C4967E]" };
+  const RANK_COLORS: Record<number, string> = { 0: "text-[#B89785]", 1: "text-[#B5ADA3]", 2: "text-[#36534E]" };
 
   return (
     <div>
@@ -1285,13 +1285,13 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group cursor-pointer">
               <a href={`/community/post/${p.id}`} className="flex items-start space-x-2.5">
-                <span className={`font-serif-kr italic text-xl leading-none mt-0.5 shrink-0 text-[#7f5e58] ${
+                <span className={`font-serif-kr italic text-xl leading-none mt-0.5 shrink-0 text-[#36534E] ${
                   i === 0 ? "" : i === 1 ? "opacity-70" : i === 2 ? "opacity-50" : "opacity-30"
                 }`}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm text-[#263832] group-hover:text-[#7f5e58] transition-colors line-clamp-2 leading-snug">
+                  <h4 className="text-sm text-[#263832] group-hover:text-[#36534E] transition-colors line-clamp-2 leading-snug">
                     {p.title}
                   </h4>
                   <p className="text-xs text-[#928980] mt-1">
@@ -1311,7 +1311,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 // 오른쪽 사이드바: 멤버 프리뷰
 // ────────────────────────────────────────
 const MEMBER_GRADIENTS = [
-  "from-[#C4967E] to-[#B89785]",
+  "from-[#36534E] to-[#2B423E]",
   "from-[#A8D8A8] to-[#6BBF6B]",
   "from-[#7EB8D8] to-[#5A9CC0]",
   "from-[#B89785] to-[#DCC9A0]",

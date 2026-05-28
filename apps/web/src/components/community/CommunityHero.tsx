@@ -31,7 +31,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
     <section className="rounded-lg border border-[#e4ded9] bg-[#f6efe5] px-4 py-5 sm:px-6 lg:px-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-[#dfc9c1] bg-white px-3 py-1.5 text-xs font-medium text-[#7f5e58]">
+          <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-[#dfc9c1] bg-white px-3 py-1.5 text-xs font-medium text-[#36534E]">
             <Handshake className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">예비부부 커뮤니티</span>
           </div>

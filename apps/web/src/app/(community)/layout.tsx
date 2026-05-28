@@ -12,7 +12,7 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#fbf8f2]">
+    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fbf8f2]">
       <CommunityAuthInitializer />
       <Suspense fallback={<div className="h-[76px] bg-[#fbf8f2]" />}>
         <CommunityNav />
@@ -53,7 +53,7 @@ function CommunityFooter() {
                 key={item.label}
                 href="/community"
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#B89785] hover:text-[#B89785]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#36534E] hover:text-[#36534E]"
               >
                 <item.icon className="h-4 w-4" />
               </Link>
@@ -110,7 +110,7 @@ function CommunityFooter() {
           </p>
           <Link
             href="/dashboard"
-            className="mt-4 inline-flex items-center rounded-full border border-[#B89785]/70 px-4 py-2 text-[12px] font-semibold text-[#ecd7a4] transition-colors hover:bg-[#B89785]/10"
+            className="mt-4 inline-flex items-center rounded-full border border-[#36534E]/70 px-4 py-2 text-[12px] font-semibold text-[#ffffff] transition-colors hover:bg-[#36534E]/10"
           >
             준비실로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -130,7 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#ecd7a4]">
+          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#ffffff]">
             {item.label}
           </Link>
         ))}

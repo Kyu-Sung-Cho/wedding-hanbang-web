@@ -189,12 +189,12 @@ export default function ImageUploader({
           onClick={() => fileInputRef.current?.click()}
           className={`flex flex-col items-center justify-center gap-2 py-8 px-4 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${
             dragOver
-              ? "border-[#C4967E] bg-[#C4967E]/5"
+              ? "border-[#36534E] bg-[#36534E]/5"
               : "border-[#F5F2ED] bg-[#FAF8F5] hover:border-[#B5ADA3]"
           }`}
         >
           {uploading ? (
-            <Loader2 className="w-8 h-8 text-[#C4967E] animate-spin" />
+            <Loader2 className="w-8 h-8 text-[#36534E] animate-spin" />
           ) : (
             <Upload className="w-8 h-8 text-[#B5ADA3]" />
           )}
@@ -254,7 +254,7 @@ export default function ImageUploader({
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#7f5e58]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#36534E]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label={`파일 ${i + 1} 삭제`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -267,7 +267,7 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[#B5ADA3] hover:border-[#C4967E] hover:text-[#C4967E] transition-colors"
+              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[#B5ADA3] hover:border-[#36534E] hover:text-[#36534E] transition-colors"
             >
               <ImageIcon className="w-5 h-5" />
               <span className="text-[10px]">추가</span>
