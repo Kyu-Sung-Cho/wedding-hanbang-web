@@ -46,6 +46,7 @@ import type {
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { withSessionCache } from "@/utils/sessionCache";
+import { dateToYearQuarter } from "@/utils/quarter";
 
 interface VendorTag {
   vendor_name: string;
@@ -125,13 +126,19 @@ const journeyActions: Array<{ icon: LucideIcon; title: string; desc: string; hre
   },
 ];
 
-const cohortPreviewRows = [
-  { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1", cta: "입장" },
-  { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
-  { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3", cta: "입장" },
-  { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
-  { period: "날짜 미정·하반기 이후", note: "일정 잡기", href: "/onboarding", cta: "설정" },
+const cohortPreviewRows: Array<{ quarter: 1 | 2 | 3 | 4; period: string; note: string; href: string; cta: string }> = [
+  { quarter: 1, period: "2026년 1분기", note: "1~3월 결혼", href: "/community/cohort?year=2026&quarter=1", cta: "입장" },
+  { quarter: 2, period: "2026년 2분기", note: "4~6월 결혼", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
+  { quarter: 3, period: "2026년 3분기", note: "7~9월 결혼", href: "/community/cohort?year=2026&quarter=3", cta: "입장" },
+  { quarter: 4, period: "2026년 4분기", note: "10~12월 결혼", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
 ];
+
+const quarterMonthRange: Record<1 | 2 | 3 | 4, string> = {
+  1: "1~3월",
+  2: "4~6월",
+  3: "7~9월",
+  4: "10~12월",
+};
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
   return `/community?category=${category}&feed=all#community-feed`;
@@ -1024,7 +1031,10 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
 
 function RightPanels({ currentSort }: { currentSort: PostSort }) {
   return (
-    <div className={`mt-[18px] grid grid-cols-1 gap-[18px] ${currentSort === "hot" ? "" : "lg:grid-cols-[1.1fr_0.9fr]"}`} data-tutorial-target="community-right">
+    <div
+      className={`mt-[18px] grid grid-cols-1 items-start gap-[18px] ${currentSort === "hot" ? "" : "lg:grid-cols-[1.1fr_0.9fr]"}`}
+      data-tutorial-target="community-right"
+    >
       <CohortPreviewPanel />
       {currentSort !== "hot" && <PopularPostsPanel />}
     </div>
@@ -1103,36 +1113,97 @@ function PopularPostsPanel() {
 }
 
 function CohortPreviewPanel() {
+  const journey = useAuthStore((state) => state.journey);
+  const weddingDate = journey?.wedding_date ?? null;
+  const weddingCohort = useMemo(() => {
+    if (!weddingDate) return null;
+    try {
+      return dateToYearQuarter(weddingDate);
+    } catch {
+      return null;
+    }
+  }, [weddingDate]);
+  const primaryHref = weddingCohort
+    ? `/community/cohort?year=${weddingCohort.year}&quarter=${weddingCohort.quarter}`
+    : "/community/cohort";
+  const primaryLabel = weddingCohort
+    ? `${weddingCohort.year}년 ${weddingCohort.quarter}분기 동기방 입장`
+    : "내 동기방 찾기";
+  const primaryDescription = weddingCohort
+    ? `${quarterMonthRange[weddingCohort.quarter]} 결혼 예정일 기준으로 이어져요.`
+    : "예정일이 있으면 자동으로 맞는 방을 찾아드려요.";
+
   return (
     <article
-      className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
+      className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
       data-tutorial-target="community-cohort"
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">동기방 함께 준비해요.</h2>
-          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-            비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
-          </p>
-        </div>
-        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#9d6f36]">
-          더보기
-        </Link>
-      </div>
-      <div className="divide-y divide-[#eadfc9]">
-        {cohortPreviewRows.map((row) => (
+      <div className="border-b border-[#eadfc9] bg-[linear-gradient(135deg,#fffdf7_0%,#fbf4ea_100%)] p-6">
+        <span className="inline-flex rounded-full border border-[#e1cfb0] bg-white/80 px-3 py-1 text-[12px] font-semibold text-[#9d6f36]">
+          내 결혼 시기 기준
+        </span>
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="font-serif-kr text-[26px] font-medium leading-[1.35] text-[#071629]">
+              동기방에서 같은 시기 사람들과 준비해요.
+            </h2>
+            <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
+              후기와 고민은 커뮤니티에서 넓게 보고, 내 결혼 시기의 질문은 동기방에서 더 가깝게 나눠요.
+            </p>
+          </div>
           <Link
-            key={row.period}
-            href={row.href}
-            className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#34445a] transition-colors hover:bg-[#fff8ec]"
+            href={primaryHref}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_14px_28px_rgba(6,26,52,0.16)]"
           >
-            <span className="min-w-0 flex-1 truncate">{row.period}</span>
-            <span className="hidden text-[12px] font-medium text-[#7a8290] sm:inline">{row.note}</span>
-            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#d8bb86] bg-white px-4 text-[12px] font-semibold text-[#9d6f36]">
-              {row.cta}
-            </span>
+            {primaryLabel}
+            <ChevronRight className="ml-2 h-4 w-4" />
           </Link>
-        ))}
+        </div>
+        <p className="mt-3 text-[12px] font-medium text-[#7a8290]">{primaryDescription}</p>
+      </div>
+
+      <div className="p-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-serif-kr text-[20px] font-medium leading-[1.35] text-[#071629]">
+              다른 분기방도 둘러보기
+            </h3>
+            <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+              아직 날짜가 바뀔 수 있거나 다른 시기 후기가 궁금하면 바로 이동할 수 있어요.
+            </p>
+          </div>
+          <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#9d6f36]">
+            자동 찾기
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {cohortPreviewRows.map((row) => (
+            <Link
+              key={row.period}
+              href={row.href}
+              className={`group rounded-[14px] border px-4 py-3 transition-colors ${
+                weddingCohort?.year === 2026 && weddingCohort.quarter === row.quarter
+                  ? "border-[#9d6f36] bg-[#fff8ec]"
+                  : "border-[#eadfc9] bg-white hover:border-[#d8bb86] hover:bg-[#fffdf7]"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-serif-kr text-[18px] leading-snug text-[#071629]">{row.period}</span>
+                <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#d8bb86] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]">
+                  {row.cta}
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] font-medium text-[#7a8290]">{row.note}</p>
+            </Link>
+          ))}
+        </div>
+        <Link
+          href="/onboarding"
+          className="mt-4 flex min-h-11 items-center justify-between rounded-[14px] border border-dashed border-[#d8bb86] bg-[#fffdf7] px-4 text-[13px] font-medium text-[#5d6879]"
+        >
+          날짜가 아직 애매하면 예정일부터 설정하기
+          <ChevronRight className="h-4 w-4 text-[#9d6f36]" />
+        </Link>
       </div>
     </article>
   );

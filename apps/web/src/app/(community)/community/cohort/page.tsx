@@ -171,6 +171,7 @@ function CohortIndexPageInner() {
               예정일 등록하기
               <ArrowRight className="h-4 w-4" />
             </Link>
+            <CohortChoiceLinks />
           </>
         )}
 
@@ -187,6 +188,33 @@ function CohortIndexPageInner() {
             </Link>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+const COHORT_ENTRY_CHOICES: Array<{ quarter: 1 | 2 | 3 | 4; label: string; months: string }> = [
+  { quarter: 1, label: "2026년 1분기", months: "1~3월" },
+  { quarter: 2, label: "2026년 2분기", months: "4~6월" },
+  { quarter: 3, label: "2026년 3분기", months: "7~9월" },
+  { quarter: 4, label: "2026년 4분기", months: "10~12월" },
+];
+
+function CohortChoiceLinks() {
+  return (
+    <div className="mt-6 border-t border-[#eadfc9] pt-5">
+      <p className="mb-3 text-xs font-medium text-[#928980]">날짜가 아직 확정 전이면 분기로 먼저 들어갈 수 있어요.</p>
+      <div className="grid grid-cols-2 gap-2">
+        {COHORT_ENTRY_CHOICES.map((item) => (
+          <Link
+            key={item.quarter}
+            href={`/community/cohort?year=2026&quarter=${item.quarter}`}
+            className="rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#9d6f36] hover:bg-white"
+          >
+            <span className="block text-sm font-semibold text-[#071629]">{item.label}</span>
+            <span className="mt-1 block text-xs text-[#928980]">{item.months} 결혼</span>
+          </Link>
+        ))}
       </div>
     </div>
   );
