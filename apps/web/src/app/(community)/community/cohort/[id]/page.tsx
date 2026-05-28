@@ -1,9 +1,11 @@
 ﻿"use client";
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
+  CheckCircle2,
   MessageCircle,
-  Users,
   TrendingUp,
   Calendar,
   Send,
@@ -13,6 +15,7 @@ import {
   ExternalLink,
   FileText,
   Paperclip,
+  ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
@@ -31,8 +34,7 @@ import type {
 // ────────────────────────────────────────
 // 상수
 // ────────────────────────────────────────
-const TAB_KEYS = ["chat", "info", "timeline"] as const;
-type TabKey = (typeof TAB_KEYS)[number];
+type TabKey = "chat" | "info" | "timeline";
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
   venue_booked: "웨딩홀 예약",
@@ -57,6 +59,48 @@ const NATIONAL_AVG: Record<CohortContractCategory, number> = {
   honeymoon: 500,
   other: 0,
 };
+
+const THREAD_LABEL: Record<CohortThreadTopic, string> = {
+  price: "가격",
+  review: "후기",
+  concern: "고민",
+  chat: "수다",
+};
+
+const THREAD_HINT: Record<CohortThreadTopic, string> = {
+  price: "견적, 추가금, 결제 조건",
+  review: "투어, 상담, 계약 후기",
+  concern: "선택 전 고민 상담",
+  chat: "가벼운 근황과 응원",
+};
+
+const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
+  venue: "예식장",
+  studio: "스튜디오",
+  dress: "드레스",
+  makeup: "메이크업",
+  snap: "본식 스냅/영상",
+  ring: "예물",
+  honeymoon: "신혼여행",
+  other: "기타",
+};
+
+const THREAD_ITEMS = COHORT_THREAD_TOPICS.map((topic) => ({
+  key: topic.key as CohortThreadTopic,
+  label: THREAD_LABEL[topic.key as CohortThreadTopic],
+  hint: THREAD_HINT[topic.key as CohortThreadTopic],
+}));
+
+const CONTRACT_ITEMS = COHORT_CONTRACT_CATEGORIES.map((category) => ({
+  key: category.key as CohortContractCategory,
+  label: CONTRACT_LABEL[category.key as CohortContractCategory],
+}));
+
+function getRoomPeriod(room: CohortRoom | null): string {
+  if (!room?.year || !room?.month) return "같은 시기";
+  const quarter = Math.ceil(room.month / 3);
+  return `${room.year}년 ${quarter}분기`;
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -100,12 +144,21 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
   const [tab, setTab] = useState<TabKey>("chat");
   const [room, setRoom] = useState<CohortRoom | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   // 초기 방 정보 로드
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+      setIsSignedIn(Boolean(user));
+      if (!user) return;
+
       const res = await fetch("/api/community/cohort");
+      if (!res.ok) return;
       const data = await res.json();
       if (!cancelled && data?.room?.id === roomId) {
         setRoom(data.room);
@@ -125,129 +178,213 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   }, [roomId, supabase]);
 
   return (
-    <div className="min-h-screen bg-[#f8f4f1]">
-      <div className="flex w-full max-w-[1920px] mx-auto">
-        {/* 왼쪽 사이드바 — 커뮤니티 메인 피드와 동일한 폭/사이즈 (w-64 2xl:w-72) */}
-        <aside className="hidden xl:flex flex-col w-64 2xl:w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-[#e5d8ca] bg-[#f8f4f1] pt-6 pb-5 px-4 z-40">
-          {/* 방 정보 */}
-          <div className="mb-5 px-2">
-            <p className="mb-2 text-[11px] font-medium text-[#928980] uppercase tracking-widest">
-              WEDDING HANBANG
-            </p>
-            <h2 className="font-serif-kr text-2xl text-[#263832] mb-1 break-words">
-              {room?.name ?? "동기방"}
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[#635b51]">
-              <Users className="h-3.5 w-3.5" />
-              <span>{room?.member_count ?? 0}명 참여</span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] text-[#263832]">
+      <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
+        <RoomHero room={room} activeTab={tab} onTabChange={setTab} />
 
-          {/* 멤버 */}
-          <div className="px-1 mb-5">
-            <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
-          </div>
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <main className="min-w-0">
+            <section className="overflow-hidden rounded-[22px] border border-[#e5d8ca] bg-white/88 shadow-[0_16px_38px_rgba(50,36,17,0.055)]">
+              <div className="border-b border-[#e5d8ca] bg-white/70 px-3 py-3 sm:px-4">
+                <div className="grid grid-cols-3 gap-2 rounded-full bg-[#f6efe5] p-1">
+                  <TabButton
+                    active={tab === "chat"}
+                    onClick={() => setTab("chat")}
+                    icon={<MessageCircle className="h-4 w-4" />}
+                    label="대화"
+                  />
+                  <TabButton
+                    active={tab === "info"}
+                    onClick={() => setTab("info")}
+                    icon={<TrendingUp className="h-4 w-4" />}
+                    label="가격정보"
+                  />
+                  <TabButton
+                    active={tab === "timeline"}
+                    onClick={() => setTab("timeline")}
+                    icon={<Calendar className="h-4 w-4" />}
+                    label="준비기록"
+                  />
+                </div>
+              </div>
 
-          {/* 주제별 카테고리 */}
-          <div className="px-1 mb-5">
-            <h3 className="px-2 text-[11px] font-medium uppercase tracking-wider text-[#928980] mb-2">주제별 보기</h3>
-            <div className="flex flex-col gap-0.5">
-              {COHORT_THREAD_TOPICS.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#635b51] hover:bg-white hover:text-[#36534E] transition-colors duration-200 text-left"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#36534E] opacity-70" />
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              <div className="p-3 sm:p-5">
+                {tab === "chat" && <ChatTab roomId={roomId} enabled={isSignedIn} toastError={toast.error} />}
+                {tab === "info" && <InfoTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
+                {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
+              </div>
+            </section>
+          </main>
 
-          {/* 동기방 규칙 */}
-          <div className="px-1 mb-5 border-t border-[#e5d8ca]/50 pt-4">
-            <h3 className="px-2 text-[11px] font-medium uppercase tracking-wider text-[#928980] mb-2">규칙</h3>
-            <div className="px-2 space-y-1.5 text-xs text-[#635b51] leading-relaxed">
-              <p>• 서로 존중하며 대화해주세요</p>
-              <p>• 개인정보(실명, 연락처) 공유 주의</p>
-              <p>• 광고/홍보성 글은 삭제됩니다</p>
-              <p>• 업체 후기는 솔직하게 작성해주세요</p>
-            </div>
-          </div>
-
-          <div className="mt-auto pt-4" />
-
-          {/* 아모라 CTA */}
-          <div className="mx-1 rounded-xl bg-[#36534E] p-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-4 h-4 text-[#dee6c4]" />
-              <span className="font-serif-kr text-base">AI 아모라</span>
-            </div>
-            <p className="text-xs text-white/70 leading-relaxed mb-3">
-              가격 비교·견적 분석·일정 상담
-            </p>
-            <a
-              href="/chat"
-              className="block w-full text-center bg-white text-[#36534E] rounded-lg py-2 text-sm font-medium hover:bg-[#fbf8f2] transition-colors"
-            >
-              대화하기
-            </a>
-          </div>
-        </aside>
-
-        {/* 가운데: 메인 콘텐츠 */}
-        <main className="flex-1 min-w-0 flex flex-col">
-          {/* 모바일/태블릿용 방 이름 헤더 */}
-          <div className="xl:hidden px-4 sm:px-6 pt-4 pb-2 bg-[#f8f4f1]">
-            <h2 className="font-serif-kr text-xl sm:text-2xl text-[#263832] mb-1 break-words">
-              {room?.name ?? "동기방"}
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[#635b51]">
-              <Users className="h-3.5 w-3.5" />
-              <span>{room?.member_count ?? 0}명 참여</span>
-            </div>
-          </div>
-
-          {/* 탭 헤더 */}
-          <div className="sticky top-16 z-10 bg-white border-b border-[#e5d8ca]">
-            <div className="flex px-4 sm:px-5 xl:px-6 2xl:px-8 max-w-[1120px] mx-auto w-full">
-              <TabButton
-                active={tab === "chat"}
-                onClick={() => setTab("chat")}
-                icon={<MessageCircle className="h-4 w-4" />}
-                label="채팅"
-              />
-              <TabButton
-                active={tab === "info"}
-                onClick={() => setTab("info")}
-                icon={<TrendingUp className="h-4 w-4" />}
-                label="정보판"
-              />
-              <TabButton
-                active={tab === "timeline"}
-                onClick={() => setTab("timeline")}
-                icon={<Calendar className="h-4 w-4" />}
-                label="타임라인"
-              />
-            </div>
-          </div>
-
-          <div className="px-4 sm:px-5 xl:px-6 2xl:px-8 py-5 sm:py-6 flex-1">
-            <div className="max-w-[1120px] mx-auto">
-              {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
-              {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
-              {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
-            </div>
-          </div>
-        </main>
-
-        {/* 오른쪽 사이드바 — 커뮤니티 메인과 동일 폭 */}
-        <aside className="hidden 2xl:flex flex-col w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-l border-[#e5d8ca] p-6 bg-[#f8f4f1]">
-          <CohortPopularPosts roomId={roomId} />
-        </aside>
+          <CohortSidePanel room={room} roomId={roomId} onTabChange={setTab} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function RoomHero({
+  room,
+  activeTab,
+  onTabChange,
+}: {
+  room: CohortRoom | null;
+  activeTab: TabKey;
+  onTabChange: (tab: TabKey) => void;
+}) {
+  const period = getRoomPeriod(room);
+  const stats = [
+    { label: "참여 멤버", value: `${room?.member_count ?? 0}명` },
+    { label: "누적 대화", value: `${room?.message_count ?? 0}개` },
+    { label: "매칭 기준", value: period },
+  ];
+
+  return (
+    <section className="relative overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)]">
+      <div className="absolute inset-y-0 right-0 hidden w-[48%] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] opacity-95 md:block" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,#fffdf8_0%,#fffdf8_45%,rgba(255,253,248,0.76)_62%,rgba(255,253,248,0.08)_100%)]" />
+
+      <div className="relative z-10 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <div className="max-w-[680px]">
+          <p className="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.22em] text-[#36534E]">
+            Cohort Lounge
+            <Sparkles className="h-4 w-4" />
+          </p>
+          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+            {room?.name ?? "나의 결혼 동기방"}
+          </h1>
+          <p className="mt-4 max-w-[560px] text-[14px] font-medium leading-[1.8] text-[#5f5b52] sm:text-[15px]">
+            같은 시기에 결혼을 준비하는 분들과 견적, 투어 후기, 체크리스트를 짧고 편하게 나눠요.
+            혼자 고민하던 질문을 먼저 던지고, 가격 정보는 익명 평균으로 확인해요.
+          </p>
+
+          <div className="mt-6 grid max-w-[560px] grid-cols-3 overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white/78">
+            {stats.map((stat, index) => (
+              <div key={stat.label} className={`px-3 py-3 ${index > 0 ? "border-l border-[#e5d8ca]" : ""}`}>
+                <div className="text-[11px] font-semibold text-[#928980]">{stat.label}</div>
+                <div className="mt-1 truncate text-[15px] font-bold text-[#263832]">{stat.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            {[
+              { key: "chat" as const, label: "대화 참여", icon: MessageCircle },
+              { key: "info" as const, label: "가격정보 보기", icon: TrendingUp },
+              { key: "timeline" as const, label: "준비기록", icon: Calendar },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onTabChange(item.key)}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold transition-colors ${
+                    active
+                      ? "bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.18)]"
+                      : "border border-[#e5d8ca] bg-white/86 text-[#36534E] hover:border-[#36534E]/35"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CohortSidePanel({
+  room,
+  roomId,
+  onTabChange,
+}: {
+  room: CohortRoom | null;
+  roomId: string;
+  onTabChange: (tab: TabKey) => void;
+}) {
+  return (
+    <aside className="grid gap-4 xl:sticky xl:top-20 xl:self-start">
+      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">오늘 이렇게 써보세요</h2>
+          <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[#36534E]">
+            {getRoomPeriod(room)}
+          </span>
+        </div>
+        <div className="grid gap-2.5">
+          {[
+            { tab: "chat" as const, label: "견적 캡처 올리고 의견 받기", desc: "가격/계약 조건은 대화 탭에서 빠르게 물어보세요." },
+            { tab: "info" as const, label: "내 계약금 익명 등록", desc: "동기 평균을 만들수록 비교가 정확해져요." },
+            { tab: "timeline" as const, label: "준비 완료 기록 보기", desc: "다른 커플의 진행 흐름을 참고해요." },
+          ].map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => onTabChange(item.tab)}
+              className="group rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4 text-left transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]"
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
+                  <CheckCircle2 className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold leading-snug text-[#263832] group-hover:text-[#36534E]">
+                    {item.label}
+                  </span>
+                  <span className="mt-1 block text-[12px] font-medium leading-[1.55] text-[#635b51]">
+                    {item.desc}
+                  </span>
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+        <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
+      </section>
+
+      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+        <h2 className="mb-3 font-serif-kr text-[22px] font-medium text-[#263832]">주제별로 나누기</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {THREAD_ITEMS.map((topic) => (
+            <div key={topic.key} className="rounded-[14px] border border-[#e5d8ca] bg-[#fbf8f2] p-3">
+              <div className="text-[13px] font-bold text-[#36534E]">{topic.label}</div>
+              <div className="mt-1 text-[11px] font-medium leading-[1.45] text-[#7d7166]">{topic.hint}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+        <CohortPopularPosts roomId={roomId} />
+      </section>
+
+      <section className="rounded-[22px] bg-[#36534E] p-5 text-white shadow-[0_16px_34px_rgba(54,83,78,0.2)]">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" />
+          <h2 className="font-serif-kr text-[21px] font-medium">동기방 약속</h2>
+        </div>
+        <ul className="mt-4 space-y-2 text-[12px] font-medium leading-[1.6] text-white/78">
+          <li>실명, 연락처, 계좌번호는 공개하지 않기</li>
+          <li>업체 후기는 직접 경험과 사실 중심으로 쓰기</li>
+          <li>광고·홍보는 커뮤니티 정책에 맞게 표시하기</li>
+        </ul>
+        <Link
+          href="/chat"
+          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-[#36534E]"
+        >
+          아모라에게 먼저 물어보기
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </section>
+    </aside>
   );
 }
 
@@ -269,10 +406,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 py-3.5 text-sm font-medium tracking-wide transition-colors ${
+      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
         active
-          ? "border-[#36534E] text-[#36534E]"
-          : "border-transparent text-[#635b51] hover:text-[#36534E]"
+          ? "bg-[#36534E] text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)]"
+          : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
       }`}
     >
       {icon}
@@ -286,9 +423,11 @@ function TabButton({
 // ────────────────────────────────────────
 function ChatTab({
   roomId,
+  enabled,
   toastError,
 }: {
   roomId: string;
+  enabled: boolean;
   toastError: (msg: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -321,6 +460,11 @@ function ChatTab({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!enabled) {
+      toastError("로그인 후 동기방에 참여할 수 있어요.");
+      return;
+    }
+
     if (file.size > 10 * 1024 * 1024) {
       toastError("이미지는 10MB 이하여야 합니다");
       return;
@@ -351,6 +495,10 @@ function ChatTab({
 
   // 동기방 멤버 로드 (멘션용)
   useEffect(() => {
+    if (!enabled) {
+      setMembers([]);
+      return;
+    }
     (async () => {
       const { data: memberRows } = await supabase
         .from("cohort_members")
@@ -366,7 +514,7 @@ function ChatTab({
         .in("user_id", ids);
       setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
     })();
-  }, [roomId, supabase]);
+  }, [enabled, roomId, supabase]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value;
@@ -403,6 +551,10 @@ function ChatTab({
 
   // 메시지 로드
   const loadMessages = useCallback(async () => {
+    if (!enabled) {
+      setMessages([]);
+      return;
+    }
     const url =
       filter === "all"
         ? `/api/community/cohort/${roomId}/messages`
@@ -412,7 +564,7 @@ function ChatTab({
     if (res.ok) {
       setMessages(data.messages ?? []);
     }
-  }, [roomId, filter]);
+  }, [enabled, roomId, filter]);
 
   useEffect(() => {
     loadMessages();
@@ -420,6 +572,7 @@ function ChatTab({
 
   // Realtime 구독
   useEffect(() => {
+    if (!enabled) return;
     const channel = supabase
       .channel("cohort:" + roomId)
       .on(
@@ -455,7 +608,7 @@ function ChatTab({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, roomId, filter]);
+  }, [enabled, supabase, roomId, filter]);
 
   // 컨테이너 내부 스크롤 위치 추적 — 바닥 근처 여부 캐시
   useEffect(() => {
@@ -492,6 +645,10 @@ function ChatTab({
 
   async function handleSend() {
     if (!input.trim() || sending) return;
+    if (!enabled) {
+      toastError("로그인 후 동기방에 참여할 수 있어요.");
+      return;
+    }
     setSending(true);
     try {
       const res = await fetch(`/api/community/cohort/${roomId}/messages`, {
@@ -516,7 +673,19 @@ function ChatTab({
   }
 
   return (
-    <div className="flex h-[calc(100vh-180px)] sm:h-[calc(100vh-160px)] flex-col">
+    <div className="flex min-h-[640px] flex-col">
+      <div className="mb-4 flex flex-col gap-3 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
+          <p className="mt-1 text-[13px] font-medium text-[#635b51]">
+            가격은 가격 탭, 업체 경험은 후기 탭처럼 주제를 붙이면 나중에 찾기 쉬워요.
+          </p>
+        </div>
+        <span className="inline-flex w-fit items-center rounded-full bg-[#EEF4F1] px-3 py-1.5 text-[12px] font-semibold text-[#36534E]">
+          Enter 전송 · Shift+Enter 줄바꿈
+        </span>
+      </div>
+
       {/* 필터 pill */}
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         <FilterPill
@@ -524,7 +693,7 @@ function ChatTab({
           onClick={() => setFilter("all")}
           label="전체"
         />
-        {COHORT_THREAD_TOPICS.map((t) => (
+        {THREAD_ITEMS.map((t) => (
           <FilterPill
             key={t.key}
             active={filter === t.key}
@@ -537,11 +706,13 @@ function ChatTab({
       {/* 메시지 목록 */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 space-y-4 overflow-y-auto rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        className="min-h-[360px] flex-1 space-y-4 overflow-y-auto rounded-[18px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-[#635b51]">
-            아직 메시지가 없어요. 첫 메시지를 남겨보세요.
+          <div className="flex h-full min-h-[320px] items-center justify-center rounded-[16px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
+            아직 메시지가 없어요.
+            <br />
+            첫 질문이나 오늘의 준비 상황을 남겨보세요.
           </div>
         ) : (
           messages.map((m) => <MessageBubble key={m.id} message={m} />)
@@ -549,7 +720,7 @@ function ChatTab({
       </div>
 
       {/* 입력 */}
-      <div className="mt-3 rounded-xl bg-white p-3 sm:p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div className="mt-3 rounded-[18px] border border-[#e5d8ca] bg-white p-3 sm:p-4">
         <div className="mb-2.5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             type="button"
@@ -562,7 +733,7 @@ function ChatTab({
           >
             주제 없음
           </button>
-          {COHORT_THREAD_TOPICS.map((t) => (
+          {THREAD_ITEMS.map((t) => (
             <button
               key={t.key}
               type="button"
@@ -607,7 +778,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={2}
-              className="w-full resize-none rounded-xl bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] sm:text-sm text-[#263832] outline-none focus:ring-2 focus:ring-[#36534E]/30 placeholder:text-[#B5ADA3]"
+              className="w-full resize-none rounded-xl border border-transparent bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] text-[#263832] outline-none transition-colors placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
             />
           </div>
           <input
@@ -704,7 +875,7 @@ function renderMessageContent(text: string): React.ReactNode {
       const postId = inner.slice(0, sepIdx);
       const postTitle = inner.slice(sepIdx + 1);
       parts.push(
-        <a
+        <Link
           key={`p${match.index}`}
           href={`/community/post/${postId}`}
           target="_blank"
@@ -719,7 +890,7 @@ function renderMessageContent(text: string): React.ReactNode {
             </span>
           </span>
           <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#36534E] shrink-0 ml-1" />
-        </a>
+        </Link>
       );
     } else if (token.startsWith("[img:")) {
       const url = token.slice(5, -1);
@@ -796,8 +967,7 @@ function MessageBubble({ message }: { message: CohortMessage }) {
           </span>
           {message.thread_topic && (
             <span className="rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] text-[#36534E]">
-              {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
-                ?.label ?? message.thread_topic}
+              {THREAD_LABEL[message.thread_topic] ?? message.thread_topic}
             </span>
           )}
         </div>
@@ -913,9 +1083,11 @@ type ToastFnLike = {
 
 function InfoTab({
   roomId,
+  enabled,
   toastFn,
 }: {
   roomId: string;
+  enabled: boolean;
   toastFn: ToastFnLike;
 }) {
   const [stats, setStats] = useState<CohortStat[]>([]);
@@ -923,13 +1095,18 @@ function InfoTab({
   const [modalOpen, setModalOpen] = useState(false);
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setStats([]);
+      setContracts([]);
+      return;
+    }
     const res = await fetch(`/api/community/cohort/${roomId}/contracts`);
     const data = await res.json();
     if (res.ok) {
       setStats(data.stats ?? []);
       setContracts(data.contracts ?? []);
     }
-  }, [roomId]);
+  }, [enabled, roomId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -946,32 +1123,45 @@ function InfoTab({
 
   return (
     <div>
-      {/* 등록 버튼 */}
-      <button
-        type="button"
-        onClick={() => setModalOpen(true)}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
-      >
-        <Plus className="h-4 w-4" />
-        내 계약 정보 등록
-      </button>
+      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">우리 동기 가격정보</h2>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+            업체명과 금액은 익명 평균으로만 활용돼요. 데이터가 쌓일수록 추가금 기준이 선명해집니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (!enabled) {
+              toastFn.error("로그인 후 계약 정보를 등록할 수 있어요.");
+              return;
+            }
+            setModalOpen(true);
+          }}
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E] sm:mt-0 sm:w-auto"
+        >
+          <Plus className="h-4 w-4" />
+          내 계약 정보 등록
+        </button>
+      </div>
 
       {/* 카테고리별 카드 */}
-      <div className="space-y-3">
-        {COHORT_CONTRACT_CATEGORIES.map((cat) => {
-          const stat = statByCat[cat.key as CohortContractCategory];
+      <div className="grid gap-3 md:grid-cols-2">
+        {CONTRACT_ITEMS.map((cat) => {
+          const stat = statByCat[cat.key];
           const sample = stat?.sample_size ?? 0;
           const enough = sample >= 5;
           return (
             <div
               key={cat.key}
-              className="rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+              className="rounded-[18px] border border-[#e5d8ca] bg-white p-4 transition-colors hover:border-[#36534E]/30 sm:p-5"
             >
               <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#263832]">
+                <h3 className="font-serif-kr text-xl font-medium text-[#263832] sm:text-2xl">
                   {cat.label}
                 </h3>
-                <span className="text-xs sm:text-sm text-[#928980]">
+                <span className="rounded-full bg-[#fbf8f2] px-3 py-1 text-xs font-semibold text-[#928980] sm:text-sm">
                   {sample}명 등록
                 </span>
               </div>
@@ -1000,13 +1190,11 @@ function InfoTab({
                       아직 우리 동기 데이터가 부족해요. 등록하면 우리끼리의 평균이 나와요.
                     </p>
                   </div>
-                  {NATIONAL_AVG[cat.key as CohortContractCategory] > 0 && (
+                  {NATIONAL_AVG[cat.key] > 0 && (
                     <p className="text-xs sm:text-sm text-[#635b51]">
                       전국 평균:{" "}
                       <span className="font-medium text-[#263832]">
-                        {NATIONAL_AVG[
-                          cat.key as CohortContractCategory
-                        ].toLocaleString()}
+                        {NATIONAL_AVG[cat.key].toLocaleString()}
                         만원
                       </span>
                     </p>
@@ -1117,7 +1305,7 @@ function ContractModal({
               }
               className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             >
-              {COHORT_CONTRACT_CATEGORIES.map((c) => (
+              {CONTRACT_ITEMS.map((c) => (
                 <option key={c.key} value={c.key}>
                   {c.label}
                 </option>
@@ -1188,14 +1376,17 @@ function ContractModal({
 // ────────────────────────────────────────
 function TimelineTab({
   roomId,
+  enabled,
   toastFn,
 }: {
   roomId: string;
+  enabled: boolean;
   toastFn: ToastFnLike;
 }) {
   const [events, setEvents] = useState<CohortTimelineEvent[]>([]);
 
   useEffect(() => {
+    if (!enabled) return;
     (async () => {
       const res = await fetch(`/api/community/cohort/${roomId}/timeline`);
       const data = await res.json();
@@ -1205,18 +1396,27 @@ function TimelineTab({
         toastFn.error(data.error ?? "타임라인 로드 실패");
       }
     })();
-  }, [roomId, toastFn]);
+  }, [enabled, roomId, toastFn]);
 
   if (events.length === 0) {
     return (
-      <div className="rounded-xl bg-white p-8 text-center text-sm text-[#635b51] shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        아직 타임라인 이벤트가 없어요.
+      <div className="rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-8 text-center text-sm font-medium leading-6 text-[#635b51]">
+        아직 준비기록이 없어요.
+        <br />
+        계약 정보나 준비 업데이트가 쌓이면 이곳에서 흐름을 볼 수 있어요.
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div>
+      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
+        <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">같은 시기 커플들의 준비 흐름</h2>
+        <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+          누가 무엇을 완료했는지 한눈에 보며 내 다음 순서를 가볍게 참고해요.
+        </p>
+      </div>
+      <div className="space-y-3">
       {events.map((ev) => {
         const nickname = ev.user?.nickname ?? "익명";
         const initial = nickname[0] ?? "?";
@@ -1224,7 +1424,7 @@ function TimelineTab({
         return (
           <div
             key={ev.id}
-            className="flex items-start gap-3 rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+            className="flex items-start gap-3 rounded-[18px] border border-[#e5d8ca] bg-white p-4 sm:p-5"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
               {ev.user?.avatar_url ? (
@@ -1254,6 +1454,7 @@ function TimelineTab({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -1271,22 +1472,25 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
       .catch(() => {});
   }, [roomId]);
 
-  const RANK_COLORS: Record<number, string> = { 0: "text-[#B89785]", 1: "text-[#B5ADA3]", 2: "text-[#36534E]" };
-
   return (
     <div>
-      <h3 className="font-serif-kr text-xl text-[#263832] mb-4 border-b border-[#e5d8ca] pb-2">
-        🔥 인기글
-      </h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들이 많이 본 글</h3>
+        <Link href="/community?sort=hot" className="text-[12px] font-semibold text-[#36534E]">
+          더보기
+        </Link>
+      </div>
       {posts.length === 0 ? (
-        <p className="text-sm text-[#635b51] py-2">아직 인기글이 없어요</p>
+        <p className="rounded-[14px] bg-[#fbf8f2] px-4 py-5 text-center text-sm font-medium text-[#635b51]">
+          아직 인기글이 없어요
+        </p>
       ) : (
         <ul className="space-y-3.5">
           {posts.slice(0, 5).map((p, i) => (
-            <li key={p.id} className="group cursor-pointer">
-              <a href={`/community/post/${p.id}`} className="flex items-start space-x-2.5">
-                <span className={`font-serif-kr italic text-xl leading-none mt-0.5 shrink-0 text-[#36534E] ${
-                  i === 0 ? "" : i === 1 ? "opacity-70" : i === 2 ? "opacity-50" : "opacity-30"
+            <li key={p.id} className="group">
+              <Link href={`/community/post/${p.id}`} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
+                <span className={`mt-0.5 shrink-0 font-serif-kr text-xl italic leading-none text-[#36534E] ${
+                  i === 0 ? "" : i === 1 ? "opacity-75" : i === 2 ? "opacity-55" : "opacity-35"
                 }`}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
@@ -1298,7 +1502,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
                     ▲ {p.upvote_count} &middot; 💬 {p.comment_count}
                   </p>
                 </div>
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -1312,11 +1516,9 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 // ────────────────────────────────────────
 const MEMBER_GRADIENTS = [
   "from-[#36534E] to-[#2B423E]",
-  "from-[#A8D8A8] to-[#6BBF6B]",
-  "from-[#7EB8D8] to-[#5A9CC0]",
-  "from-[#B89785] to-[#DCC9A0]",
-  "from-[#D88B8B] to-[#C06B6B]",
-  "from-[#B39DDB] to-[#7E57C2]",
+  "from-[#4E6A62] to-[#36534E]",
+  "from-[#6D806E] to-[#36534E]",
+  "from-[#9A8F72] to-[#36534E]",
 ];
 
 function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCount: number }) {
@@ -1346,11 +1548,14 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2.5 px-2">
-        <h3 className="text-[11px] font-medium text-[#928980] uppercase tracking-wider">멤버</h3>
-        <span className="text-xs text-[#635b51]">{memberCount}명</span>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">함께 준비 중</h3>
+          <p className="mt-1 text-[12px] font-medium text-[#928980]">최근 입장한 동기들</p>
+        </div>
+        <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-xs font-semibold text-[#36534E]">{memberCount}명</span>
       </div>
-      <div className="flex flex-wrap gap-2 px-1">
+      <div className="flex flex-wrap gap-2">
         {members.slice(0, 8).map((m) => {
           const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
           return (
@@ -1360,7 +1565,12 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
               title={m.nickname}
             >
               <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
-                {m.nickname[0]}
+                {m.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
+                ) : (
+                  m.nickname[0]
+                )}
               </div>
               <span className="text-[10px] text-[#635b51] truncate w-full text-center">
                 {m.nickname}
@@ -1368,6 +1578,11 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
             </div>
           );
         })}
+        {members.length === 0 && (
+          <div className="w-full rounded-[14px] bg-[#fbf8f2] px-4 py-5 text-center text-sm font-medium text-[#635b51]">
+            멤버 정보를 불러오는 중이에요.
+          </div>
+        )}
         {memberCount > 8 && (
           <div className="flex flex-col items-center gap-1 w-12">
             <div className="w-9 h-9 rounded-full bg-[#f6efe5] flex items-center justify-center text-xs text-[#635b51] font-medium">

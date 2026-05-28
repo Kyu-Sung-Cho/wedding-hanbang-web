@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { Users, Sparkles, ArrowRight, Loader2, CalendarCheck, MessageCircle, ShieldCheck } from "lucide-react";
 
 /**
  * 동기방 인덱스 페이지.
@@ -72,72 +72,84 @@ export default function CohortIndexPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#fbf8f2] text-sm text-[#928980]">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        동기방으로 이동 중...
+      <div className="flex min-h-[68vh] items-center justify-center bg-[#fbf8f2] px-4 text-sm font-medium text-[#928980]">
+        <div className="rounded-full border border-[#e5d8ca] bg-white px-5 py-3 shadow-[0_10px_28px_rgba(50,36,17,0.06)]">
+          <Loader2 className="mr-2 inline h-4 w-4 animate-spin text-[#36534E]" />
+          내 동기방을 찾고 있어요...
+        </div>
       </div>
     );
   }
 
+  const content = {
+    unauth: {
+      title: "로그인하면 내 동기방으로 바로 연결돼요",
+      desc: "결혼 예정월 기준으로 같은 시기 예비부부와 자동 매칭됩니다. 먼저 로그인해주세요.",
+      href: "/login?redirect=/community/cohort",
+      cta: "로그인하고 입장",
+    },
+    "need-date": {
+      title: "결혼 예정일을 등록하면 동기방이 열려요",
+      desc: "예정일 기준으로 같은 분기 예비부부를 묶어 가격, 후기, 체크리스트를 함께 볼 수 있어요.",
+      href: "/onboarding",
+      cta: "예정일 등록하기",
+    },
+    error: {
+      title: "잠시 동기방을 열 수 없어요",
+      desc: errorMsg ?? "잠시 후 다시 시도해주세요.",
+      href: "/community",
+      cta: "커뮤니티로 돌아가기",
+    },
+  }[status];
+
   return (
-    <div className="min-h-[60vh] bg-[#fbf8f2] px-4 py-12 sm:px-6 lg:py-16">
-      <div className="mx-auto max-w-xl rounded-2xl border border-[#e5d8ca] bg-white p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="mb-3 flex items-center gap-2 text-[#36534E]">
-          <Users className="h-5 w-5" />
-          <span className="text-xs font-medium uppercase tracking-widest">동기방</span>
+    <div className="min-h-[68vh] bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_52%,#f6efe5_100%)] px-4 py-8 sm:px-6 lg:py-12">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] md:order-2">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
-        <h1 className="font-serif-kr text-2xl text-[#263832] sm:text-3xl">
-          같은 시기 예비부부와 함께
-        </h1>
 
-        {status === "unauth" && (
-          <>
-            <p className="mt-3 text-sm leading-6 text-[#635b51]">
-              동기방은 로그인 후 결혼 예정월 기준으로 자동 매칭돼요. 먼저 로그인해주세요.
-            </p>
-            <Link
-              href="/login?redirect=/community/cohort"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
-            >
-              로그인하기
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </>
-        )}
+        <div className="p-6 sm:p-8 lg:p-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-xs font-semibold text-[#36534E]">
+            <Users className="h-4 w-4" />
+            Wedding Cohort Lounge
+          </div>
+          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+            같은 시기 예비부부와
+            <br />
+            함께 준비하는 방
+          </h1>
+          <p className="mt-4 text-[14px] font-medium leading-[1.8] text-[#635b51] sm:text-[15px]">
+            {content.desc}
+          </p>
 
-        {status === "need-date" && (
-          <>
-            <p className="mt-3 text-sm leading-6 text-[#635b51]">
-              결혼 예정일을 등록하면 같은 시기 예비부부들과 자동으로 매칭돼요.
-            </p>
-            <div className="mt-2 flex items-center gap-1.5 text-xs text-[#928980]">
-              <Sparkles className="h-3.5 w-3.5 text-[#B89785]" />
-              평균 가격·체크리스트도 우리 동기 데이터로 비교돼요
-            </div>
-            <Link
-              href="/onboarding"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
-            >
-              예정일 등록하기
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </>
-        )}
+          <div className="mt-6 grid gap-3">
+            {[
+              { icon: MessageCircle, label: "가격·후기·고민을 주제별로 대화" },
+              { icon: CalendarCheck, label: "같은 분기 커플의 준비 흐름 참고" },
+              { icon: ShieldCheck, label: "실명 없이 필요한 정보만 안전하게 공유" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] px-4 py-3">
+                <item.icon className="h-4 w-4 text-[#36534E]" />
+                <span className="text-sm font-semibold text-[#263832]">{item.label}</span>
+              </div>
+            ))}
+          </div>
 
-        {status === "error" && (
-          <>
-            <p className="mt-3 text-sm leading-6 text-[#635b51]">
-              {errorMsg ?? "잠시 후 다시 시도해주세요."}
-            </p>
-            <Link
-              href="/community"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#e5d8ca] bg-white px-4 py-2.5 text-sm font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
-            >
-              커뮤니티로 돌아가기
-            </Link>
-          </>
-        )}
-      </div>
+          <Link
+            href={content.href}
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E]"
+          >
+            {content.cta}
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+
+          <p className="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#928980]">
+            <Sparkles className="h-3.5 w-3.5 text-[#36534E]" />
+            {content.title}
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
