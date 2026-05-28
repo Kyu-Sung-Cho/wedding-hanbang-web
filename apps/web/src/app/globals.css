@@ -1,74 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  /* Primary - Noir (Atelier, PRD: Stone 900 #1C1917) */
-  --noir-800: #1C1917;
-  --noir-900: #0D0D0F;
-  --noir-soft: #2D2D33;
-  --charcoal: #4A4A52;
+  /* Primary - Plum Ink */
+  --noir-800: #2B2328;
+  --noir-900: #171214;
+  --noir-soft: #3A3136;
+  --charcoal: #51464B;
 
-  /* Accent - Atelier Dusty Rose */
-  --rose-500: #795252;
-  --rose-600: #946a6a;
-  --rose-light: #D4AFA0;
-  --rose-pale: #E8D5CD;
-  --rose-glow: rgba(121, 82, 82, 0.15);
+  /* Accent - Cashmere Mauve */
+  --rose-500: #8A675E;
+  --rose-600: #6F5458;
+  --rose-light: #C9B1A9;
+  --rose-pale: #E9DED8;
+  --rose-glow: rgba(138, 103, 94, 0.16);
 
-  /* Background - Atelier Warm Ivory */
-  --ivory-50: #fcf9f8;          /* Champagne Base (PRD) */
-  --ivory-100: #fcf9f8;
-  --ivory-200: #f6f3f2;
-  --ivory-warm: #FAF7F2;
-  --ivory-deep: #F5F0E8;
-  --surface-low: #F5F0EE;       /* Nesting (PRD: 사이드바·카드 배경) */
-  --stone-900: #1C1917;         /* PRD 기본 텍스트 */
+  /* Background - Champagne Ivory */
+  --ivory-50: #FCFAF6;
+  --ivory-100: #FBF7F1;
+  --ivory-200: #F5EEE5;
+  --ivory-warm: #F8F1E8;
+  --ivory-deep: #F0E5D7;
+  --surface-low: #F4ECE3;
+  --stone-900: #2B2328;
 
   /* Taupe */
-  --taupe-400: #B5ADA3;
-  --taupe-500: #504444;
+  --taupe-400: #B6AAA1;
+  --taupe-500: #5F5551;
 
-  /* Sage (Atelier secondary) */
-  --sage-500: #5a6147;
-  --sage-pale: #aab59f;
+  /* Sage (quiet secondary) */
+  --sage-500: #687763;
+  --sage-pale: #B7C1AE;
 
-  /* Gold */
-  --gold: #C9A96E;
-  --gold-light: #DCC9A0;
+  /* Champagne Gold */
+  --gold: #B89B62;
+  --gold-light: #DAC79A;
 
   /* Platinum */
-  --platinum: #E8E4E0;
+  --platinum: #E8DFD3;
 }
 
 @theme inline {
   /* Colors */
-  --color-noir-800: #1C1917;
-  --color-noir-900: #0D0D0F;
-  --color-noir-soft: #2D2D33;
-  --color-charcoal: #4A4A52;
+  --color-noir-800: #2B2328;
+  --color-noir-900: #171214;
+  --color-noir-soft: #3A3136;
+  --color-charcoal: #51464B;
 
-  --color-rose-500: #795252;
-  --color-rose-600: #946a6a;
-  --color-rose-light: #D4AFA0;
-  --color-rose-pale: #E8D5CD;
+  --color-rose-500: #8A675E;
+  --color-rose-600: #6F5458;
+  --color-rose-light: #C9B1A9;
+  --color-rose-pale: #E9DED8;
 
-  --color-ivory-50: #fcf9f8;
-  --color-ivory-100: #fcf9f8;
-  --color-ivory-200: #f6f3f2;
-  --color-ivory-warm: #FAF7F2;
-  --color-ivory-deep: #F5F0E8;
-  --color-surface-low: #F5F0EE;
-  --color-stone-900: #1C1917;
+  --color-ivory-50: #FCFAF6;
+  --color-ivory-100: #FBF7F1;
+  --color-ivory-200: #F5EEE5;
+  --color-ivory-warm: #F8F1E8;
+  --color-ivory-deep: #F0E5D7;
+  --color-surface-low: #F4ECE3;
+  --color-stone-900: #2B2328;
 
-  --color-taupe-400: #B5ADA3;
-  --color-taupe-500: #504444;
+  --color-taupe-400: #B6AAA1;
+  --color-taupe-500: #5F5551;
 
-  --color-sage-500: #5a6147;
-  --color-sage-pale: #aab59f;
+  --color-sage-500: #687763;
+  --color-sage-pale: #B7C1AE;
 
-  --color-gold: #C9A96E;
-  --color-gold-light: #DCC9A0;
+  --color-gold: #B89B62;
+  --color-gold-light: #DAC79A;
 
-  --color-platinum: #E8E4E0;
+  --color-platinum: #E8DFD3;
 
   /* Fonts — 끝에 emoji fallback 추가 (국기 등 regional indicator 조합 깨짐 방지) */
   --font-serif-kr: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
@@ -507,21 +507,22 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
  * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /lounge, /chat,
  * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
- * 먹색·클레이·아이보리 톤으로 통일한다.
+ * 플럼 잉크·캐시미어 모브·샴페인 아이보리 톤으로 통일한다.
  * ========================================================================= */
 .hanbang-service-theme {
-  color: #2f2a26;
-  --hb-navy: #2f2a26;
-  --hb-navy-soft: #4f4741;
-  --hb-gold: #a96856;
-  --hb-gold-deep: #7a4e43;
-  --hb-ivory: #f8f3ed;
-  --hb-ivory-warm: #f4ebe4;
-  --hb-line: #e7dad1;
-  --hb-muted: #766d66;
-  --hb-text: #2f2a26;
-  --hb-body: #5f5751;
-  --hb-success: #73896f;
+  color: #2b2328;
+  --hb-navy: #2b2328;
+  --hb-navy-soft: #4a3c44;
+  --hb-gold: #b89b62;
+  --hb-gold-deep: #8a675e;
+  --hb-gold-light: #dac79a;
+  --hb-ivory: #fcfaf6;
+  --hb-ivory-warm: #f8f1e8;
+  --hb-line: #e8dfd3;
+  --hb-muted: #82766d;
+  --hb-text: #2b2328;
+  --hb-body: #5f5551;
+  --hb-success: #687763;
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -534,7 +535,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="text-[#795252]/50"],
 .hanbang-service-theme [class~="text-[#946a6a]/50"],
 .hanbang-service-theme [class~="text-rose-500/50"] {
-  color: rgba(157, 111, 54, 0.55) !important;
+  color: rgba(138, 103, 94, 0.55) !important;
 }
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
@@ -578,7 +579,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="bg-rose-500/20"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/10"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
-  background-color: rgba(182, 138, 58, 0.10) !important;
+  background-color: rgba(184, 155, 98, 0.10) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#f3e7e1]"],
@@ -595,7 +596,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="hover:bg-[#EDE7E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-ivory-200"]:hover {
-  background-color: #fff3df !important;
+  background-color: #fbf1e7 !important;
 }
 
 .hanbang-service-theme [class~="bg-sage-500"] {
@@ -603,7 +604,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-service-theme [class~="bg-sage-500/10"] {
-  background-color: #f4f8ee !important;
+  background-color: #f2f5ee !important;
 }
 
 .hanbang-service-theme [class~="border-[#795252]"],
@@ -625,13 +626,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="ring-[#795252]/20"],
 .hanbang-service-theme [class~="ring-[#795252]/30"],
 .hanbang-service-theme [class~="ring-rose-500/20"] {
-  --tw-ring-color: rgba(182, 138, 58, 0.22) !important;
+  --tw-ring-color: rgba(184, 155, 98, 0.22) !important;
 }
 
 .hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
 .hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
 .hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
-  --tw-ring-color: rgba(182, 138, 58, 0.28) !important;
+  --tw-ring-color: rgba(184, 155, 98, 0.28) !important;
 }
 
 .hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
@@ -647,7 +648,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="from-[#795252]"],
 .hanbang-service-theme [class~="from-rose-500"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(6, 26, 52, 0) !important;
+  --tw-gradient-to: rgba(43, 35, 40, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -668,7 +669,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.25)]"] {
-  box-shadow: 0 14px 34px rgba(47, 41, 37, 0.16) !important;
+  box-shadow: 0 14px 34px rgba(43, 35, 40, 0.16) !important;
 }
 
 .hanbang-service-theme [style*="background-color: rgb(121, 82, 82)"],
@@ -691,18 +692,19 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-community-theme {
-  color: #2f2a26;
-  --hb-navy: #2f2a26;
-  --hb-navy-soft: #4f4741;
-  --hb-gold: #a96856;
-  --hb-gold-deep: #7a4e43;
-  --hb-ivory: #f8f3ed;
-  --hb-ivory-warm: #f4ebe4;
-  --hb-line: #e7dad1;
-  --hb-muted: #766d66;
-  --hb-text: #2f2a26;
-  --hb-body: #5f5751;
-  --hb-success: #73896f;
+  color: #2b2328;
+  --hb-navy: #2b2328;
+  --hb-navy-soft: #4a3c44;
+  --hb-gold: #b89b62;
+  --hb-gold-deep: #8a675e;
+  --hb-gold-light: #dac79a;
+  --hb-ivory: #fcfaf6;
+  --hb-ivory-warm: #f8f1e8;
+  --hb-line: #e8dfd3;
+  --hb-muted: #82766d;
+  --hb-text: #2b2328;
+  --hb-body: #5f5551;
+  --hb-success: #687763;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
@@ -724,9 +726,12 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#b68a3a]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#c9a96e]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#9d6f36]"] {
   color: var(--hb-gold-deep) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"] {
+  color: var(--hb-gold-light) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
@@ -753,16 +758,16 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
-  background-color: rgba(47, 41, 37, 0.10) !important;
+  background-color: rgba(43, 35, 40, 0.10) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/35"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/45"] {
-  background-color: rgba(47, 41, 37, 0.40) !important;
+  background-color: rgba(43, 35, 40, 0.40) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/82"] {
-  background-color: rgba(47, 41, 37, 0.82) !important;
+  background-color: rgba(43, 35, 40, 0.82) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#061a34]"]:hover,
@@ -787,7 +792,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#071629]"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(47, 41, 37, 0) !important;
+  --tw-gradient-to: rgba(43, 35, 40, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -798,17 +803,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#102a4d]/20"] {
-  --tw-gradient-from: rgba(75, 64, 56, 0.20) !important;
-  --tw-gradient-to: rgba(75, 64, 56, 0) !important;
+  --tw-gradient-from: rgba(74, 60, 68, 0.20) !important;
+  --tw-gradient-to: rgba(74, 60, 68, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]/5"] {
-  --tw-gradient-to: rgba(75, 64, 56, 0.05) !important;
+  --tw-gradient-to: rgba(74, 60, 68, 0.05) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(6,26,52"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(8,22,38"] {
-  box-shadow: 0 14px 34px rgba(47, 41, 37, 0.14) !important;
+  box-shadow: 0 14px 34px rgba(43, 35, 40, 0.14) !important;
 }
 
