@@ -507,21 +507,21 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
  * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /dashboard, /chat,
  * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
- * 먹색·골드·아이보리 톤으로 통일한다.
+ * 먹색·클레이·아이보리 톤으로 통일한다.
  * ========================================================================= */
 .hanbang-service-theme {
-  color: #2a2522;
-  --hb-navy: #2f2925;
-  --hb-navy-soft: #4b4038;
-  --hb-gold: #b68a3a;
-  --hb-gold-deep: #9d6f36;
-  --hb-ivory: #fffdf7;
-  --hb-ivory-warm: #fff8ec;
-  --hb-line: #eadfc9;
-  --hb-muted: #857a70;
-  --hb-text: #2a2522;
-  --hb-body: #514b45;
-  --hb-success: #607044;
+  color: #2f2a26;
+  --hb-navy: #2f2a26;
+  --hb-navy-soft: #4f4741;
+  --hb-gold: #a96856;
+  --hb-gold-deep: #7a4e43;
+  --hb-ivory: #f8f3ed;
+  --hb-ivory-warm: #f4ebe4;
+  --hb-line: #e7dad1;
+  --hb-muted: #766d66;
+  --hb-text: #2f2a26;
+  --hb-body: #5f5751;
+  --hb-success: #73896f;
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -691,18 +691,18 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-community-theme {
-  color: #2a2522;
-  --hb-navy: #2f2925;
-  --hb-navy-soft: #4b4038;
-  --hb-gold: #b68a3a;
-  --hb-gold-deep: #9d6f36;
-  --hb-ivory: #fffdf7;
-  --hb-ivory-warm: #fff8ec;
-  --hb-line: #eadfc9;
-  --hb-muted: #857a70;
-  --hb-text: #2a2522;
-  --hb-body: #514b45;
-  --hb-success: #607044;
+  color: #2f2a26;
+  --hb-navy: #2f2a26;
+  --hb-navy-soft: #4f4741;
+  --hb-gold: #a96856;
+  --hb-gold-deep: #7a4e43;
+  --hb-ivory: #f8f3ed;
+  --hb-ivory-warm: #f4ebe4;
+  --hb-line: #e7dad1;
+  --hb-muted: #766d66;
+  --hb-text: #2f2a26;
+  --hb-body: #5f5751;
+  --hb-success: #73896f;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
@@ -722,10 +722,34 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: var(--hb-body) !important;
 }
 
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#b68a3a]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#c9a96e]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#9d6f36]"] {
+  color: var(--hb-gold-deep) !important;
+}
+
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#071629]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#102a4d]"] {
   background-color: var(--hb-navy) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fffdf7]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fbf8ee]"] {
+  background-color: var(--hb-ivory) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fff8ec]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fbefd6]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#f3eadc]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#f6ead9]"] {
+  background-color: var(--hb-ivory-warm) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#b68a3a]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#c9a96e]"] {
+  background-color: var(--hb-gold) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
@@ -751,6 +775,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#061a34]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#071629]"] {
   border-color: var(--hb-navy) !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#eadfc9]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8c7ad]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8bb86]"],
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#f2eadc]"] {
+  border-color: var(--hb-line) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
