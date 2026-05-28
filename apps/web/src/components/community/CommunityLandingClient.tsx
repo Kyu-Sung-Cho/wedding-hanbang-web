@@ -813,6 +813,25 @@ function LatestPosts({
               <CommunityPostRow post={post} priority={index < 2} />
             </Fragment>
           ))}
+          {isPreviewFeed && posts.length > 0 && (
+            <Link
+              href={fullFeedHref}
+              className="group flex min-h-[74px] items-center justify-between gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-6 py-4 text-[#36534E] shadow-[0_10px_24px_rgba(50,36,17,0.04)] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white hover:shadow-[0_16px_36px_rgba(50,36,17,0.07)]"
+              aria-label="더보기"
+            >
+              <span>
+                <span className="block font-serif-kr text-[22px] font-medium leading-none text-[#102b27]">
+                  더보기
+                </span>
+                <span className="mt-2 block text-[12px] font-bold text-[#6e7974]">
+                  전체 {formatCount(total)}개 글을 이어서 볼 수 있어요.
+                </span>
+              </span>
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-white transition-transform group-hover:translate-x-1">
+                <ChevronRight className="h-5 w-5" />
+              </span>
+            </Link>
+          )}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 2 }).map((_, index) => (
@@ -924,7 +943,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-5 shadow-[0_10px_24px_rgba(50,36,17,0.045)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(50,36,17,0.08)] lg:grid-cols-[minmax(0,1fr)_380px]"
+      className="relative grid gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.045)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(50,36,17,0.08)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_340px]"
     >
       {toast && (
         <span className="absolute right-0 top-4 z-10 rounded-full bg-[#36534E] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
@@ -932,7 +951,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         </span>
       )}
       <div className="min-w-0">
-        <div className="mb-3 flex min-w-0 items-center gap-2">
+        <div className="mb-2 flex min-w-0 items-center gap-2">
           <span className="shrink-0 rounded-md bg-[#f6ead9] px-2 py-1 text-[12px] font-medium text-[#36534E]">
             {categoryInfo?.shortLabel ?? "커뮤니티"}
           </span>
@@ -953,17 +972,17 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             </span>
           )}
         </div>
-        <h3 className="font-serif-kr text-[23px] font-medium leading-[1.32] text-[#102b27] sm:text-[26px]">
+        <h3 className="line-clamp-2 font-serif-kr text-[22px] font-medium leading-[1.32] text-[#102b27] sm:text-[24px]">
           {post.title}
           {post.is_weekly_best && <Sparkles className="ml-2 inline h-5 w-5 text-[#b47a2b]" />}
         </h3>
         {contentPreview && (
-          <p className="mt-3 line-clamp-2 text-[15px] font-semibold leading-[1.75] text-[#36534E]">
+          <p className="mt-2 line-clamp-2 text-[14px] font-semibold leading-[1.7] text-[#36534E]">
             {contentPreview}
           </p>
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] font-black text-[#36534E]">
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-[13px] font-black text-[#36534E]">
           <button
             type="button"
             onClick={handleLike}
@@ -1010,12 +1029,12 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         </div>
       </div>
 
-      <div className="grid min-h-[120px] grid-cols-3 gap-3 self-center lg:min-h-[88px]">
+      <div className="grid min-h-[104px] grid-cols-3 gap-2.5 self-center lg:min-h-[82px]">
         {galleryImages.length > 0 ? (
           galleryImages.map((url, index) => (
             <div
               key={`${url}-${index}`}
-              className={`relative min-h-[120px] overflow-hidden rounded-[10px] bg-[#f8f4ec] lg:min-h-[88px] ${
+              className={`relative min-h-[104px] overflow-hidden rounded-[10px] bg-[#f8f4ec] lg:min-h-[82px] ${
                 galleryImages.length === 1 ? "col-span-3" : ""
               }`}
             >
@@ -1035,7 +1054,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             </div>
           ))
         ) : (
-          <div className="col-span-3 flex h-full min-h-[120px] flex-col items-center justify-center gap-2 rounded-[12px] bg-[#f6efe5] text-[#36534E]">
+          <div className="col-span-3 flex h-full min-h-[104px] flex-col items-center justify-center gap-2 rounded-[12px] bg-[#f6efe5] text-[#36534E]">
             <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
             <span className="text-[12px] font-bold">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
           </div>
