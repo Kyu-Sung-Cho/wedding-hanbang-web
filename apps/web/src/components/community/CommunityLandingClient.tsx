@@ -51,7 +51,7 @@ interface VendorTag {
   mention_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1480px] md:w-[calc(100%_-_56px)]";
+const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1360px] md:w-[calc(100%_-_56px)]";
 const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -416,75 +416,64 @@ export default function CommunityLandingClient({
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
     <section className={`${shell} pt-6 md:pt-8`}>
-      <div className="grid gap-4 rounded-[22px] border border-[#eadfc9] bg-white p-4 shadow-[0_16px_44px_rgba(47,42,38,0.07)] md:grid-cols-[minmax(0,1.04fr)_minmax(360px,0.96fr)] md:p-5">
-        <div className="flex min-h-[300px] flex-col justify-between rounded-[18px] bg-[linear-gradient(135deg,#fffdf7_0%,#f7efe4_100%)] p-5 md:min-h-[340px] md:p-7">
+      <div className="grid gap-4 rounded-[22px] border border-[#e7dad1] bg-white p-5 shadow-[0_16px_44px_rgba(47,42,38,0.07)] md:grid-cols-[minmax(0,1.12fr)_minmax(340px,0.88fr)] md:p-7">
+        <div className="flex min-h-[255px] flex-col justify-between rounded-[18px] bg-[#f4ebe4] p-5 md:p-7">
           <div>
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-[12px] font-semibold text-[#8a6a3f]">
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1.5 text-[12px] font-semibold text-[#7a4e43]">
               <Sparkles className="h-4 w-4" />
               커뮤니티에서 확인하고, 준비실에서 정리해요
             </p>
-            <h1 className="max-w-[680px] font-serif-kr text-[31px] font-medium leading-[1.26] text-[#2f2925] sm:text-[40px] xl:text-[48px]">
+            <h1 className="max-w-[680px] font-serif-kr text-[31px] font-medium leading-[1.26] text-[#2f2a26] sm:text-[40px] xl:text-[48px]">
               결혼 준비,
               <br />
               지금 필요한 것만 먼저 보이게.
             </h1>
-            <p className="mt-4 max-w-[600px] text-[14px] font-medium leading-[1.8] text-[#5f554d] md:text-[16px]">
+            <p className="mt-4 max-w-[600px] text-[14px] font-medium leading-[1.8] text-[#6f655f] md:text-[16px]">
               후기와 질문으로 판단하고, 아모라와 준비실에서 일정·예산·예약을 바로 이어서 정리하세요.
             </p>
           </div>
 
-          <div className="mt-6 grid grid-cols-3 gap-2 text-[12px] font-semibold text-[#5f554d] sm:max-w-[520px]">
+          <div className="mt-6 grid grid-cols-3 gap-2 text-[12px] font-semibold text-[#574e49] sm:max-w-[520px]">
             {[
               { label: "후기", value: "실제 경험" },
               { label: "질문", value: "상황 정리" },
               { label: "준비실", value: "내 일정 정리" },
             ].map((item) => (
               <div key={item.label} className="rounded-[14px] border border-white/70 bg-white/65 px-3 py-3">
-                <span className="block text-[#9d6f36]">{item.label}</span>
-                <span className="mt-1 block text-[13px] text-[#2f2925]">{item.value}</span>
+                <span className="block text-[#a96856]">{item.label}</span>
+                <span className="mt-1 block text-[13px] text-[#2f2a26]">{item.value}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative min-h-[360px] overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[#f6ead9]">
-          <Image
-            src="/images/amora-hero-bouquet-custom.png"
-            alt=""
-            fill
-            className="object-cover"
-            priority
-            sizes="(min-width: 768px) 48vw, calc(100vw - 48px)"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,41,37,0.02)_0%,rgba(47,41,37,0.18)_52%,rgba(47,41,37,0.34)_100%)]" />
-          <div className="absolute inset-x-4 bottom-4 grid gap-2 sm:inset-x-5 sm:bottom-5">
-            {journeyActions.map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className={`group flex min-h-[70px] items-center gap-3 rounded-[16px] border p-3.5 backdrop-blur-md transition-transform hover:-translate-y-0.5 ${
-                  item.primary
-                    ? "border-[#2f2925] bg-[#2f2925]/94 text-white shadow-[0_14px_34px_rgba(47,41,37,0.20)]"
-                    : "border-white/70 bg-white/88 text-[#2f2925] hover:bg-white"
+        <div className="grid gap-3">
+          {journeyActions.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className={`group flex min-h-[76px] items-center gap-4 rounded-[18px] border p-4 transition-transform hover:-translate-y-0.5 ${
+                item.primary
+                  ? "border-[#2f2a26] bg-[#2f2a26] text-white shadow-[0_14px_34px_rgba(47,42,38,0.18)]"
+                  : "border-[#e7dad1] bg-[#fbf7f2] text-[#2f2a26] hover:border-[#cfaea2]"
+              }`}
+            >
+              <span
+                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+                  item.primary ? "bg-white/12 text-white" : "bg-white text-[#a96856]"
                 }`}
               >
-                <span
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                    item.primary ? "bg-white/12 text-white" : "bg-[#fff8ec] text-[#9d6f36]"
-                  }`}
-                >
-                  <item.icon className="h-5 w-5 stroke-[1.7]" />
+                <item.icon className="h-5 w-5 stroke-[1.7]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-[15px] font-semibold">{item.title}</strong>
+                <span className={`mt-1 block text-[12px] font-medium ${item.primary ? "text-white/72" : "text-[#766d66]"}`}>
+                  {item.desc}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <strong className="block text-[15px] font-semibold">{item.title}</strong>
-                  <span className={`mt-1 block text-[12px] font-medium ${item.primary ? "text-white/72" : "text-[#6c6158]"}`}>
-                    {item.desc}
-                  </span>
-                </span>
-                <ChevronRight className="h-5 w-5 shrink-0 opacity-55 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            ))}
-          </div>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 opacity-55 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ))}
         </div>
       </div>
 
