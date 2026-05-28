@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Eye,
+  Flame,
   Gift,
   Heart,
   HeartHandshake,
@@ -25,6 +26,7 @@ import {
   Share2,
   Sparkles,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
@@ -51,7 +53,14 @@ interface VendorTag {
   mention_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1360px] md:w-[calc(100%_-_56px)]";
+interface TrendingPost {
+  id: string;
+  title: string;
+  upvote_count: number;
+  comment_count: number;
+}
+
+const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1300px] md:w-[calc(100%_-_48px)]";
 const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -76,6 +85,13 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   ama: "선배 Q&A",
   free: "자유",
 };
+
+const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
+  { icon: HeartHandshake, label: "실제 후기 공유" },
+  { icon: CalendarCheck, label: "가격·계약 질문" },
+  { icon: Users, label: "동기방 대화" },
+  { icon: Heart, label: "함께 준비" },
+];
 
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
@@ -374,7 +390,7 @@ export default function CommunityLandingClient({
   }
 
   return (
-    <div className="bg-[linear-gradient(180deg,#f8f3ed_0%,#ffffff_42%,#f7f1eb_100%)] text-[#2f2a26]">
+    <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
       <Hero topVendor={vendorTags[0]?.vendor_name ?? null} />
       <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
       <CategoryBar
@@ -399,11 +415,11 @@ export default function CommunityLandingClient({
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
       />
-      <JourneyBridge />
+      <BottomCards />
       <div ref={observerRef} className="h-1" />
       <Link
         href="/community/post/write"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#2f2a26] text-white shadow-[0_14px_34px_rgba(47,42,38,0.22)] transition-transform hover:-translate-y-0.5 md:hidden"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
         aria-label="글쓰기"
         data-tutorial-target="community-write"
       >
@@ -415,73 +431,50 @@ export default function CommunityLandingClient({
 
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
-    <section className={`${shell} pt-6 md:pt-8`}>
-      <div className="grid gap-4 rounded-[22px] border border-[#e7dad1] bg-white p-5 shadow-[0_16px_44px_rgba(47,42,38,0.07)] md:grid-cols-[minmax(0,1.12fr)_minmax(340px,0.88fr)] md:p-7">
-        <div className="flex min-h-[255px] flex-col justify-between rounded-[18px] bg-[#f4ebe4] p-5 md:p-7">
-          <div>
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1.5 text-[12px] font-semibold text-[#7a4e43]">
-              <Sparkles className="h-4 w-4" />
-              커뮤니티에서 확인하고, 웨딩 라운지에서 정리해요
-            </p>
-            <h1 className="max-w-[680px] font-serif-kr text-[31px] font-medium leading-[1.26] text-[#2f2a26] sm:text-[40px] xl:text-[48px]">
-              결혼 준비,
-              <br />
-              지금 필요한 것만 먼저 보이게.
-            </h1>
-            <p className="mt-4 max-w-[600px] text-[14px] font-medium leading-[1.8] text-[#6f655f] md:text-[16px]">
-              후기와 질문으로 판단하고, 아모라와 웨딩 라운지에서 일정·예산·예약을 바로 이어서 정리하세요.
-            </p>
-          </div>
+    <section className={`${shell} relative grid min-h-[465px] grid-cols-1 items-center gap-8 pt-4 md:grid-cols-2`}>
+      <div className="relative z-10 py-8">
+        <p className="mb-6 flex items-center gap-2 text-[15px] font-medium text-[#26364a]">
+          예비부부가 함께 만드는 결혼 준비의 모든 것
+          <Sparkles className="h-4 w-4 text-[#b68a3a]" />
+        </p>
 
-          <div className="mt-6 grid grid-cols-3 gap-2 text-[12px] font-semibold text-[#574e49] sm:max-w-[520px]">
-            {[
-              { label: "후기", value: "실제 경험" },
-              { label: "질문", value: "상황 정리" },
-              { label: "웨딩 라운지", value: "내 일정 정리" },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[14px] border border-white/70 bg-white/65 px-3 py-3">
-                <span className="block text-[#a96856]">{item.label}</span>
-                <span className="mt-1 block text-[13px] text-[#2f2a26]">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <h1 className="font-serif-kr text-[34px] font-medium leading-[1.35] text-[#061a34] sm:text-[36px] xl:text-[52px]">
+          경험을 나누고,
+          <br />
+          더 완벽한 <span className="text-[#b68a3a]">결혼을 준비해요.</span>
+        </h1>
 
-        <div className="grid gap-3">
-          {journeyActions.map((item) => (
-            <Link
-              key={item.title}
-              href={item.href}
-              className={`group flex min-h-[76px] items-center gap-4 rounded-[18px] border p-4 transition-transform hover:-translate-y-0.5 ${
-                item.primary
-                  ? "border-[#2f2a26] bg-[#2f2a26] text-white shadow-[0_14px_34px_rgba(47,42,38,0.18)]"
-                  : "border-[#e7dad1] bg-[#fbf7f2] text-[#2f2a26] hover:border-[#cfaea2]"
+        <p className="mt-7 text-[16px] font-medium leading-[1.9] text-[#38475c]">
+          실제 후기와 정보로 현명하게 준비하고,
+          <br />
+          서로 돕고 나누며 행복한 결혼을 만들어 가요.
+        </p>
+
+        <div className="mt-8 grid max-w-[590px] grid-cols-2 gap-1 sm:grid-cols-4">
+          {heroSignals.map((item, index) => (
+            <div
+              key={item.label}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-[9px] px-3 text-center text-[12px] font-medium leading-snug text-[#34445a] ${
+                index < heroSignals.length - 1 ? "sm:border-r sm:border-[#eadfc9]" : ""
               }`}
             >
-              <span
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-                  item.primary ? "bg-white/12 text-white" : "bg-white text-[#a96856]"
-                }`}
-              >
-                <item.icon className="h-5 w-5 stroke-[1.7]" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <strong className="block text-[15px] font-semibold">{item.title}</strong>
-                <span className={`mt-1 block text-[12px] font-medium ${item.primary ? "text-white/72" : "text-[#766d66]"}`}>
-                  {item.desc}
-                </span>
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0 opacity-55 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+              <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
+              <span>{item.label}</span>
+            </div>
           ))}
         </div>
+
+        {topVendor && (
+          <p className="mt-5 text-[12px] font-semibold text-[#7a8290]">
+            지금 많이 언급되는 업체: <span className="text-[#9d6f36]">{topVendor}</span>
+          </p>
+        )}
       </div>
 
-      {topVendor && (
-        <p className="mt-3 text-[12px] font-semibold text-[#766d66]">
-          지금 많이 언급되는 업체: <span className="text-[#8a6a3f]">{topVendor}</span>
-        </p>
-      )}
+      <div className="relative min-h-[420px] self-stretch overflow-hidden rounded-bl-[64px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] max-md:rounded-[28px]">
+        <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
+        <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
+      </div>
     </section>
   );
 }
@@ -496,19 +489,8 @@ function SearchHub({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`${shell} mt-4 rounded-[20px] border border-[#e7dad1] bg-white/86 p-4 shadow-[0_10px_30px_rgba(47,42,38,0.045)] md:p-5`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[15px] font-semibold text-[#2f2a26]">무엇부터 확인할까요?</h2>
-          <p className="mt-1 text-[12px] font-medium text-[#766d66]">검색이 가장 빠르고, 자주 보는 주제는 아래에서 바로 들어가세요.</p>
-        </div>
-        <Link href="/lounge" className="inline-flex h-10 items-center rounded-full border border-[#e7dad1] px-4 text-[12px] font-semibold text-[#7a4e43] hover:bg-[#f4ebe4]">
-          웨딩 라운지로 정리
-          <ChevronRight className="ml-1 h-4 w-4" />
-        </Link>
-      </div>
-
-      <form onSubmit={onSubmit}>
+    <section className={`${shell} rounded-[18px] border border-[#eadfc9] bg-white/80 px-5 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8`}>
+      <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
           <input
@@ -516,27 +498,29 @@ function SearchHub({
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
-            className="h-12 w-full rounded-[16px] border border-[#d9cbc1] bg-[#fbf7f2] px-4 pr-12 text-[14px] font-medium text-[#2f2a26] outline-none placeholder:text-[#9b8f86] focus:border-[#a96856] md:h-[54px] md:px-5 md:pr-14 md:text-[15px]"
+            className="h-[50px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-14 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#b68a3a] md:px-8 md:text-[15px]"
           />
           <button
             type="submit"
             aria-label="검색"
-            className="absolute right-4 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#2f2a26] text-white"
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9d6f36]"
           >
-            <Search className="h-[18px] w-[18px]" />
+            <Search className="h-6 w-6" />
           </button>
         </label>
       </form>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-        {searchCategories.map((item) => (
+      <div className="mt-6 grid grid-cols-2 gap-y-5 sm:grid-cols-4 md:grid-cols-8">
+        {searchCategories.map((item, index) => (
           <Link
             key={item.label}
             href={buildCommunityHubHref(item)}
             aria-label={`${item.label} 보기`}
-            className="flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-[14px] border border-[#eee4dd] bg-[#fffdfb] px-2 text-center text-[11px] font-semibold text-[#574e49] transition-colors hover:border-[#cfaea2] hover:bg-[#f4ebe4] hover:text-[#7a4e43]"
+            className={`flex flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] ${
+              index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
+            }`}
           >
-            <item.icon className="h-5 w-5 stroke-[1.65] text-[#a96856]" />
+            <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
             <span>{item.label}</span>
           </Link>
         ))}
@@ -564,15 +548,15 @@ function CategoryBar({
 }) {
   return (
     <section
-      className={`${shell} mt-4 flex flex-wrap items-center gap-2 overflow-visible rounded-[18px] border border-[#e7dad1] bg-white/90 p-2.5 shadow-[0_8px_22px_rgba(47,42,38,0.035)] md:gap-2.5`}
+      className={`${shell} mt-3 flex flex-wrap items-center gap-3 rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)]`}
       data-tutorial-target="community-categories"
     >
       <Link
         href="/community"
-        className={`min-w-[70px] shrink-0 rounded-[14px] border px-4 py-2.5 text-center text-[13px] font-semibold transition-colors md:min-w-[74px] md:text-[14px] ${
+        className={`min-w-[74px] rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
           selectedCategory
-            ? "border-transparent bg-[#fbf7f2] text-[#574e49] hover:border-[#cfaea2] hover:text-[#7a4e43]"
-            : "border-[#2f2a26] bg-[#2f2a26] text-white"
+            ? "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
+            : "border-[#061a34] bg-[#061a34] text-white"
         }`}
       >
         전체
@@ -581,10 +565,10 @@ function CategoryBar({
         <Link
           key={cat.key}
           href={buildCommunityCategoryHref(cat.key)}
-          className={`min-w-[76px] shrink-0 rounded-[14px] border px-4 py-2.5 text-center text-[13px] font-semibold transition-colors md:min-w-[84px] md:text-[14px] ${
+          className={`min-w-[84px] rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
             selectedCategory === cat.key
-              ? "border-[#2f2a26] bg-[#2f2a26] text-white"
-              : "border-transparent bg-[#fbf7f2] text-[#574e49] hover:border-[#cfaea2] hover:text-[#7a4e43]"
+              ? "border-[#061a34] bg-[#061a34] text-white"
+              : "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
           }`}
         >
           {cat.shortLabel}
@@ -594,19 +578,19 @@ function CategoryBar({
         <button
           type="button"
           onClick={onClearTag}
-          className="rounded-[14px] border border-[#e7dad1] bg-[#f4ebe4] px-4 py-2.5 text-[13px] font-semibold text-[#7a4e43]"
+          className="rounded-full border border-[#eadfc9] bg-[#fbefd6] px-4 py-3 text-[13px] font-medium text-[#9d6f36]"
         >
           #{currentTag} 지우기
         </button>
       )}
 
-      <div className="ml-0 flex w-full shrink-0 flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto">
+      <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:w-full">
         <label className="relative">
           <span className="sr-only">정렬</span>
           <select
             value={currentSort}
             onChange={(event) => onSortChange(event.target.value as PostSort)}
-            className="h-11 appearance-none rounded-[14px] border border-[#e7dad1] bg-white px-4 pr-10 text-[14px] font-semibold text-[#574e49] outline-none focus:border-[#a96856]"
+            className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
           >
             {sortValues.map((sort) => (
               <option key={sort} value={sort}>
@@ -614,7 +598,7 @@ function CategoryBar({
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a96856]" />
+          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
         </label>
         {currentSort === "top" && (
           <label className="relative">
@@ -622,7 +606,7 @@ function CategoryBar({
             <select
               value={currentPeriod}
               onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-              className="h-11 appearance-none rounded-[14px] border border-[#e7dad1] bg-white px-4 pr-10 text-[14px] font-semibold text-[#574e49] outline-none focus:border-[#a96856]"
+              className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
             >
               {periodValues.map((period) => (
                 <option key={period} value={period}>
@@ -630,7 +614,7 @@ function CategoryBar({
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a96856]" />
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
           </label>
         )}
       </div>
@@ -1030,33 +1014,79 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
 function RightPanels() {
   return (
     <div className="space-y-[18px]" data-tutorial-target="community-right">
-      <NextStepPanel />
       <CohortPreviewPanel />
+      <BestPostsPanel />
     </div>
   );
 }
 
-function NextStepPanel() {
+function BestPostsPanel() {
+  const [posts, setPosts] = useState<TrendingPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void withSessionCache("community:landing:best-posts:5", 5 * 60 * 1000, async () => {
+      const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
+      if (!res.ok) return [] as TrendingPost[];
+      const json = await res.json();
+      return (json.posts ?? []).slice(0, 5).map((post: TrendingPost) => ({
+        id: post.id,
+        title: post.title,
+        upvote_count: post.upvote_count,
+        comment_count: post.comment_count,
+      })) as TrendingPost[];
+    })
+      .then((data) => {
+        if (!cancelled) setPosts(data);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <article className="rounded-[18px] border border-[#e7dad1] bg-[#2f2a26] p-5 text-white shadow-[0_14px_34px_rgba(47,42,38,0.13)]">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#e8cfc5]">Next step</p>
-      <h2 className="mt-2 font-serif-kr text-[23px] font-medium leading-[1.35]">커뮤니티에서 본 내용을 바로 정리하세요.</h2>
-      <p className="mt-2 text-[13px] font-medium leading-[1.65] text-white/68">
-        후기만 보고 끝나지 않게, 일정·예산·예약으로 이어지는 길을 항상 열어둡니다.
-      </p>
-      <div className="mt-5 grid gap-2">
-        {journeyActions.slice(1).map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="flex min-h-12 items-center gap-3 rounded-[14px] bg-white/[0.08] px-3 py-2 text-[13px] font-semibold transition-colors hover:bg-white/[0.13]"
-          >
-            <item.icon className="h-4 w-4 text-[#e8cfc5]" />
-            <span className="min-w-0 flex-1">{item.title}</span>
-            <ChevronRight className="h-4 w-4 opacity-55" />
-          </Link>
-        ))}
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
+          BEST 글 <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
+        </h2>
+        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
+          더보기
+        </Link>
       </div>
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-7 animate-pulse rounded-md bg-[#f3eadc]" />
+          ))}
+        </div>
+      ) : posts.length === 0 ? (
+        <p className="text-[13px] font-medium text-[#7a8290]">아직 인기글을 집계하고 있어요.</p>
+      ) : (
+        <ol className="space-y-3">
+          {posts.map((post, index) => (
+            <li key={post.id}>
+              <Link
+                href={`/community/post/${post.id}`}
+                className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
+              >
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
+                  {index + 1}
+                </span>
+                <span className="truncate text-[#34445a]">{post.title}</span>
+                <strong className="text-[#071629]">{formatCount(post.upvote_count)}</strong>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
+        실제 커뮤니티 반응을 기준으로 보여드려요.
+      </p>
     </article>
   );
 }
@@ -1097,49 +1127,64 @@ function CohortPreviewPanel() {
   );
 }
 
-function JourneyBridge() {
+function BottomCards() {
   return (
-    <section className={`${shell} mt-[18px] pb-8`}>
-      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1.05fr_0.95fr]">
-        <article className="rounded-[20px] border border-[#e7dad1] bg-white p-6 shadow-[0_12px_34px_rgba(47,42,38,0.045)] md:p-7">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a96856]">Simple flow</p>
-          <h2 className="mt-2 font-serif-kr text-[26px] font-medium leading-[1.35] text-[#2f2a26]">
-            읽고, 물어보고, 내 웨딩 라운지에 남기기.
-          </h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {[
-              { step: "1", title: "후기 확인", desc: "비슷한 예산·지역·시기 글부터 봅니다." },
-              { step: "2", title: "아모라 정리", desc: "내 상황에 맞는 다음 질문과 체크를 받습니다." },
-              { step: "3", title: "웨딩 라운지 반영", desc: "결정한 일정을 예산과 체크리스트에 연결합니다." },
-            ].map((item) => (
-              <div key={item.step} className="rounded-[16px] border border-[#eee4dd] bg-[#fbf7f2] p-4">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#a96856] text-[12px] font-semibold text-white">
-                  {item.step}
-                </span>
-                <h3 className="mt-3 text-[14px] font-semibold text-[#2f2a26]">{item.title}</h3>
-                <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#766d66]">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </article>
+    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] pb-8 md:grid-cols-[1fr_0.8fr_1fr]`}>
+      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 한눈에 비교해보세요.</h2>
+        <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
+          후기와 견적 정보를 함께 보며
+          <br />
+          나에게 맞는 선택지를 좁혀갈 수 있어요.
+        </p>
+        <Link
+          href="/community?category=tour_review&search=견적&feed=all#community-feed"
+          className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
+        >
+          정보 비교 바로가기
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Link>
+      </article>
 
-        <article className="rounded-[20px] border border-[#eadfc9] bg-[#fff8ec] p-6 shadow-[0_12px_34px_rgba(47,42,38,0.04)] md:p-7">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#8a6a3f]">Trust</p>
-          <h2 className="mt-2 font-serif-kr text-[26px] font-medium leading-[1.35] text-[#2f2a26]">
-            광고보다 맥락이 먼저 보이게.
-          </h2>
-          <p className="mt-3 text-[13px] font-medium leading-[1.75] text-[#6f655f]">
-            협찬 표시는 분리하고, 후기에는 예산·지역·조건이 함께 남도록 설계했습니다. 앞으로 쌓이는 데이터는 웨딩 라운지 추천과 아모라 답변의 기준이 됩니다.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {["광고 표시", "가격 맥락", "동기방 사례", "아모라 질문"].map((item) => (
-              <span key={item} className="rounded-full bg-white/70 px-3 py-2 text-[12px] font-semibold text-[#6f655f]">
-                {item}
-              </span>
-            ))}
-          </div>
-        </article>
-      </div>
+      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">커뮤니티 데이터</h3>
+        <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
+          {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
+            <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#fff8ec] px-2 py-3">
+              <b className="block text-[#071629]">{cat.shortLabel}</b>
+              <span className="mt-2 block text-[12px] text-[#7a8290]">글 보기</span>
+            </Link>
+          ))}
+        </div>
+        <p className="mt-4 text-[11px] font-medium text-[#9aa2af]">실제 게시글 기준으로 이어집니다.</p>
+      </article>
+
+      <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
+          다음 행동
+        </span>
+        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">웨딩 라운지에 이어 담기</h2>
+        <p className="mt-2 max-w-[270px] text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+          커뮤니티에서 찾은 후기와 질문을 일정·예산·예약 관리로 자연스럽게 이어가세요.
+        </p>
+        <div className="mt-4 grid gap-2 text-[12px] font-medium text-[#34445a]">
+          {journeyActions.slice(1).map((item) => (
+            <Link key={item.title} href={item.href} className="inline-flex items-center gap-2">
+              <item.icon className="h-4 w-4 text-[#b68a3a]" />
+              {item.title}
+            </Link>
+          ))}
+        </div>
+        <Link
+          href="/lounge"
+          className="mt-5 inline-flex min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[12px] font-semibold text-white"
+          data-tutorial-target="community-service-link"
+        >
+          웨딩 라운지 열기
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Link>
+        <ClipboardCheck className="absolute bottom-4 right-6 h-[110px] w-[110px] rotate-6 text-[#c9a96e]/35" />
+      </article>
     </section>
   );
 }
