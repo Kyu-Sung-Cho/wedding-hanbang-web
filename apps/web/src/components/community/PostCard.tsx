@@ -30,9 +30,9 @@ interface PostCardProps {
 // 카테고리별 배지 색상 (sage/rose/tertiary 변주)
 const CATEGORY_BADGE_BG: Record<string, string> = {
   is_normal: "bg-[#dee6c4]/30 text-sage-500", // sage (secondary-container)
-  tour_review: "bg-[#d8bb86]/30 text-[#9d6f36]", // rose (outline-variant + primary)
-  tips_v2: "bg-[#5d6879]/15 text-[#5d6879]", // tertiary
-  ama: "bg-[#9d6f36]/10 text-[#9d6f36]", // primary
+  tour_review: "bg-[#dfc9c1]/30 text-[#7f5e58]", // rose (outline-variant + primary)
+  tips_v2: "bg-[#635b51]/15 text-[#635b51]", // tertiary
+  ama: "bg-[#7f5e58]/10 text-[#7f5e58]", // primary
   free: "bg-[#dee6c4]/30 text-sage-500", // sage
 };
 
@@ -199,7 +199,7 @@ export default function PostCard({ post }: PostCardProps) {
                     {categoryInfo.shortLabel}
                   </span>
                 )}
-                <span className="text-xs sm:text-sm text-[#5d6879]">{timeAgo(post.created_at)}</span>
+                <span className="text-xs sm:text-sm text-[#635b51]">{timeAgo(post.created_at)}</span>
 
                 {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
                   <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
@@ -208,14 +208,14 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={`/community/post/${post.id}`} className="group block">
-              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#071629] mb-2.5 hover:text-[#9d6f36] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#263832] mb-2.5 hover:text-[#7f5e58] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#9d6f36] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[#7f5e58] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
                   </span>
                 )}
                 {post.is_weekly_best && (
-                  <span className="text-[#5d6879] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
+                  <span className="text-[#635b51] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
                     Best
                   </span>
                 )}
@@ -224,16 +224,16 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#5d6879] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
+              <p className="text-[#635b51] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}
             {(post.cost_data || post.poll) && (
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {post.cost_data && (
-                  <div className="bg-[#fff8ec] rounded-lg px-3 py-1.5 inline-block">
-                    <span className="text-xs text-[#5d6879]">비용: </span>
-                    <span className="text-sm font-medium text-[#071629]">{formatPrice(post.cost_data.totalCost)}만원</span>
+                  <div className="bg-[#f6efe5] rounded-lg px-3 py-1.5 inline-block">
+                    <span className="text-xs text-[#635b51]">비용: </span>
+                    <span className="text-sm font-medium text-[#263832]">{formatPrice(post.cost_data.totalCost)}만원</span>
                   </div>
                 )}
                 {post.poll && (() => {
@@ -245,8 +245,8 @@ export default function PostCard({ post }: PostCardProps) {
                       href={`/community/post/${post.id}`}
                       className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
                         isClosed
-                          ? "text-[#928980] bg-[#fff8ec] border-[#eadfc9] hover:bg-white"
-                          : "text-[#9d6f36] bg-[#fffdf7] border-[#f0eeec] hover:border-[#9d6f36] hover:bg-white"
+                          ? "text-[#928980] bg-[#f6efe5] border-[#e5d8ca] hover:bg-white"
+                          : "text-[#7f5e58] bg-[#fbf8f2] border-[#f0eeec] hover:border-[#7f5e58] hover:bg-white"
                       }`}
                       title={post.poll.question}
                     >
@@ -259,7 +259,7 @@ export default function PostCard({ post }: PostCardProps) {
                         {post.poll.total_voters.toLocaleString()}명
                       </span>
                       {isClosed && (
-                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#eadfc9] text-[#5d6879]">
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e5d8ca] text-[#635b51]">
                           마감
                         </span>
                       )}
@@ -280,12 +280,12 @@ export default function PostCard({ post }: PostCardProps) {
                   size={34}
                 />
               </Link>
-              <span className="text-sm text-[#5d6879] truncate max-w-[140px] sm:max-w-none">
+              <span className="text-sm text-[#635b51] truncate max-w-[140px] sm:max-w-none">
                 {author.nickname}
               </span>
             </div>
 
-            <div className="flex items-center gap-2.5 sm:gap-3 text-[#5d6879] flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-[#635b51] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"
@@ -311,13 +311,13 @@ export default function PostCard({ post }: PostCardProps) {
               {/* 댓글 */}
               <Link
                 href={`/community/post/${post.id}#comments`}
-                className="flex items-center gap-1 hover:text-[#9d6f36] group"
+                className="flex items-center gap-1 hover:text-[#7f5e58] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
                 <span className="text-sm">{(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}</span>
               </Link>
 
-              <span className="flex items-center gap-1 text-[#5d6879]">
+              <span className="flex items-center gap-1 text-[#635b51]">
                 <Eye className="w-5 h-5 opacity-60" />
                 <span className="text-sm">{post.view_count ?? 0}</span>
               </span>
@@ -328,14 +328,14 @@ export default function PostCard({ post }: PostCardProps) {
                 onClick={handleBookmark}
                 disabled={bookmarking}
                 className={`flex items-center group disabled:opacity-60 ${
-                  bookmarked ? "text-[#9d6f36]" : "hover:text-[#9d6f36]"
+                  bookmarked ? "text-[#7f5e58]" : "hover:text-[#7f5e58]"
                 }`}
                 aria-label="저장"
                 title="저장"
               >
                 <Bookmark
                   className="w-5 h-5 opacity-60 group-hover:opacity-100"
-                  fill={bookmarked ? "#9d6f36" : "none"}
+                  fill={bookmarked ? "#7f5e58" : "none"}
                 />
               </button>
 
@@ -343,7 +343,7 @@ export default function PostCard({ post }: PostCardProps) {
               <button
                 type="button"
                 onClick={handleShare}
-                className="flex items-center hover:text-[#9d6f36] group"
+                className="flex items-center hover:text-[#7f5e58] group"
                 aria-label="공유"
                 title="공유"
               >

@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import Link from "next/link";
 import { Instagram, Mail, MessageCircle, Play, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
@@ -12,7 +12,7 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fbf8f2]">
+    <div className="flex min-h-screen flex-col bg-[#fbf8f2]">
       <CommunityAuthInitializer />
       <Suspense fallback={<div className="h-[76px] bg-[#fbf8f2]" />}>
         <CommunityNav />
@@ -28,7 +28,7 @@ export default function CommunityLayout({
 
 function FooterBrand() {
   return (
-    <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+    <Link href="/community" className="inline-flex items-center whitespace-nowrap">
       <Logo size="md" variant="white" />
     </Link>
   );
@@ -36,8 +36,8 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#36534e_0%,#4e6a62_62%,#243832_100%)] text-white">
-      <div className="mx-auto grid w-[calc(100%_-_32px)] max-w-[1300px] gap-9 py-8 md:w-[calc(100%_-_48px)] md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr]">
+    <footer className="bg-[linear-gradient(135deg,#263832_0%,#082342_62%,#041425_100%)] text-white">
+      <div className="mx-auto grid w-[calc(100%_-_48px)] max-w-[1300px] gap-9 py-8 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr]">
         <div>
           <FooterBrand />
           <p className="mt-3 text-[13px] font-medium text-white/70">
@@ -53,7 +53,7 @@ function CommunityFooter() {
                 key={item.label}
                 href="/community"
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#dfc9c1] hover:text-[#dfc9c1]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#B89785] hover:text-[#B89785]"
               >
                 <item.icon className="h-4 w-4" />
               </Link>
@@ -65,7 +65,7 @@ function CommunityFooter() {
           title="둘러보기"
           items={[
             { label: "후기·질문", href: "/community#community-feed" },
-            { label: "가격·후기", href: "/community?category=tour_review&search=견적&feed=all#community-feed" },
+            { label: "견적 체크", href: "/community/quote-check" },
             { label: "동기방", href: "/community/cohort" },
             { label: "글쓰기", href: "/community/post/write" },
             { label: "북마크", href: "/community/my/bookmarks" },
@@ -74,7 +74,7 @@ function CommunityFooter() {
         <FooterColumn
           title="준비 도구"
           items={[
-            { label: "웨딩 라운지", href: "/lounge" },
+            { label: "준비실", href: "/dashboard" },
             { label: "아모라 상담", href: "/chat" },
             { label: "예산", href: "/budget" },
             { label: "일정", href: "/schedule" },
@@ -102,22 +102,22 @@ function CommunityFooter() {
 
         <div className="rounded-[18px] border border-white/15 bg-white/[0.04] p-5">
           <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#dfc9c1]" />
+            <ShieldCheck className="h-5 w-5 text-[#B89785]" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
           </div>
           <p className="text-[12px] font-medium leading-[1.7] text-white/65">
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/lounge"
-            className="mt-4 inline-flex items-center rounded-full border border-[#dfc9c1]/70 px-4 py-2 text-[12px] font-semibold text-[#efe1d9] transition-colors hover:bg-white/10"
+            href="/dashboard"
+            className="mt-4 inline-flex items-center rounded-full border border-[#B89785]/70 px-4 py-2 text-[12px] font-semibold text-[#ecd7a4] transition-colors hover:bg-[#B89785]/10"
           >
-            웨딩 라운지로 이동
+            준비실로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
-      <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1300px] border-t border-white/10 py-4 text-center text-[12px] text-white/55 md:w-[calc(100%_-_48px)]">
+      <div className="mx-auto w-[calc(100%_-_48px)] max-w-[1300px] border-t border-white/10 py-4 text-center text-[12px] text-white/55">
         © 2026 Wedding Hanbang. All rights reserved.
       </div>
     </footer>
@@ -130,7 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#efe1d9]">
+          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#ecd7a4]">
             {item.label}
           </Link>
         ))}

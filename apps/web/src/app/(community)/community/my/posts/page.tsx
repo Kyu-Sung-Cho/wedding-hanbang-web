@@ -131,7 +131,7 @@ export default function MyPostsPage() {
       </div>
 
       {profile && (
-        <section className="mb-6 rounded-2xl border border-[#eadfc9] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
+        <section className="mb-6 rounded-2xl border border-[#e5d8ca] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
           <div className="flex items-start gap-4">
             <Avatar nickname={nicknameInput || profile.nickname} avatarUrl={avatarInput} size={56} />
             <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ export default function MyPostsPage() {
                     value={nicknameInput}
                     onChange={(event) => setNicknameInput(event.target.value)}
                     maxLength={20}
-                    className="h-10 w-full rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-3 text-sm font-medium text-[#071629] outline-none focus:border-[#9d6f36]"
+                    className="h-10 w-full rounded-xl border border-[#e5d8ca] bg-[#fbf8f2] px-3 text-sm font-medium text-[#263832] outline-none focus:border-[#7f5e58]"
                     placeholder="커뮤니티 닉네임"
                   />
                   <div className="flex flex-wrap gap-2">
@@ -153,8 +153,8 @@ export default function MyPostsPage() {
                         onClick={() => setAvatarInput(avatar)}
                         className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-colors ${
                           avatarInput === avatar
-                            ? "border-[#061a34] bg-[#061a34] text-white"
-                            : "border-[#eadfc9] bg-[#fffdf7] hover:border-[#9d6f36]"
+                            ? "border-[#263832] bg-[#263832] text-white"
+                            : "border-[#e5d8ca] bg-[#fbf8f2] hover:border-[#7f5e58]"
                         }`}
                         aria-label={`${avatar} 아바타 선택`}
                       >
@@ -167,7 +167,7 @@ export default function MyPostsPage() {
                       type="button"
                       onClick={saveProfile}
                       disabled={profileSaving}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#061a34] px-4 text-xs font-semibold text-white disabled:opacity-60"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#263832] px-4 text-xs font-semibold text-white disabled:opacity-60"
                     >
                       {profileSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                       저장
@@ -180,7 +180,7 @@ export default function MyPostsPage() {
                         setAvatarInput(profile.avatar_url);
                         setProfileMessage(null);
                       }}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 text-xs font-semibold text-[#7a8290]"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#e5d8ca] bg-white px-4 text-xs font-semibold text-[#7d7166]"
                     >
                       <X className="h-3.5 w-3.5" />
                       취소
@@ -191,8 +191,8 @@ export default function MyPostsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-base font-semibold text-[#071629]">{profile.nickname}</p>
-                      <span className="rounded-full bg-[#fff8ec] px-2 py-0.5 text-[11px] font-medium text-[#9d6f36]">
+                      <p className="text-base font-semibold text-[#263832]">{profile.nickname}</p>
+                      <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[11px] font-medium text-[#7f5e58]">
                         {rankLabels[profile.rank] ?? "회원"}
                       </span>
                     </div>
@@ -205,14 +205,14 @@ export default function MyPostsPage() {
                       setAvatarInput(profile.avatar_url);
                       setEditingProfile(true);
                     }}
-                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 text-xs font-semibold text-[#9d6f36]"
+                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#e5d8ca] bg-white px-4 text-xs font-semibold text-[#7f5e58]"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     프로필 수정
                   </button>
                 </div>
               )}
-              {profileMessage && <p className="mt-3 text-xs font-medium text-[#9d6f36]">{profileMessage}</p>}
+              {profileMessage && <p className="mt-3 text-xs font-medium text-[#7f5e58]">{profileMessage}</p>}
             </div>
           </div>
         </section>
@@ -228,7 +228,7 @@ export default function MyPostsPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
-              tab === t.key ? "bg-[#9d6f36] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
+              tab === t.key ? "bg-[#7f5e58] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
             }`}
           >
             {t.label} {t.count > 0 && <span className="ml-1 opacity-60">{t.count}</span>}

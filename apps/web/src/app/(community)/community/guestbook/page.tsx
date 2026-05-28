@@ -61,7 +61,7 @@ export default function MyGuestbooksPage() {
         </h1>
         <Link
           href="/community/guestbook/new"
-          className="inline-flex items-center gap-2 bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white rounded-xl py-3 px-5 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+          className="inline-flex items-center gap-2 bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-5 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
         >
           <Plus className="w-4 h-4" />새 방명록 만들기
         </Link>
@@ -88,7 +88,7 @@ export default function MyGuestbooksPage() {
           </p>
           <Link
             href="/community/guestbook/new"
-            className="inline-flex items-center gap-2 bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+            className="inline-flex items-center gap-2 bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
           >
             <Plus className="w-4 h-4" />첫 방명록 만들기
           </Link>
@@ -130,7 +130,7 @@ export default function MyGuestbooksPage() {
                   <Link
                     href={`/guestbook/${gb.slug}`}
                     target="_blank"
-                    className="flex-1 text-center bg-[#9d6f36] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#102a4d] transition"
+                    className="flex-1 text-center bg-[#7f5e58] text-white rounded-xl py-2.5 px-4 text-sm font-medium hover:bg-[#36534e] transition"
                   >
                     방명록 보기
                   </Link>

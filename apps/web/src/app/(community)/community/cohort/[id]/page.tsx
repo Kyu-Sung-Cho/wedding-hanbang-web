@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import {
   MessageCircle,
   Users,
@@ -14,17 +13,10 @@ import {
   ExternalLink,
   FileText,
   Paperclip,
-  Flag,
-  X,
-  Loader2,
-  ChevronRight,
-  Flame,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import Avatar from "@/components/community/Avatar";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
-import { monthToQuarter } from "@/utils/quarter";
 import type {
   CohortRoom,
   CohortMessage,
@@ -34,13 +26,12 @@ import type {
   CohortThreadTopic,
   CohortContractCategory,
   CohortEventType,
-  ReportReason,
 } from "@/types/community.types";
 
 // ────────────────────────────────────────
 // 상수
 // ────────────────────────────────────────
-const TAB_KEYS = ["chat", "info", "events"] as const;
+const TAB_KEYS = ["chat", "info", "timeline"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
@@ -108,10 +99,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   const { toast } = useToast();
 
   const [tab, setTab] = useState<TabKey>("chat");
-  const [selectedTopic, setSelectedTopic] = useState<CohortThreadTopic | "all">("all");
   const [room, setRoom] = useState<CohortRoom | null>(null);
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
-  const roomName = formatCohortRoomName(room);
 
   // 초기 방 정보 로드
   useEffect(() => {
@@ -139,84 +127,48 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   return (
     <div className="min-h-screen bg-[#f8f4f1]">
       <div className="flex w-full max-w-[1920px] mx-auto">
-        {/* 왼쪽 사이드바 */}
-        <aside className="hidden xl:flex flex-col w-72 2xl:w-80 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-[#eadfc9] bg-[#f8f4f1] pt-7 pb-5 px-5 z-40">
+        {/* 왼쪽 사이드바 — 커뮤니티 메인 피드와 동일한 폭/사이즈 (w-64 2xl:w-72) */}
+        <aside className="hidden xl:flex flex-col w-64 2xl:w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-r border-[#e5d8ca] bg-[#f8f4f1] pt-6 pb-5 px-4 z-40">
           {/* 방 정보 */}
           <div className="mb-5 px-2">
             <p className="mb-2 text-[11px] font-medium text-[#928980] uppercase tracking-widest">
               WEDDING HANBANG
             </p>
-            <h2 className="font-serif-kr text-[28px] leading-tight text-[#071629] mb-1 break-words">
-              {roomName}
+            <h2 className="font-serif-kr text-2xl text-[#263832] mb-1 break-words">
+              {room?.name ?? "동기방"}
             </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[#5d6879]">
+            <div className="flex items-center gap-1.5 text-xs text-[#635b51]">
               <Users className="h-3.5 w-3.5" />
               <span>{room?.member_count ?? 0}명 참여</span>
             </div>
           </div>
 
-          <div className="px-1 mb-5">
-            <CohortRoomSwitcher room={room} />
-          </div>
-
           {/* 멤버 */}
           <div className="px-1 mb-5">
-            <CohortMemberPreview
-              roomId={roomId}
-              memberCount={room?.member_count ?? 0}
-              onProfileOpen={setProfileUserId}
-            />
+            <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
           </div>
 
           {/* 주제별 카테고리 */}
           <div className="px-1 mb-5">
-            <h3 className="px-2 text-[11px] font-medium uppercase tracking-wider text-[#928980] mb-2">대화 주제</h3>
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTopic("all");
-                  setTab("chat");
-                }}
-                className={`flex items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                  tab === "chat" && selectedTopic === "all"
-                    ? "bg-white text-[#071629] shadow-[0_4px_16px_rgba(8,22,38,0.04)]"
-                    : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
-                }`}
-              >
-                <span className="font-medium">전체 대화</span>
-                <ChevronRight className="h-3.5 w-3.5 opacity-60" />
-              </button>
+            <h3 className="px-2 text-[11px] font-medium uppercase tracking-wider text-[#928980] mb-2">주제별 보기</h3>
+            <div className="flex flex-col gap-0.5">
               {COHORT_THREAD_TOPICS.map((t) => (
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => {
-                    setSelectedTopic(t.key as CohortThreadTopic);
-                    setTab("chat");
-                  }}
-                  className={`flex items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                    tab === "chat" && selectedTopic === t.key
-                      ? "bg-white text-[#071629] shadow-[0_4px_16px_rgba(8,22,38,0.04)]"
-                      : "text-[#5d6879] hover:bg-white hover:text-[#9d6f36]"
-                  }`}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#635b51] hover:bg-white hover:text-[#7f5e58] transition-colors duration-200 text-left"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#fff8ec] text-[11px] font-semibold text-[#9d6f36]">
-                      {t.icon}
-                    </span>
-                    <span className="font-medium">{t.label}</span>
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#7f5e58] opacity-70" />
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
 
           {/* 동기방 규칙 */}
-          <div className="px-1 mb-5 border-t border-[#eadfc9]/50 pt-4">
+          <div className="px-1 mb-5 border-t border-[#e5d8ca]/50 pt-4">
             <h3 className="px-2 text-[11px] font-medium uppercase tracking-wider text-[#928980] mb-2">규칙</h3>
-            <div className="px-2 space-y-1.5 text-xs text-[#5d6879] leading-relaxed">
+            <div className="px-2 space-y-1.5 text-xs text-[#635b51] leading-relaxed">
               <p>• 서로 존중하며 대화해주세요</p>
               <p>• 개인정보(실명, 연락처) 공유 주의</p>
               <p>• 광고/홍보성 글은 삭제됩니다</p>
@@ -227,7 +179,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
           <div className="mt-auto pt-4" />
 
           {/* 아모라 CTA */}
-          <div className="mx-1 rounded-xl bg-gradient-to-br from-[#9d6f36] to-[#102a4d] p-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]">
+          <div className="mx-1 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] p-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-[#dee6c4]" />
               <span className="font-serif-kr text-base">AI 아모라</span>
@@ -237,7 +189,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
             </p>
             <a
               href="/chat"
-              className="block w-full text-center bg-white text-[#9d6f36] rounded-lg py-2 text-sm font-medium hover:bg-[#fffdf7] transition-colors"
+              className="block w-full text-center bg-white text-[#7f5e58] rounded-lg py-2 text-sm font-medium hover:bg-[#fbf8f2] transition-colors"
             >
               대화하기
             </a>
@@ -248,28 +200,17 @@ function CohortPageInner({ roomId }: { roomId: string }) {
         <main className="flex-1 min-w-0 flex flex-col">
           {/* 모바일/태블릿용 방 이름 헤더 */}
           <div className="xl:hidden px-4 sm:px-6 pt-4 pb-2 bg-[#f8f4f1]">
-            <h2 className="font-serif-kr text-xl sm:text-2xl text-[#071629] mb-1 break-words">
-              {roomName}
+            <h2 className="font-serif-kr text-xl sm:text-2xl text-[#263832] mb-1 break-words">
+              {room?.name ?? "동기방"}
             </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[#5d6879]">
+            <div className="flex items-center gap-1.5 text-xs text-[#635b51]">
               <Users className="h-3.5 w-3.5" />
               <span>{room?.member_count ?? 0}명 참여</span>
-            </div>
-            <div className="mt-3 rounded-xl bg-white/70 p-3 shadow-[0_4px_18px_rgb(0,0,0,0.03)]">
-              <CohortMemberPreview
-                roomId={roomId}
-                memberCount={room?.member_count ?? 0}
-                onProfileOpen={setProfileUserId}
-                compact
-              />
-            </div>
-            <div className="mt-3 rounded-xl bg-white/70 p-3 shadow-[0_4px_18px_rgb(0,0,0,0.03)]">
-              <CohortRoomSwitcher room={room} compact />
             </div>
           </div>
 
           {/* 탭 헤더 */}
-          <div className="sticky top-16 z-10 bg-white border-b border-[#eadfc9]">
+          <div className="sticky top-16 z-10 bg-white border-b border-[#e5d8ca]">
             <div className="flex px-4 sm:px-5 xl:px-6 2xl:px-8 max-w-[1120px] mx-auto w-full">
               <TabButton
                 active={tab === "chat"}
@@ -284,42 +225,28 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 label="정보판"
               />
               <TabButton
-                active={tab === "events"}
-                onClick={() => setTab("events")}
+                active={tab === "timeline"}
+                onClick={() => setTab("timeline")}
                 icon={<Calendar className="h-4 w-4" />}
-                label="이벤트"
+                label="타임라인"
               />
             </div>
           </div>
 
           <div className="px-4 sm:px-5 xl:px-6 2xl:px-8 py-5 sm:py-6 flex-1">
             <div className="max-w-[1120px] mx-auto">
-              {tab === "chat" && (
-                <ChatTab
-                  roomId={roomId}
-                  selectedTopic={selectedTopic}
-                  onSelectedTopicChange={setSelectedTopic}
-                  toastError={toast.error}
-                  onProfileOpen={setProfileUserId}
-                />
-              )}
+              {tab === "chat" && <ChatTab roomId={roomId} toastError={toast.error} />}
               {tab === "info" && <InfoTab roomId={roomId} toastFn={toast} />}
-              {tab === "events" && <EventsTab roomId={roomId} toastFn={toast} />}
+              {tab === "timeline" && <TimelineTab roomId={roomId} toastFn={toast} />}
             </div>
           </div>
         </main>
 
         {/* 오른쪽 사이드바 — 커뮤니티 메인과 동일 폭 */}
-        <aside className="hidden 2xl:flex flex-col w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-l border-[#eadfc9] p-6 bg-[#f8f4f1]">
+        <aside className="hidden 2xl:flex flex-col w-72 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto border-l border-[#e5d8ca] p-6 bg-[#f8f4f1]">
           <CohortPopularPosts roomId={roomId} />
         </aside>
       </div>
-      <CohortProfileModal
-        roomId={roomId}
-        userId={profileUserId}
-        onClose={() => setProfileUserId(null)}
-        toastFn={toast}
-      />
     </div>
   );
 }
@@ -344,8 +271,8 @@ function TabButton({
       onClick={onClick}
       className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 py-3.5 text-sm font-medium tracking-wide transition-colors ${
         active
-          ? "border-[#9d6f36] text-[#9d6f36]"
-          : "border-transparent text-[#5d6879] hover:text-[#9d6f36]"
+          ? "border-[#7f5e58] text-[#7f5e58]"
+          : "border-transparent text-[#635b51] hover:text-[#7f5e58]"
       }`}
     >
       {icon}
@@ -359,19 +286,14 @@ function TabButton({
 // ────────────────────────────────────────
 function ChatTab({
   roomId,
-  selectedTopic,
-  onSelectedTopicChange,
   toastError,
-  onProfileOpen,
 }: {
   roomId: string;
-  selectedTopic: CohortThreadTopic | "all";
-  onSelectedTopicChange: (topic: CohortThreadTopic | "all") => void;
   toastError: (msg: string) => void;
-  onProfileOpen: (userId: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<CohortMessage[]>([]);
+  const [filter, setFilter] = useState<CohortThreadTopic | "all">("all");
   const [input, setInput] = useState("");
   const [thread, setThread] = useState<CohortThreadTopic | "">("");
   const [sending, setSending] = useState(false);
@@ -379,7 +301,6 @@ function ChatTab({
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // 사용자가 직접 위로 스크롤한 상태인지 — 위에 올라가 있으면 새 메시지 들어와도 자동 스크롤 안 함
   const isNearBottomRef = useRef(true);
   // 최초 메시지 로드 직후 1회만 즉시 바닥으로 (페이지 스크롤은 절대 건드리지 않음)
@@ -390,16 +311,6 @@ function ChatTab({
   const [mentionQuery, setMentionQuery] = useState("");
   const [members, setMembers] = useState<{ user_id: string; nickname: string }[]>([]);
   const [cursorPos, setCursorPos] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setCurrentUserId(data.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
 
   function insertPostTag(post: { id: string; title: string }) {
     const tag = `[post:${post.id}|${post.title}]`;
@@ -493,15 +404,15 @@ function ChatTab({
   // 메시지 로드
   const loadMessages = useCallback(async () => {
     const url =
-      selectedTopic === "all"
+      filter === "all"
         ? `/api/community/cohort/${roomId}/messages`
-        : `/api/community/cohort/${roomId}/messages?thread_topic=${selectedTopic}`;
+        : `/api/community/cohort/${roomId}/messages?thread_topic=${filter}`;
     const res = await fetch(url);
     const data = await res.json();
     if (res.ok) {
       setMessages(data.messages ?? []);
     }
-  }, [roomId, selectedTopic]);
+  }, [roomId, filter]);
 
   useEffect(() => {
     loadMessages();
@@ -522,7 +433,7 @@ function ChatTab({
         async (payload) => {
           const newMsg = payload.new as CohortMessage;
           // 필터에 맞지 않으면 무시
-          if (selectedTopic !== "all" && newMsg.thread_topic !== selectedTopic) return;
+          if (filter !== "all" && newMsg.thread_topic !== filter) return;
           // author 프로필 join해서 추가
           const { data: authorData } = await supabase
             .from("community_profiles")
@@ -544,7 +455,7 @@ function ChatTab({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, roomId, selectedTopic]);
+  }, [supabase, roomId, filter]);
 
   // 컨테이너 내부 스크롤 위치 추적 — 바닥 근처 여부 캐시
   useEffect(() => {
@@ -609,15 +520,15 @@ function ChatTab({
       {/* 필터 pill */}
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         <FilterPill
-          active={selectedTopic === "all"}
-          onClick={() => onSelectedTopicChange("all")}
+          active={filter === "all"}
+          onClick={() => setFilter("all")}
           label="전체"
         />
         {COHORT_THREAD_TOPICS.map((t) => (
           <FilterPill
             key={t.key}
-            active={selectedTopic === t.key}
-            onClick={() => onSelectedTopicChange(t.key as CohortThreadTopic)}
+            active={filter === t.key}
+            onClick={() => setFilter(t.key)}
             label={t.label}
           />
         ))}
@@ -629,18 +540,11 @@ function ChatTab({
         className="flex-1 space-y-4 overflow-y-auto rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-[#5d6879]">
+          <div className="flex h-full items-center justify-center text-sm text-[#635b51]">
             아직 메시지가 없어요. 첫 메시지를 남겨보세요.
           </div>
         ) : (
-          messages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              isMine={currentUserId === m.author_id}
-              onProfileOpen={onProfileOpen}
-            />
-          ))
+          messages.map((m) => <MessageBubble key={m.id} message={m} />)
         )}
       </div>
 
@@ -652,8 +556,8 @@ function ChatTab({
             onClick={() => setThread("")}
             className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
-                ? "bg-[#9d6f36] text-white"
-                : "bg-[#fff8ec] text-[#5d6879] hover:bg-[#eadfc9]"
+                ? "bg-[#7f5e58] text-white"
+                : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
             }`}
           >
             주제 없음
@@ -665,8 +569,8 @@ function ChatTab({
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
-                  ? "bg-[#9d6f36] text-white"
-                  : "bg-[#fff8ec] text-[#5d6879] hover:bg-[#eadfc9]"
+                  ? "bg-[#7f5e58] text-white"
+                  : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
               }`}
             >
               {t.label}
@@ -676,18 +580,18 @@ function ChatTab({
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1 min-w-0 w-full">
             {mentionOpen && filteredMembers.length > 0 && (
-              <div className="absolute bottom-full mb-2 left-0 w-60 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#eadfc9] z-20">
+              <div className="absolute bottom-full mb-2 left-0 w-60 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e5d8ca] z-20">
                 {filteredMembers.slice(0, 5).map((m) => (
                   <button
                     key={m.user_id}
                     type="button"
                     onClick={() => selectMention(m)}
-                    className="w-full text-left px-3 py-2 hover:bg-[#fff8ec] flex items-center gap-2 text-sm"
+                    className="w-full text-left px-3 py-2 hover:bg-[#f6efe5] flex items-center gap-2 text-sm"
                   >
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] flex items-center justify-center text-white text-[10px]">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] flex items-center justify-center text-white text-[10px]">
                       {m.nickname[0]}
                     </div>
-                    <span className="text-[#071629]">{m.nickname}</span>
+                    <span className="text-[#263832]">{m.nickname}</span>
                   </button>
                 ))}
               </div>
@@ -703,7 +607,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={2}
-              className="w-full resize-none rounded-xl bg-[#fff8ec] px-3 py-2.5 text-[0.9375rem] sm:text-sm text-[#071629] outline-none focus:ring-2 focus:ring-[#9d6f36]/30 placeholder:text-[#B5ADA3]"
+              className="w-full resize-none rounded-xl bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] sm:text-sm text-[#263832] outline-none focus:ring-2 focus:ring-[#7f5e58]/30 placeholder:text-[#B5ADA3]"
             />
           </div>
           <input
@@ -719,7 +623,7 @@ function ChatTab({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex-1 sm:flex-none flex items-center justify-center rounded-xl bg-[#fff8ec] hover:bg-[#eadfc9] py-2.5 sm:py-0 px-3 text-[#5d6879] transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center rounded-xl bg-[#f6efe5] hover:bg-[#e5d8ca] py-2.5 sm:py-0 px-3 text-[#635b51] transition-colors disabled:opacity-50"
               title="이미지 첨부"
             >
               <Paperclip className="h-4 w-4" />
@@ -727,7 +631,7 @@ function ChatTab({
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="flex-1 sm:flex-none flex items-center gap-1.5 justify-center rounded-xl bg-[#fff8ec] hover:bg-[#eadfc9] py-2.5 sm:py-0 px-3 text-[#5d6879] text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+              className="flex-1 sm:flex-none flex items-center gap-1.5 justify-center rounded-xl bg-[#f6efe5] hover:bg-[#e5d8ca] py-2.5 sm:py-0 px-3 text-[#635b51] text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
               title="커뮤니티 글 공유"
             >
               <Link2 className="h-4 w-4" />
@@ -737,7 +641,7 @@ function ChatTab({
               type="button"
               onClick={handleSend}
               disabled={sending || !input.trim()}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#9d6f36] to-[#102a4d] py-2.5 sm:py-0 px-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] py-2.5 sm:py-0 px-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               <span className="sm:hidden text-sm font-medium">전송</span>
@@ -770,8 +674,8 @@ function FilterPill({
       onClick={onClick}
       className={`whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
-          ? "bg-[#9d6f36] text-white border-[#9d6f36]"
-          : "bg-white text-[#5d6879] border-[#eadfc9] hover:bg-[#fff8ec]"
+          ? "bg-[#7f5e58] text-white border-[#7f5e58]"
+          : "bg-white text-[#635b51] border-[#e5d8ca] hover:bg-[#f6efe5]"
       }`}
     >
       {label}
@@ -805,16 +709,16 @@ function renderMessageContent(text: string): React.ReactNode {
           href={`/community/post/${postId}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#eadfc9] rounded-lg hover:border-[#9d6f36]/40 hover:bg-[#fff8ec] transition-colors group max-w-full"
+          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#7f5e58]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
         >
-          <FileText className="w-4 h-4 text-[#9d6f36] shrink-0" />
+          <FileText className="w-4 h-4 text-[#7f5e58] shrink-0" />
           <span className="flex flex-col min-w-0">
-            <span className="text-[11px] text-[#5d6879] uppercase tracking-widest font-medium">커뮤니티 글</span>
-            <span className="font-serif-kr text-base text-[#071629] group-hover:text-[#9d6f36] line-clamp-1">
+            <span className="text-[11px] text-[#635b51] uppercase tracking-widest font-medium">커뮤니티 글</span>
+            <span className="font-serif-kr text-base text-[#263832] group-hover:text-[#7f5e58] line-clamp-1">
               {postTitle}
             </span>
           </span>
-          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#9d6f36] shrink-0 ml-1" />
+          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#7f5e58] shrink-0 ml-1" />
         </a>
       );
     } else if (token.startsWith("[img:")) {
@@ -835,7 +739,7 @@ function renderMessageContent(text: string): React.ReactNode {
       parts.push(
         <span
           key={`m${match.index}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#9d6f36]/10 text-[#9d6f36] font-medium"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#7f5e58]/10 text-[#7f5e58] font-medium"
         >
           @{nickname}
         </span>
@@ -850,13 +754,6 @@ function renderMessageContent(text: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
-function formatCohortRoomName(room: CohortRoom | null): string {
-  if (!room) return "동기방";
-  const quarter = monthToQuarter(room.month);
-  const roomSuffix = room.room_number > 1 ? ` ${room.room_number}방` : "";
-  return `${room.year}년 ${quarter}분기 결혼 동기${roomSuffix}`;
-}
-
 function rankIcon(rank?: string | null) {
   const icons: Record<string, string> = {
     sprout: "새싹",
@@ -868,126 +765,45 @@ function rankIcon(rank?: string | null) {
   return rank ? icons[rank] ?? "배지" : null;
 }
 
-const COHORT_QUARTER_LINKS: Array<{ quarter: 1 | 2 | 3 | 4; label: string; months: string }> = [
-  { quarter: 1, label: "1분기", months: "1~3월" },
-  { quarter: 2, label: "2분기", months: "4~6월" },
-  { quarter: 3, label: "3분기", months: "7~9월" },
-  { quarter: 4, label: "4분기", months: "10~12월" },
-];
-
-function CohortRoomSwitcher({ room, compact = false }: { room: CohortRoom | null; compact?: boolean }) {
-  const year = room?.year ?? 2026;
-  const currentQuarter = room ? monthToQuarter(room.month) : null;
-
-  return (
-    <div>
-      <div className="mb-2.5 flex items-center justify-between px-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wider text-[#928980]">다른 동기방</h3>
-        <Link href="/community/cohort" className="text-[11px] font-medium text-[#9d6f36]">
-          자동 찾기
-        </Link>
-      </div>
-      <div className={compact ? "flex gap-2 overflow-x-auto px-1 pb-1" : "grid grid-cols-2 gap-2 px-1"}>
-        {COHORT_QUARTER_LINKS.map((item) => {
-          const active = currentQuarter === item.quarter;
-          return (
-            <Link
-              key={item.quarter}
-              href={`/community/cohort?year=${year}&quarter=${item.quarter}`}
-              className={`min-h-[58px] rounded-xl border px-3 py-2 transition-colors ${
-                compact ? "min-w-[132px]" : ""
-              } ${
-                active
-                  ? "border-[#9d6f36] bg-white text-[#071629] shadow-[0_4px_16px_rgba(8,22,38,0.04)]"
-                  : "border-[#eadfc9] bg-white/55 text-[#5d6879] hover:border-[#d8bb86] hover:bg-white"
-              }`}
-            >
-              <span className="block text-[13px] font-semibold">{year}년 {item.label}</span>
-              <span className="mt-1 block text-[11px] text-[#928980]">{item.months} 결혼</span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({
-  message,
-  isMine,
-  onProfileOpen,
-}: {
-  message: CohortMessage;
-  isMine: boolean;
-  onProfileOpen: (userId: string) => void;
-}) {
+function MessageBubble({ message }: { message: CohortMessage }) {
   const nickname = message.author?.nickname ?? "익명";
+  const initial = nickname[0] ?? "?";
   const rank = rankIcon(message.author?.rank);
-  const profileUserId = message.author?.user_id ?? message.author_id;
-  const topicLabel = message.thread_topic
-    ? COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)?.label ?? message.thread_topic
-    : null;
-
-  if (isMine) {
-    return (
-      <div className="flex justify-end">
-        <div className="flex max-w-[82%] flex-col items-end sm:max-w-[70%]">
-          <div className="rounded-[18px] rounded-tr-[6px] bg-[#061a34] px-4 py-3 text-sm leading-relaxed text-white shadow-[0_8px_20px_rgba(6,26,52,0.13)]">
-            <div className="whitespace-pre-wrap break-words">
-              {renderMessageContent(message.content)}
-            </div>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-[11px] text-[#928980]">
-            {topicLabel && (
-              <span className="rounded-full bg-[#061a34]/10 px-2 py-0.5 text-[#9d6f36]">
-                {topicLabel}
-              </span>
-            )}
-            <span>{relativeTime(message.created_at)}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex justify-start gap-2.5">
-      <button
-        type="button"
-        onClick={() => onProfileOpen(profileUserId)}
-        className="mt-0.5 shrink-0 rounded-full ring-offset-2 transition hover:ring-2 hover:ring-[#9d6f36]/30 focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/40"
-        title={`${nickname} 프로필 보기`}
-      >
-        <Avatar nickname={nickname} avatarUrl={message.author?.avatar_url} size={38} />
-      </button>
-      <div className="min-w-0 max-w-[82%] sm:max-w-[70%]">
+    <div className="flex gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-xs font-medium text-white">
+        {message.author?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={message.author?.avatar_url ?? ""}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+          />
+        ) : (
+          initial
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => onProfileOpen(profileUserId)}
-            className="text-sm font-medium text-[#071629] transition hover:text-[#9d6f36] focus:outline-none focus:text-[#9d6f36]"
-          >
-            {nickname}
-          </button>
+          <span className="text-sm font-medium text-[#263832]">{nickname}</span>
           {rank && (
-            <span className="rounded-full bg-[#fff8ec] px-1.5 py-0.5 text-[10px] text-[#9d6f36]" title={message.author?.rank}>
+            <span className="rounded-full bg-[#f6efe5] px-1.5 py-0.5 text-[10px] text-[#7f5e58]" title={message.author?.rank}>
               {rank}
             </span>
           )}
           <span className="text-xs text-[#928980]">
             {relativeTime(message.created_at)}
           </span>
-          {topicLabel && (
-            <span className="rounded-full bg-[#9d6f36]/10 px-2 py-0.5 text-[11px] text-[#9d6f36]">
-              {topicLabel}
+          {message.thread_topic && (
+            <span className="rounded-full bg-[#7f5e58]/10 px-2 py-0.5 text-[11px] text-[#7f5e58]">
+              {COHORT_THREAD_TOPICS.find((t) => t.key === message.thread_topic)
+                ?.label ?? message.thread_topic}
             </span>
           )}
         </div>
-        <div className="mt-1 rounded-[18px] rounded-tl-[6px] bg-[#fff8ec] px-4 py-3 text-sm leading-relaxed text-[#071629] shadow-[0_6px_16px_rgba(8,22,38,0.045)]">
-          <div className="whitespace-pre-wrap break-words">
-            {renderMessageContent(message.content)}
-          </div>
-        </div>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-[#263832] leading-relaxed">
+          {renderMessageContent(message.content)}
+        </p>
       </div>
     </div>
   );
@@ -1042,22 +858,22 @@ function PostPickerModal({
         className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-[#eadfc9]">
-          <h3 className="font-serif-kr text-2xl text-[#071629] mb-4">글 공유하기</h3>
+        <div className="p-6 border-b border-[#e5d8ca]">
+          <h3 className="font-serif-kr text-2xl text-[#263832] mb-4">글 공유하기</h3>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="제목으로 검색하거나 인기글에서 선택"
-            className="w-full px-4 py-3 bg-[#fff8ec] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#9d6f36]/30"
+            className="w-full px-4 py-3 bg-[#f6efe5] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#7f5e58]/30"
             autoFocus
           />
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="text-center text-[#5d6879] py-8">불러오는 중...</div>
+            <div className="text-center text-[#635b51] py-8">불러오는 중...</div>
           ) : posts.length === 0 ? (
-            <div className="text-center text-[#5d6879] py-8">결과가 없어요</div>
+            <div className="text-center text-[#635b51] py-8">결과가 없어요</div>
           ) : (
             <div className="space-y-2">
               {posts.map((p) => (
@@ -1067,12 +883,12 @@ function PostPickerModal({
                     onSelect({ id: p.id, title: p.title });
                     onClose();
                   }}
-                  className="w-full text-left p-4 rounded-xl hover:bg-[#fff8ec] transition-colors group"
+                  className="w-full text-left p-4 rounded-xl hover:bg-[#f6efe5] transition-colors group"
                 >
-                  <div className="font-serif-kr text-lg text-[#071629] group-hover:text-[#9d6f36] line-clamp-1">
+                  <div className="font-serif-kr text-lg text-[#263832] group-hover:text-[#7f5e58] line-clamp-1">
                     {p.title}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-[#5d6879]">
+                  <div className="flex items-center gap-3 mt-1 text-sm text-[#635b51]">
                     {p.category && <span>{p.category}</span>}
                     {p.category && <span>·</span>}
                     <span>💬 {p.comment_count ?? 0}</span>
@@ -1134,7 +950,7 @@ function InfoTab({
       <button
         type="button"
         onClick={() => setModalOpen(true)}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#9d6f36] to-[#102a4d] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
       >
         <Plus className="h-4 w-4" />
         내 계약 정보 등록
@@ -1152,7 +968,7 @@ function InfoTab({
               className="rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
             >
               <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#071629]">
+                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#263832]">
                   {cat.label}
                 </h3>
                 <span className="text-xs sm:text-sm text-[#928980]">
@@ -1161,17 +977,17 @@ function InfoTab({
               </div>
               {enough && stat ? (
                 <div>
-                  <p className="text-xs sm:text-sm text-[#5d6879]">
+                  <p className="text-xs sm:text-sm text-[#635b51]">
                     우리 동기 평균 {cat.label} 기본금
                   </p>
-                  <p className="mt-1.5 font-serif-kr text-2xl sm:text-3xl font-light text-[#071629] break-words">
+                  <p className="mt-1.5 font-serif-kr text-2xl sm:text-3xl font-light text-[#263832] break-words">
                     {stat.avg_base_price.toLocaleString()}만원
                     <span className="ml-2 text-xs sm:text-sm font-sans text-[#928980] font-normal">
                       ({sample}명)
                     </span>
                   </p>
                   {stat.avg_extra_price > 0 && (
-                    <p className="mt-1.5 text-xs sm:text-sm text-[#5d6879]">
+                    <p className="mt-1.5 text-xs sm:text-sm text-[#635b51]">
                       추가금 평균 {stat.avg_extra_price.toLocaleString()}만원
                     </p>
                   )}
@@ -1179,15 +995,15 @@ function InfoTab({
               ) : (
                 <div>
                   <div className="mb-2 flex items-start gap-2">
-                    <Sparkles className="h-4 w-4 text-[#C9A96E] shrink-0 mt-0.5" />
-                    <p className="text-xs sm:text-sm text-[#5d6879] leading-relaxed">
+                    <Sparkles className="h-4 w-4 text-[#B89785] shrink-0 mt-0.5" />
+                    <p className="text-xs sm:text-sm text-[#635b51] leading-relaxed">
                       아직 우리 동기 데이터가 부족해요. 등록하면 우리끼리의 평균이 나와요.
                     </p>
                   </div>
                   {NATIONAL_AVG[cat.key as CohortContractCategory] > 0 && (
-                    <p className="text-xs sm:text-sm text-[#5d6879]">
+                    <p className="text-xs sm:text-sm text-[#635b51]">
                       전국 평균:{" "}
-                      <span className="font-medium text-[#071629]">
+                      <span className="font-medium text-[#263832]">
                         {NATIONAL_AVG[
                           cat.key as CohortContractCategory
                         ].toLocaleString()}
@@ -1357,7 +1173,7 @@ function ContractModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-[#9d6f36] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#102a4d] disabled:opacity-60"
+            className="flex-1 rounded-xl bg-[#7f5e58] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#36534e] disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>
@@ -1368,9 +1184,9 @@ function ContractModal({
 }
 
 // ────────────────────────────────────────
-// 이벤트 탭
+// 타임라인 탭
 // ────────────────────────────────────────
-function EventsTab({
+function TimelineTab({
   roomId,
   toastFn,
 }: {
@@ -1386,15 +1202,15 @@ function EventsTab({
       if (res.ok) {
         setEvents(data.events ?? []);
       } else {
-        toastFn.error(data.error ?? "이벤트 로드 실패");
+        toastFn.error(data.error ?? "타임라인 로드 실패");
       }
     })();
   }, [roomId, toastFn]);
 
   if (events.length === 0) {
     return (
-      <div className="rounded-xl bg-white p-8 text-center text-sm text-[#5d6879] shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        아직 이벤트가 없어요.
+      <div className="rounded-xl bg-white p-8 text-center text-sm text-[#635b51] shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        아직 타임라인 이벤트가 없어요.
       </div>
     );
   }
@@ -1410,7 +1226,7 @@ function EventsTab({
             key={ev.id}
             className="flex items-start gap-3 rounded-xl bg-white p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-xs font-medium text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-xs font-medium text-white">
               {ev.user?.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -1423,13 +1239,13 @@ function EventsTab({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#071629] leading-relaxed">
-                {nickname}님이{" "}
-                <span className="font-medium text-[#9d6f36]">{label}</span>{" "}
+              <p className="text-sm text-[#263832] leading-relaxed">
+                예신{nickname}가{" "}
+                <span className="font-medium text-[#7f5e58]">{label}</span>{" "}
                 완료!
               </p>
               {ev.description && (
-                <p className="mt-1 text-xs sm:text-sm text-[#5d6879]">{ev.description}</p>
+                <p className="mt-1 text-xs sm:text-sm text-[#635b51]">{ev.description}</p>
               )}
               <p className="mt-1.5 text-xs text-[#928980]">
                 {relativeTime(ev.created_at)}
@@ -1438,317 +1254,6 @@ function EventsTab({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
-// 동기방 멤버 공개 프로필
-// ────────────────────────────────────────
-type CohortPublicProfilePayload = {
-  profile: {
-    user_id: string;
-    nickname: string;
-    avatar_url: string | null;
-    rank: string | null;
-    wedding_year: number | null;
-    wedding_month: number | null;
-    wedding_completed: boolean;
-    post_count: number;
-    comment_count: number;
-    total_upvotes_received: number;
-    created_at: string;
-  };
-  posts: Array<{
-    id: string;
-    title: string;
-    category: string;
-    created_at: string;
-    upvote_count: number;
-    comment_count: number;
-  }>;
-};
-
-const REPORT_REASON_OPTIONS: Array<{ value: ReportReason; label: string }> = [
-  { value: "spam", label: "스팸/도배" },
-  { value: "abuse", label: "비방/공격" },
-  { value: "ad", label: "광고/홍보" },
-  { value: "inappropriate", label: "부적절한 내용" },
-  { value: "other", label: "기타" },
-];
-
-const POST_CATEGORY_LABEL: Record<string, string> = {
-  is_normal: "정상인가요?",
-  tour_review: "후기",
-  tips_v2: "꿀팁",
-  ama: "선배 Q&A",
-  free: "자유",
-};
-
-function CohortProfileModal({
-  roomId,
-  userId,
-  onClose,
-  toastFn,
-}: {
-  roomId: string;
-  userId: string | null;
-  onClose: () => void;
-  toastFn: ToastFnLike;
-}) {
-  const [payload, setPayload] = useState<CohortPublicProfilePayload | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reason, setReason] = useState<ReportReason>("abuse");
-  const [description, setDescription] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    setPayload(null);
-    setReportOpen(false);
-    setDescription("");
-    setLoading(true);
-
-    fetch(`/api/community/profiles/${encodeURIComponent(userId)}?room_id=${encodeURIComponent(roomId)}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "프로필을 불러올 수 없습니다.");
-        if (!cancelled) setPayload(data as CohortPublicProfilePayload);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) toastFn.error(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [roomId, userId, toastFn]);
-
-  async function submitReport() {
-    if (!userId || submitting) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch(
-        `/api/community/cohort/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason, description }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        toastFn.error(data.error ?? "신고 접수에 실패했습니다.");
-        return;
-      }
-      toastFn.success(
-        data.reviewRequired
-          ? "신고가 접수됐고 관리자 검토 기준에 도달했어요."
-          : "신고가 접수됐어요. 5명 이상 신고 시 관리자 검토 목록에 올라갑니다."
-      );
-      setReportOpen(false);
-      setDescription("");
-    } catch {
-      toastFn.error("네트워크 오류로 신고하지 못했습니다.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (!userId) return null;
-
-  const profile = payload?.profile;
-  const nickname = profile?.nickname ?? "멤버";
-  const initial = nickname[0] ?? "?";
-  const quarterLabel =
-    profile?.wedding_year && profile?.wedding_month
-      ? `${profile.wedding_year}년 ${monthToQuarter(profile.wedding_month)}분기`
-      : "결혼 시기 미공개";
-  const rank = rankIcon(profile?.rank);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[#eadfc9] px-5 py-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#928980]">
-              공개 프로필
-            </p>
-            <h3 className="mt-1 font-serif-kr text-2xl text-[#071629]">
-              {nickname}
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-[#928980] transition hover:bg-[#fff8ec] hover:text-[#071629]"
-            title="닫기"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-[#5d6879]">
-            <Loader2 className="h-5 w-5 animate-spin text-[#9d6f36]" />
-            불러오는 중...
-          </div>
-        ) : profile ? (
-          <div className="max-h-[75vh] overflow-y-auto p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-lg font-medium text-white">
-                {profile.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={profile.avatar_url}
-                    alt=""
-                    className="h-full w-full rounded-full object-cover"
-                  />
-                ) : (
-                  initial
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-serif-kr text-xl text-[#071629]">{nickname}</p>
-                  {rank && (
-                    <span className="rounded-full bg-[#fff8ec] px-2 py-1 text-xs text-[#9d6f36]">
-                      {rank}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-[#5d6879]">{quarterLabel} 동기</p>
-                <p className="mt-1 text-xs text-[#928980]">
-                  공개 글과 커뮤니티 활동만 보여요.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReportOpen((v) => !v)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#eadfc9] px-4 py-2 text-sm font-medium text-[#5d6879] transition hover:border-red-300 hover:text-red-600"
-              >
-                <Flag className="h-4 w-4" />
-                신고
-              </button>
-            </div>
-
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {[
-                { label: "공개 글", value: profile.post_count },
-                { label: "댓글", value: profile.comment_count },
-                { label: "받은 추천", value: profile.total_upvotes_received },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-[#fff8ec] px-3 py-3 text-center">
-                  <p className="font-serif-kr text-xl text-[#071629]">{item.value ?? 0}</p>
-                  <p className="mt-1 text-xs text-[#928980]">{item.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {reportOpen && (
-              <div className="mt-5 rounded-xl border border-red-100 bg-red-50/40 p-4">
-                <p className="text-sm font-medium text-[#071629]">이 멤버 신고하기</p>
-                <p className="mt-1 text-xs text-[#5d6879]">
-                  같은 동기방 멤버의 신고가 5건 이상 모이면 관리자 검토 대상이 됩니다.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {REPORT_REASON_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setReason(option.value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        reason === option.value
-                          ? "bg-red-600 text-white"
-                          : "bg-white text-[#5d6879] hover:text-red-600"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="상황을 간단히 적어주세요. 실명·연락처는 쓰지 마세요."
-                  rows={3}
-                  className="mt-3 w-full resize-none rounded-xl border border-red-100 bg-white px-3 py-2 text-sm text-[#071629] outline-none focus:ring-2 focus:ring-red-200"
-                />
-                <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReportOpen(false)}
-                    className="rounded-xl border border-[#eadfc9] px-4 py-2 text-sm text-[#5d6879]"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={submitReport}
-                    disabled={submitting}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                    신고 접수
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6">
-              <div className="mb-3 flex items-center justify-between">
-                <h4 className="font-serif-kr text-lg text-[#071629]">최근 공개 글</h4>
-                <span className="text-xs text-[#928980]">
-                  공개 글만 표시
-                </span>
-              </div>
-              {payload.posts.length === 0 ? (
-                <div className="rounded-xl bg-[#fff8ec] p-5 text-center text-sm text-[#5d6879]">
-                  아직 공개 글이 없어요.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {payload.posts.map((post) => (
-                    <a
-                      key={post.id}
-                      href={`/community/post/${post.id}`}
-                      className="block rounded-xl border border-[#eadfc9] p-4 transition hover:border-[#9d6f36] hover:bg-[#fffdf7]"
-                    >
-                      <div className="flex items-center gap-2 text-xs text-[#928980]">
-                        <span className="rounded-full bg-[#fff8ec] px-2 py-0.5 text-[#9d6f36]">
-                          {POST_CATEGORY_LABEL[post.category] ?? post.category}
-                        </span>
-                        <span>{relativeTime(post.created_at)}</span>
-                      </div>
-                      <p className="mt-2 line-clamp-1 font-serif-kr text-lg text-[#071629]">
-                        {post.title}
-                      </p>
-                      <p className="mt-1 text-xs text-[#5d6879]">
-                        추천 {post.upvote_count ?? 0} · 댓글 {post.comment_count ?? 0}
-                      </p>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="py-16 text-center text-sm text-[#5d6879]">
-            프로필을 불러오지 못했어요.
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -1766,34 +1271,31 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
       .catch(() => {});
   }, [roomId]);
 
+  const RANK_COLORS: Record<number, string> = { 0: "text-[#B89785]", 1: "text-[#B5ADA3]", 2: "text-[#C4967E]" };
+
   return (
     <div>
-      <h3 className="mb-4 flex items-center gap-2 border-b border-[#eadfc9] pb-2 font-serif-kr text-xl text-[#071629]">
-        <Flame className="h-4 w-4 fill-[#d77458] text-[#d77458]" />
-        커뮤니티 인기글
+      <h3 className="font-serif-kr text-xl text-[#263832] mb-4 border-b border-[#e5d8ca] pb-2">
+        🔥 인기글
       </h3>
       {posts.length === 0 ? (
-        <p className="text-sm text-[#5d6879] py-2">아직 인기글이 없어요</p>
+        <p className="text-sm text-[#635b51] py-2">아직 인기글이 없어요</p>
       ) : (
         <ul className="space-y-3.5">
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group cursor-pointer">
               <a href={`/community/post/${p.id}`} className="flex items-start space-x-2.5">
-                <span className={`font-serif-kr italic text-xl leading-none mt-0.5 shrink-0 text-[#9d6f36] ${
+                <span className={`font-serif-kr italic text-xl leading-none mt-0.5 shrink-0 text-[#7f5e58] ${
                   i === 0 ? "" : i === 1 ? "opacity-70" : i === 2 ? "opacity-50" : "opacity-30"
                 }`}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm text-[#071629] group-hover:text-[#9d6f36] transition-colors line-clamp-2 leading-snug">
+                  <h4 className="text-sm text-[#263832] group-hover:text-[#7f5e58] transition-colors line-clamp-2 leading-snug">
                     {p.title}
                   </h4>
-                  <p className="mt-1 flex items-center gap-2 text-xs text-[#928980]">
-                    <span>추천 {p.upvote_count}</span>
-                    <span className="inline-flex items-center gap-1">
-                      <MessageCircle className="h-3 w-3" />
-                      {p.comment_count}
-                    </span>
+                  <p className="text-xs text-[#928980] mt-1">
+                    ▲ {p.upvote_count} &middot; 💬 {p.comment_count}
                   </p>
                 </div>
               </a>
@@ -1809,25 +1311,15 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 // 오른쪽 사이드바: 멤버 프리뷰
 // ────────────────────────────────────────
 const MEMBER_GRADIENTS = [
-  "from-[#C4967E] to-[#C9A96E]",
+  "from-[#C4967E] to-[#B89785]",
   "from-[#A8D8A8] to-[#6BBF6B]",
   "from-[#7EB8D8] to-[#5A9CC0]",
-  "from-[#C9A96E] to-[#DCC9A0]",
+  "from-[#B89785] to-[#DCC9A0]",
   "from-[#D88B8B] to-[#C06B6B]",
   "from-[#B39DDB] to-[#7E57C2]",
 ];
 
-function CohortMemberPreview({
-  roomId,
-  memberCount,
-  onProfileOpen,
-  compact = false,
-}: {
-  roomId: string;
-  memberCount: number;
-  onProfileOpen: (userId: string) => void;
-  compact?: boolean;
-}) {
+function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCount: number }) {
   const [members, setMembers] = useState<{ user_id: string; nickname: string; avatar_url?: string | null }[]>([]);
 
   useEffect(() => {
@@ -1856,40 +1348,29 @@ function CohortMemberPreview({
     <div>
       <div className="flex items-center justify-between mb-2.5 px-2">
         <h3 className="text-[11px] font-medium text-[#928980] uppercase tracking-wider">멤버</h3>
-        <span className="text-xs text-[#5d6879]">{memberCount}명</span>
+        <span className="text-xs text-[#635b51]">{memberCount}명</span>
       </div>
-      <div className={`flex gap-2 px-1 ${compact ? "overflow-x-auto pb-1" : "flex-wrap"}`}>
+      <div className="flex flex-wrap gap-2 px-1">
         {members.slice(0, 8).map((m) => {
           const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
           return (
-            <button
+            <div
               key={m.user_id}
-              type="button"
-              onClick={() => onProfileOpen(m.user_id)}
-              className={`${compact ? "w-14 flex-shrink-0" : "w-16"} flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#9d6f36]/25`}
+              className="flex flex-col items-center gap-1 w-12"
               title={m.nickname}
             >
-              <div className={`h-11 w-11 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-sm font-medium shadow-sm`}>
-                {m.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={m.avatar_url}
-                    alt=""
-                    className="h-full w-full rounded-full object-cover"
-                  />
-                ) : (
-                  m.nickname[0]
-                )}
+              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
+                {m.nickname[0]}
               </div>
-              <span className="w-full truncate text-center text-[11px] text-[#5d6879]">
+              <span className="text-[10px] text-[#635b51] truncate w-full text-center">
                 {m.nickname}
               </span>
-            </button>
+            </div>
           );
         })}
         {memberCount > 8 && (
-          <div className={`${compact ? "w-14 flex-shrink-0" : "w-16"} flex flex-col items-center gap-1 px-1 py-1.5`}>
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff8ec] text-xs font-medium text-[#5d6879]">
+          <div className="flex flex-col items-center gap-1 w-12">
+            <div className="w-9 h-9 rounded-full bg-[#f6efe5] flex items-center justify-center text-xs text-[#635b51] font-medium">
               +{memberCount - 8}
             </div>
           </div>

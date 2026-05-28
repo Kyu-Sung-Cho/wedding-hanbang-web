@@ -144,9 +144,9 @@ export default function QuickReviewPage() {
                 >
                   <Star
                     className={`w-8 h-8 transition ${
-                      active ? "text-[#C9A96E]" : "text-[#F0EFED]"
+                      active ? "text-[#B89785]" : "text-[#F0EFED]"
                     }`}
-                    fill={active ? "#C9A96E" : "none"}
+                    fill={active ? "#B89785" : "none"}
                   />
                 </button>
               );
@@ -178,7 +178,7 @@ export default function QuickReviewPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "후기 등록"}
         </button>

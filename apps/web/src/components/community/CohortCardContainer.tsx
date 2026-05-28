@@ -63,7 +63,7 @@ export default function CohortCardContainer() {
   }, []);
 
   if (loading) {
-    return <div className="rounded-xl bg-gradient-to-br from-[#9d6f36] to-[#102a4d] h-28 animate-pulse" />;
+    return <div className="rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#36534e] h-28 animate-pulse" />;
   }
 
   return (

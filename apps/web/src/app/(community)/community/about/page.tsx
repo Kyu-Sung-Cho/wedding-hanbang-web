@@ -18,24 +18,24 @@ import {
 export const metadata = {
   title: "웨딩한방 안내",
   description:
-    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 상담까지 한 곳에서.",
+    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 견적 체크리스트까지 한 곳에서.",
 };
 
 export default function CommunityAboutPage() {
   return (
-    <div className="min-h-screen bg-[#fffdf7]">
+    <div className="min-h-screen bg-[#fbf8f2]">
       {/* ─── Hero ─── */}
       <section className="px-4 sm:px-6 md:px-10 pt-16 sm:pt-24 pb-12 sm:pb-16">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs tracking-[0.3em] text-[#9d6f36] mb-5 font-medium uppercase">
+          <p className="text-xs tracking-[0.3em] text-[#7f5e58] mb-5 font-medium uppercase">
             Wedding Hanbang Guide
           </p>
-          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#071629] leading-[1.2] tracking-[-0.01em] mb-6">
+          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#263832] leading-[1.2] tracking-[-0.01em] mb-6">
             혼자 고민하지 마세요.
             <br />
-            <em className="not-italic text-[#9d6f36]">함께 준비해요.</em>
+            <em className="not-italic text-[#7f5e58]">함께 준비해요.</em>
           </h1>
-          <p className="text-base sm:text-lg text-[#5d6879] font-light leading-relaxed max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed max-w-xl mx-auto">
             웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를
             나누는 공간이에요. 같은 시기에 결혼하는 동기들과 함께,
             실제 경험을 참고해 더 차분하게 결정해보세요.
@@ -44,16 +44,16 @@ export default function CommunityAboutPage() {
       </section>
 
       {/* ─── 우리의 취지 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-white border-y border-[#eadfc9]">
+      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-white border-y border-[#e5d8ca]">
         <div className="max-w-3xl mx-auto">
           <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase">
             Why we exist
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#071629] mb-8 leading-snug">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-8 leading-snug">
             왜 만들었나요?
           </h2>
 
-          <div className="space-y-6 text-[#071629]">
+          <div className="space-y-6 text-[#263832]">
             <p className="text-base sm:text-lg leading-[1.85] font-light">
               결혼 준비는 처음이라 모든 게 막막해요. 스드메 가격이 적정한지,
               예식장 추가금이 정상인지, 어디서 정보를 얻어야 할지 알기 어려워요.
@@ -64,7 +64,7 @@ export default function CommunityAboutPage() {
               필요 이상의 비용을 치르거나, 후회되는 결정을 내리게 돼요.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
-              <span className="font-medium text-[#9d6f36]">웨딩한방 커뮤니티</span>는
+              <span className="font-medium text-[#7f5e58]">웨딩한방 커뮤니티</span>는
               실제 경험한 신랑신부들이 솔직한 후기와 가격 정보를 나누고,
               같은 시기에 결혼하는 동기들끼리 응원하는 공간이에요.
               혼자 고민하던 결정을 함께 풀어나가요.
@@ -79,7 +79,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase text-center">
             What you can do
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#071629] mb-12 leading-snug text-center">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-12 leading-snug text-center">
             여기서 할 수 있는 것
           </h2>
 
@@ -89,8 +89,8 @@ export default function CommunityAboutPage() {
                 icon: MessageCircle,
                 title: "솔직한 후기 읽기",
                 desc: "스드메, 예식장, 신혼여행까지 — 직접 경험한 사람들의 가격, 사진, 평가를 한 번에 비교해요.",
-                color: "from-[#9d6f36]/15 to-[#9d6f36]/5",
-                iconColor: "text-[#9d6f36]",
+                color: "from-[#7f5e58]/15 to-[#7f5e58]/5",
+                iconColor: "text-[#7f5e58]",
               },
               {
                 icon: Users,
@@ -110,8 +110,8 @@ export default function CommunityAboutPage() {
                 icon: PenSquare,
                 title: "내 경험 나누기",
                 desc: "사진, 영상과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
-                color: "from-[#C9A96E]/20 to-[#C9A96E]/5",
-                iconColor: "text-[#C9A96E]",
+                color: "from-[#B89785]/20 to-[#B89785]/5",
+                iconColor: "text-[#B89785]",
               },
               {
                 icon: TrendingUp,
@@ -122,17 +122,17 @@ export default function CommunityAboutPage() {
               },
               {
                 icon: Sparkles,
-                title: "아모라 질문 정리",
-                desc: "받은 견적서와 업체 답변에서 다시 확인할 질문을 차분하게 정리해요.",
-                color: "from-[#102a4d]/20 to-[#102a4d]/5",
-                iconColor: "text-[#102a4d]",
+                title: "아모라 견적 체크리스트",
+                desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
+                color: "from-[#36534e]/20 to-[#36534e]/5",
+                iconColor: "text-[#36534e]",
               },
             ].map((feature) => {
               const Icon = feature.icon;
               return (
                 <div
                   key={feature.title}
-                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[#9d6f36]/30 hover:shadow-sm transition-all"
+                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[#7f5e58]/30 hover:shadow-sm transition-all"
                 >
                   <div
                     className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center`}
@@ -140,10 +140,10 @@ export default function CommunityAboutPage() {
                     <Icon className={`w-6 h-6 ${feature.iconColor}`} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-[#071629] mb-1.5 leading-snug">
+                    <h3 className="text-lg font-semibold text-[#263832] mb-1.5 leading-snug">
                       {feature.title}
                     </h3>
-                    <p className="text-sm sm:text-base text-[#5d6879] font-light leading-relaxed">
+                    <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed">
                       {feature.desc}
                     </p>
                   </div>
@@ -160,7 +160,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase text-center">
             Our promise
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#071629] mb-10 leading-snug text-center">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-10 leading-snug text-center">
             우리의 약속
           </h2>
 
@@ -202,26 +202,26 @@ export default function CommunityAboutPage() {
                 >
                   <rule.Icon className="w-5 h-5" strokeWidth={2.5} />
                 </div>
-                <div className="text-base font-semibold text-[#071629] mb-1">
+                <div className="text-base font-semibold text-[#263832] mb-1">
                   {rule.label}
                 </div>
-                <div className="text-sm text-[#5d6879] font-light leading-relaxed">
+                <div className="text-sm text-[#635b51] font-light leading-relaxed">
                   {rule.desc}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-gradient-to-br from-[#fffdf7] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
+          <div className="bg-gradient-to-br from-[#fbf8f2] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
             <div className="flex items-start gap-4">
-              <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#9d6f36] to-[#C9A96E] flex items-center justify-center">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#7f5e58] to-[#B89785] flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-[#071629] mb-2">
+                <h3 className="text-lg font-semibold text-[#263832] mb-2">
                   광고와 추천은 분명히 구분합니다
                 </h3>
-                <p className="text-sm sm:text-base text-[#5d6879] font-light leading-relaxed">
+                <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed">
                   업체와 협력 관계에 있는 글은 명확히 표시되고, 알고리즘
                   추천에서 제외돼요. 신고된 글은 별도 기준으로 검토되며,
                   거짓·과장된 후기는 제재 대상이에요. 신뢰는 우리 커뮤니티의
@@ -234,7 +234,7 @@ export default function CommunityAboutPage() {
       </section>
 
       {/* ─── 신뢰 기반 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[#071629] text-white">
+      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[#263832] text-white">
         <div className="max-w-3xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
@@ -258,7 +258,7 @@ export default function CommunityAboutPage() {
               return (
                 <div key={item.title} className="text-center">
                   <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-                    <Icon className="w-6 h-6 text-[#C9A96E]" />
+                    <Icon className="w-6 h-6 text-[#B89785]" />
                   </div>
                   <h3 className="font-serif-kr text-xl text-white mb-2 leading-snug">
                     {item.title}
@@ -276,11 +276,11 @@ export default function CommunityAboutPage() {
       {/* ─── CTA ─── */}
       <section className="px-4 sm:px-6 md:px-10 py-16 sm:py-20">
         <div className="max-w-2xl mx-auto text-center">
-          <Star className="w-8 h-8 text-[#C9A96E] mx-auto mb-5" />
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#071629] mb-4 leading-snug">
+          <Star className="w-8 h-8 text-[#B89785] mx-auto mb-5" />
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-4 leading-snug">
             지금 시작해보세요
           </h2>
-          <p className="text-base sm:text-lg text-[#5d6879] font-light leading-relaxed mb-8 max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed mb-8 max-w-xl mx-auto">
             서로의 경험이 누군가에게는 큰 도움이 됩니다.
             <br />
             지금 바로 커뮤니티를 둘러보세요.
@@ -288,14 +288,14 @@ export default function CommunityAboutPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href="/community"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href="/community/post/write"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[#eadfc9] text-[#071629] text-base font-medium hover:bg-[#fffdf7] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[#e5d8ca] text-[#263832] text-base font-medium hover:bg-[#fbf8f2] transition-all"
             >
               <PenSquare className="w-4 h-4" />첫 글 쓰러 가기
             </Link>

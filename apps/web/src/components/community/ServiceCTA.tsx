@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarCheck,
+  FileSearch,
   HelpCircle,
   MessageCircle,
   Wallet,
@@ -25,11 +26,11 @@ interface CTAConfig {
 
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
-    icon: MessageCircle,
-    label: "질문 정리",
-    title: "이 견적에서 더 물어볼 내용을 먼저 정리해볼까요?",
-    subtext: "조건과 맥락을 정리해 업체에 다시 확인할 질문을 다듬습니다.",
-    href: "/chat",
+    icon: FileSearch,
+    label: "견적 확인",
+    title: "이 견적, 계약 전에 한 번 더 확인해볼까요?",
+    subtext: "빠진 항목, 추가금 가능성, 업체에 물어볼 질문을 정리합니다.",
+    href: "/community/quote-check",
   },
   tour_review: {
     icon: MessageCircle,
@@ -88,7 +89,7 @@ export default function ServiceCTA({ category }: ServiceCTAProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-3 py-3 sm:px-4">
+    <div className="rounded-lg border border-[#e4ded9] bg-[#f6efe5] px-3 py-3 sm:px-4">
       <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-[#928980]">
         다음 행동
       </p>
@@ -126,19 +127,19 @@ function ServiceAction({
 }: CTAConfig) {
   return (
     <Link href={href} className="group flex items-start gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#7f5e58] transition-colors group-hover:border-[#dfc9c1]">
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="mb-0.5 block text-[10px] font-medium text-[#928980]">{label}</span>
-        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
+        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#7f5e58]">
           {title}
         </span>
-        <span className="mt-0.5 block text-[12px] leading-snug text-[#5d6879]">
+        <span className="mt-0.5 block text-[12px] leading-snug text-[#635b51]">
           {subtext}
         </span>
       </span>
-      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#7f5e58]" />
     </Link>
   );
 }

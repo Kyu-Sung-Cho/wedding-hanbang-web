@@ -87,8 +87,8 @@ const typeConfig: Record<
     Icon: Info,
   },
   warning: {
-    border: "border-l-[#C9A96E]",
-    iconBg: "text-[#C9A96E]",
+    border: "border-l-[#B89785]",
+    iconBg: "text-[#B89785]",
     Icon: AlertTriangle,
   },
 };

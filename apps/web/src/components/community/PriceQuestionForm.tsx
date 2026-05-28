@@ -55,7 +55,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
         </div>
         <div
           className={`w-10 h-6 rounded-full transition-colors relative ${
-            enabled ? "bg-[#9d6f36]" : "bg-[#F0EFED]"
+            enabled ? "bg-[#7f5e58]" : "bg-[#F0EFED]"
           }`}
         >
           <div

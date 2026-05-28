@@ -9,10 +9,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (request.nextUrl.pathname === "/community/quote-check") {
-    return NextResponse.redirect(new URL("/community", request.url));
-  }
-
   return await updateSession(request);
 }
 

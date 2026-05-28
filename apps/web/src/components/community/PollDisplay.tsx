@@ -128,14 +128,14 @@ export default function PollDisplay({
   };
 
   return (
-    <section className="mt-5 bg-gradient-to-br from-[#fffdf7] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[0_4px_20px_rgb(121,82,82,0.04)]">
+    <section className="mt-5 bg-gradient-to-br from-[#fbf8f2] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[0_4px_20px_rgb(121,82,82,0.04)]">
       {/* 헤더 */}
       <div className="flex items-start gap-3 mb-4">
-        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[#9d6f36]/10 text-[#9d6f36]">
+        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[#7f5e58]/10 text-[#7f5e58]">
           <BarChart3 className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-[#071629] leading-snug break-words">
+          <h3 className="text-base font-semibold text-[#263832] leading-snug break-words">
             {poll.question}
           </h3>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#928980]">
@@ -158,7 +158,7 @@ export default function PollDisplay({
             {remaining && (
               <span
                 className={`inline-flex items-center gap-1 ${
-                  isClosed ? "text-[#928980]" : "text-[#9d6f36] font-medium"
+                  isClosed ? "text-[#928980]" : "text-[#7f5e58] font-medium"
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -171,7 +171,7 @@ export default function PollDisplay({
 
       {/* 안내: 결과 가림 */}
       {!showResults && (
-        <div className="mb-3 px-3 py-2 text-xs text-[#9d6f36] bg-[#fffdf7] border border-[#f0eeec] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[#7f5e58] bg-[#fbf8f2] border border-[#f0eeec] rounded-lg flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           투표하면 결과가 공개돼요. 다른 사람들의 의견에 영향받지 않게 먼저 골라주세요.
         </div>
@@ -179,7 +179,7 @@ export default function PollDisplay({
 
       {/* 안내: 마감됨 */}
       {isClosed && (
-        <div className="mb-3 px-3 py-2 text-xs text-[#5d6879] bg-[#fff8ec] border border-[#eadfc9] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[#635b51] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           마감된 투표예요. 더 이상 변경할 수 없어요.
         </div>
@@ -203,15 +203,15 @@ export default function PollDisplay({
               disabled={disabled}
               className={`group relative w-full overflow-hidden rounded-xl border transition-all duration-200 ${
                 isSelected
-                  ? "border-[#9d6f36] bg-white shadow-[0_2px_8px_rgb(121,82,82,0.12)]"
-                  : "border-[#eadfc9] bg-white hover:border-[#9d6f36] hover:bg-[#fffdf7]"
+                  ? "border-[#7f5e58] bg-white shadow-[0_2px_8px_rgb(121,82,82,0.12)]"
+                  : "border-[#e5d8ca] bg-white hover:border-[#7f5e58] hover:bg-[#fbf8f2]"
               } ${disabled && !isPending ? "cursor-not-allowed opacity-90" : ""}`}
             >
               {/* 결과 막대 (배경) */}
               {showResults && (
                 <div
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ease-out ${
-                    isSelected ? "bg-[#9d6f36]/12" : "bg-[#fff8ec]"
+                    isSelected ? "bg-[#7f5e58]/12" : "bg-[#f6efe5]"
                   }`}
                   style={{ width: `${percent}%` }}
                   aria-hidden
@@ -222,7 +222,7 @@ export default function PollDisplay({
               <div className="relative flex items-center gap-3 px-3 py-3">
                 {/* 옵션 이미지 */}
                 {opt.image_url && (
-                  <div className="shrink-0 relative w-12 h-12 rounded-lg overflow-hidden border border-[#f0eeec] bg-[#fff8ec]">
+                  <div className="shrink-0 relative w-12 h-12 rounded-lg overflow-hidden border border-[#f0eeec] bg-[#f6efe5]">
                     <Image
                       src={opt.image_url}
                       alt=""
@@ -240,7 +240,7 @@ export default function PollDisplay({
                       : "w-5 h-5 rounded-full border-2"
                   } ${
                     isSelected
-                      ? "border-[#9d6f36] bg-[#9d6f36] text-white"
+                      ? "border-[#7f5e58] bg-[#7f5e58] text-white"
                       : "border-[#B5ADA3] bg-white"
                   }`}
                 >
@@ -256,7 +256,7 @@ export default function PollDisplay({
                 <div className="flex-1 text-left min-w-0">
                   <p
                     className={`text-base leading-snug break-words ${
-                      isSelected ? "font-semibold text-[#071629]" : "font-medium text-[#071629]"
+                      isSelected ? "font-semibold text-[#263832]" : "font-medium text-[#263832]"
                     }`}
                   >
                     {opt.label}
@@ -265,7 +265,7 @@ export default function PollDisplay({
 
                 {/* 결과 숫자 */}
                 <div className="shrink-0 flex items-center gap-2 text-right">
-                  {isPending && <Loader2 className="w-4 h-4 text-[#9d6f36] animate-spin" />}
+                  {isPending && <Loader2 className="w-4 h-4 text-[#7f5e58] animate-spin" />}
                   {showResults && (
                     <>
                       <span className="text-xs text-[#928980] tabular-nums">
@@ -273,7 +273,7 @@ export default function PollDisplay({
                       </span>
                       <span
                         className={`text-base font-semibold tabular-nums ${
-                          isSelected ? "text-[#9d6f36]" : "text-[#5d6879]"
+                          isSelected ? "text-[#7f5e58]" : "text-[#635b51]"
                         }`}
                       >
                         {percent}%

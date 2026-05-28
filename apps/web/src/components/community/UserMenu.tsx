@@ -92,7 +92,7 @@ export default function UserMenu() {
               const Icon = item.Icon;
               const inner = (
                 <div className="flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#FAFAF8] transition-colors">
-                  <Icon className="w-4 h-4 text-[#9d6f36] shrink-0" />
+                  <Icon className="w-4 h-4 text-[#7f5e58] shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-[#1A1A1F] leading-tight">
                       {item.label}

@@ -183,8 +183,8 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           {data.advice && (
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
-                <MessageSquareText className="w-3.5 h-3.5 text-[#C9A96E]" />
-                <span className="text-xs font-medium text-[#C9A96E]">
+                <MessageSquareText className="w-3.5 h-3.5 text-[#B89785]" />
+                <span className="text-xs font-medium text-[#B89785]">
                   조언
                 </span>
               </div>

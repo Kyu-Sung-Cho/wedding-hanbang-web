@@ -121,7 +121,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-base font-semibold text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-base font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "등록"}
             </button>

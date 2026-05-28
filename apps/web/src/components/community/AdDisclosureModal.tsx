@@ -101,7 +101,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full bg-[#9d6f36] text-white rounded-xl py-3 font-medium hover:bg-[#102a4d] transition-colors"
+          className="mt-6 w-full bg-[#7f5e58] text-white rounded-xl py-3 font-medium hover:bg-[#36534e] transition-colors"
         >
           확인
         </button>

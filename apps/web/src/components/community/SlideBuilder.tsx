@@ -178,7 +178,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || remaining <= 0}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-br from-[#9d6f36] to-[#102a4d] text-white text-sm font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-br from-[#7f5e58] to-[#36534e] text-white text-sm font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? (
             <>
@@ -206,7 +206,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           {slides.map((slide, idx) => (
             <div
               key={`${slide.url}-${idx}`}
-              className="relative group rounded-xl overflow-hidden border border-[#F0EFED] bg-[#fffdf7] aspect-square"
+              className="relative group rounded-xl overflow-hidden border border-[#F0EFED] bg-[#fbf8f2] aspect-square"
             >
               {/* 미디어 미리보기 */}
               {slide.type === "video" ? (
@@ -276,11 +276,11 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           ))}
         </div>
       ) : (
-        <div className="px-6 py-10 rounded-xl border-2 border-dashed border-[#eadfc9] bg-[#fffdf7] text-center">
+        <div className="px-6 py-10 rounded-xl border-2 border-dashed border-[#e5d8ca] bg-[#fbf8f2] text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white border border-[#F0EFED] mb-3">
             <ImageIcon className="w-5 h-5 text-[#928980]" />
           </div>
-          <p className="text-sm text-[#5d6879]">아직 추가된 슬라이드가 없어요</p>
+          <p className="text-sm text-[#635b51]">아직 추가된 슬라이드가 없어요</p>
           <p className="text-xs text-[#928980] mt-1">위 버튼으로 이미지·영상을 추가하세요</p>
         </div>
       )}

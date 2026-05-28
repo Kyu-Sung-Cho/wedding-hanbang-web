@@ -21,10 +21,10 @@ interface BannerConfig {
 
 const BANNER_OPTIONS: BannerConfig[] = [
   {
-    eyebrow: "가격 사례",
-    title: "비슷한 조건의 후기와 가격 이야기를 먼저 볼까요?",
-    subtext: "실제 글과 동기방 대화를 바탕으로 판단 기준을 모아갑니다.",
-    href: "/community?category=tour_review&search=견적&feed=all#community-feed",
+    eyebrow: "견적 확인",
+    title: "받은 견적에서 빠진 항목이 있는지 먼저 볼까요?",
+    subtext: "추가금 가능성과 계약 전 질문을 한 번에 정리합니다.",
+    href: "/community/quote-check",
     icon: "quote",
   },
   {
@@ -78,10 +78,10 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
   return (
     <Link
       href={banner.href}
-      className="group block rounded-lg border border-[#e4ded9] bg-[#fff8ec] px-4 py-4 transition-colors hover:border-[#d8bb86] hover:bg-white sm:px-5"
+      className="group block rounded-lg border border-[#e4ded9] bg-[#f6efe5] px-4 py-4 transition-colors hover:border-[#dfc9c1] hover:bg-white sm:px-5"
     >
       <div className="flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#9d6f36] transition-colors group-hover:border-[#d8bb86]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#7f5e58] transition-colors group-hover:border-[#dfc9c1]">
           <Icon className="h-5 w-5" />
         </span>
 
@@ -89,15 +89,15 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
           <p className="mb-1 text-[11px] font-medium tracking-[0.18em] text-[#928980]">
             {banner.eyebrow}
           </p>
-          <p className="text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#9d6f36]">
+          <p className="text-[15px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#7f5e58]">
             {banner.title}
           </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-[#5d6879]">
+          <p className="mt-1 text-[13px] leading-relaxed text-[#635b51]">
             {banner.subtext}
           </p>
         </div>
 
-        <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#9d6f36]" />
+        <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#7f5e58]" />
       </div>
     </Link>
   );

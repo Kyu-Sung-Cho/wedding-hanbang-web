@@ -224,7 +224,7 @@ export default function VendorDetailPage() {
               />
             </div>
           ) : (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#fffdf7] to-[#f0efed] flex items-center justify-center shrink-0">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#fbf8f2] to-[#f0efed] flex items-center justify-center shrink-0">
               <Tag className="w-8 h-8 text-[#B5ADA3]" />
             </div>
           )}
@@ -249,8 +249,8 @@ export default function VendorDetailPage() {
               {vendor?.rating != null && (
                 <>
                   <span>·</span>
-                  <span className="inline-flex items-center gap-1 text-[#C9A96E]">
-                    <Star className="w-3.5 h-3.5 fill-[#C9A96E]" />
+                  <span className="inline-flex items-center gap-1 text-[#B89785]">
+                    <Star className="w-3.5 h-3.5 fill-[#B89785]" />
                     {vendor.rating.toFixed(1)}
                     {vendor.review_count != null && (
                       <span className="text-[#B5ADA3]">({vendor.review_count})</span>
@@ -260,7 +260,7 @@ export default function VendorDetailPage() {
               )}
             </div>
             {vendor?.description && (
-              <p className="mt-2.5 text-sm text-[#5d6879] leading-relaxed line-clamp-2">
+              <p className="mt-2.5 text-sm text-[#635b51] leading-relaxed line-clamp-2">
                 {vendor.description}
               </p>
             )}
@@ -279,7 +279,7 @@ export default function VendorDetailPage() {
           icon={<Star className="w-3.5 h-3.5" />}
           label="평균 별점"
           value={tag?.avg_rating != null ? tag.avg_rating.toFixed(1) : "-"}
-          accent={tag?.avg_rating != null ? "#C9A96E" : undefined}
+          accent={tag?.avg_rating != null ? "#B89785" : undefined}
         />
         <Stat
           label="평균 기본금"
@@ -347,8 +347,8 @@ export default function VendorDetailPage() {
                     {post.rating != null && (
                       <>
                         <span>·</span>
-                        <span className="inline-flex items-center gap-1 text-[#C9A96E]">
-                          <Star className="w-3.5 h-3.5 fill-[#C9A96E]" />
+                        <span className="inline-flex items-center gap-1 text-[#B89785]">
+                          <Star className="w-3.5 h-3.5 fill-[#B89785]" />
                           {post.rating}
                         </span>
                       </>
@@ -432,7 +432,7 @@ function BookingSection({
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[#1A1A1F]">
-          <Calendar className="w-4 h-4 text-[#9d6f36]" />
+          <Calendar className="w-4 h-4 text-[#7f5e58]" />
           <h2 className="font-serif text-lg font-medium" style={{ fontFamily: "'Noto Serif KR', serif" }}>
             예약 가능 시간
           </h2>
@@ -457,21 +457,21 @@ function BookingSection({
                   onClick={() => onSelectProduct(product.id)}
                   className={`group flex-1 min-w-[200px] text-left rounded-xl border px-4 py-3 transition-all ${
                     selected
-                      ? "border-[#9d6f36] bg-[#fff8ec] shadow-sm"
-                      : "border-[#F0EFED] bg-white hover:border-[#d8bb86]"
+                      ? "border-[#7f5e58] bg-[#f6efe5] shadow-sm"
+                      : "border-[#F0EFED] bg-white hover:border-[#dfc9c1]"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-[#1A1A1F]">{product.name}</span>
                     {product.is_popular && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#C9A96E]/10 text-[10px] text-[#C9A96E] font-medium">
-                        <Star className="w-2.5 h-2.5 fill-[#C9A96E]" />
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#B89785]/10 text-[10px] text-[#B89785] font-medium">
+                        <Star className="w-2.5 h-2.5 fill-[#B89785]" />
                         인기
                       </span>
                     )}
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-base font-semibold text-[#9d6f36]">
+                    <span className="text-base font-semibold text-[#7f5e58]">
                       {formatPrice(displayPrice)}
                     </span>
                     {product.discount_price && (
@@ -499,8 +499,8 @@ function BookingSection({
               onClick={() => onSelectStaff(null)}
               className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm transition-all ${
                 selectedStaffId === null
-                  ? "border border-[#9d6f36] bg-[#9d6f36] text-white"
-                  : "border border-[#F0EFED] bg-white text-[#5d6879] hover:border-[#d8bb86]"
+                  ? "border border-[#7f5e58] bg-[#7f5e58] text-white"
+                  : "border border-[#F0EFED] bg-white text-[#635b51] hover:border-[#dfc9c1]"
               }`}
             >
               <Users className="w-4 h-4" />
@@ -515,8 +515,8 @@ function BookingSection({
                   onClick={() => onSelectStaff(s.id)}
                   className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm text-left transition-all ${
                     selected
-                      ? "border border-[#9d6f36] bg-[#fff8ec] text-[#1A1A1F]"
-                      : "border border-[#F0EFED] bg-white text-[#5d6879] hover:border-[#d8bb86] hover:bg-[#fff8ec]"
+                      ? "border border-[#7f5e58] bg-[#f6efe5] text-[#1A1A1F]"
+                      : "border border-[#F0EFED] bg-white text-[#635b51] hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
                   }`}
                 >
                   <div className="flex flex-col leading-tight">
@@ -559,10 +559,10 @@ function BookingSection({
                 onClick={() => onSelectDay(idx)}
                 className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-xl border transition-all min-w-[64px] ${
                   selected
-                    ? "border-[#9d6f36] bg-[#9d6f36] text-white"
+                    ? "border-[#7f5e58] bg-[#7f5e58] text-white"
                     : availableCount === 0
                       ? "border-[#F0EFED] bg-[#fafaf8] text-[#B5ADA3]"
-                      : "border-[#F0EFED] bg-white text-[#1A1A1F] hover:border-[#d8bb86]"
+                      : "border-[#F0EFED] bg-white text-[#1A1A1F] hover:border-[#dfc9c1]"
                 }`}
               >
                 <span
@@ -610,7 +610,7 @@ function BookingSection({
                   <div
                     className={`rounded-lg px-2.5 py-3 text-center transition-colors ${
                       available
-                        ? "bg-[#fff8ec] border border-[#d8bb86] text-[#9d6f36] hover:bg-[#9d6f36] hover:text-white hover:border-[#9d6f36]"
+                        ? "bg-[#f6efe5] border border-[#dfc9c1] text-[#7f5e58] hover:bg-[#7f5e58] hover:text-white hover:border-[#7f5e58]"
                         : "bg-[#fafaf8] border border-[#f0efed] text-[#B5ADA3] cursor-not-allowed"
                     }`}
                   >
@@ -638,7 +638,7 @@ function BookingSection({
       </div>
 
       {/* CTA */}
-      <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fffdf7] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fbf8f2] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-xs text-[#928980] leading-relaxed">
           슬롯을 누르면 업체 상세 페이지에서 예약을 확정합니다. 확정 시 등록한 연락처로
           안내됩니다.
@@ -647,7 +647,7 @@ function BookingSection({
           href={`/vendors/${vendor.id}${
             selectedProductId ? `?product=${selectedProductId}` : ""
           }`}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#9d6f36] text-white text-sm font-medium hover:bg-[#102a4d] transition-colors shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#7f5e58] text-white text-sm font-medium hover:bg-[#36534e] transition-colors shrink-0"
         >
           업체 상세로 가기
           <ArrowRight className="w-4 h-4" />
@@ -665,7 +665,7 @@ function NoBookingFallback({ name }: { name: string }) {
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[#1A1A1F]">
-          <Calendar className="w-4 h-4 text-[#9d6f36]" />
+          <Calendar className="w-4 h-4 text-[#7f5e58]" />
           <h2
             className="font-serif text-lg font-medium"
             style={{ fontFamily: "'Noto Serif KR', serif" }}
@@ -673,19 +673,19 @@ function NoBookingFallback({ name }: { name: string }) {
             예약 가능 시간
           </h2>
         </div>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fffdf7] border border-[#F0EFED] text-[11px] text-[#928980]">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fbf8f2] border border-[#F0EFED] text-[11px] text-[#928980]">
           연동 준비 중
         </span>
       </div>
 
       <div className="px-5 sm:px-6 py-5">
-        <div className="bg-[#fffdf7] border border-[#F0EFED] rounded-xl p-4 flex items-start gap-3 mb-4">
-          <Sparkles className="w-5 h-5 text-[#9d6f36] shrink-0 mt-0.5" />
+        <div className="bg-[#fbf8f2] border border-[#F0EFED] rounded-xl p-4 flex items-start gap-3 mb-4">
+          <Sparkles className="w-5 h-5 text-[#7f5e58] shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-sm font-medium text-[#1A1A1F] mb-0.5">
               <span className="font-semibold">{name}</span>은(는) 아직 예약 연동 전입니다
             </p>
-            <p className="text-xs text-[#5d6879] leading-relaxed">
+            <p className="text-xs text-[#635b51] leading-relaxed">
               실제 후기 데이터는 모이고 있지만 실시간 슬롯은 곧 오픈됩니다. 아래는 슬롯 UI
               미리보기 — 연동 완료된 업체는 이 화면에서 바로 예약합니다.
             </p>
@@ -700,7 +700,7 @@ function NoBookingFallback({ name }: { name: string }) {
                 key={d}
                 className={`flex flex-col items-center justify-center px-3.5 py-2 rounded-xl border ${
                   i === 0
-                    ? "border-[#9d6f36] bg-[#9d6f36] text-white"
+                    ? "border-[#7f5e58] bg-[#7f5e58] text-white"
                     : "border-[#F0EFED] bg-white text-[#1A1A1F]"
                 } min-w-[64px]`}
               >
@@ -715,7 +715,7 @@ function NoBookingFallback({ name }: { name: string }) {
             {previewHours.map((h) => (
               <div
                 key={h}
-                className="rounded-lg px-2.5 py-3 text-center bg-[#fff8ec] border border-[#d8bb86] text-[#9d6f36]"
+                className="rounded-lg px-2.5 py-3 text-center bg-[#f6efe5] border border-[#dfc9c1] text-[#7f5e58]"
               >
                 <div className="text-sm font-semibold">{h}:00</div>
                 <div className="text-[10px] mt-0.5">잔여 2</div>
@@ -725,16 +725,16 @@ function NoBookingFallback({ name }: { name: string }) {
         </div>
       </div>
 
-      <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fffdf7] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fbf8f2] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-xs text-[#928980] leading-relaxed">
-          연동 완료까지는 받은 견적과 상담 내용을 아모라와 먼저 정리해 보세요.
+          연동 완료까지는 받은 견적을 체크리스트로 먼저 정리해 보세요.
         </p>
         <Link
-          href="/chat"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#9d6f36] text-white text-sm font-medium hover:bg-[#102a4d] transition-colors shrink-0"
+          href="/community/quote-check"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#7f5e58] text-white text-sm font-medium hover:bg-[#36534e] transition-colors shrink-0"
         >
           <FileSearch className="w-4 h-4" />
-          아모라에게 물어보기
+          아모라 견적 체크리스트 보기
         </Link>
       </div>
     </section>

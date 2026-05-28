@@ -10,7 +10,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
     aiComment.comparison === "below"
       ? "#22C55E"
       : aiComment.comparison === "average"
-      ? "#C9A96E"
+      ? "#B89785"
       : aiComment.comparison === "unknown"
       ? "#928980"
       : "#C4967E";

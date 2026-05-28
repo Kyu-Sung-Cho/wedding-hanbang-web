@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-lg bg-gradient-to-br from-[#9d6f36] to-[#102a4d] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full rounded-lg bg-gradient-to-br from-[#7f5e58] to-[#36534e] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,7 +133,7 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#9d6f36] to-[#102a4d] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
+      className="group w-full rounded-xl border border-[#F0EFED] bg-gradient-to-br from-[#7f5e58] to-[#36534e] p-5 text-left transition-all hover:border-[#C4967E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
@@ -154,7 +154,7 @@ export default function CohortCard({
             return (
               <div
                 key={m.id}
-                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#9d6f36] bg-[#C4967E] text-xs font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#7f5e58] bg-[#C4967E] text-xs font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -180,10 +180,10 @@ export default function CohortCard({
       {/* 활동 표시 */}
       <div className="mb-2 flex items-center gap-2">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#C9A96E] opacity-70"></span>
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#C9A96E]"></span>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#B89785] opacity-70"></span>
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#B89785]"></span>
         </span>
-        <span className="text-xs text-[#C9A96E]">
+        <span className="text-xs text-[#B89785]">
           지금 {Math.max(1, Math.min(room.member_count, previewCount || 1))}명
           활동 중
         </span>

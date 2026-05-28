@@ -5,9 +5,9 @@ import {
   CalendarCheck,
   Camera,
   ChevronRight,
+  FileSearch,
   HelpCircle,
   Lightbulb,
-  MessageCircle,
   MessageSquarePlus,
 } from "lucide-react";
 
@@ -18,11 +18,11 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
-    href: "/chat",
-    label: "아모라에게 물어보기",
-    title: "받은 견적에서 헷갈리는 항목을 질문으로 정리하기",
-    meta: "상담 정리",
-    icon: MessageCircle,
+    href: "/community/quote-check",
+    label: "아모라 견적 체크리스트",
+    title: "받은 견적서에 빠진 항목과 추가금 추정 먼저 확인하기",
+    meta: "체크리스트",
+    icon: FileSearch,
   },
   {
     href: "/community?category=is_normal&feed=all#community-feed",
@@ -60,25 +60,25 @@ export default function EmptyFeedStarter({
 }: EmptyFeedStarterProps) {
   return (
     <div className="space-y-3">
-      <section className="rounded-[16px] border border-[#eadfc9] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.035)] sm:p-5">
+      <section className="rounded-[16px] border border-[#e5d8ca] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.035)] sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#fbefd6] px-2.5 py-1 text-xs font-medium text-[#9d6f36]">
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#eaddd8] px-2.5 py-1 text-xs font-medium text-[#7f5e58]">
               <MessageSquarePlus className="h-3.5 w-3.5" />
               실제 사례 대기중
             </div>
-            <h3 className="font-serif-kr text-xl font-medium text-[#071629] sm:text-2xl">
+            <h3 className="font-serif-kr text-xl font-medium text-[#263832] sm:text-2xl">
               {title}
             </h3>
-            <p className="mt-1.5 text-sm font-medium leading-relaxed text-[#5d6879]">
+            <p className="mt-1.5 text-sm font-medium leading-relaxed text-[#635b51]">
               {description}
             </p>
           </div>
           <Link
-            href="/community/post/write?category=is_normal"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#061a34] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#102a4d]"
+            href="/community/quote-check"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#263832] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#36534e]"
           >
-            사례 남기기
+            체크리스트 보기
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -91,16 +91,16 @@ export default function EmptyFeedStarter({
             <Link
               key={item.href}
               href={item.href}
-              className="group rounded-[16px] border border-[#eadfc9] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.03)] transition-colors hover:border-[#d8bb86] hover:bg-[#fff8ec]"
+              className="group rounded-[16px] border border-[#e5d8ca] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.03)] transition-colors hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#fbefd6] text-[#9d6f36]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#eaddd8] text-[#7f5e58]">
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-xs font-medium text-[#7a8290]">{item.meta}</span>
+                <span className="text-xs font-medium text-[#7d7166]">{item.meta}</span>
               </div>
-              <div className="text-sm font-semibold text-[#9d6f36]">{item.label}</div>
-              <div className="mt-1 text-sm font-medium leading-snug text-[#071629]">
+              <div className="text-sm font-semibold text-[#7f5e58]">{item.label}</div>
+              <div className="mt-1 text-sm font-medium leading-snug text-[#263832]">
                 {item.title}
               </div>
             </Link>

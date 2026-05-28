@@ -150,7 +150,7 @@ export default function CommentItem({
         <div className="flex gap-2">
           {/* 아바타: 아모라는 특별 스타일 */}
           {isAmoraAI ? (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shrink-0 ring-2 ring-[#C4967E]/20">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C4967E] to-[#B89785] flex items-center justify-center shrink-0 ring-2 ring-[#C4967E]/20">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
           ) : (
@@ -200,7 +200,7 @@ export default function CommentItem({
                 onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
                 className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 transition-colors duration-200 ${
                   comment.user_vote === 1
-                    ? "bg-[#fff8ec] text-[#C4967E]"
+                    ? "bg-[#f6efe5] text-[#C4967E]"
                     : "hover:bg-[#FAFAF8] hover:text-[#C4967E]"
                 }`}
                 aria-label="댓글 좋아요"
@@ -278,7 +278,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReplySubmit}
                       disabled={!replyContent.trim() || submittingReply}
-                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {submittingReply ? "등록 중..." : "등록"}
                     </button>

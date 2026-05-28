@@ -202,7 +202,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
       <button
         type="button"
         onClick={enable}
-        className="flex items-center gap-2 w-full px-4 py-3 text-base font-medium text-[#5d6879] bg-white border border-dashed border-[#eadfc9] rounded-xl hover:border-[#9d6f36] hover:text-[#9d6f36] hover:bg-[#fffdf7] transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-3 text-base font-medium text-[#635b51] bg-white border border-dashed border-[#e5d8ca] rounded-xl hover:border-[#7f5e58] hover:text-[#7f5e58] hover:bg-[#fbf8f2] transition-colors"
       >
         <BarChart3 className="w-5 h-5" />
         투표 추가하기
@@ -216,8 +216,8 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#9d6f36]" />
-          <h3 className="text-base font-medium text-[#071629]">투표</h3>
+          <BarChart3 className="w-5 h-5 text-[#7f5e58]" />
+          <h3 className="text-base font-medium text-[#263832]">투표</h3>
         </div>
         <button
           type="button"
@@ -231,8 +231,8 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
 
       {/* 질문 */}
       <div>
-        <label className="block text-sm font-medium text-[#5d6879] mb-1.5">
-          질문 <span className="text-[#9d6f36]">*</span>
+        <label className="block text-sm font-medium text-[#635b51] mb-1.5">
+          질문 <span className="text-[#7f5e58]">*</span>
         </label>
         <input
           type="text"
@@ -240,7 +240,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
           onChange={(e) => updateAndSync({ question: e.target.value.slice(0, QUESTION_MAX) })}
           placeholder="예: 두 드레스 중 어떤 게 더 어울릴까요?"
           maxLength={QUESTION_MAX}
-          className="w-full px-3 py-2.5 text-base text-[#071629] bg-[#fff8ec] border border-[#eadfc9] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#9d6f36] focus:ring-1 focus:ring-[#9d6f36]/30 transition-colors"
+          className="w-full px-3 py-2.5 text-base text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#7f5e58] focus:ring-1 focus:ring-[#7f5e58]/30 transition-colors"
         />
         <p className="mt-1 text-xs text-right text-[#928980]">
           {draftQuestion.length} / {QUESTION_MAX}
@@ -256,8 +256,8 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
 
       {/* 옵션 리스트 */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-[#5d6879]">
-          선택지 <span className="text-[#9d6f36]">*</span>
+        <label className="block text-sm font-medium text-[#635b51]">
+          선택지 <span className="text-[#7f5e58]">*</span>
           <span className="ml-2 text-xs font-normal text-[#928980]">
             최소 2개, 최대 {MAX_OPTIONS}개
           </span>
@@ -268,7 +268,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
             {/* 이미지 미리보기 / 업로드 */}
             <div className="shrink-0 relative">
               {opt.image_url ? (
-                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#eadfc9] bg-[#fff8ec]">
+                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#e5d8ca] bg-[#f6efe5]">
                   <Image
                     src={opt.image_url}
                     alt={`옵션 ${idx + 1}`}
@@ -289,7 +289,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
                   type="button"
                   onClick={() => fileInputRefs.current[idx]?.click()}
                   disabled={uploadingIdx !== null}
-                  className="w-14 h-14 flex items-center justify-center rounded-lg border border-dashed border-[#eadfc9] bg-[#fff8ec] text-[#928980] hover:border-[#9d6f36] hover:text-[#9d6f36] hover:bg-white transition-colors disabled:opacity-50"
+                  className="w-14 h-14 flex items-center justify-center rounded-lg border border-dashed border-[#e5d8ca] bg-[#f6efe5] text-[#928980] hover:border-[#7f5e58] hover:text-[#7f5e58] hover:bg-white transition-colors disabled:opacity-50"
                   aria-label="이미지 추가"
                   title="이미지 추가 (선택)"
                 >
@@ -316,7 +316,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
             </div>
 
             {/* 텍스트 입력 */}
-            <div className="flex-1 flex items-center bg-[#fff8ec] border border-[#eadfc9] rounded-lg overflow-hidden focus-within:border-[#9d6f36] focus-within:ring-1 focus-within:ring-[#9d6f36]/30 transition-colors">
+            <div className="flex-1 flex items-center bg-[#f6efe5] border border-[#e5d8ca] rounded-lg overflow-hidden focus-within:border-[#7f5e58] focus-within:ring-1 focus-within:ring-[#7f5e58]/30 transition-colors">
               <span className="pl-3 pr-1 text-sm font-medium text-[#928980] tabular-nums">
                 {idx + 1}.
               </span>
@@ -332,7 +332,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
                       : `선택지 ${idx + 1}`
                 }
                 maxLength={OPTION_MAX}
-                className="flex-1 px-2 py-2.5 text-base text-[#071629] bg-transparent placeholder:text-[#B5ADA3] focus:outline-none"
+                className="flex-1 px-2 py-2.5 text-base text-[#263832] bg-transparent placeholder:text-[#B5ADA3] focus:outline-none"
               />
             </div>
 
@@ -354,7 +354,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
           <button
             type="button"
             onClick={addOption}
-            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium text-[#9d6f36] bg-white border border-dashed border-[#eadfc9] rounded-lg hover:border-[#9d6f36] hover:bg-[#fffdf7] transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium text-[#7f5e58] bg-white border border-dashed border-[#e5d8ca] rounded-lg hover:border-[#7f5e58] hover:bg-[#fbf8f2] transition-colors"
           >
             <Plus className="w-4 h-4" />
             선택지 추가
@@ -389,8 +389,8 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
 
       {/* 마감일 */}
       <div className="pt-2 border-t border-[#f0eeec]">
-        <label className="flex items-center gap-2 text-sm font-medium text-[#5d6879] mb-2">
-          <Clock className="w-4 h-4 text-[#9d6f36]" />
+        <label className="flex items-center gap-2 text-sm font-medium text-[#635b51] mb-2">
+          <Clock className="w-4 h-4 text-[#7f5e58]" />
           마감 시간
         </label>
         <div className="flex flex-wrap gap-2">
@@ -403,8 +403,8 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
                 onClick={() => updateAndSync({ deadlinePreset: preset.key })}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
                   isSelected
-                    ? "border-[#9d6f36] bg-[#9d6f36] text-white"
-                    : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#9d6f36]"
+                    ? "border-[#7f5e58] bg-[#7f5e58] text-white"
+                    : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#7f5e58]"
                 }`}
               >
                 {preset.label}
@@ -432,22 +432,22 @@ function PollOptionToggle({ icon: Icon, label, description, checked, onChange }:
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex items-start gap-3 w-full px-3 py-2.5 text-left bg-white border border-[#f0eeec] rounded-lg hover:border-[#9d6f36] transition-colors"
+      className="flex items-start gap-3 w-full px-3 py-2.5 text-left bg-white border border-[#f0eeec] rounded-lg hover:border-[#7f5e58] transition-colors"
     >
       <div
         className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
-          checked ? "bg-[#9d6f36] text-white" : "bg-[#fff8ec] text-[#928980]"
+          checked ? "bg-[#7f5e58] text-white" : "bg-[#f6efe5] text-[#928980]"
         }`}
       >
         <Icon className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[#071629]">{label}</p>
+        <p className="text-sm font-medium text-[#263832]">{label}</p>
         <p className="text-xs text-[#928980] mt-0.5">{description}</p>
       </div>
       <div
         className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${
-          checked ? "bg-[#9d6f36]" : "bg-[#eadfc9]"
+          checked ? "bg-[#7f5e58]" : "bg-[#e5d8ca]"
         }`}
       >
         <div

@@ -275,7 +275,7 @@ export default function PostDetailPage() {
             </p>
             <Link
               href="/community"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -386,7 +386,7 @@ export default function PostDetailPage() {
                   </span>
                 )}
                 {post.is_verified_review && (
-                  <span className="ml-1 inline-flex items-center gap-1 text-[#C9A96E] text-xs font-medium">
+                  <span className="ml-1 inline-flex items-center gap-1 text-[#B89785] text-xs font-medium">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     인증후기
                   </span>
@@ -408,7 +408,7 @@ export default function PostDetailPage() {
                   </span>
                 )}
                 {post.is_weekly_best && (
-                  <span className="text-[#C9A96E] text-sm font-medium mr-2 align-middle">
+                  <span className="text-[#B89785] text-sm font-medium mr-2 align-middle">
                     BEST
                   </span>
                 )}
@@ -456,7 +456,7 @@ export default function PostDetailPage() {
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#9d6f36] hover:bg-[#102a4d] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7f5e58] hover:bg-[#36534e] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -697,7 +697,7 @@ export default function PostDetailPage() {
                   onClick={handleVote}
                   disabled={isVoting}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
-                    isLiked ? "bg-[#fff8ec] text-[#C4967E]" : "hover:bg-[#FAFAF8]"
+                    isLiked ? "bg-[#f6efe5] text-[#C4967E]" : "hover:bg-[#FAFAF8]"
                   } disabled:opacity-50`}
                   aria-label="좋아요"
                 >
@@ -765,7 +765,7 @@ export default function PostDetailPage() {
                   <>
                     <Link
                       href={`/community/post/write?edit=${post.id}`}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#5d6879] transition-all duration-200 ml-auto whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#635b51] transition-all duration-200 ml-auto whitespace-nowrap"
                     >
                       수정
                     </Link>

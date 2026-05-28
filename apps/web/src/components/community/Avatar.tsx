@@ -25,7 +25,7 @@ export default function Avatar({
   if (avatarUrl && !isEmoji(avatarUrl) && (avatarUrl.startsWith("http") || avatarUrl.startsWith("/"))) {
     return (
       <div
-        className={`rounded-full overflow-hidden bg-[#fff8ec] ${className}`}
+        className={`rounded-full overflow-hidden bg-[#f6efe5] ${className}`}
         style={{ width: size, height: size }}
       >
         <Image
@@ -43,7 +43,7 @@ export default function Avatar({
   if (avatarUrl && isEmoji(avatarUrl)) {
     return (
       <div
-        className={`rounded-full bg-gradient-to-br from-[#fff8ec] to-[#eadfc9] flex items-center justify-center ${className}`}
+        className={`rounded-full bg-gradient-to-br from-[#f6efe5] to-[#e5d8ca] flex items-center justify-center ${className}`}
         style={{ width: size, height: size, fontSize: size * 0.5 }}
       >
         {avatarUrl}
@@ -58,7 +58,7 @@ export default function Avatar({
 
   return (
     <div
-      className={`rounded-full overflow-hidden bg-gradient-to-br from-[#fff8ec] to-[#eadfc9] ${className}`}
+      className={`rounded-full overflow-hidden bg-gradient-to-br from-[#f6efe5] to-[#e5d8ca] ${className}`}
       style={{ width: size, height: size }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
