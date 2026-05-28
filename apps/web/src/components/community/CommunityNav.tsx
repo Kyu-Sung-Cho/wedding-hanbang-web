@@ -18,7 +18,7 @@ export default function CommunityNav() {
   const profile = useAuthStore((state) => state.profile);
 
   return (
-    <header className="bg-[#f9f7f1]">
+    <header className="bg-[#fbf8f2]">
       <div className="mx-auto flex h-[76px] w-[calc(100%_-_32px)] max-w-[1300px] items-center justify-between md:w-[calc(100%_-_48px)]">
         <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
           <Logo size="lg" />
@@ -60,7 +60,7 @@ export default function CommunityNav() {
         </button>
       </div>
       {mobileOpen && (
-        <div className="border-t border-[#eadfc9] bg-[#f9f7f1] md:hidden">
+        <div className="border-t border-[#eadfc9] bg-[#fbf8f2] md:hidden">
           <div className="mx-auto flex w-[calc(100%_-_32px)] max-w-[1300px] flex-col gap-2 py-4">
             {navItems.map((item) => (
               <Link

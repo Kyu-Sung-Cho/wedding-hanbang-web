@@ -6,16 +6,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  Award,
   Bookmark,
   CalendarCheck,
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   Eye,
   Flame,
   Gift,
   Heart,
   HeartHandshake,
+  Megaphone,
   MessageCircle,
   PenSquare,
   RefreshCw,
@@ -93,8 +96,34 @@ const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
   { icon: CalendarCheck, label: "스드메 후기", query: "스드메", category: "tour_review" },
-  { icon: ClipboardList, label: "가격 질문", query: "견적", category: "is_normal" },
-  { icon: Gift, label: "준비 꿀팁", category: "tips_v2" },
+  { icon: ClipboardList, label: "예산 정보", query: "예산", category: "is_normal" },
+  { icon: Gift, label: "스토리 & 꿀팁", category: "tips_v2" },
+  { icon: Megaphone, label: "박람회 & 이벤트", query: "박람회" },
+  { icon: Award, label: "부케 & 드레스", query: "드레스", category: "tour_review" },
+  { icon: ClipboardCheck, label: "예단 & 혼수", query: "예단" },
+  { icon: CalendarCheck, label: "신혼여행", query: "신혼여행" },
+];
+
+const journeyActions: Array<{ icon: LucideIcon; title: string; desc: string; href: string; primary?: boolean }> = [
+  {
+    icon: Search,
+    title: "후기 찾기",
+    desc: "지역·업체 경험 먼저 확인",
+    href: "/community?feed=all#community-feed",
+    primary: true,
+  },
+  {
+    icon: MessageCircle,
+    title: "아모라에게 묻기",
+    desc: "상황을 정리하고 다음 행동 받기",
+    href: "/chat",
+  },
+  {
+    icon: CalendarCheck,
+    title: "웨딩 라운지 열기",
+    desc: "일정·예산·예약을 한곳에 정리",
+    href: "/lounge",
+  },
 ];
 
 const cohortPreviewRows = [
@@ -386,6 +415,7 @@ export default function CommunityLandingClient({
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
       />
+      <BottomCards />
       <div ref={observerRef} className="h-1" />
       <Link
         href="/community/post/write"
@@ -480,17 +510,17 @@ function SearchHub({
         </label>
       </form>
 
-      <div className="mt-5 grid grid-cols-2 gap-y-5 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-y-5 sm:grid-cols-4 md:grid-cols-8">
         {searchCategories.map((item, index) => (
           <Link
             key={item.label}
             href={buildCommunityHubHref(item)}
             aria-label={`${item.label} 보기`}
             className={`flex flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] ${
-              index < searchCategories.length - 1 ? "sm:border-r sm:border-[#eadfc9]" : ""
+              index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
             }`}
           >
-            <item.icon className="h-7 w-7 stroke-[1.55] text-[#b68a3a]" />
+            <item.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
             <span>{item.label}</span>
           </Link>
         ))}
@@ -1097,3 +1127,64 @@ function CohortPreviewPanel() {
   );
 }
 
+function BottomCards() {
+  return (
+    <section className={`${shell} mt-[18px] grid grid-cols-1 gap-[18px] pb-8 md:grid-cols-[1fr_0.8fr_1fr]`}>
+      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">가격 · 후기 한눈에 비교해보세요.</h2>
+        <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
+          후기와 견적 정보를 함께 보며
+          <br />
+          나에게 맞는 선택지를 좁혀갈 수 있어요.
+        </p>
+        <Link
+          href="/community?category=tour_review&search=견적&feed=all#community-feed"
+          className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
+        >
+          정보 비교 바로가기
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Link>
+      </article>
+
+      <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 text-center shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <h3 className="mb-4 text-[15px] font-semibold text-[#9d6f36]">커뮤니티 데이터</h3>
+        <div className="grid grid-cols-3 gap-3 text-[13px] font-medium">
+          {COMMUNITY_CATEGORIES.slice(0, 3).map((cat) => (
+            <Link key={cat.key} href={buildCommunityCategoryHref(cat.key)} className="rounded-[12px] bg-[#fff8ec] px-2 py-3">
+              <b className="block text-[#071629]">{cat.shortLabel}</b>
+              <span className="mt-2 block text-[12px] text-[#7a8290]">글 보기</span>
+            </Link>
+          ))}
+        </div>
+        <p className="mt-4 text-[11px] font-medium text-[#9aa2af]">실제 게시글 기준으로 이어집니다.</p>
+      </article>
+
+      <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
+          다음 행동
+        </span>
+        <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">웨딩 라운지에 이어 담기</h2>
+        <p className="mt-2 max-w-[270px] text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+          커뮤니티에서 찾은 후기와 질문을 일정·예산·예약 관리로 자연스럽게 이어가세요.
+        </p>
+        <div className="mt-4 grid gap-2 text-[12px] font-medium text-[#34445a]">
+          {journeyActions.slice(1).map((item) => (
+            <Link key={item.title} href={item.href} className="inline-flex items-center gap-2">
+              <item.icon className="h-4 w-4 text-[#b68a3a]" />
+              {item.title}
+            </Link>
+          ))}
+        </div>
+        <Link
+          href="/lounge"
+          className="mt-5 inline-flex min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[12px] font-semibold text-white"
+          data-tutorial-target="community-service-link"
+        >
+          웨딩 라운지 열기
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Link>
+        <ClipboardCheck className="absolute bottom-4 right-6 h-[110px] w-[110px] rotate-6 text-[#c9a96e]/35" />
+      </article>
+    </section>
+  );
+}

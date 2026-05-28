@@ -12,9 +12,9 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#f9f7f1]">
+    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fbf8f2]">
       <CommunityAuthInitializer />
-      <Suspense fallback={<div className="h-[76px] bg-[#f9f7f1]" />}>
+      <Suspense fallback={<div className="h-[76px] bg-[#fbf8f2]" />}>
         <CommunityNav />
       </Suspense>
       <ToastContainer />
@@ -36,7 +36,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#30342f_0%,#41483f_62%,#181a17_100%)] text-white">
+    <footer className="bg-[linear-gradient(135deg,#36534e_0%,#4e6a62_62%,#243832_100%)] text-white">
       <div className="mx-auto grid w-[calc(100%_-_32px)] max-w-[1300px] gap-9 py-8 md:w-[calc(100%_-_48px)] md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr]">
         <div>
           <FooterBrand />
@@ -53,7 +53,7 @@ function CommunityFooter() {
                 key={item.label}
                 href="/community"
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c69b] hover:text-[#d8c69b]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#dfc9c1] hover:text-[#dfc9c1]"
               >
                 <item.icon className="h-4 w-4" />
               </Link>
@@ -102,7 +102,7 @@ function CommunityFooter() {
 
         <div className="rounded-[18px] border border-white/15 bg-white/[0.04] p-5">
           <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#d8c69b]" />
+            <ShieldCheck className="h-5 w-5 text-[#dfc9c1]" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
           </div>
           <p className="text-[12px] font-medium leading-[1.7] text-white/65">
@@ -110,7 +110,7 @@ function CommunityFooter() {
           </p>
           <Link
             href="/lounge"
-            className="mt-4 inline-flex items-center rounded-full border border-[#d8c69b]/70 px-4 py-2 text-[12px] font-semibold text-[#d8c69b] transition-colors hover:bg-[#d8c69b]/10"
+            className="mt-4 inline-flex items-center rounded-full border border-[#dfc9c1]/70 px-4 py-2 text-[12px] font-semibold text-[#efe1d9] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -130,7 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#d8c69b]">
+          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#efe1d9]">
             {item.label}
           </Link>
         ))}

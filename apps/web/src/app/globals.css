@@ -1,74 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  /* Primary - Eucalyptus Charcoal */
-  --noir-800: #30342F;
-  --noir-900: #181A17;
-  --noir-soft: #42483F;
-  --charcoal: #515A50;
+  /* Primary - Eucalyptus Ink */
+  --noir-800: #36534E;
+  --noir-900: #243832;
+  --noir-soft: #4E6A62;
+  --charcoal: #5E665F;
 
-  /* Accent - Soft Taupe Rose */
-  --rose-500: #92736B;
-  --rose-600: #78645E;
-  --rose-light: #C5B4AA;
-  --rose-pale: #E8DED6;
-  --rose-glow: rgba(146, 115, 107, 0.15);
+  /* Accent - Dusty Mauve */
+  --rose-500: #A77B74;
+  --rose-600: #8F6662;
+  --rose-light: #D2B4AA;
+  --rose-pale: #EADDD8;
+  --rose-glow: rgba(167, 123, 116, 0.16);
 
-  /* Background - Porcelain Ivory */
-  --ivory-50: #F9F7F1;
-  --ivory-100: #F7F3EC;
-  --ivory-200: #EFE7DC;
-  --ivory-warm: #F5EFE4;
-  --ivory-deep: #E9DCCB;
-  --surface-low: #F0E7DA;
-  --stone-900: #30342F;
+  /* Background - Pearl Ivory */
+  --ivory-50: #FBF8F2;
+  --ivory-100: #F7F1E8;
+  --ivory-200: #EFE4D7;
+  --ivory-warm: #F6EFE5;
+  --ivory-deep: #E8DCCB;
+  --surface-low: #F1E8DA;
+  --stone-900: #263832;
 
   /* Taupe */
-  --taupe-400: #AEA59A;
-  --taupe-500: #5F5A52;
+  --taupe-400: #B7AA9A;
+  --taupe-500: #635B51;
 
-  /* Sage (quiet secondary) */
-  --sage-500: #6F7E68;
-  --sage-pale: #C2CAB9;
+  /* Sage */
+  --sage-500: #6D806E;
+  --sage-pale: #C7D1C2;
 
-  /* Antique Champagne */
-  --gold: #A98E5E;
-  --gold-light: #D8C69B;
+  /* Champagne Taupe */
+  --gold: #B89785;
+  --gold-light: #E2D3C8;
 
   /* Platinum */
-  --platinum: #E5DDD0;
+  --platinum: #E6DDD2;
 }
 
 @theme inline {
   /* Colors */
-  --color-noir-800: #30342F;
-  --color-noir-900: #181A17;
-  --color-noir-soft: #42483F;
-  --color-charcoal: #515A50;
+  --color-noir-800: #36534E;
+  --color-noir-900: #243832;
+  --color-noir-soft: #4E6A62;
+  --color-charcoal: #5E665F;
 
-  --color-rose-500: #92736B;
-  --color-rose-600: #78645E;
-  --color-rose-light: #C5B4AA;
-  --color-rose-pale: #E8DED6;
+  --color-rose-500: #A77B74;
+  --color-rose-600: #8F6662;
+  --color-rose-light: #D2B4AA;
+  --color-rose-pale: #EADDD8;
 
-  --color-ivory-50: #F9F7F1;
-  --color-ivory-100: #F7F3EC;
-  --color-ivory-200: #EFE7DC;
-  --color-ivory-warm: #F5EFE4;
-  --color-ivory-deep: #E9DCCB;
-  --color-surface-low: #F0E7DA;
-  --color-stone-900: #30342F;
+  --color-ivory-50: #FBF8F2;
+  --color-ivory-100: #F7F1E8;
+  --color-ivory-200: #EFE4D7;
+  --color-ivory-warm: #F6EFE5;
+  --color-ivory-deep: #E8DCCB;
+  --color-surface-low: #F1E8DA;
+  --color-stone-900: #263832;
 
-  --color-taupe-400: #AEA59A;
-  --color-taupe-500: #5F5A52;
+  --color-taupe-400: #B7AA9A;
+  --color-taupe-500: #635B51;
 
-  --color-sage-500: #6F7E68;
-  --color-sage-pale: #C2CAB9;
+  --color-sage-500: #6D806E;
+  --color-sage-pale: #C7D1C2;
 
-  --color-gold: #A98E5E;
-  --color-gold-light: #D8C69B;
+  --color-gold: #B89785;
+  --color-gold-light: #E2D3C8;
 
-  --color-platinum: #E5DDD0;
+  --color-platinum: #E6DDD2;
 
   /* Fonts — 끝에 emoji fallback 추가 (국기 등 regional indicator 조합 깨짐 방지) */
   --font-serif-kr: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
@@ -507,22 +507,22 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * 이전 서비스 화면들은 rose/taupe 계열 유틸리티와 arbitrary hex 값을 많이
  * 들고 있다. 기능 컴포넌트를 대량으로 건드리지 않고도 /lounge, /chat,
  * /budget, /schedule 등 로그인 후 서비스 전체를 현재 커뮤니티와 맞는
- * 유칼립투스 차콜·소프트 토프·포슬린 아이보리 톤으로 통일한다.
+ * 유칼립투스 그린·더스티 모브·펄 아이보리 톤으로 통일한다.
  * ========================================================================= */
 .hanbang-service-theme {
-  color: #30342f;
-  --hb-navy: #30342f;
-  --hb-navy-soft: #4a5148;
-  --hb-gold: #a98e5e;
-  --hb-gold-deep: #7f6f4d;
-  --hb-gold-light: #d8c69b;
-  --hb-ivory: #f9f7f1;
-  --hb-ivory-warm: #f5efe4;
-  --hb-line: #e5ddd0;
-  --hb-muted: #83796e;
-  --hb-text: #30342f;
-  --hb-body: #5f5a52;
-  --hb-success: #6f7e68;
+  color: #263832;
+  --hb-navy: #36534e;
+  --hb-navy-soft: #4e6a62;
+  --hb-gold: #a77b74;
+  --hb-gold-deep: #7f5e58;
+  --hb-gold-light: #dfc9c1;
+  --hb-ivory: #fbf8f2;
+  --hb-ivory-warm: #f6efe5;
+  --hb-line: #e5d8ca;
+  --hb-muted: #7d7166;
+  --hb-text: #263832;
+  --hb-body: #5f5b52;
+  --hb-success: #6d806e;
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -535,7 +535,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="text-[#795252]/50"],
 .hanbang-service-theme [class~="text-[#946a6a]/50"],
 .hanbang-service-theme [class~="text-rose-500/50"] {
-  color: rgba(127, 111, 77, 0.55) !important;
+  color: rgba(127, 94, 88, 0.55) !important;
 }
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
@@ -579,7 +579,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="bg-rose-500/20"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/10"],
 .hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
-  background-color: rgba(169, 142, 94, 0.10) !important;
+  background-color: rgba(167, 123, 116, 0.11) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#f3e7e1]"],
@@ -596,7 +596,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="hover:bg-[#EDE7E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover,
 .hanbang-service-theme [class~="hover:bg-ivory-200"]:hover {
-  background-color: #f7efe3 !important;
+  background-color: #f3e9df !important;
 }
 
 .hanbang-service-theme [class~="bg-sage-500"] {
@@ -604,7 +604,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-service-theme [class~="bg-sage-500/10"] {
-  background-color: #f2f5ee !important;
+  background-color: #eef4ed !important;
 }
 
 .hanbang-service-theme [class~="border-[#795252]"],
@@ -626,13 +626,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="ring-[#795252]/20"],
 .hanbang-service-theme [class~="ring-[#795252]/30"],
 .hanbang-service-theme [class~="ring-rose-500/20"] {
-  --tw-ring-color: rgba(169, 142, 94, 0.22) !important;
+  --tw-ring-color: rgba(167, 123, 116, 0.24) !important;
 }
 
 .hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
 .hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
 .hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
-  --tw-ring-color: rgba(169, 142, 94, 0.28) !important;
+  --tw-ring-color: rgba(167, 123, 116, 0.30) !important;
 }
 
 .hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
@@ -648,7 +648,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="from-[#795252]"],
 .hanbang-service-theme [class~="from-rose-500"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(48, 52, 47, 0) !important;
+  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -669,7 +669,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.25)]"] {
-  box-shadow: 0 14px 34px rgba(48, 52, 47, 0.14) !important;
+  box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
 
 .hanbang-service-theme [style*="background-color: rgb(121, 82, 82)"],
@@ -692,19 +692,19 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-community-theme {
-  color: #30342f;
-  --hb-navy: #30342f;
-  --hb-navy-soft: #4a5148;
-  --hb-gold: #a98e5e;
-  --hb-gold-deep: #7f6f4d;
-  --hb-gold-light: #d8c69b;
-  --hb-ivory: #f9f7f1;
-  --hb-ivory-warm: #f5efe4;
-  --hb-line: #e5ddd0;
-  --hb-muted: #83796e;
-  --hb-text: #30342f;
-  --hb-body: #5f5a52;
-  --hb-success: #6f7e68;
+  color: #263832;
+  --hb-navy: #36534e;
+  --hb-navy-soft: #4e6a62;
+  --hb-gold: #a77b74;
+  --hb-gold-deep: #7f5e58;
+  --hb-gold-light: #dfc9c1;
+  --hb-ivory: #fbf8f2;
+  --hb-ivory-warm: #f6efe5;
+  --hb-line: #e5d8ca;
+  --hb-muted: #7d7166;
+  --hb-text: #263832;
+  --hb-body: #5f5b52;
+  --hb-success: #6d806e;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
@@ -731,17 +731,17 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: var(--hb-gold-deep) !important;
 }
 
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"] {
+  color: #efe1d9 !important;
+}
+
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/30"] {
-  color: rgba(169, 142, 94, 0.30) !important;
+  color: rgba(167, 123, 116, 0.30) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/40"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/45"] {
-  color: rgba(169, 142, 94, 0.42) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#ecd7a4]"] {
-  color: var(--hb-gold-light) !important;
+  color: rgba(167, 123, 116, 0.42) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
@@ -773,20 +773,20 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/12"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/15"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/20"] {
-  background-color: rgba(169, 142, 94, 0.11) !important;
+  background-color: rgba(167, 123, 116, 0.12) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
-  background-color: rgba(48, 52, 47, 0.10) !important;
+  background-color: rgba(54, 83, 78, 0.10) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/35"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/45"] {
-  background-color: rgba(48, 52, 47, 0.40) !important;
+  background-color: rgba(54, 83, 78, 0.40) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/82"] {
-  background-color: rgba(48, 52, 47, 0.84) !important;
+  background-color: rgba(54, 83, 78, 0.84) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#061a34]"]:hover,
@@ -822,13 +822,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#071629]"] {
   --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(48, 52, 47, 0) !important;
+  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]"] {
   --tw-gradient-from: var(--hb-gold) !important;
-  --tw-gradient-to: rgba(169, 142, 94, 0) !important;
+  --tw-gradient-to: rgba(167, 123, 116, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -844,23 +844,23 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]/20"] {
-  --tw-gradient-from: rgba(169, 142, 94, 0.20) !important;
-  --tw-gradient-to: rgba(169, 142, 94, 0) !important;
+  --tw-gradient-from: rgba(167, 123, 116, 0.20) !important;
+  --tw-gradient-to: rgba(167, 123, 116, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#102a4d]/20"] {
-  --tw-gradient-from: rgba(74, 81, 72, 0.20) !important;
-  --tw-gradient-to: rgba(74, 81, 72, 0) !important;
+  --tw-gradient-from: rgba(78, 106, 98, 0.20) !important;
+  --tw-gradient-to: rgba(78, 106, 98, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]/5"] {
-  --tw-gradient-to: rgba(74, 81, 72, 0.05) !important;
+  --tw-gradient-to: rgba(78, 106, 98, 0.05) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(6,26,52"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(8,22,38"] {
-  box-shadow: 0 14px 34px rgba(48, 52, 47, 0.13) !important;
+  box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
 
