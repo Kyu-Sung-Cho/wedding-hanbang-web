@@ -28,10 +28,10 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
 
   if (!isInitialized || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fcfaf6]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f9f7f1]">
         <div className="text-center">
-          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#2b2328] border-t-transparent" />
-          <p className="text-[13px] font-medium text-[#82766d]">웨딩 라운지를 불러오는 중...</p>
+          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#30342f] border-t-transparent" />
+          <p className="text-[13px] font-medium text-[#83796e]">웨딩 라운지를 불러오는 중...</p>
         </div>
       </div>
     );
@@ -41,8 +41,8 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
     <div
       className={
         isChatPage
-          ? "hanbang-service-theme h-screen overflow-hidden bg-[#fcfaf6]"
-          : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#fcfaf6_0%,#ffffff_48%,#f8f1e8_100%)]"
+          ? "hanbang-service-theme h-screen overflow-hidden bg-[#f9f7f1]"
+          : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#f9f7f1_0%,#ffffff_48%,#f5efe4_100%)]"
       }
     >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
