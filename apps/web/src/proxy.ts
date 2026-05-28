@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/dashboard" || request.nextUrl.pathname.startsWith("/dashboard/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = url.pathname.replace(/^\/dashboard/, "/lounge");
+    return NextResponse.redirect(url);
+  }
+
   if (request.nextUrl.pathname === "/community/quote-check") {
     return NextResponse.redirect(new URL("/community", request.url));
   }

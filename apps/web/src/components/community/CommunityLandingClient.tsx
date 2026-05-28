@@ -104,9 +104,9 @@ const journeyActions: Array<{ icon: LucideIcon; title: string; desc: string; hre
   },
   {
     icon: CalendarCheck,
-    title: "준비실 열기",
+    title: "웨딩 라운지 열기",
     desc: "일정·예산·예약을 한곳에 정리",
-    href: "/dashboard",
+    href: "/lounge",
   },
 ];
 
@@ -421,7 +421,7 @@ function Hero({ topVendor }: { topVendor: string | null }) {
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1.5 text-[12px] font-semibold text-[#7a4e43]">
               <Sparkles className="h-4 w-4" />
-              커뮤니티에서 확인하고, 준비실에서 정리해요
+              커뮤니티에서 확인하고, 웨딩 라운지에서 정리해요
             </p>
             <h1 className="max-w-[680px] font-serif-kr text-[31px] font-medium leading-[1.26] text-[#2f2a26] sm:text-[40px] xl:text-[48px]">
               결혼 준비,
@@ -429,7 +429,7 @@ function Hero({ topVendor }: { topVendor: string | null }) {
               지금 필요한 것만 먼저 보이게.
             </h1>
             <p className="mt-4 max-w-[600px] text-[14px] font-medium leading-[1.8] text-[#6f655f] md:text-[16px]">
-              후기와 질문으로 판단하고, 아모라와 준비실에서 일정·예산·예약을 바로 이어서 정리하세요.
+              후기와 질문으로 판단하고, 아모라와 웨딩 라운지에서 일정·예산·예약을 바로 이어서 정리하세요.
             </p>
           </div>
 
@@ -437,7 +437,7 @@ function Hero({ topVendor }: { topVendor: string | null }) {
             {[
               { label: "후기", value: "실제 경험" },
               { label: "질문", value: "상황 정리" },
-              { label: "준비실", value: "내 일정 정리" },
+              { label: "웨딩 라운지", value: "내 일정 정리" },
             ].map((item) => (
               <div key={item.label} className="rounded-[14px] border border-white/70 bg-white/65 px-3 py-3">
                 <span className="block text-[#a96856]">{item.label}</span>
@@ -502,8 +502,8 @@ function SearchHub({
           <h2 className="text-[15px] font-semibold text-[#2f2a26]">무엇부터 확인할까요?</h2>
           <p className="mt-1 text-[12px] font-medium text-[#766d66]">검색이 가장 빠르고, 자주 보는 주제는 아래에서 바로 들어가세요.</p>
         </div>
-        <Link href="/dashboard" className="inline-flex h-10 items-center rounded-full border border-[#e7dad1] px-4 text-[12px] font-semibold text-[#7a4e43] hover:bg-[#f4ebe4]">
-          준비실로 정리
+        <Link href="/lounge" className="inline-flex h-10 items-center rounded-full border border-[#e7dad1] px-4 text-[12px] font-semibold text-[#7a4e43] hover:bg-[#f4ebe4]">
+          웨딩 라운지로 정리
           <ChevronRight className="ml-1 h-4 w-4" />
         </Link>
       </div>
@@ -1104,13 +1104,13 @@ function JourneyBridge() {
         <article className="rounded-[20px] border border-[#e7dad1] bg-white p-6 shadow-[0_12px_34px_rgba(47,42,38,0.045)] md:p-7">
           <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#a96856]">Simple flow</p>
           <h2 className="mt-2 font-serif-kr text-[26px] font-medium leading-[1.35] text-[#2f2a26]">
-            읽고, 물어보고, 내 준비실에 남기기.
+            읽고, 물어보고, 내 웨딩 라운지에 남기기.
           </h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
               { step: "1", title: "후기 확인", desc: "비슷한 예산·지역·시기 글부터 봅니다." },
               { step: "2", title: "아모라 정리", desc: "내 상황에 맞는 다음 질문과 체크를 받습니다." },
-              { step: "3", title: "준비실 반영", desc: "결정한 일정을 예산과 체크리스트에 연결합니다." },
+              { step: "3", title: "웨딩 라운지 반영", desc: "결정한 일정을 예산과 체크리스트에 연결합니다." },
             ].map((item) => (
               <div key={item.step} className="rounded-[16px] border border-[#eee4dd] bg-[#fbf7f2] p-4">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#a96856] text-[12px] font-semibold text-white">
@@ -1129,7 +1129,7 @@ function JourneyBridge() {
             광고보다 맥락이 먼저 보이게.
           </h2>
           <p className="mt-3 text-[13px] font-medium leading-[1.75] text-[#6f655f]">
-            협찬 표시는 분리하고, 후기에는 예산·지역·조건이 함께 남도록 설계했습니다. 앞으로 쌓이는 데이터는 준비실 추천과 아모라 답변의 기준이 됩니다.
+            협찬 표시는 분리하고, 후기에는 예산·지역·조건이 함께 남도록 설계했습니다. 앞으로 쌓이는 데이터는 웨딩 라운지 추천과 아모라 답변의 기준이 됩니다.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {["광고 표시", "가격 맥락", "동기방 사례", "아모라 질문"].map((item) => (

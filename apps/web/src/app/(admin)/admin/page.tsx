@@ -603,7 +603,7 @@ export default function AdminPage() {
             <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+            <a href="/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
             <a href="/vendor/dashboard" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">

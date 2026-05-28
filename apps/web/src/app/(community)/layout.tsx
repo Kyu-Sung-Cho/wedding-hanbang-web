@@ -74,7 +74,7 @@ function CommunityFooter() {
         <FooterColumn
           title="준비 도구"
           items={[
-            { label: "준비실", href: "/dashboard" },
+            { label: "웨딩 라운지", href: "/lounge" },
             { label: "아모라 상담", href: "/chat" },
             { label: "예산", href: "/budget" },
             { label: "일정", href: "/schedule" },
@@ -109,10 +109,10 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/dashboard"
+            href="/lounge"
             className="mt-4 inline-flex items-center rounded-full border border-[#e8cfc5]/60 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-white/10"
           >
-            준비실로 이동
+            웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
           </Link>
         </div>

@@ -24,8 +24,8 @@ const QUICK_TOOLS: ToolCard[] = [
     icon: MessageCircle,
   },
   {
-    href: "/dashboard",
-    label: "준비실",
+    href: "/lounge",
+    label: "웨딩 라운지",
     description: "체크리스트 결과를 다음 행동으로",
     icon: LayoutDashboard,
   },

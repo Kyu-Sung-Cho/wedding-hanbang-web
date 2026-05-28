@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
-  "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/etiquette", "/settings", "/bookings",
+  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/etiquette", "/settings", "/bookings",
   "/invitations", "/money", "/scripts", "/onboarding",
 ];
 const VENDOR_PATHS = [

@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     }
 
     // 일반 고객 → 대시보드
-    const response = NextResponse.redirect(`${origin}/dashboard`);
+    const response = NextResponse.redirect(`${origin}/lounge`);
     response.cookies.set("onboarding_complete", "true", {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,

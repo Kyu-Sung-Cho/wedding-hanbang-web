@@ -26,7 +26,7 @@ const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money", "/fitting", "/scripts"];
 
 const menuItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "준비실" },
+  { href: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지" },
   { href: "/chat", icon: MessageCircle, label: "아모라 상담" },
   { href: "/budget", icon: Wallet, label: "예산 관리" },
   { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
@@ -85,7 +85,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              const isActive = pathname === item.href || (item.href !== "/lounge" && pathname.startsWith(item.href));
               return (
                 <Link
                   key={item.href}

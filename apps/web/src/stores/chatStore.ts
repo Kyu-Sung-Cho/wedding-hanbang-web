@@ -983,7 +983,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo, visibility: finalVisibility });
       }
 
-      // progress 를 건드린 tool 이 있으면 백엔드와 한 번 더 sync — /dashboard,
+      // progress 를 건드린 tool 이 있으면 백엔드와 한 번 더 sync — /lounge,
       // /schedule, /budget 페이지가 stale 상태로 남는 안전망 (이전 사고).
       if (progressTouched) {
         useAuthStore.getState().refreshJourney();

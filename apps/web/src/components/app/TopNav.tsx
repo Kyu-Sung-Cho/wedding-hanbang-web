@@ -11,7 +11,7 @@ import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications
 import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "준비실",
+  "/lounge": "웨딩 라운지",
   "/chat": "아모라 상담",
   "/budget": "예산 관리",
   "/market-prices": "시세 정보",

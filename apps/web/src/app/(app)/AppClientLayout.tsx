@@ -31,7 +31,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-screen items-center justify-center bg-[#fffdf7]">
         <div className="text-center">
           <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#2f2925] border-t-transparent" />
-          <p className="text-[13px] font-medium text-[#7a8290]">준비실을 불러오는 중...</p>
+          <p className="text-[13px] font-medium text-[#7a8290]">웨딩 라운지를 불러오는 중...</p>
         </div>
       </div>
     );

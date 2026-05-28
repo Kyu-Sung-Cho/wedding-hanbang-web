@@ -81,7 +81,7 @@ export default function FiveRoles() {
             <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            아모라는 커뮤니티에서 확인한 내용을 내 준비실의 다음 행동으로 이어줍니다.
+            아모라는 커뮤니티에서 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
           </p>
         </motion.div>
 

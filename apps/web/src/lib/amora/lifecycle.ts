@@ -90,7 +90,7 @@ const PHASES = [
 
 const STAGE_COPY: Record<AmoraLifecycleStage, { label: string; summary: string }> = {
   setup: {
-    label: "준비실 세팅",
+    label: "웨딩 라운지 세팅",
     summary: "예식일과 예산을 먼저 잡으면 아모라가 모든 알림을 정확히 맞출 수 있어요.",
   },
   foundation: {

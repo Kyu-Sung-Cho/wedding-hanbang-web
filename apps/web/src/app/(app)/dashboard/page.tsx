@@ -306,7 +306,7 @@ export default function DashboardPage() {
       <section className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]" data-tutorial-target="dashboard-hero">
         <div className="rounded-[24px] border border-[#eadfc9] bg-white/90 p-6 shadow-[0_18px_48px_rgba(8,22,38,0.06)] md:p-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-4 py-2 text-[12px] font-semibold text-[#9d6f36]">
-            우리 둘의 결혼 준비실
+            우리 둘의 웨딩 라운지
             <Sparkles className="h-4 w-4" />
           </p>
           <h1 className="mt-5 font-serif-kr text-[34px] font-medium leading-[1.25] text-[#061a34] md:text-[46px]">

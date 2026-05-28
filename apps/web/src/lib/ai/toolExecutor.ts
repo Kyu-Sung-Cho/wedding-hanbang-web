@@ -1078,7 +1078,7 @@ function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) 
   if (source === "schedule") return "/schedule";
   if (categoryKey === "invitation") return "/schedule";
   if (categoryKey === "mc" || categoryKey === "gift") return "/scripts";
-  return "/dashboard";
+  return "/lounge";
 }
 
 async function saveProgress(ctx: ExecutionContext, progress: Record<string, unknown>) {

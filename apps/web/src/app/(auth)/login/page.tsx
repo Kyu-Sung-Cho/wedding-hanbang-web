@@ -177,12 +177,12 @@ export default function LoginPage() {
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/dashboard";
+              window.location.href = "/lounge";
             } else {
               window.location.href = "/onboarding";
             }
           } else {
-            window.location.href = "/dashboard";
+            window.location.href = "/lounge";
           }
         }
       }
@@ -197,7 +197,7 @@ export default function LoginPage() {
 
   const handleDemo = () => {
     document.cookie = "demo_mode=true; path=/; max-age=86400";
-    window.location.href = "/dashboard";
+    window.location.href = "/lounge";
   };
 
   return (

@@ -10,7 +10,7 @@ import { useAuthStore } from "@/stores/authStore";
 const navItems = [
   { href: "/community#community-feed", label: "후기·질문" },
   { href: "/community/cohort", label: "동기방" },
-  { href: "/dashboard", label: "준비실" },
+  { href: "/lounge", label: "웨딩 라운지" },
 ];
 
 export default function CommunityNav() {
