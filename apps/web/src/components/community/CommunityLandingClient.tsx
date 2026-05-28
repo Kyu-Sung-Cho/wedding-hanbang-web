@@ -52,7 +52,7 @@ interface TrendingPost {
   comment_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1210px]";
+const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1400px] sm:w-[calc(100%_-_48px)]";
 const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -176,7 +176,7 @@ export default function CommunityLandingClient() {
 
   const isSearching = searchQuery.trim().length > 0;
   const showFullFeed = feedQuery === "all";
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 3);
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 6);
   const activeTotal = isSearching ? searchTotal : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
@@ -480,7 +480,7 @@ function SearchHub({
 
 function ComposerPrompt() {
   return (
-    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/90 p-7 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
+    <div>
       <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">
         어떤 고민이 있으신가요? 후기나 질문을 남겨보세요.
       </h2>
@@ -501,7 +501,7 @@ function ComposerPrompt() {
           </Link>
         ))}
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -524,7 +524,7 @@ function CategoryBar({
 }) {
   return (
     <section
-      className="mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-[16px] border border-[#e5d8ca] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:gap-3 md:overflow-visible"
+      className="mt-5 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-[#eadcc9] pt-5 md:flex-wrap md:gap-3 md:overflow-visible"
       data-tutorial-target="community-categories"
     >
       <Link
@@ -640,19 +640,32 @@ function CommunityMain({
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-5 grid grid-cols-1 gap-[18px] scroll-mt-24 md:grid-cols-[minmax(0,1fr)_360px]`}
+      className={`${shell} mt-5 grid grid-cols-1 gap-[20px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_390px]`}
     >
       <div className="min-w-0">
-        <ComposerPrompt />
-        <CategoryBar
-          selectedCategory={selectedCategory}
-          currentSort={currentSort}
-          currentPeriod={currentPeriod}
-          currentTag={currentTag}
-          onSortChange={onSortChange}
-          onPeriodChange={onPeriodChange}
-          onClearTag={onClearTag}
-        />
+        <section className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/90 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)] sm:p-7">
+          <ComposerPrompt />
+          <div className="mt-5 grid gap-3 text-[13px] font-bold text-[#36534E] sm:grid-cols-3">
+            <Link href={fullFeedHref} className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
+              전체 게시글 {formatCount(total)}개
+            </Link>
+            <Link href="/community/cohort" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
+              같은 시기 동기방 입장
+            </Link>
+            <Link href="/community/quote-check" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
+              견적 체크 바로가기
+            </Link>
+          </div>
+          <CategoryBar
+            selectedCategory={selectedCategory}
+            currentSort={currentSort}
+            currentPeriod={currentPeriod}
+            currentTag={currentTag}
+            onSortChange={onSortChange}
+            onPeriodChange={onPeriodChange}
+            onClearTag={onClearTag}
+          />
+        </section>
         <LatestPosts
           posts={posts}
           total={total}
@@ -704,7 +717,7 @@ function LatestPosts({
       : "최신 글";
 
   return (
-    <article>
+    <article className="mt-4">
       {(isSearching || !isPreviewFeed || selectedCategory) && (
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#eadcc9] bg-[#fffdf9]/90 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.04)]">
         <div>
