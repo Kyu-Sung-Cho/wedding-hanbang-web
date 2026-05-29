@@ -61,6 +61,13 @@ const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
   { value: "over300", label: "300명 이상" },
 ];
 
+type WeddingPreferenceState = Partial<{
+  weddingStyle: WeddingStyle | null;
+  priorities: PriorityItem[];
+  budgetTendency: BudgetTendency | null;
+  guestCount: GuestCount | null;
+}>;
+
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -95,6 +102,8 @@ export default function SettingsPage() {
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
   const [comingSoonToast, setComingSoonToast] = useState("");
+  const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
 
   useEffect(() => {
     if (!couple) return;
@@ -188,6 +197,10 @@ export default function SettingsPage() {
       }
     | undefined;
 
+  useEffect(() => {
+    setDraftPrefs(prefs ?? {});
+  }, [journey?.progress]);
+
   const updatePreferences = async (
     partial: Partial<{
       weddingStyle: WeddingStyle | null;
@@ -197,14 +210,22 @@ export default function SettingsPage() {
     }>
   ) => {
     const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
-    const nextPrefs = { ...(prefs ?? {}), ...partial };
-    await updateJourney({
-      progress: { ...currentProgress, __preferences: nextPrefs } as never,
-    });
+    const nextPrefs = { ...draftPrefs, ...partial };
+    setDraftPrefs(nextPrefs);
+    setPreferenceSaving(true);
+    try {
+      await updateJourney({
+        progress: { ...currentProgress, __preferences: nextPrefs } as never,
+      });
+    } catch {
+      setDraftPrefs(prefs ?? {});
+    } finally {
+      setPreferenceSaving(false);
+    }
   };
 
   const togglePriority = async (value: PriorityItem) => {
-    const cur = prefs?.priorities ?? [];
+    const cur = draftPrefs.priorities ?? [];
     const next = cur.includes(value) ? cur.filter((p) => p !== value) : [...cur, value];
     await updatePreferences({ priorities: next });
   };
@@ -477,7 +498,12 @@ export default function SettingsPage() {
           </div>
           <div>
             <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">웨딩 스타일</h3>
-            <p className="text-base text-[#504444] font-light">아모라가 추천·예산 짤 때 쓰는 취향 정보예요</p>
+            <p className="text-base text-[#504444] font-light">
+              아모라가 추천·예산 짤 때 쓰는 취향 정보예요
+              <span className="ml-2 text-sm text-[#B5ADA3]">
+                {preferenceSaving ? "저장 중..." : "선택하면 바로 저장돼요"}
+              </span>
+            </p>
           </div>
         </div>
 
@@ -487,7 +513,7 @@ export default function SettingsPage() {
             <p className="text-sm text-[#B5ADA3] mb-2">스타일</p>
             <div className="flex flex-wrap gap-2">
               {STYLE_OPTIONS.map((opt) => {
-                const selected = prefs?.weddingStyle === opt.value;
+                const selected = draftPrefs.weddingStyle === opt.value;
                 return (
                   <button
                     key={opt.value}
@@ -510,7 +536,7 @@ export default function SettingsPage() {
             <p className="text-sm text-[#B5ADA3] mb-2">우선순위 <span className="text-[#B5ADA3]/70">(여러 개 선택)</span></p>
             <div className="flex flex-wrap gap-2">
               {PRIORITY_OPTIONS.map((opt) => {
-                const selected = (prefs?.priorities ?? []).includes(opt.value);
+                const selected = (draftPrefs.priorities ?? []).includes(opt.value);
                 return (
                   <button
                     key={opt.value}
@@ -533,7 +559,7 @@ export default function SettingsPage() {
             <p className="text-sm text-[#B5ADA3] mb-2">예산 성향</p>
             <div className="flex flex-wrap gap-2">
               {BUDGET_TENDENCY_OPTIONS.map((opt) => {
-                const selected = prefs?.budgetTendency === opt.value;
+                const selected = draftPrefs.budgetTendency === opt.value;
                 return (
                   <button
                     key={opt.value}
@@ -556,7 +582,7 @@ export default function SettingsPage() {
             <p className="text-sm text-[#B5ADA3] mb-2">하객 규모</p>
             <div className="flex flex-wrap gap-2">
               {GUEST_COUNT_OPTIONS.map((opt) => {
-                const selected = prefs?.guestCount === opt.value;
+                const selected = draftPrefs.guestCount === opt.value;
                 return (
                   <button
                     key={opt.value}

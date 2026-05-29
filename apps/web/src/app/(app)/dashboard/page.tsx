@@ -111,37 +111,6 @@ const categories: CategoryMeta[] = [
   },
 ];
 
-const serviceCards: Array<{ icon: LucideIcon; title: string; desc: string; href: string; cta: string }> = [
-  {
-    icon: MessageCircle,
-    title: "아모라 상담",
-    desc: "견적, 업체 답변, 가족 의견을 대화로 정리해요.",
-    href: "/chat",
-    cta: "상담하기",
-  },
-  {
-    icon: Wallet,
-    title: "예산 관리",
-    desc: "총 예산과 실제 지출, 항목별 여유분을 확인해요.",
-    href: "/budget",
-    cta: "예산 보기",
-  },
-  {
-    icon: CalendarCheck,
-    title: "일정 관리",
-    desc: "해야 할 일과 예약 일정을 D-day 기준으로 봐요.",
-    href: "/schedule",
-    cta: "일정 보기",
-  },
-  {
-    icon: Users,
-    title: "커뮤니티",
-    desc: "비슷한 상황의 예비부부 후기와 질문을 이어서 봐요.",
-    href: "/community",
-    cta: "글 보러가기",
-  },
-];
-
 const statusMeta: Record<Status, { label: string; tone: string; dot: string }> = {
   not_started: {
     label: "예정",
@@ -173,6 +142,14 @@ function getChecklistProgress(progress: Record<string, ProgressItem>, key: strin
   if (!template) return { done: status === "completed" ? 1 : 0, total: 1 };
   const merged = mergeChecklist(template.items, saved as ChecklistItem[] | undefined, status);
   return getChecklistCounts(merged);
+}
+
+function getChecklistItems(progress: Record<string, ProgressItem>, key: string) {
+  const template = CHECKLIST_MAP[key];
+  const saved = progress[key]?.checklist;
+  const status = getStatus(progress, key);
+  if (!template) return [];
+  return mergeChecklist(template.items, saved as ChecklistItem[] | undefined, status);
 }
 
 function formatWon(amount: number) {
@@ -279,6 +256,38 @@ export default function DashboardPage() {
 
   const ddayLabel =
     dday === null ? "D-day 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`;
+  const nextEvent = upcomingEvents[0];
+  const remainingItems = Math.max(0, summary.totalItems - summary.doneItems);
+  const overviewCards: Array<{ icon: LucideIcon; label: string; value: string; note: string; href: string }> = [
+    {
+      icon: CalendarCheck,
+      label: "다음 일정",
+      value: nextEvent?.title ?? "일정 미정",
+      note: nextEvent ? formatDate(nextEvent.date) : "가장 가까운 예약을 추가해보세요",
+      href: "/schedule",
+    },
+    {
+      icon: ClipboardCheck,
+      label: "남은 체크",
+      value: `${remainingItems}개`,
+      note: `${summary.doneItems}/${summary.totalItems}개 완료`,
+      href: "/schedule",
+    },
+    {
+      icon: Wallet,
+      label: "예산 사용",
+      value: `${budgetPercent}%`,
+      note: `${formatWon(spentBudget)} / ${formatWon(totalBudget)}`,
+      href: "/budget",
+    },
+    {
+      icon: Users,
+      label: "커플 연결",
+      value: partner ? "연결됨" : "대기 중",
+      note: partner ? `${partner.name ?? "파트너"}님과 함께 준비 중` : "초대 코드로 함께 관리할 수 있어요",
+      href: "/settings",
+    },
+  ];
 
   return (
     <div className="space-y-5 text-[#061a34]">
@@ -310,13 +319,10 @@ export default function DashboardPage() {
             <Sparkles className="h-4 w-4" />
           </p>
           <h1 className="mt-5 font-serif-kr text-[34px] font-medium leading-[1.25] text-[#061a34] md:text-[46px]">
-            오늘 해야 할 준비를
-            <br />
-            한 화면에서 정리해요.
+            결혼 준비 현황
           </h1>
-          <p className="mt-5 max-w-[620px] text-[15px] font-medium leading-[1.85] text-[#38475c]">
-            커뮤니티에서 얻은 정보와 아모라 상담 내용을 실제 예산, 일정, 체크리스트로 옮겨
-            결혼 준비가 흩어지지 않게 관리합니다.
+          <p className="mt-4 max-w-[520px] text-[15px] font-medium leading-[1.75] text-[#38475c]">
+            일정, 예산, 체크리스트를 한눈에 확인해요.
           </p>
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
             <MetricCard label="예식일" value={ddayLabel} note={formatDate(journey?.wedding_date)} />
@@ -376,18 +382,22 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-tutorial-target="dashboard-actions">
-        {serviceCards.map((card) => (
+        {overviewCards.map((card) => (
           <Link
-            key={card.title}
+            key={card.label}
             href={card.href}
-            className="group rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] transition-transform hover:-translate-y-0.5"
+            className="group rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] transition-colors hover:border-[#d8bb86]"
           >
-            <card.icon className="h-8 w-8 stroke-[1.55] text-[#b68a3a]" />
-            <h2 className="mt-4 text-[17px] font-semibold text-[#071629]">{card.title}</h2>
-            <p className="mt-2 min-h-[44px] text-[13px] font-medium leading-[1.65] text-[#5d6879]">{card.desc}</p>
-            <span className="mt-5 inline-flex items-center text-[13px] font-semibold text-[#9d6f36]">
-              {card.cta}
-              <ChevronRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            <span className="flex items-center justify-between gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
+                <card.icon className="h-5 w-5 stroke-[1.55]" />
+              </span>
+              <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
+            </span>
+            <p className="mt-4 text-[12px] font-semibold text-[#9d6f36]">{card.label}</p>
+            <h2 className="mt-1 truncate text-[19px] font-semibold text-[#071629]">{card.value}</h2>
+            <span className="mt-2 block truncate text-[12px] font-medium text-[#5d6879]">
+              {card.note}
             </span>
           </Link>
         ))}
@@ -409,46 +419,66 @@ export default function DashboardPage() {
             {categories.map((category) => {
               const status = getStatus(progress, category.key);
               const counts = getChecklistProgress(progress, category.key);
+              const checklistItems = getChecklistItems(progress, category.key);
+              const previewItems = checklistItems.slice(0, 4);
               const Icon = category.icon;
               return (
                 <article key={category.key} className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory(category)}
-                    className="flex w-full items-start gap-3 text-left"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="text-[15px] font-semibold text-[#071629]">{category.label}</span>
-                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusMeta[status].tone}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
-                          {statusMeta[status].label}
+                  <div className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategory(category)}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[15px] font-semibold text-[#071629]">{category.label}</span>
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusMeta[status].tone}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
+                            {statusMeta[status].label}
+                          </span>
+                        </span>
+                        <span className="mt-2 block text-[12px] font-medium text-[#7a8290]">
+                          {category.group} · {category.due}
                         </span>
                       </span>
-                      <span className="mt-2 block text-[12px] font-medium text-[#7a8290]">
-                        {category.group} · {category.due} · {counts.done}/{counts.total}
-                      </span>
-                    </span>
-                  </button>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    {(["not_started", "in_progress", "completed"] as Status[]).map((nextStatus) => (
-                      <button
-                        key={nextStatus}
-                        type="button"
-                        onClick={() => void updateCategoryStatus(category.key, nextStatus)}
-                        className={`rounded-full border px-2 py-2 text-[12px] font-semibold transition-colors ${
-                          status === nextStatus
-                            ? "border-[#061a34] bg-[#061a34] text-white"
-                            : "border-[#eadfc9] bg-white text-[#5d6879] hover:border-[#b68a3a] hover:text-[#9d6f36]"
-                        }`}
-                      >
-                        {statusMeta[nextStatus].label}
-                      </button>
-                    ))}
+                    </button>
                   </div>
+
+                  <details className="group mt-3 rounded-[14px] border border-[#eadfc9] bg-white/72">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-[12px] font-semibold text-[#34445a] [&::-webkit-details-marker]:hidden">
+                      <span>체크리스트 {counts.done}/{counts.total}</span>
+                      <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-open:rotate-90" />
+                    </summary>
+                    <div className="border-t border-[#eadfc9] px-3 py-2.5">
+                      {previewItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {previewItems.map((item) => (
+                            <div key={item.id} className="flex items-start gap-2 text-[12px] font-medium leading-[1.55] text-[#5d6879]">
+                              <span
+                                className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border ${
+                                  item.done ? "border-[#7b8b56] bg-[#7b8b56]" : "border-[#c8bda8] bg-white"
+                                }`}
+                              />
+                              <span className={item.done ? "text-[#7b8b56] line-through decoration-[#7b8b56]/50" : ""}>
+                                {item.label}
+                              </span>
+                            </div>
+                          ))}
+                          {counts.total > previewItems.length && (
+                            <Link href="/schedule" className="inline-flex text-[12px] font-semibold text-[#9d6f36]">
+                              전체 {counts.total}개 보기
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[12px] font-medium text-[#7a8290]">체크리스트가 아직 없어요.</p>
+                      )}
+                    </div>
+                  </details>
                 </article>
               );
             })}

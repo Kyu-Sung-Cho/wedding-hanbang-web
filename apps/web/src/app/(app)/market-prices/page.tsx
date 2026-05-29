@@ -97,9 +97,9 @@ export default function MarketPricesPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Anchor 1 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">전국 평균 결혼비용</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
+          <div className="min-w-0 bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="mb-2 whitespace-nowrap text-[10px] sm:text-xs text-[#504444]">전국 평균 결혼비용</div>
+            <div className="font-serif-kr whitespace-nowrap text-[22px] sm:text-3xl text-[#795252] mb-2 font-light">
               ₩21,010,000
             </div>
             <div className="text-[10px] text-[#504444]/60 leading-tight">
@@ -108,9 +108,9 @@ export default function MarketPricesPage() {
           </div>
 
           {/* Anchor 2 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">스드메 추가금 평균</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
+          <div className="min-w-0 bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="mb-2 whitespace-nowrap text-[10px] sm:text-xs text-[#504444]">스드메 추가금 평균</div>
+            <div className="font-serif-kr whitespace-nowrap text-[22px] sm:text-3xl text-[#795252] mb-2 font-light">
               +₩1,740,000
             </div>
             <div className="text-[10px] text-[#504444]/60 leading-tight">
