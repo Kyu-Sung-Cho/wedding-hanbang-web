@@ -70,7 +70,7 @@ interface BestPostPayload {
   posts: TrendingPost[];
 }
 
-const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1400px] md:w-[calc(100%_-_48px)]";
+const shell = "w-full max-w-none px-3 lg:px-5";
 const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -448,7 +448,7 @@ export default function CommunityLandingClient({
 
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
-    <section className={`${shell} relative grid grid-cols-1 items-center gap-6 pt-4 md:min-h-[465px] md:grid-cols-2 md:gap-8`}>
+    <section className={`${shell} relative grid grid-cols-1 items-center gap-6 pt-4 md:min-h-[465px] md:grid-cols-[minmax(360px,0.9fr)_minmax(560px,1.1fr)] md:gap-10 xl:min-h-[500px] xl:gap-16`}>
       <div className="relative z-10 py-6 md:py-8">
         <p className="mb-4 flex items-center gap-2 text-[14px] font-medium text-[#26364a] md:mb-6 md:text-[15px]">
           예비부부가 함께 만드는 결혼 준비의 모든 것
@@ -488,7 +488,7 @@ function Hero({ topVendor }: { topVendor: string | null }) {
         )}
       </div>
 
-      <div className="relative min-h-[260px] self-stretch overflow-hidden rounded-[28px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:min-h-[420px] md:rounded-bl-[64px] md:rounded-br-none md:rounded-tr-none">
+      <div className="relative min-h-[260px] self-stretch overflow-hidden rounded-[28px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:min-h-[420px] md:rounded-bl-[64px] md:rounded-br-none md:rounded-tr-none xl:min-h-[470px]">
         <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
         <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
       </div>
@@ -667,7 +667,7 @@ function CommunityMain({
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_360px]`}
+      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]`}
     >
       <LatestPosts
         posts={posts}
@@ -941,7 +941,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid grid-cols-[82px_1fr] gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[164px_1fr] sm:gap-5"
+      className="relative grid grid-cols-[82px_1fr] gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[164px_1fr] sm:gap-5 xl:grid-cols-[210px_1fr] 2xl:grid-cols-[248px_1fr]"
     >
       {toast && (
         <span className="absolute right-0 top-4 z-10 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
@@ -955,7 +955,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             alt=""
             fill
             className="object-cover transition-transform duration-500 hover:scale-105"
-            sizes="(min-width: 640px) 164px, 82px"
+            sizes="(min-width: 1536px) 248px, (min-width: 1280px) 210px, (min-width: 640px) 164px, 82px"
             priority={priority}
           />
         ) : (

@@ -19,7 +19,7 @@ export default function CommunityNav() {
 
   return (
     <header className="bg-[#fffdf7]">
-      <div className="mx-auto flex h-[76px] w-[calc(100%_-_32px)] max-w-[1300px] items-center justify-between md:w-[calc(100%_-_48px)]">
+      <div className="flex h-[76px] w-full max-w-none items-center justify-between px-3 lg:px-5">
         <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
           <Logo size="lg" />
         </Link>
@@ -61,7 +61,7 @@ export default function CommunityNav() {
       </div>
       {mobileOpen && (
         <div className="border-t border-[#eadfc9] bg-[#fffdf7] md:hidden">
-          <div className="mx-auto flex w-[calc(100%_-_32px)] max-w-[1300px] flex-col gap-2 py-4">
+          <div className="flex w-full max-w-none flex-col gap-2 px-3 py-4 lg:px-5">
             {navItems.map((item) => (
               <Link
                 key={item.href}
