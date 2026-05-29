@@ -813,6 +813,7 @@ function LatestPosts({
           {posts.map((post, index) => (
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
+              {!isSearching && index === 1 && <AmoraInlinePromo />}
               {!isSearching && !isPreviewFeed && index === 0 && (
                 <div className="py-4" data-tutorial-target="community-composer">
                   <FeedComposer />
@@ -832,6 +833,7 @@ function LatestPosts({
               </Link>
             </div>
           )}
+          {!isSearching && posts.length > 0 && <FeedActionBoard />}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 2 }).map((_, index) => (
@@ -842,6 +844,104 @@ function LatestPosts({
         </div>
       )}
     </article>
+  );
+}
+
+function AmoraInlinePromo() {
+  return (
+    <div className="py-4">
+      <article className="relative overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fff8ec_0%,#ffffff_48%,#eef4eb_100%)] p-5 shadow-[0_14px_34px_rgba(8,22,38,0.06)] md:grid md:grid-cols-[minmax(0,1fr)_280px] md:items-center md:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="relative z-10">
+          <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[12px] font-semibold text-[#9d6f36]">
+            아모라 추천
+          </span>
+          <h3 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629] md:text-[27px]">
+            후기에서 본 걱정, 아모라가 견적으로 먼저 잡아드릴게요.
+          </h3>
+          <p className="mt-3 max-w-[760px] text-[14px] font-medium leading-[1.75] text-[#5d6879]">
+            빠진 항목, 추가금 가능성, 계약 전 질문 리스트를 한 번에 확인하고 우리 예산에 맞는 다음 행동을 정리해요.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2 text-[12px] font-semibold text-[#34445a]">
+            {["평균 대비 참고 진단", "항목별 과소/과대 분석", "계약 전 질문 리스트"].map((item) => (
+              <span key={item} className="rounded-full border border-[#eadfc9] bg-white/72 px-3 py-1.5">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="relative z-10 mt-5 grid gap-3 md:mt-0">
+          <Link
+            href="/chat"
+            className="group flex min-h-[58px] items-center justify-between rounded-[14px] bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.18)] transition-transform hover:-translate-y-0.5"
+          >
+            아모라에게 물어보기
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+          <Link
+            href="/market-prices"
+            className="group flex min-h-[54px] items-center justify-between rounded-[14px] border border-[#eadfc9] bg-white/82 px-4 text-[13px] font-semibold text-[#34445a] transition-colors hover:border-[#b68a3a]"
+          >
+            요즘 시세 먼저 보기
+            <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+        <ClipboardCheck className="pointer-events-none absolute -bottom-7 right-8 hidden h-[130px] w-[130px] rotate-6 text-[#c9a96e]/20 lg:block" />
+      </article>
+    </div>
+  );
+}
+
+function FeedActionBoard() {
+  const actions: Array<{ href: string; title: string; desc: string; icon: LucideIcon }> = [
+    {
+      href: "/community/post/write",
+      title: "내 상황도 물어보기",
+      desc: "읽다가 막힌 부분을 바로 질문으로 남겨요.",
+      icon: PenSquare,
+    },
+    {
+      href: "/community/cohort",
+      title: "동기방에서 비교하기",
+      desc: "같은 시기 예비부부의 선택 기준을 같이 봐요.",
+      icon: Users,
+    },
+    {
+      href: "/lounge",
+      title: "준비실에 정리하기",
+      desc: "마음에 둔 내용은 일정과 예산으로 이어가요.",
+      icon: CalendarCheck,
+    },
+  ];
+
+  return (
+    <div className="border-t border-[#eadfc9] py-5">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <span className="text-[12px] font-semibold text-[#9d6f36]">다음 행동</span>
+          <h3 className="mt-1 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+            읽은 글을 바로 준비로 이어가요.
+          </h3>
+        </div>
+        <Link href="/lounge" className="hidden text-[13px] font-semibold text-[#9d6f36] sm:inline-flex">
+          라운지 열기
+        </Link>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {actions.map((item) => (
+          <Link
+            key={item.title}
+            href={item.href}
+            className="group min-h-[118px] rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4 transition-colors hover:border-[#b68a3a]"
+          >
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#36534E]">
+              <item.icon className="h-[18px] w-[18px]" />
+            </span>
+            <b className="mt-3 block text-[14px] font-semibold text-[#071629]">{item.title}</b>
+            <span className="mt-1.5 block text-[12px] font-medium leading-[1.6] text-[#7a8290]">{item.desc}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1053,6 +1153,7 @@ function RightPanels() {
       <BestPostsPanel />
       <CommunityQuickPanel />
       <MarketSnapshotPanel />
+      <AmoraSidebarPanel />
     </div>
   );
 }
@@ -1192,6 +1293,39 @@ function CommunityQuickPanel() {
           </Link>
         ))}
       </div>
+    </article>
+  );
+}
+
+function AmoraSidebarPanel() {
+  const checks = ["견적서 빠진 항목 찾기", "추가금 가능성 먼저 보기", "계약 전 질문 정리"];
+
+  return (
+    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_58%,#eef4eb_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+      <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+        아모라 체크
+      </span>
+      <h2 className="mt-3 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+        이 글, 우리 견적에 적용해볼까요?
+      </h2>
+      <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+        후기에서 본 포인트를 아모라가 우리 상황에 맞춰 다시 정리해드려요.
+      </p>
+      <div className="mt-4 grid gap-2">
+        {checks.map((item) => (
+          <div key={item} className="flex items-center gap-2 rounded-[12px] border border-[#eadfc9] bg-white/72 px-3 py-2.5">
+            <ClipboardCheck className="h-4 w-4 shrink-0 text-[#36534E]" />
+            <span className="text-[12px] font-semibold text-[#34445a]">{item}</span>
+          </div>
+        ))}
+      </div>
+      <Link
+        href="/chat"
+        className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
+      >
+        아모라에게 바로 묻기
+        <ChevronRight className="h-4 w-4" />
+      </Link>
     </article>
   );
 }
