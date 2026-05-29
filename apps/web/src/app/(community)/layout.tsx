@@ -36,7 +36,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#263832_0%,#082342_62%,#041425_100%)] text-white">
+    <footer className="bg-[linear-gradient(135deg,#263832_0%,#36534E_62%,#1f332f_100%)] text-white">
       <div className="mx-auto grid w-[calc(100%_-_48px)] max-w-[1300px] gap-9 py-8 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr]">
         <div>
           <FooterBrand />
@@ -65,8 +65,8 @@ function CommunityFooter() {
           title="둘러보기"
           items={[
             { label: "후기·질문", href: "/community#community-feed" },
-            { label: "견적 체크", href: "/community/quote-check" },
             { label: "동기방", href: "/community/cohort" },
+            { label: "15초 후기", href: "/community/quick-review" },
             { label: "글쓰기", href: "/community/post/write" },
             { label: "북마크", href: "/community/my/bookmarks" },
           ]}
@@ -74,7 +74,7 @@ function CommunityFooter() {
         <FooterColumn
           title="준비 도구"
           items={[
-            { label: "준비실", href: "/dashboard" },
+            { label: "웨딩 라운지", href: "/lounge" },
             { label: "아모라 상담", href: "/chat" },
             { label: "예산", href: "/budget" },
             { label: "일정", href: "/schedule" },
@@ -109,10 +109,10 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/dashboard"
+            href="/lounge"
             className="mt-4 inline-flex items-center rounded-full border border-[#36534E]/70 px-4 py-2 text-[12px] font-semibold text-[#ffffff] transition-colors hover:bg-[#36534E]/10"
           >
-            준비실로 이동
+            웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
           </Link>
         </div>

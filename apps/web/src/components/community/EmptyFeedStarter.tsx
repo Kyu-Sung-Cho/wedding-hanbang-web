@@ -5,7 +5,6 @@ import {
   CalendarCheck,
   Camera,
   ChevronRight,
-  FileSearch,
   HelpCircle,
   Lightbulb,
   MessageSquarePlus,
@@ -18,11 +17,11 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
-    href: "/community/quote-check",
-    label: "아모라 견적 체크리스트",
-    title: "받은 견적서에 빠진 항목과 추가금 추정 먼저 확인하기",
-    meta: "체크리스트",
-    icon: FileSearch,
+    href: "/community/quick-review",
+    label: "15초 후기",
+    title: "업체명, 별점, 한 줄 후기로 첫 실제 사례 남기기",
+    meta: "빠른 작성",
+    icon: MessageSquarePlus,
   },
   {
     href: "/community?category=is_normal&feed=all#community-feed",
@@ -75,10 +74,10 @@ export default function EmptyFeedStarter({
             </p>
           </div>
           <Link
-            href="/community/quote-check"
+            href="/community/post/write"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#2B423E]"
           >
-            체크리스트 보기
+            글쓰기
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>

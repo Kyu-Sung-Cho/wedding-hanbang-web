@@ -19,6 +19,7 @@ interface CommunityState {
   currentSort: PostSort;
   currentPeriod: TimePeriod;
   currentTag: string | null;
+  currentAuthorId: string | null;
   currentPage: number;
   hasMore: boolean;
   isLoading: boolean;
@@ -55,6 +56,7 @@ interface CommunityState {
   setSort: (sort: PostSort) => void;
   setPeriod: (period: TimePeriod) => void;
   setTag: (tag: string | null) => void;
+  setAuthorId: (authorId: string | null) => void;
   clearError: () => void;
   reset: () => void;
 }
@@ -78,8 +80,9 @@ function feedCacheKey(
   sort: PostSort,
   period: TimePeriod,
   tag: string | null,
+  authorId: string | null,
 ): string {
-  return `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}`;
+  return `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}:${authorId ?? "_"}`;
 }
 
 function readFeedCache(key: string): CachedFeed | null {
@@ -130,6 +133,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   currentSort: "new",
   currentPeriod: "week",
   currentTag: null,
+  currentAuthorId: null,
   currentPage: 1,
   hasMore: true,
   isLoading: true,
@@ -151,6 +155,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       currentSort: "new",
       currentPeriod: "week",
       currentTag: null,
+      currentAuthorId: null,
       currentPage: 1,
       isLoading: false,
       errorMessage: null,
@@ -159,8 +164,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPosts: async (reset = true) => {
-    const { currentCategory, currentSort, currentPeriod, currentTag } = get();
-    const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag);
+    const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId } = get();
+    const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId);
 
     // SWR — reset일 때만 캐시 먹임 (페이지네이션엔 의미 없음)
     let usingFreshCache = false;
@@ -187,6 +192,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     const params = new URLSearchParams();
     if (currentCategory) params.set("category", currentCategory);
     if (currentTag) params.set("tag", currentTag);
+    if (currentAuthorId) params.set("author_id", currentAuthorId);
     params.set("sort", currentSort);
     if (currentSort === "top") params.set("period", currentPeriod);
     params.set("page", "1");
@@ -207,7 +213,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchMorePosts: async () => {
-    const { currentCategory, currentSort, currentPeriod, currentTag, currentPage, hasMore, isLoading } = get();
+    const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
     set({ isLoading: true, errorMessage: null });
 
@@ -215,6 +221,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     const params = new URLSearchParams();
     if (currentCategory) params.set("category", currentCategory);
     if (currentTag) params.set("tag", currentTag);
+    if (currentAuthorId) params.set("author_id", currentAuthorId);
     params.set("sort", currentSort);
     if (currentSort === "top") params.set("period", currentPeriod);
     params.set("page", String(nextPage));
@@ -470,12 +477,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     set({ currentTag: tag, posts: [], hasMore: true, currentPage: 1 });
   },
 
+  setAuthorId: (authorId) => {
+    if (get().currentAuthorId === authorId) return;
+    set({ currentAuthorId: authorId, posts: [], hasMore: true, currentPage: 1 });
+  },
+
   clearError: () => set({ errorMessage: null }),
 
   reset: () => {
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
-      currentTag: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
+      currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       errorMessage: null, lastSyncedAt: null,
       currentPost: null, comments: [], postLoading: false, commentsLoading: false,
       communityProfile: null,

@@ -18,7 +18,6 @@ import {
   Gift,
   Heart,
   HeartHandshake,
-  ImageIcon,
   Megaphone,
   MessageCircle,
   PenSquare,
@@ -27,6 +26,7 @@ import {
   Share2,
   Sparkles,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
@@ -90,11 +90,11 @@ const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string;
 ];
 
 const cohortPreviewRows = [
-  { period: "2026년 1분기 (1~3월)", note: "준비 시작" },
-  { period: "2026년 2분기 (4~6월)", note: "비교 활발" },
-  { period: "2026년 3분기 (7~9월)", note: "예약·후기" },
-  { period: "2026년 4분기 (10~12월)", note: "체크리스트" },
-  { period: "날짜 미정·하반기 이후", note: "일정 잡기" },
+  { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1" },
+  { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2" },
+  { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3" },
+  { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4" },
+  { period: "내 결혼 예정일 기준", note: "자동 찾기", href: "/community/cohort" },
 ];
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
@@ -149,6 +149,7 @@ export default function CommunityLandingClient() {
   const searchQuery = searchParams.get("search") ?? "";
   const categoryQuery = searchParams.get("category");
   const tagQuery = searchParams.get("tag") ?? "";
+  const authorQuery = searchParams.get("author_id") ?? "";
   const sortQuery = searchParams.get("sort");
   const periodQuery = searchParams.get("period");
   const feedQuery = searchParams.get("feed");
@@ -175,7 +176,7 @@ export default function CommunityLandingClient() {
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
-  const showFullFeed = feedQuery === "all";
+  const showFullFeed = feedQuery !== "summary";
   const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 6);
   const activeTotal = isSearching ? searchTotal : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
@@ -183,32 +184,35 @@ export default function CommunityLandingClient() {
     const params = new URLSearchParams();
     if (selectedCategory) params.set("category", selectedCategory);
     if (tagQuery) params.set("tag", tagQuery);
+    if (authorQuery) params.set("author_id", authorQuery);
     if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
     if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
     params.set("feed", "all");
     return `/community?${params.toString()}#community-feed`;
-  }, [periodQuery, selectedCategory, sortQuery, tagQuery]);
+  }, [authorQuery, periodQuery, selectedCategory, sortQuery, tagQuery]);
   const summaryFeedHref = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedCategory) params.set("category", selectedCategory);
     if (tagQuery) params.set("tag", tagQuery);
+    if (authorQuery) params.set("author_id", authorQuery);
     if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
     if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
+    params.set("feed", "summary");
     const query = params.toString();
     return query ? `/community?${query}#community-feed` : "/community#community-feed";
-  }, [periodQuery, selectedCategory, sortQuery, tagQuery]);
+  }, [authorQuery, periodQuery, selectedCategory, sortQuery, tagQuery]);
 
   useEffect(() => {
     setSearchDraft(searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    if (sortQuery && sortValues.includes(sortQuery as PostSort)) {
-      useCommunityStore.getState().setSort(sortQuery as PostSort);
-    }
-    if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) {
-      useCommunityStore.getState().setPeriod(periodQuery as TimePeriod);
-    }
+    const store = useCommunityStore.getState();
+    const nextSort = sortQuery && sortValues.includes(sortQuery as PostSort) ? (sortQuery as PostSort) : "new";
+    const nextPeriod =
+      periodQuery && periodValues.includes(periodQuery as TimePeriod) ? (periodQuery as TimePeriod) : "week";
+    if (store.currentSort !== nextSort) store.setSort(nextSort);
+    if (store.currentPeriod !== nextPeriod) store.setPeriod(nextPeriod);
   }, [periodQuery, sortQuery]);
 
   useEffect(() => {
@@ -277,8 +281,9 @@ export default function CommunityLandingClient() {
     const store = useCommunityStore.getState();
     store.setCategory(selectedCategory);
     store.setTag(tagQuery || null);
+    store.setAuthorId(authorQuery || null);
     store.fetchPosts(true);
-  }, [currentPeriod, currentSort, isSearching, selectedCategory, tagQuery]);
+  }, [authorQuery, currentPeriod, currentSort, isSearching, selectedCategory, tagQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -336,10 +341,27 @@ export default function CommunityLandingClient() {
 
   function setSort(nextSort: PostSort) {
     useCommunityStore.getState().setSort(nextSort);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.set("feed", "all");
+    if (nextSort === "new") {
+      params.delete("sort");
+    } else {
+      params.set("sort", nextSort);
+    }
+    if (nextSort !== "top") params.delete("period");
+    const query = params.toString();
+    router.push(`${query ? `/community?${query}` : "/community"}#community-feed`, { scroll: false });
   }
 
   function setPeriod(nextPeriod: TimePeriod) {
     useCommunityStore.getState().setPeriod(nextPeriod);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.set("feed", "all");
+    params.set("sort", "top");
+    params.set("period", nextPeriod);
+    router.push(`/community?${params.toString()}#community-feed`, { scroll: false });
   }
 
   return (
@@ -353,9 +375,16 @@ export default function CommunityLandingClient() {
         currentSort={currentSort}
         currentPeriod={currentPeriod}
         currentTag={currentTag}
+        authorQuery={authorQuery}
         onSortChange={setSort}
         onPeriodChange={setPeriod}
         onClearTag={() => router.push("/community")}
+        onClearAuthor={() => {
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("author_id");
+          const query = params.toString();
+          router.push(`${query ? `/community?${query}` : "/community"}#community-feed`);
+        }}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -482,19 +511,23 @@ function ComposerPrompt() {
   return (
     <div>
       <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">
-        어떤 고민이 있으신가요? 후기나 질문을 남겨보세요.
+        필요한 걸 바로 나누고 찾아보세요.
       </h2>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <p className="mt-2 text-[13px] font-semibold leading-[1.7] text-[#6e7974]">
+        궁금한 건 질문으로, 다녀온 곳은 짧은 후기로 남겨보세요.
+      </p>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { href: "/community/post/write?category=tour_review", icon: PenSquare, label: "후기 쓰기" },
           { href: "/community/post/write?category=is_normal", icon: MessageCircle, label: "질문하기" },
-          { href: "/community/post/write", icon: ImageIcon, label: "사진 올리기" },
+          { href: "/community/quick-review", icon: PenSquare, label: "15초 후기" },
+          { href: "/community/cohort", icon: Users, label: "동기방 찾기" },
+          { href: "/community/my", icon: Bookmark, label: "내 활동" },
         ].map((item) => (
           <Link
             key={item.label}
             href={item.href}
-            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[17px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
-            data-tutorial-target={item.label === "후기 쓰기" ? "community-write" : undefined}
+            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[16px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
+            data-tutorial-target={item.label === "질문하기" ? "community-write" : undefined}
           >
             <item.icon className="h-5 w-5 text-[#9a6720]" />
             {item.label}
@@ -605,9 +638,11 @@ function CommunityMain({
   currentSort,
   currentPeriod,
   currentTag,
+  authorQuery,
   onSortChange,
   onPeriodChange,
   onClearTag,
+  onClearAuthor,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -624,9 +659,11 @@ function CommunityMain({
   currentSort: PostSort;
   currentPeriod: TimePeriod;
   currentTag: string | null;
+  authorQuery: string;
   onSortChange: (sort: PostSort) => void;
   onPeriodChange: (period: TimePeriod) => void;
   onClearTag: () => void;
+  onClearAuthor: () => void;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -652,8 +689,8 @@ function CommunityMain({
             <Link href="/community/cohort" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
               같은 시기 동기방 입장
             </Link>
-            <Link href="/community/quote-check" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
-              견적 체크 바로가기
+            <Link href="/community/my" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
+              내 글·북마크 보기
             </Link>
           </div>
           <CategoryBar
@@ -672,12 +709,14 @@ function CommunityMain({
           selectedCategory={selectedCategory}
           isSearching={isSearching}
           isPreviewFeed={isPreviewFeed}
+          authorQuery={authorQuery}
           fullFeedHref={fullFeedHref}
           summaryFeedHref={summaryFeedHref}
           searchQuery={searchQuery}
           isLoading={isLoading}
           errorMessage={errorMessage}
           clearError={clearError}
+          onClearAuthor={onClearAuthor}
         />
       </div>
       <RightPanels vendorTags={vendorTags} />
@@ -691,78 +730,95 @@ function LatestPosts({
   selectedCategory,
   isSearching,
   isPreviewFeed,
+  authorQuery,
   fullFeedHref,
   summaryFeedHref,
   searchQuery,
   isLoading,
   errorMessage,
   clearError,
+  onClearAuthor,
 }: {
   posts: PostWithAuthor[];
   total: number;
   selectedCategory: CommunityCategory | null;
   isSearching: boolean;
   isPreviewFeed: boolean;
+  authorQuery: string;
   fullFeedHref: string;
   summaryFeedHref: string;
   searchQuery: string;
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
+  onClearAuthor: () => void;
 }) {
   const feedTitle = isSearching
     ? "검색 결과"
-    : selectedCategory
+    : authorQuery
+      ? "작성자 글"
+      : selectedCategory
       ? `${categoryDisplayLabels[selectedCategory]} 글`
       : "최신 글";
 
   return (
     <article className="mt-4">
-      {(isSearching || !isPreviewFeed || selectedCategory) && (
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#eadcc9] bg-[#fffdf9]/90 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.04)]">
-        <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
-            {feedTitle}
-          </h2>
-          <p className="mt-1 text-[12px] font-medium text-[#7d7166]">
-            {isSearching
-              ? `"${searchQuery}" ${formatCount(total)}건`
-              : isPreviewFeed
-                ? `최근 글 ${formatCount(posts.length)}개만 먼저 보여드려요`
-                : `실제 게시글 ${formatCount(total)}개`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {isPreviewFeed && posts.length > 0 && (
+      {(isSearching || !isPreviewFeed || selectedCategory || authorQuery) && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#eadcc9] bg-[#fffdf9]/90 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.04)]">
+          <div>
+            <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
+              {feedTitle}
+            </h2>
+            <p className="mt-1 text-[12px] font-medium text-[#7d7166]">
+              {isSearching
+                ? `"${searchQuery}" ${formatCount(total)}건`
+                : authorQuery
+                  ? `이 작성자의 공개 글 ${formatCount(total)}개`
+                  : isPreviewFeed
+                    ? `최근 글 ${formatCount(posts.length)}개만 먼저 보여드려요`
+                    : `실제 게시글 ${formatCount(total)}개`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isPreviewFeed && posts.length > 0 && (
+              <Link
+                href={fullFeedHref}
+                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
+                aria-label="전체 글 보기"
+              >
+                전체 글 보기
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            )}
+            {!isPreviewFeed && !isSearching && (
+              <Link
+                href={summaryFeedHref}
+                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
+                aria-label="커뮤니티 요약 보기"
+              >
+                요약 보기
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            )}
+            {authorQuery && (
+              <button
+                type="button"
+                onClick={onClearAuthor}
+                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
+              >
+                작성자 필터 지우기
+              </button>
+            )}
             <Link
-              href={fullFeedHref}
-              className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
-              aria-label="전체 글 보기"
+              href="/community/post/write"
+              className="inline-flex min-h-10 items-center rounded-full bg-[#36534E] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
+              data-tutorial-target="community-write"
             >
-              전체 글 보기
-              <ChevronRight className="ml-1 h-4 w-4" />
+              글쓰기
+              <PenSquare className="ml-2 h-4 w-4" />
             </Link>
-          )}
-          {!isPreviewFeed && !isSearching && (
-            <Link
-              href={summaryFeedHref}
-              className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
-              aria-label="커뮤니티 요약 보기"
-            >
-              요약 보기
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          )}
-          <Link
-            href="/community/post/write"
-            className="inline-flex min-h-10 items-center rounded-full bg-[#36534E] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
-            data-tutorial-target="community-write"
-          >
-            글쓰기
-            <PenSquare className="ml-2 h-4 w-4" />
-          </Link>
+          </div>
         </div>
-      </div>
       )}
 
       {errorMessage && (
@@ -1000,10 +1056,6 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             {post.comment_count ?? 0}
           </span>
           <span className="inline-flex items-center gap-1">
-            <Share2 className="h-4 w-4 stroke-[1.6]" />
-            {Math.max(post.comment_count ?? 0, 0) + Math.max(displayUpvoteCount, 0)}
-          </span>
-          <span className="inline-flex items-center gap-1">
             <Eye className="h-4 w-4 stroke-[1.6]" />
             {post.view_count ?? 0}
           </span>
@@ -1082,26 +1134,28 @@ function CohortPreviewPanel() {
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기부부 방</h2>
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기방</h2>
           <p className="mt-2 text-[13px] font-bold leading-[1.65] text-[#36534E]">
-            함께 준비하는 동기부부와 실시간으로 소통해요!
+            결혼 시기가 비슷한 사람들과 가격, 후기, 고민을 나눠요.
           </p>
         </div>
         <Link href="/community/cohort" className="shrink-0 text-[13px] font-black text-[#9a6720]">
-          더보기
+          내 방 찾기
         </Link>
       </div>
       <div className="space-y-2">
-        {cohortPreviewRows.map((row, index) => (
+        {cohortPreviewRows.map((row) => (
           <Link
             key={row.period}
-            href="/community/cohort"
+            href={row.href}
             className="flex min-h-[42px] items-center gap-3 rounded-[12px] px-1 text-[14px] font-black text-[#102b27] transition-colors hover:bg-[#f6efe5]"
           >
-            <span className="shrink-0">👰🤵</span>
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
+              <Users className="h-4 w-4" />
+            </span>
             <span className="min-w-0 flex-1 truncate">{row.period}</span>
             <span className="hidden text-[12px] font-black text-[#6e7974] sm:inline">
-              {formatCount([2314, 2981, 3427, 2765, 1876][index] ?? 1200)}명
+              {row.note}
             </span>
             <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#eadcc9] bg-white px-3 text-[12px] font-black text-[#36534E]">
               입장
@@ -1145,9 +1199,9 @@ function BestPostsPanel() {
     <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
-          BEST 글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
+          인기 글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
         </h2>
-        <Link href="/community?sort=hot" className="text-[13px] font-medium text-[#36534E]">
+        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#36534E]">
           더보기
         </Link>
       </div>
@@ -1200,7 +1254,7 @@ function PopularTagsPanel({ vendorTags }: { vendorTags: VendorTag[] }) {
         {tags.map((tag) => (
           <Link
             key={tag}
-            href={`/community?tag=${encodeURIComponent(tag)}#community-feed`}
+            href={`/community?tag=${encodeURIComponent(tag)}&feed=all#community-feed`}
             className="rounded-full border border-[#eadcc9] bg-white/72 px-3 py-2 text-[12px] font-black text-[#36534E] transition-colors hover:border-[#36534E] hover:bg-[#eaf3ef]"
           >
             # {tag}

@@ -8,9 +8,9 @@ import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
-  { href: "/community", label: "커뮤니티" },
-  { href: "/community/about", label: "커뮤니티 소개" },
-  { href: "/dashboard", label: "서비스 소개" },
+  { href: "/community#community-feed", label: "후기·질문" },
+  { href: "/community/cohort", label: "동기방" },
+  { href: "/lounge", label: "웨딩 라운지" },
 ];
 
 export default function CommunityNav() {
@@ -37,7 +37,7 @@ export default function CommunityNav() {
             href="/chat"
             className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-6 py-3 text-[14px] font-semibold text-[#ffffff] shadow-[0_12px_28px_rgba(54,83,78,0.22)] transition-all hover:-translate-y-0.5 hover:bg-[#1f3d38]"
           >
-            아모라 체험하기
+            아모라에게 묻기
             <ChevronRight className="h-4 w-4" />
           </Link>
           {profile ? (
@@ -77,7 +77,7 @@ export default function CommunityNav() {
               onClick={() => setMobileOpen(false)}
               className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[14px] font-semibold text-white"
             >
-              아모라 체험하기
+              아모라에게 묻기
               <ChevronRight className="h-4 w-4" />
             </Link>
             {profile ? (
