@@ -60,6 +60,11 @@ interface TrendingPost {
   comment_count: number;
 }
 
+interface BestPostPayload {
+  mode: "week" | "best";
+  posts: TrendingPost[];
+}
+
 const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1400px] md:w-[calc(100%_-_48px)]";
 const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
@@ -208,7 +213,8 @@ export default function CommunityLandingClient({
   const isSearching = searchQuery.trim().length > 0;
   const normalizedSort = sortValues.includes(sortQuery as PostSort) ? (sortQuery as PostSort) : "new";
   const normalizedPeriod = periodValues.includes(periodQuery as TimePeriod) ? (periodQuery as TimePeriod) : "week";
-  const showFullFeed = feedQuery !== "summary";
+  const hasFocusedFeed = Boolean(selectedCategory || tagQuery || authorQuery || sortQuery || isSearching);
+  const showFullFeed = feedQuery === "all" || hasFocusedFeed;
   const canUseInitialFeed =
     !isSearching &&
     !selectedCategory &&
@@ -219,7 +225,7 @@ export default function CommunityLandingClient({
     posts.length === 0 &&
     Boolean(initialFeed?.posts.length);
   const feedPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 6);
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 4);
   const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
@@ -739,9 +745,9 @@ function LatestPosts({
             <Link
               href={fullFeedHref}
               className="inline-flex min-h-10 items-center rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-medium text-[#9d6f36]"
-              aria-label="전체 글 보기"
+              aria-label="최신 글 더보기"
             >
-              전체 글 보기
+              더보기
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
           )}
@@ -802,7 +808,7 @@ function LatestPosts({
           {posts.map((post, index) => (
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
-              {!isSearching && index === 0 && (
+              {!isSearching && !isPreviewFeed && index === 0 && (
                 <div className="py-4" data-tutorial-target="community-composer">
                   <FeedComposer />
                 </div>
@@ -1028,29 +1034,43 @@ function RightPanels() {
     <div className="space-y-[18px]" data-tutorial-target="community-right">
       <CohortPreviewPanel />
       <BestPostsPanel />
+      <CommunityQuickPanel />
     </div>
   );
 }
 
 function BestPostsPanel() {
   const [posts, setPosts] = useState<TrendingPost[]>([]);
+  const [mode, setMode] = useState<"week" | "best">("week");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    void withSessionCache("community:landing:best-posts:5", 5 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
-      if (!res.ok) return [] as TrendingPost[];
-      const json = await res.json();
-      return (json.posts ?? []).slice(0, 5).map((post: TrendingPost) => ({
-        id: post.id,
-        title: post.title,
-        upvote_count: post.upvote_count,
-        comment_count: post.comment_count,
-      })) as TrendingPost[];
+    void withSessionCache("community:landing:weekly-or-best-posts:5", 5 * 60 * 1000, async () => {
+      const normalize = (items: TrendingPost[]) =>
+        items.slice(0, 5).map((post: TrendingPost) => ({
+          id: post.id,
+          title: post.title,
+          upvote_count: post.upvote_count,
+          comment_count: post.comment_count,
+        }));
+
+      const weeklyRes = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1");
+      if (weeklyRes.ok) {
+        const weeklyJson = await weeklyRes.json();
+        const weeklyPosts = normalize(weeklyJson.posts ?? []);
+        if (weeklyPosts.length > 0) return { mode: "week", posts: weeklyPosts } satisfies BestPostPayload;
+      }
+
+      const bestRes = await fetch("/api/community/posts?sort=top&period=all&limit=5&page=1");
+      if (!bestRes.ok) return { mode: "best", posts: [] } satisfies BestPostPayload;
+      const bestJson = await bestRes.json();
+      return { mode: "best", posts: normalize(bestJson.posts ?? []) } satisfies BestPostPayload;
     })
       .then((data) => {
-        if (!cancelled) setPosts(data);
+        if (cancelled) return;
+        setMode(data.mode);
+        setPosts(data.posts);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1060,13 +1080,19 @@ function BestPostsPanel() {
     };
   }, []);
 
+  const title = mode === "week" ? "이번주 인기글" : "BEST 글";
+  const moreHref =
+    mode === "week"
+      ? "/community?sort=top&period=week&feed=all#community-feed"
+      : "/community?sort=top&period=all&feed=all#community-feed";
+
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
-          BEST 글 <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
+          {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
-        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
+        <Link href={moreHref} className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
@@ -1077,7 +1103,7 @@ function BestPostsPanel() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7a8290]">아직 인기글을 집계하고 있어요.</p>
+        <p className="text-[13px] font-medium text-[#7a8290]">인기글을 집계하고 있어요.</p>
       ) : (
         <ol className="space-y-3">
           {posts.map((post, index) => (
@@ -1097,8 +1123,57 @@ function BestPostsPanel() {
         </ol>
       )}
       <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
-        실제 커뮤니티 반응을 기준으로 보여드려요.
+        {mode === "week" ? "최근 7일 좋아요 반응을 기준으로 보여드려요." : "누적 좋아요 반응을 기준으로 보여드려요."}
       </p>
+    </article>
+  );
+}
+
+function CommunityQuickPanel() {
+  const quickLinks: Array<{ href: string; title: string; desc: string; icon: LucideIcon }> = [
+    {
+      href: "/community?category=is_normal&feed=all#community-feed",
+      title: "정상인가요?",
+      desc: "헷갈리는 준비 상황 먼저 확인",
+      icon: ClipboardCheck,
+    },
+    {
+      href: "/community/post/write",
+      title: "질문 남기기",
+      desc: "답답한 부분을 바로 물어보기",
+      icon: PenSquare,
+    },
+    {
+      href: "/community/my/bookmarks",
+      title: "북마크",
+      desc: "다시 볼 글만 모아보기",
+      icon: Bookmark,
+    },
+  ];
+
+  return (
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+      <h2 className="font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">바로 할 일</h2>
+      <div className="mt-4 grid gap-2">
+        {quickLinks.map((item) => (
+          <Link
+            key={item.title}
+            href={item.href}
+            className="group flex items-center justify-between gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#b68a3a]"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
+                <item.icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <b className="block truncate text-[13px] font-semibold text-[#071629]">{item.title}</b>
+                <span className="mt-0.5 block truncate text-[12px] font-medium text-[#7a8290]">{item.desc}</span>
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        ))}
+      </div>
     </article>
   );
 }
