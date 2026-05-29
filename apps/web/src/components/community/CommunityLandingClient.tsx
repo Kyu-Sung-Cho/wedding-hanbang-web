@@ -8,7 +8,9 @@ import type { LucideIcon } from "lucide-react";
 import {
   Award,
   Bookmark,
+  Building2,
   CalendarCheck,
+  Camera,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -20,10 +22,12 @@ import {
   HeartHandshake,
   Megaphone,
   MessageCircle,
+  Palette,
   PenSquare,
   RefreshCw,
   Search,
   Share2,
+  Shirt,
   Sparkles,
   AlertCircle,
   Users,
@@ -34,6 +38,7 @@ import EmptyState from "@/components/community/EmptyState";
 import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
+import { getCategoryMarketPrice, getLatestPeriodId, getNationalTotal } from "@/constants/marketPrices";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -1047,6 +1052,7 @@ function RightPanels() {
       <CohortPreviewPanel />
       <BestPostsPanel />
       <CommunityQuickPanel />
+      <MarketSnapshotPanel />
     </div>
   );
 }
@@ -1188,6 +1194,134 @@ function CommunityQuickPanel() {
       </div>
     </article>
   );
+}
+
+function MarketSnapshotPanel() {
+  const latestPeriodId = getLatestPeriodId();
+  const nationalTotal = getNationalTotal(latestPeriodId);
+  const periodLabel = `${latestPeriodId.slice(0, 4)}년 ${Number(latestPeriodId.slice(4))}월`;
+  const featuredItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
+    {
+      label: "웨딩홀",
+      value: getCategoryMarketPrice("venue"),
+      note: "식대+대관 기준",
+      icon: Building2,
+    },
+    {
+      label: "스드메",
+      value: nationalTotal.sdm,
+      note: "전국 평균",
+      icon: Camera,
+    },
+  ];
+  const detailItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
+    {
+      label: "스튜디오",
+      value: getCategoryMarketPrice("studio"),
+      note: "기본가",
+      icon: Camera,
+    },
+    {
+      label: "드레스",
+      value: getCategoryMarketPrice("dress"),
+      note: "본식",
+      icon: Shirt,
+    },
+    {
+      label: "메이크업",
+      value: getCategoryMarketPrice("makeup"),
+      note: "촬영",
+      icon: Palette,
+    },
+  ];
+
+  return (
+    <article className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+            {periodLabel} 기준
+          </span>
+          <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+            요즘 시세
+          </h2>
+          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#7a8290]">
+            전국 평균으로 대략 감만 먼저 잡아보세요.
+          </p>
+        </div>
+        <Link
+          href="/market-prices"
+          className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
+        >
+          자세히
+          <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {featuredItems.map((item) => (
+          <MarketPriceTile key={item.label} item={item} />
+        ))}
+      </div>
+
+      <div className="mt-3 divide-y divide-[#eadfc9] rounded-[14px] border border-[#eadfc9] bg-white/72">
+        {detailItems.map((item) => (
+          <MarketPriceRow key={item.label} item={item} />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function MarketPriceTile({
+  item,
+}: {
+  item: { label: string; value: number | null; note: string; icon: LucideIcon };
+}) {
+  return (
+    <Link
+      href="/market-prices"
+      className="group min-h-[118px] rounded-[14px] border border-[#eadfc9] bg-white/78 p-3 transition-colors hover:border-[#b68a3a]"
+    >
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
+        <item.icon className="h-4 w-4" />
+      </span>
+      <span className="mt-3 block text-[12px] font-semibold text-[#34445a]">{item.label}</span>
+      <span className="mt-1 block font-serif-kr text-[22px] font-medium leading-none text-[#071629]">
+        약 {formatMarketPrice(item.value)}
+      </span>
+      <span className="mt-1 block text-[11px] font-medium text-[#9aa2af]">{item.note}</span>
+    </Link>
+  );
+}
+
+function MarketPriceRow({
+  item,
+}: {
+  item: { label: string; value: number | null; note: string; icon: LucideIcon };
+}) {
+  return (
+    <Link href="/market-prices" className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
+          <item.icon className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0">
+          <b className="block truncate text-[13px] font-semibold text-[#071629]">{item.label}</b>
+          <span className="mt-0.5 block truncate text-[11px] font-medium text-[#7a8290]">{item.note}</span>
+        </span>
+      </span>
+      <span className="shrink-0 text-[13px] font-semibold text-[#34445a] group-hover:text-[#9d6f36]">
+        약 {formatMarketPrice(item.value)}
+      </span>
+    </Link>
+  );
+}
+
+function formatMarketPrice(value: number | null): string {
+  if (!value) return "-";
+  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded.toLocaleString()}만원`;
 }
 
 function CohortPreviewPanel() {
