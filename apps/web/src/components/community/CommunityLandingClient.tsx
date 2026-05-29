@@ -18,6 +18,7 @@ import {
   Gift,
   Heart,
   HeartHandshake,
+  ImageIcon,
   Megaphone,
   MessageCircle,
   PenSquare,
@@ -511,23 +512,19 @@ function ComposerPrompt() {
   return (
     <div>
       <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">
-        필요한 걸 바로 나누고 찾아보세요.
+        어떤 고민이 있으신가요? 후기나 질문을 남겨보세요.
       </h2>
-      <p className="mt-2 text-[13px] font-semibold leading-[1.7] text-[#6e7974]">
-        궁금한 건 질문으로, 다녀온 곳은 짧은 후기로 남겨보세요.
-      </p>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[
+          { href: "/community/post/write?category=tour_review", icon: PenSquare, label: "후기 쓰기" },
           { href: "/community/post/write?category=is_normal", icon: MessageCircle, label: "질문하기" },
-          { href: "/community/quick-review", icon: PenSquare, label: "15초 후기" },
-          { href: "/community/cohort", icon: Users, label: "동기방 찾기" },
-          { href: "/community/my", icon: Bookmark, label: "내 활동" },
+          { href: "/community/post/write", icon: ImageIcon, label: "사진 올리기" },
         ].map((item) => (
           <Link
             key={item.label}
             href={item.href}
-            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[16px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
-            data-tutorial-target={item.label === "질문하기" ? "community-write" : undefined}
+            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[17px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
+            data-tutorial-target={item.label === "후기 쓰기" ? "community-write" : undefined}
           >
             <item.icon className="h-5 w-5 text-[#9a6720]" />
             {item.label}
@@ -689,8 +686,8 @@ function CommunityMain({
             <Link href="/community/cohort" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
               같은 시기 동기방 입장
             </Link>
-            <Link href="/community/my" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
-              내 글·북마크 보기
+            <Link href="/community/quick-review" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
+              짧은 후기 바로 쓰기
             </Link>
           </div>
           <CategoryBar
@@ -1134,9 +1131,9 @@ function CohortPreviewPanel() {
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기방</h2>
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기방 함께 준비해요.</h2>
           <p className="mt-2 text-[13px] font-bold leading-[1.65] text-[#36534E]">
-            결혼 시기가 비슷한 사람들과 가격, 후기, 고민을 나눠요.
+            비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
           </p>
         </div>
         <Link href="/community/cohort" className="shrink-0 text-[13px] font-black text-[#9a6720]">
