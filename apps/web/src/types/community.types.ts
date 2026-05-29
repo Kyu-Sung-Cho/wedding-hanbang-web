@@ -129,6 +129,7 @@ export interface CommunityFeedQuery {
   search?: string;
   category?: string;
   tag?: string;
+  author_id?: string;
   sort?: string;
   period?: string;
   feed?: string;

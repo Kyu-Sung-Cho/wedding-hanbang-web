@@ -6,7 +6,7 @@ import type {
   PostWithAuthor,
 } from "@/types/community.types";
 
-const DEFAULT_LIMIT = 12;
+const DEFAULT_LIMIT = 20;
 
 function fallbackAuthor(userId: string): CommunityProfile {
   return {

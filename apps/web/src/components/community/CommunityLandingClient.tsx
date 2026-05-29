@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Award,
@@ -18,7 +18,6 @@ import {
   Gift,
   Heart,
   HeartHandshake,
-  ImageIcon,
   Megaphone,
   MessageCircle,
   PenSquare,
@@ -32,12 +31,20 @@ import {
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
+import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
-import type { CommunityCategory, PostSort, PostWithAuthor, TimePeriod } from "@/types/community.types";
+import type {
+  CommunityCategory,
+  CommunityFeedQuery,
+  InitialCommunityFeed,
+  PostSort,
+  PostWithAuthor,
+  TimePeriod,
+} from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { withSessionCache } from "@/utils/sessionCache";
 
@@ -53,8 +60,8 @@ interface TrendingPost {
   comment_count: number;
 }
 
-const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1400px] sm:w-[calc(100%_-_48px)]";
-const sortValues: PostSort[] = ["hot", "new", "top", "my_cohort", "my_posts"];
+const shell = "mx-auto w-[calc(100%_-_32px)] max-w-[1400px] md:w-[calc(100%_-_48px)]";
+const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
 const sortLabels: Record<PostSort, string> = {
@@ -79,6 +86,13 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   free: "자유",
 };
 
+const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
+  { icon: HeartHandshake, label: "실제 후기 공유" },
+  { icon: CalendarCheck, label: "가격·계약 질문" },
+  { icon: Users, label: "동기방 대화" },
+  { icon: Heart, label: "함께 준비" },
+];
+
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
   { icon: CalendarCheck, label: "스드메 후기", query: "스드메", category: "tour_review" },
@@ -90,12 +104,34 @@ const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string;
   { icon: CalendarCheck, label: "신혼여행", query: "신혼여행" },
 ];
 
+const journeyActions: Array<{ icon: LucideIcon; title: string; desc: string; href: string; primary?: boolean }> = [
+  {
+    icon: Search,
+    title: "후기 찾기",
+    desc: "지역·업체 경험 먼저 확인",
+    href: "/community?feed=all#community-feed",
+    primary: true,
+  },
+  {
+    icon: MessageCircle,
+    title: "아모라에게 묻기",
+    desc: "상황을 정리하고 다음 행동 받기",
+    href: "/chat",
+  },
+  {
+    icon: CalendarCheck,
+    title: "웨딩 라운지 열기",
+    desc: "일정·예산·예약을 한곳에 정리",
+    href: "/lounge",
+  },
+];
+
 const cohortPreviewRows = [
-  { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1" },
-  { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2" },
-  { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3" },
-  { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4" },
-  { period: "내 결혼 예정일 기준", note: "자동 찾기", href: "/community/cohort" },
+  { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1", cta: "입장" },
+  { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
+  { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3", cta: "입장" },
+  { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
+  { period: "날짜 미정·하반기 이후", note: "일정 잡기", href: "/onboarding", cta: "설정" },
 ];
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
@@ -130,30 +166,23 @@ function getPostImage(post: PostWithAuthor) {
   return inline?.[1] ?? null;
 }
 
-function getPostImages(post: PostWithAuthor) {
-  const slideImages =
-    post.slides
-      ?.map((slide) => slide.thumbnail_url || (slide.type === "image" ? slide.url : null))
-      .filter((url): url is string => Boolean(url)) ?? [];
-  const inline = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/gi)?.map((tag) => {
-    const match = tag.match(/src=["']([^"']+)["']/i);
-    return match?.[1] ?? "";
-  }).filter(Boolean) ?? [];
-  return [...slideImages, ...(post.images ?? []), ...inline].filter((url, index, arr) => arr.indexOf(url) === index);
-}
-
-export default function CommunityLandingClient() {
+export default function CommunityLandingClient({
+  initialFeed,
+  initialQuery = {},
+}: {
+  initialFeed?: InitialCommunityFeed;
+  initialQuery?: CommunityFeedQuery;
+}) {
   useCommunityRealtime();
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const searchQuery = searchParams.get("search") ?? "";
-  const categoryQuery = searchParams.get("category");
-  const tagQuery = searchParams.get("tag") ?? "";
-  const authorQuery = searchParams.get("author_id") ?? "";
-  const sortQuery = searchParams.get("sort");
-  const periodQuery = searchParams.get("period");
-  const feedQuery = searchParams.get("feed");
+  const searchQuery = initialQuery.search ?? "";
+  const categoryQuery = initialQuery.category ?? "";
+  const tagQuery = initialQuery.tag ?? "";
+  const authorQuery = initialQuery.author_id ?? "";
+  const sortQuery = initialQuery.sort ?? "";
+  const periodQuery = initialQuery.period ?? "";
+  const feedQuery = initialQuery.feed ?? "";
   const selectedCategory = COMMUNITY_CATEGORIES.some((category) => category.key === categoryQuery)
     ? (categoryQuery as CommunityCategory)
     : null;
@@ -177,44 +206,41 @@ export default function CommunityLandingClient() {
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
+  const normalizedSort = sortValues.includes(sortQuery as PostSort) ? (sortQuery as PostSort) : "new";
+  const normalizedPeriod = periodValues.includes(periodQuery as TimePeriod) ? (periodQuery as TimePeriod) : "week";
   const showFullFeed = feedQuery !== "summary";
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? posts : posts.slice(0, 6);
-  const activeTotal = isSearching ? searchTotal : total;
+  const canUseInitialFeed =
+    !isSearching &&
+    !selectedCategory &&
+    !tagQuery &&
+    !authorQuery &&
+    normalizedSort === "new" &&
+    normalizedPeriod === "week" &&
+    posts.length === 0 &&
+    Boolean(initialFeed?.posts.length);
+  const feedPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 6);
+  const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedCategory) params.set("category", selectedCategory);
     if (tagQuery) params.set("tag", tagQuery);
     if (authorQuery) params.set("author_id", authorQuery);
-    if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
-    if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
+    params.set("sort", normalizedSort);
+    if (normalizedSort === "top") params.set("period", normalizedPeriod);
     params.set("feed", "all");
     return `/community?${params.toString()}#community-feed`;
-  }, [authorQuery, periodQuery, selectedCategory, sortQuery, tagQuery]);
-  const summaryFeedHref = useMemo(() => {
-    const params = new URLSearchParams();
-    if (selectedCategory) params.set("category", selectedCategory);
-    if (tagQuery) params.set("tag", tagQuery);
-    if (authorQuery) params.set("author_id", authorQuery);
-    if (sortQuery && sortValues.includes(sortQuery as PostSort)) params.set("sort", sortQuery);
-    if (periodQuery && periodValues.includes(periodQuery as TimePeriod)) params.set("period", periodQuery);
-    params.set("feed", "summary");
-    const query = params.toString();
-    return query ? `/community?${query}#community-feed` : "/community#community-feed";
-  }, [authorQuery, periodQuery, selectedCategory, sortQuery, tagQuery]);
-
+  }, [authorQuery, normalizedPeriod, normalizedSort, selectedCategory, tagQuery]);
   useEffect(() => {
     setSearchDraft(searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
     const store = useCommunityStore.getState();
-    const nextSort = sortQuery && sortValues.includes(sortQuery as PostSort) ? (sortQuery as PostSort) : "new";
-    const nextPeriod =
-      periodQuery && periodValues.includes(periodQuery as TimePeriod) ? (periodQuery as TimePeriod) : "week";
-    if (store.currentSort !== nextSort) store.setSort(nextSort);
-    if (store.currentPeriod !== nextPeriod) store.setPeriod(nextPeriod);
-  }, [periodQuery, sortQuery]);
+    if (store.currentSort !== normalizedSort) store.setSort(normalizedSort);
+    if (store.currentPeriod !== normalizedPeriod) store.setPeriod(normalizedPeriod);
+  }, [normalizedPeriod, normalizedSort]);
 
   useEffect(() => {
     if (!isSearching) {
@@ -276,6 +302,11 @@ export default function CommunityLandingClient() {
       .catch(() => {})
       .finally(() => setSearchLoading(false));
   }, [isSearching, searchHasMore, searchLoading, searchPage, searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    if (!canUseInitialFeed || !initialFeed) return;
+    useCommunityStore.getState().hydrateInitialFeed(initialFeed);
+  }, [canUseInitialFeed, initialFeed]);
 
   useEffect(() => {
     if (isSearching) return;
@@ -342,64 +373,59 @@ export default function CommunityLandingClient() {
 
   function setSort(nextSort: PostSort) {
     useCommunityStore.getState().setSort(nextSort);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("search");
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set("category", selectedCategory);
+    if (tagQuery) params.set("tag", tagQuery);
+    if (authorQuery) params.set("author_id", authorQuery);
+    params.set("sort", nextSort);
+    if (nextSort === "top") params.set("period", currentPeriod);
     params.set("feed", "all");
-    if (nextSort === "new") {
-      params.delete("sort");
-    } else {
-      params.set("sort", nextSort);
-    }
-    if (nextSort !== "top") params.delete("period");
-    const query = params.toString();
-    router.push(`${query ? `/community?${query}` : "/community"}#community-feed`, { scroll: false });
+    router.push(`/community?${params.toString()}#community-feed`, { scroll: false });
   }
 
   function setPeriod(nextPeriod: TimePeriod) {
     useCommunityStore.getState().setPeriod(nextPeriod);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("search");
-    params.set("feed", "all");
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set("category", selectedCategory);
+    if (tagQuery) params.set("tag", tagQuery);
+    if (authorQuery) params.set("author_id", authorQuery);
     params.set("sort", "top");
     params.set("period", nextPeriod);
+    params.set("feed", "all");
     router.push(`/community?${params.toString()}#community-feed`, { scroll: false });
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,rgba(201,149,69,0.10),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbf6ed_58%,#fffaf2_100%)] text-[#1a2926]">
+    <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
       <Hero topVendor={vendorTags[0]?.vendor_name ?? null} />
       <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
+      <CategoryBar
+        selectedCategory={selectedCategory}
+        currentSort={currentSort}
+        currentPeriod={currentPeriod}
+        currentTag={currentTag}
+        onSortChange={setSort}
+        onPeriodChange={setPeriod}
+        onClearTag={() => router.push("/community")}
+      />
       <CommunityMain
         posts={visiblePosts}
         total={activeTotal}
         selectedCategory={selectedCategory}
         currentSort={currentSort}
-        currentPeriod={currentPeriod}
-        currentTag={currentTag}
-        authorQuery={authorQuery}
-        onSortChange={setSort}
-        onPeriodChange={setPeriod}
-        onClearTag={() => router.push("/community")}
-        onClearAuthor={() => {
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("author_id");
-          const query = params.toString();
-          router.push(`${query ? `/community?${query}` : "/community"}#community-feed`);
-        }}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
-        summaryFeedHref={summaryFeedHref}
         searchQuery={searchQuery}
-        isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && posts.length === 0 : isLoading}
+        isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && visiblePosts.length === 0 : isLoading}
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
-        vendorTags={vendorTags}
       />
+      <BottomCards />
       <div ref={observerRef} className="h-1" />
       <Link
         href="/community/post/write"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#36534E] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
         aria-label="글쓰기"
         data-tutorial-target="community-write"
       >
@@ -411,46 +437,49 @@ export default function CommunityLandingClient() {
 
 function Hero({ topVendor }: { topVendor: string | null }) {
   return (
-    <section className={`${shell} relative mt-[18px] grid min-h-[282px] overflow-hidden rounded-[22px] border border-[#eadcc9] bg-[linear-gradient(90deg,#fffaf3_0%,#fff7ec_46%,rgba(255,255,255,0.05)_100%)] shadow-[0_10px_24px_rgba(50,36,17,0.055)] md:grid-cols-[1fr_1.25fr]`}>
-      <div className="relative z-10 px-7 py-9 sm:px-12">
-        <p className="mb-4 flex items-center gap-2 text-[13px] font-bold text-[#36534E] md:text-[15px]">
+    <section className={`${shell} relative grid grid-cols-1 items-center gap-6 pt-4 md:min-h-[465px] md:grid-cols-2 md:gap-8`}>
+      <div className="relative z-10 py-6 md:py-8">
+        <p className="mb-4 flex items-center gap-2 text-[14px] font-medium text-[#26364a] md:mb-6 md:text-[15px]">
           예비부부가 함께 만드는 결혼 준비의 모든 것
-          <Sparkles className="h-4 w-4 text-[#b47a2b]" />
+          <Sparkles className="h-4 w-4 text-[#b68a3a]" />
         </p>
 
-        <h1 className="font-serif-kr text-[38px] font-medium leading-[1.22] text-[#102b27] sm:text-[48px]">
-          결혼 준비,
+        <h1 className="font-serif-kr text-[34px] font-medium leading-[1.35] text-[#061a34] sm:text-[36px] xl:text-[52px]">
+          경험을 나누고,
           <br />
-          함께라서 든든해요
+          더 완벽한 <span className="block text-[#b68a3a] sm:inline">결혼을 준비해요.</span>
         </h1>
 
-        <p className="mt-5 text-[15px] font-semibold leading-[1.8] text-[#36534E] md:text-[16px]">
-          궁금한 것도, 설레는 순간도 서로 나누며
+        <p className="mt-5 text-[15px] font-medium leading-[1.85] text-[#38475c] md:mt-7 md:text-[16px]">
+          실제 후기와 정보로 현명하게 준비하고,
           <br />
-          더 완벽한 결혼을 준비해요.
+          서로 돕고 나누며 행복한 결혼을 만들어 가요.
         </p>
 
+        <div className="mt-6 grid max-w-[590px] grid-cols-4 gap-1 md:mt-8">
+          {heroSignals.map((item, index) => (
+            <div
+              key={item.label}
+              className={`flex min-h-[66px] flex-col items-center justify-center gap-[7px] px-1 text-center text-[11px] font-medium leading-snug text-[#34445a] md:min-h-[76px] md:gap-[9px] md:px-3 md:text-[12px] ${
+                index < heroSignals.length - 1 ? "border-r border-[#eadfc9]" : ""
+              }`}
+            >
+              <item.icon className="h-6 w-6 stroke-[1.55] text-[#b68a3a] md:h-8 md:w-8" />
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+
         {topVendor && (
-          <p className="mt-5 text-[12px] font-bold text-[#7d7166]">
-            지금 많이 언급되는 업체: <span className="text-[#36534E]">{topVendor}</span>
+          <p className="mt-5 text-[12px] font-semibold text-[#7a8290]">
+            지금 많이 언급되는 업체: <span className="text-[#9d6f36]">{topVendor}</span>
           </p>
         )}
       </div>
 
-      <div className="relative min-h-[238px] overflow-hidden md:min-h-full">
-        <Image
-          src="/images/amora-hero-bouquet-custom.png"
-          alt=""
-          fill
-          className="object-cover object-[center_47%]"
-          sizes="(min-width: 768px) 56vw, 100vw"
-          priority
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,253,248,0.98)_0%,rgba(255,253,248,0.96)_2%,rgba(255,253,248,0.18)_28%,rgba(255,253,248,0)_100%)]" />
-        <div className="absolute right-[12%] top-1/2 hidden -translate-y-1/2 border border-white/55 bg-[#fffaf3]/82 px-12 py-7 text-center shadow-[0_18px_44px_rgba(50,36,17,0.12)] backdrop-blur-[2px] sm:block">
-          <strong className="font-serif text-[42px] font-medium italic leading-none text-[#9a6720]">Amora</strong>
-          <span className="mt-2 block text-[10px] font-black tracking-[0.24em] text-[#815819]">A PRECIOUS PLANNER</span>
-        </div>
+      <div className="relative min-h-[260px] self-stretch overflow-hidden rounded-[28px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:min-h-[420px] md:rounded-bl-[64px] md:rounded-br-none md:rounded-tr-none">
+        <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
+        <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
       </div>
     </section>
   );
@@ -466,72 +495,43 @@ function SearchHub({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`${shell} mt-5 grid gap-5 md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_280px]`}>
-      <div className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-5 py-4 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
-        <div className="grid grid-cols-4 gap-y-3 md:grid-cols-8">
-          {searchCategories.map((item, index) => (
-            <Link
-              key={item.label}
-              href={buildCommunityHubHref(item)}
-              aria-label={`${item.label} 보기`}
-              className={`flex min-h-[46px] flex-col items-center justify-center gap-1.5 text-center text-[11px] font-black text-[#102b27] transition-colors hover:text-[#b47a2b] ${
-                index < searchCategories.length - 1 ? "md:border-r md:border-[#eadcc9]" : ""
-              }`}
-            >
-              <item.icon className="h-5 w-5 stroke-[1.85] text-[#b47a2b]" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      <form onSubmit={onSubmit} className="self-stretch">
+    <section className={`${shell} rounded-[18px] border border-[#eadfc9] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}>
+      <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
           <input
             name="search"
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
-            placeholder="커뮤니티 검색"
-            className="h-[60px] w-full rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-6 pr-14 text-[15px] font-bold text-[#263832] shadow-[0_10px_24px_rgba(50,36,17,0.045)] outline-none placeholder:text-[#b7aa9a] focus:border-[#36534E]"
+            placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
+            className="h-[50px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-14 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#b68a3a] md:px-8 md:text-[15px]"
           />
           <button
             type="submit"
             aria-label="검색"
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#b47a2b]"
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9d6f36]"
           >
             <Search className="h-6 w-6" />
           </button>
         </label>
       </form>
-    </section>
-  );
-}
 
-function ComposerPrompt() {
-  return (
-    <div>
-      <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">
-        어떤 고민이 있으신가요? 후기나 질문을 남겨보세요.
-      </h2>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {[
-          { href: "/community/post/write?category=tour_review", icon: PenSquare, label: "후기 쓰기" },
-          { href: "/community/post/write?category=is_normal", icon: MessageCircle, label: "질문하기" },
-          { href: "/community/post/write", icon: ImageIcon, label: "사진 올리기" },
-        ].map((item) => (
+      <div className="mt-4 flex gap-4 overflow-x-auto pb-1 md:mt-6 md:grid md:grid-cols-8 md:gap-0 md:overflow-visible md:pb-0">
+        {searchCategories.map((item, index) => (
           <Link
             key={item.label}
-            href={item.href}
-            className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[14px] border border-[#eadcc9] bg-white/70 px-4 text-[17px] font-black text-[#102b27] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white"
-            data-tutorial-target={item.label === "후기 쓰기" ? "community-write" : undefined}
+            href={buildCommunityHubHref(item)}
+            aria-label={`${item.label} 보기`}
+            className={`flex min-w-[82px] flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] md:min-w-0 ${
+              index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
+            }`}
           >
-            <item.icon className="h-5 w-5 text-[#9a6720]" />
-            {item.label}
+            <item.icon className="h-7 w-7 stroke-[1.55] text-[#b68a3a] md:h-8 md:w-8" />
+            <span>{item.label}</span>
           </Link>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -554,15 +554,15 @@ function CategoryBar({
 }) {
   return (
     <section
-      className="mt-5 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-[#eadcc9] pt-5 md:flex-wrap md:gap-3 md:overflow-visible"
+      className={`${shell} mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:overflow-visible`}
       data-tutorial-target="community-categories"
     >
       <Link
         href="/community"
-        className={`min-w-[70px] shrink-0 rounded-full border px-4 py-2.5 text-center text-[13px] font-medium transition-colors md:min-w-[74px] md:px-5 md:py-3 md:text-[14px] ${
+        className={`min-w-[74px] shrink-0 rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
           selectedCategory
-            ? "border-[#e5d8ca] bg-white/70 text-[#5f5b52] hover:border-[#36534E] hover:text-[#36534E]"
-            : "border-[#36534E] bg-[#36534E] text-white"
+            ? "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
+            : "border-[#061a34] bg-[#061a34] text-white"
         }`}
       >
         전체
@@ -571,10 +571,10 @@ function CategoryBar({
         <Link
           key={cat.key}
           href={buildCommunityCategoryHref(cat.key)}
-          className={`min-w-[76px] shrink-0 rounded-full border px-4 py-2.5 text-center text-[13px] font-medium transition-colors md:min-w-[84px] md:px-5 md:py-3 md:text-[14px] ${
+          className={`min-w-[84px] shrink-0 rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
             selectedCategory === cat.key
-              ? "border-[#36534E] bg-[#36534E] text-white"
-              : "border-[#e5d8ca] bg-white/70 text-[#5f5b52] hover:border-[#36534E] hover:text-[#36534E]"
+              ? "border-[#061a34] bg-[#061a34] text-white"
+              : "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
           }`}
         >
           {cat.shortLabel}
@@ -584,19 +584,19 @@ function CategoryBar({
         <button
           type="button"
           onClick={onClearTag}
-          className="rounded-full border border-[#e5d8ca] bg-[#EEF4F1] px-4 py-3 text-[13px] font-medium text-[#36534E]"
+          className="rounded-full border border-[#eadfc9] bg-[#fbefd6] px-4 py-3 text-[13px] font-medium text-[#9d6f36]"
         >
           #{currentTag} 지우기
         </button>
       )}
 
-      <div className="ml-0 flex shrink-0 flex-nowrap items-center gap-2 md:ml-auto md:flex-wrap">
+      <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
         <label className="relative">
           <span className="sr-only">정렬</span>
           <select
             value={currentSort}
             onChange={(event) => onSortChange(event.target.value as PostSort)}
-            className="h-11 appearance-none rounded-full border border-[#e5d8ca] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#5f5b52] outline-none focus:border-[#36534E]"
+            className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
           >
             {sortValues.map((sort) => (
               <option key={sort} value={sort}>
@@ -604,7 +604,7 @@ function CategoryBar({
               </option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#36534E]" />
+          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
         </label>
         {currentSort === "top" && (
           <label className="relative">
@@ -612,7 +612,7 @@ function CategoryBar({
             <select
               value={currentPeriod}
               onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-              className="h-11 appearance-none rounded-full border border-[#e5d8ca] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#5f5b52] outline-none focus:border-[#36534E]"
+              className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
             >
               {periodValues.map((period) => (
                 <option key={period} value={period}>
@@ -620,7 +620,7 @@ function CategoryBar({
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#36534E]" />
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
           </label>
         )}
       </div>
@@ -633,90 +633,45 @@ function CommunityMain({
   total,
   selectedCategory,
   currentSort,
-  currentPeriod,
-  currentTag,
-  authorQuery,
-  onSortChange,
-  onPeriodChange,
-  onClearTag,
-  onClearAuthor,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
-  summaryFeedHref,
   searchQuery,
   isLoading,
   errorMessage,
   clearError,
-  vendorTags,
 }: {
   posts: PostWithAuthor[];
   total: number;
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
-  currentPeriod: TimePeriod;
-  currentTag: string | null;
-  authorQuery: string;
-  onSortChange: (sort: PostSort) => void;
-  onPeriodChange: (period: TimePeriod) => void;
-  onClearTag: () => void;
-  onClearAuthor: () => void;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
-  summaryFeedHref: string;
   searchQuery: string;
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
-  vendorTags: VendorTag[];
 }) {
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-5 grid grid-cols-1 gap-[20px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_390px]`}
+      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_360px]`}
     >
-      <div className="min-w-0">
-        <section className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/90 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)] sm:p-7">
-          <ComposerPrompt />
-          <div className="mt-5 grid gap-3 text-[13px] font-bold text-[#36534E] sm:grid-cols-3">
-            <Link href={fullFeedHref} className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
-              전체 게시글 {formatCount(total)}개
-            </Link>
-            <Link href="/community/cohort" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
-              같은 시기 동기방 입장
-            </Link>
-            <Link href="/community/quick-review" className="rounded-[14px] border border-[#eadcc9] bg-white/64 px-4 py-3 transition-colors hover:border-[#36534E]">
-              짧은 후기 바로 쓰기
-            </Link>
-          </div>
-          <CategoryBar
-            selectedCategory={selectedCategory}
-            currentSort={currentSort}
-            currentPeriod={currentPeriod}
-            currentTag={currentTag}
-            onSortChange={onSortChange}
-            onPeriodChange={onPeriodChange}
-            onClearTag={onClearTag}
-          />
-        </section>
-        <LatestPosts
-          posts={posts}
-          total={total}
-          selectedCategory={selectedCategory}
-          isSearching={isSearching}
-          isPreviewFeed={isPreviewFeed}
-          authorQuery={authorQuery}
-          fullFeedHref={fullFeedHref}
-          summaryFeedHref={summaryFeedHref}
-          searchQuery={searchQuery}
-          isLoading={isLoading}
-          errorMessage={errorMessage}
-          clearError={clearError}
-          onClearAuthor={onClearAuthor}
-        />
-      </div>
-      <RightPanels vendorTags={vendorTags} />
+      <LatestPosts
+        posts={posts}
+        total={total}
+        selectedCategory={selectedCategory}
+        currentSort={currentSort}
+        isSearching={isSearching}
+        isPreviewFeed={isPreviewFeed}
+        fullFeedHref={fullFeedHref}
+        searchQuery={searchQuery}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        clearError={clearError}
+      />
+      <RightPanels />
     </section>
   );
 }
@@ -725,110 +680,93 @@ function LatestPosts({
   posts,
   total,
   selectedCategory,
+  currentSort,
   isSearching,
   isPreviewFeed,
-  authorQuery,
   fullFeedHref,
-  summaryFeedHref,
   searchQuery,
   isLoading,
   errorMessage,
   clearError,
-  onClearAuthor,
 }: {
   posts: PostWithAuthor[];
   total: number;
   selectedCategory: CommunityCategory | null;
+  currentSort: PostSort;
   isSearching: boolean;
   isPreviewFeed: boolean;
-  authorQuery: string;
   fullFeedHref: string;
-  summaryFeedHref: string;
   searchQuery: string;
   isLoading: boolean;
   errorMessage: string | null;
   clearError: () => void;
-  onClearAuthor: () => void;
 }) {
   const feedTitle = isSearching
     ? "검색 결과"
-    : authorQuery
-      ? "작성자 글"
-      : selectedCategory
+    : selectedCategory
       ? `${categoryDisplayLabels[selectedCategory]} 글`
-      : "최신 글";
+      : currentSort === "hot"
+        ? "인기 글"
+        : currentSort === "top"
+          ? "좋아요 많은 글"
+          : currentSort === "my_cohort"
+            ? "내 동기글"
+            : currentSort === "my_posts"
+              ? "내 글"
+              : "최신 글";
 
   return (
-    <article className="mt-4">
-      {(isSearching || !isPreviewFeed || selectedCategory || authorQuery) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#eadcc9] bg-[#fffdf9]/90 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.04)]">
-          <div>
-            <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
-              {feedTitle}
-            </h2>
-            <p className="mt-1 text-[12px] font-medium text-[#7d7166]">
-              {isSearching
-                ? `"${searchQuery}" ${formatCount(total)}건`
-                : authorQuery
-                  ? `이 작성자의 공개 글 ${formatCount(total)}개`
-                  : isPreviewFeed
-                    ? `최근 글 ${formatCount(posts.length)}개만 먼저 보여드려요`
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
+            {feedTitle}
+          </h2>
+          <p className="mt-1 text-[12px] font-medium text-[#7a8290]">
+            {isSearching
+              ? `"${searchQuery}" ${formatCount(total)}건`
+              : isPreviewFeed
+                ? `최근 글 ${formatCount(posts.length)}개를 먼저 보여드려요`
+                : currentSort === "hot"
+                  ? `반응이 높은 게시글 ${formatCount(total)}개`
+                  : currentSort === "top"
+                    ? `좋아요 기준 게시글 ${formatCount(total)}개`
                     : `실제 게시글 ${formatCount(total)}개`}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isPreviewFeed && posts.length > 0 && (
-              <Link
-                href={fullFeedHref}
-                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
-                aria-label="전체 글 보기"
-              >
-                전체 글 보기
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            )}
-            {!isPreviewFeed && !isSearching && (
-              <Link
-                href={summaryFeedHref}
-                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
-                aria-label="커뮤니티 요약 보기"
-              >
-                요약 보기
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            )}
-            {authorQuery && (
-              <button
-                type="button"
-                onClick={onClearAuthor}
-                className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] bg-white px-5 text-[13px] font-medium text-[#36534E]"
-              >
-                작성자 필터 지우기
-              </button>
-            )}
-            <Link
-              href="/community/post/write"
-              className="inline-flex min-h-10 items-center rounded-full bg-[#36534E] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)]"
-              data-tutorial-target="community-write"
-            >
-              글쓰기
-              <PenSquare className="ml-2 h-4 w-4" />
-            </Link>
-          </div>
+          </p>
         </div>
-      )}
+        <div className="flex flex-wrap items-center gap-2">
+          {isPreviewFeed && posts.length > 0 && (
+            <Link
+              href={fullFeedHref}
+              className="inline-flex min-h-10 items-center rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-medium text-[#9d6f36]"
+              aria-label="전체 글 보기"
+            >
+              전체 글 보기
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+          )}
+          <Link
+            href="/community/post/write"
+            className="hidden min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+            data-tutorial-target="community-write"
+          >
+            글쓰기
+            <PenSquare className="ml-2 h-4 w-4" />
+          </Link>
+        </div>
+      </div>
 
       {errorMessage && (
-        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fbf8f2] px-4 py-3 text-sm text-[#5f5b52] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-sm text-[#34445a] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-[#36534E]" />
+            <AlertCircle className="h-4 w-4 shrink-0 text-[#9d6f36]" />
             <span className="break-words">{errorMessage}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => useCommunityStore.getState().fetchPosts(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#36534E] px-3 py-2 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               다시 불러오기
@@ -836,7 +774,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={clearError}
-              className="rounded-full px-3 py-2 text-xs font-semibold text-[#7d7166] hover:bg-white"
+              className="rounded-full px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
             >
               닫기
             </button>
@@ -860,31 +798,17 @@ function LatestPosts({
           <EmptyFeedStarter />
         )
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-[#eadfc9]">
           {posts.map((post, index) => (
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
+              {!isSearching && index === 0 && (
+                <div className="py-4" data-tutorial-target="community-composer">
+                  <FeedComposer />
+                </div>
+              )}
             </Fragment>
           ))}
-          {isPreviewFeed && posts.length > 0 && (
-            <Link
-              href={fullFeedHref}
-              className="group flex min-h-[74px] items-center justify-between gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/86 px-6 py-4 text-[#36534E] shadow-[0_10px_24px_rgba(50,36,17,0.04)] transition-all hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white hover:shadow-[0_16px_36px_rgba(50,36,17,0.07)]"
-              aria-label="더보기"
-            >
-              <span>
-                <span className="block font-serif-kr text-[22px] font-medium leading-none text-[#102b27]">
-                  더보기
-                </span>
-                <span className="mt-2 block text-[12px] font-bold text-[#6e7974]">
-                  전체 {formatCount(total)}개 글을 이어서 볼 수 있어요.
-                </span>
-              </span>
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-white transition-transform group-hover:translate-x-1">
-                <ChevronRight className="h-5 w-5" />
-              </span>
-            </Link>
-          )}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 2 }).map((_, index) => (
@@ -909,10 +833,8 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   const [voting, setVoting] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const imageUrls = getPostImages(post);
-  const imageUrl = imageUrls[0] ?? getPostImage(post);
-  const galleryImages = imageUrls.length > 0 ? imageUrls.slice(0, 3) : imageUrl ? [imageUrl] : [];
-  const contentPreview = stripHtml(post.content).slice(0, 130);
+  const imageUrl = getPostImage(post);
+  const contentPreview = stripHtml(post.content).slice(0, 160);
   const displayVote = optimisticVote === undefined ? (post.user_vote ?? null) : optimisticVote;
   const displayUpvoteCount = (post.upvote_count ?? 0) + optimisticUpvoteDelta;
   const isLiked = displayVote === 1;
@@ -996,171 +918,117 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid gap-4 rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-4 shadow-[0_10px_24px_rgba(50,36,17,0.045)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(50,36,17,0.08)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_340px]"
+      className="relative grid grid-cols-[82px_1fr] gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[164px_1fr] sm:gap-5"
     >
       {toast && (
-        <span className="absolute right-0 top-4 z-10 rounded-full bg-[#36534E] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
+        <span className="absolute right-0 top-4 z-10 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:aspect-[1.55]">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 hover:scale-105"
+            sizes="(min-width: 640px) 164px, 82px"
+            priority={priority}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#fff8ec] text-[#b68a3a]">
+            <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
+            <span className="text-[12px] font-medium">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
+          </div>
+        )}
+      </div>
+
       <div className="min-w-0">
-        <div className="mb-2 flex min-w-0 items-center gap-2">
-          <span className="shrink-0 rounded-md bg-[#f6ead9] px-2 py-1 text-[12px] font-medium text-[#36534E]">
+        <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+          <span className="shrink-0 rounded-md bg-[#f6ead9] px-2 py-1 text-[12px] font-medium text-[#9d6f36]">
             {categoryInfo?.shortLabel ?? "커뮤니티"}
-          </span>
-          <span className="min-w-0 truncate text-[12px] font-bold text-[#8d8176]">
-            {post.author?.nickname ?? "익명"} · {timeAgo(post.created_at)}
           </span>
           {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
             <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
           )}
           {post.is_weekly_best && (
-            <span className="shrink-0 rounded-md bg-[#36534E] px-2 py-1 text-[11px] font-medium text-white">
+            <span className="shrink-0 rounded-md bg-[#061a34] px-2 py-1 text-[11px] font-medium text-white">
               BEST
             </span>
           )}
           {post.poll && (
-            <span className="shrink-0 rounded-md border border-[#e5d8ca] px-2 py-1 text-[11px] font-medium text-[#7d7166]">
+            <span className="shrink-0 rounded-md border border-[#eadfc9] px-2 py-1 text-[11px] font-medium text-[#7a8290]">
               투표
             </span>
           )}
+          <Sparkles className="ml-auto h-4 w-4 shrink-0 text-[#b68a3a]" />
         </div>
-        <h3 className="line-clamp-2 font-serif-kr text-[22px] font-medium leading-[1.32] text-[#102b27] sm:text-[24px]">
+        <h3 className="line-clamp-2 break-words font-serif-kr text-[19px] font-medium leading-[1.35] text-[#071629] [overflow-wrap:anywhere] sm:text-[22px]">
           {post.title}
-          {post.is_weekly_best && <Sparkles className="ml-2 inline h-5 w-5 text-[#b47a2b]" />}
         </h3>
         {contentPreview && (
-          <p className="mt-2 line-clamp-2 text-[14px] font-semibold leading-[1.7] text-[#36534E]">
+          <p className="mt-2 line-clamp-2 break-words text-[13px] font-medium leading-[1.7] text-[#5d6879] [overflow-wrap:anywhere] sm:text-[14px]">
             {contentPreview}
           </p>
         )}
-
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-[13px] font-black text-[#36534E]">
-          <button
-            type="button"
-            onClick={handleLike}
-            disabled={voting}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
-              isLiked ? "bg-[#EEF4F1] text-[#36534E]" : "hover:bg-[#f6efe5]"
-            }`}
-            aria-label="좋아요"
-          >
-            <Heart className={`h-4 w-4 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
-            {displayUpvoteCount}
-          </button>
-          <span className="inline-flex items-center gap-1">
-            <MessageCircle className="h-4 w-4 stroke-[1.6]" />
-            {post.comment_count ?? 0}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Eye className="h-4 w-4 stroke-[1.6]" />
-            {post.view_count ?? 0}
-          </span>
-          <button
-            type="button"
-            onClick={handleBookmark}
-            disabled={bookmarking}
-            className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
-              bookmarked ? "bg-[#EEF4F1] text-[#36534E]" : "text-[#5f5b52] hover:bg-[#f6efe5]"
-            }`}
-            aria-label="북마크"
-          >
-            <Bookmark className={`h-4 w-4 stroke-[1.6] ${bookmarked ? "fill-current" : ""}`} />
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[#5f5b52] transition-colors hover:bg-[#f6efe5]"
-            aria-label="공유"
-          >
-            <Share2 className="h-4 w-4 stroke-[1.6]" />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid min-h-[104px] grid-cols-3 gap-2.5 self-center lg:min-h-[82px]">
-        {galleryImages.length > 0 ? (
-          galleryImages.map((url, index) => (
-            <div
-              key={`${url}-${index}`}
-              className={`relative min-h-[104px] overflow-hidden rounded-[10px] bg-[#f8f4ec] lg:min-h-[82px] ${
-                galleryImages.length === 1 ? "col-span-3" : ""
-              }`}
-            >
-              <Image
-                src={url}
-                alt=""
-                fill
-                className="object-cover transition-transform duration-500 hover:scale-105"
-                sizes="130px"
-                priority={priority && index === 0}
-              />
-              {index === 2 && imageUrls.length > 3 && (
-                <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-[22px] font-black text-white">
-                  +{imageUrls.length - 2}
-                </span>
-              )}
-            </div>
-          ))
-        ) : (
-          <div className="col-span-3 flex h-full min-h-[104px] flex-col items-center justify-center gap-2 rounded-[12px] bg-[#f6efe5] text-[#36534E]">
-            <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
-            <span className="text-[12px] font-bold">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
+        <div className="mt-3 flex flex-col gap-2 text-[12px] font-medium text-[#7a8290] sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="truncate">{post.author?.nickname ?? "익명"}</span>
+            <span className="shrink-0">{timeAgo(post.created_at)}</span>
           </div>
-        )}
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <button
+              type="button"
+              onClick={handleLike}
+              disabled={voting}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                isLiked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#34445a] hover:bg-[#fff8ec]"
+              }`}
+              aria-label="좋아요"
+            >
+              <Heart className={`h-4 w-4 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
+              {displayUpvoteCount}
+            </button>
+            <span className="inline-flex items-center gap-1 text-[#34445a]">
+              <Eye className="h-4 w-4 stroke-[1.6]" />
+              {post.view_count ?? 0}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[#34445a]">
+              <MessageCircle className="h-4 w-4 stroke-[1.6]" />
+              {(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}
+            </span>
+            <button
+              type="button"
+              onClick={handleBookmark}
+              disabled={bookmarking}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                bookmarked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#34445a] hover:bg-[#fff8ec]"
+              }`}
+              aria-label="북마크"
+            >
+              <Bookmark className={`h-4 w-4 stroke-[1.6] ${bookmarked ? "fill-current" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[#34445a] transition-colors hover:bg-[#fff8ec]"
+              aria-label="공유"
+            >
+              <Share2 className="h-4 w-4 stroke-[1.6]" />
+            </button>
+          </div>
+        </div>
       </div>
     </Link>
   );
 }
 
-function RightPanels({ vendorTags }: { vendorTags: VendorTag[] }) {
+function RightPanels() {
   return (
     <div className="space-y-[18px]" data-tutorial-target="community-right">
       <CohortPreviewPanel />
       <BestPostsPanel />
-      <PopularTagsPanel vendorTags={vendorTags} />
     </div>
-  );
-}
-
-function CohortPreviewPanel() {
-  return (
-    <article
-      className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]"
-      data-tutorial-target="community-cohort"
-    >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">동기방 함께 준비해요.</h2>
-          <p className="mt-2 text-[13px] font-bold leading-[1.65] text-[#36534E]">
-            비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
-          </p>
-        </div>
-        <Link href="/community/cohort" className="shrink-0 text-[13px] font-black text-[#9a6720]">
-          내 방 찾기
-        </Link>
-      </div>
-      <div className="space-y-2">
-        {cohortPreviewRows.map((row) => (
-          <Link
-            key={row.period}
-            href={row.href}
-            className="flex min-h-[42px] items-center gap-3 rounded-[12px] px-1 text-[14px] font-black text-[#102b27] transition-colors hover:bg-[#f6efe5]"
-          >
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
-              <Users className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{row.period}</span>
-            <span className="hidden text-[12px] font-black text-[#6e7974] sm:inline">
-              {row.note}
-            </span>
-            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#eadcc9] bg-white px-3 text-[12px] font-black text-[#36534E]">
-              입장
-            </span>
-          </Link>
-        ))}
-      </div>
-    </article>
   );
 }
 
@@ -1193,12 +1061,12 @@ function BestPostsPanel() {
   }, []);
 
   return (
-    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">
-          인기 글 <Flame className="inline h-5 w-5 fill-[#d77458] text-[#d77458]" />
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
+          BEST 글 <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
-        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#36534E]">
+        <Link href="/community?sort=hot&feed=all#community-feed" className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
@@ -1209,7 +1077,7 @@ function BestPostsPanel() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7d7166]">아직 인기글을 집계하고 있어요.</p>
+        <p className="text-[13px] font-medium text-[#7a8290]">아직 인기글을 집계하고 있어요.</p>
       ) : (
         <ol className="space-y-3">
           {posts.map((post, index) => (
@@ -1218,46 +1086,96 @@ function BestPostsPanel() {
                 href={`/community/post/${post.id}`}
                 className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
               >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#B89785] text-[12px] font-semibold text-white">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
                   {index + 1}
                 </span>
-                <span className="truncate text-[#5f5b52]">{post.title}</span>
-                <strong className="text-[#263832]">{formatCount(post.upvote_count)}</strong>
+                <span className="truncate text-[#34445a]">{post.title}</span>
+                <strong className="text-[#071629]">{formatCount(post.upvote_count)}</strong>
               </Link>
             </li>
           ))}
         </ol>
       )}
-      <p className="mt-5 border-t border-[#e5d8ca] pt-4 text-center text-[12px] font-medium text-[#8d8176]">
-        실제 반응을 기준으로 보여드려요.
+      <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
+        실제 커뮤니티 반응을 기준으로 보여드려요.
       </p>
     </article>
   );
 }
 
-function PopularTagsPanel({ vendorTags }: { vendorTags: VendorTag[] }) {
-  const fallbackTags = ["스드메 견적", "본식 드레스", "예산 2500", "예단 고민", "신혼여행 추천", "식전영상", "혼수 준비", "웨딩홀 계약"];
-  const tags = vendorTags.length > 0 ? vendorTags.slice(0, 8).map((tag) => tag.vendor_name) : fallbackTags;
-
+function CohortPreviewPanel() {
   return (
-    <article className="rounded-[22px] border border-[#eadcc9] bg-[#fffdf9]/92 p-6 shadow-[0_10px_24px_rgba(50,36,17,0.045)]">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#102b27]">이번 주 인기 태그</h2>
-        <Link href="/community?sort=hot" className="text-[13px] font-black text-[#9a6720]">
+    <article
+      className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
+      data-tutorial-target="community-cohort"
+    >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">동기방 함께 준비해요.</h2>
+          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+            비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
+          </p>
+        </div>
+        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
+      <div className="divide-y divide-[#eadfc9]">
+        {cohortPreviewRows.map((row) => (
           <Link
-            key={tag}
-            href={`/community?tag=${encodeURIComponent(tag)}&feed=all#community-feed`}
-            className="rounded-full border border-[#eadcc9] bg-white/72 px-3 py-2 text-[12px] font-black text-[#36534E] transition-colors hover:border-[#36534E] hover:bg-[#eaf3ef]"
+            key={row.period}
+            href={row.href}
+            className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#34445a] transition-colors hover:bg-[#fff8ec]"
           >
-            # {tag}
+            <span className="min-w-0 flex-1 truncate">{row.period}</span>
+            <span className="hidden text-[12px] font-medium text-[#7a8290] sm:inline">{row.note}</span>
+            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#d8bb86] bg-white px-4 text-[12px] font-semibold text-[#9d6f36]">
+              {row.cta}
+            </span>
           </Link>
         ))}
       </div>
     </article>
+  );
+}
+
+function BottomCards() {
+  return (
+    <section className={`${shell} mt-[18px] pb-8`}>
+      <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_54%,#fbf1df_100%)] p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:grid md:grid-cols-[minmax(0,1fr)_430px] md:items-center md:gap-10">
+        <div>
+          <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
+            커뮤니티 다음 행동
+          </span>
+          <h2 className="mt-3 max-w-[620px] font-serif-kr text-[27px] font-medium leading-[1.35] text-[#071629]">
+            마음에 둔 후기와 질문은 웨딩 라운지에 바로 이어서 정리해요.
+          </h2>
+          <p className="mt-3 max-w-[660px] text-[14px] font-medium leading-[1.75] text-[#5d6879]">
+            커뮤니티에서 본 글을 일정, 예산, 예약 관리로 끊기지 않게 이어가면 다음에 해야 할 일이 더 선명해집니다.
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 md:mt-0">
+          {journeyActions.slice(1).map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className="group flex items-center justify-between rounded-[14px] border border-[#eadfc9] bg-white/80 px-4 py-3 text-[13px] font-semibold text-[#34445a] transition-colors hover:border-[#b68a3a]"
+            >
+              <span className="inline-flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
+                  <item.icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <b className="block truncate text-[#071629]">{item.title}</b>
+                  <span className="mt-0.5 block truncate text-[12px] font-medium text-[#7a8290]">{item.desc}</span>
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ))}
+        </div>
+        <ClipboardCheck className="pointer-events-none absolute -bottom-6 right-8 hidden h-[130px] w-[130px] rotate-6 text-[#c9a96e]/20 lg:block" />
+      </article>
+    </section>
   );
 }

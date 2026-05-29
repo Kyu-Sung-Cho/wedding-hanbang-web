@@ -11,6 +11,7 @@ export function normalizeCommunityFeedQuery(searchParams?: RawSearchParams): Com
     search: firstParam(searchParams?.search) ?? "",
     category: firstParam(searchParams?.category) ?? "",
     tag: firstParam(searchParams?.tag) ?? "",
+    author_id: firstParam(searchParams?.author_id) ?? "",
     sort: firstParam(searchParams?.sort) ?? "",
     period: firstParam(searchParams?.period) ?? "",
     feed: firstParam(searchParams?.feed) ?? "",
