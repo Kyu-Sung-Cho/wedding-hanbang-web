@@ -225,7 +225,7 @@ export default function CommunityLandingClient({
     posts.length === 0 &&
     Boolean(initialFeed?.posts.length);
   const feedPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 4);
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 6);
   const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
@@ -815,6 +815,18 @@ function LatestPosts({
               )}
             </Fragment>
           ))}
+          {isPreviewFeed && posts.length > 0 && (
+            <div className="flex justify-center py-5">
+              <Link
+                href={fullFeedHref}
+                className="inline-flex min-h-11 items-center rounded-full border border-[#eadfc9] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
+                aria-label="최신 글 전체 보기"
+              >
+                최신 글 더보기
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
+          )}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 2 }).map((_, index) => (
