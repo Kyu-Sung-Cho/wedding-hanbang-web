@@ -786,7 +786,7 @@ export default function PostDetailPage() {
         {/* 서비스 CTA (게시글과 댓글 사이) */}
         {!isMembersOnly && (
           <div className="mt-3">
-            <ServiceCTA category={post.category} />
+            <ServiceCTA category={post.category} postId={post.id} postTitle={post.title} />
           </div>
         )}
 

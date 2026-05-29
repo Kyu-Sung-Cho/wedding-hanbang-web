@@ -14,6 +14,8 @@ import type { CommunityCategory } from "@/types/community.types";
 
 interface ServiceCTAProps {
   category: CommunityCategory;
+  postTitle?: string;
+  postId?: string;
 }
 
 interface CTAConfig {
@@ -27,10 +29,10 @@ interface CTAConfig {
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
     icon: FileSearch,
-    label: "견적 확인",
-    title: "이 견적, 계약 전에 한 번 더 확인해볼까요?",
-    subtext: "빠진 항목, 추가금 가능성, 업체에 물어볼 질문을 정리합니다.",
-    href: "/community/quote-check",
+    label: "상황 확인",
+    title: "이 상황, 내 기준으로 한 번 더 확인해볼까요?",
+    subtext: "예식일, 예산, 준비 단계 기준으로 다음 행동을 정리합니다.",
+    href: "/chat",
   },
   tour_review: {
     icon: MessageCircle,
@@ -65,9 +67,23 @@ const CTA_MAP: Record<string, CTAConfig> = {
 const BUDGET_CATEGORIES = new Set(["is_normal"]);
 const SCHEDULE_CATEGORIES = new Set(["tips_v2", "ama"]);
 
-export default function ServiceCTA({ category }: ServiceCTAProps) {
+function buildChatHref(postTitle?: string, postId?: string) {
+  if (!postTitle) return "/chat";
+  const prompt = [
+    "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
+    `글 제목: ${postTitle}`,
+    postId ? `글 링크: /community/post/${postId}` : null,
+    "내가 확인해야 할 일정, 예산, 체크리스트를 알려줘.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return `/chat?prefill=${encodeURIComponent(prompt)}`;
+}
+
+export default function ServiceCTA({ category, postTitle, postId }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
   const MainIcon = mainCta.icon;
+  const mainHref = mainCta.href === "/chat" ? buildChatHref(postTitle, postId) : mainCta.href;
 
   let secondaryCta: CTAConfig | null = null;
   if (BUDGET_CATEGORIES.has(category)) {
@@ -95,7 +111,7 @@ export default function ServiceCTA({ category }: ServiceCTAProps) {
       </p>
 
       <ServiceAction
-        href={mainCta.href}
+        href={mainHref}
         icon={MainIcon}
         label={mainCta.label}
         title={mainCta.title}
