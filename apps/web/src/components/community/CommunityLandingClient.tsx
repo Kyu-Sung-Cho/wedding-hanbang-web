@@ -213,7 +213,7 @@ export default function CommunityLandingClient({
   const isSearching = searchQuery.trim().length > 0;
   const normalizedSort = sortValues.includes(sortQuery as PostSort) ? (sortQuery as PostSort) : "new";
   const normalizedPeriod = periodValues.includes(periodQuery as TimePeriod) ? (periodQuery as TimePeriod) : "week";
-  const hasFocusedFeed = Boolean(selectedCategory || tagQuery || authorQuery || sortQuery || isSearching);
+  const hasFocusedFeed = Boolean(selectedCategory || tagQuery || authorQuery || isSearching);
   const showFullFeed = feedQuery === "all" || hasFocusedFeed;
   const canUseInitialFeed =
     !isSearching &&
@@ -385,8 +385,8 @@ export default function CommunityLandingClient({
     if (authorQuery) params.set("author_id", authorQuery);
     params.set("sort", nextSort);
     if (nextSort === "top") params.set("period", currentPeriod);
-    params.set("feed", "all");
-    router.push(`/community?${params.toString()}#community-feed`, { scroll: false });
+    if (showFullFeed) params.set("feed", "all");
+    router.push(`/community?${params.toString()}`, { scroll: false });
   }
 
   function setPeriod(nextPeriod: TimePeriod) {
@@ -397,8 +397,8 @@ export default function CommunityLandingClient({
     if (authorQuery) params.set("author_id", authorQuery);
     params.set("sort", "top");
     params.set("period", nextPeriod);
-    params.set("feed", "all");
-    router.push(`/community?${params.toString()}#community-feed`, { scroll: false });
+    if (showFullFeed) params.set("feed", "all");
+    router.push(`/community?${params.toString()}`, { scroll: false });
   }
 
   return (
