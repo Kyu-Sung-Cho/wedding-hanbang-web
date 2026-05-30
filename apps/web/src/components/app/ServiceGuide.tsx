@@ -6,6 +6,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  BarChart3,
+  Building2,
+  CalendarCheck,
   Sparkles,
   Users,
   Wallet,
@@ -13,10 +16,9 @@ import {
   Check,
   RefreshCw,
   Shield,
-  Heart,
 } from "lucide-react";
 
-const STORAGE_KEY = "hanbang_service_guide_seen";
+const STORAGE_KEY = "hanbang_service_guide_seen_v2";
 const TOTAL_SLIDES = 6;
 
 // ─── Slide 1: Welcome ────────────────────────────────────────────────
@@ -325,79 +327,67 @@ function SlideBudget() {
   );
 }
 
-// ─── Slide 5: Couple Sync ────────────────────────────────────────────
-function SlideCouple() {
+// ─── Slide 5: Feature Pages ──────────────────────────────────────────
+function SlideFeaturePages() {
+  const features = [
+    {
+      icon: MessageCircle,
+      title: "아모라 상담",
+      desc: "견적·계약·순서가 막힐 때 먼저 질문",
+    },
+    {
+      icon: CalendarCheck,
+      title: "일정 관리",
+      desc: "상담, 투어, 촬영, 계약 날짜 정리",
+    },
+    {
+      icon: BarChart3,
+      title: "시세 정보",
+      desc: "내 견적이 평균과 얼마나 다른지 확인",
+    },
+    {
+      icon: Building2,
+      title: "업체 탐색",
+      desc: "지역, 가격대, 스타일로 후보 좁히기",
+    },
+  ];
+
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
-        파트너와 함께
+        기능 페이지로 이어가기
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-6">
-        모든 변경사항이 실시간으로 동기화
+        라운지는 입구, 세부 정리는 각 기능에서 해요
       </p>
 
-      {/* Mock 커플 동기화 UI */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
-        {/* 커플 아바타 */}
-        <div className="flex items-center justify-center gap-6 py-3">
-          <div className="flex flex-col items-center gap-1.5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#36534E] to-[#2B423E] flex items-center justify-center">
-              <span className="text-[24px]">👰</span>
-            </div>
-            <span className="text-base font-medium text-[#1b1c1c]">신부</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <Heart className="w-6 h-6 text-[#36534E] animate-guide-pulse" />
-            <span className="text-sm text-[#B5ADA3]">연결됨</span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#6B8EBD] to-[#8EAED3] flex items-center justify-center">
-              <span className="text-[24px]">🤵</span>
-            </div>
-            <span className="text-base font-medium text-[#1b1c1c]">신랑</span>
-          </div>
+        <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
+          <p className="text-sm font-medium text-[#36534E] mb-2">추천 흐름</p>
+          <p className="text-base leading-relaxed text-[#1b1c1c]">
+            아모라에게 먼저 물어보고, 답변에서 나온 금액은 예산에, 날짜는 일정에, 비교가 필요한 항목은 시세와 업체 탐색에서 확인하세요.
+          </p>
         </div>
 
-        {/* 활동 피드 */}
-        <div className="rounded-2xl bg-white border border-[#f6f3f2] overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-[#f6f3f2] bg-[#fcf9f8]">
-            <p className="text-sm text-[#504444] font-medium">최근 활동</p>
-          </div>
-          {[
-            {
-              avatar: "🤵",
-              bgColor: "bg-[#6B8EBD]/10",
-              text: "신랑이 예식장을 '진행중'으로 변경했어요",
-              time: "2분 전",
-            },
-            {
-              avatar: "👰",
-              bgColor: "bg-[#36534E]/10",
-              text: "신부가 스튜디오 예산을 수정했어요",
-              time: "15분 전",
-            },
-            {
-              avatar: "🤵",
-              bgColor: "bg-[#6B8EBD]/10",
-              text: "신랑이 메모를 남겼어요: \"여기 좋은 것 같아!\"",
-              time: "1시간 전",
-            },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-2.5 px-4 py-3 ${
-                i < 2 ? "border-b border-[#f6f3f2]" : ""
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full ${item.bgColor} flex items-center justify-center flex-shrink-0`}>
-                <span className="text-base">{item.avatar}</span>
+        <div className="grid grid-cols-2 gap-2">
+          {features.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <div key={feature.title} className="rounded-2xl border border-[#f6f3f2] bg-white p-4">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#36534E]/10 text-[#36534E]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-medium text-[#1b1c1c]">{feature.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-[#635b51]">{feature.desc}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base text-[#1b1c1c] leading-relaxed">{item.text}</p>
-                <p className="text-sm text-[#B5ADA3] mt-0.5">{item.time}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        <div className="rounded-2xl border border-[#f6f3f2] bg-[#fcf9f8] px-4 py-3">
+          <p className="text-sm leading-relaxed text-[#635b51]">
+            모든 기능을 처음부터 다 쓸 필요는 없어요. 막히면 아모라, 확정되면 일정·예산, 비교가 필요하면 시세·업체 탐색 순서로만 기억하세요.
+          </p>
         </div>
       </div>
     </div>
@@ -630,7 +620,7 @@ export default function ServiceGuide() {
           {current === 1 && <SlideDashboard />}
           {current === 2 && <SlideChat />}
           {current === 3 && <SlideBudget />}
-          {current === 4 && <SlideCouple />}
+          {current === 4 && <SlideFeaturePages />}
           {current === 5 && (
             <SlideStart
               onStart={handleStart}

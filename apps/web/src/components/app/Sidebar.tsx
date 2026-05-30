@@ -26,12 +26,12 @@ const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money", "/fitting", "/scripts"];
 
 const menuItems = [
-  { href: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지" },
-  { href: "/chat", icon: MessageCircle, label: "아모라 상담" },
-  { href: "/budget", icon: Wallet, label: "예산 관리" },
-  { href: "/schedule", icon: CalendarCheck, label: "일정 관리" },
-  { href: "/market-prices", icon: BarChart3, label: "시세 정보" },
-  { href: "/vendors", icon: Building2, label: "업체 탐색" },
+  { href: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
+  { href: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
+  { href: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
+  { href: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
+  { href: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
+  { href: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { href: "/bookings", icon: CalendarClock, label: "예약 관리" },
   { href: "/community", icon: Users, label: "커뮤니티" },
   { href: "/fitting", icon: Shirt, label: "드레스 피팅" },
@@ -91,6 +91,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
+                  data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${
                     isActive
                       ? "bg-[#061a34] text-white shadow-[0_10px_24px_rgba(6,26,52,0.12)]"
