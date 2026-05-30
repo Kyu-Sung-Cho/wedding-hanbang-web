@@ -21,7 +21,7 @@ export default function CommunityNav() {
     <header className="bg-[#fffdf7]">
       <div className="flex h-[76px] w-full max-w-none items-center justify-between px-3 lg:px-5">
         <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
-          <Logo size="lg" />
+          <Logo size="md" />
         </Link>
 
         <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
