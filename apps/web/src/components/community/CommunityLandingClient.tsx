@@ -1497,7 +1497,10 @@ function CohortPreviewPanel() {
 function BottomCards() {
   return (
     <section className={`${shell} mt-[18px] pb-8`}>
-      <article className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_54%,#fbf1df_100%)] p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:grid md:grid-cols-[minmax(0,1fr)_430px] md:items-center md:gap-10">
+      <article
+        className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_54%,#fbf1df_100%)] p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:grid md:grid-cols-[minmax(0,1fr)_430px] md:items-center md:gap-10"
+        data-tutorial-target="community-service-link"
+      >
         <div>
           <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
             커뮤니티 다음 행동

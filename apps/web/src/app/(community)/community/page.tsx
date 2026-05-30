@@ -1,5 +1,7 @@
-﻿import { Suspense } from "react";
+import { Suspense } from "react";
 import CommunityLandingClient from "@/components/community/CommunityLandingClient";
+import CommunityGuide from "@/components/community/CommunityGuide";
+import CommunityTutorial from "@/components/community/CommunityTutorial";
 import { normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
 import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
 
@@ -25,6 +27,8 @@ export default async function CommunityFeedPage({
         initialFeed={initialFeed}
         initialQuery={normalizeCommunityFeedQuery(resolvedSearchParams)}
       />
+      <CommunityGuide />
+      <CommunityTutorial />
     </Suspense>
   );
 }

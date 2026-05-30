@@ -28,6 +28,8 @@ import {
   X,
 } from "lucide-react";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
+import ServiceGuide from "@/components/app/ServiceGuide";
 import { useAuthStore } from "@/stores/authStore";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
@@ -331,7 +333,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#eadfc9] bg-[#061a34] p-6 text-white shadow-[0_18px_48px_rgba(6,26,52,0.12)] md:p-7">
+        <div
+          className="rounded-[24px] border border-[#eadfc9] bg-[#061a34] p-6 text-white shadow-[0_18px_48px_rgba(6,26,52,0.12)] md:p-7"
+          data-tutorial-target="dashboard-briefing"
+        >
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="text-[12px] font-semibold text-[#ecd7a4]">Amora Briefing</p>
@@ -569,6 +574,8 @@ export default function DashboardPage() {
         onClose={() => setSelectedCategory(null)}
         onStatusChange={updateCategoryStatus}
       />
+      <ServiceGuide />
+      <ServiceDashboardTutorial />
     </div>
   );
 }
