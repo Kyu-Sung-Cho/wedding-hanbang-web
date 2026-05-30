@@ -52,7 +52,7 @@ function SlideWelcome() {
             key={i}
             className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-2xl bg-[#fcf9f8] border border-[#f6f3f2]"
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#795252] to-[#C9A96E] flex items-center justify-center text-white">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#36534E] to-[#C9A96E] flex items-center justify-center text-white">
               {item.icon}
             </div>
             <span className="text-base font-medium text-[#1b1c1c]">{item.label}</span>
@@ -63,7 +63,7 @@ function SlideWelcome() {
 
       {/* 그라데이션 라인 애니메이션 */}
       <div className="w-full max-w-[300px] h-[2px] rounded-full overflow-hidden bg-[#f6f3f2]">
-        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#795252] via-[#C9A96E] to-[#795252] animate-guide-shimmer" />
+        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#36534E] via-[#C9A96E] to-[#36534E] animate-guide-shimmer" />
       </div>
     </div>
   );
@@ -84,20 +84,20 @@ function SlideDashboard() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* D-day 카드 */}
         <div className="relative">
-          <div className="rounded-2xl bg-[#1b1c1c] p-4 flex items-center justify-between">
+          <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-sm text-[#B5ADA3] mb-0.5">우리의 결혼식</p>
-              <p className="text-sm text-[#f6f3f2]">2026. 09. 12 (토)</p>
+              <p className="text-sm text-[#7a8290] mb-0.5">우리의 결혼식</p>
+              <p className="text-sm font-semibold text-[#263832]">2026. 09. 12 (토)</p>
             </div>
             <div className="text-right">
-              <span className="font-display text-[40px] font-light leading-none bg-gradient-to-br from-[#795252] to-[#C9A96E] bg-clip-text text-transparent">
+              <span className="font-display text-[40px] font-light leading-none text-[#36534E]">
                 D-149
               </span>
             </div>
           </div>
           {/* 어노테이션 */}
           <div className="absolute -right-1 -top-2 flex items-center gap-1">
-            <span className="text-sm text-[#795252] font-medium bg-white/90 rounded-full px-2.5 py-0.5 shadow-sm border border-[#795252]/20">
+            <span className="text-sm text-[#36534E] font-medium bg-white/95 rounded-full px-2.5 py-0.5 shadow-sm border border-[#36534E]/20">
               결혼까지 남은 날짜
             </span>
           </div>
@@ -107,17 +107,17 @@ function SlideDashboard() {
         <div className="relative rounded-2xl bg-white border border-[#f6f3f2] p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-base font-medium text-[#1b1c1c]">전체 진행률</span>
-            <span className="text-base font-medium text-[#795252]">35%</span>
+            <span className="text-base font-medium text-[#36534E]">35%</span>
           </div>
           <div className="w-full h-2 rounded-full bg-[#f6f3f2] overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#C9A96E]"
+              className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
               style={{ width: "35%" }}
             />
           </div>
           {/* 어노테이션 */}
           <div className="absolute -left-1 -bottom-2 flex items-center gap-1">
-            <span className="text-sm text-[#795252] font-medium bg-white/90 rounded-full px-2.5 py-0.5 shadow-sm border border-[#795252]/20">
+            <span className="text-sm text-[#36534E] font-medium bg-white/95 rounded-full px-2.5 py-0.5 shadow-sm border border-[#36534E]/20">
               전체 진행 상황
             </span>
           </div>
@@ -172,14 +172,14 @@ function SlideChat() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
-          <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[#1b1c1c] text-white px-4 py-2.5">
+          <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[#36534E] text-white px-4 py-2.5 shadow-sm">
             <p className="text-base leading-relaxed">이번 주에 스튜디오 상담 가는데 뭘 준비하면 좋을까?</p>
           </div>
         </div>
 
         {/* AI 메시지 (왼쪽) */}
         <div className="flex justify-start gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#795252] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#36534E] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col gap-2 max-w-[80%]">
@@ -250,20 +250,20 @@ function SlideBudget() {
       {/* Mock 예산 UI */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 총 예산 카드 */}
-        <div className="rounded-2xl bg-[#1b1c1c] p-4">
+        <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-[#B5ADA3]">총 예산</span>
-            <span className="text-base font-medium text-[#fcf9f8]">3,000만원</span>
+            <span className="text-sm text-[#7a8290]">총 예산</span>
+            <span className="text-base font-semibold text-[#263832]">3,000만원</span>
           </div>
-          <div className="w-full h-2.5 rounded-full bg-[#2A2A30] overflow-hidden">
+          <div className="w-full h-2.5 rounded-full bg-[#f1eadf] overflow-hidden">
             <div className="flex h-full">
-              <div className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a]" style={{ width: "36%" }} />
-              <div className="h-full bg-[#C9A96E]/60" style={{ width: "18%" }} />
+              <div className="h-full bg-gradient-to-r from-[#36534E] to-[#78a096]" style={{ width: "36%" }} />
+              <div className="h-full bg-[#C9A96E]/75" style={{ width: "18%" }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
-            <span className="text-sm text-[#B5ADA3]">1,080만원 사용</span>
-            <span className="text-sm text-[#C9A96E]">540만원 진행중</span>
+            <span className="text-sm text-[#635b51]">1,080만원 사용</span>
+            <span className="text-sm font-medium text-[#36534E]">540만원 진행중</span>
           </div>
         </div>
 
@@ -275,7 +275,7 @@ function SlideBudget() {
               spent: 600,
               total: 800,
               tag: "커플",
-              tagColor: "bg-[#795252]/10 text-[#795252]",
+              tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
             {
               name: "스드메",
@@ -289,7 +289,7 @@ function SlideBudget() {
               spent: 200,
               total: 300,
               tag: "커플",
-              tagColor: "bg-[#795252]/10 text-[#795252]",
+              tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
           ].map((row, i) => (
             <div key={i} className="px-4 py-3">
@@ -306,7 +306,7 @@ function SlideBudget() {
               </div>
               <div className="w-full h-1.5 rounded-full bg-[#f6f3f2] overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#C9A96E]"
+                  className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
                   style={{ width: `${(row.spent / row.total) * 100}%` }}
                 />
               </div>
@@ -316,7 +316,7 @@ function SlideBudget() {
 
         {/* 어노테이션 */}
         <div className="flex justify-center">
-          <span className="text-sm text-[#795252] font-medium bg-white/90 rounded-full px-3 py-1 shadow-sm border border-[#795252]/20">
+          <span className="text-sm text-[#36534E] font-medium bg-white/95 rounded-full px-3 py-1 shadow-sm border border-[#36534E]/20">
             사용 금액과 카테고리별 예산 확인
           </span>
         </div>
@@ -341,13 +341,13 @@ function SlideCouple() {
         {/* 커플 아바타 */}
         <div className="flex items-center justify-center gap-6 py-3">
           <div className="flex flex-col items-center gap-1.5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#36534E] to-[#2B423E] flex items-center justify-center">
               <span className="text-[24px]">👰</span>
             </div>
             <span className="text-base font-medium text-[#1b1c1c]">신부</span>
           </div>
           <div className="flex flex-col items-center gap-0.5">
-            <Heart className="w-6 h-6 text-[#795252] animate-guide-pulse" />
+            <Heart className="w-6 h-6 text-[#36534E] animate-guide-pulse" />
             <span className="text-sm text-[#B5ADA3]">연결됨</span>
           </div>
           <div className="flex flex-col items-center gap-1.5">
@@ -372,7 +372,7 @@ function SlideCouple() {
             },
             {
               avatar: "👰",
-              bgColor: "bg-[#795252]/10",
+              bgColor: "bg-[#36534E]/10",
               text: "신부가 스튜디오 예산을 수정했어요",
               time: "15분 전",
             },
@@ -432,7 +432,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
       {/* CTA 버튼 */}
       <button
         onClick={onStart}
-        className="w-full max-w-[320px] py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all mb-5"
+        className="w-full max-w-[320px] py-3.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(54,83,78,0.2)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.23)] transition-all mb-5"
       >
         시작하기
       </button>
@@ -443,7 +443,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
           type="checkbox"
           checked={neverShow}
           onChange={(e) => onNeverShowChange(e.target.checked)}
-          className="w-4 h-4 rounded border-[#B5ADA3] text-[#795252] focus:ring-[#795252]/30 accent-[#795252]"
+          className="w-4 h-4 rounded border-[#B5ADA3] text-[#36534E] focus:ring-[#36534E]/30 accent-[#36534E]"
         />
         <span className="text-base text-[#B5ADA3]">다시 보지 않기</span>
       </label>
@@ -610,7 +610,7 @@ export default function ServiceGuide() {
         <div className="px-6 mb-3">
           <div className="w-full h-[3px] rounded-full bg-[#f6f3f2] overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#C9A96E] transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#C9A96E] transition-all duration-500 ease-out"
               style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
             />
           </div>
@@ -654,7 +654,7 @@ export default function ServiceGuide() {
               </button>
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-6 py-3 bg-[#795252] hover:bg-[#946a6a] text-white text-base font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1 px-6 py-3 bg-[#36534E] hover:bg-[#2B423E] text-white text-base font-medium rounded-xl transition-colors"
               >
                 다음
                 <ChevronRight className="w-4 h-4" />
@@ -670,7 +670,7 @@ export default function ServiceGuide() {
                 key={i}
                 onClick={() => goTo(i)}
                 className={`no-min-tap w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-                  i === current ? "bg-[#795252]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
+                  i === current ? "bg-[#36534E]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
                 }`}
                 aria-label={`슬라이드 ${i + 1}`}
               />

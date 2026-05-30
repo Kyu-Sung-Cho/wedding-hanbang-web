@@ -180,13 +180,13 @@ function SlideCohort() {
       </div>
 
       {/* 동기방 카드 */}
-      <div className="w-full max-w-[380px] rounded-2xl bg-gradient-to-br from-[#263832] to-[#2A2A30] p-4 mb-4 shadow-lg">
+      <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-[17px] text-white font-semibold">2026 2분기 동기방</div>
-            <div className="text-sm text-white/50 font-light mt-0.5">4~6월 결혼 예정 커플</div>
+            <div className="text-[17px] text-[#263832] font-semibold">2026 2분기 동기방</div>
+            <div className="text-sm text-[#7a8290] font-light mt-0.5">4~6월 결혼 예정 커플</div>
           </div>
-          <div className="px-2.5 py-1 rounded-full bg-sage-500/30 text-sm text-[#A8D8A8] font-medium">
+          <div className="px-2.5 py-1 rounded-full bg-[#36534E]/10 text-sm text-[#36534E] font-medium">
             248명 활동 중
           </div>
         </div>
@@ -200,11 +200,11 @@ function SlideCohort() {
           ].map((grad, i) => (
             <div
               key={i}
-              className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad} border-2 border-[#36534E] ${i > 0 ? "-ml-2" : ""}`}
+              className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad} border-2 border-white shadow-sm ${i > 0 ? "-ml-2" : ""}`}
               style={{ zIndex: 5 - i }}
             />
           ))}
-          <span className="text-sm text-white/40 ml-2">+243</span>
+          <span className="text-sm text-[#7a8290] ml-2">+243</span>
         </div>
       </div>
 
