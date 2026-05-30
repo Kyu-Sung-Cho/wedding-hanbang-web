@@ -729,9 +729,9 @@ function PostWriteContent() {
 
   return (
     <div className="min-h-screen bg-[#fbf8f2]">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 pb-32 sm:pb-12">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-10 xl:px-12 py-6 sm:py-8 pb-32 sm:pb-12">
         {/* 헤더 */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-7">
           <button
             type="button"
             onClick={handleCancel}
@@ -740,7 +740,7 @@ function PostWriteContent() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-serif-kr text-3xl font-light text-[#263832]">
+          <h1 className="font-serif-kr text-2xl sm:text-[28px] font-light text-[#263832]">
             {isEditMode ? "글 수정" : "글쓰기"}
           </h1>
           <div className="ml-auto flex items-center gap-2">
@@ -771,7 +771,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={() => setPostMode("regular")}
-            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+            className={`px-4 py-2 text-[13px] font-medium rounded-full transition-all ${
               postMode === "regular"
                 ? "bg-[#36534E] text-white shadow-sm"
                 : "text-[#635b51] hover:text-[#263832]"
@@ -782,7 +782,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={() => setPostMode("slides")}
-            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+            className={`px-4 py-2 text-[13px] font-medium rounded-full transition-all ${
               postMode === "slides"
                 ? "bg-[#36534E] text-white shadow-sm"
                 : "text-[#635b51] hover:text-[#263832]"
@@ -792,12 +792,12 @@ function PostWriteContent() {
           </button>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-5 xl:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px] gap-5 xl:gap-7 items-start">
           {/* 메인 영역: 제목 + 본문 */}
-          <div className="flex-1 space-y-8">
+          <div className="min-w-0 space-y-7">
             {/* 제목 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#263832] mb-2">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-sm font-semibold text-[#263832] mb-2.5">
                 제목 <span className="text-[#36534E]">*</span>
               </label>
               <input
@@ -806,17 +806,17 @@ function PostWriteContent() {
                 onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
                 placeholder="제목을 입력하세요"
                 maxLength={TITLE_MAX_LENGTH}
-                className="w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+                className="w-full px-4 py-3 text-base text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
               />
-              <p className={`mt-2 text-sm text-right ${titleCountColor}`}>
+              <p className={`mt-2 text-xs text-right ${titleCountColor}`}>
                 {title.length.toLocaleString()} / {TITLE_MAX_LENGTH.toLocaleString()}자
               </p>
             </section>
 
             {/* 카드 게시물(인스타 캐러셀) 빌더 — 슬라이드 모드 전용 */}
             {postMode === "slides" && (
-              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <label className="block text-base font-medium text-[#263832] mb-3">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-sm font-semibold text-[#263832] mb-3">
                   슬라이드 <span className="text-[#36534E]">*</span>
                 </label>
                 <SlideBuilder slides={slides} onChange={setSlides} max={10} />
@@ -824,9 +824,9 @@ function PostWriteContent() {
             )}
 
             {/* 작성/미리보기 탭 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <div className="flex items-center justify-between mb-3">
-                <label className="text-base font-medium text-[#263832]">
+                <label className="text-sm font-semibold text-[#263832]">
                   {postMode === "slides" ? (
                     <>캡션 <span className="text-[#928980] text-sm font-normal">(선택)</span></>
                   ) : (
@@ -837,7 +837,7 @@ function PostWriteContent() {
                   <button
                     type="button"
                     onClick={() => setActiveTab("write")}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-md transition-colors ${
                       activeTab === "write"
                         ? "bg-[#36534E] text-white shadow-sm"
                         : "text-[#635b51] hover:text-[#263832]"
@@ -849,7 +849,7 @@ function PostWriteContent() {
                   <button
                     type="button"
                     onClick={() => setActiveTab("preview")}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-md transition-colors ${
                       activeTab === "preview"
                         ? "bg-[#36534E] text-white shadow-sm"
                         : "text-[#635b51] hover:text-[#263832]"
@@ -882,7 +882,7 @@ function PostWriteContent() {
                           : "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
                       }
                       maxLength={CONTENT_MAX_LENGTH}
-                      className={`w-full px-4 py-3 text-lg text-[#263832] bg-[#f6efe5] border rounded-lg placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none leading-relaxed min-h-[200px] ${
+                      className={`w-full px-4 py-3 text-base text-[#263832] bg-[#f6efe5] border rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none leading-relaxed min-h-[220px] ${
                         isDraggingImage
                           ? "border-[#36534E] ring-2 ring-[#36534E]/30 bg-white"
                           : "border-[#e5d8ca]"
@@ -917,7 +917,7 @@ function PostWriteContent() {
                             type="button"
                             onClick={() => inlineImageInputRef.current?.click()}
                             disabled={insertingImage}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#36534E] bg-[#fbf8f2] border border-[#e5d8ca] rounded-lg hover:border-[#36534E] hover:bg-white transition-colors disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#36534E] bg-[#fbf8f2] border border-[#e5d8ca] rounded-lg hover:border-[#36534E] hover:bg-white transition-colors disabled:opacity-60"
                             title="본문 안 커서 위치에 이미지/GIF 삽입"
                           >
                             {insertingImage ? (
@@ -933,7 +933,7 @@ function PostWriteContent() {
                         </>
                       )}
                     </div>
-                    <p className={`text-sm ${contentCountColor}`}>
+                    <p className={`text-xs ${contentCountColor}`}>
                       {content.length.toLocaleString()} / {CONTENT_MAX_LENGTH.toLocaleString()}자
                     </p>
                   </div>
@@ -984,7 +984,7 @@ function PostWriteContent() {
                   )}
                 </>
               ) : (
-                <div className="w-full px-4 py-3 bg-[#f6efe5] border border-[#e5d8ca] rounded-lg min-h-[200px]">
+                <div className="w-full px-4 py-3 bg-[#f6efe5] border border-[#e5d8ca] rounded-xl min-h-[220px]">
                   {content.trim() ? (
                     <div
                       className="prose prose-sm max-w-none text-[#263832] leading-relaxed whitespace-pre-wrap break-words"
@@ -999,8 +999,8 @@ function PostWriteContent() {
 
             {/* 이미지/영상 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
             {postMode === "regular" && (
-              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <label className="block text-base font-medium text-[#263832] mb-3">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-sm font-semibold text-[#263832] mb-3">
                   이미지/영상
                 </label>
                 <ImageUploader images={images} onChange={setImages} max={5} />
@@ -1009,17 +1009,17 @@ function PostWriteContent() {
 
             {/* 투표 (폴) — 수정 모드에서는 비활성화. 카드 게시물도 폴 없이 깔끔하게 유지. */}
             {!isEditMode && postMode === "regular" && (
-              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <PollEditor value={poll} onChange={setPoll} />
               </section>
             )}
           </div>
 
           {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
-          <div className="lg:w-[260px] xl:w-[280px] shrink-0 space-y-5 xl:space-y-6">
+          <div className="min-w-0 space-y-5 xl:space-y-6">
             {/* 카테고리 선택 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#263832] mb-3">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-sm font-semibold text-[#263832] mb-3">
                 카테고리 <span className="text-[#36534E]">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1031,14 +1031,14 @@ function PostWriteContent() {
                       key={cat.key}
                       type="button"
                       onClick={() => setCategory(cat.key)}
-                      className={`flex items-center gap-2 px-3.5 py-3 sm:py-2.5 text-base font-medium rounded-lg border transition-all ${
+                      className={`flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl border transition-all ${
                         isSelected
                           ? "border-[#36534E] bg-[#36534E] text-white shadow-sm"
                           : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E] hover:text-[#263832]"
                       }`}
                     >
-                      <Icon className="w-5 h-5 shrink-0" />
-                      <span className="truncate">{cat.shortLabel}</span>
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="min-w-0 whitespace-nowrap">{cat.shortLabel}</span>
                     </button>
                   );
                 })}
@@ -1046,8 +1046,8 @@ function PostWriteContent() {
             </section>
 
             {/* 공개 범위 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#263832] mb-3">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-sm font-semibold text-[#263832] mb-3">
                 공개 범위
               </label>
               <div className="space-y-2">
@@ -1061,13 +1061,13 @@ function PostWriteContent() {
                       key={opt.key}
                       type="button"
                       onClick={() => setVisibility(opt.key)}
-                      className={`flex items-center gap-2 w-full px-3 py-2 text-base font-medium rounded-lg border transition-all ${
+                      className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium rounded-xl border transition-all ${
                         isSelected
                           ? "border-[#36534E] bg-[#36534E] text-white shadow-sm"
                           : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#36534E]"
                       }`}
                     >
-                      <opt.icon className="w-5 h-5" />
+                      <opt.icon className="w-4 h-4" />
                       {opt.label}
                     </button>
                   );
@@ -1076,8 +1076,8 @@ function PostWriteContent() {
             </section>
 
             {/* 태그 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#263832] mb-3">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-sm font-semibold text-[#263832] mb-3">
                 태그
               </label>
               <TagInput tags={tags} onChange={setTags} max={10} />
@@ -1085,8 +1085,8 @@ function PostWriteContent() {
 
             {/* 업체 태그 (카테고리가 허용하는 경우) */}
             {categoryInfo?.allowVendorTags && (
-              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <label className="block text-base font-medium text-[#263832] mb-3">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-sm font-semibold text-[#263832] mb-3">
                   업체 태그
                 </label>
                 <VendorTagPicker vendorIds={vendorTags} onChange={setVendorTags} />
@@ -1094,8 +1094,8 @@ function PostWriteContent() {
             )}
 
             {/* 광고 표시 */}
-            <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-base font-medium text-[#263832] mb-3">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <label className="block text-sm font-semibold text-[#263832] mb-3">
                 광고·협찬 포함 여부
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -1161,8 +1161,8 @@ function PostWriteContent() {
 
             {/* "이거 정상이야?" 가격 폼 */}
             {category === "is_normal" && (
-              <section className="bg-white border border-transparent rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <label className="block text-base font-medium text-[#263832] mb-3">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-sm font-semibold text-[#263832] mb-3">
                   가격 질문 (선택)
                 </label>
                 <PriceQuestionForm onChange={setPriceData} />
@@ -1176,7 +1176,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={handleCancel}
-            className="px-6 py-2.5 text-base font-medium text-[#635b51] bg-white border border-[#e5d8ca] rounded-lg hover:bg-[#f6efe5] transition-colors"
+            className="px-6 py-2.5 text-sm font-medium text-[#635b51] bg-white border border-[#e5d8ca] rounded-xl hover:bg-[#f6efe5] transition-colors"
           >
             취소
           </button>
@@ -1186,7 +1186,7 @@ function PostWriteContent() {
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={isSubmitting || !category || !title.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 text-base font-medium text-[#635b51] bg-white border border-[#e5d8ca] rounded-lg hover:bg-[#f6efe5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-[#635b51] bg-white border border-[#e5d8ca] rounded-xl hover:bg-[#f6efe5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Save className="w-4 h-4" />
                 임시저장
@@ -1196,7 +1196,7 @@ function PostWriteContent() {
               type="button"
               onClick={() => handleSubmit(false)}
               disabled={isSubmitting || !isValid}
-              className="flex items-center justify-center gap-2 px-8 py-3.5 text-base font-medium text-white bg-[#36534E] rounded-lg hover:bg-[#2B423E] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
+              className="flex items-center justify-center gap-2 px-8 py-3 text-sm font-semibold text-white bg-[#36534E] rounded-xl hover:bg-[#2B423E] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
