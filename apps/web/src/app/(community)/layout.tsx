@@ -36,7 +36,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#061a34_0%,#082342_62%,#041425_100%)] text-white">
+    <footer className="bg-[linear-gradient(135deg,#183832_0%,#2f5f55_58%,#12302b_100%)] text-white">
       <div className="grid w-full max-w-none gap-9 px-3 py-8 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-5">
         <div>
           <FooterBrand />
@@ -53,7 +53,7 @@ function CommunityFooter() {
                 key={item.label}
                 href="/community"
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
                 <item.icon className="h-4 w-4" />
               </Link>
@@ -100,9 +100,9 @@ function CommunityFooter() {
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/15 bg-white/[0.04] p-5">
+        <div className="rounded-[18px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#c9a96e]" />
+            <ShieldCheck className="h-5 w-5 text-[#d8c79a]" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
           </div>
           <p className="text-[12px] font-medium leading-[1.7] text-white/65">
@@ -110,7 +110,7 @@ function CommunityFooter() {
           </p>
           <Link
             href="/lounge"
-            className="mt-4 inline-flex items-center rounded-full border border-[#c9a96e]/70 px-4 py-2 text-[12px] font-semibold text-[#ecd7a4] transition-colors hover:bg-[#c9a96e]/10"
+            className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -130,7 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#ecd7a4]">
+          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
             {item.label}
           </Link>
         ))}
