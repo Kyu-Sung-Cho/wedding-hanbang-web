@@ -69,7 +69,7 @@ interface BestPostPayload {
   posts: TrendingPost[];
 }
 
-const shell = "w-full max-w-none px-3 lg:px-5";
+const shell = "mx-auto w-full max-w-[1760px] px-3 lg:px-5 2xl:px-8";
 const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
