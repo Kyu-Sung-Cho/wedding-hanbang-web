@@ -51,6 +51,12 @@ import type {
   TimePeriod,
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
+import {
+  FLEX_COHORT_MONTH,
+  FLEX_COHORT_YEAR,
+  monthToQuarter,
+  quarterToMonth,
+} from "@/utils/quarter";
 import { withSessionCache } from "@/utils/sessionCache";
 
 interface VendorTag {
@@ -120,6 +126,52 @@ const cohortPreviewRows = [
   { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
   { period: "날짜 미정·1년 이후", note: "초반 준비", href: "/community/cohort?timing=later", cta: "입장" },
 ];
+
+type CohortPanelStatus = "idle" | "checking" | "assigned" | "unauth" | "manual";
+
+interface CohortPanelState {
+  status: CohortPanelStatus;
+  roomId?: string;
+  label?: string;
+  note?: string;
+}
+
+interface CohortLookupResponse {
+  room?: {
+    id: string;
+    year?: number | null;
+    month?: number | null;
+    name?: string | null;
+  } | null;
+}
+
+interface CohortAssignResponse {
+  room_id?: string | null;
+  reason?: string;
+  year?: number | null;
+  quarter?: 1 | 2 | 3 | 4;
+  flexible?: boolean;
+}
+
+function formatCohortLabel(year?: number | null, month?: number | null) {
+  if (!year || !month) return "내 동기방";
+  if (year === FLEX_COHORT_YEAR && month === FLEX_COHORT_MONTH) {
+    return "날짜 미정·1년 이후";
+  }
+  return `${year}년 ${monthToQuarter(month)}분기 (${month}~${month + 2}월)`;
+}
+
+function formatWeddingDateNote(weddingDate?: string | null) {
+  if (!weddingDate) return "예정일 미정 기준으로 먼저 배정됐어요.";
+  const date = new Date(weddingDate);
+  if (Number.isNaN(date.getTime())) return "예정일 기준으로 자동 배정됐어요.";
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 예식 기준`;
+}
+
+function hasPossibleAuthSession() {
+  if (typeof document === "undefined") return false;
+  return document.cookie.includes("demo_mode=true") || document.cookie.includes("sb-");
+}
 
 function buildCommunityCategoryHref(category: CommunityCategory) {
   return `/community?category=${category}&feed=all#community-feed`;
@@ -1427,37 +1479,174 @@ function formatMarketPrice(value: number | null): string {
 }
 
 function CohortPreviewPanel() {
+  const { profile, journey, isInitialized, isLoading: authLoading } = useAuthStore();
+  const [panelState, setPanelState] = useState<CohortPanelState>({ status: "idle" });
+  const weddingDate = journey?.wedding_date ?? null;
+  const userId = profile?.id ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncMyCohort() {
+      await Promise.resolve();
+      if (cancelled) return;
+
+      if (!isInitialized && !authLoading && !hasPossibleAuthSession()) {
+        setPanelState({ status: "unauth" });
+        return;
+      }
+
+      if (!isInitialized || authLoading) {
+        setPanelState({ status: "checking", note: "로그인 상태를 확인하고 있어요." });
+        return;
+      }
+
+      if (!userId) {
+        setPanelState({ status: "unauth" });
+        return;
+      }
+
+      setPanelState({ status: "checking", note: "예정일 기준 동기방을 찾고 있어요." });
+
+      try {
+        const currentRes = await fetch("/api/community/cohort", { cache: "no-store" });
+        if (currentRes.ok) {
+          const currentData = (await currentRes.json()) as CohortLookupResponse;
+          if (cancelled) return;
+
+          if (currentData.room?.id) {
+            setPanelState({
+              status: "assigned",
+              roomId: currentData.room.id,
+              label: formatCohortLabel(currentData.room.year, currentData.room.month),
+              note: formatWeddingDateNote(weddingDate),
+            });
+            return;
+          }
+        }
+
+        const assignRes = await fetch("/api/community/cohort/auto-assign", {
+          method: "POST",
+          credentials: "include",
+        });
+        const assignData = (await assignRes.json().catch(() => ({}))) as CohortAssignResponse;
+        if (cancelled) return;
+
+        if (assignData?.room_id) {
+          const assignedMonth = assignData.flexible
+            ? FLEX_COHORT_MONTH
+            : assignData.quarter
+              ? quarterToMonth(assignData.quarter)
+              : null;
+
+          setPanelState({
+            status: "assigned",
+            roomId: assignData.room_id,
+            label: formatCohortLabel(assignData.year, assignedMonth),
+            note: formatWeddingDateNote(weddingDate),
+          });
+          return;
+        }
+
+        if (assignData?.reason === "unauthenticated") {
+          setPanelState({ status: "unauth" });
+          return;
+        }
+
+        setPanelState({ status: "manual" });
+      } catch {
+        if (!cancelled) setPanelState({ status: "manual" });
+      }
+    }
+
+    void syncMyCohort();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, isInitialized, userId, weddingDate]);
+
   return (
     <article
-      className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
+      className="rounded-[18px] border border-[#e5d8ca] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
       data-tutorial-target="community-cohort"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">동기방 함께 준비해요.</h2>
-          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#263832]">동기방 함께 준비해요.</h2>
+          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#635b51]">
             비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
           </p>
         </div>
-        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#9d6f36]">
+        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#36534E]">
           더보기
         </Link>
       </div>
-      <div className="divide-y divide-[#eadfc9]">
-        {cohortPreviewRows.map((row) => (
+
+      {panelState.status === "assigned" && panelState.roomId ? (
+        <div className="space-y-3">
+          <Link
+            href={`/community/cohort/${panelState.roomId}`}
+            className="group flex min-h-[82px] items-center gap-3 rounded-[16px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[#36534E]/55 hover:bg-[#e7f0eb]"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-sm">
+              <Users className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-semibold text-[#36534E]">내 동기방</span>
+              <b className="mt-0.5 block truncate font-serif-kr text-[18px] font-medium text-[#263832]">
+                {panelState.label}
+              </b>
+              <span className="mt-1 block truncate text-[12px] font-medium text-[#635b51]">
+                {panelState.note}
+              </span>
+            </span>
+            <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#36534E] px-4 text-[12px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.16)]">
+              입장
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+          <Link
+            href="/community/cohort"
+            className="flex min-h-10 items-center justify-between rounded-[14px] border border-[#e5d8ca] bg-white px-4 text-[12px] font-semibold text-[#635b51] transition-colors hover:border-[#36534E]/35 hover:text-[#36534E]"
+          >
+            다른 분기로 바꾸거나 전체 동기방 보기
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      ) : (
+        <>
+          {panelState.status === "checking" && (
+            <div className="mb-3 rounded-[14px] border border-[#36534E]/15 bg-[#EEF4F1] px-4 py-3 text-[12px] font-semibold text-[#36534E]">
+              {panelState.note ?? "내 동기방을 확인하고 있어요."}
+            </div>
+          )}
+          {panelState.status === "unauth" && (
+            <Link
+              href={`/login?redirect=${encodeURIComponent("/community/cohort")}`}
+              className="mb-3 flex min-h-11 items-center justify-between rounded-[14px] border border-[#36534E]/20 bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/45"
+            >
+              로그인하면 예정일 기준으로 바로 입장해요
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+          <div className="divide-y divide-[#e5d8ca]">
+            {cohortPreviewRows.map((row) => (
           <Link
             key={row.period}
             href={row.href}
-            className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#34445a] transition-colors hover:bg-[#fff8ec]"
+            className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#263832] transition-colors hover:bg-[#EEF4F1]"
           >
             <span className="min-w-0 flex-1 truncate">{row.period}</span>
-            <span className="hidden text-[12px] font-medium text-[#7a8290] sm:inline">{row.note}</span>
-            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#d8bb86] bg-white px-4 text-[12px] font-semibold text-[#9d6f36]">
+            <span className="hidden text-[12px] font-medium text-[#635b51] sm:inline">{row.note}</span>
+            <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-[#36534E]/30 bg-white px-4 text-[12px] font-semibold text-[#36534E]">
               {row.cta}
             </span>
           </Link>
-        ))}
-      </div>
+            ))}
+          </div>
+        </>
+      )}
     </article>
   );
 }
