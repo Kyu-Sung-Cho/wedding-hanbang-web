@@ -31,7 +31,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-right"]',
     title: "지금 뜨는 글과 준비 흐름",
     description:
-      "BEST 글, 바로 할 일, 요즘 시세를 한눈에 볼 수 있어요. 어디부터 봐야 할지 막막할 때 출발점으로 쓰세요.",
+      "이번주 BEST, 바로 할 일, 요즘 시세를 한눈에 볼 수 있어요. 어디부터 봐야 할지 막막할 때 출발점으로 쓰세요.",
   },
   {
     selector: '[data-tutorial-target="community-service-link"]',

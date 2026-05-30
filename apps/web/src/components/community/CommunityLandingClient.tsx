@@ -1176,7 +1176,7 @@ function BestPostsPanel() {
     };
   }, []);
 
-  const title = mode === "week" ? "이번주 인기글" : "BEST 글";
+  const title = mode === "week" ? "이번주 BEST" : "인기글";
   const moreHref =
     mode === "week"
       ? "/community?sort=top&period=week&feed=all#community-feed"
