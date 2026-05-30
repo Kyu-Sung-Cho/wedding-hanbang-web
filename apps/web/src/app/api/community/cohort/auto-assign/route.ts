@@ -1,6 +1,20 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { dateToYearQuarter, quarterToMonth } from "@/utils/quarter";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  dateToYearQuarter,
+  FLEX_COHORT_MONTH,
+  FLEX_COHORT_YEAR,
+  quarterToMonth,
+  shouldUseFlexibleCohort,
+} from "@/utils/quarter";
+
+function getServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 /**
  * 자동 동기방 배정 — wedding_journeys.wedding_date 기반.
@@ -8,8 +22,8 @@ import { dateToYearQuarter, quarterToMonth } from "@/utils/quarter";
  * 동작:
  * 1. 인증 사용자만
  * 2. 이미 가입된 동기방 있으면 그 room 반환 (재가입 안 함)
- * 3. wedding_date 없으면 null 반환 (UI에서 입력 유도)
- * 4. wedding_date 있으면 year + quarter 추출 → quarterToMonth 매핑
+ * 3. wedding_date가 없거나 1년보다 멀면 날짜 미정·1년 이후 방으로 배정
+ * 4. wedding_date가 가까우면 year + quarter 추출 → quarterToMonth 매핑
  *    → community_assign_cohort RPC 호출 (기존 RPC 재사용, 인원 30 자동 분할)
  *
  * 첫 커뮤니티 진입 시 silent로 호출.
@@ -42,32 +56,39 @@ export async function POST(req: Request) {
       .from("profiles")
       .select("couple_id")
       .eq("id", user.id)
-      .single();
-
-    if (!profile?.couple_id) {
-      return NextResponse.json({ room_id: null, reason: "no_couple" });
-    }
-
-    const { data: journey } = await supabase
-      .from("wedding_journeys")
-      .select("wedding_date")
-      .eq("couple_id", profile.couple_id)
       .maybeSingle();
 
-    if (!journey?.wedding_date) {
-      // 결혼일 미정 → 동기방 자동 가입 안 함
-      return NextResponse.json({ room_id: null, reason: "no_wedding_date" });
+    let weddingDate: string | null = null;
+    if (profile?.couple_id) {
+      const { data: journey } = await supabase
+        .from("wedding_journeys")
+        .select("wedding_date")
+        .eq("couple_id", profile.couple_id)
+        .maybeSingle();
+      weddingDate = journey?.wedding_date ?? null;
     }
 
-    // 3. 날짜 → year + quarter → month
-    const { year, quarter } = dateToYearQuarter(journey.wedding_date);
-    const month = quarterToMonth(quarter);
+    // 3. 날짜 → 방 기준. 미정/장기 예정은 별도 방으로 묶어 막막한 초반 사용자를 보호한다.
+    const useFlexibleCohort = shouldUseFlexibleCohort(weddingDate);
+    const reason = !profile?.couple_id
+      ? "no_couple_assigned_flexible"
+      : !weddingDate
+        ? "no_wedding_date_assigned_flexible"
+        : useFlexibleCohort
+          ? "wedding_date_too_far_assigned_flexible"
+          : "assigned";
+    const target = useFlexibleCohort
+      ? { year: FLEX_COHORT_YEAR, quarter: 4 as const, month: FLEX_COHORT_MONTH }
+      : (() => {
+          const { year, quarter } = dateToYearQuarter(weddingDate as string);
+          return { year, quarter, month: quarterToMonth(quarter) };
+        })();
 
     // 4. 기존 RPC 호출 (인원 30 자동 분할 + 멤버 등록 + community_profiles wedding_year/month 갱신)
     const { data: roomId, error: rpcError } = await supabase.rpc("community_assign_cohort", {
       p_user_id: user.id,
-      p_year: year,
-      p_month: month,
+      p_year: target.year,
+      p_month: target.month,
     });
 
     if (rpcError) {
@@ -78,11 +99,32 @@ export async function POST(req: Request) {
       );
     }
 
+    if (roomId) {
+      const serviceClient = getServiceClient();
+      await serviceClient
+        .from("cohort_members")
+        .update({ is_active: true })
+        .eq("room_id", roomId)
+        .eq("user_id", user.id);
+
+      const { count } = await serviceClient
+        .from("cohort_members")
+        .select("id", { count: "exact", head: true })
+        .eq("room_id", roomId)
+        .eq("is_active", true);
+
+      await serviceClient
+        .from("cohort_rooms")
+        .update({ member_count: count ?? 0 })
+        .eq("id", roomId);
+    }
+
     return NextResponse.json({
       room_id: roomId,
-      reason: "assigned",
-      year,
-      quarter,
+      reason,
+      year: target.year,
+      quarter: target.quarter,
+      flexible: useFlexibleCohort,
     });
   } catch (err) {
     console.error("[auto-assign] unexpected:", err);

@@ -4,10 +4,21 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Users, Sparkles, ArrowRight, Loader2, CalendarCheck, MessageCircle, ShieldCheck } from "lucide-react";
-import { quarterToMonth } from "@/utils/quarter";
+import {
+  FLEX_COHORT_MONTH,
+  FLEX_COHORT_SHORT_LABEL,
+  FLEX_COHORT_YEAR,
+  quarterToMonth,
+} from "@/utils/quarter";
 
 type Status = "loading" | "unauth" | "need-date" | "error";
-type SelectedCohort = { year: number; quarter: 1 | 2 | 3 | 4; month: number } | null;
+type SelectedCohort = {
+  year: number;
+  quarter: 1 | 2 | 3 | 4;
+  month: number;
+  label?: string;
+  timing?: "flexible";
+} | null;
 
 function LoadingState() {
   return (
@@ -21,6 +32,16 @@ function LoadingState() {
 }
 
 function parseSelectedCohort(searchParams: URLSearchParams): SelectedCohort {
+  if (searchParams.get("timing") === "later") {
+    return {
+      year: FLEX_COHORT_YEAR,
+      quarter: 4,
+      month: FLEX_COHORT_MONTH,
+      label: FLEX_COHORT_SHORT_LABEL,
+      timing: "flexible",
+    };
+  }
+
   const year = Number(searchParams.get("year"));
   const quarter = Number(searchParams.get("quarter"));
   if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
@@ -45,7 +66,9 @@ function CohortIndexInner() {
   const searchParams = useSearchParams();
   const selectedCohort = useMemo(() => parseSelectedCohort(new URLSearchParams(searchParams.toString())), [searchParams]);
   const redirectPath = selectedCohort
-    ? `/community/cohort?year=${selectedCohort.year}&quarter=${selectedCohort.quarter}`
+    ? selectedCohort.timing === "flexible"
+      ? "/community/cohort?timing=later"
+      : `/community/cohort?year=${selectedCohort.year}&quarter=${selectedCohort.quarter}`
     : "/community/cohort";
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -135,7 +158,9 @@ function CohortIndexInner() {
     return <LoadingState />;
   }
 
-  const selectedLabel = selectedCohort ? `${selectedCohort.year}년 ${selectedCohort.quarter}분기` : null;
+  const selectedLabel = selectedCohort
+    ? selectedCohort.label ?? `${selectedCohort.year}년 ${selectedCohort.quarter}분기`
+    : null;
   const content = {
     unauth: {
       title: "로그인하면 동기방으로 바로 연결돼요",
@@ -146,10 +171,10 @@ function CohortIndexInner() {
       cta: "로그인하고 입장",
     },
     "need-date": {
-      title: "결혼 예정일을 등록하면 동기방이 열려요",
-      desc: "예정일 기준으로 같은 분기 예비부부를 묶어 가격, 후기, 체크리스트를 함께 볼 수 있어요.",
-      href: "/onboarding",
-      cta: "예정일 등록하기",
+      title: "날짜 미정 방으로 안내할게요",
+      desc: "예정일이 아직 없거나 1년보다 멀면 날짜 미정·1년 이후 방에서 먼저 준비 흐름을 잡을 수 있어요.",
+      href: "/community/cohort?timing=later",
+      cta: "미정 방으로 입장",
     },
     error: {
       title: "잠시 동기방을 열 수 없어요",

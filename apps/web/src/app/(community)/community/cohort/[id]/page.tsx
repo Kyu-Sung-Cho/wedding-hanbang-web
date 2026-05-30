@@ -16,10 +16,17 @@ import {
   FileText,
   Paperclip,
   ShieldCheck,
+  LockKeyhole,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import {
+  cohortRoomName,
+  FLEX_COHORT_LABEL,
+  FLEX_COHORT_SHORT_LABEL,
+  isFlexibleCohort,
+} from "@/utils/quarter";
 import type {
   CohortRoom,
   CohortMessage,
@@ -98,8 +105,15 @@ const CONTRACT_ITEMS = COHORT_CONTRACT_CATEGORIES.map((category) => ({
 
 function getRoomPeriod(room: CohortRoom | null): string {
   if (!room?.year || !room?.month) return "같은 시기";
+  if (isFlexibleCohort(room.year, room.month)) return FLEX_COHORT_SHORT_LABEL;
   const quarter = Math.ceil(room.month / 3);
   return `${room.year}년 ${quarter}분기`;
+}
+
+function getRoomTitle(room: CohortRoom | null): string {
+  if (!room) return "나의 결혼 동기방";
+  if (isFlexibleCohort(room.year, room.month)) return FLEX_COHORT_LABEL;
+  return cohortRoomName(room.year, room.month, room.room_number);
 }
 
 function relativeTime(iso: string): string {
@@ -145,6 +159,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   const [tab, setTab] = useState<TabKey>("chat");
   const [room, setRoom] = useState<CohortRoom | null>(null);
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   // 초기 방 정보 로드
   useEffect(() => {
@@ -155,6 +170,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
       } = await supabase.auth.getUser();
       if (cancelled) return;
       setIsSignedIn(Boolean(user));
+      setAuthChecked(true);
       if (!user) return;
 
       const res = await fetch("/api/community/cohort");
@@ -176,6 +192,20 @@ function CohortPageInner({ roomId }: { roomId: string }) {
       cancelled = true;
     };
   }, [roomId, supabase]);
+
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-4 text-sm font-medium text-[#928980]">
+        <div className="rounded-full border border-[#e5d8ca] bg-white px-5 py-3 shadow-[0_10px_28px_rgba(50,36,17,0.06)]">
+          <LoaderText />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <CohortLoginRequired roomId={roomId} />;
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] text-[#263832]">
@@ -223,6 +253,58 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   );
 }
 
+function LoaderText() {
+  return (
+    <>
+      <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#e5d8ca] border-t-[#36534E] align-[-3px]" />
+      동기방 입장 상태를 확인하고 있어요...
+    </>
+  );
+}
+
+function CohortLoginRequired({ roomId }: { roomId: string }) {
+  const redirect = `/community/cohort/${roomId}`;
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] md:order-2">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
+        </div>
+        <div className="p-6 sm:p-8 lg:p-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-xs font-semibold text-[#36534E]">
+            <LockKeyhole className="h-4 w-4" />
+            로그인 필요
+          </div>
+          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+            동기방은 로그인 후
+            <br />
+            입장할 수 있어요
+          </h1>
+          <p className="mt-4 text-[14px] font-medium leading-[1.8] text-[#635b51] sm:text-[15px]">
+            같은 시기 예비부부의 가격, 후기, 계약 이야기가 오가는 공간이라 회원에게만 열어두고 있어요.
+            로그인하면 내 예정일 기준 방으로 바로 연결됩니다.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            <Link
+              href={`/login?redirect=${encodeURIComponent(redirect)}`}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E]"
+            >
+              로그인하고 입장
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/community"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#e5d8ca] bg-white px-5 text-sm font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+            >
+              커뮤니티로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function RoomHero({
   room,
   activeTab,
@@ -251,7 +333,7 @@ function RoomHero({
             <Sparkles className="h-4 w-4" />
           </p>
           <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
-            {room?.name ?? "나의 결혼 동기방"}
+            {getRoomTitle(room)}
           </h1>
           <p className="mt-4 max-w-[560px] text-[14px] font-medium leading-[1.8] text-[#5f5b52] sm:text-[15px]">
             같은 시기에 결혼을 준비하는 분들과 견적, 투어 후기, 체크리스트를 짧고 편하게 나눠요.

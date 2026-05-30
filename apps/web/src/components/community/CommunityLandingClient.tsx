@@ -118,7 +118,7 @@ const cohortPreviewRows = [
   { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
   { period: "2026년 3분기 (7~9월)", note: "예약·후기", href: "/community/cohort?year=2026&quarter=3", cta: "입장" },
   { period: "2026년 4분기 (10~12월)", note: "체크리스트", href: "/community/cohort?year=2026&quarter=4", cta: "입장" },
-  { period: "날짜 미정·하반기 이후", note: "일정 잡기", href: "/onboarding", cta: "설정" },
+  { period: "날짜 미정·1년 이후", note: "초반 준비", href: "/community/cohort?timing=later", cta: "입장" },
 ];
 
 function buildCommunityCategoryHref(category: CommunityCategory) {

@@ -1,18 +1,13 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { monthToQuarter, quarterToMonth } from "@/utils/quarter";
+import { cohortRoomName, monthToQuarter, quarterToMonth } from "@/utils/quarter";
 
 function getServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-}
-
-function cohortRoomName(year: number, month: number, roomNumber = 1): string {
-  const suffix = roomNumber > 1 ? ` ${roomNumber}방` : "";
-  return `${year}년 ${monthToQuarter(month)}분기 결혼 동기${suffix}`;
 }
 
 async function refreshMemberCount(

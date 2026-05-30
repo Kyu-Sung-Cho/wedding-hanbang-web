@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
-import { monthToQuarter } from "@/utils/quarter";
+import { cohortRoomName } from "@/utils/quarter";
 
 function formatCohortRoomName(room: Record<string, unknown>) {
   const year = room.year as number | undefined;
   const month = room.month as number | undefined;
   const roomNumber = room.room_number as number | undefined;
   if (!year || !month) return (room.name as string | undefined) ?? "동기방";
-  const suffix = roomNumber && roomNumber > 1 ? ` ${roomNumber}방` : "";
-  return `${year}년 ${monthToQuarter(month)}분기 결혼 동기${suffix}`;
+  return cohortRoomName(year, month, roomNumber);
 }
 
 /**
