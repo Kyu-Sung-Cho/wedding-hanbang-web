@@ -17,9 +17,6 @@ import {
   Shield,
   Users,
   Sparkles,
-  FileSearch,
-  AlertTriangle,
-  Heart,
   Check,
   Megaphone,
 } from "lucide-react";
@@ -268,55 +265,55 @@ function SlideAmora() {
         <div className="flex items-center gap-2 mb-3 px-1">
           <Sparkles className="w-5 h-5 text-[#36534E]" />
           <span className="text-base text-[#36534E] font-medium">
-            혼자 판단하지 마세요 — AI 아모라가 같이 봐줘요
+            커뮤니티에서 찾고, 라운지에서 정리해요
           </span>
         </div>
       </div>
 
-      {/* 아모라 견적 체크리스트 카드 mockup */}
+      {/* 현재 제공되는 라운지 기능만 안내 */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-[#36534E] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-base text-[#263832] font-medium">아모라 견적 체크리스트</span>
-            <span className="text-sm text-[#B5ADA3] font-light">방금 정리 완료</span>
+            <span className="text-base text-[#263832] font-medium">웨딩 라운지로 이어가기</span>
+            <span className="text-sm text-[#B5ADA3] font-light">지금 쓸 수 있는 준비 도구</span>
           </div>
         </div>
         <div className="px-4 pb-3">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="bg-[#fbf8f2] border border-[#f6efe5] rounded-xl p-3 mb-2 flex items-start gap-2">
+            <MessageCircle className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
             <div className="text-left">
-              <div className="text-sm text-amber-800 font-semibold mb-0.5">원본 데이터 비용 누락</div>
-              <div className="text-sm text-amber-700 leading-relaxed">
-                강남 평균 +40~80만원 추가될 가능성. 계약 전에 꼭 확인하세요.
+              <div className="text-sm text-[#263832] font-semibold mb-0.5">아모라 상담</div>
+              <div className="text-sm text-[#635b51] leading-relaxed">
+                커뮤니티에서 본 고민을 우리 상황에 맞게 다시 물어볼 수 있어요.
               </div>
             </div>
           </div>
           <div className="bg-[#fbf8f2] border border-[#f6efe5] rounded-xl p-3 flex items-start gap-2">
-            <FileSearch className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
+            <Check className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
             <div className="text-left">
-              <div className="text-sm text-[#263832] font-semibold mb-0.5">업체에 물어볼 질문</div>
+              <div className="text-sm text-[#263832] font-semibold mb-0.5">예산·일정·체크리스트</div>
               <div className="text-sm text-[#635b51] leading-relaxed">
-                &ldquo;원본 데이터 비용 포함 견적으로 다시 받을 수 있을까요?&rdquo;
+                확인한 금액, 상담 일정, 준비 상태를 라운지에서 직접 정리하세요.
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 아모라가 통합하는 것들 — 칩 */}
+      {/* 현재 연결되는 기능들 */}
       <div className="w-full max-w-[380px] mb-4">
-        <p className="text-sm text-[#928980] mb-2 text-left">아모라 하나가 다 연결돼 있어요</p>
+        <p className="text-sm text-[#928980] mb-2 text-left">커뮤니티와 라운지가 이어지는 방법</p>
         <div className="flex flex-wrap gap-1.5">
           {[
-            { icon: FileSearch, label: "견적 체크리스트" },
-            { icon: Shield, label: "계약서 검토" },
-            { icon: TrendingUp, label: "예산 자동 반영" },
-            { icon: Camera, label: "일정 자동 등록" },
-            { icon: Heart, label: "양가·상견례 코칭" },
-            { icon: AlertTriangle, label: "숨은 비용 경고" },
+            { icon: Search, label: "후기 검색" },
+            { icon: Bookmark, label: "북마크" },
+            { icon: Users, label: "동기방" },
+            { icon: PenSquare, label: "글쓰기" },
+            { icon: TrendingUp, label: "예산 관리" },
+            { icon: Camera, label: "일정 관리" },
           ].map((chip) => (
             <span
               key={chip.label}
@@ -330,7 +327,9 @@ function SlideAmora() {
       </div>
 
       <p className="text-base text-[#635b51] font-light text-center">
-        커뮤니티 글에서도 <span className="text-[#36534E] font-medium">아모라가 가격 댓글</span>로 적정한지 알려줘요
+        후기는 커뮤니티에서 보고,
+        <br />
+        우리 준비는 <span className="text-[#36534E] font-medium">라운지에서 차분하게 정리</span>하세요
       </p>
     </div>
   );

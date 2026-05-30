@@ -5,21 +5,21 @@ import SpotlightTutorial, { type SpotlightStep } from "@/components/ui/Spotlight
 const STEPS: SpotlightStep[] = [
   {
     selector: '[data-tutorial-target="dashboard-hero"]',
-    title: "아모라가 다 챙겨주는 결혼 준비 메인 화면",
+    title: "우리 결혼 준비 라운지",
     description:
-      "AI 아모라가 견적·계약·예산·일정·커플 합의·본식 타임라인까지 전부 하나의 흐름으로 묶어줘요. 결혼식까지 남은 날, 진행률, 아모라 안전도를 한눈에 보고 '오늘 할 일 묻기'로 바로 이어가세요.",
+      "결혼식까지 남은 날, 준비 진행률, 예산 현황, 오늘 먼저 볼 준비 항목을 한눈에 보는 공간이에요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-briefing"]',
     title: "오늘의 아모라 브리핑",
     description:
-      "오늘 놓치면 안 되는 일과 실수 방지 점검을 카드 형태로 보여줘요. 결혼 준비 시점에 맞춰 챙겨야 할 것들이 자동으로 바뀌어요.",
+      "오늘 먼저 확인하면 좋은 준비 항목을 카드 형태로 보여줘요. 예산, 일정, 체크리스트로 바로 이어갈 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-actions"]',
-    title: "아모라가 기억하는 행동",
+    title: "바로 할 일",
     description:
-      "AI 채팅에서 '이거 다음 할 일로 저장해줘'라고 하면 여기 쌓여요. 완료/숨김으로 정리하면서 진행 상황을 챙길 수 있어요.",
+      "라운지에서 바로 확인해야 할 준비 항목을 모아 보여줘요. 완료하거나 숨기면서 화면을 가볍게 정리할 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-dday-budget"]',
@@ -37,7 +37,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="dashboard-start-guide"]',
     title: "아모라로 시작하세요",
     description:
-      "아모라 채팅 한 줄이면 예산·일정·체크리스트가 자동으로 따라와요. 가족·파트너에게 보낼 메시지 코칭, 양가 합의 문구까지 같은 채팅에서 풀려요. 막막할 때 아모라부터 부르세요.",
+      "막막한 질문은 아모라 상담에서 물어보고, 필요한 내용은 예산·일정·체크리스트 화면에서 직접 정리하세요.",
   },
 ];
 

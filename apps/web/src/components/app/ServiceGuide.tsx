@@ -10,7 +10,6 @@ import {
   Users,
   Wallet,
   MessageCircle,
-  AlertTriangle,
   Check,
   RefreshCw,
   Shield,
@@ -47,7 +46,7 @@ function SlideWelcome() {
         {[
           { icon: <MessageCircle className="w-6 h-6" />, label: "AI 상담", sub: "24시간 플래너" },
           { icon: <Users className="w-6 h-6" />, label: "커플 연동", sub: "실시간 동기화" },
-          { icon: <Wallet className="w-6 h-6" />, label: "예산 관리", sub: "숨은 비용 경고" },
+          { icon: <Wallet className="w-6 h-6" />, label: "예산 관리", sub: "사용 금액 확인" },
         ].map((item, i) => (
           <div
             key={i}
@@ -166,15 +165,15 @@ function SlideChat() {
         아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-5">
-        채팅 한 줄로 견적 체크리스트부터 커플 합의까지
+        궁금한 건 묻고, 준비는 라운지에서 정리해요
       </p>
 
-      {/* Mock 채팅 UI: 견적 체크리스트 시나리오 */}
+      {/* Mock 채팅 UI: 현재 라운지 기능 기준 */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
           <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[#1b1c1c] text-white px-4 py-2.5">
-            <p className="text-base leading-relaxed">강남 스튜디오 380만원 견적 받았는데 적정해?</p>
+            <p className="text-base leading-relaxed">이번 주에 스튜디오 상담 가는데 뭘 준비하면 좋을까?</p>
           </div>
         </div>
 
@@ -186,42 +185,42 @@ function SlideChat() {
           <div className="flex flex-col gap-2 max-w-[80%]">
             <div className="rounded-2xl rounded-tl-md bg-[#fcf9f8] border border-[#f6f3f2] px-4 py-2.5">
               <p className="text-base text-[#1b1c1c] leading-relaxed">
-                기본가는 적정. 다만 <span className="font-semibold text-amber-700">원본 데이터 비용</span>이 빠져 있어요.
+                상담 전에 예산 범위, 원하는 촬영 분위기, 추가로 궁금한 질문을 먼저 정리해두면 좋아요.
               </p>
             </div>
 
-            {/* 통합 액션 — 아모라가 한 번에 해주는 것들 */}
+            {/* 현재 연결 가능한 준비 도구 */}
             <div className="rounded-xl bg-white border border-[#f6f3f2] p-3 shadow-sm">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[#504444]">예산 항목에 <span className="text-[#1b1c1c] font-medium">스튜디오 380만원</span> 자동 추가</span>
+                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">예산 관리</span>에서 상담 금액 정리</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">상담 일정</span> 캘린더에 등록</span>
+                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">일정 관리</span>에서 상담 일정 확인</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[#504444]">파트너에게 보낼 <span className="text-[#1b1c1c] font-medium">메시지 초안</span> 작성</span>
+                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">체크리스트</span>에서 준비 상태 확인</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 통합 영역 칩 — 아모라가 챙겨주는 전 영역 */}
+        {/* 통합 영역 칩 — 현재 제공되는 라운지 기능 */}
         <div className="mt-1">
-          <p className="text-sm text-[#928980] mb-1.5 text-center">아모라가 다 챙겨줘요</p>
+          <p className="text-sm text-[#928980] mb-1.5 text-center">지금 라운지에서 쓸 수 있어요</p>
           <div className="flex flex-wrap justify-center gap-1.5">
             {[
-              "견적 체크리스트",
-              "계약서 풀이",
-              "예산 자동",
-              "일정 자동",
-              "양가·상견례 코칭",
-              "본식 식순 가이드",
-              "숨은 비용 경고",
+              "아모라 상담",
+              "예산 관리",
+              "일정 관리",
+              "카테고리 체크리스트",
+              "커플 연동",
+              "커뮤니티 연결",
+              "시세 정보",
             ].map((label) => (
               <span
                 key={label}
@@ -245,7 +244,7 @@ function SlideBudget() {
         예산 관리
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-6">
-        숨은 비용까지 관리
+        예산 흐름을 한눈에 확인
       </p>
 
       {/* Mock 예산 UI */}
@@ -277,7 +276,6 @@ function SlideBudget() {
               total: 800,
               tag: "커플",
               tagColor: "bg-[#795252]/10 text-[#795252]",
-              warning: false,
             },
             {
               name: "스드메",
@@ -285,8 +283,6 @@ function SlideBudget() {
               total: 350,
               tag: "신부측",
               tagColor: "bg-purple-50 text-purple-600",
-              warning: true,
-              warningText: "+50~150만원 추가 예상",
             },
             {
               name: "신혼여행",
@@ -294,7 +290,6 @@ function SlideBudget() {
               total: 300,
               tag: "커플",
               tagColor: "bg-[#795252]/10 text-[#795252]",
-              warning: false,
             },
           ].map((row, i) => (
             <div key={i} className="px-4 py-3">
@@ -311,22 +306,10 @@ function SlideBudget() {
               </div>
               <div className="w-full h-1.5 rounded-full bg-[#f6f3f2] overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${
-                    row.warning
-                      ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                      : "bg-gradient-to-r from-[#795252] to-[#C9A96E]"
-                  }`}
+                  className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#C9A96E]"
                   style={{ width: `${(row.spent / row.total) * 100}%` }}
                 />
               </div>
-              {row.warning && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-sm text-amber-600 font-medium">
-                    {row.warningText}
-                  </span>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -334,7 +317,7 @@ function SlideBudget() {
         {/* 어노테이션 */}
         <div className="flex justify-center">
           <span className="text-sm text-[#795252] font-medium bg-white/90 rounded-full px-3 py-1 shadow-sm border border-[#795252]/20">
-            숨은 비용 경고와 양가 분담 추적
+            사용 금액과 카테고리별 예산 확인
           </span>
         </div>
       </div>
