@@ -114,28 +114,6 @@ const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string;
   { icon: CalendarCheck, label: "신혼여행", query: "신혼여행" },
 ];
 
-const journeyActions: Array<{ icon: LucideIcon; title: string; desc: string; href: string; primary?: boolean }> = [
-  {
-    icon: Search,
-    title: "후기 찾기",
-    desc: "지역·업체 경험 먼저 확인",
-    href: "/community?feed=all#community-feed",
-    primary: true,
-  },
-  {
-    icon: MessageCircle,
-    title: "아모라에게 묻기",
-    desc: "상황을 정리하고 다음 행동 받기",
-    href: "/chat",
-  },
-  {
-    icon: CalendarCheck,
-    title: "웨딩 라운지 열기",
-    desc: "일정·예산·예약을 한곳에 정리",
-    href: "/lounge",
-  },
-];
-
 const cohortPreviewRows = [
   { period: "2026년 1분기 (1~3월)", note: "준비 시작", href: "/community/cohort?year=2026&quarter=1", cta: "입장" },
   { period: "2026년 2분기 (4~6월)", note: "비교 활발", href: "/community/cohort?year=2026&quarter=2", cta: "입장" },
@@ -432,7 +410,6 @@ export default function CommunityLandingClient({
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
       />
-      <BottomCards />
       <div ref={observerRef} className="h-1" />
       <Link
         href="/community/post/write"
@@ -856,13 +833,13 @@ function AmoraInlinePromo() {
             아모라 추천
           </span>
           <h3 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629] md:text-[27px]">
-            후기에서 본 걱정, 아모라가 견적으로 먼저 잡아드릴게요.
+            후기에서 생긴 궁금증, 아모라에게 바로 물어보세요.
           </h3>
           <p className="mt-3 max-w-[760px] text-[14px] font-medium leading-[1.75] text-[#5d6879]">
-            빠진 항목, 추가금 가능성, 계약 전 질문 리스트를 한 번에 확인하고 우리 예산에 맞는 다음 행동을 정리해요.
+            자동으로 견적에 적용되는 기능이 아니라, 커뮤니티에서 본 내용을 바탕으로 아모라 상담을 시작하는 흐름이에요.
           </p>
           <div className="mt-5 flex flex-wrap gap-2 text-[12px] font-semibold text-[#34445a]">
-            {["평균 대비 참고 진단", "항목별 과소/과대 분석", "계약 전 질문 리스트"].map((item) => (
+            {["내 상황 설명하기", "비슷한 질문 정리", "시세 화면 함께 보기"].map((item) => (
               <span key={item} className="rounded-full border border-[#eadfc9] bg-white/72 px-3 py-1.5">
                 {item}
               </span>
@@ -895,8 +872,8 @@ function FeedActionBoard() {
   const actions: Array<{ href: string; title: string; desc: string; icon: LucideIcon }> = [
     {
       href: "/community/post/write",
-      title: "내 상황도 물어보기",
-      desc: "읽다가 막힌 부분을 바로 질문으로 남겨요.",
+      title: "질문 글로 남기기",
+      desc: "커뮤니티에 공개 질문으로 남겨요.",
       icon: PenSquare,
     },
     {
@@ -907,14 +884,14 @@ function FeedActionBoard() {
     },
     {
       href: "/lounge",
-      title: "준비실에 정리하기",
+      title: "라운지에 정리하기",
       desc: "마음에 둔 내용은 일정과 예산으로 이어가요.",
       icon: CalendarCheck,
     },
   ];
 
   return (
-    <div className="border-t border-[#eadfc9] py-5">
+    <div className="border-t border-[#eadfc9] py-5" data-tutorial-target="community-service-link">
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <span className="text-[12px] font-semibold text-[#9d6f36]">다음 행동</span>
@@ -1298,27 +1275,17 @@ function CommunityQuickPanel() {
 }
 
 function AmoraSidebarPanel() {
-  const checks = ["견적서 빠진 항목 찾기", "추가금 가능성 먼저 보기", "계약 전 질문 정리"];
-
   return (
     <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_58%,#eef4eb_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
-        아모라 체크
+        아모라에게 묻기
       </span>
       <h2 className="mt-3 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
-        이 글, 우리 견적에 적용해볼까요?
+        아모라에게 이 글 물어보기
       </h2>
       <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-        후기에서 본 포인트를 아모라가 우리 상황에 맞춰 다시 정리해드려요.
+        커뮤니티 글이 자동으로 내 견적에 반영되는 기능은 아니에요. 아모라 상담으로 이동해 상황을 설명하고 질문을 이어가는 카드입니다.
       </p>
-      <div className="mt-4 grid gap-2">
-        {checks.map((item) => (
-          <div key={item} className="flex items-center gap-2 rounded-[12px] border border-[#eadfc9] bg-white/72 px-3 py-2.5">
-            <ClipboardCheck className="h-4 w-4 shrink-0 text-[#36534E]" />
-            <span className="text-[12px] font-semibold text-[#34445a]">{item}</span>
-          </div>
-        ))}
-      </div>
       <Link
         href="/chat"
         className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
@@ -1494,46 +1461,3 @@ function CohortPreviewPanel() {
   );
 }
 
-function BottomCards() {
-  return (
-    <section className={`${shell} mt-[18px] pb-8`}>
-      <article
-        className="relative overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_54%,#fbf1df_100%)] p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:grid md:grid-cols-[minmax(0,1fr)_430px] md:items-center md:gap-10"
-        data-tutorial-target="community-service-link"
-      >
-        <div>
-          <span className="rounded-full bg-[#fbefd6] px-3 py-1 text-[12px] font-medium text-[#9d6f36]">
-            커뮤니티 다음 행동
-          </span>
-          <h2 className="mt-3 max-w-[620px] font-serif-kr text-[27px] font-medium leading-[1.35] text-[#071629]">
-            마음에 둔 후기와 질문은 웨딩 라운지에 바로 이어서 정리해요.
-          </h2>
-          <p className="mt-3 max-w-[660px] text-[14px] font-medium leading-[1.75] text-[#5d6879]">
-            커뮤니티에서 본 글을 일정, 예산, 예약 관리로 끊기지 않게 이어가면 다음에 해야 할 일이 더 선명해집니다.
-          </p>
-        </div>
-        <div className="mt-5 grid gap-3 md:mt-0">
-          {journeyActions.slice(1).map((item) => (
-            <Link
-              key={item.title}
-              href={item.href}
-              className="group flex items-center justify-between rounded-[14px] border border-[#eadfc9] bg-white/80 px-4 py-3 text-[13px] font-semibold text-[#34445a] transition-colors hover:border-[#b68a3a]"
-            >
-              <span className="inline-flex min-w-0 items-center gap-3">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
-                  <item.icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <b className="block truncate text-[#071629]">{item.title}</b>
-                  <span className="mt-0.5 block truncate text-[12px] font-medium text-[#7a8290]">{item.desc}</span>
-                </span>
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          ))}
-        </div>
-        <ClipboardCheck className="pointer-events-none absolute -bottom-6 right-8 hidden h-[130px] w-[130px] rotate-6 text-[#c9a96e]/20 lg:block" />
-      </article>
-    </section>
-  );
-}
