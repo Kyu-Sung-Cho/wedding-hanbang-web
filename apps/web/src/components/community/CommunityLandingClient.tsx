@@ -66,7 +66,6 @@ interface TrendingPost {
 }
 
 interface BestPostPayload {
-  mode: "week" | "best";
   posts: TrendingPost[];
 }
 
@@ -402,6 +401,7 @@ export default function CommunityLandingClient({
         total={activeTotal}
         selectedCategory={selectedCategory}
         currentSort={currentSort}
+        currentPeriod={currentPeriod}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -621,6 +621,7 @@ function CommunityMain({
   total,
   selectedCategory,
   currentSort,
+  currentPeriod,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -633,6 +634,7 @@ function CommunityMain({
   total: number;
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
+  currentPeriod: TimePeriod;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -651,6 +653,7 @@ function CommunityMain({
         total={total}
         selectedCategory={selectedCategory}
         currentSort={currentSort}
+        currentPeriod={currentPeriod}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -669,6 +672,7 @@ function LatestPosts({
   total,
   selectedCategory,
   currentSort,
+  currentPeriod,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -681,6 +685,7 @@ function LatestPosts({
   total: number;
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
+  currentPeriod: TimePeriod;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -696,7 +701,11 @@ function LatestPosts({
       : currentSort === "hot"
         ? "인기 글"
         : currentSort === "top"
-          ? "좋아요 많은 글"
+          ? currentPeriod === "week"
+            ? "이번 주 인기글"
+            : currentPeriod === "month"
+              ? "이번 달 인기글"
+              : "좋아요 많은 글"
           : currentSort === "my_cohort"
             ? "내 동기글"
             : currentSort === "my_posts"
@@ -718,7 +727,11 @@ function LatestPosts({
                 : currentSort === "hot"
                   ? `반응이 높은 게시글 ${formatCount(total)}개`
                   : currentSort === "top"
-                    ? `좋아요 기준 게시글 ${formatCount(total)}개`
+                    ? currentPeriod === "week"
+                      ? `최근 7일 좋아요 기준 게시글 ${formatCount(total)}개`
+                      : currentPeriod === "month"
+                        ? `최근 30일 좋아요 기준 게시글 ${formatCount(total)}개`
+                        : `좋아요 기준 게시글 ${formatCount(total)}개`
                     : `실제 게시글 ${formatCount(total)}개`}
           </p>
         </div>
@@ -1137,12 +1150,11 @@ function RightPanels() {
 
 function BestPostsPanel() {
   const [posts, setPosts] = useState<TrendingPost[]>([]);
-  const [mode, setMode] = useState<"week" | "best">("week");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    void withSessionCache("community:landing:weekly-or-best-posts:5", 5 * 60 * 1000, async () => {
+    void withSessionCache("community:landing:weekly-top-posts:5", 5 * 60 * 1000, async () => {
       const normalize = (items: TrendingPost[]) =>
         items.slice(0, 5).map((post: TrendingPost) => ({
           id: post.id,
@@ -1152,20 +1164,12 @@ function BestPostsPanel() {
         }));
 
       const weeklyRes = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1");
-      if (weeklyRes.ok) {
-        const weeklyJson = await weeklyRes.json();
-        const weeklyPosts = normalize(weeklyJson.posts ?? []);
-        if (weeklyPosts.length > 0) return { mode: "week", posts: weeklyPosts } satisfies BestPostPayload;
-      }
-
-      const bestRes = await fetch("/api/community/posts?sort=top&period=all&limit=5&page=1");
-      if (!bestRes.ok) return { mode: "best", posts: [] } satisfies BestPostPayload;
-      const bestJson = await bestRes.json();
-      return { mode: "best", posts: normalize(bestJson.posts ?? []) } satisfies BestPostPayload;
+      if (!weeklyRes.ok) return { posts: [] } satisfies BestPostPayload;
+      const weeklyJson = await weeklyRes.json();
+      return { posts: normalize(weeklyJson.posts ?? []) } satisfies BestPostPayload;
     })
       .then((data) => {
         if (cancelled) return;
-        setMode(data.mode);
         setPosts(data.posts);
       })
       .finally(() => {
@@ -1176,11 +1180,8 @@ function BestPostsPanel() {
     };
   }, []);
 
-  const title = mode === "week" ? "이번주 BEST" : "인기글";
-  const moreHref =
-    mode === "week"
-      ? "/community?sort=top&period=week&feed=all#community-feed"
-      : "/community?sort=top&period=all&feed=all#community-feed";
+  const title = "이번 주 인기글";
+  const moreHref = "/community?sort=top&period=week&feed=all#community-feed";
 
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
@@ -1199,7 +1200,7 @@ function BestPostsPanel() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7a8290]">인기글을 집계하고 있어요.</p>
+        <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 집계하고 있어요.</p>
       ) : (
         <ol className="space-y-3">
           {posts.map((post, index) => (
@@ -1219,7 +1220,7 @@ function BestPostsPanel() {
         </ol>
       )}
       <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
-        {mode === "week" ? "최근 7일 좋아요 반응을 기준으로 보여드려요." : "누적 좋아요 반응을 기준으로 보여드려요."}
+        최근 7일 좋아요 반응을 기준으로 보여드려요.
       </p>
     </article>
   );
@@ -1235,8 +1236,8 @@ function CommunityQuickPanel() {
     },
     {
       href: "/community/post/write",
-      title: "질문 남기기",
-      desc: "답답한 부분을 바로 물어보기",
+      title: "글쓰기",
+      desc: "질문·후기·꿀팁을 카테고리별로 작성",
       icon: PenSquare,
     },
     {

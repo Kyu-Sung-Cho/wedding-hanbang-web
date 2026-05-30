@@ -11,7 +11,7 @@ interface TrendingPost {
   comment_count: number;
 }
 
-const TRENDING_CACHE_KEY = "community:trending:hot:5";
+const TRENDING_CACHE_KEY = "community:trending:weekly-top:5";
 const TRENDING_TTL_MS = 5 * 60 * 1000;
 
 export default function TrendingPosts() {
@@ -25,7 +25,7 @@ export default function TrendingPosts() {
     (async () => {
       try {
         const data = await withSessionCache(TRENDING_CACHE_KEY, TRENDING_TTL_MS, async () => {
-          const res = await fetch("/api/community/posts?sort=hot&limit=5&page=1");
+          const res = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1");
           if (!res.ok) return [] as TrendingPost[];
           const json = await res.json();
           return (json.posts ?? []).slice(0, 5).map((p: TrendingPost) => ({
@@ -50,7 +50,7 @@ export default function TrendingPosts() {
     return (
       <div>
         <h3 className="font-serif-kr text-lg text-[#263832] mb-3 border-b border-[#e5d8ca] pb-2">
-          오늘의 인기글
+          이번 주 인기글
         </h3>
         <ul className="space-y-4">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -72,7 +72,7 @@ export default function TrendingPosts() {
   return (
     <div>
       <h3 className="font-serif-kr text-lg text-[#263832] mb-3 border-b border-[#e5d8ca] pb-2">
-        오늘의 인기글
+        이번 주 인기글
       </h3>
       <ul className="space-y-4">
         {posts.map((p, i) => (
