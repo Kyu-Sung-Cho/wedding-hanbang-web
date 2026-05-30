@@ -8,8 +8,6 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "login" | "signup" | "forgot";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-
 // 비밀번호 강도 체크
 interface PasswordCheck {
   minLength: boolean;
@@ -226,49 +224,7 @@ export default function LoginPage() {
 
         {/* 로그인 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
-          {isComingSoon ? (
-            <>
-              {/* 준비중 모드 */}
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[#fbefd6] flex items-center justify-center">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#9d6f36]">
-                    <path d="M12 6v6l4 2" /><circle cx="12" cy="12" r="10" />
-                  </svg>
-                </div>
-                <h1 className="font-serif-kr text-[24px] font-light text-[#071629] mb-2">
-                  서비스 준비중
-                </h1>
-                <p className="text-[14px] text-[#5d6879] font-light leading-relaxed">
-                  회원가입과 로그인 기능을 준비하고 있습니다.
-                  <br />
-                  곧 더 나은 모습으로 찾아뵙겠습니다.
-                </p>
-              </div>
-
-              {/* 구분선 */}
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex-1 h-px bg-platinum" />
-                <span className="text-[11px] text-[#7a8290]">미리보기</span>
-                <div className="flex-1 h-px bg-platinum" />
-              </div>
-
-              {/* 데모 체험 */}
-              <button
-                onClick={handleDemo}
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 border-[1.5px] border-[#d8bb86] text-[#9d6f36] hover:bg-[#fff8ec]"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
-                </svg>
-                로그인 없이 둘러보기
-              </button>
-
-              <p className="text-[11px] text-[#7a8290] text-center mt-4 font-light">
-                체험 모드에서 서비스를 미리 둘러볼 수 있습니다
-              </p>
-            </>
-          ) : (
-            <>
+          <>
               {/* 정상 로그인 모드 */}
               <h1 className="font-serif-kr text-[24px] font-light text-[#071629] text-center mb-2">
                 {mode === "login" ? "로그인" : mode === "signup" ? "회원가입" : "비밀번호 찾기"}
@@ -554,8 +510,7 @@ export default function LoginPage() {
               <p className="text-[11px] text-[#7a8290] text-center mt-4 font-light">
                 체험 모드에서는 모든 기능을 미리 둘러볼 수 있습니다
               </p>
-            </>
-          )}
+          </>
         </div>
 
         {/* 하단 링크 */}
