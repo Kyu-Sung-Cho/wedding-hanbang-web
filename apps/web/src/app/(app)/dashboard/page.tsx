@@ -146,14 +146,6 @@ function getChecklistProgress(progress: Record<string, ProgressItem>, key: strin
   return getChecklistCounts(merged);
 }
 
-function getChecklistItems(progress: Record<string, ProgressItem>, key: string) {
-  const template = CHECKLIST_MAP[key];
-  const saved = progress[key]?.checklist;
-  const status = getStatus(progress, key);
-  if (!template) return [];
-  return mergeChecklist(template.items, saved as ChecklistItem[] | undefined, status);
-}
-
 function formatWon(amount: number) {
   if (!amount) return "0원";
   return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
@@ -314,19 +306,19 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <section className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]" data-tutorial-target="dashboard-hero">
-        <div className="rounded-[24px] border border-[#eadfc9] bg-white/90 p-6 shadow-[0_18px_48px_rgba(8,22,38,0.06)] md:p-8">
-          <p className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-4 py-2 text-[12px] font-semibold text-[#9d6f36]">
+      <section className="grid items-start gap-4 lg:grid-cols-[1.05fr_0.95fr]" data-tutorial-target="dashboard-hero">
+        <div className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+          <p className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
             우리 둘의 웨딩 라운지
             <Sparkles className="h-4 w-4" />
           </p>
-          <h1 className="mt-5 font-serif-kr text-[34px] font-medium leading-[1.25] text-[#061a34] md:text-[46px]">
+          <h1 className="mt-4 font-serif-kr text-[30px] font-medium leading-[1.22] text-[#061a34] md:text-[38px]">
             결혼 준비 현황
           </h1>
-          <p className="mt-4 max-w-[520px] text-[15px] font-medium leading-[1.75] text-[#38475c]">
+          <p className="mt-3 max-w-[520px] text-[14px] font-medium leading-[1.65] text-[#38475c]">
             일정, 예산, 체크리스트를 한눈에 확인해요.
           </p>
-          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
             <MetricCard label="예식일" value={ddayLabel} note={formatDate(journey?.wedding_date)} />
             <MetricCard label="진행률" value={`${progressPercent}%`} note={`${summary.doneItems}/${summary.totalItems}개 체크`} />
             <MetricCard label="예산 사용" value={`${budgetPercent}%`} note={`${formatWon(spentBudget)} / ${formatWon(totalBudget)}`} />
@@ -334,17 +326,17 @@ export default function DashboardPage() {
         </div>
 
         <div
-          className="rounded-[24px] border border-[#eadfc9] bg-[#061a34] p-6 text-white shadow-[0_18px_48px_rgba(6,26,52,0.12)] md:p-7"
+          className="rounded-[20px] border border-[#eadfc9] bg-[#36534E] p-5 text-white shadow-[0_14px_36px_rgba(54,83,78,0.13)] md:p-6"
           data-tutorial-target="dashboard-briefing"
         >
-          <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <p className="text-[12px] font-semibold text-[#ecd7a4]">Amora Briefing</p>
-              <h2 className="mt-2 font-serif-kr text-[28px] font-medium">지금 먼저 볼 것</h2>
+              <h2 className="mt-1 font-serif-kr text-[24px] font-medium">지금 먼저 볼 것</h2>
             </div>
-            <ShieldCheck className="h-7 w-7 text-[#ecd7a4]" />
+            <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {nextCategories.length > 0 ? (
               nextCategories.map((category) => {
                 const Icon = category.icon;
@@ -354,14 +346,14 @@ export default function DashboardPage() {
                     key={category.key}
                     type="button"
                     onClick={() => setSelectedCategory(category)}
-                    className="flex w-full items-center gap-4 rounded-[16px] border border-white/10 bg-white/[0.06] p-4 text-left transition-colors hover:bg-white/[0.1]"
+                    className="flex w-full items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
                   >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ecd7a4]">
-                      <Icon className="h-5 w-5" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ecd7a4]">
+                      <Icon className="h-[18px] w-[18px]" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold text-white">{category.label}</span>
-                      <span className="mt-1 block text-[12px] font-medium text-white/62">
+                      <span className="block text-[14px] font-semibold text-white">{category.label}</span>
+                      <span className="mt-0.5 block text-[11px] font-medium text-white/62">
                         {category.due} · {statusMeta[status].label}
                       </span>
                     </span>
@@ -370,15 +362,15 @@ export default function DashboardPage() {
                 );
               })
             ) : (
-              <div className="rounded-[16px] border border-white/10 bg-white/[0.06] p-5">
-                <Check className="h-6 w-6 text-[#ecd7a4]" />
-                <p className="mt-3 text-[15px] font-semibold">주요 준비가 안정적으로 진행 중이에요.</p>
+              <div className="rounded-[14px] border border-white/10 bg-white/[0.06] p-4">
+                <Check className="h-5 w-5 text-[#ecd7a4]" />
+                <p className="mt-2 text-[14px] font-semibold">주요 준비가 안정적으로 진행 중이에요.</p>
               </div>
             )}
           </div>
           <Link
             href="/chat"
-            className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3 text-[14px] font-semibold text-[#061a34]"
+            className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
           >
             아모라에게 다음 할 일 묻기
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -386,167 +378,146 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-tutorial-target="dashboard-actions">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" data-tutorial-target="dashboard-actions">
         {overviewCards.map((card) => (
           <Link
             key={card.label}
             href={card.href}
-            className="group rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] transition-colors hover:border-[#d8bb86]"
+            className="group rounded-[16px] border border-[#eadfc9] bg-white/90 p-3.5 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] sm:p-4"
           >
             <span className="flex items-center justify-between gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
-                <card.icon className="h-5 w-5 stroke-[1.55]" />
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E] sm:h-9 sm:w-9">
+                <card.icon className="h-4 w-4 stroke-[1.55] sm:h-[18px] sm:w-[18px]" />
               </span>
-              <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[#36534E] transition-transform group-hover:translate-x-0.5" />
             </span>
-            <p className="mt-4 text-[12px] font-semibold text-[#9d6f36]">{card.label}</p>
-            <h2 className="mt-1 truncate text-[19px] font-semibold text-[#071629]">{card.value}</h2>
-            <span className="mt-2 block truncate text-[12px] font-medium text-[#5d6879]">
+            <p className="mt-2.5 text-[11px] font-semibold text-[#9d6f36] sm:mt-3">{card.label}</p>
+            <h2 className="mt-1 truncate text-[16px] font-semibold text-[#071629] sm:text-[18px]">{card.value}</h2>
+            <span className="mt-1 block truncate text-[10px] font-medium text-[#5d6879] sm:mt-1.5 sm:text-[11px]">
               {card.note}
             </span>
           </Link>
         ))}
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]" data-tutorial-target="dashboard-dday-budget">
-        <div className="rounded-[22px] border border-[#eadfc9] bg-white/90 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <section className="grid items-start gap-4 lg:grid-cols-[1.24fr_0.76fr]" data-tutorial-target="dashboard-dday-budget">
+        <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
-              <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">준비 항목별 상태</h2>
+              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
             </div>
-            <Link href="/schedule" className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-4 py-2 text-[13px] font-semibold text-[#9d6f36]">
+            <Link href="/schedule" className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             {categories.map((category) => {
               const status = getStatus(progress, category.key);
               const counts = getChecklistProgress(progress, category.key);
-              const checklistItems = getChecklistItems(progress, category.key);
-              const previewItems = checklistItems.slice(0, 4);
               const Icon = category.icon;
+              const percent = counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0;
               return (
-                <article key={category.key} className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4">
-                  <div className="flex items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCategory(category)}
-                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                    >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
-                        <Icon className="h-5 w-5" />
+                <button
+                  key={category.key}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  className="group rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-2.5 text-left transition-colors hover:border-[#d8bb86] hover:bg-white sm:p-3"
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="flex min-w-0 items-start gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                        <Icon className="h-4 w-4" />
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[15px] font-semibold text-[#071629]">{category.label}</span>
-                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusMeta[status].tone}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
-                            {statusMeta[status].label}
-                          </span>
-                        </span>
-                        <span className="mt-2 block text-[12px] font-medium text-[#7a8290]">
-                          {category.group} · {category.due}
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-semibold text-[#071629] sm:text-[14px]">{category.label}</span>
+                        <span className="mt-0.5 block truncate text-[11px] font-medium text-[#7a8290]">
+                          {category.due}
                         </span>
                       </span>
-                    </button>
-                  </div>
-
-                  <details className="group mt-3 rounded-[14px] border border-[#eadfc9] bg-white/72">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-[12px] font-semibold text-[#34445a] [&::-webkit-details-marker]:hidden">
-                      <span>체크리스트 {counts.done}/{counts.total}</span>
-                      <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-open:rotate-90" />
-                    </summary>
-                    <div className="border-t border-[#eadfc9] px-3 py-2.5">
-                      {previewItems.length > 0 ? (
-                        <div className="space-y-2">
-                          {previewItems.map((item) => (
-                            <div key={item.id} className="flex items-start gap-2 text-[12px] font-medium leading-[1.55] text-[#5d6879]">
-                              <span
-                                className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border ${
-                                  item.done ? "border-[#7b8b56] bg-[#7b8b56]" : "border-[#c8bda8] bg-white"
-                                }`}
-                              />
-                              <span className={item.done ? "text-[#7b8b56] line-through decoration-[#7b8b56]/50" : ""}>
-                                {item.label}
-                              </span>
-                            </div>
-                          ))}
-                          {counts.total > previewItems.length && (
-                            <Link href="/schedule" className="inline-flex text-[12px] font-semibold text-[#9d6f36]">
-                              전체 {counts.total}개 보기
-                            </Link>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-[12px] font-medium text-[#7a8290]">체크리스트가 아직 없어요.</p>
-                      )}
-                    </div>
-                  </details>
-                </article>
+                    </span>
+                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusMeta[status].tone}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
+                      {statusMeta[status].label}
+                    </span>
+                  </span>
+                  <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
+                    <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${percent}%` }} />
+                  </span>
+                  <span className="mt-2 flex items-center justify-between text-[11px] font-medium text-[#7a8290]">
+                    <span>{category.group}</span>
+                    <span>{counts.done}/{counts.total} 체크</span>
+                  </span>
+                </button>
               );
             })}
           </div>
         </div>
 
-        <div className="space-y-5">
-          <section className="rounded-[22px] border border-[#eadfc9] bg-white/90 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-            <div className="mb-5 flex items-center justify-between">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <section className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+            <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-                <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">지출 흐름</h2>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">지출 흐름</h2>
               </div>
-              <Wallet className="h-7 w-7 text-[#b68a3a]" />
+              <Link href="/budget" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
+                <Wallet className="h-4 w-4" />
+              </Link>
             </div>
-            <div className="rounded-[16px] bg-[#fff8ec] p-5">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[12px] font-semibold text-[#7a8290]">사용 금액</p>
-                  <p className="mt-1 font-serif-kr text-[32px] font-medium text-[#071629]">{formatWon(spentBudget)}</p>
-                </div>
-                <p className="text-[15px] font-semibold text-[#9d6f36]">{budgetPercent}%</p>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold text-[#7a8290]">사용 금액</p>
+                <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
               </div>
-              <progress
-                value={budgetPercent}
-                max={100}
-                className="mt-4 h-2 w-full overflow-hidden rounded-full accent-[#b68a3a]"
-              />
-              <p className="mt-3 text-[12px] font-medium text-[#7a8290]">총 예산 {formatWon(totalBudget)}</p>
+              <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">{budgetPercent}%</p>
             </div>
-            <Link href="/budget" className="mt-4 inline-flex items-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
-              예산 자세히 보기
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+            <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
+              <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetPercent}%` }} />
+            </span>
+            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
+              <span>총 예산 {formatWon(totalBudget)}</span>
+              <Link href="/budget" className="inline-flex items-center font-semibold text-[#36534E]">
+                자세히
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </div>
           </section>
 
-          <section className="rounded-[22px] border border-[#eadfc9] bg-white/90 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-            <div className="mb-5 flex items-center justify-between">
+          <section className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+            <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
-                <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">다가오는 일정</h2>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">다가오는 일정</h2>
               </div>
-              <Bell className="h-7 w-7 text-[#b68a3a]" />
+              <Link href="/schedule?new=1" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="일정 추가하기">
+                <Bell className="h-4 w-4" />
+              </Link>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {upcomingEvents.length > 0 ? (
-                upcomingEvents.map((event) => (
-                  <Link key={event.id} href="/schedule" className="block rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#071629]">{event.title}</p>
-                    <p className="mt-1 text-[12px] font-medium text-[#7a8290]">{formatDate(event.date)}</p>
+                upcomingEvents.slice(0, 2).map((event) => (
+                  <Link key={event.id} href="/schedule" className="block rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-2.5">
+                    <p className="truncate text-[13px] font-semibold text-[#071629]">{event.title}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">{formatDate(event.date)}</p>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[14px] border border-dashed border-[#eadfc9] bg-[#fffdf7] p-5 text-center">
-                  <CalendarCheck className="mx-auto h-7 w-7 text-[#b68a3a]" />
-                  <p className="mt-3 text-[13px] font-semibold text-[#071629]">아직 등록된 일정이 없어요.</p>
-                  <p className="mt-1 text-[12px] font-medium text-[#7a8290]">상담이나 일정 관리에서 첫 일정을 추가해보세요.</p>
+                <div className="rounded-[12px] border border-dashed border-[#eadfc9] bg-[#fffdf7] px-3.5 py-4">
+                  <div className="flex items-start gap-3">
+                    <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" />
+                    <div>
+                      <p className="text-[13px] font-semibold text-[#071629]">등록된 일정이 없어요.</p>
+                      <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">첫 상담이나 예약 일정을 추가해보세요.</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-            <Link href="/schedule?new=1" className="mt-4 inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
-              일정 추가하기
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Link href="/schedule" className="mt-2.5 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+              일정 관리 열기
+              <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
           </section>
         </div>
@@ -582,10 +553,10 @@ export default function DashboardPage() {
 
 function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4">
-      <p className="text-[12px] font-semibold text-[#7a8290]">{label}</p>
-      <p className="mt-2 font-serif-kr text-[27px] font-medium leading-none text-[#071629]">{value}</p>
-      <p className="mt-2 truncate text-[12px] font-medium text-[#5d6879]">{note}</p>
+    <div className="min-w-0 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-2.5 sm:p-3.5">
+      <p className="truncate text-[10px] font-semibold text-[#7a8290] sm:text-[11px]">{label}</p>
+      <p className="mt-1.5 truncate font-serif-kr text-[21px] font-medium leading-none text-[#071629] sm:text-[24px]">{value}</p>
+      <p className="mt-1.5 truncate text-[10px] font-medium text-[#5d6879] sm:text-[11px]">{note}</p>
     </div>
   );
 }
