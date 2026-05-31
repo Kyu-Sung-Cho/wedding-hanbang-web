@@ -106,7 +106,7 @@ const topicItems: Array<{
   { icon: Heart, label: "전체", helper: "모든 글", href: "/community" },
   { icon: ClipboardList, label: "정상인가요?", helper: "계약·추가금 질문", category: "is_normal" },
   { icon: HeartHandshake, label: "웨딩홀 후기", helper: "홀·식사·견적", query: "웨딩홀", category: "tour_review" },
-  { icon: CalendarCheck, label: "스드메 후기", helper: "스튜디오·드레스·메이크업", query: "스드메", category: "tour_review" },
+  { icon: CalendarCheck, label: "스드메 후기", helper: "촬영·드메", query: "스드메", category: "tour_review" },
   { icon: ClipboardList, label: "예산 정보", helper: "가격·견적 비교", query: "예산", category: "is_normal" },
   { icon: Gift, label: "스토리 & 꿀팁", helper: "준비 노하우", category: "tips_v2" },
   { icon: Users, label: "선배 Q&A", helper: "경험자에게 묻기", category: "ama" },
