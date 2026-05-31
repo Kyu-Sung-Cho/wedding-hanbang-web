@@ -169,7 +169,7 @@ export default function AmoraQuoteCheckPage() {
 
   return (
     <div className="min-h-screen bg-[#fbf8f2]">
-      <div className="mx-auto grid w-full max-w-[1480px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:py-7">
+      <div className="mx-auto grid w-full max-w-[1240px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-7">
         <main className="min-w-0">
           <Link
             href="/community"

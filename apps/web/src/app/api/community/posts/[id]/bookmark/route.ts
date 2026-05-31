@@ -10,6 +10,23 @@ function getServiceClient() {
   );
 }
 
+async function refreshBookmarkCount(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  postId: string
+) {
+  await serviceClient.rpc("community_update_bookmark_count", {
+    p_post_id: postId,
+  });
+
+  const { data } = await serviceClient
+    .from("community_posts")
+    .select("bookmark_count")
+    .eq("id", postId)
+    .single();
+
+  return Math.max(0, data?.bookmark_count ?? 0);
+}
+
 // 북마크 토글
 export async function POST(
   req: NextRequest,
@@ -25,19 +42,17 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json(
-        { error: "인증이 필요합니다." },
+        { error: "로그인이 필요합니다." },
         { status: 401 }
       );
     }
 
-    // Rate limit: 30 bookmarks per minute per user
     const rlResult = checkRateLimit(
       rateLimitKey("community:bookmark", req, user.id),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    // 기존 북마크 확인
     const { data: existing } = await supabase
       .from("community_bookmarks")
       .select("id")
@@ -48,80 +63,46 @@ export async function POST(
     let bookmarked: boolean;
 
     if (existing) {
-      // 북마크 해제
-      await serviceClient
+      const { error } = await serviceClient
         .from("community_bookmarks")
         .delete()
         .eq("user_id", user.id)
         .eq("post_id", id);
 
-      // bookmark_count 감소
-      await serviceClient.rpc("community_update_bookmark_count", {
-        p_post_id: id,
-        p_increment: -1,
-      }).then(({ error: rpcError }) => {
-        if (rpcError) {
-          // RPC 없으면 직접 업데이트
-          return serviceClient
-            .from("community_posts")
-            .select("bookmark_count")
-            .eq("id", id)
-            .single()
-            .then(({ data }) => {
-              return serviceClient
-                .from("community_posts")
-                .update({
-                  bookmark_count: Math.max(0, (data?.bookmark_count ?? 1) - 1),
-                })
-                .eq("id", id);
-            });
-        }
-      });
-
-      bookmarked = false;
-    } else {
-      // 북마크 추가
-      const { error: insertError } = await serviceClient
-        .from("community_bookmarks")
-        .insert({
-          user_id: user.id,
-          post_id: id,
-        });
-
-      if (insertError) {
-        console.error("Bookmark insert error:", insertError);
+      if (error) {
+        console.error("Bookmark delete error:", error);
         return NextResponse.json(
           { error: "북마크 처리에 실패했습니다." },
           { status: 500 }
         );
       }
 
-      // bookmark_count 증가
-      await serviceClient.rpc("community_update_bookmark_count", {
-        p_post_id: id,
-        p_increment: 1,
-      }).then(({ error: rpcError }) => {
-        if (rpcError) {
-          return serviceClient
-            .from("community_posts")
-            .select("bookmark_count")
-            .eq("id", id)
-            .single()
-            .then(({ data }) => {
-              return serviceClient
-                .from("community_posts")
-                .update({
-                  bookmark_count: (data?.bookmark_count ?? 0) + 1,
-                })
-                .eq("id", id);
-            });
-        }
-      });
+      bookmarked = false;
+    } else {
+      const { error } = await serviceClient
+        .from("community_bookmarks")
+        .insert({
+          user_id: user.id,
+          post_id: id,
+        });
+
+      if (error && error.code !== "23505") {
+        console.error("Bookmark insert error:", error);
+        return NextResponse.json(
+          { error: "북마크 처리에 실패했습니다." },
+          { status: 500 }
+        );
+      }
 
       bookmarked = true;
     }
 
-    return NextResponse.json({ bookmarked });
+    const bookmarkCount = await refreshBookmarkCount(serviceClient, id);
+
+    return NextResponse.json({
+      bookmarked,
+      bookmark_count: bookmarkCount,
+    });
   } catch (err) {
     console.error("Bookmark toggle error:", err);
     return NextResponse.json(

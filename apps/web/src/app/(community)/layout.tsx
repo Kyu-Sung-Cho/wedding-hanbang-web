@@ -37,7 +37,7 @@ function FooterBrand() {
 function CommunityFooter() {
   return (
     <footer className="bg-[linear-gradient(135deg,#183832_0%,#2f5f55_58%,#12302b_100%)] text-white">
-      <div className="grid w-full max-w-none gap-9 px-3 py-8 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-5">
+      <div className="mx-auto grid w-full max-w-[1320px] gap-9 px-4 py-8 sm:px-6 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-8">
         <div>
           <FooterBrand />
           <p className="mt-3 text-[13px] font-medium text-white/70">
@@ -117,7 +117,7 @@ function CommunityFooter() {
           </Link>
         </div>
       </div>
-      <div className="w-full max-w-none border-t border-white/10 px-3 py-4 text-center text-[12px] text-white/55 lg:px-5">
+      <div className="mx-auto w-full max-w-[1320px] border-t border-white/10 px-4 py-4 text-center text-[12px] text-white/55 sm:px-6 lg:px-8">
         © 2026 Wedding Hanbang. All rights reserved.
       </div>
     </footer>

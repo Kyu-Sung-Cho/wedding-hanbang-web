@@ -729,7 +729,7 @@ function PostWriteContent() {
 
   return (
     <div className="min-h-screen bg-[#fbf8f2]">
-      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-10 xl:px-12 py-6 sm:py-8 pb-32 sm:pb-12">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-32 sm:pb-12">
         {/* 헤더 */}
         <div className="flex items-center gap-3 mb-7">
           <button
@@ -792,7 +792,7 @@ function PostWriteContent() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px] gap-5 xl:gap-7 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] xl:grid-cols-[minmax(0,1fr)_350px] gap-5 xl:gap-6 items-start">
           {/* 메인 영역: 제목 + 본문 */}
           <div className="min-w-0 space-y-7">
             {/* 제목 */}

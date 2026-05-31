@@ -51,7 +51,7 @@ export default function PostCard({ post }: PostCardProps) {
   const isLoggedIn = !!profile;
 
   // 낙관적 UI — 좋아요/북마크/공유
-  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
   const [optimisticUpvoteDelta, setOptimisticUpvoteDelta] = useState(0);
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
   const [voting, setVoting] = useState(false);
@@ -59,8 +59,8 @@ export default function PostCard({ post }: PostCardProps) {
   const [shareToast, setShareToast] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
 
-  const displayVote = optimisticVote === undefined ? (post.user_vote ?? null) : optimisticVote;
-  const displayUpvoteCount = (post.upvote_count ?? 0) + optimisticUpvoteDelta;
+  const displayVote = optimisticVote === undefined ? (post.user_vote === 1 ? 1 : null) : optimisticVote;
+  const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
 
   const contentPreview = post.content
@@ -106,18 +106,8 @@ export default function PostCard({ post }: PostCardProps) {
     if (voting) return;
 
     const prev = displayVote;
-    let next: 1 | -1 | null;
-    let delta = 0;
-    if (prev === 1) {
-      next = null;
-      delta = -1;
-    } else if (prev === -1) {
-      next = 1;
-      delta = 2;
-    } else {
-      next = 1;
-      delta = 1;
-    }
+    const next: 1 | null = prev === 1 ? null : 1;
+    const delta = prev === 1 ? -1 : 1;
     setOptimisticVote(next);
     setOptimisticUpvoteDelta((d) => d + delta);
     setVoting(true);

@@ -99,6 +99,16 @@ interface InsightsData {
   favoriteInsights: {
     trend: { date: string; count: number }[];
   };
+  topSavedCommunityPosts: {
+    id: string;
+    title: string;
+    category: string;
+    authorNickname: string;
+    bookmarkCount: number;
+    viewCount: number;
+    commentCount: number;
+    createdAt: string | null;
+  }[];
 }
 
 interface AdminSettlement {
@@ -1228,6 +1238,43 @@ export default function AdminPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Heart className="w-4 h-4 text-[#36534E]" />
+                    <h2 className="font-serif-kr text-[16px] font-normal">커뮤니티 저장 TOP 10</h2>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[32px_minmax(0,1fr)_80px_80px_80px] gap-2 px-3 text-[11px] text-taupe-400 font-medium max-md:grid-cols-[28px_minmax(0,1fr)_64px]">
+                      <span>순위</span>
+                      <span>게시글</span>
+                      <span className="text-center">저장</span>
+                      <span className="text-center max-md:hidden">댓글</span>
+                      <span className="text-center max-md:hidden">조회</span>
+                    </div>
+                    {insights.topSavedCommunityPosts.map((post, index) => (
+                      <a
+                        key={post.id}
+                        href={`/community/post/${post.id}`}
+                        className="grid grid-cols-[32px_minmax(0,1fr)_80px_80px_80px] gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center hover:bg-ivory-100 transition-colors max-md:grid-cols-[28px_minmax(0,1fr)_64px]"
+                      >
+                        <span className="text-[11px] text-taupe-400 font-medium">{index + 1}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13px] text-noir-800 font-medium">{post.title}</span>
+                          <span className="block truncate text-[10px] text-taupe-400">
+                            {post.category} · {post.authorNickname} · {formatDate(post.createdAt)}
+                          </span>
+                        </span>
+                        <span className="text-[13px] text-[#36534E] text-center font-semibold">{post.bookmarkCount}</span>
+                        <span className="text-[13px] text-charcoal text-center max-md:hidden">{post.commentCount}</span>
+                        <span className="text-[13px] text-charcoal text-center max-md:hidden">{post.viewCount}</span>
+                      </a>
+                    ))}
+                    {insights.topSavedCommunityPosts.length === 0 && (
+                      <p className="text-[13px] text-taupe-400 text-center py-6">저장된 커뮤니티 글이 없습니다.</p>
+                    )}
                   </div>
                 </div>
 

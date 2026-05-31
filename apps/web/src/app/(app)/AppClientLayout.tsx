@@ -53,10 +53,10 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         ) : (
           <>
             <main className="p-6 max-md:p-4">
-              <div className="mx-auto max-w-[76rem]">{children}</div>
+              <div className="mx-auto max-w-[1120px]">{children}</div>
             </main>
             <div className="px-6 pb-10 max-md:px-4">
-              <div className="mx-auto max-w-[76rem]">
+              <div className="mx-auto max-w-[1120px]">
                 <AiNoticeFooter variant="light" />
               </div>
             </div>

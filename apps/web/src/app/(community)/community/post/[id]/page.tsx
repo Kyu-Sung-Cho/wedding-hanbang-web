@@ -36,7 +36,7 @@ import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
-import type { PollWithOptions } from "@/types/community.types";
+import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
 
 // 비용 포맷 헬퍼 (PostCard와 동일)
 function formatPrice(value: number): string {
@@ -54,6 +54,24 @@ const REPORT_REASONS = [
   { value: "inappropriate", label: "부적절한 내용" },
   { value: "other", label: "기타" },
 ] as const;
+
+function stripHtmlPreview(value: string, maxLength = 72) {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function getPostThumbnail(post: PostWithAuthor) {
+  const firstSlide = post.slides?.[0];
+  if (firstSlide) {
+    return firstSlide.thumbnail_url || (firstSlide.type === "image" ? firstSlide.url : null);
+  }
+  if (post.images?.[0]) return post.images[0];
+  const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
+  return match ? match[1] : null;
+}
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -93,9 +111,11 @@ export default function PostDetailPage() {
   const [loginToast, setLoginToast] = useState(false);
 
   // 낙관적 투표 UI (PostCard 패턴)
-  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
   const [optimisticDelta, setOptimisticDelta] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
+  const [relatedPosts, setRelatedPosts] = useState<PostWithAuthor[]>([]);
+  const [popularPosts, setPopularPosts] = useState<PostWithAuthor[]>([]);
 
   // 유저 상태 확인
   useEffect(() => {
@@ -115,6 +135,63 @@ export default function PostDetailPage() {
       incrementView(postId);
     }
   }, [postId, fetchPostDetail, incrementView]);
+
+  useEffect(() => {
+    if (!post?.id || !post.category) return;
+
+    let cancelled = false;
+    const currentPostId = post.id;
+    const currentCategory = post.category;
+
+    async function loadRelatedPosts() {
+      try {
+        const [sameCategoryRes, popularRes] = await Promise.all([
+          fetch(`/api/community/posts?category=${encodeURIComponent(currentCategory)}&sort=hot&period=all&limit=10`),
+          fetch("/api/community/posts?sort=hot&period=all&limit=10"),
+        ]);
+
+        const sameCategoryData = sameCategoryRes.ok
+          ? ((await sameCategoryRes.json()) as { posts?: PostWithAuthor[] })
+          : { posts: [] };
+        const popularData = popularRes.ok
+          ? ((await popularRes.json()) as { posts?: PostWithAuthor[] })
+          : { posts: [] };
+
+        const sameCategory = Array.from(
+          new Map(
+            (sameCategoryData.posts ?? [])
+              .filter((item) => item.id !== currentPostId)
+              .map((item) => [item.id, item])
+          ).values()
+        ).slice(0, 5);
+
+        const sameIds = new Set(sameCategory.map((item) => item.id));
+        const popular = Array.from(
+          new Map(
+            (popularData.posts ?? [])
+              .filter((item) => item.id !== currentPostId && !sameIds.has(item.id))
+              .map((item) => [item.id, item])
+          ).values()
+        ).slice(0, 5);
+
+        if (!cancelled) {
+          setRelatedPosts(sameCategory);
+          setPopularPosts(popular.length > 0 ? popular : sameCategory.slice(0, 5));
+        }
+      } catch {
+        if (!cancelled) {
+          setRelatedPosts([]);
+          setPopularPosts([]);
+        }
+      }
+    }
+
+    void loadRelatedPosts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post?.category, post?.id]);
 
   // 공유 기능
   function handleShare() {
@@ -215,7 +292,7 @@ export default function PostDetailPage() {
       }
       if (isVoting || !post) return;
 
-      const prevVote = post.user_vote ?? null;
+      const prevVote = post.user_vote === 1 ? 1 : null;
       const newVote: 1 | null = prevVote === 1 ? null : 1;
       const delta = prevVote === 1 ? -1 : 1;
 
@@ -291,8 +368,8 @@ export default function PostDetailPage() {
   const isAuthor = user && user.id === post.author_id;
 
   // 좋아요 표시값 (낙관적 UI)
-  const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote ?? null);
-  const voteCount = post.upvote_count + optimisticDelta;
+  const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote === 1 ? 1 : null);
+  const voteCount = Math.max(0, post.upvote_count + optimisticDelta);
   const isLiked = displayVote === 1;
 
   // 작성자 정보 (PostCard 패턴)
@@ -300,7 +377,7 @@ export default function PostDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      <div className="mx-auto max-w-4xl xl:max-w-5xl px-4 sm:px-6 lg:px-8 py-5">
+      <div className="mx-auto w-full max-w-[1380px] px-4 sm:px-6 lg:px-8 py-5">
         {/* 브레드크럼 네비게이션 */}
         <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
           <Link
@@ -324,6 +401,9 @@ export default function PostDetailPage() {
           <span className="truncate text-[#1A1A1F]">{post.title}</span>
         </nav>
 
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,720px)_300px] xl:grid-cols-[230px_minmax(0,720px)_300px] lg:items-start lg:justify-center">
+          <SimilarPostsRail posts={relatedPosts.length > 0 ? relatedPosts : popularPosts} />
+          <main className="min-w-0">
         {/* 메인 포스트 카드 */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] overflow-hidden">
           <div className="flex">
@@ -400,7 +480,7 @@ export default function PostDetailPage() {
               </div>
 
               {/* 제목 */}
-              <h1 className="text-xl sm:text-2xl md:text-[26px] lg:text-[28px] xl:text-3xl 2xl:text-4xl font-medium text-[#1A1A1F] leading-snug mb-3">
+              <h1 className="text-[23px] sm:text-[26px] font-medium text-[#1A1A1F] leading-snug mb-3">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-4 h-4" />
@@ -430,7 +510,11 @@ export default function PostDetailPage() {
               {/* 카드 게시물 슬라이드 — 본문 위에 인스타 캐러셀로 렌더 */}
               {!isMembersOnly && Array.isArray(post.slides) && post.slides.length > 0 && (
                 <div className="mb-4">
-                  <SlideCarousel slides={post.slides} aspect="4/5" />
+                  <SlideCarousel
+                    slides={post.slides}
+                    aspect="4/5"
+                    className="mx-auto max-w-[320px] sm:max-w-[360px]"
+                  />
                 </div>
               )}
 
@@ -464,7 +548,7 @@ export default function PostDetailPage() {
                   </>
                 ) : (
                   <div
-                    className="text-base text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words"
+                    className="community-post-content text-[15px] text-[#1A1A1F] leading-[1.75] whitespace-pre-wrap break-words"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtml(post.content),
                     }}
@@ -474,7 +558,7 @@ export default function PostDetailPage() {
 
               {/* 이미지 갤러리 — 카드 게시물(슬라이드)이면 위 캐러셀이 담당하므로 숨김 */}
               {!isMembersOnly && (!post.slides || post.slides.length === 0) && post.images && post.images.length > 0 && (
-                <div className="mt-4">
+                <div className="mx-auto mt-4 max-w-[560px]">
                   <div
                     className={`grid gap-2 ${
                       post.images.length === 1
@@ -493,8 +577,8 @@ export default function PostDetailPage() {
                         onClick={() => !(/\.(mp4|mov|webm)(\?|$)/i.test(src)) && setLightboxIndex(idx)}
                         className={`relative overflow-hidden rounded-xl bg-[#FAFAF8] hover:opacity-90 transition-all duration-200 ${
                           post.images!.length === 1
-                            ? "aspect-video"
-                            : "aspect-square"
+                            ? "h-[200px] sm:h-[260px]"
+                            : "h-[108px] sm:h-[136px]"
                         }`}
                       >
                         {/\.(mp4|mov|webm)(\?|$)/i.test(src) ? (
@@ -510,7 +594,7 @@ export default function PostDetailPage() {
                             src={src}
                             alt={`이미지 ${idx + 1}`}
                             fill
-                            className="object-cover"
+                            className={post.images!.length === 1 ? "object-contain" : "object-cover"}
                           />
                         )}
                         {/* 4장 이상이고 마지막 보이는 셀일 때 오버레이 */}
@@ -747,7 +831,6 @@ export default function PostDetailPage() {
                     }`}
                   />
                   저장
-                  {post.bookmark_count > 0 && ` ${post.bookmark_count}`}
                 </button>
 
                 {/* 신고 */}
@@ -1003,7 +1086,138 @@ export default function PostDetailPage() {
             <CommentSection postId={post.id} />
           </div>
         )}
+          </main>
+
+          <RelatedPostsSidebar posts={popularPosts.length > 0 ? popularPosts : relatedPosts} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function SimilarPostsRail({ posts }: { posts: PostWithAuthor[] }) {
+  return (
+    <aside className="hidden xl:block">
+      <div className="sticky top-24 rounded-2xl border border-[#eadfc9] bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold text-[#9d6f36]">연관 글</p>
+          <h2 className="font-serif-kr text-[18px] font-medium text-[#071629]">
+            비슷한 글
+          </h2>
+        </div>
+
+        {posts.length > 0 ? (
+          <div className="grid gap-2.5">
+            {posts.slice(0, 5).map((item, index) => {
+              const itemCategory = CATEGORY_MAP[item.category];
+              return (
+                <Link
+                  key={item.id}
+                  href={`/community/post/${item.id}`}
+                  className="rounded-xl border border-[#efe4d3] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#36534E]/40 hover:bg-white"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#7a8290]">
+                    <span className="rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
+                      {itemCategory?.shortLabel ?? "글"}
+                    </span>
+                    <span className="text-[#B5ADA3]">{index + 1}</span>
+                  </div>
+                  <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.5] text-[#071629]">
+                    {item.title}
+                  </h3>
+                  <p className="mt-1 text-[11px] font-medium text-[#7a8290]">
+                    조회 {item.view_count ?? 0} · 댓글 {item.comment_count ?? 0}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="rounded-xl bg-[#fffdf7] px-3 py-4 text-[13px] font-medium leading-relaxed text-[#7a8290]">
+            비슷한 글을 준비 중이에요.
+          </p>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
+  return (
+    <aside className="hidden lg:block">
+      <div className="sticky top-24 space-y-4">
+        <section className="rounded-2xl border border-[#eadfc9] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-serif-kr text-[20px] font-medium text-[#071629]">
+                많이 본 글
+              </h2>
+              <p className="mt-0.5 text-[12px] font-medium text-[#7a8290]">
+                이 글을 본 사람들이 이어서 읽는 글
+              </p>
+            </div>
+            <Link
+              href="/community"
+              className="text-[12px] font-semibold text-[#36534E]"
+            >
+              더보기
+            </Link>
+          </div>
+
+          {posts.length > 0 ? (
+            <div className="divide-y divide-[#eadfc9]">
+              {posts.map((item) => {
+                const thumb = getPostThumbnail(item);
+                const itemCategory = CATEGORY_MAP[item.category];
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/community/post/${item.id}`}
+                    className={`grid gap-3 py-3 first:pt-0 last:pb-0 ${
+                      thumb ? "grid-cols-[58px_minmax(0,1fr)]" : "grid-cols-1"
+                    }`}
+                  >
+                    {thumb && (
+                      <div className="relative h-[58px] w-[58px] overflow-hidden rounded-xl bg-[#f8f4ec]">
+                        <Image
+                          src={thumb}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="58px"
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[#7a8290]">
+                        <span className="shrink-0 rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
+                          {itemCategory?.shortLabel ?? "커뮤니티"}
+                        </span>
+                        <span className="truncate">{timeAgo(item.created_at)}</span>
+                      </div>
+                      <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.45] text-[#071629]">
+                        {item.title}
+                      </h3>
+                      <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[#7a8290]">
+                        {stripHtmlPreview(item.content)}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2 text-[10px] font-medium text-[#7a8290]">
+                        <span>좋아요 {item.upvote_count ?? 0}</span>
+                        <span>댓글 {item.comment_count ?? 0}</span>
+                        <span>조회 {item.view_count ?? 0}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-[#fffdf7] px-3 py-4 text-[13px] font-medium leading-relaxed text-[#7a8290]">
+              곧 비슷한 글을 더 보여드릴게요.
+            </div>
+          )}
+        </section>
+      </div>
+    </aside>
   );
 }

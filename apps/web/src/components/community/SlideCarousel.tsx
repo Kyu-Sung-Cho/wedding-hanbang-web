@@ -59,7 +59,12 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
 
   if (total === 0) return null;
 
-  const aspectClass = aspect === "auto" ? "" : `aspect-[${aspect.replace("/", "/")}]`;
+  const aspectClass = {
+    "1/1": "aspect-square",
+    "4/5": "aspect-[4/5]",
+    "9/16": "aspect-[9/16]",
+    auto: "",
+  }[aspect];
 
   return (
     <div
@@ -139,7 +144,6 @@ function SlideItem({ slide, active }: { slide: SlideMedia; active: boolean }) {
   if (slide.type === "video") {
     return (
       <div className="w-full shrink-0 relative bg-black flex items-center justify-center">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           ref={videoRef}
           src={slide.url}

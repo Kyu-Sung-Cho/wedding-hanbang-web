@@ -1,7 +1,7 @@
 ﻿export default function CommunityFeedLoading() {
   return (
     <div className="min-h-screen bg-[#fbf8f2] flex flex-col">
-      <div className="flex-1 flex w-full max-w-[1680px] mx-auto">
+      <div className="flex-1 flex w-full max-w-[1320px] mx-auto">
         {/* 왼쪽 사이드바 skeleton — 실제 폭/배경 그대로 */}
         <aside className="hidden xl:flex bg-[#fbf8f2] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e5d8ca] z-40">
           {/* 헤더 */}

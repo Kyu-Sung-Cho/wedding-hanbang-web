@@ -45,7 +45,7 @@ interface CommunityState {
   createPost: (input: CreatePostInput) => Promise<string | null>;
   updatePost: (id: string, input: Partial<CreatePostInput>) => Promise<boolean>;
   deletePost: (id: string) => Promise<boolean>;
-  votePost: (postId: string, voteType: 1 | -1 | 0) => Promise<void>;
+  votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   toggleBookmark: (postId: string) => Promise<void>;
   createComment: (input: CreateCommentInput) => Promise<boolean>;
@@ -355,21 +355,29 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ voteType }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorData?.error ?? "좋아요 처리에 실패했습니다.");
+      }
       const data = await res.json();
+      const upvoteCount = Math.max(0, data.upvote_count ?? 0);
+      const downvoteCount = Math.max(0, data.downvote_count ?? 0);
+      const userVote: 1 | null = voteType === 1 ? 1 : null;
 
       // 피드 목록 업데이트
       set((s) => ({
         posts: s.posts.map((p) =>
           p.id === postId
-            ? { ...p, upvote_count: data.upvote_count, downvote_count: data.downvote_count, user_vote: voteType === 0 ? null : voteType }
+            ? { ...p, upvote_count: upvoteCount, downvote_count: downvoteCount, user_vote: userVote }
             : p
         ),
         currentPost: s.currentPost?.id === postId
-          ? { ...s.currentPost, upvote_count: data.upvote_count, downvote_count: data.downvote_count, user_vote: voteType === 0 ? null : voteType }
+          ? { ...s.currentPost, upvote_count: upvoteCount, downvote_count: downvoteCount, user_vote: userVote }
           : s.currentPost,
       }));
-    } catch { /* ignore */ }
+    } catch (error) {
+      throw error;
+    }
   },
 
   voteComment: async (commentId, voteType) => {
@@ -398,10 +406,20 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = await res.json();
       set((s) => ({
         posts: s.posts.map((p) =>
-          p.id === postId ? { ...p, user_bookmarked: data.bookmarked, bookmark_count: p.bookmark_count + (data.bookmarked ? 1 : -1) } : p
+          p.id === postId
+            ? {
+                ...p,
+                user_bookmarked: data.bookmarked,
+                bookmark_count: Math.max(0, data.bookmark_count ?? p.bookmark_count + (data.bookmarked ? 1 : -1)),
+              }
+            : p
         ),
         currentPost: s.currentPost?.id === postId
-          ? { ...s.currentPost, user_bookmarked: data.bookmarked, bookmark_count: s.currentPost.bookmark_count + (data.bookmarked ? 1 : -1) }
+          ? {
+              ...s.currentPost,
+              user_bookmarked: data.bookmarked,
+              bookmark_count: Math.max(0, data.bookmark_count ?? s.currentPost.bookmark_count + (data.bookmarked ? 1 : -1)),
+            }
           : s.currentPost,
       }));
     } catch { /* ignore */ }

@@ -28,7 +28,6 @@ import {
   Search,
   Share2,
   Shirt,
-  Sparkles,
   AlertCircle,
   Users,
 } from "lucide-react";
@@ -59,11 +58,6 @@ import {
 } from "@/utils/quarter";
 import { withSessionCache } from "@/utils/sessionCache";
 
-interface VendorTag {
-  vendor_name: string;
-  mention_count: number;
-}
-
 interface TrendingPost {
   id: string;
   title: string;
@@ -75,7 +69,7 @@ interface BestPostPayload {
   posts: TrendingPost[];
 }
 
-const shell = "mx-auto w-full max-w-[1760px] px-3 lg:px-5 2xl:px-8";
+const shell = "mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8";
 const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -100,13 +94,6 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   ama: "선배 Q&A",
   free: "자유",
 };
-
-const heroSignals: Array<{ icon: LucideIcon; label: string }> = [
-  { icon: HeartHandshake, label: "실제 후기 공유" },
-  { icon: CalendarCheck, label: "가격·계약 질문" },
-  { icon: Users, label: "동기방 대화" },
-  { icon: Heart, label: "함께 준비" },
-];
 
 const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
   { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
@@ -241,7 +228,6 @@ export default function CommunityLandingClient({
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotal, setSearchTotal] = useState(0);
-  const [vendorTags, setVendorTags] = useState<VendorTag[]>([]);
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
@@ -259,7 +245,7 @@ export default function CommunityLandingClient({
     posts.length === 0 &&
     Boolean(initialFeed?.posts.length);
   const feedPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
-  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 6);
+  const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 10);
   const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
   const isPreviewFeed = !isSearching && !showFullFeed;
   const fullFeedHref = useMemo(() => {
@@ -357,22 +343,6 @@ export default function CommunityLandingClient({
     store.fetchPosts(true);
   }, [authorQuery, currentPeriod, currentSort, isSearching, selectedCategory, tagQuery]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void withSessionCache("community:vendor-tags:12", 10 * 60 * 1000, async () => {
-      const res = await fetch("/api/community/vendor-tags?limit=12");
-      if (!res.ok) return [] as VendorTag[];
-      const data = await res.json();
-      return (Array.isArray(data) ? data : data.tags ?? []) as VendorTag[];
-    }).then((tags) => {
-      if (!cancelled) setVendorTags(tags);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries;
@@ -437,7 +407,6 @@ export default function CommunityLandingClient({
 
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
-      <Hero topVendor={vendorTags[0]?.vendor_name ?? null} />
       <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
       <CategoryBar
         selectedCategory={selectedCategory}
@@ -475,56 +444,6 @@ export default function CommunityLandingClient({
   );
 }
 
-function Hero({ topVendor }: { topVendor: string | null }) {
-  return (
-    <section className={`${shell} relative grid grid-cols-1 items-center gap-6 pt-4 md:min-h-[465px] md:grid-cols-[minmax(360px,0.9fr)_minmax(560px,1.1fr)] md:gap-10 xl:min-h-[500px] xl:gap-16`}>
-      <div className="relative z-10 py-6 md:py-8">
-        <p className="mb-4 flex items-center gap-2 text-[14px] font-medium text-[#26364a] md:mb-6 md:text-[15px]">
-          예비부부가 함께 만드는 결혼 준비의 모든 것
-          <Sparkles className="h-4 w-4 text-[#b68a3a]" />
-        </p>
-
-        <h1 className="font-serif-kr text-[34px] font-medium leading-[1.35] text-[#061a34] sm:text-[36px] xl:text-[52px]">
-          경험을 나누고,
-          <br />
-          더 완벽한 <span className="block text-[#b68a3a] sm:inline">결혼을 준비해요.</span>
-        </h1>
-
-        <p className="mt-5 text-[15px] font-medium leading-[1.85] text-[#38475c] md:mt-7 md:text-[16px]">
-          실제 후기와 정보로 현명하게 준비하고,
-          <br />
-          서로 돕고 나누며 행복한 결혼을 만들어 가요.
-        </p>
-
-        <div className="mt-6 grid max-w-[590px] grid-cols-4 gap-1 md:mt-8">
-          {heroSignals.map((item, index) => (
-            <div
-              key={item.label}
-              className={`flex min-h-[66px] flex-col items-center justify-center gap-[7px] px-1 text-center text-[11px] font-medium leading-snug text-[#34445a] md:min-h-[76px] md:gap-[9px] md:px-3 md:text-[12px] ${
-                index < heroSignals.length - 1 ? "border-r border-[#eadfc9]" : ""
-              }`}
-            >
-              <item.icon className="h-6 w-6 stroke-[1.55] text-[#b68a3a] md:h-8 md:w-8" />
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {topVendor && (
-          <p className="mt-5 text-[12px] font-semibold text-[#7a8290]">
-            지금 많이 언급되는 업체: <span className="text-[#9d6f36]">{topVendor}</span>
-          </p>
-        )}
-      </div>
-
-      <div className="relative min-h-[260px] self-stretch overflow-hidden rounded-[28px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_36px_0_56px_rgba(255,253,247,0.88)] md:min-h-[420px] md:rounded-bl-[64px] md:rounded-br-none md:rounded-tr-none xl:min-h-[470px]">
-        <div className="absolute inset-y-0 left-0 w-[26%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
-        <div className="absolute inset-x-0 bottom-0 h-[36%] bg-[linear-gradient(0deg,rgba(255,253,247,0.82),rgba(255,253,247,0))]" />
-      </div>
-    </section>
-  );
-}
-
 function SearchHub({
   searchDraft,
   onSearchDraftChange,
@@ -535,7 +454,7 @@ function SearchHub({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`${shell} rounded-[18px] border border-[#eadfc9] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}>
+    <section className={`${shell} mt-4 rounded-[18px] border border-[#eadfc9] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}>
       <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
@@ -698,7 +617,7 @@ function CommunityMain({
   return (
     <section
       id="community-feed"
-      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]`}
+      className={`${shell} mt-4 grid grid-cols-1 items-start gap-[18px] scroll-mt-24 lg:grid-cols-[minmax(0,1fr)_330px] xl:grid-cols-[minmax(0,1fr)_360px]`}
     >
       <LatestPosts
         posts={posts}
@@ -765,10 +684,10 @@ function LatestPosts({
               : "최신 글";
 
   return (
-    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-4 shadow-[0_10px_30px_rgba(8,22,38,0.045)] sm:p-5">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
+          <h2 className="font-serif-kr text-[21px] font-medium leading-[1.3] text-[#071629] sm:text-[22px]">
             {feedTitle}
           </h2>
           <p className="mt-1 text-[12px] font-medium text-[#7a8290]">
@@ -791,7 +710,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               href={fullFeedHref}
-              className="inline-flex min-h-10 items-center rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-medium text-[#9d6f36]"
+              className="inline-flex min-h-9 items-center rounded-full border border-[#eadfc9] bg-white px-4 text-[12px] font-medium text-[#9d6f36]"
               aria-label="최신 글 더보기"
             >
               더보기
@@ -800,7 +719,7 @@ function LatestPosts({
           )}
           <Link
             href="/community/post/write"
-            className="hidden min-h-10 items-center rounded-full bg-[#061a34] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+            className="hidden min-h-9 items-center rounded-full bg-[#061a34] px-4 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
             data-tutorial-target="community-write"
           >
             글쓰기
@@ -875,7 +794,6 @@ function LatestPosts({
               </Link>
             </div>
           )}
-          {!isSearching && posts.length > 0 && <FeedActionBoard />}
           {!isPreviewFeed && isLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 2 }).map((_, index) => (
@@ -891,98 +809,24 @@ function LatestPosts({
 
 function AmoraInlinePromo() {
   return (
-    <div className="py-4">
-      <article className="relative overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fff8ec_0%,#ffffff_48%,#eef4eb_100%)] p-5 shadow-[0_14px_34px_rgba(8,22,38,0.06)] md:grid md:grid-cols-[minmax(0,1fr)_280px] md:items-center md:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="relative z-10">
-          <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[12px] font-semibold text-[#9d6f36]">
+    <div className="py-2.5">
+      <article className="relative overflow-hidden rounded-[14px] border border-[#d8bb86]/80 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_62%,#eef4eb_100%)] px-3.5 py-2.5 shadow-[0_8px_18px_rgba(8,22,38,0.04)] sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <span className="inline-flex rounded-full bg-white/82 px-2 py-0.5 text-[10px] font-semibold text-[#9d6f36]">
             아모라 추천
           </span>
-          <h3 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629] md:text-[27px]">
+          <h3 className="mt-1.5 line-clamp-1 font-serif-kr text-[17px] font-medium leading-[1.35] text-[#071629] sm:text-[18px]">
             후기에서 생긴 궁금증, 아모라에게 바로 물어보세요.
           </h3>
-          <p className="mt-3 max-w-[760px] text-[14px] font-medium leading-[1.75] text-[#5d6879]">
-            자동으로 견적에 적용되는 기능이 아니라, 커뮤니티에서 본 내용을 바탕으로 아모라 상담을 시작하는 흐름이에요.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2 text-[12px] font-semibold text-[#34445a]">
-            {["내 상황 설명하기", "비슷한 질문 정리", "시세 화면 함께 보기"].map((item) => (
-              <span key={item} className="rounded-full border border-[#eadfc9] bg-white/72 px-3 py-1.5">
-                {item}
-              </span>
-            ))}
-          </div>
         </div>
-        <div className="relative z-10 mt-5 grid gap-3 md:mt-0">
-          <Link
-            href="/chat"
-            className="group flex min-h-[58px] items-center justify-between rounded-[14px] bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.18)] transition-transform hover:-translate-y-0.5"
-          >
-            아모라에게 물어보기
-            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-          <Link
-            href="/market-prices"
-            className="group flex min-h-[54px] items-center justify-between rounded-[14px] border border-[#eadfc9] bg-white/82 px-4 text-[13px] font-semibold text-[#34445a] transition-colors hover:border-[#b68a3a]"
-          >
-            요즘 시세 먼저 보기
-            <ChevronRight className="h-4 w-4 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </div>
-        <ClipboardCheck className="pointer-events-none absolute -bottom-7 right-8 hidden h-[130px] w-[130px] rotate-6 text-[#c9a96e]/20 lg:block" />
-      </article>
-    </div>
-  );
-}
-
-function FeedActionBoard() {
-  const actions: Array<{ href: string; title: string; desc: string; icon: LucideIcon }> = [
-    {
-      href: "/community/post/write",
-      title: "질문 글로 남기기",
-      desc: "커뮤니티에 공개 질문으로 남겨요.",
-      icon: PenSquare,
-    },
-    {
-      href: "/community/cohort",
-      title: "동기방에서 비교하기",
-      desc: "같은 시기 예비부부의 선택 기준을 같이 봐요.",
-      icon: Users,
-    },
-    {
-      href: "/lounge",
-      title: "라운지에 정리하기",
-      desc: "마음에 둔 내용은 일정과 예산으로 이어가요.",
-      icon: CalendarCheck,
-    },
-  ];
-
-  return (
-    <div className="border-t border-[#eadfc9] py-5" data-tutorial-target="community-service-link">
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <span className="text-[12px] font-semibold text-[#9d6f36]">다음 행동</span>
-          <h3 className="mt-1 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
-            읽은 글을 바로 준비로 이어가요.
-          </h3>
-        </div>
-        <Link href="/lounge" className="hidden text-[13px] font-semibold text-[#9d6f36] sm:inline-flex">
-          라운지 열기
+        <Link
+          href="/chat"
+          className="group mt-2 inline-flex min-h-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-3.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)] transition-transform hover:-translate-y-0.5 sm:mt-0"
+        >
+          아모라에게 물어보기
+          <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {actions.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="group min-h-[118px] rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4 transition-colors hover:border-[#b68a3a]"
-          >
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#36534E]">
-              <item.icon className="h-[18px] w-[18px]" />
-            </span>
-            <b className="mt-3 block text-[14px] font-semibold text-[#071629]">{item.title}</b>
-            <span className="mt-1.5 block text-[12px] font-medium leading-[1.6] text-[#7a8290]">{item.desc}</span>
-          </Link>
-        ))}
-      </div>
+      </article>
     </div>
   );
 }
@@ -992,16 +836,16 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   const { votePost, toggleBookmark } = useCommunityStore();
   const { profile } = useAuthStore();
   const isLoggedIn = !!profile;
-  const [optimisticVote, setOptimisticVote] = useState<1 | -1 | null | undefined>(undefined);
+  const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
   const [optimisticUpvoteDelta, setOptimisticUpvoteDelta] = useState(0);
   const [bookmarked, setBookmarked] = useState(post.user_bookmarked ?? false);
   const [voting, setVoting] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const imageUrl = getPostImage(post);
-  const contentPreview = stripHtml(post.content).slice(0, 160);
-  const displayVote = optimisticVote === undefined ? (post.user_vote ?? null) : optimisticVote;
-  const displayUpvoteCount = (post.upvote_count ?? 0) + optimisticUpvoteDelta;
+  const contentPreview = stripHtml(post.content).slice(0, 110);
+  const displayVote = optimisticVote === undefined ? (post.user_vote === 1 ? 1 : null) : optimisticVote;
+  const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
 
   function showToast(message: string) {
@@ -1018,18 +862,8 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
     }
     if (voting) return;
     const prev = displayVote;
-    let next: 1 | null;
-    let delta = 0;
-    if (prev === 1) {
-      next = null;
-      delta = -1;
-    } else if (prev === -1) {
-      next = 1;
-      delta = 2;
-    } else {
-      next = 1;
-      delta = 1;
-    }
+    const next: 1 | null = prev === 1 ? null : 1;
+    const delta = prev === 1 ? -1 : 1;
     setOptimisticVote(next);
     setOptimisticUpvoteDelta((value) => value + delta);
     setVoting(true);
@@ -1083,120 +917,117 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   return (
     <Link
       href={`/community/post/${post.id}`}
-      className="relative grid grid-cols-[82px_1fr] gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[164px_1fr] sm:gap-5 xl:grid-cols-[210px_1fr] 2xl:grid-cols-[248px_1fr]"
+      className={`relative grid gap-2.5 py-2 first:pt-0 last:pb-0 sm:gap-3 ${
+        imageUrl
+          ? "grid-cols-[minmax(0,1fr)_72px] sm:grid-cols-[minmax(0,1fr)_104px] xl:grid-cols-[minmax(0,1fr)_112px]"
+          : "grid-cols-1"
+      }`}
     >
       {toast && (
         <span className="absolute right-0 top-4 z-10 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:aspect-[1.55]">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt=""
-            fill
-            className="object-cover transition-transform duration-500 hover:scale-105"
-            sizes="(min-width: 1536px) 248px, (min-width: 1280px) 210px, (min-width: 640px) 164px, 82px"
-            priority={priority}
-          />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#fff8ec] text-[#b68a3a]">
-            <HeartHandshake className="h-7 w-7 stroke-[1.5]" />
-            <span className="text-[12px] font-medium">{categoryInfo?.shortLabel ?? "커뮤니티"}</span>
-          </div>
-        )}
-      </div>
 
       <div className="min-w-0">
-        <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
-          <span className="shrink-0 rounded-md bg-[#f6ead9] px-2 py-1 text-[12px] font-medium text-[#9d6f36]">
+        <div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] font-medium text-[#7a8290]">
+          <span className="shrink-0 rounded-md bg-[#f6ead9] px-1.5 py-0.5 text-[10px] font-medium text-[#9d6f36]">
             {categoryInfo?.shortLabel ?? "커뮤니티"}
           </span>
           {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
             <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
           )}
           {post.is_weekly_best && (
-            <span className="shrink-0 rounded-md bg-[#061a34] px-2 py-1 text-[11px] font-medium text-white">
+            <span className="shrink-0 rounded-md bg-[#061a34] px-1.5 py-0.5 text-[10px] font-medium text-white">
               BEST
             </span>
           )}
           {post.poll && (
-            <span className="shrink-0 rounded-md border border-[#eadfc9] px-2 py-1 text-[11px] font-medium text-[#7a8290]">
+            <span className="shrink-0 rounded-md border border-[#eadfc9] px-1.5 py-0.5 text-[10px] font-medium text-[#7a8290]">
               투표
             </span>
           )}
-          <Sparkles className="ml-auto h-4 w-4 shrink-0 text-[#b68a3a]" />
-        </div>
-        <h3 className="line-clamp-2 break-words font-serif-kr text-[19px] font-medium leading-[1.35] text-[#071629] [overflow-wrap:anywhere] sm:text-[22px]">
-          {post.title}
-        </h3>
-        {contentPreview && (
-          <p className="mt-2 line-clamp-2 break-words text-[13px] font-medium leading-[1.7] text-[#5d6879] [overflow-wrap:anywhere] sm:text-[14px]">
-            {contentPreview}
-          </p>
-        )}
-        <div className="mt-3 flex flex-col gap-2 text-[12px] font-medium text-[#7a8290] sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{post.author?.nickname ?? "익명"}</span>
-            <span className="shrink-0">{timeAgo(post.created_at)}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          <span className="min-w-0 truncate">{post.author?.nickname ?? "익명"}</span>
+          <span className="shrink-0">{timeAgo(post.created_at)}</span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={handleLike}
               disabled={voting}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+              className={`inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 transition-colors ${
                 isLiked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#34445a] hover:bg-[#fff8ec]"
               }`}
               aria-label="좋아요"
             >
-              <Heart className={`h-4 w-4 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
+              <Heart className={`h-3.5 w-3.5 stroke-[1.6] ${isLiked ? "fill-current" : ""}`} />
               {displayUpvoteCount}
             </button>
-            <span className="inline-flex items-center gap-1 text-[#34445a]">
-              <Eye className="h-4 w-4 stroke-[1.6]" />
+            <span className="inline-flex items-center gap-0.5 text-[#34445a]">
+              <Eye className="h-3.5 w-3.5 stroke-[1.6]" />
               {post.view_count ?? 0}
             </span>
-            <span className="inline-flex items-center gap-1 text-[#34445a]">
-              <MessageCircle className="h-4 w-4 stroke-[1.6]" />
+            <span className="inline-flex items-center gap-0.5 text-[#34445a]">
+              <MessageCircle className="h-3.5 w-3.5 stroke-[1.6]" />
               {(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}
             </span>
             <button
               type="button"
               onClick={handleBookmark}
               disabled={bookmarking}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+              className={`hidden items-center gap-0.5 rounded-full px-1 py-0.5 transition-colors sm:inline-flex ${
                 bookmarked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#34445a] hover:bg-[#fff8ec]"
               }`}
               aria-label="북마크"
             >
-              <Bookmark className={`h-4 w-4 stroke-[1.6] ${bookmarked ? "fill-current" : ""}`} />
+              <Bookmark className={`h-3.5 w-3.5 stroke-[1.6] ${bookmarked ? "fill-current" : ""}`} />
             </button>
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[#34445a] transition-colors hover:bg-[#fff8ec]"
+              className="hidden items-center gap-0.5 rounded-full px-1 py-0.5 text-[#34445a] transition-colors hover:bg-[#fff8ec] sm:inline-flex"
               aria-label="공유"
             >
-              <Share2 className="h-4 w-4 stroke-[1.6]" />
+              <Share2 className="h-3.5 w-3.5 stroke-[1.6]" />
             </button>
           </div>
         </div>
+        <h3 className="line-clamp-1 break-words font-serif-kr text-[15px] font-medium leading-[1.32] text-[#071629] [overflow-wrap:anywhere] sm:text-[16px]">
+          {post.title}
+        </h3>
+        {contentPreview && (
+          <p className="mt-0.5 line-clamp-1 break-words text-[11px] font-medium leading-[1.5] text-[#5d6879] [overflow-wrap:anywhere]">
+            {contentPreview}
+          </p>
+        )}
       </div>
+      {imageUrl && (
+        <div className="relative h-[52px] w-[72px] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:h-[58px] sm:w-[104px] xl:h-[60px] xl:w-[112px]">
+          <Image
+            src={imageUrl}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 hover:scale-105"
+            sizes="(min-width: 1280px) 112px, (min-width: 640px) 104px, 72px"
+            priority={priority}
+          />
+        </div>
+      )}
     </Link>
   );
 }
 
 function RightPanels() {
   return (
-    <div className="space-y-[18px]" data-tutorial-target="community-right">
+    <aside
+      className="space-y-[18px] lg:sticky lg:top-[92px] lg:max-h-[calc(100vh-108px)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:pr-1 [scrollbar-width:thin]"
+      data-tutorial-target="community-right"
+    >
       <CohortPreviewPanel />
       <BestPostsPanel />
       <CommunityQuickPanel />
       <MarketSnapshotPanel />
       <AmoraSidebarPanel />
-    </div>
+    </aside>
   );
 }
 

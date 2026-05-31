@@ -1,6 +1,22 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { NextResponse } from "next/server";
 
+interface CommunityPostInsightRow {
+  id: string;
+  title: string | null;
+  category: string | null;
+  author_id: string;
+  bookmark_count: number | null;
+  view_count: number | null;
+  comment_count: number | null;
+  created_at: string | null;
+}
+
+interface CommunityProfileNicknameRow {
+  user_id: string;
+  nickname: string | null;
+}
+
 export async function GET(req: Request) {
   try {
     // verifyAdmin으로 통일 (profiles.is_admin 체크)
@@ -221,6 +237,38 @@ export async function GET(req: Request) {
       count,
     }));
 
+    const { data: savedPostsRaw } = await supabase
+      .from("community_posts")
+      .select("id, title, category, author_id, bookmark_count, view_count, comment_count, created_at")
+      .neq("visibility", "draft")
+      .gt("bookmark_count", 0)
+      .order("bookmark_count", { ascending: false })
+      .limit(10);
+
+    const savedPosts = (savedPostsRaw ?? []) as CommunityPostInsightRow[];
+    const savedPostAuthorIds = [...new Set(savedPosts.map((post) => post.author_id))];
+    const { data: savedPostProfilesRaw } = savedPostAuthorIds.length > 0
+      ? await supabase
+          .from("community_profiles")
+          .select("user_id, nickname")
+          .in("user_id", savedPostAuthorIds)
+      : { data: [] };
+    const savedPostProfiles = (savedPostProfilesRaw ?? []) as CommunityProfileNicknameRow[];
+    const nicknameMap = new Map(
+      savedPostProfiles.map((profile) => [profile.user_id, profile.nickname ?? "익명"])
+    );
+
+    const topSavedCommunityPosts = savedPosts.map((post) => ({
+      id: post.id,
+      title: post.title ?? "제목 없음",
+      category: post.category ?? "unknown",
+      authorNickname: nicknameMap.get(post.author_id) ?? "익명",
+      bookmarkCount: Math.max(0, post.bookmark_count ?? 0),
+      viewCount: Math.max(0, post.view_count ?? 0),
+      commentCount: Math.max(0, post.comment_count ?? 0),
+      createdAt: post.created_at,
+    }));
+
     return NextResponse.json({
       overview: {
         totalViews: totalViews ?? 0,
@@ -242,6 +290,7 @@ export async function GET(req: Request) {
       favoriteInsights: {
         trend: favoriteTrend,
       },
+      topSavedCommunityPosts,
     });
   } catch (err) {
     console.error("Admin insights error:", err);

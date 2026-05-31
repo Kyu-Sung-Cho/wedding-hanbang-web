@@ -10,7 +10,7 @@ export default function CommunityLoading() {
         </div>
       </div>
 
-      <div className="max-w-[1680px] mx-auto px-4 sm:px-5 xl:px-5 2xl:px-6 py-5 sm:py-6">
+      <div className="max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
         <div className="flex gap-5 lg:gap-6">
           {/* 사이드바 skeleton */}
           <div className="hidden xl:block w-56 2xl:w-60 shrink-0 space-y-3">

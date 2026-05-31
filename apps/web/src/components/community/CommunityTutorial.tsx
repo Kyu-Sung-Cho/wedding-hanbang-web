@@ -33,12 +33,6 @@ const STEPS: SpotlightStep[] = [
     description:
       "이번 주 인기글, 바로 할 일, 요즘 시세를 한눈에 볼 수 있어요. 어디부터 봐야 할지 막막할 때 출발점으로 쓰세요.",
   },
-  {
-    selector: '[data-tutorial-target="community-service-link"]',
-    title: "라운지에서 내 준비 정리하기",
-    description:
-      "커뮤니티에서 찾은 정보는 라운지의 아모라 상담, 예산 관리, 일정 관리, 카테고리 체크리스트에서 우리 준비에 맞게 정리할 수 있어요.",
-  },
 ];
 
 export default function CommunityTutorial() {

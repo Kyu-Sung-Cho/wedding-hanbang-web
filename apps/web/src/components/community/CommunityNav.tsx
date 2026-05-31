@@ -18,11 +18,16 @@ export default function CommunityNav() {
   const profile = useAuthStore((state) => state.profile);
 
   return (
-    <header className="bg-[#fffdf7]">
-      <div className="flex h-[76px] w-full max-w-none items-center justify-between px-3 lg:px-5">
-        <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
-          <Logo size="md" />
-        </Link>
+    <header className="sticky top-0 z-50 border-b border-[#eadfc9] bg-[#fffdf7]/94 backdrop-blur-xl">
+      <div className="mx-auto flex h-[76px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-4">
+          <Link href="/" className="inline-flex shrink-0 items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+            <Logo size="md" />
+          </Link>
+          <span className="hidden truncate border-l border-[#eadfc9] pl-4 text-[12px] font-semibold leading-none text-[#36534e] lg:inline">
+            예비부부가 함께 나누는 결혼 준비 커뮤니티
+          </span>
+        </div>
 
         <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
           {navItems.map((item, index) => (
@@ -61,7 +66,7 @@ export default function CommunityNav() {
       </div>
       {mobileOpen && (
         <div className="border-t border-[#eadfc9] bg-[#fffdf7] md:hidden">
-          <div className="flex w-full max-w-none flex-col gap-2 px-3 py-4 lg:px-5">
+          <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-2 px-4 py-4 sm:px-6 lg:px-8">
             {navItems.map((item) => (
               <Link
                 key={item.href}
