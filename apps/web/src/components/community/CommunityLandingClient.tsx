@@ -34,7 +34,6 @@ import {
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
-import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { getCategoryMarketPrice, getLatestPeriodId, getNationalTotal } from "@/constants/marketPrices";
@@ -783,11 +782,6 @@ function LatestPosts({
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
               {!isSearching && index === 1 && <AmoraInlinePromo />}
-              {!isSearching && !isPreviewFeed && index === 0 && (
-                <div className="py-4" data-tutorial-target="community-composer">
-                  <FeedComposer />
-                </div>
-              )}
             </Fragment>
           ))}
           {isPreviewFeed && posts.length > 0 && (
