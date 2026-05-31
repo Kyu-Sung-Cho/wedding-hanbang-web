@@ -1024,7 +1024,6 @@ function RightPanels() {
     >
       <CohortPreviewPanel />
       <BestPostsPanel />
-      <CommunityQuickPanel />
       <MarketSnapshotPanel />
       <AmoraSidebarPanel />
     </aside>
@@ -1105,55 +1104,6 @@ function BestPostsPanel() {
       <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
         최근 7일 좋아요 반응을 기준으로 보여드려요.
       </p>
-    </article>
-  );
-}
-
-function CommunityQuickPanel() {
-  const quickLinks: Array<{ href: string; title: string; desc: string; icon: LucideIcon }> = [
-    {
-      href: "/community?category=is_normal&feed=all#community-feed",
-      title: "정상인가요?",
-      desc: "헷갈리는 준비 상황 먼저 확인",
-      icon: ClipboardCheck,
-    },
-    {
-      href: "/community/post/write",
-      title: "글쓰기",
-      desc: "질문·후기·꿀팁을 카테고리별로 작성",
-      icon: PenSquare,
-    },
-    {
-      href: "/community/my/bookmarks",
-      title: "북마크",
-      desc: "다시 볼 글만 모아보기",
-      icon: Bookmark,
-    },
-  ];
-
-  return (
-    <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-      <h2 className="font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">바로 할 일</h2>
-      <div className="mt-4 grid gap-2">
-        {quickLinks.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="group flex items-center justify-between gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#b68a3a]"
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
-                <item.icon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <b className="block truncate text-[13px] font-semibold text-[#071629]">{item.title}</b>
-                <span className="mt-0.5 block truncate text-[12px] font-medium text-[#7a8290]">{item.desc}</span>
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#b68a3a] transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        ))}
-      </div>
     </article>
   );
 }
