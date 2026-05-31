@@ -399,8 +399,8 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <section className="grid items-start gap-4 lg:grid-cols-[1.24fr_0.76fr]" data-tutorial-target="dashboard-dday-budget">
-        <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+      <section className="grid items-stretch gap-4 lg:grid-cols-[1.28fr_0.72fr]" data-tutorial-target="dashboard-dday-budget">
+        <div className="h-full rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
@@ -411,7 +411,7 @@ export default function DashboardPage() {
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2">
             {categories.map((category) => {
               const status = getStatus(progress, category.key);
               const counts = getChecklistProgress(progress, category.key);
@@ -422,30 +422,30 @@ export default function DashboardPage() {
                   key={category.key}
                   type="button"
                   onClick={() => setSelectedCategory(category)}
-                  className="group rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-2.5 text-left transition-colors hover:border-[#d8bb86] hover:bg-white sm:p-3"
+                  className="group rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
                 >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="flex min-w-0 items-start gap-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                  <span className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-semibold text-[#071629] sm:text-[14px]">{category.label}</span>
-                        <span className="mt-0.5 block truncate text-[11px] font-medium text-[#7a8290]">
-                          {category.due}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="text-[14px] font-semibold leading-tight text-[#071629]">{category.label}</span>
+                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusMeta[status].tone}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
+                          {statusMeta[status].label}
                         </span>
                       </span>
-                    </span>
-                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusMeta[status].tone}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
-                      {statusMeta[status].label}
+                      <span className="mt-1 block text-[11px] font-medium text-[#7a8290]">
+                        {category.group} · {category.due}
+                      </span>
                     </span>
                   </span>
-                  <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
+                  <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
                     <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${percent}%` }} />
                   </span>
-                  <span className="mt-2 flex items-center justify-between text-[11px] font-medium text-[#7a8290]">
-                    <span>{category.group}</span>
+                  <span className="mt-1.5 flex items-center justify-between text-[11px] font-medium text-[#7a8290]">
+                    <span>체크리스트</span>
                     <span>{counts.done}/{counts.total} 체크</span>
                   </span>
                 </button>
@@ -454,8 +454,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-          <section className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+        <div className="grid h-full gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-[0.92fr_1.08fr]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
@@ -465,16 +465,18 @@ export default function DashboardPage() {
                 <Wallet className="h-4 w-4" />
               </Link>
             </div>
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold text-[#7a8290]">사용 금액</p>
-                <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
+            <div>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#7a8290]">사용 금액</p>
+                  <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
+                </div>
+                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">{budgetPercent}%</p>
               </div>
-              <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">{budgetPercent}%</p>
+              <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
+                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetPercent}%` }} />
+              </span>
             </div>
-            <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-              <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetPercent}%` }} />
-            </span>
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
               <span>총 예산 {formatWon(totalBudget)}</span>
               <Link href="/budget" className="inline-flex items-center font-semibold text-[#36534E]">
@@ -484,7 +486,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
