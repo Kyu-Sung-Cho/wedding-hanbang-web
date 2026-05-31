@@ -8,7 +8,7 @@ import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
-  { href: "/community#community-feed", label: "후기·질문" },
+  { href: "/chat", label: "아모라" },
   { href: "/community/cohort", label: "동기방" },
   { href: "/lounge", label: "웨딩 라운지" },
 ];
