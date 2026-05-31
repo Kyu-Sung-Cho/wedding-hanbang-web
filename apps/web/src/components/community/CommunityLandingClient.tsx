@@ -36,7 +36,7 @@ import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
 import FeedComposer from "@/components/community/FeedComposer";
 import PostSkeleton from "@/components/community/PostSkeleton";
-import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
+import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { getCategoryMarketPrice, getLatestPeriodId, getNationalTotal } from "@/constants/marketPrices";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
@@ -95,15 +95,26 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   free: "자유",
 };
 
-const searchCategories: Array<{ icon: LucideIcon; label: string; query?: string; category?: CommunityCategory }> = [
-  { icon: HeartHandshake, label: "웨딩홀 후기", query: "웨딩홀", category: "tour_review" },
-  { icon: CalendarCheck, label: "스드메 후기", query: "스드메", category: "tour_review" },
-  { icon: ClipboardList, label: "예산 정보", query: "예산", category: "is_normal" },
-  { icon: Gift, label: "스토리 & 꿀팁", category: "tips_v2" },
-  { icon: Megaphone, label: "박람회 & 이벤트", query: "박람회" },
-  { icon: Award, label: "부케 & 드레스", query: "드레스", category: "tour_review" },
-  { icon: ClipboardCheck, label: "예단 & 혼수", query: "예단" },
-  { icon: CalendarCheck, label: "신혼여행", query: "신혼여행" },
+const topicItems: Array<{
+  icon: LucideIcon;
+  label: string;
+  helper: string;
+  href?: string;
+  query?: string;
+  category?: CommunityCategory;
+}> = [
+  { icon: Heart, label: "전체", helper: "모든 글", href: "/community" },
+  { icon: ClipboardList, label: "정상인가요?", helper: "계약·추가금 질문", category: "is_normal" },
+  { icon: HeartHandshake, label: "웨딩홀 후기", helper: "홀·식사·견적", query: "웨딩홀", category: "tour_review" },
+  { icon: CalendarCheck, label: "스드메 후기", helper: "스튜디오·드레스·메이크업", query: "스드메", category: "tour_review" },
+  { icon: ClipboardList, label: "예산 정보", helper: "가격·견적 비교", query: "예산", category: "is_normal" },
+  { icon: Gift, label: "스토리 & 꿀팁", helper: "준비 노하우", category: "tips_v2" },
+  { icon: Users, label: "선배 Q&A", helper: "경험자에게 묻기", category: "ama" },
+  { icon: MessageCircle, label: "자유", helper: "가벼운 이야기", category: "free" },
+  { icon: Megaphone, label: "박람회 & 이벤트", helper: "혜택·일정", query: "박람회" },
+  { icon: Award, label: "부케 & 드레스", helper: "스타일 후기", query: "드레스", category: "tour_review" },
+  { icon: ClipboardCheck, label: "예단 & 혼수", helper: "양가 준비", query: "예단" },
+  { icon: CalendarCheck, label: "신혼여행", helper: "지역·예산", query: "신혼여행" },
 ];
 
 const cohortPreviewRows = [
@@ -160,10 +171,6 @@ function hasPossibleAuthSession() {
   return document.cookie.includes("demo_mode=true") || document.cookie.includes("sb-");
 }
 
-function buildCommunityCategoryHref(category: CommunityCategory) {
-  return `/community?category=${category}&feed=all#community-feed`;
-}
-
 function formatCount(value: number) {
   return value.toLocaleString("ko-KR");
 }
@@ -209,7 +216,7 @@ export default function CommunityLandingClient({
   const sortQuery = initialQuery.sort ?? "";
   const periodQuery = initialQuery.period ?? "";
   const feedQuery = initialQuery.feed ?? "";
-  const selectedCategory = COMMUNITY_CATEGORIES.some((category) => category.key === categoryQuery)
+  const selectedCategory = categoryQuery in CATEGORY_MAP
     ? (categoryQuery as CommunityCategory)
     : null;
 
@@ -407,8 +414,11 @@ export default function CommunityLandingClient({
 
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
-      <SearchHub searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} onSubmit={submitSearch} />
-      <CategoryBar
+      <SearchHub
+        searchDraft={searchDraft}
+        searchQuery={searchQuery}
+        onSearchDraftChange={setSearchDraft}
+        onSubmit={submitSearch}
         selectedCategory={selectedCategory}
         currentSort={currentSort}
         currentPeriod={currentPeriod}
@@ -446,55 +456,9 @@ export default function CommunityLandingClient({
 
 function SearchHub({
   searchDraft,
+  searchQuery,
   onSearchDraftChange,
   onSubmit,
-}: {
-  searchDraft: string;
-  onSearchDraftChange: (value: string) => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-}) {
-  return (
-    <section className={`${shell} mt-4 rounded-[18px] border border-[#eadfc9] bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}>
-      <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
-        <label className="relative block">
-          <span className="sr-only">커뮤니티 검색</span>
-          <input
-            name="search"
-            value={searchDraft}
-            onChange={(event) => onSearchDraftChange(event.target.value)}
-            placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
-            className="h-[50px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-14 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#b68a3a] md:px-8 md:text-[15px]"
-          />
-          <button
-            type="submit"
-            aria-label="검색"
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9d6f36]"
-          >
-            <Search className="h-6 w-6" />
-          </button>
-        </label>
-      </form>
-
-      <div className="mt-4 flex gap-4 overflow-x-auto pb-1 md:mt-6 md:grid md:grid-cols-8 md:gap-0 md:overflow-visible md:pb-0">
-        {searchCategories.map((item, index) => (
-          <Link
-            key={item.label}
-            href={buildCommunityHubHref(item)}
-            aria-label={`${item.label} 보기`}
-            className={`flex min-w-[82px] flex-col items-center gap-2 text-center text-[12px] font-medium text-[#34445a] transition-colors hover:text-[#b68a3a] md:min-w-0 ${
-              index < searchCategories.length - 1 ? "md:border-r md:border-[#eadfc9]" : ""
-            }`}
-          >
-            <item.icon className="h-7 w-7 stroke-[1.55] text-[#b68a3a] md:h-8 md:w-8" />
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CategoryBar({
   selectedCategory,
   currentSort,
   currentPeriod,
@@ -503,6 +467,10 @@ function CategoryBar({
   onPeriodChange,
   onClearTag,
 }: {
+  searchDraft: string;
+  searchQuery: string;
+  onSearchDraftChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
   currentPeriod: TimePeriod;
@@ -511,45 +479,84 @@ function CategoryBar({
   onPeriodChange: (period: TimePeriod) => void;
   onClearTag: () => void;
 }) {
+  const isTopicActive = (item: (typeof topicItems)[number]) => {
+    if (item.href === "/community") return !selectedCategory && !searchQuery && !currentTag;
+    if (item.query) return searchQuery.includes(item.query);
+    if (item.category) return selectedCategory === item.category && !searchQuery;
+    return false;
+  };
+
   return (
     <section
-      className={`${shell} mt-3 flex flex-nowrap items-center gap-3 overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white/82 p-3 shadow-[0_8px_22px_rgba(8,22,38,0.035)] md:flex-wrap md:overflow-visible`}
+      className={`${shell} mt-4 rounded-[18px] border border-[#eadfc9] bg-white/84 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}
       data-tutorial-target="community-categories"
     >
-      <Link
-        href="/community"
-        className={`min-w-[74px] shrink-0 rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
-          selectedCategory
-            ? "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
-            : "border-[#061a34] bg-[#061a34] text-white"
-        }`}
-      >
-        전체
-      </Link>
-      {COMMUNITY_CATEGORIES.map((cat) => (
-        <Link
-          key={cat.key}
-          href={buildCommunityCategoryHref(cat.key)}
-          className={`min-w-[84px] shrink-0 rounded-full border px-5 py-3 text-center text-[14px] font-medium transition-colors ${
-            selectedCategory === cat.key
-              ? "border-[#061a34] bg-[#061a34] text-white"
-              : "border-[#eadfc9] bg-white/70 text-[#34445a] hover:border-[#b68a3a] hover:text-[#b68a3a]"
-          }`}
-        >
-          {cat.shortLabel}
-        </Link>
-      ))}
-      {currentTag && (
-        <button
-          type="button"
-          onClick={onClearTag}
-          className="rounded-full border border-[#eadfc9] bg-[#fbefd6] px-4 py-3 text-[13px] font-medium text-[#9d6f36]"
-        >
-          #{currentTag} 지우기
-        </button>
-      )}
+      <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
+        <label className="relative block">
+          <span className="sr-only">커뮤니티 검색</span>
+          <input
+            name="search"
+            value={searchDraft}
+            onChange={(event) => onSearchDraftChange(event.target.value)}
+            placeholder="궁금한 정보를 검색해 보세요 (예: 웨딩홀, 스드메, 예산)"
+            className="h-[50px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-14 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#36534E] md:px-8 md:text-[15px]"
+          />
+          <button
+            type="submit"
+            aria-label="검색"
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#36534E]"
+          >
+            <Search className="h-6 w-6" />
+          </button>
+        </label>
+      </form>
 
-      <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+      <div className="mt-4 grid grid-flow-col auto-cols-[112px] gap-2 overflow-x-auto pb-1 md:mt-5 md:grid-flow-row md:grid-cols-6 md:auto-cols-auto md:overflow-visible md:pb-0 xl:grid-cols-12">
+        {topicItems.map((item) => {
+          const active = isTopicActive(item);
+          return (
+            <Link
+              key={item.label}
+              href={item.href ?? buildCommunityHubHref(item)}
+              aria-label={`${item.label} 보기`}
+              className={`group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-2 text-center transition-all ${
+                active
+                  ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
+                  : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
+              }`}
+            >
+              <item.icon className={`h-6 w-6 stroke-[1.55] ${active ? "text-white" : "text-[#36534E] group-hover:text-[#9d6f36]"}`} />
+              <span className="text-[12px] font-semibold leading-tight">{item.label}</span>
+              <span className={`line-clamp-1 text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[#7a8290]"}`}>
+                {item.helper}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3 border-t border-[#eadfc9] pt-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {currentTag && (
+            <button
+              type="button"
+              onClick={onClearTag}
+              className="rounded-full border border-[#eadfc9] bg-[#fbefd6] px-4 py-2 text-[13px] font-medium text-[#9d6f36]"
+            >
+              #{currentTag} 지우기
+            </button>
+          )}
+          {searchQuery && (
+            <Link
+              href="/community"
+              className="rounded-full border border-[#eadfc9] bg-white px-4 py-2 text-[13px] font-medium text-[#36534E]"
+            >
+              검색 초기화
+            </Link>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
         <label className="relative">
           <span className="sr-only">정렬</span>
           <select
@@ -582,6 +589,7 @@ function CategoryBar({
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
           </label>
         )}
+      </div>
       </div>
     </section>
   );
