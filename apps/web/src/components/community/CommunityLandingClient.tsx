@@ -1218,16 +1218,16 @@ function MarketPriceTile({
   return (
     <Link
       href="/market-prices"
-      className="group min-h-[118px] rounded-[14px] border border-[#eadfc9] bg-white/78 p-3 transition-colors hover:border-[#b68a3a]"
+      className="group min-h-[84px] rounded-[14px] border border-[#eadfc9] bg-white/78 p-2 transition-colors hover:border-[#b68a3a]"
     >
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
-        <item.icon className="h-4 w-4" />
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
+        <item.icon className="h-3 w-3" />
       </span>
-      <span className="mt-3 block text-[12px] font-semibold text-[#34445a]">{item.label}</span>
-      <span className="mt-1 block font-serif-kr text-[22px] font-medium leading-none text-[#071629]">
+      <span className="mt-2 block text-[10px] font-semibold text-[#34445a]">{item.label}</span>
+      <span className="mt-0.5 block font-serif-kr text-[16px] font-medium leading-[1.12] text-[#071629]">
         약 {formatMarketPrice(item.value)}
       </span>
-      <span className="mt-1 block text-[11px] font-medium text-[#9aa2af]">{item.note}</span>
+      <span className="mt-0.5 block text-[10px] font-medium text-[#9aa2af]">{item.note}</span>
     </Link>
   );
 }
