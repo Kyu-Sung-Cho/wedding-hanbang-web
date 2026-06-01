@@ -36,7 +36,7 @@ import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
-import { getCategoryMarketPrice, getLatestPeriodId, getNationalTotal } from "@/constants/marketPrices";
+import { getCategoryMarketPrice, getLatestPeriodId } from "@/constants/marketPrices";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -1135,7 +1135,6 @@ function AmoraSidebarPanel() {
 
 function MarketSnapshotPanel() {
   const latestPeriodId = getLatestPeriodId();
-  const nationalTotal = getNationalTotal(latestPeriodId);
   const periodLabel = `${latestPeriodId.slice(0, 4)}년 ${Number(latestPeriodId.slice(4))}월`;
   const featuredItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
     {
@@ -1143,12 +1142,6 @@ function MarketSnapshotPanel() {
       value: getCategoryMarketPrice("venue"),
       note: "식대+대관 기준",
       icon: Building2,
-    },
-    {
-      label: "스드메",
-      value: nationalTotal.sdm,
-      note: "전국 평균",
-      icon: Camera,
     },
   ];
   const detailItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
