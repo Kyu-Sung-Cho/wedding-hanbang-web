@@ -331,7 +331,7 @@ export default function DashboardPage() {
         >
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
-              <p className="text-[12px] font-semibold text-[#ecd7a4]">Amora Briefing</p>
+              <p className="text-[12px] font-semibold text-[#ecd7a4]">아모라 안내</p>
               <h2 className="mt-1 font-serif-kr text-[23px] font-medium">지금 먼저 볼 것</h2>
             </div>
             <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
