@@ -92,57 +92,51 @@
 
 /* ─────────────────────────────────────────────
  * 디자인 토큰 — 헤딩/본문/캡션 표준 클래스
- * (커뮤니티 메인 페이지 스타일을 기준으로 일관성 통일)
- *
- * 적용 페이지: 대시보드 / 채팅 / 예산 / 일정 / 커뮤니티
- * 사용 예: <h1 className="h-page">페이지 제목</h1>
- *
- * 이전 사고: 페이지마다 font-serif-kr text-2xl/3xl, text-xl/2xl, font-light/medium
- * 등 다 다르게 써서 일관성 없음. 표준 클래스로 묶어 통일.
+ * 서비스와 커뮤니티의 폰트 계층을 같은 체급으로 맞춘다.
  * ───────────────────────────────────────────── */
 
 /* 페이지 최상단 타이틀 (h1) — 큰 serif italic 톤 */
 .h-page {
   font-family: 'Noto Serif KR', serif;
-  font-weight: 300;
-  color: #1b1c1c;
-  font-size: 1.5rem;          /* text-2xl */
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  color: #263832;
+  font-size: 1.625rem;
+  line-height: 1.25;
+  letter-spacing: 0;
 }
 @media (min-width: 640px) {
   .h-page {
-    font-size: 1.875rem;       /* sm:text-3xl */
+    font-size: 1.875rem;
   }
 }
 
-/* 섹션 헤더 (h2) — 카드/그룹 제목. font-light(300) 톤으로 통일 */
+/* 섹션 헤더 (h2) — 카드/그룹 제목 */
 .h-section {
   font-family: 'Noto Serif KR', serif;
-  font-weight: 300;
-  color: #1b1c1c;
-  font-size: 1.25rem;          /* text-xl */
-  line-height: 1.35;
+  font-weight: 500;
+  color: #263832;
+  font-size: 1.375rem;
+  line-height: 1.3;
 }
 @media (min-width: 640px) {
   .h-section {
-    font-size: 1.5rem;          /* sm:text-2xl */
+    font-size: 1.5rem;
   }
 }
 
 /* 카드 안 헤더 (h3) — 작은 카드 안의 타이틀 */
 .h-card {
   font-family: 'Noto Serif KR', serif;
-  font-weight: 400;
-  color: #1b1c1c;
-  font-size: 1.125rem;         /* text-lg */
-  line-height: 1.4;
+  font-weight: 500;
+  color: #263832;
+  font-size: 1.125rem;
+  line-height: 1.35;
 }
 
 /* 본문 텍스트 — Noto Sans KR (body inherit) */
 .body-text {
-  font-size: 0.875rem;         /* text-sm */
-  color: #1b1c1c;
+  font-size: 0.875rem;
+  color: #5f5b52;
   line-height: 1.6;
 }
 
@@ -164,23 +158,9 @@
 
 html {
   scroll-behavior: smooth;
-  /* Fluid root font — viewport 폭에 따라 root font-size 가 비례 스케일.
-   * 모든 rem 기반 사이즈(text-sm/base/lg, max-w-*, p-*, gap-* 등)가 화면
-   * 크기에 같은 비율로 같이 줄어들고 늘어남.
-   *
-   *   1024px viewport ≈ 14.12px
-   *   1280px viewport ≈ 15.40px
-   *   1440px viewport ≈ 16.20px
-   *   1680px viewport ≈ 17.40px
-   *   1920px viewport ≈ 18.60px (max 19)
-   *   2560px+        ≈ 19px (clamp max)
-   *
-   * 차이: 1024 → 1920 약 +32%. 시각적으로 명확.
-   *
-   * 이전 사고: 화면 작아져도 text-[14px] / max-w-[860px] 같은 절대 px 가
-   * 그대로 유지돼 작은 화면에서 글씨가 상대적으로 커 보이고 컨테이너 비율
-   * 깨짐. fluid root + rem 기반 사이즈로 비율 일관성 회복. */
-  font-size: clamp(13px, calc(9px + 0.5vw), 19px);
+  /* 화면 폭에 따라 rem이 같이 커지면 페이지마다 px/rem 혼용이 더 튀어 보인다.
+   * 서비스/커뮤니티는 고정 root를 기준으로 하고, 필요한 곳만 반응형 클래스로 조절한다. */
+  font-size: 16px;
 }
 
 body {
@@ -705,6 +685,62 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --hb-text: #263832;
   --hb-body: #5f5b52;
   --hb-success: #36534e;
+}
+
+/* App/community typography bridge. Keep navigation and small controls free to size
+ * themselves, but make page content headings and body copy share one hierarchy. */
+:where(.hanbang-service-theme, .hanbang-community-theme) {
+  font-family: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  letter-spacing: 0;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) :where(main) {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) :where(button, input, textarea, select) {
+  font-family: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  letter-spacing: 0;
+}
+
+.hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]),
+.hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]) {
+  font-family: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji' !important;
+  font-style: normal !important;
+  letter-spacing: 0 !important;
+}
+
+.hanbang-service-theme main h1,
+.hanbang-community-theme main h1 {
+  font-size: clamp(1.5rem, 1.35rem + 0.45vw, 1.875rem) !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+.hanbang-service-theme main h2,
+.hanbang-community-theme main h2 {
+  font-size: clamp(1.25rem, 1.12rem + 0.28vw, 1.375rem) !important;
+  line-height: 1.32 !important;
+  font-weight: 500 !important;
+}
+
+.hanbang-service-theme main h3,
+.hanbang-community-theme main h3 {
+  font-size: clamp(1.0625rem, 0.98rem + 0.18vw, 1.125rem) !important;
+  line-height: 1.38 !important;
+  font-weight: 500 !important;
+}
+
+.hanbang-service-theme main :is(h4, h5, h6),
+.hanbang-community-theme main :is(h4, h5, h6) {
+  font-size: 1.0625rem !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+}
+
+:where(.hanbang-service-theme, .hanbang-community-theme) :where(main) [class~="font-light"] {
+  font-weight: 400 !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
