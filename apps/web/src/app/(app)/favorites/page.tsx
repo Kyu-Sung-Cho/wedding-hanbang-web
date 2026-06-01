@@ -140,15 +140,15 @@ export default function MyFavoritesPage() {
       <div className="max-w-[800px] mx-auto">
         <Header />
 
-        <div className="bg-gradient-to-br from-[#fcf9f8] via-white to-[#fcf9f8] border border-[#f0eeec] rounded-2xl p-10 text-center shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-8 text-center shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#795252]/8 text-[#795252] mb-5">
             <Bookmark className="w-8 h-8" />
           </div>
 
-          <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F] mb-3">
+          <h2 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
             아직 즐겨찾기한 업체가 없어요
           </h2>
-          <p className="text-base text-[#504444] leading-relaxed max-w-md mx-auto mb-1">
+          <p className="mx-auto mb-1 max-w-md text-[13px] font-medium leading-[1.65] text-[#5d6879]">
             맘에 드는 업체를 발견하면 ♡ 를 눌러 카테고리별로 모아둘 수 있어요.
           </p>
           <p className="text-sm text-[#928980] mb-7">
@@ -158,7 +158,7 @@ export default function MyFavoritesPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-md mx-auto">
             <Link
               href="/community"
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 w-full sm:w-auto bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] sm:w-auto"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />
@@ -223,7 +223,7 @@ function Header({ count }: { count?: number }) {
   return (
     <div className="mb-6 animate-fade-in">
       <div className="flex items-end justify-between gap-3 mb-1">
-        <h1 className="font-serif-kr text-3xl sm:text-4xl font-light text-[#1A1A1F] tracking-tight">
+        <h1 className="font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">
           내 즐겨찾기
         </h1>
         {typeof count === "number" && count > 0 && (
@@ -232,7 +232,7 @@ function Header({ count }: { count?: number }) {
           </span>
         )}
       </div>
-      <p className="text-sm sm:text-base text-[#B5ADA3] font-light">
+      <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">
         마음에 드는 업체를 카테고리별로 모아둔 나만의 공간이에요.
       </p>
     </div>
@@ -265,7 +265,7 @@ function FavoriteCard({
           <Heart className="w-5 h-5" fill="currentColor" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-serif-kr text-lg font-normal text-[#1A1A1F] truncate">
+          <p className="font-serif-kr text-[18px] font-medium leading-snug text-[#071629] truncate">
             {vendor.name}
           </p>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-[#928980] truncate">

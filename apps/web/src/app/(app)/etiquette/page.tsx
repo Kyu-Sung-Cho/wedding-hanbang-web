@@ -313,7 +313,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
     case "group-title":
       return (
         <div className="pt-2 pb-1 first:pt-0">
-          <p className="text-base font-semibold text-noir-800">{item.text}</p>
+          <p className="text-[14px] font-semibold text-[#071629]">{item.text}</p>
         </div>
       );
 
@@ -322,7 +322,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
         return (
           <div className="flex gap-2 pl-1">
             <span className="text-red-400 mt-0.5 text-sm flex-shrink-0">&#x2716;</span>
-            <p className="text-base text-charcoal font-light leading-[1.7]">
+            <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">
               {formatInlineText(item.text)}
             </p>
           </div>
@@ -343,7 +343,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className={`text-base leading-snug ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
+            <p className={`text-[14px] font-medium leading-snug ${isChecked ? "text-[#B5ADA3] line-through" : "text-[#071629]"}`}>
               {formatInlineText(item.text)}
             </p>
             {memo && (
@@ -387,13 +387,13 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
               {item.subItems ? "•" : "•"}
             </span>
             <div>
-              <p className="text-base text-noir-800 font-medium leading-[1.7]">
+              <p className="text-[14px] font-semibold leading-[1.65] text-[#071629]">
                 {formatInlineText(item.text)}
               </p>
               {item.subItems && item.subItems.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {item.subItems.map((sub, i) => (
-                    <p key={i} className={`text-sm font-light leading-[1.7] ${sub.startsWith("→") ? "text-taupe-500 pl-2" : "text-charcoal"}`}>
+                    <p key={i} className={`text-[13px] font-medium leading-[1.65] ${sub.startsWith("→") ? "pl-2 text-[#7a8290]" : "text-[#5d6879]"}`}>
                       {formatInlineText(sub)}
                     </p>
                   ))}
@@ -408,7 +408,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
     case "dialogue-speaker":
       return (
         <div className="pt-2 first:pt-0">
-          <p className="text-base font-semibold text-sky-600">{item.text}</p>
+          <p className="text-[14px] font-semibold text-sky-600">{item.text}</p>
         </div>
       );
 
@@ -416,7 +416,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
       return (
         <div className="bg-white/60 rounded-lg px-3 py-2.5 ml-0 border-l-2 border-sky-200">
           {item.text.split("\n").map((line, i) => (
-            <p key={i} className="text-base text-charcoal font-light leading-[1.8] italic">
+            <p key={i} className="text-[13px] font-medium leading-[1.65] text-[#5d6879] italic">
               {formatInlineText(line)}
             </p>
           ))}
@@ -425,7 +425,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
 
     case "arrow":
       return (
-        <p className="text-sm text-taupe-500 font-light pl-4 leading-[1.7]">
+        <p className="pl-4 text-[13px] font-medium leading-[1.65] text-[#7a8290]">
           → {formatInlineText(item.text)}
         </p>
       );
@@ -433,7 +433,7 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
     case "text":
     default:
       return (
-        <p className="text-base text-charcoal font-light leading-[1.8]">
+        <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">
           {formatInlineText(item.text)}
         </p>
       );
@@ -714,8 +714,11 @@ function EtiquettePageInner() {
   // 섹션 선택 시 스크롤 맨 위로
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
-    setSchedulePopover(null);
-    setMemoPopover(null);
+    const timer = window.setTimeout(() => {
+      setSchedulePopover(null);
+      setMemoPopover(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [selectedSection]);
 
   // 검색 필터
@@ -938,15 +941,15 @@ function EtiquettePageInner() {
                     Part {part.number}
                   </span>
                 </div>
-                <h1 className="font-serif-kr text-4xl max-md:text-2xl font-light text-[#1A1A1F] leading-tight tracking-tight">
+                <h1 className="font-serif-kr text-[26px] font-medium leading-tight text-[#071629] max-md:text-[24px] sm:text-[30px]">
                   {part.title}
                 </h1>
               </div>
             </div>
-            <p className="text-lg max-md:text-base text-taupe-500 font-light mb-1">
+            <p className="mb-1 text-[14px] font-semibold text-[#5d6879] max-md:text-[13px]">
               {part.subtitle}
             </p>
-            <p className="text-base text-charcoal/70 font-light leading-[1.7]">
+            <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">
               {part.description}
             </p>
           </div>
@@ -955,7 +958,7 @@ function EtiquettePageInner() {
           {hasSectionNav && selectedSection === null ? (
             /* 섹션 선택 카드 */
             <div className="mt-8 animate-fade-in">
-              <p className="text-base text-taupe-500 font-light mb-4">
+                <p className="mb-4 text-[13px] font-medium text-[#5d6879]">
                 항목을 선택하세요
               </p>
               <div className="grid gap-3">
@@ -980,7 +983,7 @@ function EtiquettePageInner() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base max-md:text-sm font-medium text-noir-800 group-hover:text-[#795252] transition-colors">
+                        <p className="text-[14px] font-semibold text-[#071629] transition-colors group-hover:text-[#36534E] max-md:text-[13px]">
                           {section.title || `섹션 ${sIdx + 1}`}
                         </p>
                         <div className="flex gap-2 mt-1.5 flex-wrap">
@@ -1020,7 +1023,7 @@ function EtiquettePageInner() {
                 <div className="mb-6">
                   <button
                     onClick={() => setSelectedSection(null)}
-                    className="inline-flex items-center gap-1.5 text-base text-taupe-500 hover:text-[#795252] transition-colors mb-4"
+                    className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#5d6879] transition-colors hover:text-[#36534E]"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     전체 항목으로
@@ -1031,13 +1034,13 @@ function EtiquettePageInner() {
                       <button
                         key={sIdx}
                         onClick={() => setSelectedSection(sIdx)}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-base font-medium transition-colors ${
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
                           selectedSection === sIdx
                             ? "bg-[#795252]/10 text-[#795252] border border-[#795252]/20"
                             : "bg-white text-[#504444] hover:text-[#795252]"
                         }`}
                       >
-                        {sec.emoji && <span className="text-base">{sec.emoji}</span>}
+                        {sec.emoji && <span className="text-[13px]">{sec.emoji}</span>}
                         {sec.title || `섹션 ${sIdx + 1}`}
                       </button>
                     ))}
@@ -1053,8 +1056,8 @@ function EtiquettePageInner() {
                 <div key={sIdx} className="mb-8 last:mb-0">
                   {section.title && (
                     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-black/[0.04]">
-                      {section.emoji && <span className="text-xl">{section.emoji}</span>}
-                      <h2 className="font-serif-kr text-2xl max-md:text-xl font-light text-noir-800">
+                      {section.emoji && <span className="text-[18px]">{section.emoji}</span>}
+                      <h2 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629] max-md:text-[20px]">
                         {section.title}
                       </h2>
                     </div>

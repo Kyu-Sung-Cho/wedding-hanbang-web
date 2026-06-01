@@ -101,7 +101,7 @@ function ProductCard({ product, category, isSelected, onSelect }: {
       {expanded && (
         <div className="px-4 pb-4">
           {product.description && (
-            <p className="text-base text-[#504444] font-light mt-3 mb-3">{product.description}</p>
+            <p className="mt-3 mb-3 text-[13px] font-medium leading-[1.65] text-[#5d6879]">{product.description}</p>
           )}
           <div className="space-y-1.5">
             {config?.fields.map((field) => {
@@ -354,7 +354,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
             <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
               <div className="flex items-center justify-between mb-2">
-                <h1 className="font-serif-kr text-3xl font-light text-[#1A1A1F]">{vendor.name}</h1>
+                <h1 className="font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">{vendor.name}</h1>
                 <button
                   onClick={toggleFavorite}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-full transition-all ${
@@ -387,7 +387,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   <span key={tag} className="px-3 py-1.5 rounded-full bg-[#F6F3F2] text-sm text-[#504444] font-medium">{tag}</span>
                 ))}
               </div>
-              <p className="text-[17px] text-[#504444] font-light leading-[1.8]">{vendor.description}</p>
+              <p className="text-[14px] font-medium leading-[1.7] text-[#5d6879]">{vendor.description}</p>
             </div>
           </div>
 
@@ -397,7 +397,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-5 h-5 text-[#795252]" />
-                  <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{config?.productLabel ?? "상품"}</h2>
+                  <h2 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{config?.productLabel ?? "상품"}</h2>
                   <span className="text-sm text-[#B5ADA3] ml-1">{activeProducts.length}개</span>
                 </div>
                 <p className="text-sm text-[#B5ADA3] font-light mb-5">상품을 선택하면 해당 상품의 예약 가능 시간이 표시됩니다</p>
@@ -425,7 +425,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <ImageIcon className="w-5 h-5 text-[#795252]" />
-                    <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">포트폴리오</h2>
+                    <h2 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">포트폴리오</h2>
                     <span className="text-sm text-[#B5ADA3] ml-1">{allImages.length}장</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -460,7 +460,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
                 <div className="flex items-center gap-2 mb-1">
                   <MessageCircle className="w-5 h-5 text-[#795252]" />
-                  <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">고객 리뷰</h2>
+                  <h2 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">고객 리뷰</h2>
                   <span className="text-sm text-[#B5ADA3] ml-1">{reviews.length}개</span>
                 </div>
                 {/* 평균 별점 */}
@@ -498,7 +498,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                         </span>
                       </div>
                       {review.content && (
-                        <p className="text-base text-[#504444] font-light leading-relaxed mb-2">{review.content}</p>
+                        <p className="mb-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">{review.content}</p>
                       )}
                       {/* 리뷰 이미지 */}
                       {review.images && review.images.length > 0 && (
@@ -514,7 +514,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                       {review.reply && (
                         <div className="ml-4 mt-2 px-3 py-2.5 bg-[#F6F3F2] rounded-xl">
                           <p className="text-sm text-[#795252] font-medium mb-1">업체 답변</p>
-                          <p className="text-base text-[#504444] font-light leading-relaxed">{review.reply}</p>
+                          <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">{review.reply}</p>
                         </div>
                       )}
                     </div>
@@ -552,7 +552,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="w-5 h-5 text-[#795252]" />
-                  <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">담당자 선택</h3>
+                  <h3 className="font-serif-kr text-[18px] font-medium leading-tight text-[#071629]">담당자 선택</h3>
                   <span className="text-sm text-[#B5ADA3]">(선택사항)</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -588,7 +588,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarCheck className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">
+                <h3 className="font-serif-kr text-[18px] font-medium leading-tight text-[#071629]">
                   {currentProduct ? `${currentProduct.name} 예약` : "예약 가능 시간"}
                 </h3>
               </div>
@@ -725,7 +725,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{vendor.name}에 문의</h3>
+                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{vendor.name}에 문의</h3>
               </div>
               <button onClick={() => setShowMessageBox(false)} className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
                 <X className="w-5 h-5 text-[#B5ADA3]" />

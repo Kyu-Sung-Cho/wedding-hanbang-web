@@ -253,7 +253,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               D-DAY
             </p>
-            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
               {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
             </p>
             <p className="mt-3 text-[13px] font-medium text-[#5d6879]">
@@ -272,7 +272,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               PROGRESS
             </p>
-            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
               {progressPct}%
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
@@ -291,7 +291,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               UPCOMING
             </p>
-            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
               {upcomingEvents.length}
             </p>
             <p className="mt-3 text-[13px] font-medium text-[#5d6879]">다가오는 일정</p>

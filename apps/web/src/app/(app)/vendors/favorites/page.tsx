@@ -92,10 +92,10 @@ export default function VendorFavoritesPage() {
           <ArrowLeft className="w-4 h-4 text-noir-800" />
         </Link>
         <div className="flex items-center gap-2">
-          <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
-          <h1 className="font-serif-kr text-2xl text-noir-800">찜한 업체</h1>
+          <Heart className="h-5 w-5 fill-[#36534E] text-[#36534E]" />
+          <h1 className="font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">찜한 업체</h1>
           {!loading && vendors.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 text-sm font-medium">
+            <span className="ml-1 rounded-full bg-[#eef4ef] px-2 py-0.5 text-[12px] font-semibold text-[#36534E]">
               {vendors.length}
             </span>
           )}
@@ -117,7 +117,7 @@ export default function VendorFavoritesPage() {
           <p className="text-sm text-[#B5ADA3] mb-4">마음에 드는 업체를 찜해보세요</p>
           <Link
             href="/vendors"
-            className="inline-block px-5 py-3 rounded-xl text-base font-medium text-white bg-[#C4967E] hover:bg-[#9A6B62] transition-colors"
+            className="inline-block rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 탐색하기
           </Link>
@@ -133,7 +133,7 @@ export default function VendorFavoritesPage() {
               <div key={vendor.id} className="animate-fade-in">
                 <Link
                   href={`/vendors/${vendor.id}`}
-                  className="block bg-white rounded-2xl border border-black/[0.04] overflow-hidden hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] transition-all duration-300 group"
+                  className="group block overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(8,22,38,0.07)]"
                 >
                   {/* 이미지 플레이스홀더 */}
                   <div className="h-[160px] bg-gradient-to-br from-ivory-deep to-ivory-warm relative">
@@ -142,7 +142,7 @@ export default function VendorFavoritesPage() {
                     </div>
                     <div className="absolute top-3 left-3 flex gap-2">
                       {vendor.aiRecommend && (
-                        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm font-medium">
+                        <span className="flex items-center gap-1.5 rounded-full bg-[#36534E] px-3 py-1.5 text-[12px] font-semibold text-white">
                           <Sparkles className="w-4 h-4" />
                           AI 추천
                         </span>
@@ -170,29 +170,29 @@ export default function VendorFavoritesPage() {
 
                   {/* 콘텐츠 */}
                   <div className="p-5">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-[17px] font-medium text-noir-800 group-hover:text-rose-500 transition-colors">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <h3 className="font-serif-kr text-[18px] font-medium leading-snug text-[#071629] transition-colors group-hover:text-[#36534E]">
                         {vendor.name}
                       </h3>
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-gold fill-gold" />
-                        <span className="text-base font-medium text-noir-800">{vendor.rating}</span>
-                        <span className="text-sm text-taupe-400">({vendor.reviewCount})</span>
+                        <span className="text-[13px] font-semibold text-[#071629]">{vendor.rating}</span>
+                        <span className="text-[12px] text-[#5d6879]">({vendor.reviewCount})</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 mb-3">
                       <MapPin className="w-4 h-4 text-taupe-400" />
-                      <span className="text-sm text-taupe-500">{vendor.location}</span>
-                      <span className="text-sm text-taupe-400 mx-1">·</span>
-                      <span className="text-sm text-rose-500 font-medium">{vendor.priceRange}</span>
+                      <span className="text-[13px] font-medium text-[#5d6879]">{vendor.location}</span>
+                      <span className="mx-1 text-[13px] text-[#d7cbb8]">·</span>
+                      <span className="text-[13px] font-semibold text-[#36534E]">{vendor.priceRange}</span>
                     </div>
 
                     <div className="flex gap-1.5 flex-wrap">
                       {vendor.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="px-2.5 py-1 rounded-full bg-ivory-warm text-sm text-charcoal font-medium"
+                          className="rounded-md bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-medium text-[#5d6879]"
                         >
                           {tag}
                         </span>

@@ -185,93 +185,81 @@ export default function VendorsPage() {
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10">
-        {/* Hero Banner */}
-        <section className="relative rounded-2xl overflow-hidden aspect-[5/3] sm:aspect-[16/5] mb-8 animate-fade-in">
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `
-                radial-gradient(circle at 20% 50%, rgba(201, 169, 110, 0.4) 0%, transparent 55%),
-                radial-gradient(circle at 75% 40%, rgba(121, 82, 82, 0.3) 0%, transparent 55%),
-                linear-gradient(135deg, #fcf9f8 0%, #f6f3f2 50%, #dee6c4 100%)
-              `,
-            }}
-          />
-          <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-16">
-            <div className="min-w-0">
-              <p className="text-xs tracking-widest uppercase text-[#795252] mb-3 font-medium">VENDORS</p>
-              <h1 className="font-serif-kr text-3xl sm:text-4xl lg:text-6xl text-[#1b1c1c] mb-3 sm:mb-4 leading-tight font-light break-words">
-                업체 탐색
-              </h1>
-              <p className="text-base sm:text-lg lg:text-xl text-[#504444] font-light italic">
-                당신의 완벽한 결혼을 위한 큐레이션
-              </p>
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-5 sm:py-6">
+        {/* Page Header */}
+        <section className="mb-5 rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
+            WEDDING HANBANG
+          </p>
+          <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">
+            업체 탐색
+          </h1>
+          <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+            예산과 스타일에 맞는 후보를 차분히 비교하고, 마음에 드는 업체를 저장해보세요.
+          </p>
         </section>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
-            <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
-            <p className="text-xs tracking-widest uppercase text-[#795252] mb-4 font-medium">
+        <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2 md:grid-cols-3">
+          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+            <Sparkles className="absolute top-4 right-4 h-5 w-5 text-[#36534E]/25" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               TOTAL VENDORS
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               {totalCount}
             </p>
-            <p className="text-base text-[#504444]">등록된 업체</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">등록된 업체</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in">
-            <Heart className="absolute top-6 right-6 w-6 h-6 text-[#795252]/30" />
-            <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
+          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+            <Heart className="absolute top-4 right-4 h-5 w-5 text-[#36534E]/25" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               FAVORITES
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               {favoritesCount}
             </p>
-            <p className="text-base text-[#504444]">찜한 업체</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">찜한 업체</p>
             <Link
               href="/vendors/favorites"
-              className="text-[#795252] hover:text-[#946a6a] text-base inline-flex items-center gap-1 mt-2"
+              className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#36534E] hover:text-[#2d4642]"
             >
               보기 <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden animate-fade-in sm:col-span-2 md:col-span-1">
-            <TrendingUp className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
-            <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-4 font-medium">
+          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:col-span-2 md:col-span-1 md:p-5">
+            <TrendingUp className="absolute top-4 right-4 h-5 w-5 text-[#36534E]/25" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               NEW THIS WEEK
             </p>
-            <p className="font-serif-kr text-5xl sm:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               {newVendorsCount || "—"}
             </p>
-            <p className="text-base text-[#504444]">이번 주 신규</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">이번 주 신규</p>
           </div>
         </div>
 
         {/* AI 추천 안내 배너 — 선호도 없으면 설정 유도 */}
         {aiRecommendedIds.size === 0 && (
-          <div className="bg-gradient-to-r from-[#f6f3f2] to-[#fcf9f8] rounded-2xl p-5 sm:p-6 mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 rounded-[18px] border border-[#eadfc9] bg-[#fffdf7]/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:flex-row sm:items-center sm:p-5">
             <div className="flex items-start sm:items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shrink-0">
-                <Sparkles className="w-6 h-6 text-white" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4ef] text-[#36534E]">
+                <Sparkles className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-medium text-[#1b1c1c] mb-1">
+                <h3 className="text-[14px] font-semibold text-[#071629]">
                   AI 맞춤 추천을 받아보세요
                 </h3>
-                <p className="text-sm sm:text-base text-[#504444]">
+                <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
                   예산과 웨딩 스타일을 알려주시면 어울리는 업체에 ✨ AI 추천 뱃지가 표시돼요
                 </p>
               </div>
             </div>
             <Link
               href="/settings"
-              className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all whitespace-nowrap"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#36534E] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
             >
               설정하기
               <ArrowRight className="w-4 h-4" />
@@ -280,23 +268,23 @@ export default function VendorsPage() {
         )}
 
         {/* Search + Category Filter Bar */}
-        <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-8 animate-fade-in">
+        <div className="mb-5 rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
           {/* Search */}
           <div className="relative mb-6">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#504444]" />
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#36534E]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="업체명, 스타일, 지역으로 검색..."
-              className="w-full bg-[#f6f3f2] rounded-xl pl-14 pr-28 py-4 text-base text-[#1b1c1c] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+              className="w-full rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] py-3 pl-12 pr-24 text-[14px] font-medium text-[#071629] outline-none placeholder:text-[#9b8f84] focus:ring-2 focus:ring-[#36534E]/20"
             />
             <button
               onClick={() => {
                 setFilterToast(true);
                 setTimeout(() => setFilterToast(false), 3000);
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-sm text-[#504444] hover:bg-[#EDE7E5] transition-colors"
+              className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#eef4ef]"
             >
               <Filter className="w-4 h-4" />
               필터
@@ -316,10 +304,10 @@ export default function VendorsPage() {
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-5 py-2.5 rounded-full text-base font-medium transition-colors ${
+                className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
                   activeCategory === cat
-                    ? "bg-[#795252] text-white"
-                    : "bg-[#f6f3f2] text-[#504444] hover:bg-[#e4e2e1]"
+                    ? "bg-[#36534E] text-white"
+                    : "border border-[#eadfc9] bg-white text-[#5d6879] hover:bg-[#fff8ec] hover:text-[#36534E]"
                 }`}
               >
                 {cat}
@@ -337,7 +325,7 @@ export default function VendorsPage() {
 
         {/* Editorial Vendor Grid */}
         {!loading && vendors.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3">
             {vendors.map((vendor) => {
               const hasSlots = vendor.timeSlots.some((s) => s.available);
               const isFav = favoriteIds.has(vendor.id);
@@ -347,7 +335,7 @@ export default function VendorsPage() {
                   href={`/vendors/${vendor.id}`}
                   className="group animate-fade-in"
                 >
-                  <article className="bg-white rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-all duration-300 h-full flex flex-col">
+                  <article className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(8,22,38,0.07)]">
                     {/* Image */}
                     <div className="aspect-[4/3] overflow-hidden relative bg-[#f6f3f2]">
                       <div className="w-full h-full flex items-center justify-center text-[#B5ADA3]">
@@ -385,27 +373,27 @@ export default function VendorsPage() {
                     </div>
 
                     {/* Content */}
-                    <div className="p-6 flex-1 flex flex-col min-w-0">
-                      <p className="text-xs tracking-widest uppercase text-[#795252] mb-2 font-medium">
+                    <div className="flex flex-1 flex-col min-w-0 p-4">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#36534E]">
                         {vendor.category}
                       </p>
-                      <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-2 group-hover:text-[#795252] transition-colors line-clamp-1 font-light">
+                      <h3 className="font-serif-kr text-[18px] font-medium leading-snug text-[#071629] mb-2 group-hover:text-[#36534E] transition-colors line-clamp-1">
                         {vendor.name}
                       </h3>
 
-                      <div className="flex items-center gap-1.5 text-[#504444] mb-4">
+                      <div className="mb-3 flex items-center gap-1.5 text-[#5d6879]">
                         <MapPin className="w-4 h-4 text-[#B5ADA3]" />
-                        <span className="text-base line-clamp-1">{vendor.location}</span>
+                        <span className="text-[13px] font-medium line-clamp-1">{vendor.location}</span>
                       </div>
 
                       {/* Rating + Price */}
                       <div className="flex items-center justify-between mt-auto">
                         <div className="flex items-center gap-1.5 text-[#1b1c1c]">
-                          <Star className="w-5 h-5 fill-[#C9A96E] text-[#C9A96E]" />
-                          <span className="text-base font-medium">{vendor.rating}</span>
-                          <span className="text-sm text-[#504444]">({vendor.reviewCount})</span>
+                          <Star className="h-4 w-4 fill-[#C9A96E] text-[#C9A96E]" />
+                          <span className="text-[13px] font-semibold">{vendor.rating}</span>
+                          <span className="text-[12px] text-[#5d6879]">({vendor.reviewCount})</span>
                         </div>
-                        <span className="text-base font-medium text-[#795252]">
+                        <span className="text-[13px] font-semibold text-[#36534E]">
                           {vendor.priceRange}
                         </span>
                       </div>
@@ -416,7 +404,7 @@ export default function VendorsPage() {
                           {vendor.tags.slice(0, 3).map((tag) => (
                             <span
                               key={tag}
-                              className="px-2.5 py-1 rounded-md bg-[#f6f3f2] text-sm text-[#504444]"
+                              className="rounded-md bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-medium text-[#5d6879]"
                             >
                               {tag}
                             </span>
@@ -433,21 +421,21 @@ export default function VendorsPage() {
 
         {/* 빈 상태 */}
         {!loading && vendors.length === 0 && (
-          <div className="bg-white rounded-2xl p-16 shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center mb-8 animate-fade-in">
+          <div className="mb-6 rounded-[18px] border border-[#eadfc9] bg-white/90 p-8 text-center shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
             {searchQuery.trim() || activeCategory !== "전체" ? (
               <>
-                <p className="font-serif-kr text-2xl text-[#1b1c1c] mb-2 font-light">검색 결과가 없습니다</p>
-                <p className="text-base text-[#504444]">다른 키워드나 카테고리를 시도해보세요</p>
+                <p className="font-serif-kr text-[22px] font-medium text-[#071629] mb-2">검색 결과가 없습니다</p>
+                <p className="text-[13px] font-medium text-[#5d6879]">다른 키워드나 카테고리를 시도해보세요</p>
               </>
             ) : (
               <>
-                <p className="font-serif-kr text-2xl text-[#1b1c1c] mb-2 font-light">곧 만날 수 있어요</p>
-                <p className="text-base text-[#504444] mb-4">
+                <p className="font-serif-kr text-[22px] font-medium text-[#071629] mb-2">곧 만날 수 있어요</p>
+                <p className="mb-4 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
                   믿을 수 있는 업체만 엄선해서 모시는 중이에요. 등록 직후 알려드릴게요.
                 </p>
                 <Link
                   href="/chat"
-                  className="inline-flex items-center gap-2 text-base text-[#795252] font-medium hover:gap-3 transition-all"
+                  className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#36534E] transition-all hover:gap-3"
                 >
                   아모라에게 미리 추천 요청하기
                   <ArrowRight className="w-4 h-4" />
@@ -458,26 +446,20 @@ export default function VendorsPage() {
         )}
 
         {/* AI Spotlight */}
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#1a1a1a] to-[#3a2a2a] p-6 sm:p-8 lg:p-10 mb-8 animate-fade-in">
-          <div
-            className="absolute inset-0 opacity-40"
-            style={{
-              background: `radial-gradient(circle at 80% 20%, rgba(201, 169, 110, 0.25) 0%, transparent 50%)`,
-            }}
-          />
-          <div className="relative max-w-xl">
-            <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-3 font-medium">
-              AI CURATION
+        <div className="mb-6 rounded-[18px] border border-[#36534E]/20 bg-[#36534E] p-5 shadow-[0_10px_28px_rgba(54,83,78,0.16)] animate-fade-in sm:p-6">
+          <div className="max-w-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+              AMORA CURATION
             </p>
-            <h3 className="font-serif-kr text-2xl sm:text-3xl text-white mb-3 font-light break-words">
+            <h3 className="mt-1 font-serif-kr text-[22px] font-medium leading-tight text-white sm:text-[24px]">
               내 예산과 스타일에 맞는 업체 찾기
             </h3>
-            <p className="text-base text-white/70 mb-6 leading-relaxed">
+            <p className="mt-2 mb-5 text-[13px] font-medium leading-[1.65] text-white/75">
               예산, 지역, 스타일을 알려주시면 AI 아모라가 딱 맞는 업체 3곳을 추천해드려요
             </p>
             <Link
               href="/chat"
-              className="inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 hover:border-white pb-1 transition-colors"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec]"
             >
               맞춤 추천 받기
               <ArrowRight className="w-4 h-4" />
