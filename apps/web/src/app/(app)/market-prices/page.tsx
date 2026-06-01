@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BarChart3, MapPin, TrendingUp, Building2, Camera, Shirt, Palette,
-  Sun, Snowflake, ChevronDown, ExternalLink, ListChecks,
+  Sun, Snowflake, ChevronDown, ExternalLink, ListChecks, ArrowRight,
 } from "lucide-react";
 import {
   PRICE_PERIODS,
-  NATIONAL_TOTALS,
-  TREND_DATA,
   VENUE_NECESSARY,
   VENUE_OPTIONAL_NAMES,
   SDM_PACKAGES,
@@ -20,7 +18,6 @@ import {
   getNationalTotal,
   getSeoulTotal,
   getVenueOptionalItems,
-  type PricePeriod,
 } from "@/constants/marketPrices";
 import TrendChart from "@/components/app/market-prices/TrendChart";
 import RegionalCostTable from "@/components/app/market-prices/RegionalCostTable";
@@ -37,6 +34,24 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const SERVICE_CARD = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)]";
+const SERVICE_CARD_SOFT = "rounded-[18px] border border-[#eadfc9] bg-[#fffdf7]/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)]";
+const KICKER = "text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]";
+const SECTION_TITLE = "font-serif-kr text-[22px] font-medium leading-tight text-[#071629]";
+const BODY_TEXT = "text-[13px] font-medium leading-[1.65] text-[#5d6879]";
+const MUTED_TEXT = "text-[12px] font-medium text-[#7a8290]";
+const TABLE_HEAD = "px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]";
+const TABLE_TEXT = "px-4 py-3 text-[13px] font-medium text-[#5d6879]";
+const TABLE_VALUE = "px-4 py-3 text-right text-[13px] font-semibold text-[#071629]";
+
+function formatMan(value: number) {
+  return `${value.toLocaleString()}만원`;
+}
+
+function formatWonToMan(value: number) {
+  return `${Math.round(value / 10000).toLocaleString()}만원`;
+}
+
 export default function MarketPricesPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [periodId, setPeriodId] = useState(getLatestPeriodId());
@@ -45,19 +60,20 @@ export default function MarketPricesPage() {
   const currentPeriod = PRICE_PERIODS.find(p => p.id === periodId)!;
 
   return (
-    <div className="max-w-[1000px] mx-auto pb-20">
+    <div className="space-y-4 pb-12">
       {/* 헤더 */}
-      <div className="mb-6">
-        <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] tracking-tight mb-2">
+      <div className={`${SERVICE_CARD} p-4 md:p-5`}>
+        <p className={KICKER}>WEDDING MARKET DATA</p>
+        <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">
           웨딩 시세 정보
         </h1>
-        <p className="text-base text-[#B5ADA3] font-light flex items-center gap-1">
+        <p className="mt-2 flex flex-wrap items-center gap-1 text-[13px] font-medium text-[#5d6879]">
           한국소비자원 제공
           <a
             href="https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-0.5 text-[#795252] hover:underline"
+            className="inline-flex items-center gap-0.5 text-[#36534E] hover:underline"
           >
             price.go.kr <ExternalLink size={14} />
           </a>
@@ -65,19 +81,19 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 가격표시제 안내 배너 — 원칙 P5 실체화 */}
-      <div className="bg-sage-500/5 border border-sage-500/10 rounded-xl p-4 mb-8 text-sm">
+      <div className={`${SERVICE_CARD_SOFT} p-4 text-sm`}>
         <div className="flex items-start gap-3">
-          <div className="shrink-0 text-sage-500 text-base leading-none" aria-hidden>📋</div>
+          <div className="shrink-0 text-base leading-none" aria-hidden>📋</div>
           <div className="flex-1">
-            <div className="font-medium mb-1 text-[#1b1c1c]">
+            <div className="mb-1 text-[14px] font-semibold text-[#071629]">
               정부 가격표시제 시행 중
             </div>
-            <div className="text-[#504444] leading-relaxed">
+            <div className={BODY_TEXT}>
               2025년 11월부터 예식장·결혼준비대행업자는 가격을 공개해야 합니다.
               단 시행 초기, 다수 vendor가 아직 공개하지 않은 상태입니다.
               우리가 공공 데이터를 정리하고 실거래가를 보완합니다.
             </div>
-            <div className="text-xs text-[#504444]/60 mt-1">
+            <div className="mt-1 text-[12px] font-medium text-[#7a8290]">
               공정위 「중요한 표시·광고사항 고시」 개정, 2025.11 시행
             </div>
           </div>
@@ -85,57 +101,57 @@ export default function MarketPricesPage() {
       </div>
 
       {/* National Anchor — 정부 공식 데이터 4개 */}
-      <section className="mb-12">
-        <div className="mb-6">
-          <h2 className="font-serif-kr text-2xl sm:text-3xl mb-2 text-[#1b1c1c] font-light">
+      <section className={`${SERVICE_CARD} p-4 md:p-5`}>
+        <div className="mb-4">
+          <h2 className={SECTION_TITLE}>
             결혼 비용, 숫자로 먼저 보기
           </h2>
-          <p className="text-sm text-[#504444]">
+          <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
             정부 공식 데이터 기반. 모든 숫자엔 출처가 있습니다.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {/* Anchor 1 */}
-          <div className="min-w-0 bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="mb-2 whitespace-nowrap text-[10px] sm:text-xs text-[#504444]">전국 평균 결혼비용</div>
-            <div className="font-serif-kr whitespace-nowrap text-[22px] sm:text-3xl text-[#795252] mb-2 font-light">
-              ₩21,010,000
+          <div className="min-w-0 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">전국 평균 결혼비용</div>
+            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
+              {formatWonToMan(21010000)}
             </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
+            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
               출처: 한국소비자원 참가격, 2025
             </div>
           </div>
 
           {/* Anchor 2 */}
-          <div className="min-w-0 bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="mb-2 whitespace-nowrap text-[10px] sm:text-xs text-[#504444]">스드메 추가금 평균</div>
-            <div className="font-serif-kr whitespace-nowrap text-[22px] sm:text-3xl text-[#795252] mb-2 font-light">
-              +₩1,740,000
+          <div className="min-w-0 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">스드메 추가금 평균</div>
+            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
+              +{formatWonToMan(1740000)}
             </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
+            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
               출처: 기획재정부 「결혼서비스 실태조사」, 2024
             </div>
           </div>
 
           {/* Anchor 3 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">가격 정보 어려움</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
+          <div className="rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">가격 정보 어려움</div>
+            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               85.4%
             </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
+            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
               출처: 한국소비자원, 2024
             </div>
           </div>
 
           {/* Anchor 4 */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <div className="text-xs text-[#504444] mb-2">추가비용 경험률</div>
-            <div className="font-serif-kr text-2xl sm:text-3xl text-[#795252] mb-2 font-light">
+          <div className="rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">추가비용 경험률</div>
+            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               83.2%
             </div>
-            <div className="text-[10px] text-[#504444]/60 leading-tight">
+            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
               출처: 한국소비자원, 2024
             </div>
           </div>
@@ -143,30 +159,30 @@ export default function MarketPricesPage() {
       </section>
 
       {/* 기간 선택 + 전국/서울 토글 */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
           <select
             value={periodId}
             onChange={e => setPeriodId(e.target.value)}
-            className="appearance-none bg-white rounded-xl px-5 py-2.5 pr-9 text-base text-[#1A1A1F] shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="appearance-none rounded-[14px] border border-[#eadfc9] bg-white px-4 py-2.5 pr-9 text-[14px] font-semibold text-[#071629] shadow-[0_8px_24px_rgba(8,22,38,0.035)] focus:outline-none focus:ring-2 focus:ring-[#36534E]/20"
           >
             {[...PRICE_PERIODS].reverse().map(p => (
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>
-          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5ADA3] pointer-events-none" />
+          <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7a8290]" />
         </div>
 
         {(activeTab === "venue" || activeTab === "sdm" || activeTab === "options") && (
-          <div className="flex bg-[#F6F3F2] rounded-lg p-1">
+          <div className="flex rounded-[14px] border border-[#eadfc9] bg-white p-1">
             {(["national", "seoul"] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${
                   scope === s
-                    ? "bg-white text-[#795252] shadow-sm"
-                    : "text-[#504444] hover:text-[#795252]"
+                    ? "bg-[#fff8ec] text-[#36534E]"
+                    : "text-[#5d6879] hover:text-[#36534E]"
                 }`}
               >
                 {s === "national" ? "전국" : "서울"}
@@ -177,17 +193,17 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
         {TABS.map(tab => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-[14px] border px-4 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
                 activeTab === tab.id
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
-                  : "bg-white text-[#504444] hover:text-[#795252]"
+                  ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)]"
+                  : "border-[#eadfc9] bg-white text-[#5d6879] hover:bg-[#fff8ec] hover:text-[#36534E]"
               }`}
             >
               <Icon size={16} />
@@ -209,57 +225,35 @@ export default function MarketPricesPage() {
       </div>
 
       {/* 출처 */}
-      <div className="mt-8 text-center text-sm text-[#B5ADA3] font-light">
+      <div className="text-center text-[12px] font-medium text-[#7a8290]">
         데이터 출처: 한국소비자원 · {currentPeriod.label} 기준 · 단위: 만원
       </div>
 
-      {/* Give-to-Get CTA — 실거래가 공유 유도 (베타) */}
-      <section className="mt-16 mb-8">
-        <div className="bg-gradient-to-br from-[#795252]/5 to-sage-500/5 rounded-3xl p-8 sm:p-12">
+      <section className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs text-[#795252] bg-[#795252]/10 px-3 py-1 rounded-full mb-4">
-              🔒 Give-to-Get 베타
-            </span>
-
-            <h2 className="font-serif-kr text-2xl sm:text-3xl mb-4 text-[#1b1c1c] font-light">
-              더 깊은 데이터가 필요하세요?
+            <p className={KICKER}>REAL PRICE BETA</p>
+            <h2 className="mt-1 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
+              더 깊은 실거래가 데이터는 베타로 준비 중이에요.
             </h2>
-
-            <p className="text-[#504444] mb-2">
-              정부 공식 데이터는 평균만 보여줍니다.
+            <p className={`${BODY_TEXT} mt-2`}>
+              지금 화면은 정부 공개 데이터 기준입니다. 영수증 기반 실거래가는 개인정보를 익명 처리한 뒤,
+              충분한 샘플이 쌓였을 때 더 정확한 비교 기능으로 열 예정입니다.
             </p>
-            <p className="text-[#504444] mb-6">
-              실제 결혼한 커플들이 공유한 <strong>영수증 기반 실거래가</strong>를 보세요.
-            </p>
-
-            <div className="bg-white/60 rounded-xl p-4 mb-6 text-sm">
-              <div className="font-medium mb-2 text-[#1b1c1c]">어떻게 작동하나요?</div>
-              <ul className="space-y-1 text-[#504444]">
-                <li>1. 당신의 실거래가 1건을 공유합니다 (영수증 인증)</li>
-                <li>2. 다른 커플이 공유한 데이터 10건이 잠금 해제됩니다</li>
-                <li>3. 개인정보는 익명 처리되어 저장됩니다</li>
-              </ul>
-            </div>
-
-            <a
-              href="mailto:ceo@hanbang.ai?subject=%EC%8B%A4%EA%B1%B0%EB%9E%98%EA%B0%80%20%EA%B3%B5%EC%9C%A0%20%EC%8B%A0%EC%B2%AD"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#795252] text-white rounded-xl hover:bg-[#946a6a] transition-colors"
-            >
-              실거래가 공유 신청 →
-            </a>
-
-            <div className="mt-4 text-xs text-[#504444]">
-              * 정식 Give-to-Get Form은 2026년 5월 베타 시 오픈.
-              지금은 이메일로 관심 표명만 받습니다.
-            </div>
           </div>
+          <a
+            href="mailto:ceo@hanbang.ai?subject=%EC%8B%A4%EA%B1%B0%EB%9E%98%EA%B0%80%20%EA%B3%B5%EC%9C%A0%20%EC%8B%A0%EC%B2%AD"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
+          >
+            실거래가 공유 신청
+            <ArrowRight className="h-4 w-4" />
+          </a>
         </div>
       </section>
     </div>
   );
 }
 
-// ===== 종합 요약 탭 =====
 function OverviewTab({ periodId }: { periodId: string }) {
   const nat = getNationalTotal(periodId);
   const seoul = getSeoulTotal(periodId);
@@ -268,53 +262,49 @@ function OverviewTab({ periodId }: { periodId: string }) {
 
   return (
     <>
-      {/* 4개 요약 카드 */}
-      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-        <StatCard label="전국 평균 총 비용" value={nat.total} unit="만원" color="#795252" />
-        <StatCard label="서울 평균 총 비용" value={seoul.total} unit="만원" color="#946a6a" />
-        <StatCard label="스드메 패키지 평균" value={sdm?.packageMedian ?? 0} unit="만원" color="#928980" />
+      <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
+        <StatCard label="전국 평균 총 비용" value={nat.total} />
+        <StatCard label="서울 평균 총 비용" value={seoul.total} />
+        <StatCard label="스드메 패키지 평균" value={sdm?.packageMedian ?? 0} />
         <StatCard
           label="비수기 절약액"
           value={seasonal?.savings ?? 0}
-          unit="만원 절약"
-          color="#795252"
-          sub={seasonal ? `성수기 ${seasonal.peak}만원 → 비수기 ${seasonal.offPeak}만원` : ""}
+          suffix="만원 절약"
+          sub={seasonal ? `성수기 ${formatMan(seasonal.peak)} -> 비수기 ${formatMan(seasonal.offPeak)}` : ""}
         />
       </div>
 
-      {/* 비용 구성 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">전국 평균 비용 구성</h3>
+      <div className={`${SERVICE_CARD} overflow-hidden`}>
+        <div className="px-4 py-4 md:px-5">
+          <h3 className={SECTION_TITLE}>전국 평균 비용 구성</h3>
         </div>
-        <div className="p-5 pt-0">
-          <div className="grid grid-cols-4 gap-4 max-md:grid-cols-2">
-            <CostBreakdownItem label="식대" value={nat.meal} total={nat.total} color="#795252" />
-            <CostBreakdownItem label="대관료" value={nat.rental} total={nat.total} color="#946a6a" />
-            <CostBreakdownItem label="스드메" value={nat.sdm} total={nat.total} color="#928980" />
-            <CostBreakdownItem label="꽃장식" value={nat.decoration} total={nat.total} color="#B5ADA3" />
+        <div className="px-4 pb-4 md:px-5">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <CostBreakdownItem label="식대" value={nat.meal} total={nat.total} />
+            <CostBreakdownItem label="대관료" value={nat.rental} total={nat.total} />
+            <CostBreakdownItem label="스드메" value={nat.sdm} total={nat.total} />
+            <CostBreakdownItem label="꽃장식" value={nat.decoration} total={nat.total} />
           </div>
         </div>
       </div>
 
-      {/* 서울 vs 전국 비교 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">서울 vs 전국 비교</h3>
+      <div className={`${SERVICE_CARD} overflow-hidden`}>
+        <div className="px-4 py-4 md:px-5">
+          <h3 className={SECTION_TITLE}>서울 vs 전국 비교</h3>
         </div>
-        <div className="divide-y divide-[#F6F3F2]">
+        <div className="divide-y divide-[#eadfc9]/70">
           {(["meal", "rental", "sdm", "decoration"] as const).map(key => {
             const labels: Record<string, string> = { meal: "식대", rental: "대관료", sdm: "스드메", decoration: "꽃장식" };
             const natVal = nat[key];
             const seoulVal = seoul[key];
             const diff = Math.round(((seoulVal - natVal) / natVal) * 100);
             return (
-              <div key={key} className="flex items-center justify-between px-5 py-3">
-                <span className="text-base text-[#1A1A1F]">{labels[key]}</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-[#504444]">전국 {natVal.toLocaleString()}</span>
-                  <span className="text-sm font-medium text-[#1A1A1F]">서울 {seoulVal.toLocaleString()}</span>
-                  <span className={`text-sm font-medium ${diff > 0 ? "text-[#795252]" : "text-[#504444]"}`}>
+              <div key={key} className="grid gap-2 px-4 py-3 text-[13px] md:grid-cols-[1fr_auto] md:items-center md:px-5">
+                <span className="font-semibold text-[#071629]">{labels[key]}</span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[#5d6879]">
+                  <span>전국 {formatMan(natVal)}</span>
+                  <span className="font-semibold text-[#071629]">서울 {formatMan(seoulVal)}</span>
+                  <span className={`font-semibold ${diff > 0 ? "text-[#36534E]" : "text-[#5d6879]"}`}>
                     {diff > 0 ? `+${diff}%` : `${diff}%`}
                   </span>
                 </div>
@@ -327,117 +317,99 @@ function OverviewTab({ periodId }: { periodId: string }) {
   );
 }
 
-// ===== 지역별 탭 =====
 function RegionalTab({ periodId }: { periodId: string }) {
   return (
-    <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-      <div className="px-5 py-4">
-        <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-          <MapPin size={18} className="text-[#795252]" />
+    <div className={`${SERVICE_CARD} overflow-hidden`}>
+      <div className="px-4 py-4 md:px-5">
+        <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
+          <MapPin size={18} className="text-[#36534E]" />
           지역별 결혼 비용
         </h3>
-        <p className="text-sm text-[#B5ADA3] mt-1 font-light">식대 + 스드메 + 대관료 + 꽃장식 합산 (만원)</p>
+        <p className={`${MUTED_TEXT} mt-1`}>식대 + 스드메 + 대관료 + 꽃장식 합산, 단위는 모두 만원입니다.</p>
       </div>
-      <div className="p-5 pt-0">
+      <div className="px-4 pb-4 md:px-5">
         <RegionalCostTable periodId={periodId} />
       </div>
     </div>
   );
 }
 
-// ===== 트렌드 탭 =====
 function TrendTab() {
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-            <TrendingUp size={16} className="text-[#795252]" />
+    <div className="space-y-4">
+      <div className={`${SERVICE_CARD} overflow-hidden`}>
+        <div className="px-4 py-4 md:px-5">
+          <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
+            <TrendingUp size={18} className="text-[#36534E]" />
             18개월 비용 추이
           </h3>
-          <p className="text-sm text-[#B5ADA3] mt-1 font-light">2026년 1월 ~ 2027년 6월 예상 시세 기준</p>
+          <p className={`${MUTED_TEXT} mt-1`}>2026년 1월부터 2027년 6월까지의 예상 시세 기준입니다.</p>
         </div>
-        <div className="p-5 pt-0">
+        <div className="px-4 pb-4 md:px-5">
           <TrendChart />
         </div>
       </div>
 
-      {/* 주요 인사이트 */}
-      <div className="bg-gradient-to-br from-[#795252]/5 to-[#946a6a]/5 rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h4 className="font-serif-kr text-xl font-light text-[#1A1A1F] mb-3">주요 인사이트</h4>
-        <ul className="space-y-2 text-base text-[#504444]">
-          <li className="flex items-start gap-2">
-            <span className="text-[#795252] mt-0.5">&#8226;</span>
-            <span>성수기(10~11월)와 비수기(2~3월, 8월)의 가격 차이가 400~500만원 수준</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-[#795252] mt-0.5">&#8226;</span>
-            <span>스드메 가격은 280~310만원 범위에서 꾸준히 상승 추세</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-[#795252] mt-0.5">&#8226;</span>
-            <span>총 비용 중위값은 1,190~1,750만원으로 월별 변동이 큼</span>
-          </li>
+      <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
+        <h4 className="font-serif-kr text-[20px] font-medium leading-tight text-[#071629]">주요 인사이트</h4>
+        <ul className="mt-3 grid gap-2 text-[13px] font-medium leading-[1.65] text-[#5d6879] md:grid-cols-3">
+          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">성수기와 비수기의 가격 차이는 약 400~500만원 수준입니다.</li>
+          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">스드메 가격은 280~310만원 범위에서 완만하게 상승합니다.</li>
+          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">총 비용 중위값은 월별 변동이 커서 날짜 선택 영향이 큽니다.</li>
         </ul>
       </div>
     </div>
   );
 }
 
-// ===== 예식장 탭 =====
 function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "seoul" }) {
   const nec = VENUE_NECESSARY.find(v => v.periodId === periodId && v.scope === scope);
   const optItems = getVenueOptionalItems(periodId, scope);
+  const totalOptional = Object.values(optItems.items).reduce((s, v) => s + v, 0);
 
   return (
-    <div className="space-y-6">
-      {/* 필수 항목 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-            <Building2 size={16} className="text-[#795252]" />
+    <div className="space-y-4">
+      <div className={`${SERVICE_CARD} overflow-hidden`}>
+        <div className="px-4 py-4 md:px-5">
+          <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
+            <Building2 size={18} className="text-[#36534E]" />
             필수 항목
           </h3>
         </div>
         {nec && (
-          <div className="grid grid-cols-2 gap-px bg-[#F6F3F2] max-md:grid-cols-1">
-            <DataCell label="대관료" value={`${nec.rental}만원`} />
+          <div className="grid grid-cols-2 gap-px bg-[#eadfc9]/70 max-md:grid-cols-1">
+            <DataCell label="대관료" value={formatMan(nec.rental)} />
             <DataCell label="최소 보증인원" value={`${nec.minGuests}명`} />
-            <DataCell label="1인당 식대" value={`${nec.perPersonMeal}만원`} />
-            <DataCell label="식대 총액" value={`${nec.totalFood.toLocaleString()}만원`} />
+            <DataCell label="1인당 식대" value={formatMan(nec.perPersonMeal)} />
+            <DataCell label="식대 총액" value={formatMan(nec.totalFood)} />
           </div>
         )}
       </div>
 
-      {/* 선택 항목 (17개) */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">선택 항목</h3>
-          <p className="text-sm text-[#B5ADA3] mt-1 font-light">필수가 아닌 선택 서비스 — 절약 포인트!</p>
+      <div className={`${SERVICE_CARD} overflow-hidden`}>
+        <div className="px-4 py-4 md:px-5">
+          <h3 className={SECTION_TITLE}>선택 항목</h3>
+          <p className={`${MUTED_TEXT} mt-1`}>필수가 아닌 선택 서비스입니다. 절약 포인트를 확인해보세요.</p>
         </div>
-        <div className="divide-y divide-[#F6F3F2]">
+        <div className="divide-y divide-[#eadfc9]/70">
           {VENUE_OPTIONAL_NAMES.map(name => (
-            <div key={name} className="flex items-center justify-between px-5 py-3">
-              <span className="text-base text-[#1A1A1F]">{name}</span>
-              <span className="text-base font-medium text-[#1A1A1F]">
-                {optItems.items[name]?.toLocaleString() ?? "—"}<span className="text-sm text-[#B5ADA3] ml-1">만원</span>
+            <div key={name} className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
+              <span className="text-[13px] font-medium text-[#071629]">{name}</span>
+              <span className="shrink-0 text-[13px] font-semibold text-[#071629]">
+                {optItems.items[name] ? formatMan(optItems.items[name]) : "-"}
               </span>
             </div>
           ))}
         </div>
-        {/* 합계 */}
-        <div className="px-5 py-3.5 bg-[#F6F3F2] flex items-center justify-between">
-          <span className="text-base font-medium text-[#1A1A1F]">선택항목 전체 합계</span>
-          <span className="font-serif-kr text-[22px] font-light text-[#795252]">
-            {Object.values(optItems.items).reduce((s, v) => s + v, 0).toLocaleString()}만원
-          </span>
+        <div className="flex items-center justify-between gap-3 bg-[#f7f3ec] px-4 py-3 md:px-5">
+          <span className="text-[13px] font-semibold text-[#071629]">선택항목 전체 합계</span>
+          <span className="font-serif-kr text-[22px] font-medium text-[#36534E]">{formatMan(totalOptional)}</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ===== 스드메 탭 =====
 function SdmTab({ periodId }: { periodId: string }) {
   const packages = SDM_PACKAGES.filter(s => s.periodId === periodId);
   const dressNat = DRESS_PRICES.find(d => d.periodId === periodId && d.scope === "national");
@@ -446,152 +418,100 @@ function SdmTab({ periodId }: { periodId: string }) {
   const makeupSeoul = MAKEUP_PRICES.find(m => m.periodId === periodId && m.scope === "seoul");
 
   return (
-    <div className="space-y-6">
-      {/* 패키지 가격 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-            <Camera size={16} className="text-[#795252]" />
-            스드메 패키지 지역별 비교
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">지역</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스드메 패키지</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">드메 패키지</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">스튜디오 기본</th>
-              </tr>
-            </thead>
-            <tbody>
-              {packages.map(p => (
-                <tr key={p.region} className="border-b border-[#F6F3F2] hover:bg-[#F6F3F2]/30">
-                  <td className="py-2.5 px-4 font-medium text-[#1A1A1F]">{p.region}</td>
-                  <td className="py-2.5 px-4 text-right text-[#795252] font-medium">{p.packageMedian}만원</td>
-                  <td className="py-2.5 px-4 text-right text-[#504444]">{p.dmPackageMedian}만원</td>
-                  <td className="py-2.5 px-4 text-right text-[#504444]">{p.studioBasic}만원</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <TableCard
+        icon={<Camera size={18} className="text-[#36534E]" />}
+        title="스드메 패키지 지역별 비교"
+        headers={["지역", "스드메 패키지", "드메 패키지", "스튜디오 기본"]}
+      >
+        {packages.map(p => (
+          <tr key={p.region} className="border-b border-[#eadfc9]/70 last:border-b-0 hover:bg-[#fffdf7]">
+            <td className={TABLE_TEXT}>{p.region}</td>
+            <td className={TABLE_VALUE}>{formatMan(p.packageMedian)}</td>
+            <td className={TABLE_VALUE}>{formatMan(p.dmPackageMedian)}</td>
+            <td className={TABLE_VALUE}>{formatMan(p.studioBasic)}</td>
+          </tr>
+        ))}
+      </TableCard>
 
-      {/* 드레스 상세 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-            <Shirt size={16} className="text-[#946a6a]" />
-            드레스 가격
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영용</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식용</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">2부 드레스</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dressNat && (
-                <tr className="border-b border-[#F6F3F2]">
-                  <td className="py-2.5 px-4 font-medium text-[#1A1A1F]">전국</td>
-                  <td className="py-2.5 px-4 text-right">{dressNat.photoShoot}만원</td>
-                  <td className="py-2.5 px-4 text-right">{dressNat.ceremony}만원</td>
-                  <td className="py-2.5 px-4 text-right">{dressNat.secondDress}만원</td>
-                </tr>
-              )}
-              {dressSeoul && (
-                <tr className="border-b border-[#F6F3F2]">
-                  <td className="py-2.5 px-4 font-medium text-[#1A1A1F]">서울</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{dressSeoul.photoShoot}만원</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{dressSeoul.ceremony}만원</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{dressSeoul.secondDress}만원</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableCard
+        icon={<Shirt size={18} className="text-[#36534E]" />}
+        title="드레스 가격"
+        headers={["구분", "촬영용", "본식용", "2부 드레스"]}
+      >
+        {dressNat && (
+          <tr className="border-b border-[#eadfc9]/70">
+            <td className={TABLE_TEXT}>전국</td>
+            <td className={TABLE_VALUE}>{formatMan(dressNat.photoShoot)}</td>
+            <td className={TABLE_VALUE}>{formatMan(dressNat.ceremony)}</td>
+            <td className={TABLE_VALUE}>{formatMan(dressNat.secondDress)}</td>
+          </tr>
+        )}
+        {dressSeoul && (
+          <tr className="border-b border-[#eadfc9]/70 last:border-b-0 bg-[#fffdf7]">
+            <td className={TABLE_TEXT}>서울</td>
+            <td className={TABLE_VALUE}>{formatMan(dressSeoul.photoShoot)}</td>
+            <td className={TABLE_VALUE}>{formatMan(dressSeoul.ceremony)}</td>
+            <td className={TABLE_VALUE}>{formatMan(dressSeoul.secondDress)}</td>
+          </tr>
+        )}
+      </TableCard>
 
-      {/* 메이크업 상세 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-            <Palette size={16} className="text-[#946a6a]" />
-            메이크업 가격
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">구분</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">촬영</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">본식</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">리허설</th>
-              </tr>
-            </thead>
-            <tbody>
-              {makeupNat && (
-                <tr className="border-b border-[#F6F3F2]">
-                  <td className="py-2.5 px-4 font-medium text-[#1A1A1F]">전국</td>
-                  <td className="py-2.5 px-4 text-right">{makeupNat.photoShoot}만원</td>
-                  <td className="py-2.5 px-4 text-right">{makeupNat.ceremony}만원</td>
-                  <td className="py-2.5 px-4 text-right">{makeupNat.rehearsal}만원</td>
-                </tr>
-              )}
-              {makeupSeoul && (
-                <tr className="border-b border-[#F6F3F2]">
-                  <td className="py-2.5 px-4 font-medium text-[#1A1A1F]">서울</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{makeupSeoul.photoShoot}만원</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{makeupSeoul.ceremony}만원</td>
-                  <td className="py-2.5 px-4 text-right font-medium text-[#795252]">{makeupSeoul.rehearsal}만원</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableCard
+        icon={<Palette size={18} className="text-[#36534E]" />}
+        title="메이크업 가격"
+        headers={["구분", "촬영", "본식", "리허설"]}
+      >
+        {makeupNat && (
+          <tr className="border-b border-[#eadfc9]/70">
+            <td className={TABLE_TEXT}>전국</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupNat.photoShoot)}</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupNat.ceremony)}</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupNat.rehearsal)}</td>
+          </tr>
+        )}
+        {makeupSeoul && (
+          <tr className="border-b border-[#eadfc9]/70 last:border-b-0 bg-[#fffdf7]">
+            <td className={TABLE_TEXT}>서울</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupSeoul.photoShoot)}</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupSeoul.ceremony)}</td>
+            <td className={TABLE_VALUE}>{formatMan(makeupSeoul.rehearsal)}</td>
+          </tr>
+        )}
+      </TableCard>
     </div>
   );
 }
 
-// ===== 옵션별 탭 =====
 function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
   const categories = [
-    { key: "studio" as const, label: "스튜디오 옵션", icon: Camera, color: "#795252" },
-    { key: "dress" as const, label: "드레스 옵션", icon: Shirt, color: "#946a6a" },
-    { key: "makeup" as const, label: "메이크업 옵션", icon: Palette, color: "#928980" },
+    { key: "studio" as const, label: "스튜디오 옵션", icon: Camera },
+    { key: "dress" as const, label: "드레스 옵션", icon: Shirt },
+    { key: "makeup" as const, label: "메이크업 옵션", icon: Palette },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {categories.map(cat => {
         const Icon = cat.icon;
         const items = OPTION_PRICES.filter(o => o.category === cat.key);
         return (
-          <div key={cat.key} className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-            <div className="px-5 py-4">
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] flex items-center gap-2">
-                <Icon size={16} style={{ color: cat.color }} />
+          <div key={cat.key} className={`${SERVICE_CARD} overflow-hidden`}>
+            <div className="px-4 py-4 md:px-5">
+              <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
+                <Icon size={18} className="text-[#36534E]" />
                 {cat.label} ({items.length}개)
               </h3>
-              <p className="text-sm text-[#B5ADA3] mt-1 font-light">2026년 1월 기준 중위 가격</p>
+              <p className={`${MUTED_TEXT} mt-1`}>2026년 1월 기준 중위 가격입니다.</p>
             </div>
-            <div className="divide-y divide-[#F6F3F2]">
+            <div className="divide-y divide-[#eadfc9]/70">
               {items.map(item => {
                 const price = scope === "seoul" ? item.seoulPrice : item.nationalPrice;
                 return (
-                  <div key={item.name} className="flex items-center justify-between px-5 py-3">
-                    <span className="text-base text-[#1A1A1F]">{item.name}</span>
-                    <span className="text-base font-medium text-[#1A1A1F]">
-                      {price > 0 ? `${price.toLocaleString()}만원` : "—"}
+                  <div key={item.name} className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
+                    <span className="text-[13px] font-medium text-[#071629]">{item.name}</span>
+                    <span className="shrink-0 text-[13px] font-semibold text-[#071629]">
+                      {price > 0 ? formatMan(price) : "-"}
                     </span>
                   </div>
                 );
@@ -604,115 +524,126 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
   );
 }
 
-// ===== 성수기/비수기 탭 =====
 function SeasonalTab() {
+  const latest = SEASONAL_DATA[SEASONAL_DATA.length - 1];
+
   return (
-    <div className="space-y-6">
-      {/* 최신 비교 카드 */}
-      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-        <div className="bg-gradient-to-br from-[#795252]/10 to-[#946a6a]/5 rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="flex items-center gap-2 mb-3">
-            <Sun size={22} className="text-[#795252]" />
-            <span className="text-base font-medium text-[#1A1A1F]">성수기</span>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
+        <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
+          <div className="mb-3 flex items-center gap-2">
+            <Sun size={20} className="text-[#36534E]" />
+            <span className="text-[13px] font-semibold text-[#071629]">성수기</span>
           </div>
-          <p className="text-sm text-[#B5ADA3] mb-1 font-light">4~6월, 9~11월</p>
-          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
-            {SEASONAL_DATA[SEASONAL_DATA.length - 1].peak.toLocaleString()}
-            <span className="text-base text-[#B5ADA3] ml-1">만원</span>
-          </p>
+          <p className={MUTED_TEXT}>4~6월, 9~11월</p>
+          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(latest.peak)}</p>
         </div>
-        <div className="bg-gradient-to-br from-[#F6F3F2] to-white rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="flex items-center gap-2 mb-3">
-            <Snowflake size={22} className="text-[#504444]" />
-            <span className="text-base font-medium text-[#1A1A1F]">비수기</span>
+        <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
+          <div className="mb-3 flex items-center gap-2">
+            <Snowflake size={20} className="text-[#36534E]" />
+            <span className="text-[13px] font-semibold text-[#071629]">비수기</span>
           </div>
-          <p className="text-sm text-[#B5ADA3] mb-1 font-light">1~3월, 7~8월, 12월</p>
-          <p className="font-serif-kr text-4xl font-light text-[#1A1A1F]">
-            {SEASONAL_DATA[SEASONAL_DATA.length - 1].offPeak.toLocaleString()}
-            <span className="text-base text-[#B5ADA3] ml-1">만원</span>
-          </p>
+          <p className={MUTED_TEXT}>1~3월, 7~8월, 12월</p>
+          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(latest.offPeak)}</p>
         </div>
       </div>
 
-      {/* 절약 강조 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 text-center">
-        <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">비수기 결혼 시 평균 절약 금액</p>
-        <p className="font-serif-kr text-6xl font-light text-[#795252]">
-          {SEASONAL_DATA[SEASONAL_DATA.length - 1].savings.toLocaleString()}
-          <span className="text-xl text-[#B5ADA3] ml-1">만원</span>
+      <div className={`${SERVICE_CARD} p-4 text-center md:p-5`}>
+        <p className={KICKER}>AVERAGE SAVING</p>
+        <p className="mt-2 font-serif-kr text-[34px] font-medium leading-none text-[#36534E]">
+          {formatMan(latest.savings)}
         </p>
+        <p className={`${BODY_TEXT} mt-2`}>비수기 결혼 시 평균 절약 금액입니다.</p>
       </div>
 
-      {/* 기간별 추이 테이블 */}
-      <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        <div className="px-5 py-4">
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">기간별 성수기/비수기 비교</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#F6F3F2]">
-                <th className="text-left py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">기간</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">성수기</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">비수기</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-[#B5ADA3] uppercase tracking-[0.12em]">절약액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...SEASONAL_DATA].reverse().map(s => {
-                const period = PRICE_PERIODS.find(p => p.id === s.periodId);
-                return (
-                  <tr key={s.periodId} className="border-b border-[#F6F3F2] hover:bg-[#F6F3F2]/30">
-                    <td className="py-2.5 px-4 text-[#1A1A1F]">{period?.label}</td>
-                    <td className="py-2.5 px-4 text-right text-[#795252] font-medium">{s.peak.toLocaleString()}</td>
-                    <td className="py-2.5 px-4 text-right">{s.offPeak.toLocaleString()}</td>
-                    <td className="py-2.5 px-4 text-right text-[#946a6a] font-medium">{s.savings.toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableCard title="기간별 성수기/비수기 비교" headers={["기간", "성수기", "비수기", "절약액"]}>
+        {[...SEASONAL_DATA].reverse().map(s => {
+          const period = PRICE_PERIODS.find(p => p.id === s.periodId);
+          return (
+            <tr key={s.periodId} className="border-b border-[#eadfc9]/70 last:border-b-0 hover:bg-[#fffdf7]">
+              <td className={TABLE_TEXT}>{period?.label}</td>
+              <td className={TABLE_VALUE}>{formatMan(s.peak)}</td>
+              <td className={TABLE_VALUE}>{formatMan(s.offPeak)}</td>
+              <td className={TABLE_VALUE}>{formatMan(s.savings)}</td>
+            </tr>
+          );
+        })}
+      </TableCard>
     </div>
   );
 }
 
-// ===== 공통 컴포넌트 =====
-function StatCard({ label, value, unit, color, sub }: { label: string; value: number; unit: string; color: string; sub?: string }) {
+function StatCard({ label, value, suffix = "만원", sub }: { label: string; value: number; suffix?: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
-      <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">{label}</p>
-      <p className="font-serif-kr text-5xl font-light text-[#1A1A1F] leading-tight">
+    <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
+      <p className="mb-2 text-[12px] font-semibold text-[#5d6879]">{label}</p>
+      <p className="font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[34px]">
         {value.toLocaleString()}
-        <span className="text-base font-light ml-1" style={{ color }}>{unit}</span>
+        <span className="ml-1 text-[13px] font-medium text-[#7a8290]">{suffix}</span>
       </p>
-      {sub && <p className="text-sm text-[#B5ADA3] mt-2 font-light">{sub}</p>}
+      {sub && <p className={`${MUTED_TEXT} mt-2`}>{sub}</p>}
     </div>
   );
 }
 
-function CostBreakdownItem({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+function CostBreakdownItem({ label, value, total }: { label: string; value: number; total: number }) {
   const percent = Math.round((value / total) * 100);
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-base text-[#504444]">{label}</span>
-        <span className="text-base font-medium" style={{ color }}>{percent}%</span>
+    <div className="rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-semibold text-[#071629]">{label}</span>
+        <span className="text-[13px] font-semibold text-[#36534E]">{percent}%</span>
       </div>
-      <div className="h-2 bg-[#F6F3F2] rounded-full overflow-hidden mb-1">
-        <div className="h-full rounded-full bg-gradient-to-r from-[#795252] to-[#946a6a]" style={{ width: `${percent}%` }} />
+      <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
+        <div className="h-full rounded-full bg-[#36534E]" style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
-      <p className="text-[17px] font-medium text-[#1A1A1F]">{value.toLocaleString()}<span className="text-sm text-[#B5ADA3]">만원</span></p>
+      <p className="text-[13px] font-semibold text-[#071629]">{formatMan(value)}</p>
     </div>
   );
 }
 
 function DataCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white p-5">
-      <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-1">{label}</p>
-      <p className="font-serif-kr text-3xl font-light text-[#1A1A1F]">{value}</p>
+    <div className="bg-white p-4 md:p-5">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]">{label}</p>
+      <p className="font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{value}</p>
+    </div>
+  );
+}
+
+function TableCard({
+  title,
+  icon,
+  headers,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  headers: string[];
+  children: ReactNode;
+}) {
+  return (
+    <div className={`${SERVICE_CARD} overflow-hidden`}>
+      <div className="px-4 py-4 md:px-5">
+        <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
+          {icon}
+          {title}
+        </h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px]">
+          <thead>
+            <tr className="border-b border-[#eadfc9]/70 bg-[#fffdf7]">
+              {headers.map((header, index) => (
+                <th key={header} className={`${TABLE_HEAD} ${index === 0 ? "text-left" : "text-right"}`}>
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
     </div>
   );
 }

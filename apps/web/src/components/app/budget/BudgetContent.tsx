@@ -103,13 +103,10 @@ function getPayerLabel(payer?: PayerType): { label: string; emoji: string } {
 }
 
 function formatWon(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만`;
-  return n.toLocaleString();
+  return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
 function formatWonFull(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억원`;
   return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
@@ -660,7 +657,7 @@ function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; lo
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm text-[#504444]">{b.bookingDate} {b.bookingTime}</p>
                   {b.amount > 0 && (
-                    <p className="text-sm text-[#795252] font-medium">{formatWon(b.amount)}원</p>
+                    <p className="text-sm font-medium text-[#36534E]">{formatWon(b.amount)}</p>
                   )}
                 </div>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
@@ -1064,8 +1061,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                     <p className={`font-serif-kr text-[25px] font-medium leading-none break-words ${
                       amount > 0 ? "text-[#071629]" : "text-[#9a9188]"
                     }`}>
-                      {amount > 0 ? formatWon(amount) : "0"}
-                      <span className="ml-0.5 text-[12px] text-[#9a9188]">원</span>
+                      {formatWon(amount)}
                     </p>
                     {amount > 0 && (
                       <div className="mt-3">

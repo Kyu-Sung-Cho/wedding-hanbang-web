@@ -28,9 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function formatWon(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만`;
-  return n.toLocaleString();
+  return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
 interface CategoryBudgetItem {
@@ -70,14 +68,14 @@ export default function BudgetTab() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-taupe-400">총 예산</span>
           <span className="text-lg font-medium text-noir-800">
-            {totalBudget > 0 ? `${formatWon(totalBudget)}원` : "미설정"}
+            {totalBudget > 0 ? formatWon(totalBudget) : "미설정"}
           </span>
         </div>
         {totalBudget > 0 && (
           <div className="mt-2.5">
             <div className="flex items-center justify-between text-sm mb-1.5">
               <span className="text-taupe-400">지출</span>
-              <span className="text-rose-500">{formatWon(totalSpent)}원</span>
+              <span className="text-rose-500">{formatWon(totalSpent)}</span>
             </div>
             <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
               <div

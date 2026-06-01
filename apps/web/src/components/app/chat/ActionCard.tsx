@@ -103,9 +103,7 @@ const CATEGORY_RATIOS: Record<string, number> = {
 };
 
 function formatWon(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만`;
-  return n.toLocaleString();
+  return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
 // 예산 현황 미니 카드
@@ -135,7 +133,7 @@ function BudgetMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06]">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm text-[#928980]">총 {formatWon(totalSpent)}원 / {formatWon(totalBudget)}원</span>
+        <span className="text-sm text-[#928980]">총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
         <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
       <div className="space-y-1.5">
@@ -148,7 +146,7 @@ function BudgetMiniCard() {
                 style={{ width: `${Math.min(cat.pct, 100)}%` }}
               />
             </div>
-            <span className="text-[#1A1A1F] w-[48px] text-right flex-shrink-0">{formatWon(cat.spent)}</span>
+            <span className="w-[64px] flex-shrink-0 text-right text-[#1A1A1F]">{formatWon(cat.spent)}</span>
             <span className={`w-[36px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
           </div>
         ))}

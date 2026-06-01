@@ -9,6 +9,10 @@ interface RegionalCostTableProps {
 
 type SortKey = "total" | "meal" | "sdm" | "rental" | "decoration";
 
+function formatMan(value: number) {
+  return `${value.toLocaleString()}만원`;
+}
+
 function SortHeader({
   label,
   field,
@@ -25,8 +29,8 @@ function SortHeader({
   return (
     <button
       onClick={() => onSort(field)}
-      className={`text-right text-[11px] font-medium flex items-center gap-1 justify-end ${
-        sortKey === field ? "text-rose-500" : "text-taupe-500"
+      className={`flex items-center justify-end gap-1 text-right text-[11px] font-semibold ${
+        sortKey === field ? "text-[#36534E]" : "text-[#7a8290]"
       }`}
     >
       {label}
@@ -69,10 +73,10 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
           <button
             key={c.region}
             onClick={() => setSelectedRegion(selectedRegion === c.region ? null : c.region)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
               selectedRegion === c.region
-                ? "bg-rose-500 text-white"
-                : "bg-ivory-100 text-taupe-500 hover:bg-ivory-200"
+                ? "border-[#36534E] bg-[#36534E] text-white"
+                : "border-[#eadfc9] bg-white text-[#5d6879] hover:bg-[#fff8ec] hover:text-[#36534E]"
             }`}
           >
             {REGION_LABELS[c.region]}
@@ -82,38 +86,37 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
 
       {/* 선택된 지역 상세 카드 */}
       {selectedCost && (
-        <div className="bg-gradient-to-br from-rose-500/5 to-[#C9A96E]/5 rounded-2xl p-5 border border-black/[0.04]">
-          <h4 className="font-serif-kr text-[18px] text-noir-800 mb-3">
+        <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4">
+          <h4 className="mb-2 font-serif-kr text-[20px] font-medium text-[#071629]">
             {REGION_LABELS[selectedCost.region]}
           </h4>
-          <p className="font-display text-[36px] font-light text-noir-800 mb-4">
-            {selectedCost.total.toLocaleString()}<span className="text-[14px] text-taupe-500 ml-1">만원</span>
+          <p className="mb-4 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">
+            {formatMan(selectedCost.total)}
           </p>
           <div className="grid grid-cols-4 gap-3">
             {[
-              { label: "식대", value: selectedCost.meal, color: "#C4967E" },
-              { label: "스드메", value: selectedCost.sdm, color: "#C9A96E" },
-              { label: "대관료", value: selectedCost.rental, color: "#928980" },
-              { label: "꽃장식", value: selectedCost.decoration, color: "#B5ADA3" },
+              { label: "식대", value: selectedCost.meal },
+              { label: "스드메", value: selectedCost.sdm },
+              { label: "대관료", value: selectedCost.rental },
+              { label: "꽃장식", value: selectedCost.decoration },
             ].map(item => (
-              <div key={item.label} className="text-center">
-                <p className="text-[11px] text-taupe-500 mb-1">{item.label}</p>
-                <p className="text-[16px] font-medium" style={{ color: item.color }}>
-                  {item.value.toLocaleString()}
+              <div key={item.label} className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3 text-center max-sm:col-span-2">
+                <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">{item.label}</p>
+                <p className="text-[13px] font-semibold text-[#071629]">
+                  {formatMan(item.value)}
                 </p>
-                <p className="text-[10px] text-taupe-400">만원</p>
               </div>
             ))}
           </div>
           {/* 전국 평균 대비 바 */}
           <div className="mt-4">
-            <div className="flex justify-between text-[10px] text-taupe-400 mb-1">
+            <div className="mb-1 flex justify-between text-[11px] font-medium text-[#7a8290]">
               <span>전국 평균 대비</span>
               <span>{Math.round((selectedCost.total / (costs.reduce((s, c) => s + c.total, 0) / costs.length)) * 100)}%</span>
             </div>
-            <div className="h-2 bg-ivory-200 rounded-full overflow-hidden">
+            <div className="h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
               <div
-                className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                className="h-full rounded-full bg-[#36534E] transition-all duration-500"
                 style={{ width: `${Math.min((selectedCost.total / maxTotal) * 100, 100)}%` }}
               />
             </div>
@@ -122,11 +125,11 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
       )}
 
       {/* 테이블 */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12px]">
+      <div className="overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white">
+        <table className="w-full min-w-[620px] text-[12px]">
           <thead>
-            <tr className="border-b border-black/[0.06]">
-              <th className="text-left py-3 px-2 text-[11px] font-medium text-taupe-500">지역</th>
+            <tr className="border-b border-[#eadfc9]/70 bg-[#fffdf7]">
+              <th className="px-3 py-3 text-left text-[11px] font-semibold text-[#7a8290]">지역</th>
               <th className="text-right py-3 px-2"><SortHeader label="총비용" field="total" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="식대" field="meal" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="스드메" field="sdm" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
@@ -139,32 +142,32 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
               <tr
                 key={c.region}
                 onClick={() => setSelectedRegion(selectedRegion === c.region ? null : c.region)}
-                className={`border-b border-black/[0.03] cursor-pointer transition-colors ${
+                className={`cursor-pointer border-b border-[#eadfc9]/60 transition-colors last:border-b-0 ${
                   selectedRegion === c.region
-                    ? "bg-rose-500/5"
-                    : "hover:bg-ivory-50"
+                    ? "bg-[#fff8ec]"
+                    : "hover:bg-[#fffdf7]"
                 }`}
               >
-                <td className="py-2.5 px-2 font-medium text-noir-800">
+                <td className="px-3 py-3 font-semibold text-[#071629]">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] text-taupe-400 w-4">{i + 1}</span>
+                    <span className="w-4 text-[10px] text-[#9a9188]">{i + 1}</span>
                     {REGION_LABELS[c.region]}
                   </span>
                 </td>
-                <td className="py-2.5 px-2 text-right font-medium text-noir-800">
-                  {c.total.toLocaleString()}
+                <td className="px-2 py-3 text-right font-semibold text-[#071629]">
+                  {formatMan(c.total)}
                 </td>
-                <td className="py-2.5 px-2 text-right text-taupe-500">
-                  {c.meal.toLocaleString()}
+                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
+                  {formatMan(c.meal)}
                 </td>
-                <td className="py-2.5 px-2 text-right text-taupe-500">
-                  {c.sdm.toLocaleString()}
+                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
+                  {formatMan(c.sdm)}
                 </td>
-                <td className="py-2.5 px-2 text-right text-taupe-500">
-                  {c.rental.toLocaleString()}
+                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
+                  {formatMan(c.rental)}
                 </td>
-                <td className="py-2.5 px-2 text-right text-taupe-400 max-md:hidden">
-                  {c.decoration.toLocaleString()}
+                <td className="px-2 py-3 text-right font-medium text-[#7a8290] max-md:hidden">
+                  {formatMan(c.decoration)}
                 </td>
               </tr>
             ))}

@@ -147,7 +147,7 @@ function getChecklistProgress(progress: Record<string, ProgressItem>, key: strin
 }
 
 function formatWon(amount: number) {
-  if (!amount) return "0원";
+  if (!amount) return "0만원";
   return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
 }
 
