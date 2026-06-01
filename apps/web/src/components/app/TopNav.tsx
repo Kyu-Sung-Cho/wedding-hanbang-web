@@ -88,22 +88,25 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
         <div className="flex items-center gap-2">
           <nav
             aria-label="라운지 주요 바로가기"
-            className="mr-2 hidden h-11 items-center rounded-full border border-[#eadfc9] bg-white px-2 lg:flex"
+            className="mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[#071629] lg:flex"
           >
-            {quickLinks.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/chat" && pathname.startsWith(item.href));
+            {quickLinks.map((item, index) => {
+              const isActive =
+                pathname === item.href ||
+                (item.href === "/community/cohort" && pathname.startsWith("/community/cohort")) ||
+                (item.href === "/community" && pathname === "/community");
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`inline-flex h-8 items-center rounded-full px-3 text-[13px] font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[#fff8ec] text-[#36534E]"
-                      : "text-[#5d6879] hover:bg-[#fff8ec] hover:text-[#36534E]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
+                <div key={item.href} className="flex items-center gap-6">
+                  {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
+                  <Link
+                    href={item.href}
+                    className={`transition-colors hover:text-[#b68a3a] ${
+                      isActive ? "text-[#9d6f36]" : "text-[#071629]"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                </div>
               );
             })}
           </nav>
