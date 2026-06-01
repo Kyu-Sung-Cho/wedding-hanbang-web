@@ -237,26 +237,26 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const progressPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
   return (
-    <div className={embedded ? "bg-[#fcf9f8]" : "min-h-screen bg-[#fcf9f8]"}>
+    <div className={embedded ? "bg-[#fcf9f8]" : ""}>
       <div
         className={
           embedded
             ? "max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10"
-            : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-10"
+            : "space-y-4"
         }
       >
         {/* 3-column Stat Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 animate-fade-in">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 animate-fade-in">
           {/* D-day */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-            <Sparkles className="absolute top-6 right-6 w-6 h-6 text-[#C9A96E]/30" />
-            <p className="text-xs tracking-widest uppercase text-[#795252] mb-4 font-medium">
+          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+            <Sparkles className="absolute right-4 top-4 h-5 w-5 text-[#36534E]/25" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               D-DAY
             </p>
-            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
               {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
             </p>
-            <p className="text-base text-[#504444]">
+            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">
               {dday === null
                 ? "날짜 미정"
                 : dday > 0
@@ -268,77 +268,77 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Progress */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <p className="text-xs tracking-widest uppercase text-sage-500 mb-4 font-medium">
+          <div className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               PROGRESS
             </p>
-            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
               {progressPct}%
             </p>
-            <div className="w-full h-2 bg-[#f6f3f2] rounded-full overflow-hidden mt-4">
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
               <div
-                className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all"
+                className="h-full rounded-full bg-[#36534E] transition-all"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-            <p className="text-base text-[#504444] mt-2">
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">
               {totalDone}/{totalItems} 완료
             </p>
           </div>
 
           {/* Upcoming count */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:col-span-2 md:col-span-1">
-            <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-4 font-medium">
+          <div className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
               UPCOMING
             </p>
-            <p className="font-serif-kr text-4xl sm:text-5xl md:text-6xl lg:text-[72px] leading-none text-[#1b1c1c] mb-2 font-light">
+            <p className="mt-4 font-serif-kr text-[36px] font-medium leading-none text-[#071629] sm:text-[40px] lg:text-[42px]">
               {upcomingEvents.length}
             </p>
-            <p className="text-base text-[#504444]">다가오는 일정</p>
+            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">다가오는 일정</p>
           </div>
         </div>
 
         {/* Main content: left view + right sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 animate-fade-in">
+        <div className="grid grid-cols-1 gap-4 animate-fade-in xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+          <div className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             {/* View toggle header */}
-            <div className="flex items-center justify-between gap-3 px-4 sm:px-8 py-4 sm:py-6 border-b border-[#e4e2e1] flex-wrap">
-              <div className="inline-flex bg-[#f6f3f2] rounded-xl p-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eadfc9] px-4 py-3 md:px-5">
+              <div className="inline-flex rounded-[14px] bg-[#f7f3ec] p-1">
                 <button
                   onClick={() => setViewMode("timeline")}
-                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors ${
+                  className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "timeline"
-                      ? "bg-white text-[#1b1c1c] shadow-sm"
-                      : "text-[#504444]"
+                      ? "bg-white text-[#071629] shadow-sm"
+                      : "text-[#5d6879]"
                   }`}
                 >
-                  <List className="inline w-5 h-5 mr-2" />
+                  <List className="mr-1.5 h-4 w-4" />
                   타임라인
                 </button>
                 <button
                   onClick={() => setViewMode("calendar")}
-                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors ${
+                  className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "calendar"
-                      ? "bg-white text-[#1b1c1c] shadow-sm"
-                      : "text-[#504444]"
+                      ? "bg-white text-[#071629] shadow-sm"
+                      : "text-[#5d6879]"
                   }`}
                 >
-                  <Calendar className="inline w-5 h-5 mr-2" />
+                  <Calendar className="mr-1.5 h-4 w-4" />
                   캘린더
                 </button>
               </div>
               <button
                 onClick={handleAddEventQuick}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
+                className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="h-4 w-4" />
                 일정 추가
               </button>
             </div>
 
             {/* Timeline or Calendar content */}
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="p-3 sm:p-4 md:p-5">
               {viewMode === "timeline" ? (
                 <TimelineView
                   progress={progress}
@@ -362,11 +362,11 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Right sidebar */}
-          <div className="space-y-6">
+          <div className="grid self-start gap-4 lg:grid-cols-2 xl:grid-cols-1">
             {/* Imminent Alerts */}
             {imminentCategories.length > 0 && (
-              <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c] mb-5">
+              <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+                <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
                   긴급 확인
                 </h3>
                 <ImminentAlerts
@@ -377,14 +377,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             )}
 
             {/* Upcoming Events */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1b1c1c]">
+            <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
                   다가오는 일정
                 </h3>
                 <button
                   onClick={handleAddEventQuick}
-                  className="flex items-center gap-1 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
+                  className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-[#36534E] transition-colors hover:text-[#2d4642]"
                 >
                   <Plus className="w-4 h-4" />
                   추가
@@ -392,34 +392,34 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               </div>
 
               {upcomingEvents.length === 0 ? (
-                <p className="text-base text-[#504444]">예정된 일정이 없어요</p>
+                <p className="text-[14px] font-medium text-[#5d6879]">예정된 일정이 없어요</p>
               ) : (
                 <div className="space-y-3">
                   {upcomingEvents.map((evt) => (
                     <div
                       key={evt.id}
-                      className="flex items-center gap-4 p-4 rounded-xl hover:bg-[#f6f3f2] transition-colors group"
+                      className="group flex items-start gap-3 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3 transition-colors hover:bg-white"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-[#dee6c4]/40 flex items-center justify-center shrink-0">
-                        <CalendarDays className="w-6 h-6 text-sage-500" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                        <CalendarDays className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-medium text-[#1b1c1c] truncate">
+                        <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">
                           {evt.title}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-sm text-[#504444] truncate">
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                          <p className="text-[12px] font-medium text-[#5d6879]">
                             {formatEventDate(evt.date)}
                           </p>
                           {evt.categoryKey && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-[#795252]/10 text-[#795252] flex-shrink-0">
+                            <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
                               {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                             </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#795252]/10 text-[#795252] text-sm font-medium">
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
                           {getDaysUntil(evt.date)}
                         </span>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

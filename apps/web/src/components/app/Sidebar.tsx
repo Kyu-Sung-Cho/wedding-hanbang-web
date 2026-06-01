@@ -15,7 +15,6 @@ import {
   MessageCircle,
   Settings,
   Shirt,
-  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -33,7 +32,6 @@ const menuItems = [
   { href: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
   { href: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { href: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { href: "/community", icon: Users, label: "커뮤니티" },
   { href: "/fitting", icon: Shirt, label: "드레스 피팅" },
   { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
   { href: "/scripts", icon: FileText, label: "대본 리딩" },

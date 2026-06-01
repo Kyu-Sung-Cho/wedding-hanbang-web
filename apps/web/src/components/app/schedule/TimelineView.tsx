@@ -180,7 +180,7 @@ export default function TimelineView({
         return (
           <div
             key={phase.label}
-            className="relative pl-12 mb-4 max-md:pl-10 animate-fade-in"
+            className="relative mb-3 pl-9 animate-fade-in sm:pl-10"
           >
             {/* 타임라인 점 */}
             <div
@@ -190,31 +190,31 @@ export default function TimelineView({
                   : phaseStats.done > 0
                   ? "border-[#795252] bg-white"
                   : "border-[#B5ADA3] bg-white"
-              } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`}
+                } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`}
             />
 
             {/* 페이즈 카드 */}
-            <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow">
+            <div className="w-full overflow-hidden rounded-[14px] border border-[#eadfc9]/70 bg-white shadow-[0_6px_18px_rgba(8,22,38,0.03)] transition-shadow hover:shadow-[0_8px_24px_rgba(8,22,38,0.055)]">
               {/* 페이즈 헤더 */}
               <button
                 onClick={() =>
                   setExpandedPhase(isPhaseExpanded ? null : pi)
                 }
-                className="w-full flex items-center justify-between px-6 py-5"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-[#795252] bg-[#795252]/10 px-2.5 py-1 rounded-full font-medium">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <span className="shrink-0 rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
                     {phase.dday}
                   </span>
-                  <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">
+                  <span className="min-w-0 text-[15px] font-semibold text-[#071629] sm:text-[16px]">
                     {phase.label}
                   </span>
-                  <span className="text-sm text-[#B5ADA3] font-light">
+                  <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">
                     {phase.period}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[#B5ADA3]">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-[12px] font-medium text-[#7a8290]">
                     {phaseStats.done}/{phaseStats.total}
                   </span>
                   {isPhaseExpanded ? (
@@ -237,19 +237,19 @@ export default function TimelineView({
                       const phaseEvents = events.filter(e => e.categoryKey && phaseCatKeys.includes(e.categoryKey));
                       if (phaseEvents.length === 0) return null;
                       return (
-                        <div className="mt-4 mb-2 px-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
-                            <span className="text-sm uppercase tracking-widest text-[#B5ADA3] font-medium">등록된 일정</span>
+                    <div className="mb-2 mt-3 px-2 sm:px-3">
+                          <div className="mb-2 flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-[#36534E]" />
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7a8290]">등록된 일정</span>
                           </div>
                           {phaseEvents.map(evt => (
-                            <div key={evt.id} className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-[#FAFAF8] group">
-                              <div className="w-8 h-8 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
-                                <CalendarDays className="w-4 h-4 text-[#C9A96E]" />
+                            <div key={evt.id} className="group flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-[#FAFAF8]">
+                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#f7f3ec]">
+                                <CalendarDays className="h-4 w-4 text-[#36534E]" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-serif-kr text-base font-normal text-[#1A1A1F]">{evt.title}</p>
-                                <p className="text-sm text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">{evt.title}</p>
+                                <p className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug text-[#7a8290]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
                               </div>
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
@@ -278,19 +278,19 @@ export default function TimelineView({
                                 isCatExpanded ? null : cat.key
                               )
                             }
-                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#FAFAF8] transition-colors"
+                            className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-[#FAFAF8] sm:px-3"
                           >
-                            <div className="w-10 h-10 rounded-xl bg-[#F6F3F2] flex items-center justify-center flex-shrink-0">
-                              <Icon className="w-5 h-5 text-[#795252]" />
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#f7f3ec]">
+                              <Icon className="h-4 w-4 text-[#36534E]" />
                             </div>
 
                             <div className="flex-1 min-w-0 text-left">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-serif-kr text-base font-semibold text-[#1A1A1F]">
+                              <div className="mb-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="min-w-0 text-[14px] font-semibold text-[#071629]">
                                   {cat.label}
                                 </span>
                                 <span
-                                  className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${
                                     STATUS_COLORS[data.status]
                                   }`}
                                 >
@@ -299,13 +299,13 @@ export default function TimelineView({
                               </div>
                               {/* 진행률 바 */}
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-[#F6F3F2] rounded-full overflow-hidden">
+                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
                                   <div
-                                    className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
+                                    className="h-full rounded-full bg-[#36534E] transition-all duration-500"
                                     style={{ width: `${percent}%` }}
                                   />
                                 </div>
-                                <span className="text-sm text-[#B5ADA3] flex-shrink-0">
+                                <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
                                   {data.done}/{data.total}
                                 </span>
                               </div>
@@ -325,14 +325,14 @@ export default function TimelineView({
                             <div
                               className="overflow-hidden"
                             >
-                              <div className="ml-12 mr-2 mt-1 mb-2 border-l-2 border-[#795252]/15 pl-3">
+                              <div className="mb-2 ml-10 mr-1 mt-1 border-l-2 border-[#36534E]/15 pl-3 sm:ml-12">
                                 {data.merged.map((item) => (
                                   <div
                                     key={item.id}
                                     onClick={() =>
                                       handleToggle(cat.key, item.id)
                                     }
-                                    className={`flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-[#FAFAF8] transition-colors ${
+                                    className={`-mx-2 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-[#FAFAF8] ${
                                       togglingItem === item.id
                                         ? "opacity-50 pointer-events-none"
                                         : ""
@@ -340,15 +340,15 @@ export default function TimelineView({
                                   >
                                     <div className="flex-shrink-0">
                                       {item.done ? (
-                                        <div className="w-6 h-6 rounded-full bg-[#795252] flex items-center justify-center">
+                                        <div className="flex h-5 w-5 rounded-full bg-[#36534E] items-center justify-center">
                                           <Check className="w-4 h-4 text-white" />
                                         </div>
                                       ) : (
-                                        <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] hover:border-[#795252] transition-colors" />
+                                        <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[#36534E]" />
                                       )}
                                     </div>
                                     <span
-                                      className={`text-[17px] leading-snug ${
+                                      className={`text-[14px] leading-snug ${
                                         item.done
                                           ? "text-[#B5ADA3] line-through"
                                           : "text-[#504444]"

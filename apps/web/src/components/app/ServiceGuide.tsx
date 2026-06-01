@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_service_guide_seen_v2";
+const SESSION_DISMISSED_KEY = "hanbang_service_guide_dismissed_session_v2";
 const TOTAL_SLIDES = 6;
 
 // ─── Slide 1: Welcome ────────────────────────────────────────────────
@@ -470,18 +471,19 @@ export default function ServiceGuide() {
     let entryFrame = 0;
     let nestedFrame = 0;
     const timer = window.setTimeout(() => {
-    try {
-      const seen = localStorage.getItem(STORAGE_KEY);
-      if (!seen) {
-        setVisible(true);
-        // 약간 딜레이 후 엔트리 애니메이션
-        entryFrame = requestAnimationFrame(() => {
-          nestedFrame = requestAnimationFrame(() => setEntered(true));
-        });
+      try {
+        const seen = localStorage.getItem(STORAGE_KEY);
+        const dismissedThisSession = sessionStorage.getItem(SESSION_DISMISSED_KEY);
+        if (!seen && !dismissedThisSession) {
+          setVisible(true);
+          // 약간 딜레이 후 엔트리 애니메이션
+          entryFrame = requestAnimationFrame(() => {
+            nestedFrame = requestAnimationFrame(() => setEntered(true));
+          });
+        }
+      } catch {
+        // localStorage 접근 실패 시 가이드 표시하지 않음
       }
-    } catch {
-      // localStorage 접근 실패 시 가이드 표시하지 않음
-    }
     }, 0);
     return () => {
       window.clearTimeout(timer);
@@ -490,22 +492,43 @@ export default function ServiceGuide() {
     };
   }, []);
 
-  const close = useCallback(() => {
+  const hide = useCallback(() => {
     setEntered(false);
     setTimeout(() => setVisible(false), 250);
-    if (neverShow) {
-      try {
-        localStorage.setItem(STORAGE_KEY, "true");
-      } catch {
-        // 무시
-      }
-    }
+  }, []);
+
+  const dismissForNow = useCallback(() => {
     try {
-      window.dispatchEvent(new CustomEvent("hanbang:service-guide-completed"));
+      sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
     } catch {
       // 무시
     }
-  }, [neverShow]);
+    hide();
+  }, [hide]);
+
+  const dismissPermanently = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+      sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
+    } catch {
+      // 무시
+    }
+    hide();
+  }, [hide]);
+
+  const close = useCallback(() => {
+    if (neverShow) {
+      try {
+        localStorage.setItem(STORAGE_KEY, "true");
+        sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
+      } catch {
+        // 무시
+      }
+      hide();
+      return;
+    }
+    dismissForNow();
+  }, [dismissForNow, hide, neverShow]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -537,17 +560,17 @@ export default function ServiceGuide() {
   const handleStart = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, "true");
+      sessionStorage.setItem(SESSION_DISMISSED_KEY, "true");
     } catch {
       // 무시
     }
-    setEntered(false);
-    setTimeout(() => setVisible(false), 250);
+    hide();
     try {
       window.dispatchEvent(new CustomEvent("hanbang:service-guide-completed"));
     } catch {
       // 무시
     }
-  }, []);
+  }, [hide]);
 
   // 키보드 네비게이션
   useEffect(() => {
@@ -581,19 +604,29 @@ export default function ServiceGuide() {
             : "opacity-0 scale-95 translate-y-4"
         }`}
       >
-        {/* 상단 헤더: 페이지 번호 + 건너뛰기 — 모바일에서 컴팩트하게.
+        {/* 상단 헤더: 페이지 번호 + 닫기/다시 보지 않기 — 모바일에서 컴팩트하게.
             no-min-tap 으로 글로벌 button min-height:40px 회피 (텍스트 버튼이라 부피 큼). */}
         <div className="flex items-center justify-between px-4 sm:px-6 pt-3 sm:pt-5 pb-1 sm:pb-2">
           <span className="text-xs sm:text-sm text-[#B5ADA3] font-medium tabular-nums">
             {current + 1}/{TOTAL_SLIDES}
           </span>
-          <button
-            onClick={close}
-            className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
-          >
-            건너뛰기
-            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={dismissPermanently}
+              className="no-min-tap text-xs sm:text-sm font-medium text-[#36534E] hover:text-[#2B423E] transition-colors"
+            >
+              다시 보지 않기
+            </button>
+            <button
+              type="button"
+              onClick={dismissForNow}
+              className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
+            >
+              나중에 보기
+              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </div>
         </div>
 
         {/* 프로그레스 바 */}
