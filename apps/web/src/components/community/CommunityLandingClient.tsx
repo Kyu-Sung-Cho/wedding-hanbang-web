@@ -1171,6 +1171,7 @@ function MarketSnapshotPanel() {
       icon: Palette,
     },
   ];
+  const marketItems = [...featuredItems, ...detailItems];
 
   return (
     <article className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
@@ -1195,40 +1196,12 @@ function MarketSnapshotPanel() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {featuredItems.map((item) => (
-          <MarketPriceTile key={item.label} item={item} />
-        ))}
-      </div>
-
-      <div className="mt-3 divide-y divide-[#eadfc9] rounded-[14px] border border-[#eadfc9] bg-white/72">
-        {detailItems.map((item) => (
+      <div className="divide-y divide-[#eadfc9] rounded-[14px] border border-[#eadfc9] bg-white/72">
+        {marketItems.map((item) => (
           <MarketPriceRow key={item.label} item={item} />
         ))}
       </div>
     </article>
-  );
-}
-
-function MarketPriceTile({
-  item,
-}: {
-  item: { label: string; value: number | null; note: string; icon: LucideIcon };
-}) {
-  return (
-    <Link
-      href="/market-prices"
-      className="group min-h-[84px] rounded-[14px] border border-[#eadfc9] bg-white/78 p-2 transition-colors hover:border-[#b68a3a]"
-    >
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
-        <item.icon className="h-3 w-3" />
-      </span>
-      <span className="mt-2 block text-[10px] font-semibold text-[#34445a]">{item.label}</span>
-      <span className="mt-0.5 block font-serif-kr text-[16px] font-medium leading-[1.12] text-[#071629]">
-        약 {formatMarketPrice(item.value)}
-      </span>
-      <span className="mt-0.5 block text-[10px] font-medium text-[#9aa2af]">{item.note}</span>
-    </Link>
   );
 }
 
