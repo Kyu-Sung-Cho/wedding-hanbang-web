@@ -9,7 +9,7 @@ import {
   Smartphone, Clock, Sparkles, TreePine, HeartHandshake,
   PiggyBank, ChevronRight, Search, BookOpen, ArrowLeft,
   CheckCircle2, Lightbulb, AlertTriangle, MessageSquareQuote,
-  ListOrdered, ChevronDown, Square, CheckSquare, CalendarPlus, X, Check,
+  ListOrdered, ChevronDown, Square, CheckSquare, CalendarPlus, StickyNote, X, Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ETIQUETTE_PARTS, ETIQUETTE_CATEGORIES } from "@/constants/etiquetteData";
@@ -240,12 +240,14 @@ function formatInlineText(text: string) {
 }
 
 // 블록 렌더러
-function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSchedule }: {
+function BlockRenderer({ block, blockId, checkedItems, itemMemos, onToggleCheck, onOpenSchedule, onOpenMemo }: {
   block: ParsedBlock;
   blockId: string;
   checkedItems: Set<string>;
+  itemMemos: Record<string, string>;
   onToggleCheck: (itemId: string) => void;
   onOpenSchedule: (itemId: string, text: string) => void;
+  onOpenMemo: (itemId: string, text: string) => void;
 }) {
   const { type, title, items } = block;
 
@@ -280,8 +282,10 @@ function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSche
               blockType={type}
               itemId={itemId}
               isChecked={checkedItems.has(itemId)}
+              memo={itemMemos[itemId]}
               onToggleCheck={onToggleCheck}
               onOpenSchedule={onOpenSchedule}
+              onOpenMemo={onOpenMemo}
             />
           );
         })}
@@ -290,14 +294,21 @@ function BlockRenderer({ block, blockId, checkedItems, onToggleCheck, onOpenSche
   );
 }
 
-function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpenSchedule }: {
+function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck, onOpenSchedule, onOpenMemo }: {
   item: ParsedItem;
   blockType: string;
   itemId: string;
   isChecked: boolean;
+  memo?: string;
   onToggleCheck: (itemId: string) => void;
   onOpenSchedule: (itemId: string, text: string) => void;
+  onOpenMemo: (itemId: string, text: string) => void;
 }) {
+  const canUseActions = blockType === "checklist" || blockType === "steps" || blockType === "paragraph";
+  const actionVisibility = memo
+    ? "opacity-100"
+    : "opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 sm:group-focus-within/item:opacity-100";
+
   switch (item.type) {
     case "group-title":
       return (
@@ -320,9 +331,9 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
       return (
         <div
           onClick={() => onToggleCheck(itemId)}
-          className="flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl cursor-pointer hover:bg-[#FDFCFA] transition-colors group/item"
+          className="flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-xl cursor-pointer hover:bg-[#FDFCFA] transition-colors group/item"
         >
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 mt-0.5">
             {isChecked ? (
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
                 <Check className="w-4 h-4 text-white" />
@@ -331,17 +342,38 @@ function ItemRenderer({ item, blockType, itemId, isChecked, onToggleCheck, onOpe
               <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover/item:border-[#795252] transition-colors" />
             )}
           </div>
-          <p className={`text-base leading-snug flex-1 ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
-            {formatInlineText(item.text)}
-          </p>
-          {(blockType === "checklist" || blockType === "steps" || blockType === "paragraph") && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onOpenSchedule(itemId, item.text); }}
-              className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
-              title="일정에 추가"
-            >
-              <CalendarPlus className="w-4 h-4 text-taupe-400 hover:text-[#795252] transition-colors" />
-            </button>
+          <div className="min-w-0 flex-1">
+            <p className={`text-base leading-snug ${isChecked ? "text-[#B5ADA3] line-through" : "text-charcoal"}`}>
+              {formatInlineText(item.text)}
+            </p>
+            {memo && (
+              <p className="mt-2 line-clamp-2 break-words rounded-lg bg-[#FDFCFA] px-3 py-2 text-sm leading-relaxed text-[#6F625D] border border-black/[0.04]">
+                <span className="font-medium text-[#795252]">메모</span>
+                <span className="ml-2">{memo}</span>
+              </p>
+            )}
+          </div>
+          {canUseActions && (
+            <div className={`flex-shrink-0 flex items-center gap-1 transition-opacity ${actionVisibility}`}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onOpenMemo(itemId, item.text); }}
+                className="p-1.5 rounded-lg hover:bg-white transition-colors"
+                title={memo ? "메모 수정" : "메모 추가"}
+                aria-label={memo ? "메모 수정" : "메모 추가"}
+              >
+                <StickyNote className={`w-4 h-4 transition-colors ${memo ? "text-[#795252]" : "text-taupe-400 hover:text-[#795252]"}`} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onOpenSchedule(itemId, item.text); }}
+                className="p-1.5 rounded-lg hover:bg-white transition-colors"
+                title="일정에 추가"
+                aria-label="일정에 추가"
+              >
+                <CalendarPlus className="w-4 h-4 text-taupe-400 hover:text-[#795252] transition-colors" />
+              </button>
+            </div>
           )}
         </div>
       );
@@ -471,6 +503,64 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   );
 }
 
+// 항목 메모 팝오버
+function MemoPopover({ itemText, initialMemo, onClose, onSave }: {
+  itemText: string;
+  initialMemo: string;
+  onClose: () => void;
+  onSave: (memo: string) => void;
+}) {
+  const [memo, setMemo] = useState(initialMemo);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div ref={popoverRef} className="w-[340px] max-w-[calc(100vw-32px)] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-base font-medium text-noir-800">메모</p>
+        <button type="button" onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors" aria-label="닫기">
+          <X className="w-4 h-4 text-taupe-400" />
+        </button>
+      </div>
+      <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-taupe-500">
+        {itemText}
+      </p>
+      <textarea
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+        rows={4}
+        placeholder="이 항목에서 기억할 내용을 적어두세요."
+        className="w-full resize-none rounded-lg border border-black/[0.06] px-3 py-2.5 text-base leading-relaxed text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+      />
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onSave("")}
+          className="flex-1 py-2.5 rounded-lg border border-black/[0.06] text-base font-medium text-taupe-500 hover:bg-ivory-100 transition-colors"
+        >
+          지우기
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave(memo)}
+          className="flex-[1.4] py-2.5 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium hover:bg-[#946a6a] transition-colors"
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const FREE_PART_LIMIT = 2;
 
 export default function EtiquettePage() {
@@ -499,7 +589,9 @@ function EtiquettePageInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [itemMemos, setItemMemos] = useState<Record<string, string>>({});
   const [schedulePopover, setSchedulePopover] = useState<{ itemId: string; text: string } | null>(null);
+  const [memoPopover, setMemoPopover] = useState<{ itemId: string; text: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
@@ -525,6 +617,19 @@ function EtiquettePageInner() {
     return () => window.clearTimeout(timer);
   }, [part.number]);
 
+  // localStorage에서 항목 메모 로드
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(`etiquette_memos_${part.number}`);
+        setItemMemos(saved ? JSON.parse(saved) : {});
+      } catch {
+        setItemMemos({});
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [part.number]);
+
   // 체크 상태 토글
   const handleToggleCheck = useCallback((itemId: string) => {
     setCheckedItems((prev) => {
@@ -543,8 +648,35 @@ function EtiquettePageInner() {
 
   // 일정 추가 팝오버 열기
   const handleOpenSchedule = useCallback((itemId: string, text: string) => {
+    setMemoPopover(null);
     setSchedulePopover({ itemId, text });
   }, []);
+
+  // 메모 팝오버 열기
+  const handleOpenMemo = useCallback((itemId: string, text: string) => {
+    setSchedulePopover(null);
+    setMemoPopover({ itemId, text });
+  }, []);
+
+  // 항목 메모 저장
+  const handleSaveMemo = useCallback((memo: string) => {
+    if (!memoPopover) return;
+    const trimmed = memo.trim();
+    setItemMemos((prev) => {
+      const next = { ...prev };
+      if (trimmed) {
+        next[memoPopover.itemId] = trimmed;
+      } else {
+        delete next[memoPopover.itemId];
+      }
+      try {
+        localStorage.setItem(`etiquette_memos_${part.number}`, JSON.stringify(next));
+      } catch { /* ignore */ }
+      return next;
+    });
+    setMemoPopover(null);
+    setToast(trimmed ? "메모를 저장했습니다" : "메모를 삭제했습니다");
+  }, [memoPopover, part.number]);
 
   // 일정 저장
   const handleSaveSchedule = useCallback(async (date: string, memo: string) => {
@@ -574,6 +706,7 @@ function EtiquettePageInner() {
     const timer = window.setTimeout(() => {
       setSelectedSection(null);
       setSchedulePopover(null);
+      setMemoPopover(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [selectedPart]);
@@ -581,6 +714,8 @@ function EtiquettePageInner() {
   // 섹션 선택 시 스크롤 맨 위로
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
+    setSchedulePopover(null);
+    setMemoPopover(null);
   }, [selectedSection]);
 
   // 검색 필터
@@ -931,8 +1066,10 @@ function EtiquettePageInner() {
                           block={block}
                           blockId={`${sIdx}_${bIdx}`}
                           checkedItems={checkedItems}
+                          itemMemos={itemMemos}
                           onToggleCheck={handleToggleCheck}
                           onOpenSchedule={handleOpenSchedule}
+                          onOpenMemo={handleOpenMemo}
                         />
                       </div>
                     ))}
@@ -1054,6 +1191,20 @@ function EtiquettePageInner() {
               itemText={schedulePopover.text}
               onClose={() => setSchedulePopover(null)}
               onSave={handleSaveSchedule}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 메모 팝오버 (오버레이) */}
+      {memoPopover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setMemoPopover(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <MemoPopover
+              itemText={memoPopover.text}
+              initialMemo={itemMemos[memoPopover.itemId] || ""}
+              onClose={() => setMemoPopover(null)}
+              onSave={handleSaveMemo}
             />
           </div>
         </div>
