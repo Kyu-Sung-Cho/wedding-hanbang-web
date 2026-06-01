@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Bell, Menu, MessageCircle, Newspaper, Search, UsersRound } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
@@ -31,9 +31,9 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
 ];
 
 const quickLinks = [
-  { href: "/chat", label: "아모라", icon: MessageCircle },
-  { href: "/community/cohort", label: "동기방", icon: UsersRound },
-  { href: "/community", label: "커뮤니티", icon: Newspaper },
+  { href: "/chat", label: "아모라" },
+  { href: "/community/cohort", label: "동기방" },
+  { href: "/community", label: "커뮤니티" },
 ];
 
 function getPageTitle(pathname: string) {
@@ -87,8 +87,8 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
         <div className="flex items-center gap-2">
           <nav
-            aria-label="주요 커뮤니티 바로가기"
-            className="mr-2 hidden items-center gap-1 rounded-full border border-[#eadfc9] bg-white/82 p-1 shadow-[0_10px_24px_rgba(43,37,31,0.04)] lg:flex"
+            aria-label="라운지 주요 바로가기"
+            className="mr-2 hidden h-11 items-center rounded-full border border-[#eadfc9] bg-white px-2 lg:flex"
           >
             {quickLinks.map((item) => {
               const isActive = pathname === item.href || (item.href !== "/chat" && pathname.startsWith(item.href));
@@ -96,13 +96,12 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition-colors ${
+                  className={`inline-flex h-8 items-center rounded-full px-3 text-[13px] font-semibold transition-colors ${
                     isActive
-                      ? "bg-[#36534e] text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)]"
-                      : "text-[#34445a] hover:bg-[#f7f1e7] hover:text-[#36534e]"
+                      ? "bg-[#fff8ec] text-[#36534E]"
+                      : "text-[#5d6879] hover:bg-[#fff8ec] hover:text-[#36534E]"
                   }`}
                 >
-                  <item.icon className="h-3.5 w-3.5" />
                   {item.label}
                 </Link>
               );
