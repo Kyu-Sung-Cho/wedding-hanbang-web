@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Instagram, Mail, MessageCircle, Play, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
+import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
 
@@ -22,6 +23,7 @@ export default function CommunityLayout({
       <main className="flex-1">{children}</main>
 
       <CommunityFooter />
+      <CommunityAmoraLauncher />
     </div>
   );
 }
