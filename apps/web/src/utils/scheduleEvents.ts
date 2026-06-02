@@ -13,7 +13,7 @@ export function getEvents(
 // 이벤트 추가 → 새 progress 반환
 export function addEvent(
   progress: Record<string, unknown>,
-  data: { date: string; title: string; memo?: string; categoryKey?: string }
+  data: { date: string; title: string; memo?: string; categoryKey?: string; sourceKey?: string }
 ): { newProgress: Record<string, unknown>; newEvent: ScheduleEvent } {
   const events = getEvents(progress);
   const now = new Date().toISOString();
@@ -23,6 +23,7 @@ export function addEvent(
     title: data.title,
     memo: data.memo,
     categoryKey: data.categoryKey,
+    sourceKey: data.sourceKey,
     createdAt: now,
     updatedAt: now,
   };
@@ -36,7 +37,7 @@ export function addEvent(
 export function updateEvent(
   progress: Record<string, unknown>,
   eventId: string,
-  updates: Partial<Pick<ScheduleEvent, "date" | "title" | "memo" | "categoryKey">>
+  updates: Partial<Pick<ScheduleEvent, "date" | "title" | "memo" | "categoryKey" | "sourceKey">>
 ): Record<string, unknown> {
   const events = getEvents(progress);
   return {

@@ -9,12 +9,13 @@ import {
   Smartphone, Clock, Sparkles, TreePine, HeartHandshake,
   PiggyBank, ChevronRight, Search, BookOpen, ArrowLeft,
   CheckCircle2, Lightbulb, AlertTriangle, MessageSquareQuote,
-  ListOrdered, ChevronDown, Square, CheckSquare, CalendarPlus, StickyNote, X, Check,
+  ListOrdered, CalendarPlus, StickyNote, X, Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ETIQUETTE_PARTS, ETIQUETTE_CATEGORIES } from "@/constants/etiquetteData";
 import { useAuthStore } from "@/stores/authStore";
-import { addEvent } from "@/utils/scheduleEvents";
+import { addEvent, getEvents, updateEvent } from "@/utils/scheduleEvents";
+import type { ScheduleEvent } from "@/types/database.types";
 
 // 아이콘 맵
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -379,7 +380,6 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
       );
 
     case "numbered": {
-      const numMatch = item.text.match(/^"(.+?)"/);
       return (
         <div className="pl-1 py-1.5">
           <div className="flex gap-2">
@@ -441,13 +441,16 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
 }
 
 // 일정 추가 팝오버
-function SchedulePopover({ itemText, onClose, onSave }: {
+function SchedulePopover({ itemText, initialDate = "", initialMemo, isExisting = false, onClose, onSave }: {
   itemText: string;
+  initialDate?: string;
+  initialMemo?: string;
+  isExisting?: boolean;
   onClose: () => void;
   onSave: (date: string, memo: string) => void;
 }) {
-  const [date, setDate] = useState("");
-  const [memo, setMemo] = useState(itemText);
+  const [date, setDate] = useState(initialDate);
+  const [memo, setMemo] = useState(initialMemo ?? itemText);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -461,31 +464,44 @@ function SchedulePopover({ itemText, onClose, onSave }: {
   }, [onClose]);
 
   return (
-    <div ref={popoverRef} className="w-[320px] bg-white rounded-xl border border-black/[0.08] shadow-lg p-4 animate-fade-in">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-base font-medium text-noir-800">일정에 추가</p>
-        <button onClick={onClose} className="p-0.5 rounded hover:bg-ivory-200 transition-colors">
-          <X className="w-4 h-4 text-taupe-400" />
+    <div ref={popoverRef} className="w-[520px] max-w-[calc(100vw-32px)] rounded-2xl border border-black/[0.08] bg-white p-5 shadow-[0_18px_60px_rgba(13,13,15,0.16)] animate-fade-in sm:p-6">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[18px] font-semibold text-noir-800">
+            {isExisting ? "일정 수정" : "일정에 추가"}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-taupe-500">
+            {isExisting ? "이미 추가된 일정입니다. 날짜와 메모를 수정할 수 있어요." : "예절 체크리스트 항목을 일정으로 옮겨둘게요."}
+          </p>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-ivory-200" aria-label="닫기">
+          <X className="h-4 w-4 text-taupe-400" />
         </button>
       </div>
-      <div className="space-y-3">
+
+      <div className="mb-4 rounded-xl border border-black/[0.04] bg-ivory-50 px-3.5 py-3">
+        <p className="mb-1 text-xs font-semibold text-[#795252]">체크리스트 항목</p>
+        <p className="line-clamp-3 text-sm font-medium leading-relaxed text-[#504444]">{itemText}</p>
+      </div>
+
+      <div className="space-y-4">
         <div>
-          <label className="block text-sm text-taupe-500 mb-1">날짜</label>
+          <label className="mb-1.5 block text-sm font-medium text-taupe-500">날짜</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-base text-noir-800 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+            className="w-full rounded-xl border border-black/[0.06] px-3.5 py-3 text-base text-noir-800 transition-colors focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20"
           />
         </div>
         <div>
-          <label className="block text-sm text-taupe-500 mb-1">메모</label>
-          <input
-            type="text"
+          <label className="mb-1.5 block text-sm font-medium text-taupe-500">메모</label>
+          <textarea
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
             placeholder="메모 (선택)"
-            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-base text-noir-800 placeholder:text-taupe-400 focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20 transition-colors"
+            rows={7}
+            className="min-h-[168px] w-full resize-y rounded-xl border border-black/[0.06] px-3.5 py-3 text-base leading-relaxed text-noir-800 placeholder:text-taupe-400 transition-colors focus:outline-none focus:border-[#795252]/30 focus:ring-1 focus:ring-[#795252]/20"
           />
         </div>
         <button
@@ -494,9 +510,9 @@ function SchedulePopover({ itemText, onClose, onSave }: {
             onSave(date, memo);
           }}
           disabled={!date}
-          className="w-full py-2.5 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium hover:bg-[#946a6a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] py-3.5 text-base font-semibold text-white transition-colors hover:bg-[#946a6a] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          일정에 추가
+          {isExisting ? "일정 수정" : "일정에 추가"}
         </button>
       </div>
     </div>
@@ -563,6 +579,29 @@ function MemoPopover({ itemText, initialMemo, onClose, onSave }: {
 
 const FREE_PART_LIMIT = 2;
 
+type SchedulePopoverState = {
+  itemId: string;
+  text: string;
+  eventId?: string;
+  initialDate?: string;
+  initialMemo?: string;
+  isExisting?: boolean;
+};
+
+function getEtiquetteScheduleSourceKey(partNumber: number, itemId: string) {
+  return `etiquette:${partNumber}:${itemId}`;
+}
+
+function getLegacyEtiquetteEventMemo(partNumber: number, partTitle: string) {
+  return `예절 가이드 Part ${partNumber}: ${partTitle}`;
+}
+
+function getSchedulePopoverMemo(event: ScheduleEvent | undefined, itemText: string, itemMemo?: string) {
+  if (!event) return itemMemo?.trim() || itemText;
+  if (event.sourceKey) return event.memo || itemMemo?.trim() || itemText;
+  return event.title || itemMemo?.trim() || itemText;
+}
+
 export default function EtiquettePage() {
   return (
     <Suspense fallback={null}>
@@ -590,7 +629,7 @@ function EtiquettePageInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [itemMemos, setItemMemos] = useState<Record<string, string>>({});
-  const [schedulePopover, setSchedulePopover] = useState<{ itemId: string; text: string } | null>(null);
+  const [schedulePopover, setSchedulePopover] = useState<SchedulePopoverState | null>(null);
   const [memoPopover, setMemoPopover] = useState<{ itemId: string; text: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -646,11 +685,35 @@ function EtiquettePageInner() {
     });
   }, [part.number]);
 
+  const findExistingScheduleEvent = useCallback((itemId: string, text: string) => {
+    if (!journey?.progress) return undefined;
+    const progress = journey.progress as unknown as Record<string, unknown>;
+    const events = getEvents(progress);
+    const sourceKey = getEtiquetteScheduleSourceKey(part.number, itemId);
+    const legacyMemo = getLegacyEtiquetteEventMemo(part.number, part.title);
+    const savedMemo = itemMemos[itemId]?.trim();
+
+    return events.find((event) => event.sourceKey === sourceKey)
+      ?? events.find((event) =>
+        event.categoryKey === "etiquette"
+        && event.memo === legacyMemo
+        && (event.title === text || (!!savedMemo && event.title === savedMemo))
+      );
+  }, [journey, itemMemos, part.number, part.title]);
+
   // 일정 추가 팝오버 열기
   const handleOpenSchedule = useCallback((itemId: string, text: string) => {
+    const existingEvent = findExistingScheduleEvent(itemId, text);
     setMemoPopover(null);
-    setSchedulePopover({ itemId, text });
-  }, []);
+    setSchedulePopover({
+      itemId,
+      text,
+      eventId: existingEvent?.id,
+      initialDate: existingEvent?.date ?? "",
+      initialMemo: getSchedulePopoverMemo(existingEvent, text, itemMemos[itemId]),
+      isExisting: Boolean(existingEvent),
+    });
+  }, [findExistingScheduleEvent, itemMemos]);
 
   // 메모 팝오버 열기
   const handleOpenMemo = useCallback((itemId: string, text: string) => {
@@ -680,18 +743,32 @@ function EtiquettePageInner() {
 
   // 일정 저장
   const handleSaveSchedule = useCallback(async (date: string, memo: string) => {
-    if (!journey?.progress) return;
+    if (!journey?.progress || !schedulePopover) return;
     const progress = journey.progress as unknown as Record<string, unknown>;
-    const { newProgress } = addEvent(progress, {
-      date,
-      title: memo || schedulePopover?.text || "예절 가이드 항목",
-      memo: `예절 가이드 Part ${part.number}: ${part.title}`,
-      categoryKey: "etiquette",
-    });
+    const sourceKey = getEtiquetteScheduleSourceKey(part.number, schedulePopover.itemId);
+    const trimmedMemo = memo.trim();
+    const eventTitle = schedulePopover.text || "예절 가이드 항목";
+    const eventMemo = trimmedMemo || eventTitle;
+    const newProgress = schedulePopover.eventId
+      ? updateEvent(progress, schedulePopover.eventId, {
+        date,
+        title: eventTitle,
+        memo: eventMemo,
+        categoryKey: "etiquette",
+        sourceKey,
+      })
+      : addEvent(progress, {
+        date,
+        title: eventTitle,
+        memo: eventMemo,
+        categoryKey: "etiquette",
+        sourceKey,
+      }).newProgress;
+
     await updateJourney({ progress: newProgress as typeof journey.progress });
     setSchedulePopover(null);
-    setToast("일정에 추가되었습니다");
-  }, [journey, updateJourney, schedulePopover, part.number, part.title]);
+    setToast(schedulePopover.eventId ? "일정을 수정했습니다" : "일정에 추가되었습니다");
+  }, [journey, updateJourney, schedulePopover, part.number]);
 
   // 토스트 자동 닫기
   useEffect(() => {
@@ -1192,6 +1269,9 @@ function EtiquettePageInner() {
           <div onClick={(e) => e.stopPropagation()}>
             <SchedulePopover
               itemText={schedulePopover.text}
+              initialDate={schedulePopover.initialDate}
+              initialMemo={schedulePopover.initialMemo}
+              isExisting={schedulePopover.isExisting}
               onClose={() => setSchedulePopover(null)}
               onSave={handleSaveSchedule}
             />

@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   houseware: "혼수(가전/가구)", housing: "신혼집", invitation: "청첩장",
   snap: "본식스냅/영상", shoes: "웨딩구두", bouquet: "부케/꽃장식",
   gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
+  etiquette: "예절가이드",
 };
 
 function formatEventDate(dateStr: string): string {

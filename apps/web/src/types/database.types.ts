@@ -65,6 +65,7 @@ export interface ScheduleEvent {
   title: string;
   memo?: string;
   categoryKey?: string;
+  sourceKey?: string;
   createdAt: string;
   updatedAt: string;
 }
