@@ -419,11 +419,7 @@ export default function CommunityLandingClient({
         onSearchDraftChange={setSearchDraft}
         onSubmit={submitSearch}
         selectedCategory={selectedCategory}
-        currentSort={currentSort}
-        currentPeriod={currentPeriod}
         currentTag={currentTag}
-        onSortChange={setSort}
-        onPeriodChange={setPeriod}
         onClearTag={() => router.push("/community")}
       />
       <CommunityMain
@@ -432,6 +428,8 @@ export default function CommunityLandingClient({
         selectedCategory={selectedCategory}
         currentSort={currentSort}
         currentPeriod={currentPeriod}
+        onSortChange={setSort}
+        onPeriodChange={setPeriod}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -459,11 +457,7 @@ function SearchHub({
   onSearchDraftChange,
   onSubmit,
   selectedCategory,
-  currentSort,
-  currentPeriod,
   currentTag,
-  onSortChange,
-  onPeriodChange,
   onClearTag,
 }: {
   searchDraft: string;
@@ -471,11 +465,7 @@ function SearchHub({
   onSearchDraftChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   selectedCategory: CommunityCategory | null;
-  currentSort: PostSort;
-  currentPeriod: TimePeriod;
   currentTag: string | null;
-  onSortChange: (sort: PostSort) => void;
-  onPeriodChange: (period: TimePeriod) => void;
   onClearTag: () => void;
 }) {
   const isTopicActive = (item: (typeof topicItems)[number]) => {
@@ -534,8 +524,8 @@ function SearchHub({
         })}
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-[#eadfc9] pt-3 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {(currentTag || searchQuery) && (
+        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 border-t border-[#eadfc9] pt-3">
           {currentTag && (
             <button
               type="button"
@@ -554,42 +544,7 @@ function SearchHub({
             </Link>
           )}
         </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
-        <label className="relative">
-          <span className="sr-only">정렬</span>
-          <select
-            value={currentSort}
-            onChange={(event) => onSortChange(event.target.value as PostSort)}
-            className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
-          >
-            {sortValues.map((sort) => (
-              <option key={sort} value={sort}>
-                {sortLabels[sort]}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
-        </label>
-        {currentSort === "top" && (
-          <label className="relative">
-          <span className="sr-only">좋아요 기간</span>
-            <select
-              value={currentPeriod}
-              onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-              className="h-11 appearance-none rounded-full border border-[#eadfc9] bg-white/70 px-5 pr-10 text-[14px] font-medium text-[#34445a] outline-none focus:border-[#b68a3a]"
-            >
-              {periodValues.map((period) => (
-                <option key={period} value={period}>
-                  {periodLabels[period]}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b68a3a]" />
-          </label>
-        )}
-      </div>
-      </div>
+      )}
     </section>
   );
 }
@@ -600,6 +555,8 @@ function CommunityMain({
   selectedCategory,
   currentSort,
   currentPeriod,
+  onSortChange,
+  onPeriodChange,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -613,6 +570,8 @@ function CommunityMain({
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
   currentPeriod: TimePeriod;
+  onSortChange: (sort: PostSort) => void;
+  onPeriodChange: (period: TimePeriod) => void;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -632,6 +591,8 @@ function CommunityMain({
         selectedCategory={selectedCategory}
         currentSort={currentSort}
         currentPeriod={currentPeriod}
+        onSortChange={onSortChange}
+        onPeriodChange={onPeriodChange}
         isSearching={isSearching}
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
@@ -651,6 +612,8 @@ function LatestPosts({
   selectedCategory,
   currentSort,
   currentPeriod,
+  onSortChange,
+  onPeriodChange,
   isSearching,
   isPreviewFeed,
   fullFeedHref,
@@ -664,6 +627,8 @@ function LatestPosts({
   selectedCategory: CommunityCategory | null;
   currentSort: PostSort;
   currentPeriod: TimePeriod;
+  onSortChange: (sort: PostSort) => void;
+  onPeriodChange: (period: TimePeriod) => void;
   isSearching: boolean;
   isPreviewFeed: boolean;
   fullFeedHref: string;
@@ -689,6 +654,26 @@ function LatestPosts({
             : currentSort === "my_posts"
               ? "내 글"
               : "최신 글";
+  const feedMoreLabel = `${feedTitle} 더보기`;
+  const previewDescription = isSearching
+    ? `"${searchQuery}" ${formatCount(total)}건`
+    : selectedCategory
+      ? `${categoryDisplayLabels[selectedCategory]} 게시글 ${formatCount(total)}개`
+      : currentSort === "hot"
+        ? `반응이 높은 게시글 ${formatCount(total)}개`
+        : currentSort === "top"
+          ? currentPeriod === "week"
+            ? `최근 7일 좋아요 기준 게시글 ${formatCount(total)}개`
+            : currentPeriod === "month"
+              ? `최근 30일 좋아요 기준 게시글 ${formatCount(total)}개`
+              : `좋아요 기준 게시글 ${formatCount(total)}개`
+          : currentSort === "my_cohort"
+            ? `내 동기방 게시글 ${formatCount(total)}개`
+            : currentSort === "my_posts"
+              ? `내가 쓴 게시글 ${formatCount(total)}개`
+              : isPreviewFeed
+                ? `최근 글 ${formatCount(posts.length)}개를 먼저 보여드려요`
+                : `실제 게시글 ${formatCount(total)}개`;
 
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-4 shadow-[0_10px_30px_rgba(8,22,38,0.045)] sm:p-5">
@@ -698,27 +683,51 @@ function LatestPosts({
             {feedTitle}
           </h2>
           <p className="mt-1 text-[12px] font-medium text-[#7a8290]">
-            {isSearching
-              ? `"${searchQuery}" ${formatCount(total)}건`
-              : isPreviewFeed
-                ? `최근 글 ${formatCount(posts.length)}개를 먼저 보여드려요`
-                : currentSort === "hot"
-                  ? `반응이 높은 게시글 ${formatCount(total)}개`
-                  : currentSort === "top"
-                    ? currentPeriod === "week"
-                      ? `최근 7일 좋아요 기준 게시글 ${formatCount(total)}개`
-                      : currentPeriod === "month"
-                        ? `최근 30일 좋아요 기준 게시글 ${formatCount(total)}개`
-                        : `좋아요 기준 게시글 ${formatCount(total)}개`
-                    : `실제 게시글 ${formatCount(total)}개`}
+            {previewDescription}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isSearching && (
+            <>
+              <label className="relative">
+                <span className="sr-only">정렬</span>
+                <select
+                  value={currentSort}
+                  onChange={(event) => onSortChange(event.target.value as PostSort)}
+                  className="h-9 appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-9 text-[12px] font-semibold text-[#34445a] outline-none focus:border-[#b68a3a]"
+                >
+                  {sortValues.map((sort) => (
+                    <option key={sort} value={sort}>
+                      {sortLabels[sort]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#b68a3a]" />
+              </label>
+              {currentSort === "top" && (
+                <label className="relative">
+                  <span className="sr-only">좋아요 기간</span>
+                  <select
+                    value={currentPeriod}
+                    onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
+                    className="h-9 appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-9 text-[12px] font-semibold text-[#34445a] outline-none focus:border-[#b68a3a]"
+                  >
+                    {periodValues.map((period) => (
+                      <option key={period} value={period}>
+                        {periodLabels[period]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#b68a3a]" />
+                </label>
+              )}
+            </>
+          )}
           {isPreviewFeed && posts.length > 0 && (
             <Link
               href={fullFeedHref}
               className="inline-flex min-h-9 items-center rounded-full border border-[#eadfc9] bg-white px-4 text-[12px] font-medium text-[#9d6f36]"
-              aria-label="최신 글 더보기"
+              aria-label={feedMoreLabel}
             >
               더보기
               <ChevronRight className="ml-1 h-4 w-4" />
@@ -789,9 +798,9 @@ function LatestPosts({
               <Link
                 href={fullFeedHref}
                 className="inline-flex min-h-11 items-center rounded-full border border-[#eadfc9] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
-                aria-label="최신 글 전체 보기"
+                aria-label={`${feedTitle} 전체 보기`}
               >
-                최신 글 더보기
+                {feedMoreLabel}
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
             </div>
