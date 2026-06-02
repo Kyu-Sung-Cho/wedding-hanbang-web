@@ -336,7 +336,14 @@ export default function DashboardPage() {
             </div>
             <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <Link
+            href="/chat"
+            className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
+          >
+            아모라에게 다음 할 일 묻기
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+          <div className="mt-auto grid grid-cols-3 gap-2">
             {nextCategories.length > 0 ? (
               nextCategories.map((category) => {
                 const Icon = category.icon;
@@ -367,13 +374,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <Link
-            href="/chat"
-            className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
-          >
-            아모라에게 다음 할 일 묻기
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
         </div>
       </section>
 
