@@ -212,7 +212,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
       <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
         <RoomHero room={room} activeTab={tab} onTabChange={setTab} />
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <main className="min-w-0">
             <section className="overflow-hidden rounded-[22px] border border-[#e5d8ca] bg-white/88 shadow-[0_16px_38px_rgba(50,36,17,0.055)]">
               <div className="border-b border-[#e5d8ca] bg-white/70 px-3 py-3 sm:px-4">
@@ -238,7 +238,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                 </div>
               </div>
 
-              <div className="p-3 sm:p-5">
+              <div className="p-3 sm:p-5 lg:p-6">
                 {tab === "chat" && <ChatTab roomId={roomId} enabled={isSignedIn} toastError={toast.error} />}
                 {tab === "info" && <InfoTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
                 {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
@@ -755,7 +755,7 @@ function ChatTab({
   }
 
   return (
-    <div className="flex min-h-[640px] flex-col">
+    <div className="flex min-h-[760px] flex-col">
       <div className="mb-4 flex flex-col gap-3 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
@@ -788,10 +788,10 @@ function ChatTab({
       {/* 메시지 목록 */}
       <div
         ref={messagesContainerRef}
-        className="min-h-[360px] flex-1 space-y-4 overflow-y-auto rounded-[18px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5"
+        className="min-h-[520px] flex-1 space-y-4 overflow-y-auto rounded-[20px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5 lg:min-h-[560px]"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full min-h-[320px] items-center justify-center rounded-[16px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
+          <div className="flex h-full min-h-[500px] items-center justify-center rounded-[18px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
             아직 메시지가 없어요.
             <br />
             첫 질문이나 오늘의 준비 상황을 남겨보세요.
@@ -802,8 +802,8 @@ function ChatTab({
       </div>
 
       {/* 입력 */}
-      <div className="mt-3 rounded-[18px] border border-[#e5d8ca] bg-white p-3 sm:p-4">
-        <div className="mb-2.5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+      <div className="mt-4 rounded-[20px] border border-[#e5d8ca] bg-white p-3.5 sm:p-4">
+        <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             type="button"
             onClick={() => setThread("")}
@@ -830,7 +830,7 @@ function ChatTab({
             </button>
           ))}
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2.5 sm:flex-row">
           <div className="relative flex-1 min-w-0 w-full">
             {mentionOpen && filteredMembers.length > 0 && (
               <div className="absolute bottom-full mb-2 left-0 w-60 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e5d8ca] z-20">
@@ -859,8 +859,8 @@ function ChatTab({
                 }
               }}
               placeholder="메시지 입력... (@멘션 가능)"
-              rows={2}
-              className="w-full resize-none rounded-xl border border-transparent bg-[#f6efe5] px-3 py-2.5 text-[0.9375rem] text-[#263832] outline-none transition-colors placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
+              rows={3}
+              className="min-h-[82px] w-full resize-none rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
             />
           </div>
           <input
@@ -871,12 +871,12 @@ function ChatTab({
             onChange={handleImageUpload}
           />
           {/* 액션 버튼 */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 sm:min-h-[82px]">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex-1 sm:flex-none flex items-center justify-center rounded-xl bg-[#f6efe5] hover:bg-[#e5d8ca] py-2.5 sm:py-0 px-3 text-[#635b51] transition-colors disabled:opacity-50"
+              className="flex flex-1 items-center justify-center rounded-[16px] bg-[#f6efe5] px-3 py-3 text-[#635b51] transition-colors hover:bg-[#e5d8ca] disabled:opacity-50 sm:flex-none sm:py-0"
               title="이미지 첨부"
             >
               <Paperclip className="h-4 w-4" />
@@ -884,7 +884,7 @@ function ChatTab({
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="flex-1 sm:flex-none flex items-center gap-1.5 justify-center rounded-xl bg-[#f6efe5] hover:bg-[#e5d8ca] py-2.5 sm:py-0 px-3 text-[#635b51] text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+              className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] bg-[#f6efe5] px-3 py-3 text-xs font-medium text-[#635b51] transition-colors hover:bg-[#e5d8ca] sm:flex-none sm:py-0 sm:text-sm"
               title="커뮤니티 글 공유"
             >
               <Link2 className="h-4 w-4" />
@@ -894,7 +894,7 @@ function ChatTab({
               type="button"
               onClick={handleSend}
               disabled={sending || !input.trim()}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-[#36534E] py-2.5 sm:py-0 px-4 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[#36534E] px-4 py-3 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] transition-all hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] disabled:opacity-50 sm:flex-none sm:py-0"
             >
               <Send className="h-4 w-4" />
               <span className="sm:hidden text-sm font-medium">전송</span>
