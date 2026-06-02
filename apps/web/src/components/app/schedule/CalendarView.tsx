@@ -298,26 +298,45 @@ export default function CalendarView({
               ))}
 
               {/* 이벤트 */}
-              {selectedEvents.map((evt) => (
-                <button
-                  key={evt.id}
-                  onClick={() => onEditEvent(evt)}
-                  className="flex items-center gap-3 p-3 bg-white rounded-xl hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)] transition-shadow text-left"
-                >
-                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-serif-kr text-base text-[#1A1A1F] font-normal">{evt.title}</p>
-                    {evt.memo && (
-                      <p className="text-sm text-[#B5ADA3] truncate">{evt.memo}</p>
-                    )}
-                  </div>
-                  {evt.categoryKey && (
-                    <span className={`text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
-                      {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {selectedEvents.map((evt) => {
+                const memoText = evt.memo?.trim();
+                const shouldShowMemo =
+                  Boolean(memoText) && memoText !== evt.title.trim();
+
+                return (
+                  <button
+                    key={evt.id}
+                    onClick={() => onEditEvent(evt)}
+                    className="w-full rounded-xl bg-white p-3.5 text-left transition-shadow hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="font-serif-kr text-base text-[#1A1A1F] font-normal">
+                            {evt.title}
+                          </p>
+                          {evt.categoryKey && (
+                            <span className={`shrink-0 text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
+                              {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                            </span>
+                          )}
+                        </div>
+                        {shouldShowMemo && (
+                          <div className="mt-2 rounded-lg border border-[#eadfc9]/70 bg-[#fffdf8] px-3 py-2">
+                            <p className="mb-1 text-[11px] font-semibold text-[#795252]">
+                              메모
+                            </p>
+                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[#635b51]">
+                              {memoText}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
 
               {/* 빈 날짜 */}
               {selectedMilestones.length === 0 && selectedEvents.length === 0 && (
