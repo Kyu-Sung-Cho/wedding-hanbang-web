@@ -324,10 +324,16 @@ function syncToolResult(result: ToolExecutionResult) {
     }
     case "add_schedule_event": {
       const currentP1 = authStore.journey?.progress ?? {};
-      const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as unknown[];
-      const newEvt = result.toolOutput.event;
+      const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
+      const newEvt = result.toolOutput.event as { id: string };
+      const hasEvent = curEvents1.some((event) => event.id === newEvt.id);
       authStore.updateJourneyLocal({
-        progress: { ...currentP1, __events: [...curEvents1, newEvt] } as unknown as typeof currentP1,
+        progress: {
+          ...currentP1,
+          __events: hasEvent
+            ? curEvents1.map((event) => event.id === newEvt.id ? newEvt : event)
+            : [...curEvents1, newEvt],
+        } as unknown as typeof currentP1,
       });
       break;
     }

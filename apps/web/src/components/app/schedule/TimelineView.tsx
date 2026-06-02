@@ -22,17 +22,8 @@ import {
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
-import type { ProgressItem } from "@/types/database.types";
-
-interface ScheduleEvent {
-  id: string;
-  date: string;
-  title: string;
-  memo?: string;
-  categoryKey?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
+import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Building2,
@@ -107,11 +98,16 @@ function buildPhases(): Phase[] {
 
 interface Props {
   progress: Record<string, ProgressItem>;
-  onToggleChecklistItem: (categoryKey: string, itemId: string) => Promise<void>;
+  onToggleChecklistItem: (categoryKey: string, item: ChecklistItem) => Promise<void>;
   events?: ScheduleEvent[];
   onEditEvent?: (event: ScheduleEvent) => void;
   onDeleteEvent?: (eventId: string) => void;
   onAddEvent?: () => void;
+}
+
+function formatShortDate(dateString: string): string {
+  const date = new Date(`${dateString}T00:00:00`);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 export default function TimelineView({
@@ -145,11 +141,11 @@ export default function TimelineView({
   );
 
   const handleToggle = useCallback(
-    async (categoryKey: string, itemId: string) => {
+    async (categoryKey: string, item: ChecklistItem) => {
       if (togglingItem) return;
-      setTogglingItem(itemId);
+      setTogglingItem(item.id);
       try {
-        await onToggleChecklistItem(categoryKey, itemId);
+        await onToggleChecklistItem(categoryKey, item);
       } finally {
         setTogglingItem(null);
       }
@@ -231,39 +227,11 @@ export default function TimelineView({
                   className="overflow-hidden"
                 >
                   <div className="border-t border-[#F6F3F2] px-4 pb-4">
-                    {/* 연결된 커스텀 일정 */}
-                    {(() => {
-                      const phaseCatKeys = phase.categories.map(c => c.key);
-                      const phaseEvents = events.filter(e => e.categoryKey && phaseCatKeys.includes(e.categoryKey));
-                      if (phaseEvents.length === 0) return null;
-                      return (
-                    <div className="mb-2 mt-3 px-2 sm:px-3">
-                          <div className="mb-2 flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-[#36534E]" />
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7a8290]">등록된 일정</span>
-                          </div>
-                          {phaseEvents.map(evt => (
-                            <div key={evt.id} className="group flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-[#FAFAF8]">
-                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#f7f3ec]">
-                                <CalendarDays className="h-4 w-4 text-[#36534E]" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">{evt.title}</p>
-                                <p className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug text-[#7a8290]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
-                              </div>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
-                                {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
                     {phase.categories.map((cat) => {
                       const data = getCategoryData(cat.key);
                       const isCatExpanded = expandedCategory === cat.key;
                       const Icon = ICON_MAP[cat.icon] ?? Building2;
+                      const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
                       const percent =
                         data.total > 0
                           ? Math.round((data.done / data.total) * 100)
@@ -296,6 +264,12 @@ export default function TimelineView({
                                 >
                                   {STATUS_LABELS[data.status]}
                                 </span>
+                                {scheduledEvent && (
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
+                                    <CalendarDays className="h-3 w-3" />
+                                    일정 {formatShortDate(scheduledEvent.date)}
+                                  </span>
+                                )}
                               </div>
                               {/* 진행률 바 */}
                               <div className="flex items-center gap-2">
@@ -330,7 +304,7 @@ export default function TimelineView({
                                   <div
                                     key={item.id}
                                     onClick={() =>
-                                      handleToggle(cat.key, item.id)
+                                      handleToggle(cat.key, item)
                                     }
                                     className={`-mx-2 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-[#FAFAF8] ${
                                       togglingItem === item.id

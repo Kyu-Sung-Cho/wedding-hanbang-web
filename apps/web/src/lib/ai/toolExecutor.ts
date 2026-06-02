@@ -838,6 +838,42 @@ function getEventsFromProgress(progress: Record<string, unknown>): ScheduleEvent
   return ((progress as Record<string, unknown>).__events as ScheduleEvent[] | undefined) ?? [];
 }
 
+function getCategoryEventSourceKey(categoryKey: string): string {
+  return `category:${categoryKey}`;
+}
+
+function normalizeEventText(value: string | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function findCategoryScheduleEvent(
+  events: ScheduleEvent[],
+  categoryKey: string | undefined
+): ScheduleEvent | undefined {
+  if (!categoryKey || categoryKey === "general") return undefined;
+
+  const sourceKey = getCategoryEventSourceKey(categoryKey);
+  const label = normalizeEventText(CATEGORY_LABELS[categoryKey]);
+
+  return (
+    events.find((event) => event.sourceKey === sourceKey) ??
+    (label
+      ? events.find(
+          (event) =>
+            event.categoryKey === categoryKey &&
+            normalizeEventText(event.title) === label
+        )
+      : undefined) ??
+    (label
+      ? events.find(
+          (event) =>
+            event.categoryKey === categoryKey &&
+            normalizeEventText(event.title).startsWith(label)
+        )
+      : undefined)
+  );
+}
+
 async function executeAddScheduleEvent(
   input: Record<string, unknown>,
   ctx: ExecutionContext
@@ -849,9 +885,48 @@ async function executeAddScheduleEvent(
 
   const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
   const now = new Date().toISOString();
+  const existingCategoryEvent = findCategoryScheduleEvent(events, categoryKey);
+  const sourceKey =
+    categoryKey && categoryKey !== "general"
+      ? getCategoryEventSourceKey(categoryKey)
+      : undefined;
+
+  if (existingCategoryEvent) {
+    const updatedEvent: ScheduleEvent = {
+      ...existingCategoryEvent,
+      date,
+      title,
+      memo: memo ?? existingCategoryEvent.memo,
+      categoryKey,
+      sourceKey,
+      updatedAt: now,
+    };
+    const updatedEvents = events.map((event) =>
+      event.id === existingCategoryEvent.id ? updatedEvent : event
+    );
+    const newProgress = { ...ctx.weddingContext.progress, __events: updatedEvents };
+
+    const admin = getAdminClient();
+    const { error } = await admin
+      .from("wedding_journeys")
+      .update({ progress: newProgress })
+      .eq("couple_id", ctx.coupleId);
+    if (error) throw error;
+
+    ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+
+    return {
+      toolName: "add_schedule_event",
+      toolInput: input,
+      toolOutput: { event: updatedEvent, upserted: true, replaced_event_id: existingCategoryEvent.id },
+      success: true,
+      displayMessage: `${CATEGORY_LABELS[categoryKey ?? ""] ?? title} 일정이 ${date}로 업데이트되었습니다.`,
+    };
+  }
+
   const newEvent: ScheduleEvent = {
     id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-    date, title, memo, categoryKey, createdAt: now, updatedAt: now,
+    date, title, memo, categoryKey, sourceKey, createdAt: now, updatedAt: now,
   };
 
   const newProgress = { ...ctx.weddingContext.progress, __events: [...events, newEvent] };

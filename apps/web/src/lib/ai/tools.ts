@@ -239,7 +239,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "add_schedule_event",
     description:
-      "캘린더에 새로운 일정을 추가합니다. '3월 15일에 드레스 피팅 잡아줘' 같은 요청에 사용합니다.",
+      "캘린더에 일정을 추가합니다. category_key가 있는 대표 카테고리 일정(예: 상견례, 예식장, 스튜디오)은 이미 같은 카테고리 일정이 있으면 새로 만들지 않고 기존 일정 날짜/메모를 업데이트합니다. '3월 15일에 드레스 피팅 잡아줘', '상견례는 6월 5일이야' 같은 요청에 사용합니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -262,7 +262,7 @@ export const WEDDING_TOOLS: Tool[] = [
             "hanbok", "yedan", "honeymoon", "houseware", "housing",
             "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
           ],
-          description: "관련 카테고리 (선택). general=일반, meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
+          description: "관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
         },
       },
       required: ["date", "title"],

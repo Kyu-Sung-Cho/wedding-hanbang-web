@@ -1,6 +1,7 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
-import type { ProgressItem } from "@/types/database.types";
+import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
+import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 export interface ImminentCategory {
   key: string;
@@ -10,6 +11,7 @@ export interface ImminentCategory {
   doneCount: number;
   totalCount: number;
   deadlineDaysLeft: number;
+  hasScheduledEvent: boolean;
   urgency: "overdue" | "urgent" | "soon";
 }
 
@@ -20,7 +22,8 @@ export interface ImminentCategory {
  */
 export function getImminentCategories(
   progress: Record<string, ProgressItem>,
-  weddingDate: Date | null
+  weddingDate: Date | null,
+  events: ScheduleEvent[] = []
 ): ImminentCategory[] {
   if (!weddingDate) return [];
 
@@ -31,6 +34,9 @@ export function getImminentCategories(
     const item = progress[cat.key];
     const status: ProgressItem["status"] = item?.status ?? "not_started";
     if (status === "completed") continue;
+
+    const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
+    if (scheduledEvent) continue;
 
     // 마감일 = 결혼일 - ddayDeadline일
     const deadlineDate = new Date(weddingDate);
@@ -62,6 +68,7 @@ export function getImminentCategories(
       doneCount: done,
       totalCount: total,
       deadlineDaysLeft: daysLeft,
+      hasScheduledEvent: false,
       urgency,
     });
   }
@@ -113,6 +120,7 @@ export function getCompletedImminentCategories(
       doneCount: done,
       totalCount: total,
       deadlineDaysLeft: daysLeft,
+      hasScheduledEvent: false,
       urgency: daysLeft <= 0 ? "overdue" : daysLeft <= 30 ? "urgent" : "soon",
     });
   }

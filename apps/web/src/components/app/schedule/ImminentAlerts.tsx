@@ -80,6 +80,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
 
   const overdueCount = items.filter((i) => i.urgency === "overdue").length;
   const urgentCount = items.filter((i) => i.urgency === "urgent").length;
+  const needsScheduleCount = items.filter((i) => !i.hasScheduledEvent).length;
 
   return (
     <div
@@ -100,14 +101,9 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
           </div>
           {(overdueCount > 0 || urgentCount > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
-              {overdueCount > 0 && (
+              {needsScheduleCount > 0 && (
                 <span className="rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {overdueCount} 초과
-                </span>
-              )}
-              {urgentCount > 0 && (
-                <span className="rounded-full bg-[#8c6f50] px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {urgentCount} 긴급
+                  {needsScheduleCount} 일정 필요
                 </span>
               )}
             </div>
@@ -167,11 +163,9 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                       </div>
                     </div>
 
-                    {/* D-day 뱃지 */}
+                    {/* 실제 날짜를 정해야 하는 항목 */}
                     <span className={`col-start-2 w-fit rounded-full px-2.5 py-1 text-[12px] font-semibold sm:col-start-auto ${styles.badgeBg} ${styles.badgeText}`}>
-                      {item.deadlineDaysLeft <= 0
-                        ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
-                        : `D-${item.deadlineDaysLeft}`}
+                      일정 필요
                     </span>
                   </div>
                 </button>
