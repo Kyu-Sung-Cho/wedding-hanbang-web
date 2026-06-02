@@ -47,6 +47,17 @@ interface Props {
   onEditEvent: (event: ScheduleEvent) => void;
 }
 
+const CALENDAR_STATUS_COLORS: Record<ProgressItem["status"], string> = {
+  completed: "bg-[#36534E]",
+  in_progress: "bg-[#B88746]",
+  not_started: "bg-[#B9B0A4]",
+};
+
+const WEDDING_DAY_COLOR = "bg-gradient-to-br from-[#B07834] to-[#D0A15F]";
+const PERSONAL_EVENT_COLOR = "bg-[#5E748C]";
+const PERSONAL_EVENT_SOFT_COLOR = "bg-[#5E748C]/10";
+const PERSONAL_EVENT_TEXT_COLOR = "text-[#5E748C]";
+
 export default function CalendarView({
   weddingDate,
   progress,
@@ -115,14 +126,7 @@ export default function CalendarView({
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
   const statusColor = (status: ProgressItem["status"]) => {
-    switch (status) {
-      case "completed":
-        return "bg-sage-500";
-      case "in_progress":
-        return "bg-[#795252]";
-      default:
-        return "bg-[#B5ADA3]";
-    }
+    return CALENDAR_STATUS_COLORS[status] ?? CALENDAR_STATUS_COLORS.not_started;
   };
 
   return (
@@ -179,7 +183,7 @@ export default function CalendarView({
                 !inMonth
                   ? "text-[#B5ADA3]/40"
                   : isWedding
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white font-medium shadow-md"
+                  ? `${WEDDING_DAY_COLOR} text-white font-medium shadow-md`
                   : isSelected
                   ? "bg-[#795252] text-white font-medium"
                   : isToday
@@ -209,7 +213,7 @@ export default function CalendarView({
                     <div
                       key={`e${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${
-                        isWedding || isSelected ? "bg-white/70" : "bg-[#795252]"
+                        isWedding || isSelected ? "bg-white/70" : PERSONAL_EVENT_COLOR
                       }`}
                     />
                   ))}
@@ -223,24 +227,24 @@ export default function CalendarView({
       {/* 범례 */}
       <div className="flex items-center gap-4 mt-5 px-2 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a]" />
-          <span className="text-sm text-[#B5ADA3]">결혼식</span>
+          <div className={`w-3 h-3 rounded-full ${WEDDING_DAY_COLOR}`} />
+          <span className="text-sm text-[#635b51]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-sage-500" />
-          <span className="text-sm text-[#B5ADA3]">완료</span>
+          <div className={`w-3 h-3 rounded-full ${CALENDAR_STATUS_COLORS.completed}`} />
+          <span className="text-sm text-[#635b51]">완료</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#795252]" />
-          <span className="text-sm text-[#B5ADA3]">진행중</span>
+          <div className={`w-3 h-3 rounded-full ${CALENDAR_STATUS_COLORS.in_progress}`} />
+          <span className="text-sm text-[#635b51]">진행중</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#B5ADA3]" />
-          <span className="text-sm text-[#B5ADA3]">미시작</span>
+          <div className={`w-3 h-3 rounded-full ${CALENDAR_STATUS_COLORS.not_started}`} />
+          <span className="text-sm text-[#635b51]">미시작</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#795252]" />
-          <span className="text-sm text-[#B5ADA3]">내 일정</span>
+          <div className={`w-3 h-3 rounded-full ${PERSONAL_EVENT_COLOR}`} />
+          <span className="text-sm text-[#635b51]">내 일정</span>
         </div>
       </div>
 
@@ -299,7 +303,7 @@ export default function CalendarView({
                   onClick={() => onEditEvent(evt)}
                   className="flex items-center gap-3 p-3 bg-white rounded-xl hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)] transition-shadow text-left"
                 >
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[#795252]" />
+                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
                   <div className="flex-1 min-w-0">
                     <p className="font-serif-kr text-base text-[#1A1A1F] font-normal">{evt.title}</p>
                     {evt.memo && (
@@ -307,7 +311,7 @@ export default function CalendarView({
                     )}
                   </div>
                   {evt.categoryKey && (
-                    <span className="text-sm px-2 py-0.5 rounded-full bg-[#795252]/10 text-[#795252] font-medium">
+                    <span className={`text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
                       {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                     </span>
                   )}
