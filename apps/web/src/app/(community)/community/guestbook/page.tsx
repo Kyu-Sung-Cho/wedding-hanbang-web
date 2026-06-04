@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Plus, QrCode, BookOpen, Eye, MessageSquare } from "lucide-react";
 import GuestbookQRModal from "@/components/community/GuestbookQRModal";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Guestbook } from "@/types/community.types";
 
 export default function MyGuestbooksPage() {
@@ -25,14 +26,14 @@ export default function MyGuestbooksPage() {
       );
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) {
-        router.replace("/login?redirect=" + encodeURIComponent("/community/guestbook"));
+        router.replace("/login?redirect=" + encodeURIComponent(weddingPath("/community/guestbook")));
         return;
       }
       try {
         const res = await fetch("/api/guestbook");
         if (!res.ok) {
           if (res.status === 401) {
-            router.replace("/login?redirect=" + encodeURIComponent("/community/guestbook"));
+            router.replace("/login?redirect=" + encodeURIComponent(weddingPath("/community/guestbook")));
             return;
           }
           throw new Error("load failed");
@@ -60,7 +61,7 @@ export default function MyGuestbooksPage() {
           내 방명록
         </h1>
         <Link
-          href="/community/guestbook/new"
+          href={weddingPath("/community/guestbook/new")}
           className="inline-flex items-center gap-2 bg-[#36534E] text-white rounded-xl py-3 px-5 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
         >
           <Plus className="w-4 h-4" />새 방명록 만들기
@@ -87,7 +88,7 @@ export default function MyGuestbooksPage() {
             종이 방명록 대신 디지털 방명록을 만들어보세요. QR 코드로 하객들이 쉽게 축하 메시지를 남길 수 있어요.
           </p>
           <Link
-            href="/community/guestbook/new"
+            href={weddingPath("/community/guestbook/new")}
             className="inline-flex items-center gap-2 bg-[#36534E] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
           >
             <Plus className="w-4 h-4" />첫 방명록 만들기

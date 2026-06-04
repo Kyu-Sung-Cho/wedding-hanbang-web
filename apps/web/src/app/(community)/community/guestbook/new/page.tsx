@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/community/Toast";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export default function NewGuestbookPage() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function NewGuestbookPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
         router.replace(
-          "/login?redirect=" + encodeURIComponent("/community/guestbook/new")
+          "/login?redirect=" + encodeURIComponent(weddingPath("/community/guestbook/new"))
         );
         return;
       }

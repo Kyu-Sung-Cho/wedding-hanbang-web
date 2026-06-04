@@ -11,6 +11,7 @@ import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const MAX_ATTACHMENTS = 5;
 
@@ -307,7 +308,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   const handleExpand = () => {
     onClose();
-    router.push("/chat");
+    router.push(weddingPath("/chat"));
   };
 
   const handleClearChat = async () => {

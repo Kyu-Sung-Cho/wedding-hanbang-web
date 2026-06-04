@@ -36,6 +36,7 @@ import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
 
 // 비용 포맷 헬퍼 (PostCard와 동일)
@@ -259,7 +260,7 @@ export default function PostDetailPage() {
     setDeleting(false);
     if (ok) {
       setShowDeleteModal(false);
-      router.push("/community");
+      router.push(weddingPath());
     }
   }
 
@@ -351,7 +352,7 @@ export default function PostDetailPage() {
               삭제되었거나 존재하지 않는 글입니다.
             </p>
             <Link
-              href="/community"
+              href={weddingPath()}
               className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200"
             >
               커뮤니티로 돌아가기
@@ -381,7 +382,7 @@ export default function PostDetailPage() {
         {/* 브레드크럼 네비게이션 */}
         <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
           <Link
-            href="/community"
+            href={weddingPath()}
             className="shrink-0 hover:text-[#36534E] transition-colors"
           >
             커뮤니티
@@ -390,7 +391,7 @@ export default function PostDetailPage() {
             <>
               <span className="shrink-0 text-[#B5ADA3]">/</span>
               <Link
-                href={`/community/${post.category}`}
+                href={weddingPath(`/community/${post.category}`)}
                 className="shrink-0 hover:text-[#36534E] transition-colors"
               >
                 {categoryInfo.label}
@@ -413,7 +414,7 @@ export default function PostDetailPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-4">
                 {/* 아바타 */}
                 <Link
-                  href={`/community?author_id=${post.author_id}`}
+                  href={weddingPath(`/community?author_id=${post.author_id}`)}
                   className="shrink-0"
                 >
                   <Avatar
@@ -426,7 +427,7 @@ export default function PostDetailPage() {
 
                 {/* 닉네임 */}
                 <Link
-                  href={`/community?author_id=${post.author_id}`}
+                  href={weddingPath(`/community?author_id=${post.author_id}`)}
                   className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#36534E] transition-colors duration-200 whitespace-nowrap"
                 >
                   {author.nickname}
@@ -451,7 +452,7 @@ export default function PostDetailPage() {
                   <>
                     <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
-                      href={`/community/${post.category}`}
+                      href={weddingPath(`/community/${post.category}`)}
                       className="text-[13px] font-medium text-[#36534E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
@@ -734,7 +735,7 @@ export default function PostDetailPage() {
                   {post.tags.map((tag) => (
                     <Link
                       key={tag}
-                      href={`/community/${post.category}?tag=${encodeURIComponent(tag)}`}
+                      href={weddingPath(`/community/${post.category}?tag=${encodeURIComponent(tag)}`)}
                       className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       #{tag}
@@ -751,7 +752,7 @@ export default function PostDetailPage() {
                     {post.vendor_details.map((vendor) => (
                       <Link
                         key={vendor.id}
-                        href={`/vendors/${vendor.id}`}
+                        href={weddingPath(`/vendors/${vendor.id}`)}
                         className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-lg hover:border-[#B5ADA3] transition-all duration-200"
                       >
                         {vendor.thumbnail_url && (
@@ -847,7 +848,7 @@ export default function PostDetailPage() {
                 {isAuthor && (
                   <>
                     <Link
-                      href={`/community/post/write?edit=${post.id}`}
+                      href={weddingPath(`/community/post/write?edit=${post.id}`)}
                       className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#635b51] transition-all duration-200 ml-auto whitespace-nowrap"
                     >
                       수정
@@ -876,11 +877,11 @@ export default function PostDetailPage() {
         {/* 목록으로 버튼 */}
         <div className="mt-3 flex">
           <Link
-            href={
+            href={weddingPath(
               categoryInfo
                 ? `/community/${post.category}`
                 : "/community"
-            }
+            )}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#B5ADA3] hover:text-[#36534E] transition-all duration-200"
           >
             <List className="w-4 h-4" />
@@ -1113,7 +1114,7 @@ function SimilarPostsRail({ posts }: { posts: PostWithAuthor[] }) {
               return (
                 <Link
                   key={item.id}
-                  href={`/community/post/${item.id}`}
+                  href={weddingPath(`/community/post/${item.id}`)}
                   className="rounded-xl border border-[#efe4d3] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#36534E]/40 hover:bg-white"
                 >
                   <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#7a8290]">
@@ -1157,7 +1158,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
               </p>
             </div>
             <Link
-              href="/community"
+              href={weddingPath()}
               className="text-[12px] font-semibold text-[#36534E]"
             >
               더보기
@@ -1172,7 +1173,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                 return (
                   <Link
                     key={item.id}
-                    href={`/community/post/${item.id}`}
+                    href={weddingPath(`/community/post/${item.id}`)}
                     className={`grid gap-3 py-3 first:pt-0 last:pb-0 ${
                       thumb ? "grid-cols-[58px_minmax(0,1fr)]" : "grid-cols-1"
                     }`}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
@@ -39,9 +40,9 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
   }
 
   const navLinks = [
-    { href: "/community", label: "커뮤니티", scroll: false },
-    { href: "/market-prices", label: "시세 정보", scroll: false },
-    { href: "/etiquette", label: "결혼 예절", scroll: false },
+    { href: weddingPath(), label: "커뮤니티", scroll: false },
+    { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
+    { href: weddingPath("/etiquette"), label: "결혼 예절", scroll: false },
     { href: "/about", label: "소개", scroll: false },
     { href: "#cta", label: "베타 신청", scroll: true },
   ];

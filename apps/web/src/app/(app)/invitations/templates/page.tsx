@@ -10,6 +10,7 @@ import {
   Image as ImageIcon, MapPin, ChevronDown, Send, Heart,
 } from "lucide-react";
 import Link from "next/link";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const CATEGORIES: { key: TemplateCategory | "all"; label: string }[] = [
   { key: "all", label: "전체" },
@@ -47,7 +48,7 @@ export default function TemplateSelectPage() {
     });
 
     if (invitation) {
-      router.push(`/invitations/${invitation.id}/edit`);
+      router.push(weddingPath(`/invitations/${invitation.id}/edit`));
     } else {
       setCreating(false);
     }
@@ -58,7 +59,7 @@ export default function TemplateSelectPage() {
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/invitations"
+          href={weddingPath("/invitations")}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-ivory-100 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-noir-800" />

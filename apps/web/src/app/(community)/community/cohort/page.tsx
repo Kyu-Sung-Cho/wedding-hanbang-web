@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Users, Sparkles, ArrowRight, Loader2, CalendarCheck, MessageCircle, ShieldCheck } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_SHORT_LABEL,
@@ -67,9 +68,9 @@ function CohortIndexInner() {
   const selectedCohort = useMemo(() => parseSelectedCohort(new URLSearchParams(searchParams.toString())), [searchParams]);
   const redirectPath = selectedCohort
     ? selectedCohort.timing === "flexible"
-      ? "/community/cohort?timing=later"
-      : `/community/cohort?year=${selectedCohort.year}&quarter=${selectedCohort.quarter}`
-    : "/community/cohort";
+      ? weddingPath("/community/cohort?timing=later")
+      : weddingPath(`/community/cohort?year=${selectedCohort.year}&quarter=${selectedCohort.quarter}`)
+    : weddingPath("/community/cohort");
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -94,7 +95,7 @@ function CohortIndexInner() {
           }
 
           if (assignData?.room_id) {
-            router.replace(`/community/cohort/${assignData.room_id}`);
+            router.replace(weddingPath(`/community/cohort/${assignData.room_id}`));
             return;
           }
 
@@ -112,7 +113,7 @@ function CohortIndexInner() {
         if (cancelled) return;
 
         if (data?.room?.id) {
-          router.replace(`/community/cohort/${data.room.id}`);
+          router.replace(weddingPath(`/community/cohort/${data.room.id}`));
           return;
         }
 
@@ -124,7 +125,7 @@ function CohortIndexInner() {
         if (cancelled) return;
 
         if (assignData?.room_id) {
-          router.replace(`/community/cohort/${assignData.room_id}`);
+          router.replace(weddingPath(`/community/cohort/${assignData.room_id}`));
           return;
         }
 
@@ -173,13 +174,13 @@ function CohortIndexInner() {
     "need-date": {
       title: "날짜 미정 방으로 안내할게요",
       desc: "예정일이 아직 없거나 1년보다 멀면 날짜 미정·1년 이후 방에서 먼저 준비 흐름을 잡을 수 있어요.",
-      href: "/community/cohort?timing=later",
+      href: weddingPath("/community/cohort?timing=later"),
       cta: "미정 방으로 입장",
     },
     error: {
       title: "잠시 동기방을 열 수 없어요",
       desc: errorMsg ?? "잠시 후 다시 시도해주세요.",
-      href: "/community",
+      href: weddingPath(),
       cta: "커뮤니티로 돌아가기",
     },
   }[status];

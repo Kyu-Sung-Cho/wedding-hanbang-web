@@ -9,6 +9,7 @@ import {
   Lightbulb,
   MessageSquarePlus,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface EmptyFeedStarterProps {
   title?: string;
@@ -17,35 +18,35 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
-    href: "/community/quick-review",
+    href: weddingPath("/community/quick-review"),
     label: "15초 후기",
     title: "업체명, 별점, 한 줄 후기로 첫 실제 사례 남기기",
     meta: "빠른 작성",
     icon: MessageSquarePlus,
   },
   {
-    href: "/community?category=is_normal&feed=all#community-feed",
+    href: weddingPath("/community?category=is_normal&feed=all#community-feed"),
     label: "정상인가요 게시판",
     title: "다른 예비부부의 견적/계약 질문 먼저 보기",
     meta: "사례 보기",
     icon: HelpCircle,
   },
   {
-    href: "/community?category=tour_review&feed=all#community-feed",
+    href: weddingPath("/community?category=tour_review&feed=all#community-feed"),
     label: "투어/이용 후기",
     title: "방문한 업체 경험과 실제 상담 포인트 공유하기",
     meta: "후기 공유",
     icon: Camera,
   },
   {
-    href: "/community?category=tips_v2&feed=all#community-feed",
+    href: weddingPath("/community?category=tips_v2&feed=all#community-feed"),
     label: "꿀팁",
     title: "계약 전 물어볼 질문과 숨은 추가금 체크리스트 모으기",
     meta: "체크리스트",
     icon: Lightbulb,
   },
   {
-    href: "/community?category=ama&feed=all#community-feed",
+    href: weddingPath("/community?category=ama&feed=all#community-feed"),
     label: "결혼 선배 Q&A",
     title: "이미 끝낸 선배에게 현실적인 선택 기준 물어보기",
     meta: "경험 질문",
@@ -74,7 +75,7 @@ export default function EmptyFeedStarter({
             </p>
           </div>
           <Link
-            href="/community/post/write"
+            href={weddingPath("/community/post/write")}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[#2B423E]"
           >
             글쓰기

@@ -941,7 +941,7 @@ Step 8 (reserve 8% 검증): reserve 100 / 5000 = 2%. 부족 — +300 추가 필�
 - 막연한 조언은 저장하지 마세요. 저장 기준은 "사용자가 직접 실행할 수 있는 한 가지 행동"입니다.
 - 이미 저장된 행동을 사용자가 "완료했어", "끝냈어", "숨겨줘", "지워줘"라고 하면 먼저 get_amora_actions로 action_id를 확인한 뒤 update_amora_action을 호출하세요.
 - 행동 카드 제목은 짧게, 설명은 왜 필요한지 중심으로, 마감일은 사용자가 말했거나 날짜가 명확할 때만 넣으세요.
-- 견적 관련 행동은 source=quote, href=/community/quote-check. 일정 관련 행동은 source=schedule, href=/schedule. 예산은 source=budget, href=/budget.
+- 견적 관련 행동은 source=quote, href=/wedding/community/quote-check. 일정 관련 행동은 source=schedule, href=/wedding/schedule. 예산은 source=budget, href=/wedding/budget.
 
 ## 🏪 업체 추천 + 예약 가이드
 

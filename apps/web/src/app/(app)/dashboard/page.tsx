@@ -32,6 +32,7 @@ import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial"
 import ServiceGuide from "@/components/app/ServiceGuide";
 import { useAuthStore } from "@/stores/authStore";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
+import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import { getEvents } from "@/utils/scheduleEvents";
 
@@ -337,7 +338,7 @@ export default function DashboardPage() {
             <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
           </div>
           <Link
-            href="/chat"
+            href={weddingPath("/chat")}
             className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
           >
             아모라에게 다음 할 일 묻기
@@ -406,7 +407,7 @@ export default function DashboardPage() {
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
               <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
             </div>
-            <Link href="/schedule" className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/schedule")} className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -461,7 +462,7 @@ export default function DashboardPage() {
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
                 <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">지출 흐름</h2>
               </div>
-              <Link href="/budget" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
+              <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
               </Link>
             </div>
@@ -479,7 +480,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
               <span>총 예산 {formatWon(totalBudget)}</span>
-              <Link href="/budget" className="inline-flex items-center font-semibold text-[#36534E]">
+              <Link href={weddingPath("/budget")} className="inline-flex items-center font-semibold text-[#36534E]">
                 자세히
                 <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
@@ -492,14 +493,14 @@ export default function DashboardPage() {
                 <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
                 <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">다가오는 일정</h2>
               </div>
-              <Link href="/schedule?new=1" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="일정 추가하기">
+              <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="일정 추가하기">
                 <Bell className="h-4 w-4" />
               </Link>
             </div>
             <div className="space-y-2">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.slice(0, 2).map((event) => (
-                  <Link key={event.id} href="/schedule" className="block rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-2.5">
+                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-2.5">
                     <p className="truncate text-[13px] font-semibold text-[#071629]">{event.title}</p>
                     <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">{formatDate(event.date)}</p>
                   </Link>
@@ -516,7 +517,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <Link href="/schedule" className="mt-2.5 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+            <Link href={weddingPath("/schedule")} className="mt-2.5 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
               일정 관리 열기
               <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
@@ -530,7 +531,7 @@ export default function DashboardPage() {
           { icon: MessageCircle, title: "아모라에게 묻고", desc: "우리 상황에 맞게 견적과 조건을 해석해요.", href: "/chat" },
           { icon: ClipboardCheck, title: "결정으로 남기기", desc: "예산과 일정, 체크리스트로 바로 옮겨요.", href: "/schedule" },
         ].map((item) => (
-          <Link key={item.title} href={item.href} className="flex gap-4 rounded-[16px] bg-white/78 p-5">
+          <Link key={item.title} href={weddingPath(item.href)} className="flex gap-4 rounded-[16px] bg-white/78 p-5">
             <item.icon className="mt-1 h-7 w-7 shrink-0 stroke-[1.55] text-[#b68a3a]" />
             <span>
               <span className="block text-[15px] font-semibold text-[#071629]">{item.title}</span>
@@ -629,10 +630,10 @@ function CategoryPanel({
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/chat" className="inline-flex flex-1 items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
+            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
               아모라에게 묻기
             </Link>
-            <Link href="/schedule" className="inline-flex flex-1 items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
               일정에서 보기
             </Link>
           </div>

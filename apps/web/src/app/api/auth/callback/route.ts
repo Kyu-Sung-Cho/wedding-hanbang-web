@@ -67,14 +67,14 @@ export async function GET(request: Request) {
     }
 
     if (!profile || !profile.onboarding_completed) {
-      const response = NextResponse.redirect(`${origin}/onboarding`);
+      const response = NextResponse.redirect(`${origin}/wedding/onboarding`);
       // 실제 로그인 시 데모 모드 쿠키 제거
       response.cookies.set("demo_mode", "", { path: "/", maxAge: 0 });
       return response;
     }
 
     // 일반 고객 → 대시보드
-    const response = NextResponse.redirect(`${origin}/lounge`);
+    const response = NextResponse.redirect(`${origin}/wedding/lounge`);
     response.cookies.set("onboarding_complete", "true", {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,

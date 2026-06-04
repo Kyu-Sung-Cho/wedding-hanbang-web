@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useInvitationStore } from "@/stores/invitationStore";
+import { weddingPath } from "@/lib/weddingPaths";
 import { ArrowLeft, Eye, Users, UserCheck, UserX, MessageSquare, TrendingUp } from "lucide-react";
 
 export default function InvitationStatsPage() {
@@ -33,7 +34,7 @@ export default function InvitationStatsPage() {
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-8">
         <Link
-          href="/invitations"
+          href={weddingPath("/invitations")}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-ivory-100 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-noir-800" />

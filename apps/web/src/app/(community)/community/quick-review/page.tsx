@@ -7,6 +7,7 @@ import ImageUploader from "@/components/community/ImageUploader";
 import AdDisclosureModal from "@/components/community/AdDisclosureModal";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { AdDisclosure } from "@/types/community.types";
 
 type Category = (typeof COHORT_CONTRACT_CATEGORIES)[number]["key"];
@@ -72,7 +73,7 @@ export default function QuickReviewPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "작성에 실패했습니다.");
       toast.success("15초 후기가 등록되었어요.");
-      router.push(`/community/post/${data.post.id}`);
+      router.push(weddingPath(`/community/post/${data.post.id}`));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "오류가 발생했습니다.");
     } finally {

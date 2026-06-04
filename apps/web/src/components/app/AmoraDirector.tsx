@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Sparkles, X, MessageCircle, ArrowRight } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface AmoraMessage {
   id: string;
@@ -71,7 +72,7 @@ export default function AmoraDirector({
         id: "vendors_no_prefs",
         title: "맞춤 추천 받을까요?",
         body: "예산과 스타일을 알려주시면 어울리는 업체에 AI 추천 뱃지를 달아드려요",
-        cta: { label: "선호도 설정", href: "/settings" },
+        cta: { label: "선호도 설정", href: weddingPath("/settings") },
         priority: 5,
       });
     }
@@ -92,7 +93,7 @@ export default function AmoraDirector({
         id: `vendors_category_${categoryName}`,
         title: `${categoryName} 탐색 중이시네요`,
         body: getCategoryTip(categoryName),
-        cta: { label: "시세 보기", href: "/market-prices" },
+        cta: { label: "시세 보기", href: weddingPath("/market-prices") },
         priority: 3,
       });
     }
@@ -103,7 +104,7 @@ export default function AmoraDirector({
         id: "vendors_compare",
         title: `${favoriteCount}곳 찜하셨네요!`,
         body: "투어 가기 전에 제가 가격과 서비스를 비교해드릴까요?",
-        cta: { label: "비교해보기", href: "/chat" },
+        cta: { label: "비교해보기", href: weddingPath("/chat") },
         priority: 8,
       });
     }
@@ -114,7 +115,7 @@ export default function AmoraDirector({
         id: "budget_overage",
         title: "예산을 넘고 있어요",
         body: "비슷한 가성비 옵션을 제가 찾아드릴 수 있어요",
-        cta: { label: "아모라와 상담", href: "/chat" },
+        cta: { label: "아모라와 상담", href: weddingPath("/chat") },
         priority: 10,
       });
     }
@@ -199,7 +200,7 @@ export default function AmoraDirector({
             )}
 
             <Link
-              href="/chat"
+              href={weddingPath("/chat")}
               className="inline-flex items-center gap-2 w-full justify-center px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[#504444] text-sm font-medium hover:bg-[#e4e2e1] transition-colors"
             >
               <MessageCircle className="w-4 h-4" />

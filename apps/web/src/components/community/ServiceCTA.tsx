@@ -10,6 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { CommunityCategory } from "@/types/community.types";
 
 interface ServiceCTAProps {
@@ -68,22 +69,22 @@ const BUDGET_CATEGORIES = new Set(["is_normal"]);
 const SCHEDULE_CATEGORIES = new Set(["tips_v2", "ama"]);
 
 function buildChatHref(postTitle?: string, postId?: string) {
-  if (!postTitle) return "/chat";
+  if (!postTitle) return weddingPath("/chat");
   const prompt = [
     "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
     `글 제목: ${postTitle}`,
-    postId ? `글 링크: /community/post/${postId}` : null,
+    postId ? `글 링크: ${weddingPath(`/community/post/${postId}`)}` : null,
     "내가 확인해야 할 일정, 예산, 체크리스트를 알려줘.",
   ]
     .filter(Boolean)
     .join("\n");
-  return `/chat?prefill=${encodeURIComponent(prompt)}`;
+  return weddingPath(`/chat?prefill=${encodeURIComponent(prompt)}`);
 }
 
 export default function ServiceCTA({ category, postTitle, postId }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
   const MainIcon = mainCta.icon;
-  const mainHref = mainCta.href === "/chat" ? buildChatHref(postTitle, postId) : mainCta.href;
+  const mainHref = mainCta.href === "/chat" ? buildChatHref(postTitle, postId) : weddingPath(mainCta.href);
 
   let secondaryCta: CTAConfig | null = null;
   if (BUDGET_CATEGORIES.has(category)) {
@@ -122,7 +123,7 @@ export default function ServiceCTA({ category, postTitle, postId }: ServiceCTAPr
         <>
           <div className="my-2 border-t border-[#eee6e0]" />
           <ServiceAction
-            href={secondaryCta.href}
+            href={weddingPath(secondaryCta.href)}
             icon={secondaryCta.icon}
             label={secondaryCta.label}
             title={secondaryCta.title}

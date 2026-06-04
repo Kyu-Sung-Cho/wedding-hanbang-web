@@ -21,6 +21,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
   FLEX_COHORT_LABEL,
@@ -263,7 +264,7 @@ function LoaderText() {
 }
 
 function CohortLoginRequired({ roomId }: { roomId: string }) {
-  const redirect = `/community/cohort/${roomId}`;
+  const redirect = weddingPath(`/community/cohort/${roomId}`);
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
       <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
@@ -293,7 +294,7 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/community"
+              href={weddingPath()}
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#e5d8ca] bg-white px-5 text-sm font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
             >
               커뮤니티로 돌아가기
@@ -459,7 +460,7 @@ function CohortSidePanel({
           <li>광고·홍보는 커뮤니티 정책에 맞게 표시하기</li>
         </ul>
         <Link
-          href="/chat"
+          href={weddingPath("/chat")}
           className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-[#36534E]"
         >
           아모라에게 먼저 물어보기
@@ -959,7 +960,7 @@ function renderMessageContent(text: string): React.ReactNode {
       parts.push(
         <Link
           key={`p${match.index}`}
-          href={`/community/post/${postId}`}
+          href={weddingPath(`/community/post/${postId}`)}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#36534E]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
@@ -1558,7 +1559,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들이 많이 본 글</h3>
-        <Link href="/community?sort=hot" className="text-[12px] font-semibold text-[#36534E]">
+        <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[#36534E]">
           더보기
         </Link>
       </div>
@@ -1570,7 +1571,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
         <ul className="space-y-3.5">
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group">
-              <Link href={`/community/post/${p.id}`} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
+              <Link href={weddingPath(`/community/post/${p.id}`)} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
                 <span className={`mt-0.5 shrink-0 font-serif-kr text-xl italic leading-none text-[#36534E] ${
                   i === 0 ? "" : i === 1 ? "opacity-75" : i === 2 ? "opacity-55" : "opacity-35"
                 }`}>

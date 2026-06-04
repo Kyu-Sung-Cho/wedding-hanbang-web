@@ -8,6 +8,7 @@ import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
+import { weddingPath } from "@/lib/weddingPaths";
 import { timeAgo } from "@/utils/timeAgo";
 
 const avatarOptions = ["🌿", "💍", "🌸", "🤍", "✨", "👑"];
@@ -41,7 +42,7 @@ export default function MyPostsPage() {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/login?redirect=/community/my/posts"); return; }
+      if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`); return; }
       setUserId(user.id);
     })();
   }, [router, supabase.auth]);
@@ -124,7 +125,7 @@ export default function MyPostsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/community" className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
+        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
           <ArrowLeft className="w-4 h-4 text-noir-800" />
         </Link>
         <h1 className="font-serif-kr text-[20px] text-noir-800">내 글</h1>
@@ -246,7 +247,7 @@ export default function MyPostsPage() {
           <p className="text-[14px] text-[#928980]">
             {tab === "published" ? "아직 작성한 글이 없습니다" : "임시저장된 글이 없습니다"}
           </p>
-          <Link href="/community/post/write" className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors">
+          <Link href={weddingPath("/community/post/write")} className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors">
             글쓰기
           </Link>
         </div>
@@ -270,7 +271,7 @@ export default function MyPostsPage() {
                         </span>
                       )}
                     </div>
-                    <Link href={`/community/post/${post.id}`} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
+                    <Link href={weddingPath(`/community/post/${post.id}`)} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
                       {post.title}
                     </Link>
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-[#B5ADA3]">
@@ -282,7 +283,7 @@ export default function MyPostsPage() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Link
-                      href={`/community/post/write?edit=${post.id}`}
+                      href={weddingPath(`/community/post/write?edit=${post.id}`)}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-ivory-100 transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />

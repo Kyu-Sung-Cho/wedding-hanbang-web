@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export default function InvitationsPage() {
   const { couple } = useAuthStore();
@@ -56,7 +57,7 @@ export default function InvitationsPage() {
           <p className="text-base text-[#B5ADA3] mt-2 font-light">나만의 청첩장을 만들고 공유하세요</p>
         </div>
         <Link
-          href="/invitations/templates"
+          href={weddingPath("/invitations/templates")}
           className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
         >
           <Plus className="w-5 h-5" />
@@ -73,7 +74,7 @@ export default function InvitationsPage() {
             30가지 디자인 중 마음에 드는 템플릿을 선택해<br />나만의 모바일 청첩장을 만들어보세요.
           </p>
           <Link
-            href="/invitations/templates"
+            href={weddingPath("/invitations/templates")}
             className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
           >
             <Plus className="w-5 h-5" />
@@ -161,14 +162,14 @@ export default function InvitationsPage() {
                   </Link>
                 )}
                 <Link
-                  href={`/invitations/${inv.id}/stats`}
+                  href={weddingPath(`/invitations/${inv.id}/stats`)}
                   className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] transition-colors text-[#504444] hover:text-[#795252]"
                   title="통계"
                 >
                   <BarChart3 className="w-5 h-5" />
                 </Link>
                 <Link
-                  href={`/invitations/${inv.id}/edit`}
+                  href={weddingPath(`/invitations/${inv.id}/edit`)}
                   className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] transition-colors text-[#504444] hover:text-[#795252]"
                   title="편집"
                 >

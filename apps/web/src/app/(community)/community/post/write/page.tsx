@@ -24,6 +24,7 @@ import VendorTagPicker from "@/components/community/VendorTagPicker";
 import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
   PostVisibility,
@@ -195,7 +196,7 @@ function PostWriteContent() {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
         const redirect = encodeURIComponent(
-          `/community/post/write${editId ? `?edit=${editId}` : ""}`
+          weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
         );
         router.replace(`/login?redirect=${redirect}`);
         return;
@@ -661,7 +662,7 @@ function PostWriteContent() {
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
         setHasUnsavedChanges(false);
-        router.push(`/community/post/${editId}`);
+        router.push(weddingPath(`/community/post/${editId}`));
       } else {
         const postId = await createPost(input);
         if (!postId) {
@@ -672,9 +673,9 @@ function PostWriteContent() {
         localStorage.removeItem(DRAFT_KEY);
         setHasUnsavedChanges(false);
         if (asDraft) {
-          router.push("/community");
+          router.push(weddingPath());
         } else {
-          router.push(`/community/post/${postId}`);
+          router.push(weddingPath(`/community/post/${postId}`));
         }
       }
     } catch (err) {

@@ -20,6 +20,7 @@ import {
   Target,
 } from "lucide-react";
 import { BETA_TOTAL, getBetaCount } from "@/lib/beta-count";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export const revalidate = 60;
 
@@ -99,9 +100,9 @@ function getBetaProgressClass(count: number) {
 
 function SiteHeader() {
   const nav = [
-    { href: "/community", label: "커뮤니티" },
-    { href: "/market-prices", label: "시세 정보" },
-    { href: "/etiquette", label: "꿀팁·체험" },
+    { href: weddingPath(), label: "커뮤니티" },
+    { href: weddingPath("/market-prices"), label: "시세 정보" },
+    { href: weddingPath("/etiquette"), label: "꿀팁·체험" },
     { href: "/about", label: "소개" },
     { href: "/beta", label: "베타 신청" },
   ];
@@ -392,7 +393,7 @@ function FeatureCards() {
 
 function CardLink() {
   return (
-    <Link href="/community" className="mt-[18px] inline-flex items-center gap-2 text-[13px] font-black text-[#061a34]">
+    <Link href={weddingPath()} className="mt-[18px] inline-flex items-center gap-2 text-[13px] font-black text-[#061a34]">
       자세히 보기
       <ArrowRight className="h-3.5 w-3.5" />
     </Link>
@@ -452,7 +453,7 @@ function ConnectedSection() {
                 <span className="block text-[12px] leading-[1.55] text-[#5d6777]">{desc}</span>
               </div>
             ))}
-            <Link href="/community" className="mt-1 inline-flex text-[12px] font-black text-[#061a34]">
+            <Link href={weddingPath()} className="mt-1 inline-flex text-[12px] font-black text-[#061a34]">
               자세히 보기
             </Link>
           </div>

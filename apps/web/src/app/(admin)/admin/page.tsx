@@ -613,7 +613,7 @@ export default function AdminPage() {
             <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+            <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
             <a href="/vendor/dashboard" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
@@ -1257,7 +1257,7 @@ export default function AdminPage() {
                     {insights.topSavedCommunityPosts.map((post, index) => (
                       <a
                         key={post.id}
-                        href={`/community/post/${post.id}`}
+                        href={`/wedding/community/post/${post.id}`}
                         className="grid grid-cols-[32px_minmax(0,1fr)_80px_80px_80px] gap-2 px-3 py-2 rounded-lg bg-ivory-50/50 items-center hover:bg-ivory-100 transition-colors max-md:grid-cols-[28px_minmax(0,1fr)_64px]"
                       >
                         <span className="text-[11px] text-taupe-400 font-medium">{index + 1}</span>
@@ -1499,9 +1499,9 @@ export default function AdminPage() {
                         .slice(0, 200);
                   const statusInfo = REPORT_STATUS_LABEL[r.status];
                   const linkHref = r.post
-                    ? `/community/post/${r.post.id}`
+                    ? `/wedding/community/post/${r.post.id}`
                     : r.comment
-                      ? `/community/post/${r.comment.post_id}#comment-${r.comment.id}`
+                      ? `/wedding/community/post/${r.comment.post_id}#comment-${r.comment.id}`
                       : null;
 
                   return (

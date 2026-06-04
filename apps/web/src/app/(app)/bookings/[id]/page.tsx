@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Contract, ContractClause, CancellationPolicyItem } from "@/types/contract.types";
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
@@ -117,7 +118,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setConfirming(false);
       // URL에서 결제 파라미터 제거
-      router.replace(`/bookings/${id}`);
+      router.replace(weddingPath(`/bookings/${id}`));
     }
   }, [searchParams, id, router]);
 
@@ -126,7 +127,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     const failMessage = searchParams.get("message");
     if (searchParams.get("payment_fail") === "true" && failMessage) {
       alert(`결제 실패: ${failMessage}`);
-      router.replace(`/bookings/${id}`);
+      router.replace(weddingPath(`/bookings/${id}`));
     }
   }, [searchParams, id, router]);
 
@@ -274,7 +275,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     return (
       <div className="max-w-[700px] mx-auto text-center py-20">
         <p className="text-[15px] text-taupe-500">예약을 찾을 수 없습니다</p>
-        <Link href="/bookings" className="text-[13px] text-rose-500 mt-4 inline-block">
+        <Link href={weddingPath("/bookings")} className="text-[13px] text-rose-500 mt-4 inline-block">
           예약 목록으로 돌아가기
         </Link>
       </div>
@@ -290,7 +291,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       {/* 뒤로가기 */}
       <motion.div {...fadeIn} transition={{ duration: 0.3 }}>
         <Link
-          href="/bookings"
+          href={weddingPath("/bookings")}
           className="inline-flex items-center gap-1.5 text-[13px] text-taupe-500 hover:text-noir-800 transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />

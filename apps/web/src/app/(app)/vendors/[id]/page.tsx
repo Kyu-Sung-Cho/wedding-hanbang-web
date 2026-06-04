@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
 
@@ -191,7 +192,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
     return (
       <div className="max-w-[800px] mx-auto text-center py-20">
         <p className="text-base text-[#B5ADA3]">업체를 찾을 수 없습니다</p>
-        <Link href="/vendors" className="text-base text-[#795252] mt-2 inline-block">
+        <Link href={weddingPath("/vendors")} className="text-base text-[#795252] mt-2 inline-block">
           목록으로 돌아가기
         </Link>
       </div>
@@ -332,7 +333,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="max-w-[900px] mx-auto bg-[#FAFAF8]">
-      <Link href="/vendors" className="inline-flex items-center gap-1.5 text-base text-[#B5ADA3] hover:text-[#795252] transition-colors mb-6">
+      <Link href={weddingPath("/vendors")} className="inline-flex items-center gap-1.5 text-base text-[#B5ADA3] hover:text-[#795252] transition-colors mb-6">
         <ArrowLeft className="w-4 h-4" />
         업체 목록
       </Link>

@@ -11,6 +11,7 @@ import {
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import ShareButtons from "@/components/quote/ShareButtons";
+import { weddingPath } from "@/lib/weddingPaths";
 
 // 카톡 공유 진단 결과 페이지 — 공개 (RLS service role 우회).
 // 캐논 v2 referral 루프 핵심: 공유 받은 친구가 → "나도 진단 받기" CTA 클릭
@@ -211,7 +212,7 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
           <ShareButtons shareUrl={shareUrl} shareTitle={shareTitle} shareText={shareText} />
 
           <Link
-            href="/community/quote-check"
+            href={weddingPath("/community/quote-check")}
             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#946a6a]"
           >
             내 견적도 체크리스트로 보기 · 무료

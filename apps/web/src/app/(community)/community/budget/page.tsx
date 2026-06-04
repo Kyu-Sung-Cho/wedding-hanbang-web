@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function CommunityBudgetRedirectPage() {
-  redirect("/budget");
+  redirect("/wedding/budget");
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ArrowUpRight, Sparkles, MessageCircle, ArrowUp } from "lucide-react";
 import SectionLabel from "./SectionLabel";
+import { weddingPath } from "@/lib/weddingPaths";
 
 // 60초 ISR — 랜딩 페이지는 매 방문마다 fetch하지 않아도 됨
 export const revalidate = 60;
@@ -103,7 +104,7 @@ export default async function CommunityFeed() {
           </div>
           {!isEmpty && (
             <Link
-              href="/community"
+              href={weddingPath()}
               className="group inline-flex items-center gap-2 text-[14px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors self-start md:self-end shrink-0"
             >
               전체 커뮤니티 보기
@@ -126,7 +127,7 @@ export default async function CommunityFeed() {
               return (
                 <Link
                   key={post.id}
-                  href={`/community/post/${post.id}`}
+                  href={weddingPath(`/community/post/${post.id}`)}
                   className="group p-8 md:p-10 flex flex-col hover:bg-ivory-warm/50 transition-colors"
                 >
                   {/* 카테고리 + 아모라 답변 뱃지 */}

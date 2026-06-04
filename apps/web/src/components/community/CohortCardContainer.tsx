@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import CohortCard, { type CohortCardMemberPreview } from "./CohortCard";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { CohortRoom } from "@/types/community.types";
 
 interface CohortInfo {
@@ -72,10 +73,10 @@ export default function CohortCardContainer() {
       recentMembers={info.recentMembers}
       lastMessagePreview={info.lastMessagePreview}
       onClick={() => {
-        if (info.room) router.push(`/community/cohort/${info.room.id}`);
+        if (info.room) router.push(weddingPath(`/community/cohort/${info.room.id}`));
       }}
       onAssigned={(roomId) => {
-        router.push(`/community/cohort/${roomId}`);
+        router.push(weddingPath(`/community/cohort/${roomId}`));
       }}
     />
   );

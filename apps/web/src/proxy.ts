@@ -5,7 +5,13 @@ import { updateSession } from "@/lib/supabase/middleware";
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/dashboard" || request.nextUrl.pathname.startsWith("/dashboard/")) {
     const url = request.nextUrl.clone();
-    url.pathname = url.pathname.replace(/^\/dashboard/, "/lounge");
+    url.pathname = url.pathname.replace(/^\/dashboard/, "/wedding/lounge");
+    return NextResponse.redirect(url);
+  }
+
+  if (request.nextUrl.pathname === "/wedding/dashboard" || request.nextUrl.pathname.startsWith("/wedding/dashboard/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = url.pathname.replace(/^\/wedding\/dashboard/, "/wedding/lounge");
     return NextResponse.redirect(url);
   }
 

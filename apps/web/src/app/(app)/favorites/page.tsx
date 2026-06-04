@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor } from "@/types/vendor.types";
 
 // 카테고리별 그룹핑 (vendors.category 기반)
@@ -128,7 +129,7 @@ export default function MyFavoritesPage() {
           title="로그인하면 즐겨찾기를 볼 수 있어요"
           description="마음에 드는 업체를 카테고리별로 모아두는 나만의 공간이에요."
           ctaLabel="로그인"
-          ctaHref="/login?redirect=/favorites"
+          ctaHref="/login?redirect=/wedding/favorites"
         />
       </div>
     );
@@ -157,7 +158,7 @@ export default function MyFavoritesPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-md mx-auto">
             <Link
-              href="/community"
+              href={weddingPath()}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] sm:w-auto"
             >
               커뮤니티 둘러보기
@@ -258,7 +259,7 @@ function FavoriteCard({
   return (
     <div className="group flex items-stretch gap-3 bg-white rounded-2xl border border-[#f0eeec] shadow-[0_4px_14px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_28px_rgb(0,0,0,0.05)] hover:border-[#795252]/30 transition-all overflow-hidden">
       <Link
-        href={`/vendors/${vendor.id}`}
+        href={weddingPath(`/vendors/${vendor.id}`)}
         className="flex-1 flex items-center gap-3 p-4 min-w-0"
       >
         <div className="shrink-0 w-14 h-14 rounded-xl bg-[#f6f3f2] flex items-center justify-center text-[#795252]">

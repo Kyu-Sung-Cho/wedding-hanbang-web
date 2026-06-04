@@ -5,12 +5,13 @@ import Link from "next/link";
 import { Menu, PenSquare, X } from "lucide-react";
 import UserMenu from "@/components/community/UserMenu";
 import Logo from "@/components/ui/Logo";
+import { weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
-  { href: "/chat", label: "아모라" },
-  { href: "/community/cohort", label: "동기방" },
-  { href: "/lounge", label: "웨딩 라운지" },
+  { href: weddingPath("/chat"), label: "아모라" },
+  { href: weddingPath("/community/cohort"), label: "동기방" },
+  { href: weddingPath("/lounge"), label: "웨딩 라운지" },
 ];
 
 export default function CommunityNav() {
@@ -21,7 +22,7 @@ export default function CommunityNav() {
     <header className="sticky top-0 z-50 border-b border-[#eadfc9] bg-[#fffdf7]/94 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4">
-          <Link href="/" className="inline-flex shrink-0 items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+          <Link href={weddingPath()} className="inline-flex shrink-0 items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
             <Logo size="md" />
           </Link>
           <span className="hidden truncate border-l border-[#eadfc9] pl-4 text-[12px] font-semibold leading-none text-[#36534e] lg:inline">
@@ -39,7 +40,7 @@ export default function CommunityNav() {
             </div>
           ))}
           <Link
-            href="/community/post/write"
+            href={weddingPath("/community/post/write")}
             className="inline-flex items-center gap-2 rounded-full bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
           >
             <PenSquare className="h-4 w-4" />
@@ -78,7 +79,7 @@ export default function CommunityNav() {
               </Link>
             ))}
             <Link
-              href="/community/post/write"
+              href={weddingPath("/community/post/write")}
               onClick={() => setMobileOpen(false)}
               className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
             >

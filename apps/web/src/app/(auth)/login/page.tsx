@@ -175,12 +175,12 @@ export default function LoginPage() {
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/lounge";
+              window.location.href = "/wedding/lounge";
             } else {
-              window.location.href = "/onboarding";
+              window.location.href = "/wedding/onboarding";
             }
           } else {
-            window.location.href = "/lounge";
+            window.location.href = "/wedding/lounge";
           }
         }
       }
@@ -195,7 +195,7 @@ export default function LoginPage() {
 
   const handleDemo = () => {
     document.cookie = "demo_mode=true; path=/; max-age=86400";
-    window.location.href = "/lounge";
+    window.location.href = "/wedding/lounge";
   };
 
   return (
@@ -214,7 +214,7 @@ export default function LoginPage() {
       >
         {/* 로고 */}
         <div className="text-center mb-10">
-          <Link href="/">
+          <Link href="/wedding">
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-[#635b51] font-light mt-3">
@@ -515,7 +515,7 @@ export default function LoginPage() {
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-4 mt-6">
-          <Link href="/" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
+          <Link href="/wedding" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
             ← 홈으로
           </Link>
           <span className="text-[#e5d8ca]">|</span>

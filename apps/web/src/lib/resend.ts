@@ -120,7 +120,7 @@ export async function sendBookingConfirmedEmail(params: {
             <p style="font-size: 15px; color: #1C1917; margin: 0;">${params.amount.toLocaleString()}원</p>` : ""}
           </div>
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://hanbang.ai/bookings" style="display: inline-block; padding: 14px 32px; background: #795252; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="https://hanbang.ai/wedding/bookings" style="display: inline-block; padding: 14px 32px; background: #795252; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               예약 상세 보기
             </a>
           </div>
@@ -241,7 +241,7 @@ export async function sendPaymentCompletedEmail(params: {
             <a href="${params.receiptUrl}" style="display: inline-block; padding: 12px 24px; background: white; color: #795252; border: 1px solid #795252; border-radius: 24px; text-decoration: none; font-size: 13px;">영수증 보기</a>
           </div>` : ""}
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://hanbang.ai/bookings" style="display: inline-block; padding: 14px 32px; background: #795252; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="https://hanbang.ai/wedding/bookings" style="display: inline-block; padding: 14px 32px; background: #795252; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               예약 보기
             </a>
           </div>

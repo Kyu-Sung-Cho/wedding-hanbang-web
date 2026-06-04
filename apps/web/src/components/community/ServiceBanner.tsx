@@ -10,6 +10,7 @@ import {
   PenLine,
   Wallet,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface BannerConfig {
   eyebrow: string;
@@ -77,7 +78,7 @@ export default function ServiceBanner({ index = 0 }: ServiceBannerProps) {
 
   return (
     <Link
-      href={banner.href}
+      href={weddingPath(banner.href)}
       className="group block rounded-lg border border-[#e4ded9] bg-[#f6efe5] px-4 py-4 transition-colors hover:border-[#dfc9c1] hover:bg-white sm:px-5"
     >
       <div className="flex items-start gap-4">

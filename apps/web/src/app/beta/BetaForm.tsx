@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 import DatePickerPopover from "./DatePickerPopover";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface BetaFormProps {
   current: number;
@@ -85,7 +86,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           기다리는 동안 커뮤니티에서 먼저 결혼 준비하시는 분들의 이야기를 둘러보셔도 좋아요.
         </p>
         <Link
-          href="/community"
+          href={weddingPath()}
           className="group inline-flex items-center gap-2 text-[14px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
         >
           커뮤니티 둘러보기

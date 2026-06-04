@@ -172,12 +172,12 @@ export default function DemoLoginPage() {
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/lounge";
+              window.location.href = "/wedding/lounge";
             } else {
-              window.location.href = "/onboarding";
+              window.location.href = "/wedding/onboarding";
             }
           } else {
-            window.location.href = "/lounge";
+            window.location.href = "/wedding/lounge";
           }
         }
       }

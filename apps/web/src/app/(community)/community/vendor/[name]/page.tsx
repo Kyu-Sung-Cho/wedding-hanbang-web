@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { VendorTagInfo, PostWithAuthor } from "@/types/community.types";
 
 interface VendorMatch {
@@ -335,7 +336,7 @@ export default function VendorDetailPage() {
               return (
                 <Link
                   key={post.id}
-                  href={`/community/post/${post.id}`}
+                  href={weddingPath(`/community/post/${post.id}`)}
                   className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[#36534E] transition"
                 >
                   <div className="flex items-center gap-2 text-sm text-[#B5ADA3] mb-2">
@@ -602,9 +603,9 @@ function BookingSection({
               {selectedDay.slots.map((slot) => {
                 const available = slot.available;
                 const href = available
-                  ? `/vendors/${vendor.id}${
+                  ? weddingPath(`/vendors/${vendor.id}${
                       selectedProductId ? `?product=${selectedProductId}` : ""
-                    }`
+                    }`)
                   : undefined;
                 const content = (
                   <div
@@ -644,9 +645,9 @@ function BookingSection({
           안내됩니다.
         </p>
         <Link
-          href={`/vendors/${vendor.id}${
+          href={weddingPath(`/vendors/${vendor.id}${
             selectedProductId ? `?product=${selectedProductId}` : ""
-          }`}
+          }`)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#36534E] text-white text-sm font-medium hover:bg-[#2B423E] transition-colors shrink-0"
         >
           업체 상세로 가기
@@ -730,7 +731,7 @@ function NoBookingFallback({ name }: { name: string }) {
           연동 완료까지는 받은 견적을 체크리스트로 먼저 정리해 보세요.
         </p>
         <Link
-          href="/community/quote-check"
+          href={weddingPath("/community/quote-check")}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#36534E] text-white text-sm font-medium hover:bg-[#2B423E] transition-colors shrink-0"
         >
           <FileSearch className="w-4 h-4" />

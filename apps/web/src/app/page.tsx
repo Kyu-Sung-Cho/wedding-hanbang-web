@@ -6,7 +6,7 @@ export const metadata = {
     "실제 후기, 견적 정보, 예산 팁, 동기부여 커뮤니티를 한 곳에서 확인하는 웨딩한방 커뮤니티.",
 };
 
-// 메인 도메인은 커뮤니티 전용 레이아웃을 그대로 쓰도록 /community로 보낸다.
+// 메인 도메인은 웨딩한방 시작점(/wedding)으로 보낸다.
 // 마케팅 랜딩은 /landing으로 보존.
 export default async function HomePage({
   searchParams,
@@ -27,5 +27,5 @@ export default async function HomePage({
   });
 
   const query = params.toString();
-  redirect(query ? `/community?${query}` : "/community");
+  redirect(query ? `/wedding?${query}` : "/wedding");
 }

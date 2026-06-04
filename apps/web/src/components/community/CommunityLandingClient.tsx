@@ -49,6 +49,7 @@ import type {
   TimePeriod,
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
+import { weddingPath } from "@/lib/weddingPaths";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_YEAR,
@@ -180,7 +181,7 @@ function buildCommunityHubHref(item: { query?: string; category?: CommunityCateg
   if (item.category) params.set("category", item.category);
   params.set("feed", "all");
   const query = params.toString();
-  return query ? `/community?${query}#community-feed` : "/community#community-feed";
+  return query ? weddingPath(`/community?${query}#community-feed`) : weddingPath("/community#community-feed");
 }
 
 function stripHtml(value: string) {
@@ -262,7 +263,7 @@ export default function CommunityLandingClient({
     params.set("sort", normalizedSort);
     if (normalizedSort === "top") params.set("period", normalizedPeriod);
     params.set("feed", "all");
-    return `/community?${params.toString()}#community-feed`;
+    return weddingPath(`/community?${params.toString()}#community-feed`);
   }, [authorQuery, normalizedPeriod, normalizedSort, selectedCategory, tagQuery]);
   useEffect(() => {
     setSearchDraft(searchQuery);
@@ -381,10 +382,10 @@ export default function CommunityLandingClient({
     event.preventDefault();
     const trimmed = searchDraft.trim();
     if (!trimmed) {
-      router.push("/community");
+      router.push(weddingPath());
       return;
     }
-    router.push(`/community?search=${encodeURIComponent(trimmed)}#community-feed`);
+    router.push(weddingPath(`/community?search=${encodeURIComponent(trimmed)}#community-feed`));
   }
 
   function setSort(nextSort: PostSort) {
@@ -396,7 +397,7 @@ export default function CommunityLandingClient({
     params.set("sort", nextSort);
     if (nextSort === "top") params.set("period", currentPeriod);
     if (showFullFeed) params.set("feed", "all");
-    router.push(`/community?${params.toString()}`, { scroll: false });
+    router.push(weddingPath(`/community?${params.toString()}`), { scroll: false });
   }
 
   function setPeriod(nextPeriod: TimePeriod) {
@@ -408,7 +409,7 @@ export default function CommunityLandingClient({
     params.set("sort", "top");
     params.set("period", nextPeriod);
     if (showFullFeed) params.set("feed", "all");
-    router.push(`/community?${params.toString()}`, { scroll: false });
+    router.push(weddingPath(`/community?${params.toString()}`), { scroll: false });
   }
 
   return (
@@ -420,7 +421,7 @@ export default function CommunityLandingClient({
         onSubmit={submitSearch}
         selectedCategory={selectedCategory}
         currentTag={currentTag}
-        onClearTag={() => router.push("/community")}
+        onClearTag={() => router.push(weddingPath())}
       />
       <CommunityMain
         posts={visiblePosts}
@@ -440,7 +441,7 @@ export default function CommunityLandingClient({
       />
       <div ref={observerRef} className="h-1" />
       <Link
-        href="/community/post/write"
+        href={weddingPath("/community/post/write")}
         className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
         aria-label="글쓰기"
         data-tutorial-target="community-write"
@@ -506,7 +507,7 @@ function SearchHub({
           return (
             <Link
               key={item.label}
-              href={item.href ?? buildCommunityHubHref(item)}
+              href={weddingPath(item.href ?? buildCommunityHubHref(item))}
               aria-label={`${item.label} 보기`}
               className={`group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-2 text-center transition-all ${
                 active
@@ -537,7 +538,7 @@ function SearchHub({
           )}
           {searchQuery && (
             <Link
-              href="/community"
+              href={weddingPath()}
               className="rounded-full border border-[#eadfc9] bg-white px-4 py-2 text-[13px] font-medium text-[#36534E]"
             >
               검색 초기화
@@ -734,7 +735,7 @@ function LatestPosts({
             </Link>
           )}
           <Link
-            href="/community/post/write"
+            href={weddingPath("/community/post/write")}
             className="hidden min-h-9 items-center rounded-full bg-[#061a34] px-4 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
             data-tutorial-target="community-write"
           >
@@ -831,7 +832,7 @@ function AmoraInlinePromo() {
           </h3>
         </div>
         <Link
-          href="/chat"
+          href={weddingPath("/chat")}
           className="group mt-2 inline-flex min-h-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-3.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)] transition-transform hover:-translate-y-0.5 sm:mt-0"
         >
           아모라에게 물어보기
@@ -908,7 +909,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   async function handleShare(event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    const url = `${window.location.origin}/community/post/${post.id}`;
+    const url = `${window.location.origin}${weddingPath(`/community/post/${post.id}`)}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: post.title, url });
@@ -927,7 +928,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
 
   return (
     <Link
-      href={`/community/post/${post.id}`}
+      href={weddingPath(`/community/post/${post.id}`)}
       className={`relative grid gap-2.5 py-2 first:pt-0 last:pb-0 sm:gap-3 ${
         imageUrl
           ? "grid-cols-[minmax(0,1fr)_72px] sm:grid-cols-[minmax(0,1fr)_104px] xl:grid-cols-[minmax(0,1fr)_112px]"
@@ -1074,7 +1075,7 @@ function BestPostsPanel() {
   }, []);
 
   const title = "이번 주 인기글";
-  const moreHref = "/community?sort=top&period=week&feed=all#community-feed";
+  const moreHref = weddingPath("/community?sort=top&period=week&feed=all#community-feed");
 
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
@@ -1099,7 +1100,7 @@ function BestPostsPanel() {
           {posts.map((post, index) => (
             <li key={post.id}>
               <Link
-                href={`/community/post/${post.id}`}
+                href={weddingPath(`/community/post/${post.id}`)}
                 className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
               >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
@@ -1132,7 +1133,7 @@ function AmoraSidebarPanel() {
         커뮤니티 글이 자동으로 내 견적에 반영되는 기능은 아니에요. 아모라 상담으로 이동해 상황을 설명하고 질문을 이어가는 카드입니다.
       </p>
       <Link
-        href="/chat"
+        href={weddingPath("/chat")}
         className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
       >
         아모라에게 바로 묻기
@@ -1190,7 +1191,7 @@ function MarketSnapshotPanel() {
           </p>
         </div>
         <Link
-          href="/market-prices"
+          href={weddingPath("/market-prices")}
           className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
         >
           자세히
@@ -1213,7 +1214,7 @@ function MarketPriceRow({
   item: { label: string; value: number | null; note: string; icon: LucideIcon };
 }) {
   return (
-    <Link href="/market-prices" className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
+    <Link href={weddingPath("/market-prices")} className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
       <span className="flex min-w-0 items-center gap-3">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
           <item.icon className="h-3.5 w-3.5" />
@@ -1336,7 +1337,7 @@ function CohortPreviewPanel() {
             비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
           </p>
         </div>
-        <Link href="/community/cohort" className="shrink-0 text-[13px] font-medium text-[#36534E]">
+        <Link href={weddingPath("/community/cohort")} className="shrink-0 text-[13px] font-medium text-[#36534E]">
           더보기
         </Link>
       </div>
@@ -1344,7 +1345,7 @@ function CohortPreviewPanel() {
       {panelState.status === "assigned" && panelState.roomId ? (
         <div className="space-y-3">
           <Link
-            href={`/community/cohort/${panelState.roomId}`}
+            href={weddingPath(`/community/cohort/${panelState.roomId}`)}
             className="group flex min-h-[82px] items-center gap-3 rounded-[16px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[#36534E]/55 hover:bg-[#e7f0eb]"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-sm">
@@ -1365,7 +1366,7 @@ function CohortPreviewPanel() {
             </span>
           </Link>
           <Link
-            href="/community/cohort"
+            href={weddingPath("/community/cohort")}
             className="flex min-h-10 items-center justify-between rounded-[14px] border border-[#e5d8ca] bg-white px-4 text-[12px] font-semibold text-[#635b51] transition-colors hover:border-[#36534E]/35 hover:text-[#36534E]"
           >
             다른 분기로 바꾸거나 전체 동기방 보기
@@ -1381,7 +1382,7 @@ function CohortPreviewPanel() {
           )}
           {panelState.status === "unauth" && (
             <Link
-              href={`/login?redirect=${encodeURIComponent("/community/cohort")}`}
+              href={`/login?redirect=${encodeURIComponent(weddingPath("/community/cohort"))}`}
               className="mb-3 flex min-h-11 items-center justify-between rounded-[14px] border border-[#36534E]/20 bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/45"
             >
               로그인하면 예정일 기준으로 바로 입장해요
@@ -1392,7 +1393,7 @@ function CohortPreviewPanel() {
             {cohortPreviewRows.map((row) => (
           <Link
             key={row.period}
-            href={row.href}
+            href={weddingPath(row.href)}
             className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#263832] transition-colors hover:bg-[#EEF4F1]"
           >
             <span className="min-w-0 flex-1 truncate">{row.period}</span>

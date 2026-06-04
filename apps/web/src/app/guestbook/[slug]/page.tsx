@@ -33,6 +33,7 @@ import type {
   GuestbookPhoto,
 } from "@/types/community.types";
 import GuestbookQRModal from "@/components/community/GuestbookQRModal";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const MAX_WEDDING_PHOTOS = 30;
 
@@ -775,7 +776,7 @@ export default function PublicGuestbookPage() {
                     />
                     {isOwner && (
                       <Link
-                        href={`/community/post/write?prefill=guestbook&slug=${encodeURIComponent(slug)}&msg=${encodeURIComponent(m.id)}`}
+                        href={weddingPath(`/community/post/write?prefill=guestbook&slug=${encodeURIComponent(slug)}&msg=${encodeURIComponent(m.id)}`)}
                         className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#795252] bg-[#fcf9f8] border border-[#F0EFED] rounded-lg hover:border-[#795252] hover:bg-white transition-colors"
                       >
                         <ArrowUpRight className="w-3.5 h-3.5" />
@@ -801,7 +802,7 @@ export default function PublicGuestbookPage() {
             같은 달 결혼하는 동기들과 함께 정보를 나누세요.
           </p>
           <Link
-            href="/community"
+            href={weddingPath()}
             className="inline-block bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
           >
             웨딩한방 커뮤니티 둘러보기

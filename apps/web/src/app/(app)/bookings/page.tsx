@@ -11,6 +11,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Booking } from "@/types/vendor.types";
 
 interface BookingWithExtra extends Booking {
@@ -106,7 +107,7 @@ export default function BookingsPage() {
             업체를 둘러보고 첫 예약을 잡아보세요
           </p>
           <Link
-            href="/vendors"
+            href={weddingPath("/vendors")}
             className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 둘러보기
@@ -126,7 +127,7 @@ export default function BookingsPage() {
                   return (
                     <div key={booking.id} className="animate-fade-in">
                       <Link
-                        href={`/bookings/${booking.id}`}
+                        href={weddingPath(`/bookings/${booking.id}`)}
                         className="block rounded-[18px] border border-[#eadfc9] bg-white/90 px-5 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-shadow hover:shadow-[0_12px_32px_rgba(8,22,38,0.07)]"
                       >
                         <div className="flex items-center gap-4">
@@ -203,7 +204,7 @@ export default function BookingsPage() {
                   return (
                     <Link
                       key={booking.id}
-                      href={`/bookings/${booking.id}`}
+                      href={weddingPath(`/bookings/${booking.id}`)}
                       className="flex items-center gap-4 rounded-[16px] border border-[#eadfc9]/70 bg-white/80 px-5 py-4 transition-all hover:bg-white hover:shadow-[0_8px_24px_rgba(8,22,38,0.035)]"
                     >
                       <div className="flex-1 min-w-0">

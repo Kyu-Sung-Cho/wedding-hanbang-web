@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { ThumbsUp, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
 
 export default function MyUpvotedPage() {
@@ -23,7 +24,7 @@ export default function MyUpvotedPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login?redirect=/community/my/upvoted");
+        router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/upvoted"))}`);
         return;
       }
 
@@ -46,7 +47,7 @@ export default function MyUpvotedPage() {
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/community"
+          href={weddingPath()}
           className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 text-noir-800" />
@@ -74,7 +75,7 @@ export default function MyUpvotedPage() {
           <p className="text-[14px] text-[#928980] mb-1">아직 좋아요한 글이 없어요</p>
           <p className="text-[12px] text-[#B5ADA3] mb-4">마음에 드는 글에 좋아요를 눌러보세요</p>
           <Link
-            href="/community"
+            href={weddingPath()}
             className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors"
           >
             커뮤니티 둘러보기

@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface MenuItem {
   href?: string;
@@ -39,7 +40,7 @@ export default function UserMenu() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     await supabase.auth.signOut();
-    router.push("/community");
+    router.push(weddingPath());
     router.refresh();
   }, [router]);
 
@@ -62,11 +63,11 @@ export default function UserMenu() {
   }, [open]);
 
   const items: MenuItem[] = [
-    { href: "/bookings", label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
-    { href: "/community/my", label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
-    { href: "/favorites", label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
-    { href: "/community/cohort", label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
-    { href: "/settings", label: "설정", sub: "프로필·알림·계정", Icon: Settings },
+    { href: weddingPath("/bookings"), label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
+    { href: weddingPath("/community/my"), label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
+    { href: weddingPath("/favorites"), label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
+    { href: weddingPath("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
+    { href: weddingPath("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
     { onClick: handleLogout, label: "로그아웃", sub: "", Icon: LogOut },
   ];
 

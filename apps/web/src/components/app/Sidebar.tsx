@@ -19,25 +19,26 @@ import {
   X,
 } from "lucide-react";
 import Logo from "@/components/ui/Logo";
+import { stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money", "/fitting", "/scripts"];
 
 const menuItems = [
-  { href: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
-  { href: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
-  { href: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
-  { href: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
-  { href: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
-  { href: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
-  { href: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { href: "/fitting", icon: Shirt, label: "드레스 피팅" },
-  { href: "/etiquette", icon: BookOpen, label: "예절 가이드" },
-  { href: "/scripts", icon: FileText, label: "대본 리딩" },
-  { href: "/money", icon: Banknote, label: "축의금 관리" },
-  { href: "/settings", icon: Settings, label: "설정" },
-].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.href));
+  { href: weddingPath("/lounge"), legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
+  { href: weddingPath("/chat"), legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
+  { href: weddingPath("/budget"), legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
+  { href: weddingPath("/schedule"), legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
+  { href: weddingPath("/market-prices"), legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
+  { href: weddingPath("/vendors"), legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
+  { href: weddingPath("/bookings"), legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
+  { href: weddingPath("/fitting"), legacyPath: "/fitting", icon: Shirt, label: "드레스 피팅" },
+  { href: weddingPath("/etiquette"), legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
+  { href: weddingPath("/scripts"), legacyPath: "/scripts", icon: FileText, label: "대본 리딩" },
+  { href: weddingPath("/money"), legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
+  { href: weddingPath("/settings"), legacyPath: "/settings", icon: Settings, label: "설정" },
+].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));
 
 interface SidebarProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const currentPath = stripWeddingBasePath(pathname);
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
   const userInitial = userName.charAt(0);
@@ -67,7 +69,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         <div className="flex h-[72px] items-center justify-between px-5">
-          <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+          <Link href={weddingPath()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
             <Logo size="md" />
           </Link>
           <button
@@ -83,7 +85,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/lounge" && pathname.startsWith(item.href));
+              const isActive = currentPath === item.legacyPath || (item.legacyPath !== "/lounge" && currentPath.startsWith(item.legacyPath));
               return (
                 <Link
                   key={item.href}

@@ -6,6 +6,7 @@ import CommunityAuthInitializer from "@/components/community/CommunityAuthInitia
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export default function CommunityLayout({
   children,
@@ -30,7 +31,7 @@ export default function CommunityLayout({
 
 function FooterBrand() {
   return (
-    <Link href="/" className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+    <Link href={weddingPath()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
       <Logo size="md" variant="white" />
     </Link>
   );
@@ -53,7 +54,7 @@ function CommunityFooter() {
             ].map((item) => (
               <Link
                 key={item.label}
-                href="/community"
+                href={weddingPath()}
                 aria-label={item.label}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
@@ -66,20 +67,20 @@ function CommunityFooter() {
         <FooterColumn
           title="둘러보기"
           items={[
-            { label: "후기·질문", href: "/community#community-feed" },
-            { label: "가격·후기", href: "/community?category=tour_review&search=견적&feed=all#community-feed" },
-            { label: "동기방", href: "/community/cohort" },
-            { label: "글쓰기", href: "/community/post/write" },
-            { label: "북마크", href: "/community/my/bookmarks" },
+            { label: "후기·질문", href: weddingPath("/community#community-feed") },
+            { label: "가격·후기", href: weddingPath("/community?category=tour_review&search=견적&feed=all#community-feed") },
+            { label: "동기방", href: weddingPath("/community/cohort") },
+            { label: "글쓰기", href: weddingPath("/community/post/write") },
+            { label: "북마크", href: weddingPath("/community/my/bookmarks") },
           ]}
         />
         <FooterColumn
           title="준비 도구"
           items={[
-            { label: "웨딩 라운지", href: "/lounge" },
-            { label: "아모라 상담", href: "/chat" },
-            { label: "예산", href: "/budget" },
-            { label: "일정", href: "/schedule" },
+            { label: "웨딩 라운지", href: weddingPath("/lounge") },
+            { label: "아모라 상담", href: weddingPath("/chat") },
+            { label: "예산", href: weddingPath("/budget") },
+            { label: "일정", href: weddingPath("/schedule") },
           ]}
         />
         <FooterColumn
@@ -111,7 +112,7 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href="/lounge"
+            href={weddingPath("/lounge")}
             className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동

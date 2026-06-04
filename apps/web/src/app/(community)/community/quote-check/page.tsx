@@ -24,6 +24,7 @@ import {
   type AmoraQuoteCheckResult,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const PRICE_TIER_LABELS: Record<AmoraPriceTier, string> = {
   suspicious_low: "이상하게 낮은 가격대",
@@ -172,7 +173,7 @@ export default function AmoraQuoteCheckPage() {
       <div className="mx-auto grid w-full max-w-[1240px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-7">
         <main className="min-w-0">
           <Link
-            href="/community"
+            href={weddingPath()}
             className="mb-4 inline-flex items-center gap-2 text-sm text-[#928980] transition-colors hover:text-[#36534E]"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -195,7 +196,7 @@ export default function AmoraQuoteCheckPage() {
                 </p>
               </div>
               <Link
-                href="/community/post/write?category=is_normal"
+                href={weddingPath("/community/post/write?category=is_normal")}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#e5d8ca] px-4 py-2.5 text-sm font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
               >
                 <ClipboardCheck className="h-4 w-4" />
@@ -491,8 +492,8 @@ function ResultPanel({
     return lines.join("\n");
   }, [result, topMissing]);
 
-  const chatHref = `/chat?prefill=${encodeURIComponent(chatPrompt)}`;
-  const postWriteHref = `/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`;
+  const chatHref = weddingPath(`/chat?prefill=${encodeURIComponent(chatPrompt)}`);
+  const postWriteHref = weddingPath(`/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`);
 
   const copyQuestions = async () => {
     const text = [

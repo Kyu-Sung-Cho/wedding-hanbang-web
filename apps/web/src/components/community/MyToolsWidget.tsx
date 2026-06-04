@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BarChart3, LayoutDashboard, MessageCircle, PenSquare } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface ToolCard {
   href: string;
@@ -12,19 +13,19 @@ interface ToolCard {
 
 const QUICK_TOOLS: ToolCard[] = [
   {
-    href: "/community/quick-review",
+    href: weddingPath("/community/quick-review"),
     label: "후기 쓰기",
     description: "짧게 남기고 바로 공유",
     icon: PenSquare,
   },
   {
-    href: "/chat",
+    href: weddingPath("/chat"),
     label: "아모라",
     description: "업체에 물어볼 말 정리",
     icon: MessageCircle,
   },
   {
-    href: "/lounge",
+    href: weddingPath("/lounge"),
     label: "웨딩 라운지",
     description: "체크리스트 결과를 다음 행동으로",
     icon: LayoutDashboard,

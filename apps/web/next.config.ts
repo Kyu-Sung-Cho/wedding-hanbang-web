@@ -4,6 +4,24 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
+const weddingAppRoutes = [
+  "lounge",
+  "chat",
+  "budget",
+  "schedule",
+  "fitting",
+  "etiquette",
+  "settings",
+  "bookings",
+  "invitations",
+  "money",
+  "scripts",
+  "vendors",
+  "market-prices",
+  "favorites",
+  "onboarding",
+];
+
 const nextConfig: NextConfig = {
   turbopack: {
     root: repoRoot,
@@ -27,29 +45,86 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/",
-        destination: "/community",
+        destination: "/wedding",
         permanent: false,
       },
       {
-        source: "/invitations/:path*",
-        destination: "/dashboard",
+        source: "/dashboard/:path*",
+        destination: "/wedding/lounge/:path*",
         permanent: false,
       },
       {
         source: "/community/chat",
-        destination: "/chat",
+        destination: "/wedding/chat",
         permanent: false,
       },
       {
         source: "/community/schedule",
-        destination: "/schedule",
+        destination: "/wedding/schedule",
         permanent: false,
       },
       {
         source: "/community/budget",
-        destination: "/budget",
+        destination: "/wedding/budget",
         permanent: false,
       },
+      {
+        source: "/community",
+        destination: "/wedding",
+        permanent: false,
+      },
+      {
+        source: "/community/:path*",
+        destination: "/wedding/community/:path*",
+        permanent: false,
+      },
+      {
+        source: "/wedding/dashboard/:path*",
+        destination: "/wedding/lounge/:path*",
+        permanent: false,
+      },
+      {
+        source: "/wedding/community",
+        destination: "/wedding",
+        permanent: false,
+      },
+      {
+        source: "/wedding/community/chat",
+        destination: "/wedding/chat",
+        permanent: false,
+      },
+      {
+        source: "/wedding/community/schedule",
+        destination: "/wedding/schedule",
+        permanent: false,
+      },
+      {
+        source: "/wedding/community/budget",
+        destination: "/wedding/budget",
+        permanent: false,
+      },
+      ...weddingAppRoutes.map((route) => ({
+        source: `/${route}/:path*`,
+        destination: `/wedding/${route}/:path*`,
+        permanent: false,
+      })),
+    ];
+  },
+
+  async rewrites() {
+    return [
+      {
+        source: "/wedding",
+        destination: "/community",
+      },
+      {
+        source: "/wedding/community/:path*",
+        destination: "/community/:path*",
+      },
+      ...weddingAppRoutes.map((route) => ({
+        source: `/wedding/${route}/:path*`,
+        destination: `/${route}/:path*`,
+      })),
     ];
   },
 

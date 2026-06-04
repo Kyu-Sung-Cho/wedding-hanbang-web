@@ -3,12 +3,13 @@
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const SERVICE_LINKS = [
-  { label: "아모라 채팅", href: "/chat" },
-  { label: "커뮤니티", href: "/community" },
-  { label: "시세 정보", href: "/market-prices" },
-  { label: "내 즐겨찾기", href: "/favorites" },
+  { label: "아모라 채팅", href: weddingPath("/chat") },
+  { label: "커뮤니티", href: weddingPath() },
+  { label: "시세 정보", href: weddingPath("/market-prices") },
+  { label: "내 즐겨찾기", href: weddingPath("/favorites") },
 ];
 
 const POLICY_LINKS = [
@@ -32,7 +33,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1.2fr] gap-10 lg:gap-12 mb-12">
           {/* 브랜드 */}
           <div>
-            <Link href="/" className="inline-block">
+            <Link href={weddingPath()} className="inline-block">
               <Logo size="sm" variant="white" />
             </Link>
             <p className="text-ivory-50/60 text-sm leading-relaxed mt-5 font-light max-w-[320px]">

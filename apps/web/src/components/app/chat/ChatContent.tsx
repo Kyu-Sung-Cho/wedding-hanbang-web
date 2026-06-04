@@ -12,6 +12,7 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import { weddingPath } from "@/lib/weddingPaths";
 
 const MAX_ATTACHMENTS = 5;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
@@ -668,7 +669,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             (1분 정도 소요)
           </p>
           <a
-            href="/onboarding"
+            href={weddingPath("/onboarding")}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
           >
             <Sparkles className="w-4 h-4" />

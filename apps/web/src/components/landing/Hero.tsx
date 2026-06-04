@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export default function Hero() {
   return (
@@ -53,7 +54,7 @@ export default function Hero() {
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
               <Link
-                href="/chat"
+                href={weddingPath("/chat")}
                 className="inline-flex items-center text-[14px] md:text-[15px] text-taupe-500 font-light tracking-[0.02em] hover:text-noir-800 transition-colors"
               >
                 아모라와 먼저 대화해보기

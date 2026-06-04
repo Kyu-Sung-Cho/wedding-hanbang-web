@@ -17,25 +17,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 정적 페이지
   const staticPages: MetadataRoute.Sitemap = [
     {
-      url: BASE_URL,
+      url: `${BASE_URL}/wedding`,
       lastModified: new Date(),
-      changeFrequency: "weekly",
+      changeFrequency: "daily",
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/community`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/market-prices`,
+      url: `${BASE_URL}/wedding/market-prices`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
-      url: `${BASE_URL}/etiquette`,
+      url: `${BASE_URL}/wedding/etiquette`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.7,
@@ -65,7 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     if (posts) {
       communityPages = posts.map((post) => ({
-        url: `${BASE_URL}/community/post/${post.id}`,
+        url: `${BASE_URL}/wedding/community/post/${post.id}`,
         lastModified: new Date(post.updated_at),
         changeFrequency: "weekly" as const,
         priority: 0.6,

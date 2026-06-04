@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
     description:
       "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지.",
-    url: "https://hanbang.ai",
+    url: "https://hanbang.ai/wedding",
     siteName: "웨딩한방",
     locale: "ko_KR",
     type: "website",

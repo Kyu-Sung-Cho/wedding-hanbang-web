@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Heart, Star, MapPin, Sparkles, Clock, Loader2, ArrowLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor } from "@/types/vendor.types";
 
 export default function VendorFavoritesPage() {
@@ -22,7 +23,7 @@ export default function VendorFavoritesPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login?redirect=/vendors/favorites");
+        router.push("/login?redirect=/wedding/vendors/favorites");
         return;
       }
 
@@ -86,7 +87,7 @@ export default function VendorFavoritesPage() {
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6 animate-fade-in">
         <Link
-          href="/vendors"
+          href={weddingPath("/vendors")}
           className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 text-noir-800" />
@@ -116,7 +117,7 @@ export default function VendorFavoritesPage() {
           <p className="text-base text-[#928980] mb-1">아직 찜한 업체가 없어요</p>
           <p className="text-sm text-[#B5ADA3] mb-4">마음에 드는 업체를 찜해보세요</p>
           <Link
-            href="/vendors"
+            href={weddingPath("/vendors")}
             className="inline-block rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 탐색하기
@@ -132,7 +133,7 @@ export default function VendorFavoritesPage() {
             return (
               <div key={vendor.id} className="animate-fade-in">
                 <Link
-                  href={`/vendors/${vendor.id}`}
+                  href={weddingPath(`/vendors/${vendor.id}`)}
                   className="group block overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(8,22,38,0.07)]"
                 >
                   {/* 이미지 플레이스홀더 */}

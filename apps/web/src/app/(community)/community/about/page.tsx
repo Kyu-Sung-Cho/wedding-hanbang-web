@@ -14,6 +14,7 @@ import {
   Check,
   Megaphone,
 } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export const metadata = {
   title: "웨딩한방 안내",
@@ -287,14 +288,14 @@ export default function CommunityAboutPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/community"
+              href={weddingPath()}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#36534E] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/community/post/write"
+              href={weddingPath("/community/post/write")}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[#e5d8ca] text-[#263832] text-base font-medium hover:bg-[#fbf8f2] transition-all"
             >
               <PenSquare className="w-4 h-4" />첫 글 쓰러 가기

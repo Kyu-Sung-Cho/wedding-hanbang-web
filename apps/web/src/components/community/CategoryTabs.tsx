@@ -15,6 +15,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
+import { stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
 import { useState } from "react";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -27,13 +28,14 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default function CategoryTabs() {
   const pathname = usePathname();
+  const currentPath = stripWeddingBasePath(pathname);
   const [moreOpen, setMoreOpen] = useState(true);
 
   function isActive(href: string) {
     if (href === "/community") {
-      return pathname === "/community";
+      return currentPath === "/community";
     }
-    return pathname.startsWith(href);
+    return currentPath.startsWith(href);
   }
 
   return (
@@ -42,16 +44,16 @@ export default function CategoryTabs() {
       <nav className="hidden xl:flex flex-col space-y-1">
         {/* 주요 네비 */}
         <Link
-          href="/community"
+          href={weddingPath()}
           className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
-            isActive("/community") && pathname === "/community"
+            isActive("/community") && currentPath === "/community"
               ? "bg-[#f6efe5] text-[#36534E] font-bold"
               : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
           }`}
         >
           <Home
             className={`mr-2.5 w-4 h-4 ${
-              isActive("/community") && pathname === "/community"
+              isActive("/community") && currentPath === "/community"
                 ? "opacity-80"
                 : "opacity-60 group-hover:opacity-100"
             }`}
@@ -60,7 +62,7 @@ export default function CategoryTabs() {
         </Link>
 
         <Link
-          href="/community?sort=hot"
+          href={weddingPath("/community?sort=hot")}
           className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[#635b51] hover:bg-white hover:text-[#36534E]"
         >
           <Flame className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
@@ -94,7 +96,7 @@ export default function CategoryTabs() {
               return (
                 <Link
                   key={cat.key}
-                  href={href}
+                  href={weddingPath(href)}
                   className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
                     active
                       ? "bg-[#f6efe5] text-[#36534E] font-bold"
@@ -118,7 +120,7 @@ export default function CategoryTabs() {
             내 활동
           </div>
           <Link
-            href="/community/my/bookmarks"
+            href={weddingPath("/community/my/bookmarks")}
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/bookmarks")
                 ? "bg-[#f6efe5] text-[#36534E] font-bold"
@@ -134,7 +136,7 @@ export default function CategoryTabs() {
           </Link>
 
           <Link
-            href="/community/my/upvoted"
+            href={weddingPath("/community/my/upvoted")}
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/upvoted")
                 ? "bg-[#f6efe5] text-[#36534E] font-bold"
@@ -155,9 +157,9 @@ export default function CategoryTabs() {
       <div className="xl:hidden overflow-x-auto scrollbar-hide -mx-4 px-4">
         <div className="flex items-center gap-2.5 min-w-max py-1">
           <Link
-            href="/community"
+            href={weddingPath()}
             className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
-              pathname === "/community"
+              currentPath === "/community"
                 ? "bg-[#36534E] text-white font-medium"
                 : "text-[#635b51] bg-white border border-[#e5d8ca] hover:bg-[#f6efe5]"
             }`}
@@ -170,7 +172,7 @@ export default function CategoryTabs() {
             return (
               <Link
                 key={cat.key}
-                href={href}
+                href={weddingPath(href)}
                 className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
                     ? "bg-[#36534E] text-white font-medium"

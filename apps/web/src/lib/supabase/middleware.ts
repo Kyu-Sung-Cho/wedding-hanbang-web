@@ -5,6 +5,10 @@ import { NextResponse, type NextRequest } from "next/server";
 const CUSTOMER_PATHS = [
   "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/etiquette", "/settings", "/bookings",
   "/invitations", "/money", "/scripts", "/onboarding",
+  "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
+  "/wedding/fitting", "/wedding/etiquette", "/wedding/settings", "/wedding/bookings", "/wedding/invitations",
+  "/wedding/money", "/wedding/scripts", "/wedding/vendors", "/wedding/market-prices", "/wedding/favorites",
+  "/wedding/onboarding",
 ];
 const VENDOR_PATHS = [
   "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings",
@@ -84,12 +88,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 온보딩 미완료 체크 (고객 앱 경로만)
-  if (protectedType === "customer" && !pathname.startsWith("/onboarding")) {
+  const isOnboardingPath = pathname.startsWith("/onboarding") || pathname.startsWith("/wedding/onboarding");
+
+  if (protectedType === "customer" && !isOnboardingPath) {
     const onboardingComplete =
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {
       const url = request.nextUrl.clone();
-      url.pathname = "/onboarding";
+      url.pathname = "/wedding/onboarding";
       return NextResponse.redirect(url);
     }
   }

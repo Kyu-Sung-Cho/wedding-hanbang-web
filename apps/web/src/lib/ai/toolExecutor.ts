@@ -35,6 +35,7 @@ import {
   todayKstMidnight,
   addDaysUtc,
 } from "@/lib/utils/kstDate";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -1145,12 +1146,12 @@ function normalizeActionStatus(value: unknown): AmoraActionStatus | undefined {
 }
 
 function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) {
-  if (source === "quote") return "/community/quote-check";
-  if (source === "budget") return "/budget";
-  if (source === "schedule") return "/schedule";
-  if (categoryKey === "invitation") return "/schedule";
-  if (categoryKey === "mc" || categoryKey === "gift") return "/scripts";
-  return "/lounge";
+  if (source === "quote") return weddingPath("/community/quote-check");
+  if (source === "budget") return weddingPath("/budget");
+  if (source === "schedule") return weddingPath("/schedule");
+  if (categoryKey === "invitation") return weddingPath("/schedule");
+  if (categoryKey === "mc" || categoryKey === "gift") return weddingPath("/scripts");
+  return weddingPath("/lounge");
 }
 
 async function saveProgress(ctx: ExecutionContext, progress: Record<string, unknown>) {
@@ -1366,7 +1367,7 @@ async function executeSearchVendors(
     reviewCount: v.review_count,
     tags: v.tags,
     aiRecommend: v.ai_recommend,
-    link: `/vendors/${v.id}`,
+    link: weddingPath(`/vendors/${v.id}`),
   }));
 
   // 검색 로그 기록
@@ -1690,7 +1691,7 @@ async function executeRecommendVendors(
       tags: v.tags,
       description: v.description?.slice(0, 100),
       reasons,
-      link: `/vendors/${v.id}`,
+      link: weddingPath(`/vendors/${v.id}`),
     };
   });
 

@@ -13,6 +13,7 @@ import CalendarView from "@/components/app/schedule/CalendarView";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
+import { weddingPath } from "@/lib/weddingPaths";
 import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
 
 const CATEGORY_KEYS = [
@@ -230,7 +231,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         handleAddEventQuick();
       }, 0);
       // URL에서 query 제거 (모달 닫고 새로고침해도 다시 안 열리도록)
-      router.replace("/schedule");
+      router.replace(weddingPath("/schedule"));
       return () => window.clearTimeout(timer);
     }
   }, [searchParams, router, handleAddEventQuick]);

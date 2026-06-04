@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import SectionLabel from "./SectionLabel";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface AnchorCard {
   label: string;
@@ -79,7 +80,7 @@ export default function NumbersAnchor() {
           className="mt-16 text-center md:text-left"
         >
           <Link
-            href="/market-prices"
+            href={weddingPath("/market-prices")}
             className="group inline-flex items-center gap-2 text-[14px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
           >
             지역별 · 항목별 시세 전체 보기

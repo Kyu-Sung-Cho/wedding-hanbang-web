@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 /**
@@ -17,7 +18,7 @@ export default function FooterAuthLink() {
 
   if (profile) {
     return (
-      <Link href="/settings" className="hover:text-[#1A1A1F] transition-colors">
+      <Link href={weddingPath("/settings")} className="hover:text-[#1A1A1F] transition-colors">
         설정
       </Link>
     );

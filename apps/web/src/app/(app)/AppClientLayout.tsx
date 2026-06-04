@@ -9,14 +9,16 @@ import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
+import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const pathname = usePathname();
-  const isChatPage = pathname === "/chat";
-  const hasContextualAssistant = pathname.startsWith("/vendors");
+  const appPathname = stripWeddingBasePath(pathname);
+  const isChatPage = appPathname === "/chat";
+  const hasContextualAssistant = appPathname.startsWith("/vendors");
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);

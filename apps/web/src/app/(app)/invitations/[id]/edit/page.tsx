@@ -13,6 +13,7 @@ import StepWedding from "@/components/app/invitation/StepWedding";
 import StepGallery from "@/components/app/invitation/StepGallery";
 import StepAccount from "@/components/app/invitation/StepAccount";
 import StepSettings from "@/components/app/invitation/StepSettings";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export default function InvitationEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,7 +78,7 @@ export default function InvitationEditPage() {
       {/* 헤더 */}
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/invitations"
+          href={weddingPath("/invitations")}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-ivory-100 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-noir-800" />
@@ -139,7 +140,7 @@ export default function InvitationEditPage() {
           </button>
         ) : (
           <button
-            onClick={() => router.push("/invitations")}
+            onClick={() => router.push(weddingPath("/invitations"))}
             className="px-6 py-3 bg-rose-500 text-white text-base font-medium rounded-xl hover:bg-rose-600 transition-colors"
           >
             완료

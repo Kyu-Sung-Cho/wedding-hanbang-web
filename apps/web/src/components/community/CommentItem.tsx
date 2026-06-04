@@ -6,6 +6,7 @@ import { Heart, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { CommentWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
+import { weddingPath } from "@/lib/weddingPaths";
 
 // 아모라 서비스 계정 ID
 const AMORA_USER_ID = process.env.NEXT_PUBLIC_AMORA_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -124,7 +125,7 @@ export default function CommentItem({
           {bodyText}
         </p>
         <Link
-          href="/chat"
+          href={weddingPath("/chat")}
           className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#36534E] bg-[#36534E]/5 hover:bg-[#36534E]/10 rounded-lg transition-colors duration-200"
         >
           {ctaText}
