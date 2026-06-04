@@ -2,6 +2,77 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortThreadTopic } from "@/types/community.types";
 
+const VALID_THREAD_TOPICS: CohortThreadTopic[] = ["price", "review", "concern", "chat"];
+
+const TOPIC_KEYWORDS: Record<Exclude<CohortThreadTopic, "chat">, string[]> = {
+  price: [
+    "가격",
+    "견적",
+    "비용",
+    "얼마",
+    "추가금",
+    "계약금",
+    "잔금",
+    "할인",
+    "결제",
+    "환불",
+    "위약금",
+    "만원",
+    "패키지",
+    "비싸",
+    "저렴",
+    "예산",
+  ],
+  review: [
+    "후기",
+    "다녀왔",
+    "방문",
+    "투어",
+    "상담받",
+    "계약했",
+    "추천",
+    "비추천",
+    "만족",
+    "불만",
+    "응대",
+    "실장",
+    "플래너",
+  ],
+  concern: [
+    "고민",
+    "걱정",
+    "불안",
+    "괜찮",
+    "어떻게",
+    "어떡",
+    "해야",
+    "할까",
+    "맞을까",
+    "고를",
+    "선택",
+    "궁금",
+    "질문",
+  ],
+};
+
+function normalizeThreadTopic(topic?: string | null): CohortThreadTopic | null {
+  return VALID_THREAD_TOPICS.includes(topic as CohortThreadTopic)
+    ? (topic as CohortThreadTopic)
+    : null;
+}
+
+function inferThreadTopic(content: string): CohortThreadTopic {
+  const normalized = content.toLowerCase();
+  const scores = Object.entries(TOPIC_KEYWORDS).map(([topic, keywords]) => ({
+    topic: topic as Exclude<CohortThreadTopic, "chat">,
+    score: keywords.reduce((total, keyword) => (
+      normalized.includes(keyword.toLowerCase()) ? total + 1 : total
+    ), 0),
+  }));
+  const best = scores.sort((a, b) => b.score - a.score)[0];
+  return best && best.score > 0 ? best.topic : "chat";
+}
+
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
   roomId: string,
@@ -143,13 +214,15 @@ export async function POST(
       );
     }
 
+    const threadTopic = normalizeThreadTopic(body.thread_topic) ?? inferThreadTopic(content);
+
     const { data: inserted, error } = await supabase
       .from("cohort_messages")
       .insert({
         room_id: roomId,
         author_id: user.id,
         content: content.slice(0, 2000),
-        thread_topic: body.thread_topic ?? null,
+        thread_topic: threadTopic,
         reply_to: body.reply_to ?? null,
       })
       .select("*")

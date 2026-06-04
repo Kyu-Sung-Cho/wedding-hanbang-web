@@ -695,7 +695,7 @@ function LatestPosts({
                 <select
                   value={currentSort}
                   onChange={(event) => onSortChange(event.target.value as PostSort)}
-                  className="h-9 appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-9 text-[12px] font-semibold text-[#34445a] outline-none focus:border-[#b68a3a]"
+                  className="h-10 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
                 >
                   {sortValues.map((sort) => (
                     <option key={sort} value={sort}>
@@ -711,7 +711,7 @@ function LatestPosts({
                   <select
                     value={currentPeriod}
                     onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-                    className="h-9 appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-9 text-[12px] font-semibold text-[#34445a] outline-none focus:border-[#b68a3a]"
+                    className="h-10 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
                   >
                     {periodValues.map((period) => (
                       <option key={period} value={period}>
@@ -727,20 +727,20 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               href={fullFeedHref}
-              className="inline-flex min-h-9 items-center rounded-full border border-[#eadfc9] bg-white px-4 text-[12px] font-medium text-[#9d6f36]"
+              className="inline-flex h-10 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
               aria-label={feedMoreLabel}
             >
               더보기
-              <ChevronRight className="ml-1 h-4 w-4" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             </Link>
           )}
           <Link
             href={weddingPath("/community/post/write")}
-            className="hidden min-h-9 items-center rounded-full bg-[#061a34] px-4 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+            className="hidden h-10 w-[100px] items-center justify-center gap-1.5 rounded-full bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
             data-tutorial-target="community-write"
           >
             글쓰기
-            <PenSquare className="ml-2 h-4 w-4" />
+            <PenSquare className="h-4 w-4 shrink-0" />
           </Link>
         </div>
       </div>

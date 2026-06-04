@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useRef, useState } from "react";
+import { type DragEvent, useRef, useState } from "react";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Loader2, Image as ImageIcon, Film, Play } from "lucide-react";
 import type { SlideMedia } from "@/types/community.types";
 
@@ -61,6 +61,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const remaining = max - slides.length;
 
@@ -156,8 +157,50 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
     onChange(next);
   }
 
+  function isFileDrag(event: DragEvent<HTMLElement>) {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!uploading && remaining > 0) setIsDragging(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = uploading || remaining <= 0 ? "none" : "copy";
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setIsDragging(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    if (uploading || remaining <= 0) return;
+    handleFiles(event.dataTransfer.files);
+  }
+
   return (
-    <div>
+    <div
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* 안내 */}
       <p className="text-sm text-[#928980] mb-3 leading-relaxed">
         인스타 캐러셀처럼 이미지·영상을 여러 장 올릴 수 있어요. 옆으로 넘기는 게시물이 됩니다.
@@ -209,9 +252,8 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
               className="relative group rounded-xl overflow-hidden border border-[#F0EFED] bg-[#fbf8f2] aspect-square"
             >
               {/* 미디어 미리보기 */}
-              {slide.type === "video" ? (
-                <div className="w-full h-full relative bg-black flex items-center justify-center">
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                {slide.type === "video" ? (
+                  <div className="w-full h-full relative bg-black flex items-center justify-center">
                   <video
                     src={slide.url}
                     preload="metadata"
@@ -276,13 +318,24 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           ))}
         </div>
       ) : (
-        <div className="px-6 py-10 rounded-xl border-2 border-dashed border-[#e5d8ca] bg-[#fbf8f2] text-center">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || remaining <= 0}
+          className={`w-full px-6 py-10 rounded-xl border-2 border-dashed text-center transition-colors ${
+            isDragging
+              ? "border-[#36534E] bg-[#eef4f1]"
+              : "border-[#e5d8ca] bg-[#fbf8f2] hover:border-[#36534E]/55 hover:bg-[#f4f8f5]"
+          } disabled:cursor-not-allowed disabled:opacity-60`}
+        >
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white border border-[#F0EFED] mb-3">
             <ImageIcon className="w-5 h-5 text-[#928980]" />
           </div>
           <p className="text-sm text-[#635b51]">아직 추가된 슬라이드가 없어요</p>
-          <p className="text-xs text-[#928980] mt-1">위 버튼으로 이미지·영상을 추가하세요</p>
-        </div>
+          <p className="text-xs text-[#928980] mt-1">
+            클릭하거나 이미지·영상을 끌어다 놓아 추가하세요
+          </p>
+        </button>
       )}
     </div>
   );

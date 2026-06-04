@@ -75,13 +75,6 @@ const THREAD_LABEL: Record<CohortThreadTopic, string> = {
   chat: "수다",
 };
 
-const THREAD_HINT: Record<CohortThreadTopic, string> = {
-  price: "견적, 추가금, 결제 조건",
-  review: "투어, 상담, 계약 후기",
-  concern: "선택 전 고민 상담",
-  chat: "가벼운 근황과 응원",
-};
-
 const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
   venue: "예식장",
   studio: "스튜디오",
@@ -96,7 +89,6 @@ const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
 const THREAD_ITEMS = COHORT_THREAD_TOPICS.map((topic) => ({
   key: topic.key as CohortThreadTopic,
   label: THREAD_LABEL[topic.key as CohortThreadTopic],
-  hint: THREAD_HINT[topic.key as CohortThreadTopic],
 }));
 
 const CONTRACT_ITEMS = COHORT_CONTRACT_CATEGORIES.map((category) => ({
@@ -434,18 +426,6 @@ function CohortSidePanel({
       </section>
 
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
-        <h2 className="mb-3 font-serif-kr text-[22px] font-medium text-[#263832]">주제별로 나누기</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {THREAD_ITEMS.map((topic) => (
-            <div key={topic.key} className="rounded-[14px] border border-[#e5d8ca] bg-[#fbf8f2] p-3">
-              <div className="text-[13px] font-bold text-[#36534E]">{topic.label}</div>
-              <div className="mt-1 text-[11px] font-medium leading-[1.45] text-[#7d7166]">{topic.hint}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
         <CohortPopularPosts roomId={roomId} />
       </section>
 
@@ -638,16 +618,12 @@ function ChatTab({
       setMessages([]);
       return;
     }
-    const url =
-      filter === "all"
-        ? `/api/community/cohort/${roomId}/messages`
-        : `/api/community/cohort/${roomId}/messages?thread_topic=${filter}`;
-    const res = await fetch(url);
+    const res = await fetch(`/api/community/cohort/${roomId}/messages`);
     const data = await res.json();
     if (res.ok) {
       setMessages(data.messages ?? []);
     }
-  }, [enabled, roomId, filter]);
+  }, [enabled, roomId]);
 
   useEffect(() => {
     loadMessages();
@@ -668,8 +644,6 @@ function ChatTab({
         },
         async (payload) => {
           const newMsg = payload.new as CohortMessage;
-          // 필터에 맞지 않으면 무시
-          if (filter !== "all" && newMsg.thread_topic !== filter) return;
           // author 프로필 join해서 추가
           const { data: authorData } = await supabase
             .from("community_profiles")
@@ -691,7 +665,7 @@ function ChatTab({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, supabase, roomId, filter]);
+  }, [enabled, supabase, roomId]);
 
   // 컨테이너 내부 스크롤 위치 추적 — 바닥 근처 여부 캐시
   useEffect(() => {
@@ -761,7 +735,7 @@ function ChatTab({
         <div>
           <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
           <p className="mt-1 text-[13px] font-medium text-[#635b51]">
-            가격은 가격 탭, 업체 경험은 후기 탭처럼 주제를 붙이면 나중에 찾기 쉬워요.
+            주제를 누르면 관련 대화는 선명하게, 다른 대화는 흐리게 남겨 맥락을 놓치지 않아요.
           </p>
         </div>
         <span className="inline-flex w-fit items-center rounded-full bg-[#EEF4F1] px-3 py-1.5 text-[12px] font-semibold text-[#36534E]">
@@ -798,7 +772,13 @@ function ChatTab({
             첫 질문이나 오늘의 준비 상황을 남겨보세요.
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          messages.map((m) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              selectedTopic={filter}
+            />
+          ))
         )}
       </div>
 
@@ -808,13 +788,14 @@ function ChatTab({
           <button
             type="button"
             onClick={() => setThread("")}
+            title="주제를 직접 고르지 않으면 메시지 내용으로 자동 분류돼요."
             className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
                 ? "bg-[#36534E] text-white"
                 : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
             }`}
           >
-            주제 없음
+            자동 분류
           </button>
           {THREAD_ITEMS.map((t) => (
             <button
@@ -1019,12 +1000,23 @@ function rankIcon(rank?: string | null) {
   return rank ? icons[rank] ?? "배지" : null;
 }
 
-function MessageBubble({ message }: { message: CohortMessage }) {
+function MessageBubble({
+  message,
+  selectedTopic = "all",
+}: {
+  message: CohortMessage;
+  selectedTopic?: CohortThreadTopic | "all";
+}) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
   const rank = rankIcon(message.author?.rank);
+  const isDimmed = selectedTopic !== "all" && message.thread_topic !== selectedTopic;
   return (
-    <div className="flex gap-3">
+    <div
+      className={`flex gap-3 transition-opacity duration-200 ${
+        isDimmed ? "opacity-40" : "opacity-100"
+      }`}
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
         {message.author?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element

@@ -4,10 +4,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+
 function getServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    supabaseUrl,
+    serviceRoleKey,
+    { auth: { persistSession: false, autoRefreshToken: false } }
   );
 }
 
@@ -50,13 +57,22 @@ export async function POST(req: NextRequest) {
     if (rlResult) return rlResult;
 
     const serviceClient = getServiceClient();
+    const storageClient = serviceClient ?? supabase;
 
     // 일일 업로드 쿼터 확인 (유저 폴더 내 최대 50개/일)
     const today = new Date().toISOString().split("T")[0];
-    const [{ data: imageFiles }, { data: videoFiles }] = await Promise.all([
-      serviceClient.storage.from("community-images").list(user.id, { limit: 100 }),
-      serviceClient.storage.from("community-videos").list(user.id, { limit: 100 }),
+    const [imageList, videoList] = await Promise.allSettled([
+      storageClient.storage.from("community-images").list(user.id, { limit: 100 }),
+      storageClient.storage.from("community-videos").list(user.id, { limit: 100 }),
     ]);
+    const imageFiles =
+      imageList.status === "fulfilled" && !imageList.value.error
+        ? imageList.value.data
+        : [];
+    const videoFiles =
+      videoList.status === "fulfilled" && !videoList.value.error
+        ? videoList.value.data
+        : [];
 
     // 파일 수 기반 일일 쿼터 체크 (간이 방식)
     const allFiles = [...(imageFiles ?? []), ...(videoFiles ?? [])];
@@ -132,12 +148,25 @@ export async function POST(req: NextRequest) {
     }
 
     // service role 클라이언트로 스토리지 업로드 (RLS 우회) — 이미 위에서 생성됨
-    const { error: uploadError } = await serviceClient.storage
+    let uploadClient = storageClient;
+    let { error: uploadError } = await uploadClient.storage
       .from(bucket)
       .upload(filePath, buffer, {
         contentType: file.type,
         upsert: false,
       });
+
+    if (uploadError && serviceClient) {
+      console.warn("[community upload] service upload failed; retrying with user session:", uploadError);
+      uploadClient = supabase;
+      const retry = await uploadClient.storage
+        .from(bucket)
+        .upload(filePath, buffer, {
+          contentType: file.type,
+          upsert: false,
+        });
+      uploadError = retry.error;
+    }
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
@@ -150,7 +179,7 @@ export async function POST(req: NextRequest) {
     // 공개 URL 생성
     const {
       data: { publicUrl },
-    } = serviceClient.storage
+    } = uploadClient.storage
       .from(bucket)
       .getPublicUrl(filePath);
 
