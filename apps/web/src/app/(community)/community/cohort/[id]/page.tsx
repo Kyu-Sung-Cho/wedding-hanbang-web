@@ -383,7 +383,7 @@ function CohortSidePanel({
   onFocusMessage: (messageId: string) => void;
 }) {
   return (
-    <aside className="grid gap-4 xl:sticky xl:top-20 xl:self-start">
+    <aside className="grid gap-4 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-245px)] xl:self-start xl:overflow-y-auto xl:pb-1 xl:pr-1">
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
         <CohortDigestCard roomId={roomId} onTabChange={onTabChange} onFocusMessage={onFocusMessage} />
       </section>
@@ -1141,17 +1141,6 @@ function renderMessageContent(text: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
-function rankIcon(rank?: string | null) {
-  const icons: Record<string, string> = {
-    sprout: "새싹",
-    preparing: "체크",
-    expert: "별",
-    master: "왕관",
-    senior: "하트",
-  };
-  return rank ? icons[rank] ?? "배지" : null;
-}
-
 function MessageBubble({
   message,
   selectedTopic = "all",
@@ -1167,7 +1156,6 @@ function MessageBubble({
 }) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
-  const rank = rankIcon(message.author?.rank);
   const displayTopic = resolveCohortThreadTopic(message.thread_topic, message.content);
   const isDimmed = selectedTopic !== "all" && displayTopic !== selectedTopic;
   return (
@@ -1201,22 +1189,9 @@ function MessageBubble({
       <div className={`min-w-0 ${isMine ? "max-w-[86%] text-right sm:max-w-[76%]" : "flex-1"}`}>
         <div className={`flex items-center gap-1.5 flex-wrap ${isMine ? "justify-end" : "justify-start"}`}>
           {!isMine && <span className="text-sm font-medium text-[#263832]">{nickname}</span>}
-          {rank && (
-            <span className="rounded-full bg-[#f6efe5] px-1.5 py-0.5 text-[10px] text-[#36534E]" title={message.author?.rank}>
-              {rank}
-            </span>
-          )}
           <span className="text-xs text-[#928980]">
             {relativeTime(message.created_at)}
           </span>
-          {displayTopic && (
-            <span
-              className="rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] text-[#36534E]"
-              title={THREAD_HELPER[displayTopic]}
-            >
-              {THREAD_LABEL[displayTopic] ?? displayTopic}
-            </span>
-          )}
           {!isMine && onReport && (
             <button
               type="button"
