@@ -281,6 +281,74 @@ function buildSubtopicAction(label: string, group: SubtopicRule["group"]) {
   return `${label}은 완료 여부를 짧게 남겨두면 다음 사람이 준비 순서를 따라오기 쉬워요.`;
 }
 
+function extractMoneyValues(content: string) {
+  return content.match(/\d+(?:\.\d+)?\s*(?:만원|만\s*원|천만원|억원|억|원)/g) ?? [];
+}
+
+function compactMessageTitle(content: string) {
+  return clip(
+    content
+      .replace(/^(오늘|어제|혹시|저도|제가|저희|다들)\s*/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/[.。!?！？]+$/g, ""),
+    44
+  );
+}
+
+function buildSubtopicTitle(rule: SubtopicRule, sample: string, keywords: string[]) {
+  const moneyValues = extractMoneyValues(sample);
+  const firstMoney = moneyValues[0];
+  const lastMoney = moneyValues[moneyValues.length - 1];
+  const guaranteeMatch = sample.match(/(?:보증인원|보증 인원|최소보증|보증)\s*(\d+\s*명?)/);
+  const placeCount = sample.match(/(\d+)\s*곳/);
+  const hasQuestion = isQuestionLike(sample);
+
+  if (rule.id === "venue_quote") {
+    const bits: string[] = [];
+    if (firstMoney) bits.push(`식대 ${firstMoney.replace(/\s+/g, "")}`);
+    if (guaranteeMatch?.[1]) bits.push(`보증 ${guaranteeMatch[1].replace(/\s+/g, "")}`);
+    if (/대관료.{0,8}별도|별도.{0,8}대관료/.test(sample)) bits.push("대관료 별도");
+    if (bits.length > 0) return `${bits.join(" · ")}라 총액 확인 필요`;
+  }
+
+  if (rule.id === "sdm_package" && firstMoney) {
+    if (lastMoney && lastMoney !== firstMoney) {
+      return `스드메 ${firstMoney.replace(/\s+/g, "")}이 옵션 포함 ${lastMoney.replace(/\s+/g, "")}까지 올라감`;
+    }
+    return `스드메 ${firstMoney.replace(/\s+/g, "")} 견적 공유`;
+  }
+
+  if (rule.id === "dress") {
+    if (placeCount?.[1] && /충분|괜찮|고민|어디까지/.test(sample)) {
+      return `드레스 투어 ${placeCount[1]}곳이면 충분한지 고민`;
+    }
+    if (/피팅비/.test(sample)) return "드레스 피팅비와 투어 범위 비교";
+  }
+
+  if (rule.id === "snap_video") {
+    if (/원본/.test(sample) && /지정비|작가/.test(sample)) {
+      return "본식 스냅 원본 제공·작가 지정비 확인 필요";
+    }
+    if (/DVD|영상/.test(sample)) return "본식 영상을 뺄지 남길지 고민";
+  }
+
+  if (rule.id === "contract_payment") {
+    if (/환불|위약금/.test(sample)) return "계약금 환불·위약금 조건 확인 필요";
+    if (/계약금|예약금/.test(sample)) return "계약금·예약금 조건 공유";
+  }
+
+  if (rule.id === "general_quote") {
+    if (firstMoney && hasQuestion) return `${firstMoney.replace(/\s+/g, "")} 견적이 괜찮은지 질문`;
+    if (firstMoney) return `${firstMoney.replace(/\s+/g, "")} 비용 조건 공유`;
+  }
+
+  if (rule.id === "decision_concern" && hasQuestion) {
+    return `${keywords[0] ?? "선택"} 관련 결정 전 질문`;
+  }
+
+  return compactMessageTitle(sample);
+}
+
 function buildSubtopics(messages: CleanedMessage[]) {
   const clusterMap = new Map<
     string,
@@ -288,7 +356,7 @@ function buildSubtopics(messages: CleanedMessage[]) {
       rule: SubtopicRule;
       count: number;
       score: number;
-      samples: string[];
+      messages: CleanedMessage[];
       keywords: Map<string, number>;
       questionCount: number;
     }
@@ -315,13 +383,13 @@ function buildSubtopics(messages: CleanedMessage[]) {
         rule: item.rule,
         count: 0,
         score: 0,
-        samples: [],
+        messages: [],
         keywords: new Map<string, number>(),
         questionCount: 0,
       };
       current.count += 1;
       current.score += item.score;
-      if (current.samples.length < 3) current.samples.push(message.clean);
+      if (current.messages.length < 3) current.messages.push(message);
       if (isQuestionLike(message.clean)) current.questionCount += 1;
       for (const keyword of item.hits) {
         current.keywords.set(keyword, (current.keywords.get(keyword) ?? 0) + 1);
@@ -338,7 +406,8 @@ function buildSubtopics(messages: CleanedMessage[]) {
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
         .slice(0, 4)
         .map(([keyword]) => keyword);
-      const sample = cluster.samples[0] ?? "";
+      const primaryMessage = cluster.messages[0];
+      const sample = primaryMessage?.clean ?? "";
       return {
         id: cluster.rule.id,
         label: cluster.rule.label,
@@ -347,6 +416,9 @@ function buildSubtopics(messages: CleanedMessage[]) {
         count: cluster.count,
         questionCount: cluster.questionCount,
         keywords,
+        title: buildSubtopicTitle(cluster.rule, sample, keywords),
+        primaryMessageId: primaryMessage?.id ?? null,
+        messageIds: cluster.messages.map((message) => message.id),
         sample: clip(sample, 72),
         summary: buildSubtopicSummary(cluster.rule.label, cluster.rule.group, keywords, sample),
         action: buildSubtopicAction(cluster.rule.label, cluster.rule.group),

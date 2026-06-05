@@ -45,6 +45,7 @@ import type {
 // 상수
 // ────────────────────────────────────────
 type TabKey = "chat" | "info" | "timeline";
+type FocusMessageRequest = { id: string; requestedAt: number };
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
   venue_booked: "웨딩홀 예약",
@@ -175,6 +176,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   const [room, setRoom] = useState<CohortRoom | null>(null);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [focusMessageRequest, setFocusMessageRequest] = useState<FocusMessageRequest | null>(null);
 
   // 초기 방 정보 로드
   useEffect(() => {
@@ -254,14 +256,26 @@ function CohortPageInner({ roomId }: { roomId: string }) {
               </div>
 
               <div className="p-3 sm:p-5 lg:p-6">
-                {tab === "chat" && <ChatTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
+                {tab === "chat" && (
+                  <ChatTab
+                    roomId={roomId}
+                    enabled={isSignedIn}
+                    toastFn={toast}
+                    focusMessageRequest={focusMessageRequest}
+                  />
+                )}
                 {tab === "info" && <InfoTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
                 {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
               </div>
             </section>
           </main>
 
-          <CohortSidePanel room={room} roomId={roomId} onTabChange={setTab} />
+          <CohortSidePanel
+            room={room}
+            roomId={roomId}
+            onTabChange={setTab}
+            onFocusMessage={(id) => setFocusMessageRequest({ id, requestedAt: Date.now() })}
+          />
         </div>
       </div>
     </div>
@@ -399,15 +413,17 @@ function CohortSidePanel({
   room,
   roomId,
   onTabChange,
+  onFocusMessage,
 }: {
   room: CohortRoom | null;
   roomId: string;
   onTabChange: (tab: TabKey) => void;
+  onFocusMessage: (messageId: string) => void;
 }) {
   return (
     <aside className="grid gap-4 xl:sticky xl:top-20 xl:self-start">
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
-        <CohortDigestCard roomId={roomId} onTabChange={onTabChange} />
+        <CohortDigestCard roomId={roomId} onTabChange={onTabChange} onFocusMessage={onFocusMessage} />
       </section>
 
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
@@ -514,10 +530,12 @@ function ChatTab({
   roomId,
   enabled,
   toastFn,
+  focusMessageRequest,
 }: {
   roomId: string;
   enabled: boolean;
   toastFn: ToastFnLike;
+  focusMessageRequest: FocusMessageRequest | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<CohortMessage[]>([]);
@@ -530,6 +548,7 @@ function ChatTab({
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   // 사용자가 직접 위로 스크롤한 상태인지 — 위에 올라가 있으면 새 메시지 들어와도 자동 스크롤 안 함
   const isNearBottomRef = useRef(true);
   // 최초 메시지 로드 직후 1회만 즉시 바닥으로 (페이지 스크롤은 절대 건드리지 않음)
@@ -744,6 +763,28 @@ function ChatTab({
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!focusMessageRequest || messages.length === 0) return;
+    const container = messagesContainerRef.current;
+    const target = document.getElementById(`cohort-message-${focusMessageRequest.id}`);
+    if (!container || !target) return;
+
+    setFilter("all");
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const nextTop = container.scrollTop + targetRect.top - containerRect.top - 96;
+    container.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+    setHighlightedMessageId(focusMessageRequest.id);
+
+    const timer = window.setTimeout(() => {
+      setHighlightedMessageId((current) => (
+        current === focusMessageRequest.id ? null : current
+      ));
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [focusMessageRequest, messages]);
+
   async function handleSend() {
     if (!input.trim() || sending) return;
     if (!enabled) {
@@ -859,6 +900,7 @@ function ChatTab({
                 message={m}
                 selectedTopic={filter}
                 isMine={isMine}
+                highlighted={highlightedMessageId === m.id}
                 onReport={isMine ? undefined : handleReportMember}
               />
             );
@@ -1100,11 +1142,13 @@ function MessageBubble({
   message,
   selectedTopic = "all",
   isMine = false,
+  highlighted = false,
   onReport,
 }: {
   message: CohortMessage;
   selectedTopic?: CohortThreadTopic | "all";
   isMine?: boolean;
+  highlighted?: boolean;
   onReport?: (userId: string, nickname: string) => void;
 }) {
   const nickname = message.author?.nickname ?? "익명";
@@ -1114,12 +1158,18 @@ function MessageBubble({
   const isDimmed = selectedTopic !== "all" && displayTopic !== selectedTopic;
   return (
     <div
-      className={`flex gap-3 transition-opacity duration-200 ${
+      id={`cohort-message-${message.id}`}
+      className={`scroll-mt-24 rounded-[18px] p-1 transition-all duration-300 ${
+        highlighted ? "bg-[#fff4d8] shadow-[0_0_0_2px_rgba(181,131,66,0.24)]" : "bg-transparent"
+      }`}
+    >
+      <div
+        className={`flex gap-3 transition-opacity duration-200 ${
         isMine ? "justify-end" : "justify-start"
       } ${
         isDimmed ? "opacity-40" : "opacity-100"
       }`}
-    >
+      >
       {!isMine && (
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
           {message.author?.avatar_url ? (
@@ -1173,6 +1223,7 @@ function MessageBubble({
         >
           {renderMessageContent(message.content)}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -1854,11 +1905,14 @@ type CohortDigest = {
   subtopics?: Array<{
     id: string;
     label: string;
+    title?: string;
     group: "price" | "vendor" | "schedule" | "relationship" | "prep";
     groupLabel: string;
     count: number;
     questionCount: number;
     keywords: string[];
+    primaryMessageId?: string | null;
+    messageIds?: string[];
     sample: string;
     summary: string;
     action: string;
@@ -1893,9 +1947,11 @@ const DIGEST_SUBTOPIC_DOT: Record<CohortDigestSubtopic["group"], string> = {
 function CohortDigestCard({
   roomId,
   onTabChange,
+  onFocusMessage,
 }: {
   roomId: string;
   onTabChange: (tab: TabKey) => void;
+  onFocusMessage: (messageId: string) => void;
 }) {
   const [period, setPeriod] = useState<CohortDigestPeriod>("today");
   const [digest, setDigest] = useState<CohortDigest | null>(null);
@@ -2044,36 +2100,56 @@ function CohortDigestCard({
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
-                {subtopics.slice(0, 4).map((item, index) => (
-                  <li
-                    key={item.id}
-                    className="border-b border-[#efe5d9] px-3.5 py-3 last:border-b-0"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DIGEST_SUBTOPIC_DOT[item.group]}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <strong className="line-clamp-1 text-[13px] font-semibold leading-snug text-[#263832]">
-                            {String(index + 1).padStart(2, "0")} {item.label}
-                          </strong>
-                          <span className="shrink-0 rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
-                            {item.count}
-                          </span>
-                        </div>
-                        {item.keywords.length > 0 && (
-                          <p className="mt-1 truncate text-[11px] font-medium text-[#928980]">
-                            {item.keywords.slice(0, 3).join(" · ")}
+                {subtopics.slice(0, 4).map((item, index) => {
+                  const title = item.title ?? item.label;
+                  const canFocus = Boolean(item.primaryMessageId);
+
+                  return (
+                    <li
+                      key={item.id}
+                      className="border-b border-[#efe5d9] last:border-b-0"
+                    >
+                      <button
+                        type="button"
+                        disabled={!canFocus}
+                        onClick={() => {
+                          if (!item.primaryMessageId) return;
+                          onTabChange("chat");
+                          onFocusMessage(item.primaryMessageId);
+                        }}
+                        className="group flex w-full items-start gap-2.5 px-3.5 py-3 text-left transition-colors enabled:hover:bg-[#fbf8f2] disabled:cursor-default"
+                      >
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DIGEST_SUBTOPIC_DOT[item.group]}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <strong className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#263832]">
+                              {String(index + 1).padStart(2, "0")} {title}
+                            </strong>
+                            <span className="shrink-0 rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                              {item.count}
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[#928980]">
+                            {item.label}
+                            {item.keywords.length > 0 ? ` · ${item.keywords.slice(0, 3).join(" · ")}` : ""}
                           </p>
-                        )}
-                      </div>
-                    </div>
-                    {item.questionCount > 0 && (
-                      <p className="mt-1 pl-[18px] text-[11px] font-semibold leading-[1.5] text-[#36534E]">
-                        질문 {item.questionCount}개 포함
-                      </p>
-                    )}
-                  </li>
-                ))}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {item.questionCount > 0 && (
+                              <span className="rounded-full bg-[#EEF4F1] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                                질문 {item.questionCount}개
+                              </span>
+                            )}
+                            {canFocus && (
+                              <span className="text-[10px] font-semibold text-[#928980] transition-colors group-hover:text-[#36534E]">
+                                관련 대화 보기
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
