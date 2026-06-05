@@ -1851,6 +1851,18 @@ type CohortDigest = {
     label: string;
     count: number;
   }>;
+  subtopics?: Array<{
+    id: string;
+    label: string;
+    group: "price" | "vendor" | "schedule" | "relationship" | "prep";
+    groupLabel: string;
+    count: number;
+    questionCount: number;
+    keywords: string[];
+    sample: string;
+    summary: string;
+    action: string;
+  }>;
   highlights: string[];
   questions: Array<{
     topic: CohortThreadTopic;
@@ -1866,6 +1878,16 @@ const DIGEST_TOPIC_STYLE: Record<CohortThreadTopic, string> = {
   review: "bg-[#f6efe5] text-[#795252]",
   concern: "bg-[#fff7e8] text-[#8a6428]",
   chat: "bg-[#f5f2ed] text-[#635b51]",
+};
+
+type CohortDigestSubtopic = NonNullable<CohortDigest["subtopics"]>[number];
+
+const DIGEST_SUBTOPIC_STYLE: Record<CohortDigestSubtopic["group"], string> = {
+  price: "border-[#d7c6b3] bg-[#fffdf8] text-[#36534E]",
+  vendor: "border-[#e5d8ca] bg-white text-[#795252]",
+  schedule: "border-[#dce7df] bg-[#f6fbf8] text-[#36534E]",
+  relationship: "border-[#eadcc8] bg-[#fff8eb] text-[#7b602a]",
+  prep: "border-[#e0d8ce] bg-[#fbf8f2] text-[#635b51]",
 };
 
 function CohortDigestCard({
@@ -1911,6 +1933,7 @@ function CohortDigestCard({
   }, [loadDigest]);
 
   const totalCount = digest?.topicBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
+  const subtopics = digest?.subtopics ?? [];
 
   return (
     <div>
@@ -2017,6 +2040,66 @@ function CohortDigestCard({
               </div>
             )}
           </div>
+
+          {subtopics.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h4 className="text-[13px] font-semibold text-[#263832]">토픽 요약</h4>
+                <span className="text-[11px] font-medium text-[#928980]">
+                  상위 {Math.min(subtopics.length, 4)}개
+                </span>
+              </div>
+              <ul className="space-y-2">
+                {subtopics.slice(0, 4).map((item, index) => (
+                  <li
+                    key={item.id}
+                    className={`rounded-[15px] border px-3.5 py-3 ${DIGEST_SUBTOPIC_STYLE[item.group]}`}
+                  >
+                    <div className="mb-1.5 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-current/70">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <strong className="text-[13px] font-semibold leading-snug text-[#263832]">
+                            {item.label}
+                          </strong>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#635b51]">
+                          {item.summary}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                        {item.count}개
+                      </span>
+                    </div>
+                    {item.keywords.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {item.keywords.slice(0, 3).map((keyword) => (
+                          <span
+                            key={`${item.id}-${keyword}`}
+                            className="rounded-full bg-white/75 px-2 py-0.5 text-[10px] font-semibold text-[#635b51]"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {item.questionCount > 0 && (
+                      <p className="mt-2 text-[11px] font-semibold leading-[1.5] text-[#36534E]">
+                        질문 {item.questionCount}개가 섞여 있어 다시 답변하기 좋아요.
+                      </p>
+                    )}
+                    {index === 0 && (
+                      <p className="mt-2 border-t border-current/10 pt-2 text-[11px] font-medium leading-[1.5] text-[#635b51]">
+                        {item.action}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {digest.highlights.length > 0 && (
             <div>
