@@ -17,6 +17,7 @@ import {
   Paperclip,
   ShieldCheck,
   LockKeyhole,
+  RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
@@ -405,6 +406,10 @@ function CohortSidePanel({
 }) {
   return (
     <aside className="grid gap-4 xl:sticky xl:top-20 xl:self-start">
+      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+        <CohortDigestCard roomId={roomId} onTabChange={onTabChange} />
+      </section>
+
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">오늘 이렇게 써보세요</h2>
@@ -1829,6 +1834,250 @@ function TimelineEventModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+type CohortDigestPeriod = "today" | "week";
+
+type CohortDigest = {
+  period: CohortDigestPeriod;
+  generatedAt: string;
+  messageCount: number;
+  imageCount: number;
+  lead: string;
+  topicBreakdown: Array<{
+    topic: CohortThreadTopic;
+    label: string;
+    count: number;
+  }>;
+  highlights: string[];
+  questions: Array<{
+    topic: CohortThreadTopic;
+    label: string;
+    text: string;
+  }>;
+  nextActions: string[];
+  empty: boolean;
+};
+
+const DIGEST_TOPIC_STYLE: Record<CohortThreadTopic, string> = {
+  price: "bg-[#EEF4F1] text-[#36534E]",
+  review: "bg-[#f6efe5] text-[#795252]",
+  concern: "bg-[#fff7e8] text-[#8a6428]",
+  chat: "bg-[#f5f2ed] text-[#635b51]",
+};
+
+function CohortDigestCard({
+  roomId,
+  onTabChange,
+}: {
+  roomId: string;
+  onTabChange: (tab: TabKey) => void;
+}) {
+  const [period, setPeriod] = useState<CohortDigestPeriod>("today");
+  const [digest, setDigest] = useState<CohortDigest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDigest = useCallback(async (keepPrevious = false) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/community/cohort/${encodeURIComponent(roomId)}/digest?period=${period}`);
+      const data = (await res.json().catch(() => ({}))) as Partial<CohortDigest> & { error?: string };
+
+      if (!res.ok || data.error) {
+        setError(data.error || "요약을 불러오지 못했어요.");
+        if (!keepPrevious) setDigest(null);
+        return;
+      }
+
+      setDigest(data as CohortDigest);
+    } catch {
+      setError("요약을 불러오지 못했어요.");
+      if (!keepPrevious) setDigest(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, roomId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadDigest();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDigest]);
+
+  const totalCount = digest?.topicBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
+
+  return (
+    <div>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#36534E]">
+            오늘/이번주 흐름
+          </p>
+          <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 요약</h3>
+          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#928980]">
+            대화를 짧게 묶어 처음 와도 흐름을 따라잡게 해요.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => loadDigest(true)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e5d8ca] bg-[#fffdf8] text-[#36534E] transition-colors hover:border-[#36534E]/35"
+          aria-label="동기방 요약 새로고침"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-full bg-[#f6efe5] p-1">
+        {[
+          { key: "today" as const, label: "오늘" },
+          { key: "week" as const, label: "이번주" },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setPeriod(item.key)}
+            className={`min-h-9 rounded-full text-[12px] font-semibold transition-colors ${
+              period === item.key
+                ? "bg-white text-[#36534E] shadow-[0_6px_16px_rgba(50,36,17,0.08)]"
+                : "text-[#635b51] hover:text-[#36534E]"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && !digest ? (
+        <div className="space-y-2">
+          <div className="h-4 w-4/5 animate-pulse rounded-full bg-[#f6efe5]" />
+          <div className="h-4 w-2/3 animate-pulse rounded-full bg-[#f6efe5]" />
+          <div className="h-20 animate-pulse rounded-[16px] bg-[#fbf8f2]" />
+        </div>
+      ) : error && !digest ? (
+        <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] px-4 py-5 text-center">
+          <p className="text-sm font-semibold text-[#263832]">요약을 잠시 불러오지 못했어요.</p>
+          <button
+            type="button"
+            onClick={() => loadDigest()}
+            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full border border-[#e5d8ca] px-4 text-[12px] font-semibold text-[#36534E]"
+          >
+            다시 시도
+          </button>
+        </div>
+      ) : digest?.empty ? (
+        <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
+          <p className="text-sm font-semibold text-[#263832]">{digest.lead}</p>
+          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#635b51]">
+            견적, 투어 후기, 오늘 한 준비를 하나만 남겨도 다음 사람이 따라오기 쉬워져요.
+          </p>
+          <button
+            type="button"
+            onClick={() => onTabChange("chat")}
+            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-full bg-[#36534E] px-4 text-[12px] font-semibold text-white"
+          >
+            첫 대화 남기기
+          </button>
+        </div>
+      ) : digest ? (
+        <div className="space-y-4">
+          <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-semibold leading-[1.6] text-[#263832]">{digest.lead}</p>
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
+                {digest.messageCount}개
+              </span>
+            </div>
+
+            {digest.topicBreakdown.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {digest.topicBreakdown.map((item) => {
+                  const pct = totalCount > 0 ? Math.max(8, Math.round((item.count / totalCount) * 100)) : 0;
+                  return (
+                    <div key={item.topic}>
+                      <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-[#635b51]">
+                        <span>{item.label}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white">
+                        <div
+                          className="h-full rounded-full bg-[#36534E]"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {digest.highlights.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">핵심 흐름</h4>
+              <ul className="space-y-2">
+                {digest.highlights.map((item) => (
+                  <li key={item} className="rounded-[14px] border border-[#e5d8ca] bg-white px-3.5 py-3 text-[12px] font-medium leading-[1.6] text-[#635b51]">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {digest.questions.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">다시 보면 좋은 질문</h4>
+              <ul className="space-y-2">
+                {digest.questions.slice(0, 3).map((question) => (
+                  <li key={`${question.topic}-${question.text}`} className="rounded-[14px] bg-[#fbf8f2] px-3.5 py-3">
+                    <span className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${DIGEST_TOPIC_STYLE[question.topic]}`}>
+                      {question.label}
+                    </span>
+                    <p className="line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#263832]">
+                      {question.text}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {digest.nextActions.length > 0 && (
+            <div className="rounded-[16px] bg-[#EEF4F1] p-4">
+              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">다음 행동</h4>
+              <ul className="space-y-1.5 text-[12px] font-medium leading-[1.55] text-[#36534E]">
+                {digest.nextActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onTabChange("chat")}
+              className="inline-flex min-h-9 items-center justify-center rounded-full border border-[#e5d8ca] bg-white text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+            >
+              대화 보기
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange("info")}
+              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[#36534E] text-[12px] font-semibold text-white"
+            >
+              가격 평균
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
