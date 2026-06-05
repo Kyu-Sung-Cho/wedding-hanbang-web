@@ -28,6 +28,12 @@ export function stripWeddingBasePath(pathname: string): string {
   return pathname;
 }
 
+export function weddingRoutePath(path = ""): string {
+  const visiblePath = weddingPath(path);
+  if (EXTERNAL_PATH_RE.test(visiblePath)) return visiblePath;
+  return stripWeddingBasePath(visiblePath);
+}
+
 export function isWeddingPathActive(currentPathname: string, legacyPath: string): boolean {
   const currentPath = stripWeddingBasePath(currentPathname);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -8,7 +8,7 @@ import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
-import { isWeddingPathActive, stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
+import { isWeddingPathActive, stripWeddingBasePath, weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
@@ -32,9 +32,9 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
 ];
 
 const quickLinks = [
-  { href: weddingPath("/chat"), legacyPath: "/chat", label: "아모라" },
-  { href: weddingPath("/community/cohort"), legacyPath: "/community/cohort", label: "동기방" },
-  { href: weddingPath(), legacyPath: "/community", label: "커뮤니티" },
+  { href: weddingRoutePath("/chat"), as: weddingPath("/chat"), legacyPath: "/chat", label: "아모라" },
+  { href: weddingRoutePath("/community/cohort"), as: weddingPath("/community/cohort"), legacyPath: "/community/cohort", label: "동기방" },
+  { href: weddingRoutePath(), as: weddingPath(), legacyPath: "/community", label: "커뮤니티" },
 ];
 
 function getPageTitle(pathname: string) {
@@ -68,6 +68,10 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
     setSelectedCategory(categoryKey);
   }
 
+  useEffect(() => {
+    quickLinks.forEach((item) => router.prefetch(item.href));
+  }, [router]);
+
   return (
     <>
       <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
@@ -80,7 +84,12 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Link href={weddingPath()} className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50" aria-label="웨딩한방 홈으로 이동">
+          <Link
+            href={weddingRoutePath()}
+            as={weddingPath()}
+            className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+            aria-label="웨딩한방 홈으로 이동"
+          >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
             <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
           </Link>
@@ -94,10 +103,11 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             {quickLinks.map((item, index) => {
               const isActive = isWeddingPathActive(pathname, item.legacyPath);
               return (
-                <div key={item.href} className="flex items-center gap-6">
+                <div key={item.as} className="flex items-center gap-6">
                   {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
                   <Link
                     href={item.href}
+                    as={item.as}
                     className={`transition-colors hover:text-[#b68a3a] ${
                       isActive ? "text-[#9d6f36]" : "text-[#071629]"
                     }`}
