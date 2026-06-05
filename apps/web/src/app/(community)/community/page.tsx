@@ -3,7 +3,6 @@ import CommunityLandingClient from "@/components/community/CommunityLandingClien
 import CommunityGuide from "@/components/community/CommunityGuide";
 import CommunityTutorial from "@/components/community/CommunityTutorial";
 import { normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
-import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +18,10 @@ export default async function CommunityFeedPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const initialFeed = await getInitialCommunityFeed();
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#fffdf7]" />}>
       <CommunityLandingClient
-        initialFeed={initialFeed}
         initialQuery={normalizeCommunityFeedQuery(resolvedSearchParams)}
       />
       <CommunityGuide />
