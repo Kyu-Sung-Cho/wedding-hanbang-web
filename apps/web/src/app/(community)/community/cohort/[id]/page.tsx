@@ -1979,6 +1979,7 @@ function CohortDigestCard({
 
   const totalCount = digest?.topicBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
   const subtopics = digest?.subtopics ?? [];
+  const highlights = digest?.highlights ?? [];
 
   return (
     <div>
@@ -1989,7 +1990,7 @@ function CohortDigestCard({
           </p>
           <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 요약</h3>
           <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#928980]">
-            대화를 짧게 묶어 처음 와도 흐름을 따라잡게 해요.
+            전체 흐름을 먼저 잡고, 주제를 누르면 해당 대화부터 이어서 봐요.
           </p>
         </div>
         <button
@@ -2078,14 +2079,28 @@ function CohortDigestCard({
                 })}
               </div>
             )}
+
+            {highlights.length > 0 && (
+              <div className="mt-3 border-t border-[#efe5d9] pt-3">
+                <p className="mb-2 text-[12px] font-semibold text-[#36534E]">핵심 포인트</p>
+                <ul className="space-y-1.5">
+                  {highlights.slice(0, 3).map((highlight) => (
+                    <li key={highlight} className="flex gap-2 text-[12px] font-medium leading-[1.55] text-[#635b51]">
+                      <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-[#36534E]" />
+                      <span>{highlight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {subtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[#263832]">오늘 나온 이야기</h4>
+                <h4 className="text-[13px] font-semibold text-[#263832]">토픽 시작점</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
-                  상위 {Math.min(subtopics.length, 4)}개
+                  관련 대화 이동
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
@@ -2139,21 +2154,6 @@ function CohortDigestCard({
                     </li>
                   );
                 })}
-              </ul>
-            </div>
-          )}
-
-          {digest.questions.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">답 기다리는 질문</h4>
-              <ul className="space-y-1.5">
-                {digest.questions.slice(0, 2).map((question) => (
-                  <li key={`${question.topic}-${question.text}`} className="rounded-[13px] bg-[#fbf8f2] px-3 py-2.5">
-                    <p className="line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#263832]">
-                      {question.text}
-                    </p>
-                  </li>
-                ))}
               </ul>
             </div>
           )}
