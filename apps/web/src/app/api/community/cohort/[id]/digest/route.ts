@@ -8,6 +8,7 @@ type DigestPeriod = "today" | "week";
 type MessageRow = {
   id: string;
   content: string;
+  author_id: string;
   thread_topic: string | null;
   created_at: string;
 };
@@ -23,6 +24,17 @@ type SubtopicRule = {
   group: "price" | "vendor" | "schedule" | "relationship" | "prep";
   topicHint?: CohortThreadTopic;
   keywords: string[];
+};
+
+type SubtopicCluster = {
+  rule: SubtopicRule;
+  count: number;
+  score: number;
+  messages: CleanedMessage[];
+  keywords: Map<string, number>;
+  questionCount: number;
+  authors: Set<string>;
+  latestAt: number;
 };
 
 const TOPIC_LABEL: Record<CohortThreadTopic, string> = {
@@ -164,10 +176,62 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
 ];
 
 const GENERIC_SUBTOPIC_IDS = new Set(["general_quote"]);
+const DIGEST_MESSAGE_LIMIT = 300;
 const SUBTOPIC_LIMIT = 3;
+const REPRESENTATIVE_SCORE_CAP = {
+  frequency: 12,
+  participants: 5,
+  questions: 5,
+  specificity: 20,
+};
+const REPRESENTATIVE_SCORE_WEIGHT = {
+  frequency: 3,
+  participants: 4,
+  questions: 2,
+};
 
 function isGenericSubtopic(id: string) {
   return GENERIC_SUBTOPIC_IDS.has(id);
+}
+
+function buildRecencyScore(latestAt: number) {
+  if (!Number.isFinite(latestAt) || latestAt <= 0) return 0;
+  const hours = (Date.now() - latestAt) / (1000 * 60 * 60);
+  if (hours <= 2) return 6;
+  if (hours <= 6) return 4;
+  if (hours <= 24) return 2;
+  if (hours <= 72) return 1;
+  return 0;
+}
+
+function buildRepresentativeScore(cluster: SubtopicCluster) {
+  const participantCount = cluster.authors.size;
+  const frequencyScore =
+    Math.min(cluster.count, REPRESENTATIVE_SCORE_CAP.frequency) * REPRESENTATIVE_SCORE_WEIGHT.frequency;
+  const diversityScore =
+    Math.min(participantCount, REPRESENTATIVE_SCORE_CAP.participants) * REPRESENTATIVE_SCORE_WEIGHT.participants;
+  const questionScore =
+    Math.min(cluster.questionCount, REPRESENTATIVE_SCORE_CAP.questions) * REPRESENTATIVE_SCORE_WEIGHT.questions;
+  const specificityScore = Math.min(cluster.score, REPRESENTATIVE_SCORE_CAP.specificity);
+  const recencyScore = buildRecencyScore(cluster.latestAt);
+
+  return {
+    total: frequencyScore + diversityScore + questionScore + specificityScore + recencyScore,
+    frequencyScore,
+    diversityScore,
+    questionScore,
+    specificityScore,
+    recencyScore,
+  };
+}
+
+function hasRepresentativeSignal(cluster: SubtopicCluster) {
+  return (
+    cluster.count >= 2 ||
+    cluster.authors.size >= 2 ||
+    (cluster.questionCount > 0 && cluster.score >= 4) ||
+    cluster.score >= 8
+  );
 }
 
 function kstParts(date: Date) {
@@ -357,17 +421,7 @@ function buildSubtopicTitle(rule: SubtopicRule, sample: string, keywords: string
 }
 
 function buildSubtopics(messages: CleanedMessage[]) {
-  const clusterMap = new Map<
-    string,
-    {
-      rule: SubtopicRule;
-      count: number;
-      score: number;
-      messages: CleanedMessage[];
-      keywords: Map<string, number>;
-      questionCount: number;
-    }
-  >();
+  const clusterMap = new Map<string, SubtopicCluster>();
 
   for (const message of messages) {
     if (!message.clean) continue;
@@ -396,11 +450,16 @@ function buildSubtopics(messages: CleanedMessage[]) {
         messages: [],
         keywords: new Map<string, number>(),
         questionCount: 0,
+        authors: new Set<string>(),
+        latestAt: 0,
       };
       current.count += 1;
       current.score += item.score;
       if (current.messages.length < 3) current.messages.push(message);
       if (isQuestionLike(message.clean)) current.questionCount += 1;
+      current.authors.add(message.author_id);
+      const createdAt = Date.parse(message.created_at);
+      if (Number.isFinite(createdAt)) current.latestAt = Math.max(current.latestAt, createdAt);
       for (const keyword of item.hits) {
         current.keywords.set(keyword, (current.keywords.get(keyword) ?? 0) + 1);
       }
@@ -415,10 +474,21 @@ function buildSubtopics(messages: CleanedMessage[]) {
 
   return clusters
     .filter((cluster) => !(hasSpecificPriceCluster && isGenericSubtopic(cluster.rule.id)))
-    .filter((cluster) => cluster.count > 1 || cluster.questionCount > 0 || cluster.score >= 4)
-    .sort((a, b) => b.count - a.count || b.score - a.score || a.rule.label.localeCompare(b.rule.label, "ko"))
+    .filter(hasRepresentativeSignal)
+    .map((cluster) => ({
+      cluster,
+      representativeScore: buildRepresentativeScore(cluster),
+    }))
+    .sort(
+      (a, b) =>
+        b.representativeScore.total - a.representativeScore.total ||
+        b.cluster.count - a.cluster.count ||
+        b.cluster.authors.size - a.cluster.authors.size ||
+        b.cluster.score - a.cluster.score ||
+        a.cluster.rule.label.localeCompare(b.cluster.rule.label, "ko")
+    )
     .slice(0, SUBTOPIC_LIMIT)
-    .map((cluster) => {
+    .map(({ cluster, representativeScore }) => {
       const keywords = [...cluster.keywords.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
         .slice(0, 4)
@@ -431,11 +501,13 @@ function buildSubtopics(messages: CleanedMessage[]) {
         group: cluster.rule.group,
         groupLabel: SUBTOPIC_GROUP_LABEL[cluster.rule.group],
         count: cluster.count,
+        participantCount: cluster.authors.size,
         questionCount: cluster.questionCount,
         keywords,
         title: buildSubtopicTitle(cluster.rule, sample, keywords),
         primaryMessageId: primaryMessage?.id ?? null,
         messageIds: cluster.messages.map((message) => message.id),
+        representativeScore,
         sample: clip(sample, 72),
         summary: buildSubtopicSummary(cluster.rule.label, cluster.rule.group, keywords, sample),
         action: buildSubtopicAction(cluster.rule.label, cluster.rule.group),
@@ -536,12 +608,12 @@ export async function GET(
 
     const { data, error } = await supabase
       .from("cohort_messages")
-      .select("id, content, thread_topic, created_at")
+      .select("id, content, author_id, thread_topic, created_at")
       .eq("room_id", roomId)
       .eq("is_deleted", false)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(80);
+      .limit(DIGEST_MESSAGE_LIMIT);
 
     if (error) {
       console.error("Cohort digest load error:", error);

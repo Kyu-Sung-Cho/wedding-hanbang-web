@@ -1899,6 +1899,7 @@ type CohortDigest = {
     group: "price" | "vendor" | "schedule" | "relationship" | "prep";
     groupLabel: string;
     count: number;
+    participantCount?: number;
     questionCount: number;
     keywords: string[];
     primaryMessageId?: string | null;
@@ -2102,7 +2103,7 @@ function CohortDigestCard({
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h4 className="text-[13px] font-semibold text-[#263832]">대표 이야기</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
-                  최대 {DIGEST_SUBTOPIC_DISPLAY_LIMIT}개만
+                  대표 점수 순
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
@@ -2133,7 +2134,7 @@ function CohortDigestCard({
                             </strong>
                             <div className="flex shrink-0 items-center gap-1">
                               <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
-                                {item.count}회
+                                {item.participantCount ?? 1}명 · {item.count}회
                               </span>
                               {canFocus && (
                                 <ArrowRight className="h-3.5 w-3.5 text-[#b5ada3] transition-colors group-hover:text-[#36534E]" />
