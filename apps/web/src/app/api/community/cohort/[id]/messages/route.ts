@@ -1,76 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortThreadTopic } from "@/types/community.types";
-
-const VALID_THREAD_TOPICS: CohortThreadTopic[] = ["price", "review", "concern", "chat"];
-
-const TOPIC_KEYWORDS: Record<Exclude<CohortThreadTopic, "chat">, string[]> = {
-  price: [
-    "가격",
-    "견적",
-    "비용",
-    "얼마",
-    "추가금",
-    "계약금",
-    "위약금",
-    "할인",
-    "결제",
-    "대출",
-    "예약금",
-    "만원",
-    "패키지",
-    "비싸",
-    "저렴",
-    "예산",
-  ],
-  review: [
-    "후기",
-    "다녀왔",
-    "방문",
-    "투어",
-    "상담받",
-    "계약했",
-    "추천",
-    "비추천",
-    "만족",
-    "불만",
-    "별로",
-    "실장",
-    "플래너",
-  ],
-  concern: [
-    "고민",
-    "걱정",
-    "불안",
-    "괜찮",
-    "어떻게",
-    "어때",
-    "해야",
-    "할까",
-    "맞을까",
-    "고르",
-    "선택",
-    "궁금",
-    "질문",
-  ],
-};
-
-function normalizeThreadTopic(topic?: string | null): CohortThreadTopic | null {
-  return VALID_THREAD_TOPICS.includes(topic as CohortThreadTopic)
-    ? (topic as CohortThreadTopic)
-    : null;
-}
-
-function inferThreadTopic(content: string): CohortThreadTopic {
-  const normalized = content.toLowerCase();
-  const scores = Object.entries(TOPIC_KEYWORDS).map(([topic, keywords]) => ({
-    topic: topic as Exclude<CohortThreadTopic, "chat">,
-    score: keywords.reduce((total, keyword) =>
-      normalized.includes(keyword.toLowerCase()) ? total + 1 : total, 0),
-  }));
-  const best = scores.sort((a, b) => b.score - a.score)[0];
-  return best && best.score > 0 ? best.topic : "chat";
-}
+import {
+  normalizeCohortThreadTopic,
+  resolveCohortThreadTopic,
+} from "@/lib/community/cohortTopicClassifier";
 
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
@@ -112,7 +46,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
-    const topic = normalizeThreadTopic(searchParams.get("thread_topic"));
+    const topic = normalizeCohortThreadTopic(searchParams.get("thread_topic"));
 
     let query = supabase
       .from("cohort_messages")
@@ -213,7 +147,7 @@ export async function POST(
       );
     }
 
-    const threadTopic = normalizeThreadTopic(body.thread_topic) ?? inferThreadTopic(content);
+    const threadTopic = resolveCohortThreadTopic(body.thread_topic, content);
 
     const { data: inserted, error } = await supabase
       .from("cohort_messages")

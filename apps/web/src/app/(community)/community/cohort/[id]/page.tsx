@@ -21,6 +21,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -56,6 +57,18 @@ const EVENT_LABEL: Record<CohortEventType, string> = {
   wedding_done: "결혼식 완료",
 };
 
+const EVENT_ITEMS: Array<{ key: CohortEventType; label: string; helper: string }> = [
+  { key: "contract_done", label: "계약 완료", helper: "견적 확정이나 계약을 마쳤어요" },
+  { key: "tour_done", label: "투어 완료", helper: "웨딩홀/스드메 상담을 다녀왔어요" },
+  { key: "venue_booked", label: "웨딩홀 예약", helper: "홀과 날짜를 확정했어요" },
+  { key: "studio_booked", label: "스튜디오 예약", helper: "촬영 일정을 잡았어요" },
+  { key: "dress_booked", label: "드레스 예약", helper: "샵/셀렉/가봉 일정을 잡았어요" },
+  { key: "makeup_booked", label: "메이크업 예약", helper: "혼주/본식 메이크업을 예약했어요" },
+  { key: "invitation_sent", label: "청첩장 발송", helper: "청첩장 전달을 시작했어요" },
+  { key: "progress_update", label: "준비 업데이트", helper: "체크리스트나 준비 상황을 남겨요" },
+  { key: "wedding_done", label: "결혼식 완료", helper: "본식을 마쳤어요" },
+];
+
 // 국가 평균 (샘플 부족 시 대체)
 const NATIONAL_AVG: Record<CohortContractCategory, number> = {
   studio: 346,
@@ -75,6 +88,13 @@ const THREAD_LABEL: Record<CohortThreadTopic, string> = {
   chat: "수다",
 };
 
+const THREAD_HELPER: Record<CohortThreadTopic, string> = {
+  price: "견적·계약금·추가금·식대",
+  review: "투어·상담·계약 경험",
+  concern: "결정 전 질문·선택 고민",
+  chat: "가벼운 안부와 잡담",
+};
+
 const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
   venue: "예식장",
   studio: "스튜디오",
@@ -89,6 +109,7 @@ const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
 const THREAD_ITEMS = COHORT_THREAD_TOPICS.map((topic) => ({
   key: topic.key as CohortThreadTopic,
   label: THREAD_LABEL[topic.key as CohortThreadTopic],
+  helper: THREAD_HELPER[topic.key as CohortThreadTopic],
 }));
 
 const CONTRACT_ITEMS = COHORT_CONTRACT_CATEGORIES.map((category) => ({
@@ -220,13 +241,13 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                     active={tab === "info"}
                     onClick={() => setTab("info")}
                     icon={<TrendingUp className="h-4 w-4" />}
-                    label="가격정보"
+                    label="가격 평균"
                   />
                   <TabButton
                     active={tab === "timeline"}
                     onClick={() => setTab("timeline")}
                     icon={<Calendar className="h-4 w-4" />}
-                    label="준비기록"
+                    label="준비 기록"
                   />
                 </div>
               </div>
@@ -345,8 +366,8 @@ function RoomHero({
           <div className="mt-6 flex flex-wrap gap-2.5">
             {[
               { key: "chat" as const, label: "대화 참여", icon: MessageCircle },
-              { key: "info" as const, label: "가격정보 보기", icon: TrendingUp },
-              { key: "timeline" as const, label: "준비기록", icon: Calendar },
+              { key: "info" as const, label: "익명 가격 평균", icon: TrendingUp },
+              { key: "timeline" as const, label: "준비 기록 보기", icon: Calendar },
             ].map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
@@ -394,8 +415,8 @@ function CohortSidePanel({
         <div className="grid gap-2.5">
           {[
             { tab: "chat" as const, label: "견적 캡처 올리고 의견 받기", desc: "가격/계약 조건은 대화 탭에서 빠르게 물어보세요." },
-            { tab: "info" as const, label: "내 계약금 익명 등록", desc: "동기 평균을 만들수록 비교가 정확해져요." },
-            { tab: "timeline" as const, label: "준비 완료 기록 보기", desc: "다른 커플의 진행 흐름을 참고해요." },
+            { tab: "info" as const, label: "익명 가격 평균 확인", desc: "견적·계약 금액을 등록하면 평균 통계에만 반영돼요." },
+            { tab: "timeline" as const, label: "준비 기록 남기기", desc: "계약·투어·예약 완료를 남겨 동기들의 흐름을 같이 봐요." },
           ].map((item) => (
             <button
               key={item.label}
@@ -785,7 +806,8 @@ function ChatTab({
         <div>
           <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
           <p className="mt-1 text-[13px] font-medium text-[#635b51]">
-            주제를 누르면 관련 대화는 선명하게, 다른 대화는 흐리게 남겨 맥락을 놓치지 않아요.
+            가격은 견적·계약금·추가금·식대·대관료처럼 금액 맥락까지 자동으로 묶고,
+            주제를 누르면 관련 대화만 선명하게 보여요.
           </p>
         </div>
         <span className="inline-flex w-fit items-center rounded-full bg-[#EEF4F1] px-3 py-1.5 text-[12px] font-semibold text-[#36534E]">
@@ -799,6 +821,7 @@ function ChatTab({
           active={filter === "all"}
           onClick={() => setFilter("all")}
           label="전체"
+          helper="모든 대화를 함께 보기"
         />
         {THREAD_ITEMS.map((t) => (
           <FilterPill
@@ -806,6 +829,7 @@ function ChatTab({
             active={filter === t.key}
             onClick={() => setFilter(t.key)}
             label={t.label}
+            helper={t.helper}
           />
         ))}
       </div>
@@ -857,6 +881,7 @@ function ChatTab({
               key={t.key}
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
+              title={`${t.label}: ${t.helper}`}
               className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
                   ? "bg-[#36534E] text-white"
@@ -953,22 +978,33 @@ function FilterPill({
   active,
   onClick,
   label,
+  helper,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
+  helper?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
+      title={helper}
+      aria-label={helper ? `${label}: ${helper}` : label}
+      className={`group whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
           ? "bg-[#36534E] text-white border-[#36534E]"
           : "bg-white text-[#635b51] border-[#e5d8ca] hover:bg-[#f6efe5]"
       }`}
     >
-      {label}
+      <span>{label}</span>
+      {helper && label !== "전체" && (
+        <span className={`ml-1 hidden text-[11px] font-medium sm:inline ${
+          active ? "text-white/78" : "text-[#928980] group-hover:text-[#635b51]"
+        }`}>
+          {helper}
+        </span>
+      )}
     </button>
   );
 }
@@ -1069,7 +1105,8 @@ function MessageBubble({
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
   const rank = rankIcon(message.author?.rank);
-  const isDimmed = selectedTopic !== "all" && message.thread_topic !== selectedTopic;
+  const displayTopic = resolveCohortThreadTopic(message.thread_topic, message.content);
+  const isDimmed = selectedTopic !== "all" && displayTopic !== selectedTopic;
   return (
     <div
       className={`flex gap-3 transition-opacity duration-200 ${
@@ -1103,9 +1140,12 @@ function MessageBubble({
           <span className="text-xs text-[#928980]">
             {relativeTime(message.created_at)}
           </span>
-          {message.thread_topic && (
-            <span className="rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] text-[#36534E]">
-              {THREAD_LABEL[message.thread_topic] ?? message.thread_topic}
+          {displayTopic && (
+            <span
+              className="rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] text-[#36534E]"
+              title={THREAD_HELPER[displayTopic]}
+            >
+              {THREAD_LABEL[displayTopic] ?? displayTopic}
             </span>
           )}
           {!isMine && onReport && (
@@ -1277,11 +1317,12 @@ function InfoTab({
 
   return (
     <div>
-      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">우리 동기 가격정보</h2>
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">익명 가격 평균</h2>
           <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
-            업체명과 금액은 익명 평균으로만 활용돼요. 데이터가 쌓일수록 추가금 기준이 선명해집니다.
+            견적서나 계약서의 기본금·추가금·조건을 만원 단위로 등록하면,
+            업체명은 숨기고 우리 동기방 평균에만 반영돼요.
           </p>
         </div>
         <button
@@ -1296,8 +1337,28 @@ function InfoTab({
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
-          내 계약 정보 등록
+          내 견적/계약 등록
         </button>
+      </div>
+
+      <div className="mb-4 grid gap-2.5 md:grid-cols-3">
+        {[
+          { step: "1", title: "업체·카테고리 선택", desc: "웨딩홀, 스드메, 스냅처럼 비교할 항목을 골라요." },
+          { step: "2", title: "기본금·추가금 입력", desc: "계약금이 아니라 총 견적 기준으로 만원 단위만 적어요." },
+          { step: "3", title: "5명 이상 평균 공개", desc: "개별 견적이 드러나지 않도록 충분히 쌓인 항목만 보여요." },
+        ].map((item) => (
+          <div key={item.step} className="rounded-[16px] border border-[#e5d8ca] bg-white px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[12px] font-bold text-[#36534E]">
+                {item.step}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-[#263832]">{item.title}</p>
+                <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#635b51]">{item.desc}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* 카테고리별 카드 */}
@@ -1435,13 +1496,16 @@ function ContractModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl border border-[#F0EFED] bg-white p-5">
-        <h3 className="mb-4 font-serif text-lg text-[#1A1A1F]">
-          내 계약 정보 등록
+        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
+          내 견적·계약 정보 등록
         </h3>
+        <p className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
+          업체명은 다른 사람에게 보이지 않고, 평균 통계 계산에만 사용돼요.
+        </p>
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">업체명</label>
+            <label className="mb-1 block text-xs text-[#878680]">업체명 (공개 안 됨)</label>
             <input
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
@@ -1493,11 +1557,12 @@ function ContractModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">메모</label>
+            <label className="mb-1 block text-xs text-[#878680]">포함/미포함 메모 (선택)</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
+              placeholder="예) 원본 포함, 헬퍼비 별도"
               className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             />
           </div>
@@ -1538,81 +1603,235 @@ function TimelineTab({
   toastFn: ToastFnLike;
 }) {
   const [events, setEvents] = useState<CohortTimelineEvent[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!enabled) return;
-    (async () => {
-      const res = await fetch(`/api/community/cohort/${roomId}/timeline`);
-      const data = await res.json();
-      if (res.ok) {
-        setEvents(data.events ?? []);
-      } else {
-        toastFn.error(data.error ?? "타임라인 로드 실패");
-      }
-    })();
+  const loadEvents = useCallback(async () => {
+    if (!enabled) {
+      setEvents([]);
+      return;
+    }
+    const res = await fetch(`/api/community/cohort/${roomId}/timeline`);
+    const data = await res.json();
+    if (res.ok) {
+      setEvents(data.events ?? []);
+    } else {
+      toastFn.error(data.error ?? "준비 기록을 불러오지 못했어요.");
+    }
   }, [enabled, roomId, toastFn]);
 
-  if (events.length === 0) {
-    return (
-      <div className="rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-8 text-center text-sm font-medium leading-6 text-[#635b51]">
-        아직 준비기록이 없어요.
-        <br />
-        계약 정보나 준비 업데이트가 쌓이면 이곳에서 흐름을 볼 수 있어요.
-      </div>
-    );
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadEvents();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadEvents]);
+
+  function openModal() {
+    if (!enabled) {
+      toastFn.error("로그인 후 준비 기록을 남길 수 있어요.");
+      return;
+    }
+    setModalOpen(true);
   }
 
   return (
     <div>
-      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
-        <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">같은 시기 커플들의 준비 흐름</h2>
-        <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
-          누가 무엇을 완료했는지 한눈에 보며 내 다음 순서를 가볍게 참고해요.
-        </p>
+      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
+        <div>
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">준비 기록</h2>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+            계약·투어·예약처럼 완료한 일을 남기면, 같은 시기 커플들의 준비 흐름을 참고할 수 있어요.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openModal}
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E] sm:mt-0 sm:w-auto"
+        >
+          <Plus className="h-4 w-4" />
+          기록 추가
+        </button>
       </div>
-      <div className="space-y-3">
-      {events.map((ev) => {
-        const nickname = ev.user?.nickname ?? "익명";
-        const initial = nickname[0] ?? "?";
-        const label = EVENT_LABEL[ev.event_type] ?? ev.event_type;
-        return (
-          <div
-            key={ev.id}
-            className="flex items-start gap-3 rounded-[18px] border border-[#e5d8ca] bg-white p-4 sm:p-5"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
-              {ev.user?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={ev.user.avatar_url}
-                  alt=""
-                  className="h-full w-full rounded-full object-cover"
-                />
-              ) : (
-                initial
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#263832] leading-relaxed">
-                예신{nickname}가{" "}
-                <span className="font-medium text-[#36534E]">{label}</span>{" "}
-                완료!
-              </p>
-              {ev.description && (
-                <p className="mt-1 text-xs sm:text-sm text-[#635b51]">{ev.description}</p>
-              )}
-              <p className="mt-1.5 text-xs text-[#928980]">
-                {relativeTime(ev.created_at)}
-              </p>
-            </div>
+
+      {events.length === 0 ? (
+        <div className="rounded-[18px] border border-[#e5d8ca] bg-white p-8 text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
+            <Calendar className="h-5 w-5" />
           </div>
-        );
-      })}
-      </div>
+          <p className="mt-4 text-sm font-semibold text-[#263832]">아직 준비 기록이 없어요.</p>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+            첫 계약, 투어 완료, 예약 완료를 남기면 이 방의 준비 흐름이 만들어져요.
+          </p>
+          <button
+            type="button"
+            onClick={openModal}
+            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#e5d8ca] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+          >
+            <Plus className="h-4 w-4" />
+            첫 기록 남기기
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {events.map((ev) => {
+            const nickname = ev.user?.nickname ?? "익명";
+            const initial = nickname[0] ?? "?";
+            const label = EVENT_LABEL[ev.event_type] ?? ev.event_type;
+            return (
+              <div
+                key={ev.id}
+                className="flex items-start gap-3 rounded-[18px] border border-[#e5d8ca] bg-white p-4 sm:p-5"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
+                  {ev.user?.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={ev.user.avatar_url}
+                      alt=""
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  ) : (
+                    initial
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#263832] leading-relaxed">
+                    {nickname}님이{" "}
+                    <span className="font-medium text-[#36534E]">{label}</span>
+                    을 남겼어요.
+                  </p>
+                  {ev.description && (
+                    <p className="mt-1 text-xs sm:text-sm text-[#635b51]">{ev.description}</p>
+                  )}
+                  <p className="mt-1.5 text-xs text-[#928980]">
+                    {relativeTime(ev.created_at)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {modalOpen && (
+        <TimelineEventModal
+          roomId={roomId}
+          onClose={() => setModalOpen(false)}
+          onSaved={() => {
+            setModalOpen(false);
+            loadEvents();
+            toastFn.success("준비 기록이 추가됐어요.");
+          }}
+          onError={(m) => toastFn.error(m)}
+        />
+      )}
     </div>
   );
 }
 
+function TimelineEventModal({
+  roomId,
+  onClose,
+  onSaved,
+  onError,
+}: {
+  roomId: string;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (m: string) => void;
+}) {
+  const [eventType, setEventType] = useState<CohortEventType>("contract_done");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/community/cohort/${roomId}/timeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_type: eventType,
+          description: description.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        onError(data.error ?? "준비 기록을 저장하지 못했어요.");
+        return;
+      }
+
+      onSaved();
+    } catch {
+      onError("네트워크 오류");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
+          준비 기록 추가
+        </h3>
+        <p className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
+          완료한 일을 짧게 남기면 동기들이 준비 순서를 참고할 수 있어요.
+        </p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {EVENT_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setEventType(item.key)}
+              className={`rounded-[14px] border px-3 py-3 text-left transition-colors ${
+                eventType === item.key
+                  ? "border-[#36534E] bg-[#EEF4F1] text-[#263832]"
+                  : "border-[#e5d8ca] bg-[#fffdf8] text-[#635b51] hover:border-[#36534E]/35"
+              }`}
+            >
+              <span className="block text-[13px] font-semibold">{item.label}</span>
+              <span className="mt-1 block text-[11px] font-medium leading-[1.5] text-[#635b51]">
+                {item.helper}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-xs text-[#878680]">메모 (선택)</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="예) 오늘 B드레스샵 계약 완료, 원본 포함 조건으로 확정"
+            className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+          />
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 rounded-xl bg-[#36534E] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#2B423E] disabled:opacity-60"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ────────────────────────────────────────
 // 왼쪽 사이드바: 동기 인기글
 // ────────────────────────────────────────
