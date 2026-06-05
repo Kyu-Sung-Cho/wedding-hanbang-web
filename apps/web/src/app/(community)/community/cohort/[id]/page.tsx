@@ -2098,9 +2098,9 @@ function CohortDigestCard({
           {subtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[#263832]">토픽 시작점</h4>
+                <h4 className="text-[13px] font-semibold text-[#263832]">주요 이야기</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
-                  관련 대화 이동
+                  누르면 관련 대화로 이동
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">

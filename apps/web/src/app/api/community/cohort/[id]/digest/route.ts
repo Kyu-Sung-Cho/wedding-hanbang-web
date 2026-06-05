@@ -163,6 +163,12 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
   },
 ];
 
+const GENERIC_SUBTOPIC_IDS = new Set(["general_quote"]);
+
+function isGenericSubtopic(id: string) {
+  return GENERIC_SUBTOPIC_IDS.has(id);
+}
+
 function kstParts(date: Date) {
   const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
   return {
@@ -375,8 +381,11 @@ function buildSubtopics(messages: CleanedMessage[]) {
       };
     })
       .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score || b.hits.length - a.hits.length)
-      .slice(0, 2);
+      .sort((a, b) => {
+        const genericPenalty = Number(isGenericSubtopic(a.rule.id)) - Number(isGenericSubtopic(b.rule.id));
+        return b.score - a.score || genericPenalty || b.hits.length - a.hits.length;
+      })
+      .slice(0, 1);
 
     for (const item of scoredRules) {
       const current = clusterMap.get(item.rule.id) ?? {
@@ -398,7 +407,13 @@ function buildSubtopics(messages: CleanedMessage[]) {
     }
   }
 
-  return [...clusterMap.values()]
+  const clusters = [...clusterMap.values()];
+  const hasSpecificPriceCluster = clusters.some(
+    (cluster) => cluster.rule.group === "price" && !isGenericSubtopic(cluster.rule.id)
+  );
+
+  return clusters
+    .filter((cluster) => !(hasSpecificPriceCluster && isGenericSubtopic(cluster.rule.id)))
     .sort((a, b) => b.count - a.count || b.score - a.score || a.rule.label.localeCompare(b.rule.label, "ko"))
     .slice(0, 6)
     .map((cluster) => {
