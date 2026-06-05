@@ -46,6 +46,7 @@ import type {
 // ────────────────────────────────────────
 type TabKey = "chat" | "info" | "timeline";
 type FocusMessageRequest = { id: string; requestedAt: number };
+const DIGEST_SUBTOPIC_DISPLAY_LIMIT = 3;
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
   venue_booked: "웨딩홀 예약",
@@ -1979,6 +1980,7 @@ function CohortDigestCard({
 
   const totalCount = digest?.topicBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
   const subtopics = digest?.subtopics ?? [];
+  const visibleSubtopics = subtopics.slice(0, DIGEST_SUBTOPIC_DISPLAY_LIMIT);
   const highlights = digest?.highlights ?? [];
 
   return (
@@ -1990,7 +1992,7 @@ function CohortDigestCard({
           </p>
           <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 요약</h3>
           <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#928980]">
-            전체 흐름을 먼저 잡고, 주제를 누르면 해당 대화부터 이어서 봐요.
+            전체 흐름을 먼저 잡고, 대표 이야기만 눌러서 바로 이어서 봐요.
           </p>
         </div>
         <button
@@ -2095,16 +2097,16 @@ function CohortDigestCard({
             )}
           </div>
 
-          {subtopics.length > 0 && (
+          {visibleSubtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[#263832]">주요 이야기</h4>
+                <h4 className="text-[13px] font-semibold text-[#263832]">대표 이야기</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
-                  누르면 관련 대화로 이동
+                  최대 {DIGEST_SUBTOPIC_DISPLAY_LIMIT}개만
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
-                {subtopics.slice(0, 4).map((item, index) => {
+                {visibleSubtopics.map((item) => {
                   const title = item.title ?? item.label;
                   const canFocus = Boolean(item.primaryMessageId);
 
@@ -2127,28 +2129,20 @@ function CohortDigestCard({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <strong className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#263832]">
-                              {String(index + 1).padStart(2, "0")} {title}
+                              {title}
                             </strong>
-                            <span className="shrink-0 rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
-                              {item.count}
-                            </span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                                {item.count}회
+                              </span>
+                              {canFocus && (
+                                <ArrowRight className="h-3.5 w-3.5 text-[#b5ada3] transition-colors group-hover:text-[#36534E]" />
+                              )}
+                            </div>
                           </div>
                           <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[#928980]">
                             {item.label}
-                            {item.keywords.length > 0 ? ` · ${item.keywords.slice(0, 3).join(" · ")}` : ""}
                           </p>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                            {item.questionCount > 0 && (
-                              <span className="rounded-full bg-[#EEF4F1] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
-                                질문 {item.questionCount}개
-                              </span>
-                            )}
-                            {canFocus && (
-                              <span className="text-[10px] font-semibold text-[#928980] transition-colors group-hover:text-[#36534E]">
-                                관련 대화 보기
-                              </span>
-                            )}
-                          </div>
                         </div>
                       </button>
                     </li>

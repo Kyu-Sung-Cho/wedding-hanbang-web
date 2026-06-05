@@ -164,6 +164,7 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
 ];
 
 const GENERIC_SUBTOPIC_IDS = new Set(["general_quote"]);
+const SUBTOPIC_LIMIT = 3;
 
 function isGenericSubtopic(id: string) {
   return GENERIC_SUBTOPIC_IDS.has(id);
@@ -414,8 +415,9 @@ function buildSubtopics(messages: CleanedMessage[]) {
 
   return clusters
     .filter((cluster) => !(hasSpecificPriceCluster && isGenericSubtopic(cluster.rule.id)))
+    .filter((cluster) => cluster.count > 1 || cluster.questionCount > 0 || cluster.score >= 4)
     .sort((a, b) => b.count - a.count || b.score - a.score || a.rule.label.localeCompare(b.rule.label, "ko"))
-    .slice(0, 6)
+    .slice(0, SUBTOPIC_LIMIT)
     .map((cluster) => {
       const keywords = [...cluster.keywords.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
