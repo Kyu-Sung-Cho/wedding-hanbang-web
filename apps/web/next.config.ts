@@ -84,6 +84,16 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: "/wedding/wedding",
+        destination: "/wedding",
+        permanent: false,
+      },
+      {
+        source: "/wedding/wedding/:path*",
+        destination: "/wedding/:path*",
+        permanent: false,
+      },
+      {
         source: "/wedding/community",
         destination: "/wedding",
         permanent: false,
