@@ -13,10 +13,11 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
 
 interface MenuItem {
   href?: string;
+  as?: string;
   onClick?: () => void;
   label: string;
   sub: string;
@@ -66,7 +67,7 @@ export default function UserMenu() {
     { href: weddingPath("/bookings"), label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
     { href: weddingPath("/community/my"), label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
     { href: weddingPath("/favorites"), label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
-    { href: weddingPath("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
+    { href: weddingRoutePath("/community/cohort"), as: weddingPath("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
     { href: weddingPath("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
     { onClick: handleLogout, label: "로그아웃", sub: "", Icon: LogOut },
   ];
@@ -111,6 +112,7 @@ export default function UserMenu() {
                   <Link
                     key={item.label}
                     href={item.href}
+                    as={item.as}
                     onClick={() => setOpen(false)}
                     className="block"
                   >
