@@ -190,7 +190,7 @@ function buildCommunityHubHref(item: { query?: string; category?: CommunityCateg
   if (item.category) params.set("category", item.category);
   params.set("feed", "all");
   const query = params.toString();
-  return query ? weddingPath(`/community?${query}#community-feed`) : weddingPath("/community#community-feed");
+  return query ? `/community?${query}#community-feed` : "/community#community-feed";
 }
 
 function stripHtml(value: string) {
