@@ -227,7 +227,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] text-[#263832]">
       <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
-        <RoomHero room={room} activeTab={tab} onTabChange={setTab} />
+        <RoomHeader room={room} />
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <main className="min-w-0">
@@ -334,15 +334,7 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
   );
 }
 
-function RoomHero({
-  room,
-  activeTab,
-  onTabChange,
-}: {
-  room: CohortRoom | null;
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-}) {
+function RoomHeader({ room }: { room: CohortRoom | null }) {
   const period = getRoomPeriod(room);
   const stats = [
     { label: "참여 멤버", value: `${room?.member_count ?? 0}명` },
@@ -351,58 +343,28 @@ function RoomHero({
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)]">
-      <div className="absolute inset-y-0 right-0 hidden w-[48%] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] opacity-95 md:block" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,#fffdf8_0%,#fffdf8_45%,rgba(255,253,248,0.76)_62%,rgba(255,253,248,0.08)_100%)]" />
-
-      <div className="relative z-10 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
-        <div className="max-w-[680px]">
-          <p className="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.22em] text-[#36534E]">
+    <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 px-5 py-4 shadow-[0_12px_30px_rgba(50,36,17,0.045)] sm:px-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#36534E]">
             Cohort Lounge
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3.5 w-3.5" />
           </p>
-          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+          <h1 className="truncate font-serif-kr text-[26px] font-medium leading-[1.25] text-[#263832] sm:text-[30px]">
             {getRoomTitle(room)}
           </h1>
-          <p className="mt-4 max-w-[560px] text-[14px] font-medium leading-[1.8] text-[#5f5b52] sm:text-[15px]">
-            같은 시기에 결혼을 준비하는 분들과 견적, 투어 후기, 체크리스트를 짧고 편하게 나눠요.
-            혼자 고민하던 질문을 먼저 던지고, 가격 정보는 익명 평균으로 확인해요.
+          <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#635b51]">
+            같은 시기 예비부부와 견적, 후기, 준비 기록을 짧게 나눠요.
           </p>
+        </div>
 
-          <div className="mt-6 grid max-w-[560px] grid-cols-3 overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white/78">
-            {stats.map((stat, index) => (
-              <div key={stat.label} className={`px-3 py-3 ${index > 0 ? "border-l border-[#e5d8ca]" : ""}`}>
-                <div className="text-[11px] font-semibold text-[#928980]">{stat.label}</div>
-                <div className="mt-1 truncate text-[15px] font-bold text-[#263832]">{stat.value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-2.5">
-            {[
-              { key: "chat" as const, label: "대화 참여", icon: MessageCircle },
-              { key: "info" as const, label: "익명 가격 평균", icon: TrendingUp },
-              { key: "timeline" as const, label: "준비 기록 보기", icon: Calendar },
-            ].map((item) => {
-              const Icon = item.icon;
-              const active = activeTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => onTabChange(item.key)}
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold transition-colors ${
-                    active
-                      ? "bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.18)]"
-                      : "border border-[#e5d8ca] bg-white/86 text-[#36534E] hover:border-[#36534E]/35"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+        <div className="grid min-w-0 grid-cols-3 overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] lg:w-[520px]">
+          {stats.map((stat, index) => (
+            <div key={stat.label} className={`min-w-0 px-3 py-3 ${index > 0 ? "border-l border-[#e5d8ca]" : ""}`}>
+              <div className="truncate text-[11px] font-semibold text-[#928980]">{stat.label}</div>
+              <div className="mt-1 truncate text-[14px] font-bold text-[#263832]">{stat.value}</div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -847,8 +809,8 @@ function ChatTab({
   }
 
   return (
-    <div className="flex min-h-[760px] flex-col">
-      <div className="mb-4 flex flex-col gap-3 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex h-[calc(100dvh-245px)] min-h-[620px] max-h-[820px] flex-col">
+      <div className="mb-4 shrink-0 flex flex-col gap-3 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
           <p className="mt-1 text-[13px] font-medium text-[#635b51]">
@@ -862,7 +824,7 @@ function ChatTab({
       </div>
 
       {/* 필터 pill */}
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+      <div className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1">
         <FilterPill
           active={filter === "all"}
           onClick={() => setFilter("all")}
@@ -883,10 +845,10 @@ function ChatTab({
       {/* 메시지 목록 */}
       <div
         ref={messagesContainerRef}
-        className="min-h-[520px] flex-1 space-y-4 overflow-y-auto rounded-[20px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5 lg:min-h-[560px]"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-[20px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full min-h-[500px] items-center justify-center rounded-[18px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
+          <div className="flex h-full min-h-full items-center justify-center rounded-[18px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
             아직 메시지가 없어요.
             <br />
             첫 질문이나 오늘의 준비 상황을 남겨보세요.
@@ -909,7 +871,7 @@ function ChatTab({
       </div>
 
       {/* 입력 */}
-      <div className="mt-4 rounded-[20px] border border-[#e5d8ca] bg-white p-3.5 sm:p-4">
+      <div className="mt-4 shrink-0 rounded-[20px] border border-[#e5d8ca] bg-white p-3.5 sm:p-4">
         <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             type="button"
