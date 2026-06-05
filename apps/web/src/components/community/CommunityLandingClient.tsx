@@ -490,10 +490,11 @@ function SearchHub({
   const activeDetailCount = detailTopicItems.filter(isTopicActive).length;
 
   return (
-    <section
-      className={`${shell} mt-4 rounded-[18px] border border-[#eadfc9] bg-white/84 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5`}
-      data-tutorial-target="community-categories"
-    >
+    <section className={`${shell} mt-4`}>
+      <div
+        className="rounded-[18px] border border-[#eadfc9] bg-white/84 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5"
+        data-tutorial-target="community-categories"
+      >
       <form onSubmit={onSubmit} className="mx-auto max-w-[760px]">
         <label className="relative block">
           <span className="sr-only">커뮤니티 검색</span>
@@ -615,6 +616,7 @@ function SearchHub({
           )}
         </div>
       )}
+      </div>
     </section>
   );
 }
