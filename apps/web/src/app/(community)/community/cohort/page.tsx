@@ -23,11 +23,54 @@ type SelectedCohort = {
 
 function LoadingState() {
   return (
-    <div className="flex min-h-[68vh] items-center justify-center bg-[#fbf8f2] px-4 text-sm font-medium text-[#928980]">
-      <div className="rounded-full border border-[#e5d8ca] bg-white px-5 py-3 shadow-[0_10px_28px_rgba(50,36,17,0.06)]">
-        <Loader2 className="mr-2 inline h-4 w-4 animate-spin text-[#36534E]" />
-        내 동기방을 찾고 있어요...
-      </div>
+    <div className="min-h-[68vh] bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_52%,#f6efe5_100%)] px-4 py-8 sm:px-6 lg:py-12">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] md:order-2">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
+        </div>
+
+        <div className="p-6 sm:p-8 lg:p-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-xs font-semibold text-[#36534E]">
+            <Users className="h-4 w-4" />
+            Wedding Cohort Lounge
+          </div>
+          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+            같은 시기 예비부부와
+            <br />
+            함께 준비하는 방
+          </h1>
+          <p className="mt-4 text-[14px] font-medium leading-[1.8] text-[#635b51] sm:text-[15px]">
+            결혼 예정월 기준으로 같은 시기 예비부부와 자동 매칭됩니다. 방을 확인하는 동안에도 커뮤니티 흐름을 바로 볼 수 있어요.
+          </p>
+
+          <div className="mt-6 grid gap-3">
+            {[
+              { icon: MessageCircle, label: "가격·후기·고민을 주제별로 대화" },
+              { icon: CalendarCheck, label: "같은 분기 커플의 준비 흐름 참고" },
+              { icon: ShieldCheck, label: "실명 없이 필요한 정보만 안전하게 공유" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] px-4 py-3">
+                <item.icon className="h-4 w-4 text-[#36534E]" />
+                <span className="text-sm font-semibold text-[#263832]">{item.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            disabled
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white opacity-80 shadow-[0_10px_24px_rgba(54,83,78,0.18)]"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            입장 준비 중
+          </button>
+
+          <p className="mt-4 flex items-center gap-1.5 text-xs font-medium text-[#928980]">
+            <Sparkles className="h-3.5 w-3.5 text-[#36534E]" />
+            내 동기방을 바로 연결하고 있어요
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
@@ -101,19 +144,6 @@ function CohortIndexInner() {
 
           setStatus("error");
           setErrorMsg(assignData?.error ?? "선택한 동기방을 열 수 없어요.");
-          return;
-        }
-
-        const res = await fetch("/api/community/cohort", { cache: "no-store" });
-        if (!res.ok) {
-          if (!cancelled) setStatus("error");
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-
-        if (data?.room?.id) {
-          router.replace(weddingPath(`/community/cohort/${data.room.id}`));
           return;
         }
 

@@ -45,6 +45,8 @@ export async function POST(req: Request) {
       .select("room_id")
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .order("joined_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (existingMembership) {

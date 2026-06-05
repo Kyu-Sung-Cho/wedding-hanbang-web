@@ -6,7 +6,7 @@ import type {
   PostWithAuthor,
 } from "@/types/community.types";
 
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 10;
 
 function fallbackAuthor(userId: string): CommunityProfile {
   return {
@@ -53,19 +53,22 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
   try {
     const supabase = createAdminClient();
     const safeLimit = Math.max(1, Math.min(20, limit));
+    const queryLimit = safeLimit + 1;
 
-    const { data: posts, count, error } = await supabase
+    const { data: queriedPosts, error } = await supabase
       .from("community_posts")
-      .select("*", { count: "exact" })
+      .select("*")
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
-      .range(0, safeLimit - 1);
+      .range(0, queryLimit - 1);
 
-    if (error || !posts?.length) {
+    if (error || !queriedPosts?.length) {
       if (error) console.error("[community.initialFeed] posts query failed:", error);
       return emptyFeed;
     }
 
+    const posts = queriedPosts.slice(0, safeLimit);
+    const hasMore = queriedPosts.length > safeLimit;
     const authorIds = [...new Set(posts.map((post) => post.author_id as string).filter(Boolean))];
     const postIds = posts.map((post) => post.id as string).filter(Boolean);
 
@@ -123,11 +126,11 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       } as PostWithAuthor;
     });
 
-    const total = count ?? postsWithAuthor.length;
+    const total = postsWithAuthor.length + (hasMore ? 1 : 0);
     return {
       posts: postsWithAuthor,
       total,
-      hasMore: postsWithAuthor.length < total,
+      hasMore,
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {
