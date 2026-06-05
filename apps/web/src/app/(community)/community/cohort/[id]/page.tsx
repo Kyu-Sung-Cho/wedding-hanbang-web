@@ -969,7 +969,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={3}
-              className="min-h-[82px] w-full resize-none rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
+              className="h-[82px] max-h-[82px] min-h-[82px] w-full resize-none overflow-y-auto rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors [field-sizing:fixed] placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
             />
           </div>
           <input
