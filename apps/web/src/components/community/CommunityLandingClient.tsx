@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  Award,
   Bookmark,
   Building2,
   CalendarCheck,
@@ -95,7 +94,7 @@ const categoryDisplayLabels: Record<CommunityCategory, string> = {
   free: "자유",
 };
 
-const topicItems: Array<{
+const primaryTopicItems: Array<{
   icon: LucideIcon;
   label: string;
   helper: string;
@@ -105,15 +104,25 @@ const topicItems: Array<{
 }> = [
   { icon: Heart, label: "전체", helper: "모든 글", href: "/community" },
   { icon: ClipboardList, label: "정상인가요?", helper: "계약·추가금 질문", category: "is_normal" },
-  { icon: HeartHandshake, label: "웨딩홀 후기", helper: "홀·식사·견적", query: "웨딩홀", category: "tour_review" },
-  { icon: CalendarCheck, label: "스드메 후기", helper: "촬영·드메", query: "스드메", category: "tour_review" },
-  { icon: ClipboardList, label: "예산 정보", helper: "가격·견적 비교", query: "예산", category: "is_normal" },
+  { icon: HeartHandshake, label: "후기", helper: "투어·이용 경험", category: "tour_review" },
   { icon: Gift, label: "스토리 & 꿀팁", helper: "준비 노하우", category: "tips_v2" },
   { icon: Users, label: "선배 Q&A", helper: "경험자에게 묻기", category: "ama" },
   { icon: MessageCircle, label: "자유", helper: "가벼운 이야기", category: "free" },
-  { icon: Megaphone, label: "박람회 & 이벤트", helper: "혜택·일정", query: "박람회" },
-  { icon: Award, label: "부케 & 드레스", helper: "스타일 후기", query: "드레스", category: "tour_review" },
-  { icon: ClipboardCheck, label: "예단 & 혼수", helper: "양가 준비", query: "예단" },
+];
+
+const detailTopicItems: Array<{
+  icon: LucideIcon;
+  label: string;
+  helper: string;
+  query?: string;
+  category?: CommunityCategory;
+}> = [
+  { icon: Building2, label: "웨딩홀", helper: "홀·식사·견적", query: "웨딩홀", category: "tour_review" },
+  { icon: Camera, label: "스드메", helper: "촬영·드레스·메이크업", query: "스드메", category: "tour_review" },
+  { icon: ClipboardList, label: "예산", helper: "가격·견적 비교", query: "예산", category: "is_normal" },
+  { icon: Megaphone, label: "박람회", helper: "혜택·일정", query: "박람회" },
+  { icon: Shirt, label: "드레스", helper: "스타일 후기", query: "드레스", category: "tour_review" },
+  { icon: ClipboardCheck, label: "예단·혼수", helper: "양가 준비", query: "예단" },
   { icon: CalendarCheck, label: "신혼여행", helper: "지역·예산", query: "신혼여행" },
 ];
 
@@ -469,12 +478,16 @@ function SearchHub({
   currentTag: string | null;
   onClearTag: () => void;
 }) {
-  const isTopicActive = (item: (typeof topicItems)[number]) => {
-    if (item.href === "/community") return !selectedCategory && !searchQuery && !currentTag;
+  const [detailOpen, setDetailOpen] = useState(() =>
+    detailTopicItems.some((item) => item.query && searchQuery.includes(item.query))
+  );
+  const isTopicActive = (item: (typeof primaryTopicItems)[number] | (typeof detailTopicItems)[number]) => {
+    if ("href" in item && item.href === "/community") return !selectedCategory && !searchQuery && !currentTag;
     if (item.query) return searchQuery.includes(item.query);
     if (item.category) return selectedCategory === item.category && !searchQuery;
     return false;
   };
+  const activeDetailCount = detailTopicItems.filter(isTopicActive).length;
 
   return (
     <section
@@ -501,29 +514,85 @@ function SearchHub({
         </label>
       </form>
 
-      <div className="mt-4 grid grid-flow-col auto-cols-[112px] gap-2 overflow-x-auto pb-1 md:mt-5 md:grid-flow-row md:grid-cols-6 md:auto-cols-auto md:overflow-visible md:pb-0 xl:grid-cols-12">
-        {topicItems.map((item) => {
+      <div className="mt-4 flex flex-col gap-3 md:mt-5">
+        <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-6 md:overflow-visible md:pb-0">
+          {primaryTopicItems.map((item) => {
+            const active = isTopicActive(item);
+            return (
+              <Link
+                key={item.label}
+                href={weddingPath(item.href ?? buildCommunityHubHref(item))}
+                aria-label={`${item.label} 보기`}
+                className={`group flex min-h-[64px] min-w-[96px] flex-col items-center justify-center gap-1 rounded-[14px] border px-3 text-center transition-all md:min-w-0 ${
+                  active
+                    ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
+                    : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
+                }`}
+              >
+                <item.icon className={`h-5 w-5 stroke-[1.65] ${active ? "text-white" : "text-[#36534E] group-hover:text-[#9d6f36]"}`} />
+                <span className="text-[12px] font-semibold leading-tight">{item.label}</span>
+                <span className={`hidden text-[10px] font-medium leading-tight sm:block ${active ? "text-white/72" : "text-[#7a8290]"}`}>
+                  {item.helper}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-center border-t border-[#eadfc9] pt-3 md:justify-between">
+          <p className="hidden text-[12px] font-medium text-[#7a8290] md:block">
+            먼저 큰 분류로 보고, 필요할 때만 세부 주제로 좁혀보세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => setDetailOpen((open) => !open)}
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-semibold transition-colors ${
+              detailOpen || activeDetailCount > 0
+                ? "border-[#36534E] bg-[#eef4f1] text-[#36534E]"
+                : "border-[#eadfc9] bg-white text-[#36534E] hover:border-[#36534E]/40"
+            }`}
+            aria-expanded={detailOpen}
+          >
+            세부 주제
+            {activeDetailCount > 0 && (
+              <span className="rounded-full bg-[#36534E] px-1.5 py-0.5 text-[10px] text-white">
+                {activeDetailCount}
+              </span>
+            )}
+            <ChevronDown className={`h-4 w-4 transition-transform ${detailOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {detailOpen && (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#eadfc9] pt-3 sm:grid-cols-3 lg:grid-cols-7">
+          {detailTopicItems.map((item) => {
           const active = isTopicActive(item);
           return (
             <Link
               key={item.label}
-              href={weddingPath(item.href ?? buildCommunityHubHref(item))}
+              href={weddingPath(buildCommunityHubHref(item))}
               aria-label={`${item.label} 보기`}
-              className={`group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-2 text-center transition-all ${
+              className={`group flex min-h-[58px] items-center gap-2 rounded-[14px] border px-3 text-left transition-all ${
                 active
                   ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
-                  : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
+                  : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#36534E]/35 hover:bg-white"
               }`}
             >
-              <item.icon className={`h-6 w-6 stroke-[1.55] ${active ? "text-white" : "text-[#36534E] group-hover:text-[#9d6f36]"}`} />
-              <span className="text-[12px] font-semibold leading-tight">{item.label}</span>
-              <span className={`line-clamp-1 text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[#7a8290]"}`}>
-                {item.helper}
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/16" : "bg-[#eef4f1]"}`}>
+                <item.icon className={`h-4 w-4 stroke-[1.65] ${active ? "text-white" : "text-[#36534E]"}`} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[12px] font-semibold leading-tight">{item.label}</span>
+                <span className={`mt-0.5 block truncate text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[#7a8290]"}`}>
+                  {item.helper}
+                </span>
               </span>
             </Link>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {(currentTag || searchQuery) && (
         <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 border-t border-[#eadfc9] pt-3">

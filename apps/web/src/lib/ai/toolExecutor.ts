@@ -168,6 +168,44 @@ function resolveMonthDayToFuture(
   return toValidYmd(year, month, day);
 }
 
+const WEEKDAY_INDEX: Record<string, number> = {
+  월: 0,
+  화: 1,
+  수: 2,
+  목: 3,
+  금: 4,
+  토: 5,
+  일: 6,
+};
+
+function dayOfWeekFromYmd(ymd: string): number {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7;
+}
+
+function resolveWeekdayToFuture(
+  weekday: number,
+  todayYmd: string,
+  modifier?: string
+): string {
+  const today = kstMidnightFromYmd(todayYmd);
+  const todayDay = dayOfWeekFromYmd(todayYmd);
+  const compact = modifier?.replace(/\s+/g, "") ?? "";
+  let offset = weekday - todayDay;
+
+  if (compact === "다다음주") {
+    offset += 14;
+  } else if (compact === "다음주") {
+    offset += 7;
+  } else if (compact === "이번주" || compact === "이번" || compact === "돌아오는" || compact === "") {
+    if (offset < 0) offset += 7;
+  } else if (compact === "다음") {
+    if (offset <= 0) offset += 7;
+  }
+
+  return ymdInKst(addDaysUtc(today, offset));
+}
+
 function extractRequestedBookingDate(text: string | undefined, todayYmd = ymdInKst()): string | null {
   if (!text) return null;
 
@@ -199,8 +237,60 @@ function extractRequestedBookingDate(text: string | undefined, todayYmd = ymdInK
     );
   }
 
+  const relativeDays: Array<[RegExp, number]> = [
+    [/오늘/g, 0],
+    [/내일/g, 1],
+    [/모레/g, 2],
+    [/글피/g, 3],
+  ];
+  for (const [regex, offset] of relativeDays) {
+    for (const match of text.matchAll(regex)) {
+      addCandidate(match.index, ymdInKst(addDaysUtc(kstMidnightFromYmd(todayYmd), offset)));
+    }
+  }
+
+  for (const match of text.matchAll(/(다다음\s*주|다음\s*주|이번\s*주|돌아오는|다음|이번)?\s*([월화수목금토일])요일/g)) {
+    const weekday = WEEKDAY_INDEX[match[2]];
+    if (weekday === undefined) continue;
+    addCandidate(match.index, resolveWeekdayToFuture(weekday, todayYmd, match[1]));
+  }
+
   candidates.sort((a, b) => a.index - b.index);
   return candidates.at(-1)?.ymd ?? null;
+}
+
+function extractRequestedBookingTime(text: string | undefined): string | null {
+  if (!text) return null;
+
+  const candidates: Array<{ index: number; time: string }> = [];
+  const addCandidate = (index: number | undefined, hour: number) => {
+    if (index === undefined || !Number.isInteger(hour) || hour < 0 || hour > 23) return;
+    candidates.push({ index, time: `${String(hour).padStart(2, "0")}:00` });
+  };
+
+  for (const match of text.matchAll(/\[time:(\d{2}:00)\]/gi)) {
+    const hour = Number(match[1].slice(0, 2));
+    addCandidate(match.index, hour);
+  }
+
+  for (const match of text.matchAll(/\b([01]?\d|2[0-3]):00\b/g)) {
+    addCandidate(match.index, Number(match[1]));
+  }
+
+  for (const match of text.matchAll(/(오전|오후)\s*(\d{1,2})\s*시(?:\s*0\s*분)?/g)) {
+    let hour = Number(match[2]);
+    if (hour < 1 || hour > 12) continue;
+    if (match[1] === "오후" && hour < 12) hour += 12;
+    if (match[1] === "오전" && hour === 12) hour = 0;
+    addCandidate(match.index, hour);
+  }
+
+  for (const match of text.matchAll(/\b(1\d|2[0-3])\s*시(?:\s*0\s*분)?/g)) {
+    addCandidate(match.index, Number(match[1]));
+  }
+
+  candidates.sort((a, b) => a.index - b.index);
+  return candidates.at(-1)?.time ?? null;
 }
 
 interface ExecutionContext {
@@ -1422,6 +1512,23 @@ async function executeCheckVendorAvailability(
     };
   }
 
+  if (productId) {
+    const { data: product } = await admin
+      .from("vendor_products")
+      .select("id")
+      .eq("id", productId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (!product) {
+      return {
+        toolName: "check_vendor_availability", toolInput: input,
+        toolOutput: { error: "invalid_product_vendor", vendorId, productId },
+        success: false,
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약 가능 시간을 확인하지 않았습니다.",
+      };
+    }
+  }
+
   // 타임슬롯 조회 — product 가 자체 일정을 정의했으면 그것만 사용, 아니면 vendor 일정.
   // ⚠️ 이전 폴백 버그: "product_timeslots 에서 그 시간 슬롯 없으면 vendor 로 떨어짐"
   // → 상품이 제공 안 하는 시간에도 예약 가능해짐. 이번엔 "product 가 슬롯 자체를
@@ -1474,12 +1581,18 @@ async function executeCheckVendorAvailability(
     if (!dayToDate.has(day)) dayToDate.set(day, dateStr);
   }
 
-  const { data: bookings } = await admin
+  let bookingQuery = admin
     .from("vendor_bookings")
     .select("booking_date, booking_time")
     .eq("vendor_id", vendorId)
     .in("booking_date", dateStrings)
     .neq("status", "cancelled");
+
+  if (productOwnsSchedule && productId) {
+    bookingQuery = bookingQuery.eq("product_id", productId);
+  }
+
+  const { data: bookings } = await bookingQuery;
 
   const bookingCountMap = new Map<string, number>();
   for (const b of bookings ?? []) {
@@ -1826,6 +1939,40 @@ async function executeGetAvailableSlots(
     };
   }
 
+  if (productId) {
+    const { data: product } = await admin
+      .from("vendor_products")
+      .select("id")
+      .eq("id", productId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (!product) {
+      return {
+        toolName: "get_available_slots", toolInput: input,
+        toolOutput: { error: "invalid_product_vendor", vendorId, productId },
+        success: false,
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약 시간을 확인하지 않았습니다.",
+      };
+    }
+  }
+
+  if (staffId) {
+    const { data: staff } = await admin
+      .from("vendor_staff")
+      .select("id")
+      .eq("id", staffId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (!staff) {
+      return {
+        toolName: "get_available_slots", toolInput: input,
+        toolOutput: { error: "invalid_staff_vendor", vendorId, staffId },
+        success: false,
+        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약 시간을 확인하지 않았습니다.",
+      };
+    }
+  }
+
   // 타임슬롯 조회 (우선순위: staff > product > vendor).
   // "엔티티가 자체 일정 row 정의했을 때만" 폴백 (특정 시간 누락이 아닌 row 존재 여부).
   type SlotRow = { day: number; hour: number; available: boolean; max_bookings: number };
@@ -2142,6 +2289,22 @@ async function executeCreateBooking(
     };
   }
 
+  const requestedTime = extractRequestedBookingTime(ctx.currentUserText);
+  if (requestedTime && requestedTime !== time) {
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {
+        error: "requested_time_mismatch",
+        requestedTime,
+        attemptedTime: time,
+      },
+      success: false,
+      displayMessage:
+        `사용자가 요청한 시간은 ${requestedTime}인데 예약 시도 시간이 ${time}라서 예약을 진행하지 않았습니다. ` +
+        "정확한 요청 시간의 가능 여부만 다시 확인해 주세요.",
+    };
+  }
+
   // 업체 이름·카테고리 (카테고리는 예산 자동 차감 매핑용)
   const { data: vendor } = await admin
     .from("vendors")
@@ -2175,13 +2338,28 @@ async function executeCreateBooking(
   if (productId) {
     const { data: product } = await admin
       .from("vendor_products")
-      .select("name, price, discount_price")
+      .select("name, price, discount_price, is_active")
       .eq("id", productId)
-      .single();
-    if (product) {
-      productName = product.name;
-      amount = product.discount_price || product.price || 0;
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (!product) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "invalid_product_vendor", vendorId, productId },
+        success: false,
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약을 진행하지 않았습니다. 업체 상품을 다시 확인해 주세요.",
+      };
     }
+    if (product.is_active === false) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "inactive_product", vendorId, productId },
+        success: false,
+        displayMessage: "선택한 상품은 현재 예약 가능한 상품이 아니라 예약을 진행하지 않았습니다.",
+      };
+    }
+    productName = product.name;
+    amount = product.discount_price || product.price || 0;
   }
 
   // 스태프 이름 조회
@@ -2191,10 +2369,17 @@ async function executeCreateBooking(
       .from("vendor_staff")
       .select("name, role")
       .eq("id", staffId)
-      .single();
-    if (staff) {
-      staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (!staff) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "invalid_staff_vendor", vendorId, staffId },
+        success: false,
+        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약을 진행하지 않았습니다. 담당자 정보를 다시 확인해 주세요.",
+      };
     }
+    staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
   }
 
   // Atomic booking via Postgres RPC — TOCTOU 방어.
@@ -2221,6 +2406,20 @@ async function executeCreateBooking(
 
   if (rpcError) {
     const msg = rpcError.message || "";
+    if (msg.includes("invalid_product_vendor")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "invalid_product_vendor" }, success: false,
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약을 진행하지 않았습니다.",
+      };
+    }
+    if (msg.includes("invalid_staff_vendor")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "invalid_staff_vendor" }, success: false,
+        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약을 진행하지 않았습니다.",
+      };
+    }
     if (msg.includes("slot_unavailable")) {
       return {
         toolName: "create_booking", toolInput: input,

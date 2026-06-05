@@ -12,11 +12,11 @@ const TOPIC_KEYWORDS: Record<Exclude<CohortThreadTopic, "chat">, string[]> = {
     "얼마",
     "추가금",
     "계약금",
-    "잔금",
+    "위약금",
     "할인",
     "결제",
-    "환불",
-    "위약금",
+    "대출",
+    "예약금",
     "만원",
     "패키지",
     "비싸",
@@ -34,7 +34,7 @@ const TOPIC_KEYWORDS: Record<Exclude<CohortThreadTopic, "chat">, string[]> = {
     "비추천",
     "만족",
     "불만",
-    "응대",
+    "별로",
     "실장",
     "플래너",
   ],
@@ -44,11 +44,11 @@ const TOPIC_KEYWORDS: Record<Exclude<CohortThreadTopic, "chat">, string[]> = {
     "불안",
     "괜찮",
     "어떻게",
-    "어떡",
+    "어때",
     "해야",
     "할까",
     "맞을까",
-    "고를",
+    "고르",
     "선택",
     "궁금",
     "질문",
@@ -65,9 +65,8 @@ function inferThreadTopic(content: string): CohortThreadTopic {
   const normalized = content.toLowerCase();
   const scores = Object.entries(TOPIC_KEYWORDS).map(([topic, keywords]) => ({
     topic: topic as Exclude<CohortThreadTopic, "chat">,
-    score: keywords.reduce((total, keyword) => (
-      normalized.includes(keyword.toLowerCase()) ? total + 1 : total
-    ), 0),
+    score: keywords.reduce((total, keyword) =>
+      normalized.includes(keyword.toLowerCase()) ? total + 1 : total, 0),
   }));
   const best = scores.sort((a, b) => b.score - a.score)[0];
   return best && best.score > 0 ? best.topic : "chat";
@@ -113,7 +112,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
-    const topic = searchParams.get("thread_topic");
+    const topic = normalizeThreadTopic(searchParams.get("thread_topic"));
 
     let query = supabase
       .from("cohort_messages")

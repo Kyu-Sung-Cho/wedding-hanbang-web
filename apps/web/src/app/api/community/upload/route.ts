@@ -6,21 +6,9 @@ import crypto from "crypto";
 
 export const runtime = "nodejs";
 
-function getServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) return null;
-
-  return createSupabaseClient(
-    supabaseUrl,
-    serviceRoleKey,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-}
-
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_GIF_SIZE = 10 * 1024 * 1024; // 10MB (애니메이션 GIF 대응)
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_GIF_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
@@ -34,7 +22,16 @@ const EXT_MAP: Record<string, string> = {
   "video/webm": "webm",
 };
 
-// 이미지 업로드
+function getServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
@@ -43,13 +40,9 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    // Rate limit: 20 uploads per 10 minutes per user
     const rlResult = checkRateLimit(
       rateLimitKey("community:upload", req, user.id),
       { maxRequests: 20, windowMs: 10 * 60 * 1000 }
@@ -59,7 +52,6 @@ export async function POST(req: NextRequest) {
     const serviceClient = getServiceClient();
     const storageClient = serviceClient ?? supabase;
 
-    // 일일 업로드 쿼터 확인 (유저 폴더 내 최대 50개/일)
     const today = new Date().toISOString().split("T")[0];
     const [imageList, videoList] = await Promise.allSettled([
       storageClient.storage.from("community-images").list(user.id, { limit: 100 }),
@@ -74,7 +66,6 @@ export async function POST(req: NextRequest) {
         ? videoList.value.data
         : [];
 
-    // 파일 수 기반 일일 쿼터 체크 (간이 방식)
     const allFiles = [...(imageFiles ?? []), ...(videoFiles ?? [])];
     if (allFiles.length >= 50) {
       const todayFiles = allFiles.filter(
@@ -92,16 +83,12 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "파일을 선택해주세요." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "파일을 선택해주세요." }, { status: 400 });
     }
 
-    // 파일 타입 검증
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "지원하지 않는 파일 형식입니다. (JPEG, PNG, GIF, WebP, MP4, MOV, WebM 가능)" },
+        { error: "지원하지 않는 파일 형식입니다. JPEG, PNG, GIF, WebP, MP4, MOV, WebM만 업로드할 수 있어요." },
         { status: 400 }
       );
     }
@@ -110,17 +97,13 @@ export async function POST(req: NextRequest) {
     const isGif = file.type === "image/gif";
     const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
 
-    // 파일 크기 검증
     if (file.size > maxSize) {
       const sizeMsg = isVideo
-        ? "영상 크기는 50MB 이하여야 합니다."
+        ? "동영상은 50MB 이하로 업로드할 수 있어요."
         : isGif
-          ? "GIF 크기는 10MB 이하여야 합니다."
-          : "이미지 크기는 5MB 이하여야 합니다.";
-      return NextResponse.json(
-        { error: sizeMsg },
-        { status: 400 }
-      );
+          ? "GIF는 10MB 이하로 업로드할 수 있어요."
+          : "이미지는 5MB 이하로 업로드할 수 있어요.";
+      return NextResponse.json({ error: sizeMsg }, { status: 400 });
     }
 
     const ext = EXT_MAP[file.type] ?? "jpg";
@@ -130,24 +113,20 @@ export async function POST(req: NextRequest) {
     const filePath = `${user.id}/${timestamp}_${random}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // 매직 바이트 검증 (파일 내용 기반 실제 형식 확인)
     const bytes = new Uint8Array(buffer.slice(0, 12));
-    const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8;
-    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+    const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8;
+    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
     const isGIF = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
     const isWEBP = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-    // MP4/MOV: ftyp box at offset 4
     const isFtyp = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
-    // WebM: EBML header
-    const isEBML = bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3;
+    const isEBML = bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
     const isValidImage = isJPEG || isPNG || isGIF || isWEBP;
     const isValidVideo = isFtyp || isEBML;
+
     if (!isValidImage && !isValidVideo) {
-      return NextResponse.json({ error: "지원하지 않는 파일 형식입니다." }, { status: 400 });
+      return NextResponse.json({ error: "파일 내용이 지원 형식과 일치하지 않습니다." }, { status: 400 });
     }
 
-    // service role 클라이언트로 스토리지 업로드 (RLS 우회) — 이미 위에서 생성됨
     let uploadClient = storageClient;
     let { error: uploadError } = await uploadClient.storage
       .from(bucket)
@@ -169,33 +148,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (uploadError) {
-      console.error("Upload error:", uploadError);
-      return NextResponse.json(
-        { error: "파일 업로드에 실패했습니다." },
-        { status: 500 }
-      );
+      console.error("[community upload] upload error:", uploadError);
+      return NextResponse.json({ error: "파일 업로드에 실패했습니다." }, { status: 500 });
     }
 
-    // 공개 URL 생성
     const {
       data: { publicUrl },
-    } = uploadClient.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
+    } = uploadClient.storage.from(bucket).getPublicUrl(filePath);
 
-    // 파일 타입 정보 포함
-    const fileType: "image" | "video" | "gif" = isVideo
-      ? "video"
-      : isGif
-        ? "gif"
-        : "image";
+    const fileType: "image" | "video" | "gif" = isVideo ? "video" : isGif ? "gif" : "image";
 
     return NextResponse.json({ url: publicUrl, type: fileType });
   } catch (err) {
-    console.error("Upload error:", err);
-    return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
-    );
+    console.error("[community upload] unexpected:", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

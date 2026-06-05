@@ -232,7 +232,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
               </div>
 
               <div className="p-3 sm:p-5 lg:p-6">
-                {tab === "chat" && <ChatTab roomId={roomId} enabled={isSignedIn} toastError={toast.error} />}
+                {tab === "chat" && <ChatTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
                 {tab === "info" && <InfoTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
                 {tab === "timeline" && <TimelineTab roomId={roomId} enabled={isSignedIn} toastFn={toast} />}
               </div>
@@ -487,14 +487,15 @@ function TabButton({
 function ChatTab({
   roomId,
   enabled,
-  toastError,
+  toastFn,
 }: {
   roomId: string;
   enabled: boolean;
-  toastError: (msg: string) => void;
+  toastFn: ToastFnLike;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<CohortMessage[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [filter, setFilter] = useState<CohortThreadTopic | "all">("all");
   const [input, setInput] = useState("");
   const [thread, setThread] = useState<CohortThreadTopic | "">("");
@@ -524,37 +525,54 @@ function ChatTab({
     if (!file) return;
 
     if (!enabled) {
-      toastError("로그인 후 동기방에 참여할 수 있어요.");
+      toastFn.error("로그인 후 동기방에 참여할 수 있어요.");
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toastError("이미지는 10MB 이하여야 합니다");
+    const maxSize = file.type === "image/gif" ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toastFn.error(file.type === "image/gif" ? "GIF는 10MB 이하로 올릴 수 있어요." : "이미지는 5MB 이하로 올릴 수 있어요.");
       return;
     }
 
     setUploading(true);
     try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage
-        .from("community-images")
-        .upload(`cohort/${fileName}`, file);
+      const formData = new FormData();
+      formData.append("file", file);
 
-      if (error || !data) {
-        toastError("이미지 업로드 실패");
+      const res = await fetch("/api/community/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+
+      if (!res.ok || !data.url) {
+        toastFn.error(data.error ?? "이미지 업로드에 실패했어요.");
         return;
       }
 
-      const { data: urlData } = supabase.storage
-        .from("community-images")
-        .getPublicUrl(data.path);
-
-      setInput((prev) => prev + (prev ? " " : "") + `[img:${urlData.publicUrl}] `);
+      setInput((prev) => prev + (prev ? " " : "") + `[img:${data.url}] `);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!enabled) {
+      setCurrentUserId(null);
+      return;
+    }
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setCurrentUserId(data.user?.id ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, supabase]);
 
   // 동기방 멤버 로드 (멘션용)
   useEffect(() => {
@@ -703,7 +721,7 @@ function ChatTab({
   async function handleSend() {
     if (!input.trim() || sending) return;
     if (!enabled) {
-      toastError("로그인 후 동기방에 참여할 수 있어요.");
+      toastFn.error("로그인 후 동기방에 참여할 수 있어요.");
       return;
     }
     setSending(true);
@@ -718,14 +736,46 @@ function ChatTab({
       });
       if (!res.ok) {
         const d = await res.json();
-        toastError(d.error ?? "전송 실패");
+        toastFn.error(d.error ?? "전송 실패");
         return;
       }
       setInput("");
     } catch {
-      toastError("네트워크 오류");
+      toastFn.error("네트워크 오류");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleReportMember(userId: string, nickname: string) {
+    if (!enabled) {
+      toastFn.error("로그인 후 신고할 수 있어요.");
+      return;
+    }
+
+    const ok = window.confirm(`${nickname}님의 메시지를 신고할까요? 운영자가 동기방 맥락을 확인한 뒤 조치합니다.`);
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/community/cohort/${roomId}/members/${userId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "other" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; reviewRequired?: boolean };
+
+      if (!res.ok) {
+        toastFn.error(data.error ?? "신고 접수에 실패했어요.");
+        return;
+      }
+
+      toastFn.success(
+        data.reviewRequired
+          ? "신고가 접수됐고 검토 필요 상태로 표시됐어요."
+          : "신고가 접수됐어요."
+      );
+    } catch {
+      toastFn.error("네트워크 오류");
     }
   }
 
@@ -772,13 +822,18 @@ function ChatTab({
             첫 질문이나 오늘의 준비 상황을 남겨보세요.
           </div>
         ) : (
-          messages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              selectedTopic={filter}
-            />
-          ))
+          messages.map((m) => {
+            const isMine = currentUserId !== null && m.author_id === currentUserId;
+            return (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                selectedTopic={filter}
+                isMine={isMine}
+                onReport={isMine ? undefined : handleReportMember}
+              />
+            );
+          })
         )}
       </div>
 
@@ -1003,9 +1058,13 @@ function rankIcon(rank?: string | null) {
 function MessageBubble({
   message,
   selectedTopic = "all",
+  isMine = false,
+  onReport,
 }: {
   message: CohortMessage;
   selectedTopic?: CohortThreadTopic | "all";
+  isMine?: boolean;
+  onReport?: (userId: string, nickname: string) => void;
 }) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
@@ -1014,24 +1073,28 @@ function MessageBubble({
   return (
     <div
       className={`flex gap-3 transition-opacity duration-200 ${
+        isMine ? "justify-end" : "justify-start"
+      } ${
         isDimmed ? "opacity-40" : "opacity-100"
       }`}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
-        {message.author?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={message.author?.avatar_url ?? ""}
-            alt=""
-            className="h-full w-full rounded-full object-cover"
-          />
-        ) : (
-          initial
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-medium text-[#263832]">{nickname}</span>
+      {!isMine && (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
+          {message.author?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={message.author?.avatar_url ?? ""}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+            />
+          ) : (
+            initial
+          )}
+        </div>
+      )}
+      <div className={`min-w-0 ${isMine ? "max-w-[86%] text-right sm:max-w-[76%]" : "flex-1"}`}>
+        <div className={`flex items-center gap-1.5 flex-wrap ${isMine ? "justify-end" : "justify-start"}`}>
+          {!isMine && <span className="text-sm font-medium text-[#263832]">{nickname}</span>}
           {rank && (
             <span className="rounded-full bg-[#f6efe5] px-1.5 py-0.5 text-[10px] text-[#36534E]" title={message.author?.rank}>
               {rank}
@@ -1045,10 +1108,26 @@ function MessageBubble({
               {THREAD_LABEL[message.thread_topic] ?? message.thread_topic}
             </span>
           )}
+          {!isMine && onReport && (
+            <button
+              type="button"
+              onClick={() => onReport(message.author_id, nickname)}
+              className="rounded-full px-2 py-0.5 text-[11px] font-medium text-[#928980] transition-colors hover:bg-[#f6efe5] hover:text-[#36534E]"
+              title="이 멤버 신고"
+            >
+              신고
+            </button>
+          )}
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-[#263832] leading-relaxed">
+        <div
+          className={`mt-1 inline-block max-w-full whitespace-pre-wrap rounded-[16px] px-3.5 py-2.5 text-left text-sm leading-relaxed ${
+            isMine
+              ? "bg-[#EEF4F1] text-[#263832]"
+              : "bg-[#fbf8f2] text-[#263832]"
+          }`}
+        >
           {renderMessageContent(message.content)}
-        </p>
+        </div>
       </div>
     </div>
   );

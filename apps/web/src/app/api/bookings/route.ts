@@ -40,7 +40,8 @@ export async function POST(req: Request) {
         .from("vendor_products")
         .select("price, discount_price")
         .eq("id", productId)
-        .single();
+        .eq("vendor_id", vendorId)
+        .maybeSingle();
       if (product) {
         amount = product.discount_price ?? product.price;
       }
@@ -73,6 +74,12 @@ export async function POST(req: Request) {
       }
       if (msg.includes("slot_full")) {
         return NextResponse.json({ error: "해당 시간은 예약이 마감되었습니다." }, { status: 409 });
+      }
+      if (msg.includes("invalid_product_vendor")) {
+        return NextResponse.json({ error: "선택한 상품이 이 업체의 상품이 아닙니다." }, { status: 400 });
+      }
+      if (msg.includes("invalid_staff_vendor")) {
+        return NextResponse.json({ error: "선택한 담당자가 이 업체 소속이 아닙니다." }, { status: 400 });
       }
       console.error("Booking create RPC error:", rpcError);
       return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });

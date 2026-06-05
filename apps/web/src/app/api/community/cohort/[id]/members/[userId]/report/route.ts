@@ -5,13 +5,6 @@ import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import type { ReportReason } from "@/types/community.types";
 
-function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 const VALID_REASONS: ReportReason[] = [
   "spam",
   "abuse",
@@ -19,6 +12,14 @@ const VALID_REASONS: ReportReason[] = [
   "inappropriate",
   "other",
 ];
+
+function getServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+}
 
 export async function POST(
   req: NextRequest,
@@ -32,7 +33,7 @@ export async function POST(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
     if (user.id === reportedUserId) {
@@ -59,12 +60,17 @@ export async function POST(
     }
 
     const serviceClient = getServiceClient();
-    const { data: memberships } = await serviceClient
+    const { data: memberships, error: membershipError } = await serviceClient
       .from("cohort_members")
       .select("user_id")
       .eq("room_id", roomId)
       .eq("is_active", true)
       .in("user_id", [user.id, reportedUserId]);
+
+    if (membershipError) {
+      console.error("[cohort member report] membership error:", membershipError);
+      return NextResponse.json({ error: "동기방 멤버 확인에 실패했습니다." }, { status: 500 });
+    }
 
     const memberIds = new Set((memberships ?? []).map((m) => m.user_id as string));
     if (!memberIds.has(user.id) || !memberIds.has(reportedUserId)) {
