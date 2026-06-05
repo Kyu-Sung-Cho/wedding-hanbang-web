@@ -505,7 +505,6 @@ function ChatTab({
   const [filter, setFilter] = useState<CohortThreadTopic | "all">("all");
   const [input, setInput] = useState("");
   const [thread, setThread] = useState<CohortThreadTopic | "">("");
-  const [sending, setSending] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -677,11 +676,25 @@ function ChatTab({
             .maybeSingle();
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [
-              ...prev,
+            const hydratedMessage = {
+              ...newMsg,
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              { ...newMsg, author: (authorData as any) ?? undefined },
-            ];
+              author: (authorData as any) ?? undefined,
+            };
+            const tempIndex = prev.findIndex((message) => (
+              message.id.startsWith("temp-") &&
+              message.author_id === newMsg.author_id &&
+              message.content === newMsg.content &&
+              Math.abs(new Date(newMsg.created_at).getTime() - new Date(message.created_at).getTime()) < 30_000
+            ));
+
+            if (tempIndex >= 0) {
+              return prev.map((message, index) => (
+                index === tempIndex ? hydratedMessage : message
+              ));
+            }
+
+            return [...prev, hydratedMessage];
           });
         }
       )
@@ -748,31 +761,70 @@ function ChatTab({
   }, [focusMessageRequest, messages]);
 
   async function handleSend() {
-    if (!input.trim() || sending) return;
+    const draft = input.trim();
+    if (!draft) return;
     if (!enabled) {
       toastFn.error("로그인 후 동기방에 참여할 수 있어요.");
       return;
     }
-    setSending(true);
+
+    const tempId = `temp-${typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    }`;
+    const optimisticMessage: CohortMessage = {
+      id: tempId,
+      room_id: roomId,
+      author_id: currentUserId ?? "pending-user",
+      content: draft.slice(0, 2000),
+      thread_topic: resolveCohortThreadTopic(thread || undefined, draft),
+      images: [],
+      reply_to: null,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+    };
+
+    isNearBottomRef.current = true;
+    setInput("");
+    setMentionOpen(false);
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       const res = await fetch(`/api/community/cohort/${roomId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: input,
+          content: draft,
           thread_topic: thread || undefined,
         }),
       });
+      const data = (await res.json().catch(() => ({}))) as { message?: CohortMessage; error?: string };
       if (!res.ok) {
-        const d = await res.json();
-        toastFn.error(d.error ?? "전송 실패");
+        setMessages((prev) => prev.filter((message) => message.id !== tempId));
+        setInput((current) => (current.trim() ? current : draft));
+        toastFn.error(data.error ?? "전송 실패");
         return;
       }
-      setInput("");
+      if (data.message) {
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === data.message?.id)) {
+            return prev.filter((message) => message.id !== tempId);
+          }
+
+          let replaced = false;
+          const next = prev.map((message) => {
+            if (message.id !== tempId) return message;
+            replaced = true;
+            return data.message as CohortMessage;
+          });
+
+          return replaced ? next : [...prev, data.message as CohortMessage];
+        });
+      }
     } catch {
+      setMessages((prev) => prev.filter((message) => message.id !== tempId));
+      setInput((current) => (current.trim() ? current : draft));
       toastFn.error("네트워크 오류");
-    } finally {
-      setSending(false);
     }
   }
 
@@ -964,7 +1016,7 @@ function ChatTab({
             <button
               type="button"
               onClick={handleSend}
-              disabled={sending || !input.trim()}
+              disabled={!input.trim()}
               className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[#36534E] px-4 py-3 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] transition-all hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] disabled:opacity-50 sm:flex-none sm:py-0"
             >
               <Send className="h-4 w-4" />
