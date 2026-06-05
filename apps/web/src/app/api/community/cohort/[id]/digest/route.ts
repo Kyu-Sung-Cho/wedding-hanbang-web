@@ -366,7 +366,7 @@ function makeLead(
       : "이번주는 아직 정리할 만큼 대화가 많지 않아요.";
   }
   if (topSubtopic) {
-    return `${period === "today" ? "오늘은" : "이번주는"} ${topSubtopic} 이야기가 가장 많이 오갔어요.`;
+    return `${period === "today" ? "오늘은" : "이번주는"} ${topSubtopic}이 가장 많이 나왔어요.`;
   }
   if (!topTopic) return "동기방 대화를 짧게 정리했어요.";
   return `${period === "today" ? "오늘은" : "이번주는"} ${TOPIC_LABEL[topTopic]} 이야기가 가장 많이 오갔어요.`;

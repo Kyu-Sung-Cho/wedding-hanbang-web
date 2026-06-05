@@ -1882,12 +1882,12 @@ const DIGEST_TOPIC_STYLE: Record<CohortThreadTopic, string> = {
 
 type CohortDigestSubtopic = NonNullable<CohortDigest["subtopics"]>[number];
 
-const DIGEST_SUBTOPIC_STYLE: Record<CohortDigestSubtopic["group"], string> = {
-  price: "border-[#d7c6b3] bg-[#fffdf8] text-[#36534E]",
-  vendor: "border-[#e5d8ca] bg-white text-[#795252]",
-  schedule: "border-[#dce7df] bg-[#f6fbf8] text-[#36534E]",
-  relationship: "border-[#eadcc8] bg-[#fff8eb] text-[#7b602a]",
-  prep: "border-[#e0d8ce] bg-[#fbf8f2] text-[#635b51]",
+const DIGEST_SUBTOPIC_DOT: Record<CohortDigestSubtopic["group"], string> = {
+  price: "bg-[#36534E]",
+  vendor: "bg-[#9d6b62]",
+  schedule: "bg-[#6b8a78]",
+  relationship: "bg-[#b28342]",
+  prep: "bg-[#928980]",
 };
 
 function CohortDigestCard({
@@ -2019,22 +2019,16 @@ function CohortDigestCard({
             </div>
 
             {digest.topicBreakdown.length > 0 && (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {digest.topicBreakdown.map((item) => {
-                  const pct = totalCount > 0 ? Math.max(8, Math.round((item.count / totalCount) * 100)) : 0;
+                  const pct = totalCount > 0 ? Math.round((item.count / totalCount) * 100) : 0;
                   return (
-                    <div key={item.topic}>
-                      <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-[#635b51]">
-                        <span>{item.label}</span>
-                        <span>{item.count}</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-white">
-                        <div
-                          className="h-full rounded-full bg-[#36534E]"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
+                    <span
+                      key={item.topic}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${DIGEST_TOPIC_STYLE[item.topic]}`}
+                    >
+                      {item.label} {item.count}개{pct > 0 ? ` · ${pct}%` : ""}
+                    </span>
                   );
                 })}
               </div>
@@ -2044,70 +2038,40 @@ function CohortDigestCard({
           {subtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[#263832]">토픽 요약</h4>
+                <h4 className="text-[13px] font-semibold text-[#263832]">오늘 나온 이야기</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
                   상위 {Math.min(subtopics.length, 4)}개
                 </span>
               </div>
-              <ul className="space-y-2">
+              <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
                 {subtopics.slice(0, 4).map((item, index) => (
                   <li
                     key={item.id}
-                    className={`rounded-[15px] border px-3.5 py-3 ${DIGEST_SUBTOPIC_STYLE[item.group]}`}
+                    className="border-b border-[#efe5d9] px-3.5 py-3 last:border-b-0"
                   >
-                    <div className="mb-1.5 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-semibold text-current/70">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                          <strong className="text-[13px] font-semibold leading-snug text-[#263832]">
-                            {item.label}
+                    <div className="flex items-start gap-2.5">
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DIGEST_SUBTOPIC_DOT[item.group]}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <strong className="line-clamp-1 text-[13px] font-semibold leading-snug text-[#263832]">
+                            {String(index + 1).padStart(2, "0")} {item.label}
                           </strong>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#635b51]">
-                          {item.summary}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
-                        {item.count}개
-                      </span>
-                    </div>
-                    {item.keywords.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {item.keywords.slice(0, 3).map((keyword) => (
-                          <span
-                            key={`${item.id}-${keyword}`}
-                            className="rounded-full bg-white/75 px-2 py-0.5 text-[10px] font-semibold text-[#635b51]"
-                          >
-                            {keyword}
+                          <span className="shrink-0 rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                            {item.count}
                           </span>
-                        ))}
+                        </div>
+                        {item.keywords.length > 0 && (
+                          <p className="mt-1 truncate text-[11px] font-medium text-[#928980]">
+                            {item.keywords.slice(0, 3).join(" · ")}
+                          </p>
+                        )}
                       </div>
-                    )}
+                    </div>
                     {item.questionCount > 0 && (
-                      <p className="mt-2 text-[11px] font-semibold leading-[1.5] text-[#36534E]">
-                        질문 {item.questionCount}개가 섞여 있어 다시 답변하기 좋아요.
+                      <p className="mt-1 pl-[18px] text-[11px] font-semibold leading-[1.5] text-[#36534E]">
+                        질문 {item.questionCount}개 포함
                       </p>
                     )}
-                    {index === 0 && (
-                      <p className="mt-2 border-t border-current/10 pt-2 text-[11px] font-medium leading-[1.5] text-[#635b51]">
-                        {item.action}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {digest.highlights.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">핵심 흐름</h4>
-              <ul className="space-y-2">
-                {digest.highlights.map((item) => (
-                  <li key={item} className="rounded-[14px] border border-[#e5d8ca] bg-white px-3.5 py-3 text-[12px] font-medium leading-[1.6] text-[#635b51]">
-                    {item}
                   </li>
                 ))}
               </ul>
@@ -2116,28 +2080,14 @@ function CohortDigestCard({
 
           {digest.questions.length > 0 && (
             <div>
-              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">다시 보면 좋은 질문</h4>
-              <ul className="space-y-2">
-                {digest.questions.slice(0, 3).map((question) => (
-                  <li key={`${question.topic}-${question.text}`} className="rounded-[14px] bg-[#fbf8f2] px-3.5 py-3">
-                    <span className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${DIGEST_TOPIC_STYLE[question.topic]}`}>
-                      {question.label}
-                    </span>
+              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">답 기다리는 질문</h4>
+              <ul className="space-y-1.5">
+                {digest.questions.slice(0, 2).map((question) => (
+                  <li key={`${question.topic}-${question.text}`} className="rounded-[13px] bg-[#fbf8f2] px-3 py-2.5">
                     <p className="line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#263832]">
                       {question.text}
                     </p>
                   </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {digest.nextActions.length > 0 && (
-            <div className="rounded-[16px] bg-[#EEF4F1] p-4">
-              <h4 className="mb-2 text-[13px] font-semibold text-[#263832]">다음 행동</h4>
-              <ul className="space-y-1.5 text-[12px] font-medium leading-[1.55] text-[#36534E]">
-                {digest.nextActions.map((action) => (
-                  <li key={action}>{action}</li>
                 ))}
               </ul>
             </div>
