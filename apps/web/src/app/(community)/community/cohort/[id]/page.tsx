@@ -349,15 +349,12 @@ function RoomHeader({ room }: { room: CohortRoom | null }) {
     <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 px-5 py-4 shadow-[0_12px_30px_rgba(50,36,17,0.045)] sm:px-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#36534E]">
-            Cohort Lounge
-            <Sparkles className="h-3.5 w-3.5" />
-          </p>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#36534E]">Cohort Lounge</p>
           <h1 className="truncate font-serif-kr text-[26px] font-medium leading-[1.25] text-[#263832] sm:text-[30px]">
             {getRoomTitle(room)}
           </h1>
           <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#635b51]">
-            같은 시기 예비부부와 견적, 후기, 준비 기록을 짧게 나눠요.
+            견적·후기·준비 기록을 짧게 나눠요. Enter 전송 · Shift+Enter 줄바꿈.
           </p>
         </div>
 
@@ -865,19 +862,6 @@ function ChatTab({
 
   return (
     <div className="flex h-[calc(100dvh-245px)] min-h-[620px] max-h-[820px] flex-col">
-      <div className="mb-4 shrink-0 flex flex-col gap-3 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들과 바로 묻고 답해요</h2>
-          <p className="mt-1 text-[13px] font-medium text-[#635b51]">
-            가격은 견적·계약금·추가금·식대·대관료처럼 금액 맥락까지 자동으로 묶고,
-            주제를 누르면 관련 대화만 선명하게 보여요.
-          </p>
-        </div>
-        <span className="inline-flex w-fit items-center rounded-full bg-[#EEF4F1] px-3 py-1.5 text-[12px] font-semibold text-[#36534E]">
-          Enter 전송 · Shift+Enter 줄바꿈
-        </span>
-      </div>
-
       {/* 필터 pill */}
       <div className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1">
         <FilterPill
