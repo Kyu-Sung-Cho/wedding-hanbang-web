@@ -232,7 +232,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
       <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
         <RoomHeader room={room} />
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5">
           <main className="min-w-0">
             <section className="overflow-hidden rounded-[22px] border border-[#e5d8ca] bg-white/88 shadow-[0_16px_38px_rgba(50,36,17,0.055)]">
               <div className="border-b border-[#e5d8ca] bg-white/70 px-3 py-3 sm:px-4">
@@ -383,7 +383,7 @@ function CohortSidePanel({
   onFocusMessage: (messageId: string) => void;
 }) {
   return (
-    <aside className="grid gap-4 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-245px)] xl:self-start xl:overflow-y-auto xl:pb-1 xl:pr-1">
+    <aside className="grid gap-4 md:sticky md:top-20 md:max-h-[calc(100dvh-245px)] md:self-start md:overflow-y-auto md:pb-1 md:pr-1">
       <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
         <CohortDigestCard roomId={roomId} onTabChange={onTabChange} onFocusMessage={onFocusMessage} />
       </section>
