@@ -402,7 +402,7 @@ export default function PostDetailPage() {
           <span className="truncate text-[#1A1A1F]">{post.title}</span>
         </nav>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,720px)_300px] xl:grid-cols-[230px_minmax(0,720px)_300px] lg:items-start lg:justify-center">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,720px)_300px] xl:grid-cols-[270px_minmax(0,720px)_300px] lg:items-start lg:justify-center">
           <SimilarPostsRail posts={relatedPosts.length > 0 ? relatedPosts : popularPosts} />
           <main className="min-w-0">
         {/* 메인 포스트 카드 */}
@@ -1108,27 +1108,44 @@ function SimilarPostsRail({ posts }: { posts: PostWithAuthor[] }) {
         </div>
 
         {posts.length > 0 ? (
-          <div className="grid gap-2.5">
-            {posts.slice(0, 5).map((item, index) => {
+          <div className="grid gap-3">
+            {posts.slice(0, 3).map((item) => {
               const itemCategory = CATEGORY_MAP[item.category];
+              const thumb = getPostThumbnail(item);
               return (
                 <Link
                   key={item.id}
                   href={weddingPath(`/community/post/${item.id}`)}
-                  className="rounded-xl border border-[#efe4d3] bg-[#fffdf7] px-3 py-3 transition-colors hover:border-[#36534E]/40 hover:bg-white"
+                  className="group block overflow-hidden rounded-xl border border-[#efe4d3] bg-[#fffdf7] transition-colors hover:border-[#36534E]/40 hover:bg-white"
                 >
-                  <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#7a8290]">
-                    <span className="rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
-                      {itemCategory?.shortLabel ?? "글"}
-                    </span>
-                    <span className="text-[#B5ADA3]">{index + 1}</span>
+                  {thumb && (
+                    <div className="relative aspect-[16/10] w-full bg-[#f8f4ec]">
+                      <Image
+                        src={thumb}
+                        alt=""
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                        sizes="270px"
+                      />
+                    </div>
+                  )}
+                  <div className="px-3 py-3">
+                    <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[#7a8290]">
+                      <span className="shrink-0 rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
+                        {itemCategory?.shortLabel ?? "글"}
+                      </span>
+                      <span className="truncate">{timeAgo(item.created_at)}</span>
+                    </div>
+                    <h3 className="line-clamp-4 break-words text-[14px] font-semibold leading-[1.55] text-[#071629]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#7a8290]">
+                      {stripHtmlPreview(item.content, 90)}
+                    </p>
+                    <p className="mt-2 text-[11px] font-medium text-[#7a8290]">
+                      조회 {item.view_count ?? 0} · 댓글 {item.comment_count ?? 0}
+                    </p>
                   </div>
-                  <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.5] text-[#071629]">
-                    {item.title}
-                  </h3>
-                  <p className="mt-1 text-[11px] font-medium text-[#7a8290]">
-                    조회 {item.view_count ?? 0} · 댓글 {item.comment_count ?? 0}
-                  </p>
                 </Link>
               );
             })}
