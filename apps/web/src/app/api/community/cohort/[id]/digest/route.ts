@@ -178,20 +178,20 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
 const GENERIC_SUBTOPIC_IDS = new Set(["general_quote"]);
 const DIGEST_MESSAGE_LIMIT = 300;
 const SUBTOPIC_LIMIT = 3;
-const REPRESENTATIVE_SCORE_CAP = {
-  frequency: 12,
-  participants: 5,
-  questions: 5,
+const REPRESENTATIVE_SCORE_MAX_POINTS = {
+  frequency: 34,
+  participants: 30,
+  questions: 10,
   specificity: 20,
-};
-const REPRESENTATIVE_SCORE_WEIGHT = {
-  frequency: 3,
-  participants: 4,
-  questions: 2,
 };
 
 function isGenericSubtopic(id: string) {
   return GENERIC_SUBTOPIC_IDS.has(id);
+}
+
+function normalizedLogScore(value: number, maxValue: number, maxPoints: number) {
+  if (value <= 0 || maxValue <= 0) return 0;
+  return (Math.log1p(value) / Math.log1p(maxValue)) * maxPoints;
 }
 
 function buildRecencyScore(latestAt: number) {
@@ -204,15 +204,37 @@ function buildRecencyScore(latestAt: number) {
   return 0;
 }
 
-function buildRepresentativeScore(cluster: SubtopicCluster) {
+function buildRepresentativeScore(
+  cluster: SubtopicCluster,
+  context: {
+    maxCount: number;
+    maxParticipants: number;
+    maxQuestions: number;
+    maxSpecificity: number;
+  }
+) {
   const participantCount = cluster.authors.size;
-  const frequencyScore =
-    Math.min(cluster.count, REPRESENTATIVE_SCORE_CAP.frequency) * REPRESENTATIVE_SCORE_WEIGHT.frequency;
-  const diversityScore =
-    Math.min(participantCount, REPRESENTATIVE_SCORE_CAP.participants) * REPRESENTATIVE_SCORE_WEIGHT.participants;
-  const questionScore =
-    Math.min(cluster.questionCount, REPRESENTATIVE_SCORE_CAP.questions) * REPRESENTATIVE_SCORE_WEIGHT.questions;
-  const specificityScore = Math.min(cluster.score, REPRESENTATIVE_SCORE_CAP.specificity);
+  const averageSpecificity = cluster.score / Math.max(cluster.count, 1);
+  const frequencyScore = normalizedLogScore(
+    cluster.count,
+    context.maxCount,
+    REPRESENTATIVE_SCORE_MAX_POINTS.frequency
+  );
+  const diversityScore = normalizedLogScore(
+    participantCount,
+    context.maxParticipants,
+    REPRESENTATIVE_SCORE_MAX_POINTS.participants
+  );
+  const questionScore = normalizedLogScore(
+    cluster.questionCount,
+    context.maxQuestions,
+    REPRESENTATIVE_SCORE_MAX_POINTS.questions
+  );
+  const specificityScore = normalizedLogScore(
+    averageSpecificity,
+    context.maxSpecificity,
+    REPRESENTATIVE_SCORE_MAX_POINTS.specificity
+  );
   const recencyScore = buildRecencyScore(cluster.latestAt);
 
   return {
@@ -472,12 +494,23 @@ function buildSubtopics(messages: CleanedMessage[]) {
     (cluster) => cluster.rule.group === "price" && !isGenericSubtopic(cluster.rule.id)
   );
 
-  return clusters
+  const candidates = clusters
     .filter((cluster) => !(hasSpecificPriceCluster && isGenericSubtopic(cluster.rule.id)))
-    .filter(hasRepresentativeSignal)
+    .filter(hasRepresentativeSignal);
+  const scoreContext = {
+    maxCount: Math.max(...candidates.map((cluster) => cluster.count), 0),
+    maxParticipants: Math.max(...candidates.map((cluster) => cluster.authors.size), 0),
+    maxQuestions: Math.max(...candidates.map((cluster) => cluster.questionCount), 0),
+    maxSpecificity: Math.max(
+      ...candidates.map((cluster) => cluster.score / Math.max(cluster.count, 1)),
+      0
+    ),
+  };
+
+  return candidates
     .map((cluster) => ({
       cluster,
-      representativeScore: buildRepresentativeScore(cluster),
+      representativeScore: buildRepresentativeScore(cluster, scoreContext),
     }))
     .sort(
       (a, b) =>
