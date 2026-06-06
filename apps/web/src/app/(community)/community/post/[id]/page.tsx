@@ -514,7 +514,7 @@ export default function PostDetailPage() {
                   <SlideCarousel
                     slides={post.slides}
                     aspect="4/5"
-                    className="mx-auto max-w-[320px] sm:max-w-[360px]"
+                    className="mx-auto w-full max-w-[420px] sm:max-w-[500px] lg:max-w-[560px]"
                   />
                 </div>
               )}

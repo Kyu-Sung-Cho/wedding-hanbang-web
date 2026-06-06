@@ -70,46 +70,48 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
     <div
       ref={containerRef}
       tabIndex={0}
-      className={`group relative overflow-hidden rounded-2xl bg-[#1A1A1F] focus:outline-none ${className}`}
+      className={`group focus:outline-none ${className}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       aria-label={`슬라이드 ${index + 1} / ${total}`}
     >
-      {/* 슬라이드 트랙 */}
-      <div
-        className={`flex transition-transform duration-300 ease-out ${aspectClass}`}
-        style={{ transform: `translateX(-${index * 100}%)` }}
-      >
-        {slides.map((slide, i) => (
-          <SlideItem key={i} slide={slide} active={i === index} />
-        ))}
+      <div className="relative overflow-hidden rounded-2xl bg-[#1A1A1F]">
+        {/* 슬라이드 트랙 */}
+        <div
+          className={`flex transition-transform duration-300 ease-out ${aspectClass}`}
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {slides.map((slide, i) => (
+            <SlideItem key={i} slide={slide} active={i === index} />
+          ))}
+        </div>
+
+        {/* 좌우 버튼 — 호버 시 노출, 모바일은 항상 작게 */}
+        {index > 0 && (
+          <button
+            type="button"
+            onClick={() => go(index - 1)}
+            aria-label="이전 슬라이드"
+            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+        )}
+        {index < total - 1 && (
+          <button
+            type="button"
+            onClick={() => go(index + 1)}
+            aria-label="다음 슬라이드"
+            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
+          >
+            <ChevronRight className="w-5 h-5 text-white" />
+          </button>
+        )}
       </div>
 
-      {/* 좌우 버튼 — 호버 시 노출, 모바일은 항상 작게 */}
-      {index > 0 && (
-        <button
-          type="button"
-          onClick={() => go(index - 1)}
-          aria-label="이전 슬라이드"
-          className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
-        >
-          <ChevronLeft className="w-5 h-5 text-white" />
-        </button>
-      )}
-      {index < total - 1 && (
-        <button
-          type="button"
-          onClick={() => go(index + 1)}
-          aria-label="다음 슬라이드"
-          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
-        >
-          <ChevronRight className="w-5 h-5 text-white" />
-        </button>
-      )}
-
-      {/* 점 인디케이터 (하단) — no-min-tap 클래스로 글로벌 button min-height:40px 제외 */}
+      {/* 점 인디케이터 — 카드뉴스 밖에서 보여 이미지 내용을 가리지 않음 */}
       {total > 1 && (
-        <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
+        <div className="mt-2 flex items-center justify-center gap-1.5">
           {slides.map((_, i) => (
             <button
               key={i}
@@ -117,11 +119,11 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
               onClick={() => go(i)}
               aria-label={`${i + 1}번 슬라이드로 이동`}
               className={`no-min-tap transition-all rounded-full ${
-                i === index ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/60 hover:bg-white/80"
+                i === index ? "w-5 h-1.5 bg-[#36534E]" : "w-1.5 h-1.5 bg-[#d8cfc1] hover:bg-[#b5ada3]"
               }`}
             />
           ))}
-          <span className="ml-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-white">
+          <span className="ml-2 rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">
             {index + 1}/{total}
           </span>
         </div>
