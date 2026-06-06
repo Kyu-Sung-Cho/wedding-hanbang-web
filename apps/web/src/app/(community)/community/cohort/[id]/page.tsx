@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   MessageCircle,
   TrendingUp,
   Calendar,
@@ -46,7 +48,7 @@ import type {
 // ────────────────────────────────────────
 type TabKey = "chat" | "info" | "timeline";
 type FocusMessageRequest = { id: string; requestedAt: number };
-const DIGEST_SUBTOPIC_DISPLAY_LIMIT = 3;
+const DIGEST_SUBTOPIC_INITIAL_LIMIT = 3;
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
   venue_booked: "웨딩홀 예약",
@@ -1948,6 +1950,7 @@ function CohortDigestCard({
   const [digest, setDigest] = useState<CohortDigest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAllSubtopics, setShowAllSubtopics] = useState(false);
 
   const loadDigest = useCallback(async (keepPrevious = false) => {
     setLoading(true);
@@ -1979,9 +1982,15 @@ function CohortDigestCard({
     return () => window.clearTimeout(timer);
   }, [loadDigest]);
 
+  useEffect(() => {
+    setShowAllSubtopics(false);
+  }, [period, roomId]);
+
   const totalCount = digest?.topicBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
   const subtopics = digest?.subtopics ?? [];
-  const visibleSubtopics = subtopics.slice(0, DIGEST_SUBTOPIC_DISPLAY_LIMIT);
+  const visibleSubtopics = showAllSubtopics ? subtopics : subtopics.slice(0, DIGEST_SUBTOPIC_INITIAL_LIMIT);
+  const canExpandSubtopics = subtopics.length > DIGEST_SUBTOPIC_INITIAL_LIMIT;
+  const hiddenSubtopicCount = Math.max(subtopics.length - DIGEST_SUBTOPIC_INITIAL_LIMIT, 0);
   const highlights = digest?.highlights ?? [];
 
   return (
@@ -2103,7 +2112,7 @@ function CohortDigestCard({
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h4 className="text-[13px] font-semibold text-[#263832]">대표 이야기</h4>
                 <span className="text-[11px] font-medium text-[#928980]">
-                  대표 점수 순
+                  {showAllSubtopics ? `전체 ${subtopics.length}개` : "상위 3개"}
                 </span>
               </div>
               <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
@@ -2149,6 +2158,28 @@ function CohortDigestCard({
                     </li>
                   );
                 })}
+                {canExpandSubtopics && (
+                  <li className="border-t border-[#efe5d9] bg-[#fffdf8]">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSubtopics((value) => !value)}
+                      className="flex min-h-10 w-full items-center justify-center gap-1.5 px-3 text-[12px] font-semibold text-[#36534E] transition-colors hover:bg-[#fbf8f2]"
+                      aria-expanded={showAllSubtopics}
+                    >
+                      {showAllSubtopics ? (
+                        <>
+                          간단히 보기
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          더 보기 {hiddenSubtopicCount}개
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
           )}

@@ -177,7 +177,7 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
 
 const GENERIC_SUBTOPIC_IDS = new Set(["general_quote"]);
 const DIGEST_MESSAGE_LIMIT = 300;
-const SUBTOPIC_LIMIT = 3;
+const SUBTOPIC_LIMIT = 8;
 const REPRESENTATIVE_SCORE_MAX_POINTS = {
   frequency: 34,
   participants: 30,
