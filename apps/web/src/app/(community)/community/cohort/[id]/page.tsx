@@ -354,7 +354,7 @@ function RoomHeader({ room }: { room: CohortRoom | null }) {
             {getRoomTitle(room)}
           </h1>
           <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#635b51]">
-            견적·후기·준비 기록을 짧게 나눠요. Enter 전송 · Shift+Enter 줄바꿈.
+            같은 시기 예비부부와 실제 견적·고민·후기를 바로 나눠요.
           </p>
         </div>
 
