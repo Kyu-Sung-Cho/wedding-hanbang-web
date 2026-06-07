@@ -69,6 +69,14 @@ interface RecentPost {
   author_id: string;
 }
 
+interface WritingBlueprint {
+  category: CommunityCategory;
+  origin: AgentContentOrigin;
+  title: (topic: string) => string;
+  body: (topic: string) => string;
+  comment: (post: RecentPost, topic: string) => string;
+}
+
 interface DailyState {
   id: string;
   agent_id: string;
@@ -178,6 +186,126 @@ function stripTags(input: string): string {
 
 function hasBodyContent(input: string | null | undefined): boolean {
   return stripTags(input ?? "").length >= 2;
+}
+
+function plainTextLength(input: string | null | undefined): number {
+  return stripTags(input ?? "").length;
+}
+
+function hasConversationalQuestion(input: string | null | undefined): boolean {
+  const text = stripTags(input ?? "");
+  return /[?？]|궁금|어떻게|어느 정도|뭐가|무엇|괜찮|맞을까요|할까요|해야 할까요|보시나요|알려주/.test(text);
+}
+
+function isLowQualityComment(input: string | null | undefined): boolean {
+  const text = stripTags(input ?? "");
+  if (text.length < 18) return true;
+  if (/^(like|empty_content|본문 없음|댓글|좋아요)$/i.test(text)) return true;
+  if (text.length < 42 && /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅)/.test(text)) return true;
+  return false;
+}
+
+function isLowQualityPost(action: GeneratedAction): boolean {
+  const titleLength = plainTextLength(action.title);
+  const contentLength = plainTextLength(action.content);
+  if (action.contentOrigin === "comment" || action.contentOrigin === "reaction") return true;
+  if (titleLength < 8 || contentLength < 55) return true;
+  if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
+  if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
+  return false;
+}
+
+const CATEGORY_LABELS: Record<CommunityCategory, string> = {
+  is_normal: "정상인가요?",
+  tour_review: "후기",
+  tips_v2: "꿀팁",
+  ama: "선배 Q&A",
+  free: "자유",
+};
+
+const DEFAULT_BLUEPRINT: WritingBlueprint = {
+  category: "free",
+  origin: "question",
+  title: (topic) => `${topic} 준비할 때 기준을 어떻게 잡으세요?`,
+  body: (topic) =>
+    `${topic} 쪽을 알아보고 있는데 어디까지 확인해야 충분한 건지 아직 감이 잘 안 와요.\n\n견적이나 계약 전에 꼭 나눠서 봐야 하는 항목이 있으면 같이 정리해보고 싶어요.`,
+  comment: (post, topic) =>
+    `${post.title}에서 말한 부분이 저도 헷갈릴 것 같아요. ${topic} 기준으로 보면 포함 항목이랑 별도 비용을 먼저 나눠서 확인하는 게 좋지 않을까요?`,
+};
+
+const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
+  cautious_questioner: {
+    title: (topic) => `${topic} 이 정도까지 확인해야 할까요?`,
+    body: (topic) =>
+      `${topic} 관련해서 찾아볼수록 기준이 더 헷갈려요.\n\n확정하기 전에 꼭 물어봐야 하는 항목이 있다면 어떤 것부터 보면 좋을까요? 너무 기본적인 질문일 수도 있는데 놓치고 싶지 않아서요.`,
+    comment: (post) =>
+      `${post.title} 보니까 저도 비슷하게 헷갈릴 것 같아요. 혹시 안내받은 내용 중에 포함/별도 비용이 나뉘어 적힌 부분이 있었나요?`,
+  },
+  budget_realist: {
+    title: (topic) => `${topic} 비용은 총액 기준으로 봐야 할까요?`,
+    body: (topic) =>
+      `${topic} 견적을 볼 때 기본가만 보면 판단이 잘 안 되는 것 같아요.\n\n옵션, 추가금, 별도 결제 항목까지 합친 최종 금액 기준으로 비교하려면 어떤 항목을 먼저 체크해야 할까요?`,
+    comment: (post) =>
+      `${post.title}이면 기본가보다 마지막 총액이 더 중요해 보여요. 포함 항목, 필수 추가금, 선택 옵션을 따로 나눠보면 비교가 조금 쉬워질 것 같아요.`,
+  },
+  contract_checker: {
+    category: "tips_v2",
+    origin: "checklist",
+    title: () => "계약 전 문서에서 꼭 봐야 하는 항목 뭐가 있을까요?",
+    body: () =>
+      `계약 전에는 말로 들은 안내보다 문서에 적힌 조건을 따로 확인해야 할 것 같아요.\n\n제가 보기엔 포함 항목, 취소/환불 기준, 원본·수정본·헬퍼비 같은 별도 비용을 나눠보는 게 먼저인데, 혹시 더 봐야 할 항목이 있을까요?`,
+    comment: (post) =>
+      `${post.title} 내용이면 계약서 문구로 다시 확인해보는 게 안전해 보여요. 포함 항목과 별도 비용이 같은 페이지에 적혀 있는지도 같이 보면 좋을 것 같아요.`,
+  },
+  emotion_support: {
+    title: (topic) => `${topic} 때문에 마음이 쓰일 때 어떻게 말 꺼내세요?`,
+    body: (topic) =>
+      `${topic} 문제는 비용이나 일정보다 말 꺼내는 방식이 더 어렵게 느껴질 때가 있는 것 같아요.\n\n상대가 서운하지 않게 기준을 맞추려면 어떤 식으로 먼저 이야기하는 게 좋을까요?`,
+    comment: (post) =>
+      `${post.title}은 답을 정하는 것보다 서로 부담을 덜 느끼게 말하는 게 먼저일 것 같아요. 기준을 같이 정해보자고 꺼내면 조금 덜 부딪히지 않을까요?`,
+  },
+  beginner_questioner: {
+    title: (topic) => `${topic} 초보가 먼저 알아야 할 게 뭐예요?`,
+    body: (topic) =>
+      `${topic} 용어부터 헷갈려서 뭘 먼저 물어봐야 할지도 잘 모르겠어요.\n\n처음 알아보는 입장에서 계약이나 견적 전에 꼭 확인해야 하는 기본 질문이 있다면 알려주세요.`,
+    comment: (post) =>
+      `${post.title} 보니까 저도 용어부터 다시 봐야겠다는 생각이 들어요. 처음 확인할 때 포함 항목이랑 추가 비용을 따로 물어보는 게 맞을까요?`,
+  },
+  thread_summarizer: {
+    category: "tips_v2",
+    origin: "summary",
+    title: () => "요즘 글들 보면 먼저 확인할 포인트가 보이는 것 같아요",
+    body: () =>
+      `최근 커뮤니티 글들을 보면 준비 단계마다 헷갈리는 지점이 꽤 비슷한 것 같아요.\n\n1. 기본가와 최종 결제액을 따로 보기\n2. 말로 들은 조건은 문서로 다시 확인하기\n3. 일정, 비용, 양가 조율을 한 번에 묶지 말고 나눠서 결정하기\n\n이 세 가지를 먼저 정리하면 다음 질문이 조금 선명해질 것 같아요.`,
+    comment: (post) =>
+      `${post.title}에서 핵심은 조건을 한 번에 보지 말고 나눠서 확인하는 것 같아요. 지금 나온 내용만 보면 비용, 포함 항목, 결정 시점을 따로 정리하면 좋겠습니다.`,
+  },
+  official_checker: {
+    category: "tips_v2",
+    origin: "checklist",
+    title: () => "계약 전 확인하면 좋은 체크포인트 정리",
+    body: () =>
+      `계약 전에는 감으로 결정하기보다 확인 항목을 나눠보는 편이 안전합니다.\n\n- 기본 금액과 필수 추가금을 분리하기\n- 포함 항목과 별도 결제 항목을 문서로 확인하기\n- 취소, 변경, 환불 조건을 저장해두기\n- 일정 변경 시 비용이 생기는지 물어보기\n\n비용 이야기는 기준이 분명할 때만 비교하는 게 좋습니다.`,
+    comment: (post) =>
+      `${post.title}은 계약 전 확인 항목으로 정리해볼 수 있어요. 포함 항목, 별도 비용, 변경 조건을 각각 문서로 확인하면 판단이 더 안전합니다.`,
+  },
+};
+
+function blueprintFor(agent: AgentRow): WritingBlueprint {
+  return { ...DEFAULT_BLUEPRINT, ...(ROLE_BLUEPRINTS[agent.role] ?? {}) };
+}
+
+function pickTopic(agent: AgentRow, random: () => number): string {
+  const topics = agent.behavior.topics?.filter(Boolean) ?? [];
+  return topics[Math.floor(random() * topics.length)] ?? "결혼 준비";
+}
+
+function topicScore(agent: AgentRow, post: RecentPost): number {
+  const haystack = `${post.title} ${stripTags(post.content)} ${(post.tags ?? []).join(" ")}`.toLowerCase();
+  return (agent.behavior.topics ?? []).reduce((score, topic) => {
+    const normalized = topic.toLowerCase();
+    return haystack.includes(normalized) ? score + 1 : score;
+  }, 0);
 }
 
 function boundedCategory(category: unknown): CommunityCategory {
@@ -610,22 +738,23 @@ async function publishDraft(supabase: SupabaseClient, draft: DraftRow, agent: Ag
   return { postedPostId, postedCommentId, postedCohortMessageId };
 }
 
-async function fetchRecentHumanPosts(supabase: SupabaseClient): Promise<RecentPost[]> {
-  const since = new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString();
+async function fetchCommunityPosts(supabase: SupabaseClient, agentUserIds: string[]): Promise<RecentPost[]> {
   const { data, error } = await supabase
-    .from("community_human_posts")
+    .from("community_posts")
     .select("id,title,content,category,tags,comment_count,upvote_count,created_at,author_id")
     .eq("visibility", "public")
-    .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(24);
+    .limit(80);
 
   if (error) {
     if (isMissingTableError(error)) throw new Error("community_agent_migration_missing");
     throw new Error(error.message);
   }
 
-  return (data ?? []) as RecentPost[];
+  const rows = ((data ?? []) as RecentPost[]).filter((post) => hasBodyContent(post.title) && hasBodyContent(post.content));
+  const agentUserIdSet = new Set(agentUserIds);
+  const humanPosts = rows.filter((post) => !agentUserIdSet.has(post.author_id));
+  return humanPosts.length > 0 ? humanPosts : rows;
 }
 
 async function fetchOpenCohortRooms(supabase: SupabaseClient): Promise<Array<{ id: string; name: string; message_count: number }>> {
@@ -655,15 +784,56 @@ async function chooseReactionTarget(
     .in("post_id", postIds);
 
   const alreadyLiked = new Set((votes ?? []).map((vote) => vote.post_id as string));
-  const candidates = posts.filter((post) => !alreadyLiked.has(post.id));
+  const candidates = posts.filter((post) => post.author_id !== agentUserId && !alreadyLiked.has(post.id));
   if (candidates.length === 0) return null;
 
   return candidates[Math.floor(random() * candidates.length)]?.id ?? null;
 }
 
+async function chooseCommentTarget(
+  supabase: SupabaseClient,
+  agentUserId: string,
+  posts: RecentPost[],
+  random: () => number,
+  agent: AgentRow
+): Promise<RecentPost | null> {
+  const postIds = posts.map((post) => post.id);
+  if (postIds.length === 0) return null;
+
+  const { data: comments } = await supabase
+    .from("community_comments")
+    .select("post_id")
+    .eq("author_id", agentUserId)
+    .in("post_id", postIds);
+
+  const alreadyCommented = new Set((comments ?? []).map((comment) => comment.post_id as string));
+  const candidates = posts.filter((post) => post.author_id !== agentUserId && !alreadyCommented.has(post.id));
+  if (candidates.length === 0) return null;
+
+  return [...candidates]
+    .sort((left, right) => {
+      const leftScore =
+        topicScore(agent, left) * 8 +
+        (left.comment_count === 0 ? 5 : Math.max(0, 4 - left.comment_count)) +
+        (left.upvote_count > 0 ? 1 : 0) +
+        random();
+      const rightScore =
+        topicScore(agent, right) * 8 +
+        (right.comment_count === 0 ? 5 : Math.max(0, 4 - right.comment_count)) +
+        (right.upvote_count > 0 ? 1 : 0) +
+        random();
+      return rightScore - leftScore;
+    })[0] ?? null;
+}
+
 function parseGeneratedAction(text: string, fallbackAction: AutomationAction): GeneratedAction {
   const jsonText = text.match(/\{[\s\S]*\}/)?.[0] ?? "{}";
-  const parsed = JSON.parse(jsonText) as Partial<GeneratedAction>;
+  let parsed: Partial<GeneratedAction>;
+  try {
+    parsed = JSON.parse(jsonText) as Partial<GeneratedAction>;
+  } catch {
+    parsed = {};
+  }
   const targetType = parsed.targetType === "comment" || parsed.targetType === "reaction" || parsed.targetType === "cohort_message" || parsed.targetType === "post"
     ? parsed.targetType
     : fallbackAction;
@@ -694,23 +864,26 @@ function parseGeneratedAction(text: string, fallbackAction: AutomationAction): G
 }
 
 function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
-  const topics = agent.behavior.topics?.length ? agent.behavior.topics : ["결혼 준비"];
-  const topic = topics[Math.floor(random() * topics.length)] ?? "결혼 준비";
+  const topic = pickTopic(agent, random);
+  const blueprint = blueprintFor(agent);
   return {
     targetType: "post",
-    contentOrigin: agent.public_mode === "official" ? "checklist" : "question",
-    category: agent.public_mode === "official" ? "tips_v2" : "free",
-    title: `${topic} 준비할 때 먼저 확인할 것 있을까요?`,
-    content: `${topic} 쪽을 알아보고 있는데 기준을 어떻게 잡아야 할지 아직 감이 잘 안 와요.\n\n실제 견적이나 계약 전에 어떤 항목을 먼저 확인하면 좋을까요?`,
+    contentOrigin: blueprint.origin,
+    category: blueprint.category,
+    title: blueprint.title(topic),
+    content: blueprint.body(topic),
     sourceUrls: [],
-    confidence: 0.52,
-    reason: "Fallback safe post because the model returned an empty or non-post draft.",
+    confidence: 0.68,
+    reason: "Persona blueprint fallback for a safe community post.",
   };
 }
 
-function fallbackComment(agent: AgentRow): string {
-  const topic = agent.behavior.topics?.[0] ?? "결혼 준비";
-  return `저도 ${topic} 쪽은 기준 잡기가 어렵더라고요. 혹시 포함 항목이랑 별도 비용을 나눠서 비교해보셨나요?`;
+function fallbackComment(agent: AgentRow, targetPost: RecentPost | null, random: () => number): string {
+  const topic = pickTopic(agent, random);
+  if (!targetPost) {
+    return blueprintFor(agent).comment({ id: "", title: topic, content: "", category: "free", tags: [], comment_count: 0, upvote_count: 0, created_at: "", author_id: "" }, topic);
+  }
+  return blueprintFor(agent).comment(targetPost, topic);
 }
 
 function fallbackCohortMessage(agent: AgentRow): string {
@@ -718,11 +891,38 @@ function fallbackCohortMessage(agent: AgentRow): string {
   return `${topic} 쪽은 각자 기준이 다를 수 있어서, 포함 항목과 별도 비용을 먼저 나눠보면 좋을 것 같아요.`;
 }
 
+function personaDirective(agent: AgentRow, action: AutomationAction): string {
+  const role = agent.role;
+  const tone = typeof agent.profile.tone === "string" ? agent.profile.tone : "자연스러운 말투";
+  const commentStyle = agent.behavior.commentStyle ?? "글쓴이 상황에 맞춰 짧고 유용하게 반응한다";
+  const common = `말투: ${tone}. 댓글 스타일: ${commentStyle}. 샘플 말투: ${(agent.sample_lines ?? []).slice(0, 2).join(" / ")}`;
+
+  const roleGuide: Record<string, string> = {
+    cautious_questioner: "확신을 단정하지 말고, 글쓴이가 놓칠 수 있는 확인 질문을 하나만 덧붙인다.",
+    budget_realist: "기본가가 아니라 최종 총액, 포함 항목, 필수 추가금 관점으로 말한다.",
+    contract_checker: "계약서/문서/포함 항목/별도 비용 확인으로 대화를 좁힌다. 법률 조언처럼 단정하지 않는다.",
+    emotion_support: "먼저 감정을 인정하고, 상대에게 덜 부담스러운 말 꺼내기 방식으로 이어간다.",
+    beginner_questioner: "초보가 실제로 헷갈릴 만한 용어와 첫 질문을 자연스럽게 묻는다.",
+    thread_summarizer: "커뮤니티에 나온 이야기만 근거로 짧게 구조화한다. 없는 내용을 추가하지 않는다.",
+    official_checker: "운영형으로 체크리스트를 제공하되 개인 경험처럼 말하지 않는다.",
+  };
+
+  const actionGuide =
+    action === "comment"
+      ? "댓글은 선택된 글의 제목/본문 중 구체적인 한 부분에 반응해야 한다. 일반론만 쓰지 말고, 공감 1문장 + 확인 질문/체크포인트 1-2문장으로 작성한다."
+      : action === "post"
+        ? "게시글은 실제 경험담을 꾸미지 않는다. 현실적인 고민 상황 1개, 왜 헷갈리는지 1개, 커뮤니티에 묻는 질문 1-2개를 포함한다."
+        : "해당 공간의 흐름을 정리하거나 조심스럽게 질문한다.";
+
+  return [common, roleGuide[role] ?? "페르소나의 주제와 말투를 유지한다.", actionGuide].join(" ");
+}
+
 async function generateAction(input: {
   agent: AgentRow;
   action: AutomationAction;
   posts: RecentPost[];
   cohortRooms: Array<{ id: string; name: string; message_count: number }>;
+  targetPost?: RecentPost | null;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -730,23 +930,28 @@ async function generateAction(input: {
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const postContext = input.posts.slice(0, 10).map((post) => ({
+  const orderedPosts = input.targetPost
+    ? [input.targetPost, ...input.posts.filter((post) => post.id !== input.targetPost?.id)]
+    : input.posts;
+  const postContext = orderedPosts.slice(0, 12).map((post) => ({
     id: post.id,
     title: post.title,
     category: post.category,
+    categoryLabel: CATEGORY_LABELS[post.category],
     tags: post.tags ?? [],
     comments: post.comment_count,
     likes: post.upvote_count,
-    body: stripTags(post.content).slice(0, 260),
+    body: stripTags(post.content).slice(0, 520),
   }));
 
   const system = [
-    "You run one Korean wedding community persona.",
-    "Write naturally in Korean, short and human, but never invent a personal visit, contract, quote, booking, or payment experience.",
-    "If the persona does not know, ask a useful question or share a cautious checklist.",
-    "Do not recommend a specific vendor unless the provided context supports it.",
-    "News/statistical/numeric claims require HTTPS source URLs. If sources are not supplied, do not write news.",
-    "Return JSON only. No markdown.",
+    "You operate one Korean wedding community persona.",
+    "Write like a real Korean 예비부부 community member: specific, warm, slightly imperfect, and useful.",
+    "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
+    "For comments, you must respond to the selected target post, not to the general topic.",
+    "If you do not know, ask a careful question or give a checklist-style next step.",
+    "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
+    "Return valid JSON only. No markdown outside JSON.",
   ].join(" ");
 
   const user = JSON.stringify({
@@ -755,7 +960,7 @@ async function generateAction(input: {
       targetType: "post | comment | cohort_message",
       contentOrigin: "question | comment | summary | checklist | news",
       category: "free | tips_v2 | tour_review | is_normal | ama",
-      targetPostId: "required for comment",
+      targetPostId: input.targetPost ? `for comment, MUST be exactly ${input.targetPost.id}` : "required for comment",
       targetCohortRoomId: "required for cohort_message",
       title: "required for post",
       content: "plain Korean text or simple paragraphs",
@@ -771,17 +976,46 @@ async function generateAction(input: {
       behavior: input.agent.behavior,
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
-    recentHumanPosts: postContext,
+    personaDirective: personaDirective(input.agent, input.action),
+    selectedTargetPost: input.targetPost
+      ? {
+          id: input.targetPost.id,
+          title: input.targetPost.title,
+          category: input.targetPost.category,
+          body: stripTags(input.targetPost.content).slice(0, 900),
+          comments: input.targetPost.comment_count,
+          likes: input.targetPost.upvote_count,
+        }
+      : null,
+    communityPosts: postContext,
     cohortRooms: input.cohortRooms,
+    qualityBar: {
+      comment: [
+        "2-4 Korean sentences.",
+        "First sentence must acknowledge the writer's concrete situation.",
+        "Add one useful question, comparison point, or checklist item.",
+        "Do not say '좋은 글 감사합니다' or generic filler.",
+        "Do not pretend you visited, contracted, paid, or received a quote.",
+      ],
+      post: [
+        "Title should be natural and specific, 18-45 Korean chars.",
+        "Content should be 4-8 short lines.",
+        "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
+        "No fake first-person vendor experience.",
+        "No unsupported price averages or vendor ranking.",
+      ],
+    },
     constraints: {
       maxPostTitleChars: 72,
-      maxCommentChars: 360,
-      maxPostChars: 900,
+      maxCommentChars: 420,
+      maxPostChars: 1100,
       avoid: [
         "fake first-person experience",
         "vendor ranking without source",
         "medical/legal/financial certainty",
         "repeating another agent",
+        "empty content",
+        "generic sympathy with no connection to the target post",
       ],
     },
   });
@@ -815,6 +1049,7 @@ async function generateAction(input: {
       agent_id: input.agent.id,
       agent_slug: input.agent.slug,
       desired_action: input.action,
+      selected_target_post_id: input.targetPost?.id ?? null,
       context_post_ids: postContext.map((post) => post.id),
     },
   });
@@ -912,8 +1147,12 @@ export async function runCommunityAgentAutomation(
       return { ok: true, runId, dryRun, planned: 0, posted: 0, drafted: 0, skipped: 1, failed: 0, items: [] };
     }
 
+    const activeAgentUserIds = agents
+      .map((agent) => agent.backing_user_id)
+      .filter((id): id is string => Boolean(id));
+
     const [posts, cohortRooms] = await Promise.all([
-      fetchRecentHumanPosts(supabase),
+      fetchCommunityPosts(supabase, activeAgentUserIds),
       fetchOpenCohortRooms(supabase),
     ]);
 
@@ -939,6 +1178,7 @@ export async function runCommunityAgentAutomation(
       try {
         const backingUserId = await ensureAgentIdentity(supabase, agent);
         let generated: GeneratedAction;
+        let selectedTargetPost: RecentPost | null = null;
 
         if (action === "reaction") {
           const targetPostId = await chooseReactionTarget(supabase, backingUserId, posts, random);
@@ -958,10 +1198,18 @@ export async function runCommunityAgentAutomation(
           items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "no_cohort_room" });
           continue;
         } else if ((action === "comment") && posts.length === 0) {
-          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "no_recent_human_posts" });
+          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "no_community_posts" });
           continue;
         } else {
-          const generation = await generateAction({ agent, action, posts, cohortRooms, model });
+          if (action === "comment") {
+            selectedTargetPost = await chooseCommentTarget(supabase, backingUserId, posts, random, agent);
+            if (!selectedTargetPost) {
+              items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "no_comment_target" });
+              continue;
+            }
+          }
+
+          const generation = await generateAction({ agent, action, posts, cohortRooms, targetPost: selectedTargetPost, model });
           tokensInput += generation.tokensInput;
           tokensOutput += generation.tokensOutput;
           generated = generation.action;
@@ -976,8 +1224,24 @@ export async function runCommunityAgentAutomation(
             targetCohortRoomId: undefined,
           };
         }
-        if (generated.targetType === "comment" && !posts.some((post) => post.id === generated.targetPostId)) {
-          generated.targetPostId = posts[Math.floor(random() * posts.length)]?.id;
+        if (action === "comment") {
+          if (!selectedTargetPost) {
+            selectedTargetPost = posts.find((post) => post.id === generated.targetPostId) ?? null;
+          }
+          if (!selectedTargetPost) {
+            items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "missing_comment_target" });
+            continue;
+          }
+          generated = {
+            ...generated,
+            targetType: "comment",
+            contentOrigin: "comment",
+            category: undefined,
+            title: undefined,
+            targetPostId: selectedTargetPost.id,
+            targetCommentId: undefined,
+            targetCohortRoomId: undefined,
+          };
         }
         if (generated.targetType === "cohort_message" && !cohortRooms.some((room) => room.id === generated.targetCohortRoomId)) {
           generated.targetCohortRoomId = cohortRooms[Math.floor(random() * cohortRooms.length)]?.id;
@@ -992,12 +1256,18 @@ export async function runCommunityAgentAutomation(
         }
         if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
           if (generated.targetType === "comment") {
-            generated.content = fallbackComment(agent);
+            generated.content = fallbackComment(agent, selectedTargetPost, random);
           } else if (generated.targetType === "cohort_message") {
             generated.content = fallbackCohortMessage(agent);
           } else {
             generated = fallbackPost(agent, random);
           }
+        }
+        if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
+          generated.content = fallbackComment(agent, selectedTargetPost, random);
+        }
+        if (generated.targetType === "post" && isLowQualityPost(generated)) {
+          generated = fallbackPost(agent, random);
         }
         if (generated.targetType === "post" && !hasBodyContent(generated.title)) {
           const replacement = fallbackPost(agent, random);
