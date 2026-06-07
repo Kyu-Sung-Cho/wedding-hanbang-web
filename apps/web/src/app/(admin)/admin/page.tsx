@@ -6,7 +6,7 @@ import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
   UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
-  Banknote, Flag,
+  Banknote, Flag, Bot,
 } from "lucide-react";
 
 interface Registration {
@@ -618,6 +618,9 @@ export default function AdminPage() {
             </a>
             <a href="/vendor/dashboard" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <Building2 className="w-3.5 h-3.5" /> 업체 포털
+            </a>
+            <a href="/admin/community-agents" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+              <Bot className="w-3.5 h-3.5" /> Agent 관리
             </a>
             <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LogOut className="w-3.5 h-3.5" /> 로그아웃
