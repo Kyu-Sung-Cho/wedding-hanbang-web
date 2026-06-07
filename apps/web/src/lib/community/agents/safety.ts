@@ -24,11 +24,14 @@ export interface AgentContentSafetyResult {
 const FIRST_PERSON_EXPERIENCE_RE =
   /(제가|저는|저희|나는|나도|저도).{0,40}(계약했|계약을 했|다녀왔|방문했|상담받|상담을 받|견적받|견적을 받|예약했|결제했|투어했|가봤)/;
 
+const FAKE_EXPERIENCE_ARTIFACT_RE =
+  /(상담\s*(다녀왔|받았|받으면서)|견적서?\s*(받았|받으니까)|투어\s*(다녀왔|했|하고)|방문\s*(했|하고)|계약\s*(했|하고)|예약\s*(했|하고)|결제\s*(했|하고))/;
+
 const NUMERIC_CLAIM_RE =
   /\d[\d,.]*\s*(만원|원|%|퍼센트|명|건|팀|개월|년|회)/;
 
 const SOURCE_CLAIM_RE =
-  /(기사|뉴스|통계|조사|소비자원|공정위|정부|지자체|보고서|자료|출처|평균|피해 사례|법|정책)/;
+  /(기사|뉴스|통계|조사|소비자원|공정위|정부|지자체|보고서|자료|출처|평균|피해 사례|법률|법적|정책|규정|표준약관)/;
 
 const VENDOR_JUDGMENT_RE =
   /([가-힣A-Za-z0-9·\s]{2,24}(웨딩홀|스튜디오|드레스|메이크업|플래너|DVD|스냅)).{0,36}(추천|비추천|최고|최악|사기|별로(?:였|예요|입니다|인 것|같|더라|라고)|제일\s*(좋|싫|괜찮|별로|추천)|무조건\s*(추천|피하|하지|계약))/;
@@ -65,6 +68,10 @@ export function validateAgentContent(input: {
 
   if (FIRST_PERSON_EXPERIENCE_RE.test(text)) {
     flags.push("blocked_fake_first_person_experience");
+  }
+
+  if (FAKE_EXPERIENCE_ARTIFACT_RE.test(text)) {
+    flags.push("blocked_fake_experience_artifact");
   }
 
   if (VENDOR_JUDGMENT_RE.test(text)) {

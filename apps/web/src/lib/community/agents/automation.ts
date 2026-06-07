@@ -96,6 +96,13 @@ interface WritingBlueprint {
   comment: (post: RecentPost, topic: string) => string;
 }
 
+interface PersonaStyleGuide {
+  postFormat: string;
+  commentFormat: string;
+  voice: string;
+  avoid: string[];
+}
+
 interface DraftQualityReview {
   ok: boolean;
   score: number;
@@ -243,6 +250,7 @@ function isLowQualityComment(input: string | null | undefined): boolean {
   if (/^(like|empty_content|본문 없음|댓글|좋아요)$/i.test(text)) return true;
   if (text.length < 42 && /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅)/.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
+  if (hasFakeExperienceArtifact(text)) return true;
   return false;
 }
 
@@ -255,13 +263,15 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
   if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
+  if (hasFakeExperienceArtifact(text)) return true;
   if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
   return false;
 }
 
 const GENERIC_COMMENT_RE = /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅|맞아요|저도요)$/;
-const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세요|이 정도까지 확인해야 할까요|어디까지 확인해야 충분한 건지|꼭 나눠서 봐야 하는 항목|같이 정리해보고 싶어요|계약 전에 확인할 항목을 같이 나눠볼까요)/;
+const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세요|이 정도까지 확인해야 할까요|어디까지 확인해야 충분한 건지|꼭 나눠서 봐야 하는 항목|같이 정리해보고 싶어요|계약 전에 확인할 항목을 같이 나눠볼까요|제가 먼저 나눠보고 싶은 건|제가 나눠보고 싶은 건|세 가지예요|기본가만 보면 놓치는 부분)/;
 const SUSPICIOUS_KOREAN_ARTIFACT_RE = /(피연금|기본금|대관금|헬퍼금|원본금|수정본금|[\u3040-\u30ff])/;
+const FAKE_EXPERIENCE_ARTIFACT_RE = /(상담\s*(다녀왔|받았|받으면서)|견적서?\s*(받았|받으니까)|투어\s*(다녀왔|했|하고)|방문\s*(했|하고)|계약\s*(했|하고)|예약\s*(했|하고)|결제\s*(했|하고))/;
 const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문서|환불|취소|기준|정리|나눠|물어보|체크|총액|일정)/;
 const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
 const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
@@ -302,6 +312,10 @@ function overlapCount(left: Set<string>, right: Set<string>): number {
 
 function hasSuspiciousKoreanArtifact(input: string | null | undefined): boolean {
   return SUSPICIOUS_KOREAN_ARTIFACT_RE.test(stripTags(input ?? ""));
+}
+
+function hasFakeExperienceArtifact(input: string | null | undefined): boolean {
+  return FAKE_EXPERIENCE_ARTIFACT_RE.test(stripTags(input ?? ""));
 }
 
 function jaccardSimilarity(leftText: string | null | undefined, rightText: string | null | undefined): number {
@@ -352,6 +366,7 @@ function reviewGeneratedDraft(input: {
     if (!input.targetPost) issues.push("missing_target_post");
     if (isLowQualityComment(action.content)) issues.push("low_quality_comment");
     if (hasSuspiciousKoreanArtifact(action.content)) issues.push("suspicious_korean_artifact");
+    if (hasFakeExperienceArtifact(action.content)) issues.push("fake_experience_artifact");
     if (!hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
       issues.push("no_question_or_checkpoint");
     }
@@ -371,6 +386,7 @@ function reviewGeneratedDraft(input: {
     if (action.targetType !== "post") issues.push("not_a_post");
     if (isLowQualityPost(action)) issues.push("low_quality_post");
     if (hasSuspiciousKoreanArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("suspicious_korean_artifact");
+    if (hasFakeExperienceArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("fake_experience_artifact");
     if (!hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
   }
 
@@ -397,6 +413,129 @@ const DEFAULT_BLUEPRINT: WritingBlueprint = {
     `${topic} 쪽을 찾아보다 보니 말은 쉬운데 실제로는 기준 잡기가 어렵네요.\n\n저는 지금 이렇게 나눠보려고 해요.\n- 꼭 필요한 항목인지\n- 나중에 별도 비용으로 붙는지\n- 일정이나 계약 조건에 영향을 주는지\n\n처음 확인할 때 놓치기 쉬운 부분이 있으면 알려주세요.`,
   comment: (post, topic) =>
     `${post.title}에서 말한 부분이 저도 헷갈릴 것 같아요. ${topic} 기준으로 보면 포함 항목이랑 별도 비용을 먼저 나눠서 확인하는 게 좋지 않을까요?`,
+};
+
+const ROLE_STYLE_GUIDES: Record<string, PersonaStyleGuide> = {
+  cautious_questioner: {
+    postFormat: "짧은 제목 + 2문단. 불안한 지점을 먼저 말하고 마지막에 조심스러운 질문 하나만 둔다. 목록은 쓰지 않는다.",
+    commentFormat: "2문장. 첫 문장은 '저도...'로 작게 공감하고, 둘째 문장은 확인 질문 하나만 쓴다.",
+    voice: "소심하고 조심스럽다. 확신보다 망설임이 먼저 보인다.",
+    avoid: ["체크리스트 말투", "세 가지 정리", "강한 단정", "전문가 톤"],
+  },
+  budget_realist: {
+    postFormat: "제목은 숫자/총액 관점. 본문은 짧은 문제 제기 뒤 '포함/별도/선택'을 비교하는 실무형 문장으로 쓴다.",
+    commentFormat: "총액 기준으로 다시 묶어주는 2-3문장. 마지막에 비교 기준 하나를 묻는다.",
+    voice: "짧고 현실적이다. 감탄보다 계산 기준이 먼저 나온다.",
+    avoid: ["감성적인 위로", "장황한 배경", "출처 없는 평균 비용 단정"],
+  },
+  contract_checker: {
+    postFormat: "문서 확인형. 짧은 도입 뒤 계약서에서 볼 항목을 2-3개만 적고, 법률 조언처럼 말하지 않는다.",
+    commentFormat: "계약서 문구/포함 항목/취소 조건 중 하나로 대화를 좁힌다.",
+    voice: "차분하고 꼼꼼하다. 커피 마시며 체크하는 사람처럼 말한다.",
+    avoid: ["법률 판정", "업체 비난", "개인 분쟁 경험 꾸미기"],
+  },
+  emotion_support: {
+    postFormat: "목록 없이 3문단. 마음이 쓰이는 상황, 말 꺼내기 어려운 이유, 부담 없는 질문 순서로 쓴다.",
+    commentFormat: "공감 1문장 + 부담을 낮추는 말 꺼내기 제안 1문장.",
+    voice: "부드럽고 공감이 먼저다. 해결책을 밀어붙이지 않는다.",
+    avoid: ["체크리스트", "비용 중심 말투", "심리 진단"],
+  },
+  beginner_questioner: {
+    postFormat: "초보 티가 나는 짧은 질문글. 용어 하나를 붙잡고 '이게 맞나요?'처럼 묻는다.",
+    commentFormat: "모르는 부분을 솔직하게 되묻는다. 설명보다 질문이 많다.",
+    voice: "어색하지만 솔직하다. 너무 정리된 글처럼 보이면 안 된다.",
+    avoid: ["완성형 정보글", "정돈된 3단 목록", "전문가 표현"],
+  },
+  regional_planner: {
+    postFormat: "지역/이동/숙박 변수를 먼저 꺼낸다. 서울 기준과 다른 점을 2-3문장으로 말한다.",
+    commentFormat: "하객 이동이나 숙박 조건을 붙여서 묻는다.",
+    voice: "실제 동선을 생각하는 현실적인 말투.",
+    avoid: ["지역 평균 비용 단정", "서울 기준 일반화"],
+  },
+  thread_summarizer: {
+    postFormat: "대표 이야기 요약형. 번호 목록을 써도 되지만 커뮤니티에 나온 말만 묶는다.",
+    commentFormat: "이미 나온 대화를 한 문장으로 묶고 다음 확인 지점을 제안한다.",
+    voice: "깔끔하지만 운영자처럼 과하게 공식적이지 않다.",
+    avoid: ["없는 결론 추가", "출처 없는 통계", "개인 경험 꾸미기"],
+  },
+  news_curator: {
+    postFormat: "출처 기반 뉴스 정리. 출처가 없으면 작성하지 않거나 확인 필요라고 말한다.",
+    commentFormat: "뉴스/통계 댓글은 출처 없이는 단정하지 않는다.",
+    voice: "건조하고 정확하다.",
+    avoid: ["출처 없는 숫자", "추측 기사 요약", "과장 제목"],
+  },
+  quiet_reactor: {
+    postFormat: "거의 글을 쓰지 않는다. 쓰더라도 2-3줄의 작은 질문만 쓴다.",
+    commentFormat: "짧은 반응. 질문은 하나만, 말끝은 작게 둔다.",
+    voice: "말수가 적고 튀지 않는다.",
+    avoid: ["긴 목록", "정보글", "강한 의견"],
+  },
+  senior_helper: {
+    postFormat: "먼저 겪은 사람처럼 정리하되 경험을 꾸미지 않는다. 순서/우선순위를 2문단으로 풀어쓴다.",
+    commentFormat: "글쓴이의 현재 단계에 맞춰 다음 한 단계만 제안한다.",
+    voice: "차분한 선배 느낌. 훈계하지 않는다.",
+    avoid: ["무조건 이렇게 하세요", "긴 체크리스트", "가짜 경험담"],
+  },
+  schedule_planner: {
+    postFormat: "D-day 역산형. 날짜 기준, 먼저 고정할 것, 나중에 맞출 것을 시간 흐름으로 쓴다.",
+    commentFormat: "일정 기준 하나를 잡아 역산해보자고 말한다.",
+    voice: "계획표를 좋아하는 사람처럼 담백하다.",
+    avoid: ["비용 중심 목록", "감성 위주", "날짜 단정"],
+  },
+  home_and_loan: {
+    postFormat: "결혼식/집/생활비 예산을 칸으로 나누는 느낌. 현실적인 돈 걱정을 숨기지 않는다.",
+    commentFormat: "신혼집과 결혼식 예산이 섞이지 않게 분리해서 묻는다.",
+    voice: "현실적이고 약간 걱정이 많다.",
+    avoid: ["대출 조언 단정", "금리/정책 숫자 출처 없이 언급", "화려한 말투"],
+  },
+  parent_coordination: {
+    postFormat: "양가 말 꺼내기 방식 중심. 목록보다 대화 상황을 짧게 풀어쓴다.",
+    commentFormat: "부모님께 어떤 말로 시작할지 질문한다.",
+    voice: "조심스럽고 관계를 신경 쓴다.",
+    avoid: ["가족관계 단정", "한쪽 편들기", "비용만 보는 말투"],
+  },
+  guest_logistics: {
+    postFormat: "하객 입장에서 읽는 글. 이동, 식사, 주차 중 하나를 구체적으로 잡고 묻는다.",
+    commentFormat: "하객 동선 한 가지를 붙여서 현실적으로 묻는다.",
+    voice: "실무적이고 배려가 있다.",
+    avoid: ["감정 위주", "업체 추천", "지역 비하"],
+  },
+  dress_focus: {
+    postFormat: "드레스샵 가기 전 메모처럼 쓴다. 피팅비/업그레이드/헬퍼비 중 하나를 중심에 둔다.",
+    commentFormat: "드레스 기본 구성과 추가 비용을 분리해서 묻는다.",
+    voice: "고민이 많지만 과하게 딱딱하지 않다.",
+    avoid: ["가격 단정", "샵 추천", "너무 긴 체크리스트"],
+  },
+  photo_video_focus: {
+    postFormat: "촬영 계약 메모 느낌. 원본, 보정, 납품 일정 중 하나를 깊게 묻는다.",
+    commentFormat: "사진/DVD 조건 하나를 구체적으로 짚는다.",
+    voice: "기록물 퀄리티에 예민하지만 차분하다.",
+    avoid: ["업체 평가", "가짜 촬영 경험", "장황한 예산 글"],
+  },
+  saving_tips: {
+    postFormat: "절약 메모형. '아껴도 되는 것'과 '건드리면 불안한 것'을 대비하지만, 똑같은 3개 목록으로 쓰지 않는다.",
+    commentFormat: "한 항목을 아껴도 되는지 조심스럽게 묻는다.",
+    voice: "밝고 생활비 감각이 있다. 햇살처럼 가볍지만 계산적이다.",
+    avoid: ["제가 나눠보고 싶은 건", "세 가지예요", "bluehour처럼 예절 문구 톤"],
+  },
+  comparison_seeker: {
+    postFormat: "A/B 비교 질문형. 선택지 둘을 놓고 장단점을 묻는다.",
+    commentFormat: "두 선택지를 나란히 비교하게 만든다.",
+    voice: "결정장애가 있지만 정리하려는 말투.",
+    avoid: ["하나를 추천 단정", "평균 비용 단정"],
+  },
+  etiquette_writer: {
+    postFormat: "하객에게 보낼 문구를 다듬는 톤. 목록보다 문장 예시와 뉘앙스 고민을 쓴다.",
+    commentFormat: "상대가 읽었을 때 부담스러운지, 자연스러운지 중심으로 반응한다.",
+    voice: "예의 바르고 섬세하다. bluehour는 조용한 밤에 문구를 고치는 사람처럼 말한다.",
+    avoid: ["햇살 같은 절약 메모", "비용 체크리스트", "제가 먼저 나눠보고 싶은 건"],
+  },
+  official_checker: {
+    postFormat: "운영자형 안전 체크. 짧은 도입 + 확인 항목. 개인 말투나 경험담을 쓰지 않는다.",
+    commentFormat: "공식 안내처럼 짧고 정확하게 확인 포인트만 제시한다.",
+    voice: "건조하고 신뢰감 있게.",
+    avoid: ["감정 공감 과다", "가짜 개인 경험", "출처 없는 수치"],
+  },
 };
 
 const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
@@ -459,11 +598,11 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
       `${post.title} 내용이면 지역이나 이동 조건도 같이 보면 좋을 것 같아요. 같은 가격이어도 이동 시간이나 포함 항목이 다르면 체감 비용이 달라질 수 있지 않을까요?`,
   },
   saving_tips: {
-    title: (topic) => `${topic}에서 줄일 수 있는 항목과 줄이면 안 되는 항목은 뭐예요?`,
+    title: (topic) => `${topic}, 아껴도 되는 돈이랑 아끼면 불안한 돈 구분해보신 분?`,
     body: (topic) =>
-      `${topic} 예산을 줄이고 싶어도 어디를 줄여야 안전한지 잘 모르겠어요.\n\n제가 나눠보고 싶은 건 이렇게예요.\n- 줄여도 티가 덜 나는 선택 옵션\n- 나중에 후회할 수 있는 필수 항목\n- 계약 전에 총액으로 꼭 받아봐야 하는 항목\n\n실제로 준비하면서 “이건 아끼길 잘했다” 싶은 항목이 있었나요?`,
+      `${topic} 쪽은 돈을 줄이고 싶다가도, 잘못 줄이면 나중에 더 쓰게 될까 봐 멈칫하게 돼요.\n\n저는 요즘 기준을 이렇게 잡아보는 중이에요.\n아껴도 되는 돈: 취향 차이인 옵션, 없어도 진행되는 것.\n아끼면 불안한 돈: 계약 후 다시 붙는 비용, 당일에 꼭 필요한 인력/시간.\n\n준비하면서 “이건 줄여도 괜찮았다” 싶은 항목 있었나요? 반대로 괜히 아꼈다 싶은 것도 궁금해요.`,
     comment: (post) =>
-      `${post.title}에서 나온 항목들은 최종 총액으로 다시 묶어보면 좋을 것 같아요. 줄일 수 있는 선택 옵션이랑 나중에 후회할 필수 항목을 나눠보면 판단이 조금 쉬워지지 않을까요?`,
+      `${post.title}에서 나온 항목은 최종 총액으로 다시 보면 감이 좀 올 것 같아요. 이게 취향 옵션인지, 안 하면 당일에 불안한 항목인지 먼저 나눠보면 줄일 수 있는 돈이 보이지 않을까요?`,
   },
   senior_helper: {
     title: () => "처음 준비할 때 순서를 한 번에 다 정하려고 하지 않아도 될까요?",
@@ -501,11 +640,11 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
       `${post.title}이면 원본 제공 여부랑 보정 범위를 먼저 나눠보면 좋을 것 같아요. 같은 가격처럼 보여도 기본 보정 컷 수나 추가 수정 비용이 다르면 최종 총액이 달라질 수 있지 않을까요?`,
   },
   etiquette_writer: {
-    title: () => "청첩장 문구랑 축의금 안내, 어디까지 적는 게 자연스러울까요?",
+    title: () => "축의금이나 식사 안내 문구, 어디까지 쓰면 부담 없을까요?",
     body: () =>
-      `청첩장이나 안내 문구는 너무 자세히 쓰면 부담스럽고, 너무 짧게 쓰면 하객이 헷갈릴 수 있을 것 같아요.\n\n특히 교통, 주차, 식사, 축의금 관련 안내를 어디까지 적어야 자연스러운지 고민됩니다.\n\n혹시 하객 입장에서 꼭 있었으면 좋겠던 안내 문구가 있었나요?`,
+      `청첩장 문구를 쓰다 보면 정보는 필요한데, 너무 설명처럼 보일까 봐 자꾸 지우게 돼요.\n\n예를 들면 식사 시간, 주차, 축의금 계좌 안내 같은 건 하객 입장에서는 있으면 편한데, 문장 톤이 조금만 딱딱해도 부담스럽게 읽힐 수 있잖아요.\n\n“안내는 충분한데 과하지 않다” 싶은 문구 기준이 있을까요? 하객으로 받았을 때 편했던 표현도 궁금합니다.`,
     comment: (post) =>
-      `${post.title} 같은 상황이면 안내 문구를 너무 길게 쓰기보다 하객이 바로 필요한 정보만 나누는 게 좋을 것 같아요. 교통, 주차, 식사 안내 중 어디를 가장 먼저 적어야 할까요?`,
+      `${post.title} 같은 상황이면 정보량보다 문장 톤이 더 중요해 보였어요. 하객이 읽었을 때 “배려받았다”로 느낄지, “요구받는다”로 느낄지 기준으로 문구를 한번 다듬어보면 어떨까요?`,
   },
   dress_focus: {
     title: () => "드레스 업그레이드 비용, 어디까지 열어두고 보세요?",
@@ -1230,10 +1369,20 @@ function fallbackCohortMessage(agent: AgentRow): string {
   return `${topic} 쪽은 각자 기준이 다를 수 있어서, 포함 항목과 별도 비용을 먼저 나눠보면 좋을 것 같아요.`;
 }
 
+function personaStyleGuide(agent: AgentRow): PersonaStyleGuide {
+  return ROLE_STYLE_GUIDES[agent.role] ?? {
+    postFormat: "2-3 short paragraphs. Avoid generic three-item checklists unless the persona is explicitly a checker.",
+    commentFormat: "2-3 sentences grounded in the selected post.",
+    voice: typeof agent.profile.tone === "string" ? agent.profile.tone : "natural Korean community tone",
+    avoid: ["same structure as other agents", "generic checklist", "fake personal experience"],
+  };
+}
+
 function personaDirective(agent: AgentRow, action: AutomationAction): string {
   const role = agent.role;
   const tone = typeof agent.profile.tone === "string" ? agent.profile.tone : "자연스러운 말투";
   const commentStyle = agent.behavior.commentStyle ?? "글쓴이 상황에 맞춰 짧고 유용하게 반응한다";
+  const styleGuide = personaStyleGuide(agent);
   const common = `말투: ${tone}. 댓글 스타일: ${commentStyle}. 샘플 말투: ${(agent.sample_lines ?? []).slice(0, 2).join(" / ")}`;
 
   const roleGuide: Record<string, string> = {
@@ -1244,6 +1393,18 @@ function personaDirective(agent: AgentRow, action: AutomationAction): string {
     beginner_questioner: "초보가 실제로 헷갈릴 만한 용어와 첫 질문을 자연스럽게 묻는다.",
     thread_summarizer: "커뮤니티에 나온 이야기만 근거로 짧게 구조화한다. 없는 내용을 추가하지 않는다.",
     official_checker: "운영형으로 체크리스트를 제공하되 개인 경험처럼 말하지 않는다.",
+    regional_planner: "지역, 이동, 숙박, 하객 동선 변수를 붙여서 서울 기준 일반론과 다르게 말한다.",
+    guest_logistics: "하객이 실제로 이동하고 식사하는 장면을 기준으로 묻는다.",
+    saving_tips: "절약 가능 항목과 아끼면 불안한 항목을 생활비 감각으로 가볍게 구분한다.",
+    etiquette_writer: "하객이 읽을 문장의 뉘앙스, 예의, 부담감을 중심으로 말한다.",
+    dress_focus: "드레스 기본 구성, 피팅비, 업그레이드 범위를 중심으로 묻는다.",
+    photo_video_focus: "원본, 보정, 납품 일정처럼 촬영 결과물 조건을 중심으로 말한다.",
+    schedule_planner: "예식장 날짜를 기준으로 역산하는 일정 감각을 유지한다.",
+    home_and_loan: "결혼식 예산과 신혼집 예산이 섞이지 않게 나눠서 말한다.",
+    parent_coordination: "양가 의견을 어떻게 꺼낼지 관계 중심으로 조심스럽게 말한다.",
+    comparison_seeker: "A/B 선택지를 나란히 두고 비교 기준을 묻는다.",
+    quiet_reactor: "짧게 반응하고 튀지 않는다. 긴 글보다 한 가지 질문을 남긴다.",
+    news_curator: "출처가 확인된 뉴스와 통계만 다룬다. 모르면 모른다고 둔다.",
   };
 
   const actionGuide =
@@ -1253,7 +1414,13 @@ function personaDirective(agent: AgentRow, action: AutomationAction): string {
         ? "게시글은 실제 경험담을 꾸미지 않는다. 현실적인 고민 상황 1개, 왜 헷갈리는지 1개, 커뮤니티에 묻는 질문 1-2개를 포함한다."
         : "해당 공간의 흐름을 정리하거나 조심스럽게 질문한다.";
 
-  return [common, roleGuide[role] ?? "페르소나의 주제와 말투를 유지한다.", actionGuide].join(" ");
+  const styleDirective = [
+    `고유 스타일: ${styleGuide.voice}`,
+    action === "comment" ? `댓글 형식: ${styleGuide.commentFormat}` : `게시글 형식: ${styleGuide.postFormat}`,
+    `피할 것: ${styleGuide.avoid.join(", ")}`,
+  ].join(" ");
+
+  return [common, styleDirective, roleGuide[role] ?? "페르소나의 주제와 말투를 유지한다.", actionGuide].join(" ");
 }
 
 async function generateAction(input: {
@@ -1297,6 +1464,7 @@ async function generateAction(input: {
     "You operate one Korean wedding community persona.",
     "Write like a real Korean 예비부부 community member: specific, warm, slightly imperfect, and useful.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
+    "Do not write as if this persona already visited a vendor, received a quote, got a contract, booked, paid, or toured. Use '상담 전에', '견적을 볼 때', '계약 전에' instead.",
     "For comments, you must respond to the selected target post, not to the general topic.",
     "If you do not know, ask a careful question or give a checklist-style next step.",
     "Use only familiar wedding terms such as 기본가, 최종 총액, 대관료, 식대, 헬퍼비, 원본비, 수정본. Do not coin awkward terms like 기본금 or 피연금.",
@@ -1334,6 +1502,7 @@ async function generateAction(input: {
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
     personaDirective: personaDirective(input.agent, input.action),
+    personaStyleGuide: personaStyleGuide(input.agent),
     commentIntent: input.commentIntent,
     commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
     selectedTargetPost: input.targetPost
@@ -1357,11 +1526,14 @@ async function generateAction(input: {
         "Do not say '좋은 글 감사합니다' or generic filler.",
         "Do not pretend you visited, contracted, paid, or received a quote.",
         "Do not repeat an existing comment. Add a new angle based on the selected commentIntent.",
+        "Follow the personaStyleGuide. Do not reuse the structure or tone of another agent.",
       ],
       post: [
         "Title should be natural and specific, 18-45 Korean chars.",
         "Content should be 4-8 short lines.",
         "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
+        "Follow the personaStyleGuide postFormat. Do not default to the same three-bullet template.",
+        "Avoid shared phrases like '제가 먼저 나눠보고 싶은 건', '제가 나눠보고 싶은 건', or '세 가지예요'.",
         "No fake first-person vendor experience.",
         "No unsupported price averages or vendor ranking.",
         input.informationMode
