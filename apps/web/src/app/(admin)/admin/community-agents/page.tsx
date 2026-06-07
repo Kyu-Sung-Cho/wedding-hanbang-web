@@ -530,7 +530,7 @@ export default function CommunityAgentsAdminPage() {
                             <>
                               <button
                                 onClick={() => runAction("approveDraft", { draftId: draft.id })}
-                                disabled={missingBody || !!actionLoading}
+                                disabled={blocked || missingBody || !!actionLoading}
                                 className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -755,7 +755,7 @@ export default function CommunityAgentsAdminPage() {
                           <>
                             <button
                               onClick={() => runAction("approveDraft", { draftId: draft.id })}
-                              disabled={missingBody || !!actionLoading}
+                              disabled={blocked || missingBody || !!actionLoading}
                               className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_COMMUNITY_AGENT_SEEDS, type CommunityAgentStatus } from "@/lib/community/agents/personas";
 import {
+  normalizeAgentSourceUrls,
   validateAgentContent,
   type AgentContentOrigin,
   type AgentVerificationStatus,
@@ -247,14 +248,17 @@ function isLowQualityComment(input: string | null | undefined): boolean {
 function isLowQualityPost(action: GeneratedAction): boolean {
   const titleLength = plainTextLength(action.title);
   const contentLength = plainTextLength(action.content);
+  const text = `${action.title ?? ""}\n${stripTags(action.content)}`;
   if (action.contentOrigin === "comment" || action.contentOrigin === "reaction") return true;
   if (titleLength < 8 || contentLength < 55) return true;
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
+  if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
   if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
   return false;
 }
 
 const GENERIC_COMMENT_RE = /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅|맞아요|저도요)$/;
+const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세요|이 정도까지 확인해야 할까요|어디까지 확인해야 충분한 건지|꼭 나눠서 봐야 하는 항목|같이 정리해보고 싶어요)/;
 const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문서|환불|취소|기준|정리|나눠|물어보|체크|총액|일정)/;
 const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
 const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
@@ -379,9 +383,9 @@ const CATEGORY_LABELS: Record<CommunityCategory, string> = {
 const DEFAULT_BLUEPRINT: WritingBlueprint = {
   category: "free",
   origin: "question",
-  title: (topic) => `${topic} 준비할 때 기준을 어떻게 잡으세요?`,
+  title: (topic) => `${topic} 계약 전에 확인할 항목을 같이 나눠볼까요?`,
   body: (topic) =>
-    `${topic} 쪽을 알아보고 있는데 어디까지 확인해야 충분한 건지 아직 감이 잘 안 와요.\n\n견적이나 계약 전에 꼭 나눠서 봐야 하는 항목이 있으면 같이 정리해보고 싶어요.`,
+    `${topic} 상담이나 견적을 볼 때 기본가만 보면 놓치는 부분이 생길 것 같아요.\n\n제가 먼저 나눠보고 싶은 건 세 가지예요.\n- 기본가에 포함되는 항목과 별도 비용\n- 일정 변경이나 취소 조건\n- 오늘 계약해야 받을 수 있다는 혜택이 정말 필요한지\n\n혹시 계약 전에 꼭 물어본 질문이 있다면 같이 적어볼까요?`,
   comment: (post, topic) =>
     `${post.title}에서 말한 부분이 저도 헷갈릴 것 같아요. ${topic} 기준으로 보면 포함 항목이랑 별도 비용을 먼저 나눠서 확인하는 게 좋지 않을까요?`,
 };
@@ -423,6 +427,34 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
       `${topic} 용어부터 헷갈려서 뭘 먼저 물어봐야 할지도 잘 모르겠어요.\n\n처음 알아보는 입장에서 계약이나 견적 전에 꼭 확인해야 하는 기본 질문이 있다면 알려주세요.`,
     comment: (post) =>
       `${post.title} 보니까 저도 용어부터 다시 봐야겠다는 생각이 들어요. 처음 확인할 때 포함 항목이랑 추가 비용을 따로 물어보는 게 맞을까요?`,
+  },
+  comparison_seeker: {
+    title: (topic) => `${topic} 비교할 때 기본가 말고 최종액을 어떻게 보세요?`,
+    body: (topic) =>
+      `${topic} 견적을 비교할 때 기본가는 비슷해 보여도 마지막에 내는 금액은 달라질 수 있을 것 같아요.\n\n저는 이렇게 나눠보려고 해요.\n- 기본가에 포함된 항목\n- 거의 필수처럼 붙는 추가금\n- 선택 옵션이라 빼도 되는 항목\n\n혹시 실제로 비교표 만들 때 꼭 넣어야 하는 칸이 있을까요?`,
+    comment: (post) =>
+      `${post.title}에서 말한 부분은 기본가보다 최종액 기준으로 다시 봐야 할 것 같아요. 포함 항목, 필수 추가금, 선택 옵션을 따로 적으면 비교가 조금 쉬워지지 않을까요?`,
+  },
+  guest_logistics: {
+    title: () => "지방 하객이 많을 때 예식 시간과 식사 동선은 어떻게 잡나요?",
+    body: () =>
+      `하객 이동 동선 때문에 예식 시간을 정하는 게 생각보다 어렵네요.\n\n특히 지방에서 오시는 분들이 많으면 확인해야 할 게 많아 보여요.\n- 터미널/역에서 웨딩홀까지 이동 시간\n- 식사 시간이 너무 애매하지 않은지\n- 셔틀이나 주차 안내를 어디까지 준비할지\n\n비슷한 상황이면 예식 시간을 먼저 잡고 동선을 맞추는 게 나을까요, 아니면 하객 이동 기준으로 시간을 고르는 게 나을까요?`,
+    comment: (post) =>
+      `${post.title}처럼 하객 동선이 걸리면 예식 시간만 볼 게 아니라 식사, 주차, 이동 안내를 같이 묶어봐야 할 것 같아요. 지방 하객 기준으로 제일 먼저 확인한 게 있으셨나요?`,
+  },
+  regional_planner: {
+    title: (topic) => `${topic} 지역별 견적 차이는 어디까지 봐야 할까요?`,
+    body: (topic) =>
+      `${topic}을 알아보다 보니 같은 항목이어도 지역이나 이동 거리 때문에 조건이 달라질 수 있겠더라고요.\n\n비교할 때는 금액만 보기보다 지역 이동, 포함 항목, 일정 여유를 같이 봐야 할 것 같아요. 혹시 서울/수도권이랑 지방 견적을 같이 비교해보신 분들은 어떤 기준으로 정리하셨나요?`,
+    comment: (post) =>
+      `${post.title} 내용이면 지역이나 이동 조건도 같이 보면 좋을 것 같아요. 같은 가격이어도 이동 시간이나 포함 항목이 다르면 체감 비용이 달라질 수 있지 않을까요?`,
+  },
+  saving_tips: {
+    title: (topic) => `${topic}에서 줄일 수 있는 항목과 줄이면 안 되는 항목은 뭐예요?`,
+    body: (topic) =>
+      `${topic} 예산을 줄이고 싶어도 어디를 줄여야 안전한지 잘 모르겠어요.\n\n제가 나눠보고 싶은 건 이렇게예요.\n- 줄여도 티가 덜 나는 선택 옵션\n- 나중에 후회할 수 있는 필수 항목\n- 계약 전에 총액으로 꼭 받아봐야 하는 항목\n\n실제로 준비하면서 “이건 아끼길 잘했다” 싶은 항목이 있었나요?`,
+    comment: (post) =>
+      `${post.title}에서 나온 항목들은 최종 총액으로 다시 묶어보면 좋을 것 같아요. 줄일 수 있는 선택 옵션이랑 나중에 후회할 필수 항목을 나눠보면 판단이 조금 쉬워지지 않을까요?`,
   },
   thread_summarizer: {
     category: "tips_v2",
@@ -1547,13 +1579,12 @@ export async function runCommunityAgentAutomation(
       fetchOpenCohortRooms(supabase),
     ]);
 
-    const random = seededRandom(hashString(`${day}:${new Date().getUTCHours()}:automation-run`));
+    const runSeed = dryRun ? `${day}:${runId}:dry-run` : `${day}:${new Date().getUTCHours()}:automation-run`;
+    const random = seededRandom(hashString(runSeed));
     const shuffledAgents = dryRun
-      ? [...agents].sort((left, right) => {
-          const postDelta = (right.behavior.actionWeights?.post ?? 0) - (left.behavior.actionWeights?.post ?? 0);
-          if (postDelta !== 0) return postDelta;
-          return hashString(`${day}:${left.slug}:dry-run-order`) - hashString(`${day}:${right.slug}:dry-run-order`);
-        })
+      ? [...agents].sort(
+          (left, right) => hashString(`${runId}:${left.slug}:dry-run-order`) - hashString(`${runId}:${right.slug}:dry-run-order`)
+        )
       : [...agents].sort(() => random() - 0.5);
 
     for (const agent of shuffledAgents) {
@@ -1808,6 +1839,21 @@ export async function runCommunityAgentAutomation(
         generated.modelUsed = selectedModel;
         generated.informationMode = informationMode;
         generated = enforceInformationPostPolicy(agent, action, informationMode, generated);
+
+        if (informationMode && hasRequiredSourcePolicy(agent)) {
+          const verifiedSourceUrls = normalizeAgentSourceUrls(generated.sourceUrls);
+          if (verifiedSourceUrls.length === 0) {
+            items.push({
+              agentSlug: agent.slug,
+              action,
+              status: "skipped",
+              reason: "missing_verified_source",
+              flags: ["source_required"],
+            });
+            continue;
+          }
+          generated.sourceUrls = verifiedSourceUrls;
+        }
 
         const { draft, safety } = await createDraft(supabase, {
           agent,

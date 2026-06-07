@@ -123,6 +123,15 @@ function isActionableDraft(draft: DraftRow): boolean {
   return draft.target_type === "reaction" || hasBodyContent(draft.content);
 }
 
+function isApprovalBlockedDraft(draft: DraftRow): boolean {
+  return (
+    draft.verification_status === "blocked" ||
+    draft.verification_status === "source_required" ||
+    (draft.safety_flags ?? []).some((flag) => flag.startsWith("blocked_")) ||
+    !isActionableDraft(draft)
+  );
+}
+
 async function fetchAgentByIdOrSlug(
   supabase: ReturnType<typeof getServiceClient>,
   input: { agentId?: string; slug?: string }
@@ -428,6 +437,26 @@ export async function POST(req: Request) {
 
   if (body.action === "approveDraft" || body.action === "rejectDraft") {
     if (!body.draftId) return NextResponse.json({ error: "draftId가 필요합니다." }, { status: 400 });
+
+    if (body.action === "approveDraft") {
+      const { data: draftRaw, error: draftError } = await supabase
+        .from("community_agent_content_drafts")
+        .select("*")
+        .eq("id", body.draftId)
+        .maybeSingle();
+
+      if (draftError || !draftRaw) {
+        return NextResponse.json({ error: "초안을 찾을 수 없습니다." }, { status: 404 });
+      }
+
+      const draft = draftRaw as DraftRow;
+      if (isApprovalBlockedDraft(draft)) {
+        return NextResponse.json(
+          { error: "출처 확인 또는 안전검사가 필요한 초안은 승인할 수 없습니다.", flags: draft.safety_flags },
+          { status: 400 }
+        );
+      }
+    }
 
     const nextStatus = body.action === "approveDraft" ? "approved" : "rejected";
     const { error } = await supabase
