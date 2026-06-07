@@ -69,6 +69,27 @@ interface AgentDraft {
   created_at: string;
 }
 
+interface AutomationRunItem {
+  agentSlug: string;
+  action: TargetType;
+  status: "posted" | "drafted" | "skipped" | "failed";
+  draftId?: string;
+  reason?: string;
+  flags?: string[];
+}
+
+interface AutomationRunState {
+  runId: string | null;
+  dryRun: boolean;
+  planned: number;
+  posted: number;
+  drafted: number;
+  skipped: number;
+  failed: number;
+  items: AutomationRunItem[];
+  completedAt: string;
+}
+
 interface AgentMetrics {
   periodDays: number;
   agent: { posts: number; comments: number; reactions: number };
@@ -114,6 +135,15 @@ const TARGET_LABEL: Record<TargetType, string> = {
   cohort_message: "동기방 메시지",
 };
 
+const DRAFT_STATUS_LABEL: Record<AgentDraft["status"], string> = {
+  draft: "초안",
+  needs_review: "검토 필요",
+  approved: "승인됨",
+  posted: "게시됨",
+  rejected: "반려",
+  archived: "보관",
+};
+
 function formatDate(value: string): string {
   if (!value) return "-";
   return new Date(value).toLocaleString("ko-KR", {
@@ -124,12 +154,25 @@ function formatDate(value: string): string {
   });
 }
 
+function plainText(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default function CommunityAgentsAdminPage() {
   const [authState, setAuthState] = useState<"loading" | "admin" | "denied">("loading");
   const [data, setData] = useState<AgentsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [lastAutomation, setLastAutomation] = useState<AutomationRunState | null>(null);
+  const [expandedDraftIds, setExpandedDraftIds] = useState<Set<string>>(() => new Set());
 
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [targetType, setTargetType] = useState<TargetType>("post");
@@ -144,13 +187,14 @@ export default function CommunityAgentsAdminPage() {
   const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
   const persistedAgents = useMemo(() => agents.filter((agent) => !agent.isDefaultPreview), [agents]);
   const activeCount = agents.filter((agent) => agent.status === "active").length;
+  const draftById = useMemo(() => new Map((data?.drafts ?? []).map((draft) => [draft.id, draft])), [data?.drafts]);
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? null,
     [agents, selectedAgentId]
   );
 
-  const loadAgents = useCallback(async () => {
+  const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/community-agents");
@@ -158,8 +202,10 @@ export default function CommunityAgentsAdminPage() {
       const next = (await res.json()) as AgentsResponse;
       setData(next);
       setSelectedAgentId((current) => current || next.agents[0]?.id || "");
+      return next;
     } catch {
       setMessage("에이전트 정보를 불러오지 못했습니다.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -225,19 +271,35 @@ export default function CommunityAgentsAdminPage() {
       const result = (await res.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
+        runId?: string | null;
+        dryRun?: boolean;
+        planned?: number;
         posted?: number;
         drafted?: number;
         skipped?: number;
         failed?: number;
+        items?: AutomationRunItem[];
       };
       if (!res.ok) {
         throw new Error(result.message ?? result.error ?? "Automation failed.");
       }
       await loadAgents();
+      setLastAutomation({
+        runId: result.runId ?? null,
+        dryRun,
+        planned: result.planned ?? 0,
+        posted: result.posted ?? 0,
+        drafted: result.drafted ?? 0,
+        skipped: result.skipped ?? 0,
+        failed: result.failed ?? 0,
+        items: result.items ?? [],
+        completedAt: new Date().toISOString(),
+      });
+      setExpandedDraftIds(new Set());
       setMessage(
         dryRun
-          ? `Dry run complete: drafted ${result.drafted ?? 0}, skipped ${result.skipped ?? 0}, failed ${result.failed ?? 0}`
-          : `Automation complete: posted ${result.posted ?? 0}, drafted ${result.drafted ?? 0}, skipped ${result.skipped ?? 0}`
+          ? `dry-run 완료: 초안 ${result.drafted ?? 0}개 생성, 건너뜀 ${result.skipped ?? 0}개, 실패 ${result.failed ?? 0}개`
+          : `자동 실행 완료: 게시 ${result.posted ?? 0}개, 초안 ${result.drafted ?? 0}개, 건너뜀 ${result.skipped ?? 0}개`
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Automation failed.");
@@ -352,6 +414,131 @@ export default function CommunityAgentsAdminPage() {
           <div className="mb-5 rounded-2xl border border-[#e5d8ca] bg-white px-4 py-3 text-sm font-semibold text-[#36534E]">
             {message}
           </div>
+        )}
+
+        {lastAutomation && (
+          <section className="mb-5 rounded-2xl border border-[#e5d8ca] bg-white/95 p-4 shadow-[0_12px_32px_rgba(50,36,17,0.05)]">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#36534E]">
+                  {lastAutomation.dryRun ? "Dry-run Preview" : "Automation Result"}
+                </p>
+                <h2 className="mt-1 font-serif-kr text-2xl font-medium text-[#263832]">
+                  {lastAutomation.dryRun ? "방금 생성된 dry-run 초안" : "방금 실행된 자동 활동"}
+                </h2>
+                <p className="mt-1 text-sm font-medium leading-6 text-[#635b51]">
+                  {formatDate(lastAutomation.completedAt)} · 계획 {lastAutomation.planned}개 · 초안 {lastAutomation.drafted}개 · 게시 {lastAutomation.posted}개 · 건너뜀 {lastAutomation.skipped}개 · 실패 {lastAutomation.failed}개
+                </p>
+              </div>
+              <button
+                onClick={() => setLastAutomation(null)}
+                className="h-9 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E]"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              {lastAutomation.items.length === 0 && (
+                <p className="rounded-xl bg-[#fbf8f2] p-4 text-sm font-medium text-[#928980]">
+                  이번 실행에서 생성되거나 처리된 항목이 없습니다.
+                </p>
+              )}
+              {lastAutomation.items.map((item, index) => {
+                const draft = item.draftId ? draftById.get(item.draftId) : null;
+                const agent = draft
+                  ? agents.find((agentItem) => agentItem.id === draft.agent_id)
+                  : agents.find((agentItem) => agentItem.slug === item.agentSlug);
+                const expanded = draft ? expandedDraftIds.has(draft.id) : false;
+                const blocked = draft?.verification_status === "blocked" || draft?.verification_status === "source_required";
+
+                return (
+                  <article key={item.draftId ?? `${item.agentSlug}-${index}`} className="rounded-xl border border-[#e5d8ca] bg-[#fffdf8] p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#928980]">
+                          {agent?.public_nickname ?? item.agentSlug} · {TARGET_LABEL[item.action]}
+                        </p>
+                        <h3 className="mt-1 text-base font-bold leading-6 text-[#263832]">
+                          {draft?.title || TARGET_LABEL[item.action]}
+                        </h3>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#36534E]">
+                        {draft ? DRAFT_STATUS_LABEL[draft.status] : item.status}
+                      </span>
+                    </div>
+
+                    {draft ? (
+                      <>
+                        {draft.content && (
+                          <p className={`${expanded ? "" : "line-clamp-5"} whitespace-pre-line text-sm leading-6 text-[#635b51]`}>
+                            {plainText(draft.content)}
+                          </p>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[#928980]">
+                          <span>{ORIGIN_LABEL[draft.content_origin]}</span>
+                          <span>·</span>
+                          <span>{formatDate(draft.created_at)}</span>
+                          {draft.source_urls.length > 0 && (
+                            <>
+                              <span>·</span>
+                              <span>출처 {draft.source_urls.length}개</span>
+                            </>
+                          )}
+                        </div>
+                        {(draft.safety_flags.length > 0 || item.flags?.length) && (
+                          <div className="mt-3 rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
+                            {[...new Set([...(draft.safety_flags ?? []), ...(item.flags ?? [])])].join(", ")}
+                          </div>
+                        )}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {draft.content && (
+                            <button
+                              onClick={() =>
+                                setExpandedDraftIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(draft.id)) next.delete(draft.id);
+                                  else next.add(draft.id);
+                                  return next;
+                                })
+                              }
+                              className="inline-flex h-8 items-center rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E]"
+                            >
+                              {expanded ? "접기" : "전체 보기"}
+                            </button>
+                          )}
+                          {draft.status !== "posted" && (
+                            <>
+                              <button
+                                onClick={() => runAction("approveDraft", { draftId: draft.id })}
+                                disabled={!!actionLoading}
+                                className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                승인
+                              </button>
+                              <button
+                                onClick={() => runAction("publishDraft", { draftId: draft.id })}
+                                disabled={blocked || !!actionLoading}
+                                className="inline-flex h-8 items-center gap-1 rounded-full bg-[#36534E] px-3 text-xs font-bold text-white disabled:opacity-45"
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                                게시
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="rounded-xl bg-white px-3 py-2 text-sm font-medium leading-6 text-[#928980]">
+                        {item.reason ? `처리 결과: ${item.reason}` : "초안 없이 처리된 항목입니다."}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {data?.setupRequired && (
