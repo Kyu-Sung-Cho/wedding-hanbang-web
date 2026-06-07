@@ -242,6 +242,7 @@ function isLowQualityComment(input: string | null | undefined): boolean {
   if (text.length < 18) return true;
   if (/^(like|empty_content|본문 없음|댓글|좋아요)$/i.test(text)) return true;
   if (text.length < 42 && /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅)/.test(text)) return true;
+  if (hasSuspiciousKoreanArtifact(text)) return true;
   return false;
 }
 
@@ -253,12 +254,14 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   if (titleLength < 8 || contentLength < 55) return true;
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
   if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
+  if (hasSuspiciousKoreanArtifact(text)) return true;
   if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
   return false;
 }
 
 const GENERIC_COMMENT_RE = /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅|맞아요|저도요)$/;
-const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세요|이 정도까지 확인해야 할까요|어디까지 확인해야 충분한 건지|꼭 나눠서 봐야 하는 항목|같이 정리해보고 싶어요)/;
+const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세요|이 정도까지 확인해야 할까요|어디까지 확인해야 충분한 건지|꼭 나눠서 봐야 하는 항목|같이 정리해보고 싶어요|계약 전에 확인할 항목을 같이 나눠볼까요)/;
+const SUSPICIOUS_KOREAN_ARTIFACT_RE = /(피연금|기본금|대관금|헬퍼금|원본금|수정본금|[\u3040-\u30ff])/;
 const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문서|환불|취소|기준|정리|나눠|물어보|체크|총액|일정)/;
 const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
 const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
@@ -295,6 +298,10 @@ function overlapCount(left: Set<string>, right: Set<string>): number {
     if (right.has(token)) count += 1;
   }
   return count;
+}
+
+function hasSuspiciousKoreanArtifact(input: string | null | undefined): boolean {
+  return SUSPICIOUS_KOREAN_ARTIFACT_RE.test(stripTags(input ?? ""));
 }
 
 function jaccardSimilarity(leftText: string | null | undefined, rightText: string | null | undefined): number {
@@ -344,6 +351,7 @@ function reviewGeneratedDraft(input: {
     if (action.targetType !== "comment") issues.push("not_a_comment");
     if (!input.targetPost) issues.push("missing_target_post");
     if (isLowQualityComment(action.content)) issues.push("low_quality_comment");
+    if (hasSuspiciousKoreanArtifact(action.content)) issues.push("suspicious_korean_artifact");
     if (!hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
       issues.push("no_question_or_checkpoint");
     }
@@ -362,6 +370,7 @@ function reviewGeneratedDraft(input: {
   } else if (input.requestedAction === "post") {
     if (action.targetType !== "post") issues.push("not_a_post");
     if (isLowQualityPost(action)) issues.push("low_quality_post");
+    if (hasSuspiciousKoreanArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("suspicious_korean_artifact");
     if (!hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
   }
 
@@ -383,9 +392,9 @@ const CATEGORY_LABELS: Record<CommunityCategory, string> = {
 const DEFAULT_BLUEPRINT: WritingBlueprint = {
   category: "free",
   origin: "question",
-  title: (topic) => `${topic} 계약 전에 확인할 항목을 같이 나눠볼까요?`,
+  title: (topic) => `${topic}, 처음 볼 때 뭘 먼저 확인하면 좋을까요?`,
   body: (topic) =>
-    `${topic} 상담이나 견적을 볼 때 기본가만 보면 놓치는 부분이 생길 것 같아요.\n\n제가 먼저 나눠보고 싶은 건 세 가지예요.\n- 기본가에 포함되는 항목과 별도 비용\n- 일정 변경이나 취소 조건\n- 오늘 계약해야 받을 수 있다는 혜택이 정말 필요한지\n\n혹시 계약 전에 꼭 물어본 질문이 있다면 같이 적어볼까요?`,
+    `${topic} 쪽을 찾아보다 보니 말은 쉬운데 실제로는 기준 잡기가 어렵네요.\n\n저는 지금 이렇게 나눠보려고 해요.\n- 꼭 필요한 항목인지\n- 나중에 별도 비용으로 붙는지\n- 일정이나 계약 조건에 영향을 주는지\n\n처음 확인할 때 놓치기 쉬운 부분이 있으면 알려주세요.`,
   comment: (post, topic) =>
     `${post.title}에서 말한 부분이 저도 헷갈릴 것 같아요. ${topic} 기준으로 보면 포함 항목이랑 별도 비용을 먼저 나눠서 확인하는 게 좋지 않을까요?`,
 };
@@ -455,6 +464,55 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
       `${topic} 예산을 줄이고 싶어도 어디를 줄여야 안전한지 잘 모르겠어요.\n\n제가 나눠보고 싶은 건 이렇게예요.\n- 줄여도 티가 덜 나는 선택 옵션\n- 나중에 후회할 수 있는 필수 항목\n- 계약 전에 총액으로 꼭 받아봐야 하는 항목\n\n실제로 준비하면서 “이건 아끼길 잘했다” 싶은 항목이 있었나요?`,
     comment: (post) =>
       `${post.title}에서 나온 항목들은 최종 총액으로 다시 묶어보면 좋을 것 같아요. 줄일 수 있는 선택 옵션이랑 나중에 후회할 필수 항목을 나눠보면 판단이 조금 쉬워지지 않을까요?`,
+  },
+  senior_helper: {
+    title: () => "처음 준비할 때 순서를 한 번에 다 정하려고 하지 않아도 될까요?",
+    body: () =>
+      `결혼 준비를 시작하면 예식장, 상견례, 스드메, 청첩장까지 한꺼번에 정해야 할 것처럼 느껴져요.\n\n그래도 실제로는 먼저 고정해야 하는 것과 나중에 조정해도 되는 걸 나누는 게 더 편할 것 같아요.\n- 날짜와 예식장처럼 기준이 되는 항목\n- 예산이 크게 흔들리는 항목\n- 양가 의견을 먼저 맞춰야 하는 항목\n\n처음 준비할 때 제일 먼저 정리하면 마음이 덜 복잡했던 게 있었나요?`,
+    comment: (post) =>
+      `${post.title}에서 나온 내용을 보면 순서를 한 번에 정하기보다 날짜, 예산, 양가 조율을 나눠보는 게 좋을 것 같아요. 지금 단계에서 제일 먼저 고정해야 할 항목은 뭐라고 보세요?`,
+  },
+  schedule_planner: {
+    title: () => "예식장 먼저 잡고 나머지 일정을 맞추는 게 편할까요?",
+    body: () =>
+      `준비 순서를 보다 보면 예식장 날짜가 기준이 된다는 말이 많더라고요.\n\n그런데 상견례, 드레스투어, 촬영, 청첩장까지 생각하면 어디까지 먼저 잡아야 할지 헷갈립니다.\n- 예식장 날짜\n- 상견례 일정\n- 촬영과 드레스투어\n- 청첩장 전달 시점\n\n이런 일정은 예식장 확정 후에 역산하는 게 제일 현실적일까요?`,
+    comment: (post) =>
+      `${post.title}처럼 순서가 헷갈릴 때는 예식장 날짜를 기준으로 역산해보는 게 편할 것 같아요. 다만 상견례처럼 양가 일정이 필요한 건 먼저 얘기해두는 게 낫지 않을까요?`,
+  },
+  home_and_loan: {
+    title: () => "신혼집 예산이랑 결혼 예산을 같이 잡을 때 어디부터 보세요?",
+    body: () =>
+      `결혼 준비 예산만 따로 보면 괜찮아 보여도 신혼집, 가전, 이사까지 같이 보면 갑자기 복잡해지는 것 같아요.\n\n저는 아직 어디부터 나눠야 할지 감이 잘 안 와서요.\n- 결혼식 당일 비용\n- 신혼집 보증금이나 대출 계획\n- 가전/가구처럼 뒤에 붙는 비용\n\n이 세 가지를 한 예산표에 같이 보는 게 나을까요, 아니면 완전히 따로 잡는 게 더 편할까요?`,
+    comment: (post) =>
+      `${post.title}처럼 비용 항목이 많아지면 결혼식 예산이랑 신혼집 예산을 따로 나눠보는 게 좋을 것 같아요. 특히 나중에 붙는 가전, 이사 비용까지 같이 보면 총액 감이 더 현실적이지 않을까요?`,
+  },
+  parent_coordination: {
+    title: () => "부모님 의견이 다를 때 기준을 어떻게 맞추세요?",
+    body: () =>
+      `양가 의견을 맞추는 건 비용보다 말 꺼내는 방식이 더 어려운 것 같아요.\n\n특히 예단, 예물, 상견례 방식처럼 집마다 기준이 다른 건 어느 한쪽 말만 따르기도 조심스럽고요.\n\n이럴 때는 먼저 서로 절대 양보하기 어려운 부분을 적어보고, 조정 가능한 항목을 따로 나누는 게 나을까요?`,
+    comment: (post) =>
+      `${post.title}에서 말한 고민은 정답을 바로 고르기보다 양쪽 기준을 먼저 꺼내놓는 게 중요해 보여요. 부모님께 말할 때 비용보다 “어디까지 조율 가능한지”를 먼저 물어보면 어떨까요?`,
+  },
+  photo_video_focus: {
+    title: () => "스냅이나 DVD 계약 전에 원본이랑 보정 범위 어떻게 확인하세요?",
+    body: () =>
+      `촬영 쪽은 가격표만 보면 비교가 쉬울 줄 알았는데 원본, 보정, 납품 일정이 다 달라서 더 헷갈리네요.\n\n계약 전에 확인해야 할 걸 나눠보면 이런 항목일 것 같아요.\n- 원본 제공 여부와 비용\n- 기본 보정 컷 수\n- 추가 수정 가능 횟수\n- 납품 일정과 지연 시 안내\n\n혹시 스냅이나 DVD 볼 때 꼭 물어봐야 하는 질문이 있을까요?`,
+    comment: (post) =>
+      `${post.title}이면 원본 제공 여부랑 보정 범위를 먼저 나눠보면 좋을 것 같아요. 같은 가격처럼 보여도 기본 보정 컷 수나 추가 수정 비용이 다르면 최종 총액이 달라질 수 있지 않을까요?`,
+  },
+  etiquette_writer: {
+    title: () => "청첩장 문구랑 축의금 안내, 어디까지 적는 게 자연스러울까요?",
+    body: () =>
+      `청첩장이나 안내 문구는 너무 자세히 쓰면 부담스럽고, 너무 짧게 쓰면 하객이 헷갈릴 수 있을 것 같아요.\n\n특히 교통, 주차, 식사, 축의금 관련 안내를 어디까지 적어야 자연스러운지 고민됩니다.\n\n혹시 하객 입장에서 꼭 있었으면 좋겠던 안내 문구가 있었나요?`,
+    comment: (post) =>
+      `${post.title} 같은 상황이면 안내 문구를 너무 길게 쓰기보다 하객이 바로 필요한 정보만 나누는 게 좋을 것 같아요. 교통, 주차, 식사 안내 중 어디를 가장 먼저 적어야 할까요?`,
+  },
+  dress_focus: {
+    title: () => "드레스 업그레이드 비용, 어디까지 열어두고 보세요?",
+    body: () =>
+      `드레스는 기본 구성만 보고 결정하기가 어렵네요.\n\n막상 보면 피팅비, 본식 드레스 업그레이드, 베일이나 액세서리처럼 뒤에 붙는 항목이 있을 수 있어서요.\n- 기본 구성에 포함되는 드레스 범위\n- 업그레이드 선택 시 추가 비용\n- 피팅비와 헬퍼비 여부\n- 촬영용/본식용 구분\n\n드레스투어 전에 이 정도는 미리 물어봐도 괜찮을까요?`,
+    comment: (post) =>
+      `${post.title}에서 나온 비용을 보면 드레스는 기본 구성과 업그레이드 범위를 먼저 나눠봐야 할 것 같아요. 피팅비나 헬퍼비가 별도인지도 같이 확인하면 최종 총액이 더 분명해지지 않을까요?`,
   },
   thread_summarizer: {
     category: "tips_v2",
@@ -1241,6 +1299,8 @@ async function generateAction(input: {
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     "For comments, you must respond to the selected target post, not to the general topic.",
     "If you do not know, ask a careful question or give a checklist-style next step.",
+    "Use only familiar wedding terms such as 기본가, 최종 총액, 대관료, 식대, 헬퍼비, 원본비, 수정본. Do not coin awkward terms like 기본금 or 피연금.",
+    "Write natural Korean only. Do not mix in Japanese, Chinese, or untranslated foreign filler.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
     input.informationMode
       ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
