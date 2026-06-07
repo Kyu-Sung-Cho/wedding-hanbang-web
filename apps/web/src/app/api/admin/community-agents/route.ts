@@ -113,6 +113,16 @@ function hasBodyContent(input: string | null | undefined): boolean {
   return sanitizeText(input ?? "").length >= 2;
 }
 
+function isActionableDraft(draft: DraftRow): boolean {
+  if (draft.status === "posted" || draft.status === "rejected" || draft.status === "archived") {
+    return false;
+  }
+  if ((draft.safety_flags ?? []).includes("empty_content")) {
+    return false;
+  }
+  return draft.target_type === "reaction" || hasBodyContent(draft.content);
+}
+
 async function fetchAgentByIdOrSlug(
   supabase: ReturnType<typeof getServiceClient>,
   input: { agentId?: string; slug?: string }
@@ -201,11 +211,12 @@ async function loadMetrics(supabase: ReturnType<typeof getServiceClient>, agentU
       : Promise.resolve({ count: 0 }),
     supabase.from("community_human_posts").select("id", { count: "exact", head: true }).gte("created_at", sinceIso),
     supabase.from("community_human_comments").select("id", { count: "exact", head: true }).gte("created_at", sinceIso),
-    supabase.from("community_agent_content_drafts").select("status"),
+    supabase.from("community_agent_content_drafts").select("status,target_type,content,safety_flags"),
   ]);
 
   const draftsByStatus = new Map<string, number>();
   for (const row of draftCounts.data ?? []) {
+    if (!isActionableDraft(row as DraftRow)) continue;
     const status = (row as { status?: string }).status ?? "unknown";
     draftsByStatus.set(status, (draftsByStatus.get(status) ?? 0) + 1);
   }
@@ -258,7 +269,8 @@ export async function GET(req: Request) {
     .from("community_agent_content_drafts")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(80);
+  const drafts = ((draftsRaw ?? []) as DraftRow[]).filter(isActionableDraft).slice(0, 30);
 
   const agentUserIds = agents
     .map((agent) => agent.backing_user_id)
@@ -269,7 +281,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     setupRequired: agents.length === 0,
     agents: agents.length > 0 ? agents : defaultAgentPayload(),
-    drafts: (draftsRaw ?? []) as DraftRow[],
+    drafts,
     metrics,
   });
 }

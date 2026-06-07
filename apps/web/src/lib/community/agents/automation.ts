@@ -257,6 +257,23 @@ function chooseAction(agent: AgentRow, state: DailyState, random: () => number):
   return candidates[candidates.length - 1]?.action ?? null;
 }
 
+function chooseDryRunAction(
+  agent: AgentRow,
+  items: AutomationResultItem[],
+  posts: RecentPost[],
+  cohortRooms: Array<{ id: string; name: string; message_count: number }>
+): AutomationAction {
+  const successfulPosts = items.filter((item) => item.action === "post" && item.status === "drafted").length;
+  const attemptedPosts = items.filter((item) => item.action === "post").length;
+  const successfulComments = items.filter((item) => item.action === "comment" && item.status === "drafted").length;
+  const postWeight = agent.behavior.actionWeights?.post ?? 0;
+
+  if (successfulPosts < 2 && attemptedPosts < 4 && postWeight > 0.04) return "post";
+  if (posts.length > 0 && successfulComments < 2) return "comment";
+  if (cohortRooms.length > 0 && (agent.behavior.actionWeights?.summarize ?? 0) > 0.12) return "cohort_message";
+  return posts.length > 0 ? "reaction" : "post";
+}
+
 async function ensureDefaultAgents(supabase: SupabaseClient): Promise<void> {
   const rows = DEFAULT_COMMUNITY_AGENT_SEEDS.map((agent) => ({
     slug: agent.slug,
@@ -676,6 +693,31 @@ function parseGeneratedAction(text: string, fallbackAction: AutomationAction): G
   };
 }
 
+function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
+  const topics = agent.behavior.topics?.length ? agent.behavior.topics : ["결혼 준비"];
+  const topic = topics[Math.floor(random() * topics.length)] ?? "결혼 준비";
+  return {
+    targetType: "post",
+    contentOrigin: agent.public_mode === "official" ? "checklist" : "question",
+    category: agent.public_mode === "official" ? "tips_v2" : "free",
+    title: `${topic} 준비할 때 먼저 확인할 것 있을까요?`,
+    content: `${topic} 쪽을 알아보고 있는데 기준을 어떻게 잡아야 할지 아직 감이 잘 안 와요.\n\n실제 견적이나 계약 전에 어떤 항목을 먼저 확인하면 좋을까요?`,
+    sourceUrls: [],
+    confidence: 0.52,
+    reason: "Fallback safe post because the model returned an empty or non-post draft.",
+  };
+}
+
+function fallbackComment(agent: AgentRow): string {
+  const topic = agent.behavior.topics?.[0] ?? "결혼 준비";
+  return `저도 ${topic} 쪽은 기준 잡기가 어렵더라고요. 혹시 포함 항목이랑 별도 비용을 나눠서 비교해보셨나요?`;
+}
+
+function fallbackCohortMessage(agent: AgentRow): string {
+  const topic = agent.behavior.topics?.[0] ?? "준비 상황";
+  return `${topic} 쪽은 각자 기준이 다를 수 있어서, 포함 항목과 별도 비용을 먼저 나눠보면 좋을 것 같아요.`;
+}
+
 async function generateAction(input: {
   agent: AgentRow;
   action: AutomationAction;
@@ -876,13 +918,19 @@ export async function runCommunityAgentAutomation(
     ]);
 
     const random = seededRandom(hashString(`${day}:${new Date().getUTCHours()}:automation-run`));
-    const shuffledAgents = [...agents].sort(() => random() - 0.5);
+    const shuffledAgents = dryRun
+      ? [...agents].sort((left, right) => {
+          const postDelta = (right.behavior.actionWeights?.post ?? 0) - (left.behavior.actionWeights?.post ?? 0);
+          if (postDelta !== 0) return postDelta;
+          return hashString(`${day}:${left.slug}:dry-run-order`) - hashString(`${day}:${right.slug}:dry-run-order`);
+        })
+      : [...agents].sort(() => random() - 0.5);
 
     for (const agent of shuffledAgents) {
       if (items.length >= maxActions) break;
 
-      const state = await ensureDailyState(supabase, agent, day);
-      const action = chooseAction(agent, state, random);
+      const state = dryRun ? null : await ensureDailyState(supabase, agent, day);
+      const action = dryRun ? chooseDryRunAction(agent, items, posts, cohortRooms) : chooseAction(agent, state as DailyState, random);
       if (!action) {
         items.push({ agentSlug: agent.slug, action: "reaction", status: "skipped", reason: "daily_plan_complete" });
         continue;
@@ -919,6 +967,15 @@ export async function runCommunityAgentAutomation(
           generated = generation.action;
         }
 
+        if (action === "post" && generated.targetType !== "post") {
+          generated = {
+            ...generated,
+            targetType: "post",
+            targetPostId: undefined,
+            targetCommentId: undefined,
+            targetCohortRoomId: undefined,
+          };
+        }
         if (generated.targetType === "comment" && !posts.some((post) => post.id === generated.targetPostId)) {
           generated.targetPostId = posts[Math.floor(random() * posts.length)]?.id;
         }
@@ -934,12 +991,24 @@ export async function runCommunityAgentAutomation(
           continue;
         }
         if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
-          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "empty_generated_content" });
-          continue;
+          if (generated.targetType === "comment") {
+            generated.content = fallbackComment(agent);
+          } else if (generated.targetType === "cohort_message") {
+            generated.content = fallbackCohortMessage(agent);
+          } else {
+            generated = fallbackPost(agent, random);
+          }
         }
         if (generated.targetType === "post" && !hasBodyContent(generated.title)) {
-          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "empty_generated_title" });
-          continue;
+          const replacement = fallbackPost(agent, random);
+          generated = {
+            ...replacement,
+            content: hasBodyContent(generated.content) ? generated.content : replacement.content,
+            contentOrigin:
+              generated.contentOrigin !== "comment" && generated.contentOrigin !== "reaction"
+                ? generated.contentOrigin
+                : replacement.contentOrigin,
+          };
         }
 
         const { draft, safety } = await createDraft(supabase, {
@@ -964,7 +1033,7 @@ export async function runCommunityAgentAutomation(
         }
 
         const posted = await publishDraft(supabase, draft, agent, options.actorUserId);
-        await incrementDailyDone(supabase, state, action);
+        if (state) await incrementDailyDone(supabase, state, action);
         items.push({
           agentSlug: agent.slug,
           action,
