@@ -168,7 +168,7 @@ export interface CommunityAgentAutomationResult {
 }
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
-const DEFAULT_INFORMATION_MODEL = "claude-sonnet-4-5-20250929";
+const DEFAULT_INFORMATION_MODEL = "claude-sonnet-4-6";
 const VALID_CATEGORIES: CommunityCategory[] = ["is_normal", "tour_review", "tips_v2", "ama", "free"];
 const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "first_response",
@@ -463,6 +463,35 @@ function topicScore(agent: AgentRow, post: RecentPost): number {
 
 function isInformationPostRequest(agent: AgentRow, action: AutomationAction): boolean {
   return action === "post" && (agent.public_mode === "official" || INFORMATION_AGENT_ROLES.has(agent.role));
+}
+
+function hasRequiredSourcePolicy(agent: AgentRow): boolean {
+  return agent.safety?.sourcePolicy === "required";
+}
+
+function enforceInformationPostPolicy(
+  agent: AgentRow,
+  requestedAction: AutomationAction,
+  informationMode: boolean,
+  action: GeneratedAction
+): GeneratedAction {
+  if (!informationMode || requestedAction !== "post" || action.targetType !== "post") return action;
+
+  const requiresSources = hasRequiredSourcePolicy(agent);
+  const policyReason = requiresSources ? "source_required_information_policy" : "information_post_policy";
+  const currentReason = action.reason ?? "";
+
+  return {
+    ...action,
+    contentOrigin: requiresSources
+      ? "news"
+      : action.contentOrigin === "question"
+        ? "checklist"
+        : action.contentOrigin,
+    category: requiresSources && (!action.category || action.category === "free") ? "tips_v2" : action.category,
+    sourceUrls: action.sourceUrls ?? [],
+    reason: currentReason.includes(policyReason) ? currentReason : [currentReason, policyReason].filter(Boolean).join(" | "),
+  };
 }
 
 function boundedCategory(category: unknown): CommunityCategory {
@@ -1045,6 +1074,29 @@ function parseGeneratedAction(text: string, fallbackAction: AutomationAction): G
 }
 
 function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
+  if (hasRequiredSourcePolicy(agent)) {
+    const topic = pickTopic(agent, random);
+    return {
+      targetType: "post",
+      contentOrigin: "news",
+      category: "tips_v2",
+      title: `${topic} 이슈는 출처 확인 후 정리할게요`,
+      content: [
+        `${topic} 관련 내용은 뉴스·통계·정책처럼 단정될 수 있어서, 확인된 출처 없이 바로 정리하지 않겠습니다.`,
+        "",
+        "관리자가 먼저 확인할 부분",
+        "- 원문 기사나 공식 기관 자료 링크",
+        "- 적용 시점과 지역",
+        "- 예비부부가 계약 전에 확인할 체크포인트",
+        "",
+        "출처가 확인되면 핵심만 짧게 다시 정리해 올릴게요.",
+      ].join("\n"),
+      sourceUrls: [],
+      confidence: 0.52,
+      reason: "Source-required information fallback pending admin source review.",
+    };
+  }
+
   const topic = pickTopic(agent, random);
   const blueprint = blueprintFor(agent);
   return {
@@ -1159,7 +1211,7 @@ async function generateAction(input: {
     "If you do not know, ask a careful question or give a checklist-style next step.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
     input.informationMode
-      ? "This is an informational post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim."
+      ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
       : "",
     "Return valid JSON only. No markdown outside JSON.",
   ].filter(Boolean).join(" ");
@@ -1186,6 +1238,7 @@ async function generateAction(input: {
       role: input.agent.role,
       profile: input.agent.profile,
       behavior: input.agent.behavior,
+      safety: input.agent.safety,
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
     personaDirective: personaDirective(input.agent, input.action),
@@ -1220,7 +1273,7 @@ async function generateAction(input: {
         "No fake first-person vendor experience.",
         "No unsupported price averages or vendor ranking.",
         input.informationMode
-          ? "For information posts, use Sonnet-level caution: if source-backed facts are unavailable, explicitly write that exact figures/news could not be verified and keep the post as a cautious checklist or question."
+          ? "For information posts, use Sonnet-level caution: if source-backed facts are unavailable, explicitly write that exact figures/news could not be verified. For sourcePolicy=required, contentOrigin must be news and sourceUrls must be real HTTPS URLs or an empty array for admin review."
           : "Question posts can stay personal and cautious without factual claims.",
       ],
     },
@@ -1305,7 +1358,7 @@ async function reviseGeneratedAction(input: {
     "Fix only the quality issues. Keep the persona voice and stay grounded in the selected post and existing comments.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     input.informationMode
-      ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it."
+      ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it. If the persona sourcePolicy is required, keep contentOrigin as news and never invent sources."
       : "",
     "Return valid JSON only.",
   ].filter(Boolean).join(" ");
@@ -1320,6 +1373,7 @@ async function reviseGeneratedAction(input: {
       publicNickname: input.agent.public_nickname,
       role: input.agent.role,
       profile: input.agent.profile,
+      safety: input.agent.safety,
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
     commentIntent: input.commentIntent,
@@ -1338,13 +1392,17 @@ async function reviseGeneratedAction(input: {
     })),
     outputSchema: {
       targetType: input.requestedAction === "post" ? "post" : input.requestedAction === "comment" ? "comment" : input.draft.targetType,
-      contentOrigin: input.requestedAction === "comment" ? "comment" : "question | checklist | summary",
+      contentOrigin: input.requestedAction === "comment"
+        ? "comment"
+        : input.informationMode && hasRequiredSourcePolicy(input.agent)
+          ? "news"
+          : "question | checklist | summary | news",
       category: "free | tips_v2 | tour_review | is_normal | ama",
       targetPostId: input.targetPost ? input.targetPost.id : undefined,
       title: input.requestedAction === "post" ? "required" : undefined,
       content: "improved Korean text",
       commentIntent: input.commentIntent,
-      sourceUrls: [],
+      sourceUrls: input.informationMode ? "real HTTPS URLs only, or [] when verification is still needed" : [],
       confidence: "0 to 1",
       reason: "what was improved",
     },
@@ -1631,6 +1689,8 @@ export async function runCommunityAgentAutomation(
           };
         }
 
+        generated = enforceInformationPostPolicy(agent, action, informationMode, generated);
+
         if (generated.targetType === "comment" || generated.targetType === "post") {
           generated.modelUsed = selectedModel;
           generated.informationMode = informationMode;
@@ -1747,6 +1807,7 @@ export async function runCommunityAgentAutomation(
         }
         generated.modelUsed = selectedModel;
         generated.informationMode = informationMode;
+        generated = enforceInformationPostPolicy(agent, action, informationMode, generated);
 
         const { draft, safety } = await createDraft(supabase, {
           agent,

@@ -87,12 +87,12 @@ export function validateAgentContent(input: {
   let status: AgentVerificationStatus = "source_not_required";
   if (blocked) {
     status = "blocked";
-  } else if (input.origin === "question" || looksLikeQuestion) {
-    status = "question_only";
   } else if (requiresSource && normalizedSourceUrls.length > 0) {
     status = "source_verified";
   } else if (requiresSource) {
     status = "source_required";
+  } else if (input.origin === "question" || looksLikeQuestion) {
+    status = "question_only";
   }
 
   return {
