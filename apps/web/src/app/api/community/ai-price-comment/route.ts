@@ -3,6 +3,7 @@ import type { PriceData } from "@/types/community.types";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +24,12 @@ export async function POST(req: NextRequest) {
     } catch {
       // Anonymous/sessionless requests can still receive deterministic guidance.
     }
+
+    const limited = checkRateLimit(rateLimitKey("community:ai-price-comment", req, loggingUserId ?? undefined), {
+      maxRequests: loggingUserId ? 80 : 30,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
 
     const startedAt = startLatencyClock();
     const model = "deterministic-price-benchmark-v1";

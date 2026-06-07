@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { getPayment } from "@/lib/toss/client";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 const COMMISSION_RATE = 0.1;
 const TERMINAL_FAILED_TOSS_STATUSES = new Set(["CANCELED", "ABORTED", "EXPIRED"]);
@@ -10,6 +11,12 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const limited = checkRateLimit(rateLimitKey("payments:webhook", req), {
+      maxRequests: 300,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (limited) return limited;
+
     const transmissionId = req.headers.get("tosspayments-webhook-transmission-id");
     const body = await req.json();
     const { eventType, data } = body;

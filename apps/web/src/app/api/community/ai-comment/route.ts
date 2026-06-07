@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -45,6 +47,17 @@ const SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 '아모라'입니다.
 
 export async function POST(req: NextRequest) {
   try {
+    const { authorized, userId } = await verifyAdmin(req);
+    if (!authorized) {
+      return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
+    }
+
+    const limited = checkRateLimit(rateLimitKey("community:ai-comment", req, userId), {
+      maxRequests: 30,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
+
     const { postId } = (await req.json()) as { postId: string };
 
     if (!postId) {

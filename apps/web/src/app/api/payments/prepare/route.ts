@@ -33,6 +33,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "계약을 찾을 수 없습니다." }, { status: 404 });
     }
 
+    if (contract.customer_id !== user.id) {
+      return NextResponse.json({ error: "계약 당사자만 결제를 준비할 수 있습니다." }, { status: 403 });
+    }
+
     if (contract.status !== "signed") {
       return NextResponse.json({ error: "서명된 계약만 결제할 수 있습니다." }, { status: 400 });
     }
