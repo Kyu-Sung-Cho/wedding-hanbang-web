@@ -13,6 +13,14 @@ import type { CommunityCategory, PostVisibility } from "@/types/community.types"
 
 export type AgentTargetType = "post" | "comment" | "reaction" | "cohort_message";
 type AutomationAction = "post" | "comment" | "reaction" | "cohort_message";
+type CommentIntent =
+  | "first_response"
+  | "empathy"
+  | "clarifying_question"
+  | "budget_compare"
+  | "contract_check"
+  | "checklist"
+  | "summary_bridge";
 
 interface AgentRow {
   id: string;
@@ -69,12 +77,28 @@ interface RecentPost {
   author_id: string;
 }
 
+interface RecentComment {
+  id: string;
+  post_id: string;
+  parent_id: string | null;
+  author_id: string;
+  content: string;
+  upvote_count: number;
+  created_at: string;
+}
+
 interface WritingBlueprint {
   category: CommunityCategory;
   origin: AgentContentOrigin;
   title: (topic: string) => string;
   body: (topic: string) => string;
   comment: (post: RecentPost, topic: string) => string;
+}
+
+interface DraftQualityReview {
+  ok: boolean;
+  score: number;
+  issues: string[];
 }
 
 interface DailyState {
@@ -103,6 +127,8 @@ interface GeneratedAction {
   targetCohortRoomId?: string;
   confidence?: number;
   reason?: string;
+  commentIntent?: CommentIntent;
+  qualityReview?: DraftQualityReview;
 }
 
 export interface CommunityAgentAutomationOptions {
@@ -141,6 +167,15 @@ export interface CommunityAgentAutomationResult {
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const VALID_CATEGORIES: CommunityCategory[] = ["is_normal", "tour_review", "tips_v2", "ama", "free"];
+const VALID_COMMENT_INTENTS: CommentIntent[] = [
+  "first_response",
+  "empathy",
+  "clarifying_question",
+  "budget_compare",
+  "contract_check",
+  "checklist",
+  "summary_bridge",
+];
 const POSTGRES_INT_MAX = 2_147_483_647;
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -213,6 +248,120 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
   if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
   return false;
+}
+
+const GENERIC_COMMENT_RE = /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅|맞아요|저도요)$/;
+const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문서|환불|취소|기준|정리|나눠|물어보|체크|총액|일정)/;
+const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
+const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
+const EMOTION_TOPIC_RE = /(부모님|양가|서운|싸움|갈등|마음|스트레스|불안|고민|친구|혼주)/;
+const TOKEN_STOPWORDS = new Set([
+  "그리고",
+  "그런데",
+  "저도",
+  "혹시",
+  "보면",
+  "같아요",
+  "것",
+  "수",
+  "때",
+  "좀",
+  "진짜",
+  "어떻게",
+  "결혼",
+  "준비",
+]);
+
+function normalizedTokens(input: string | null | undefined): Set<string> {
+  const tokens = stripTags(input ?? "")
+    .toLowerCase()
+    .split(/[^0-9a-zA-Z가-힣]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !TOKEN_STOPWORDS.has(token));
+  return new Set(tokens);
+}
+
+function overlapCount(left: Set<string>, right: Set<string>): number {
+  let count = 0;
+  for (const token of left) {
+    if (right.has(token)) count += 1;
+  }
+  return count;
+}
+
+function jaccardSimilarity(leftText: string | null | undefined, rightText: string | null | undefined): number {
+  const left = normalizedTokens(leftText);
+  const right = normalizedTokens(rightText);
+  if (left.size === 0 || right.size === 0) return 0;
+  const intersection = overlapCount(left, right);
+  const union = new Set([...left, ...right]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function chooseCommentIntent(agent: AgentRow, post: RecentPost, comments: RecentComment[]): CommentIntent {
+  const text = `${post.title}\n${stripTags(post.content)}\n${(post.tags ?? []).join(" ")}`;
+  if (agent.role === "budget_realist" || BUDGET_TOPIC_RE.test(text)) return "budget_compare";
+  if (agent.role === "contract_checker" || agent.role === "official_checker" || CONTRACT_TOPIC_RE.test(text)) return "contract_check";
+  if (agent.role === "emotion_support" || EMOTION_TOPIC_RE.test(text)) return "empathy";
+  if (comments.length === 0) return "first_response";
+  if (agent.role === "thread_summarizer" || comments.length >= 4) return "summary_bridge";
+  if (agent.role === "beginner_questioner" || agent.role === "cautious_questioner") return "clarifying_question";
+  return "checklist";
+}
+
+function intentInstruction(intent: CommentIntent): string {
+  const instructions: Record<CommentIntent, string> = {
+    first_response: "첫 댓글처럼 글쓴이의 상황을 받아주고, 바로 답을 확정하지 말고 확인 질문 하나를 남긴다.",
+    empathy: "감정 부담을 먼저 인정하고, 상대와 조율할 때 덜 부딪히는 말 꺼내기 질문을 덧붙인다.",
+    clarifying_question: "글쓴이가 빠뜨렸을 수 있는 확인 질문 하나를 조심스럽게 묻는다.",
+    budget_compare: "기본가보다 최종 총액, 포함 항목, 필수 추가금 관점으로 비교 포인트를 준다.",
+    contract_check: "문서에 적힌 포함 항목, 별도 비용, 변경/취소 조건을 확인하도록 좁힌다.",
+    checklist: "짧은 체크포인트 1-2개를 제안하고, 단정 대신 확인 순서를 묻는다.",
+    summary_bridge: "이미 나온 댓글과 겹치지 않게 흐름을 한 문장으로 묶고 다음 확인 지점을 제안한다.",
+  };
+  return instructions[intent];
+}
+
+function reviewGeneratedDraft(input: {
+  action: GeneratedAction;
+  requestedAction: AutomationAction;
+  targetPost: RecentPost | null;
+  targetComments: RecentComment[];
+  commentIntent: CommentIntent | null;
+}): DraftQualityReview {
+  const issues: string[] = [];
+  const action = input.action;
+
+  if (input.requestedAction === "comment") {
+    if (action.targetType !== "comment") issues.push("not_a_comment");
+    if (!input.targetPost) issues.push("missing_target_post");
+    if (isLowQualityComment(action.content)) issues.push("low_quality_comment");
+    if (!hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
+      issues.push("no_question_or_checkpoint");
+    }
+    if (GENERIC_COMMENT_RE.test(stripTags(action.content))) issues.push("generic_filler");
+
+    if (input.targetPost) {
+      const postTokens = normalizedTokens(`${input.targetPost.title} ${input.targetPost.content} ${(input.targetPost.tags ?? []).join(" ")}`);
+      const commentTokens = normalizedTokens(action.content);
+      if (overlapCount(postTokens, commentTokens) === 0 && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
+        issues.push("not_grounded_in_post");
+      }
+    }
+
+    const duplicate = input.targetComments.some((comment) => jaccardSimilarity(comment.content, action.content) >= 0.5);
+    if (duplicate) issues.push("duplicates_existing_comment");
+  } else if (input.requestedAction === "post") {
+    if (action.targetType !== "post") issues.push("not_a_post");
+    if (isLowQualityPost(action)) issues.push("low_quality_post");
+    if (!hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
+  }
+
+  if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) issues.push("placeholder_content");
+
+  const uniqueIssues = [...new Set(issues)];
+  const score = Math.max(0, 1 - uniqueIssues.length * 0.18);
+  return { ok: uniqueIssues.length === 0, score, issues: uniqueIssues };
 }
 
 const CATEGORY_LABELS: Record<CommunityCategory, string> = {
@@ -566,6 +715,8 @@ async function createDraft(supabase: SupabaseClient, input: {
       decision: {
         confidence: raw.confidence ?? null,
         reason: raw.reason ?? null,
+        comment_intent: raw.commentIntent ?? null,
+        quality_review: raw.qualityReview ?? null,
       },
     })
     .select("*")
@@ -757,6 +908,23 @@ async function fetchCommunityPosts(supabase: SupabaseClient, agentUserIds: strin
   return humanPosts.length > 0 ? humanPosts : rows;
 }
 
+async function fetchPostComments(supabase: SupabaseClient, postId: string): Promise<RecentComment[]> {
+  const { data, error } = await supabase
+    .from("community_comments")
+    .select("id,post_id,parent_id,author_id,content,upvote_count,created_at")
+    .eq("post_id", postId)
+    .eq("is_deleted", false)
+    .order("created_at", { ascending: true })
+    .limit(24);
+
+  if (error) {
+    if (isMissingTableError(error)) throw new Error("community_agent_migration_missing");
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as RecentComment[]).filter((comment) => hasBodyContent(comment.content));
+}
+
 async function fetchOpenCohortRooms(supabase: SupabaseClient): Promise<Array<{ id: string; name: string; message_count: number }>> {
   const { data } = await supabase
     .from("cohort_rooms")
@@ -860,6 +1028,9 @@ function parseGeneratedAction(text: string, fallbackAction: AutomationAction): G
     targetCohortRoomId: typeof parsed.targetCohortRoomId === "string" ? parsed.targetCohortRoomId : undefined,
     confidence: typeof parsed.confidence === "number" ? parsed.confidence : undefined,
     reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+    commentIntent: VALID_COMMENT_INTENTS.includes(parsed.commentIntent as CommentIntent)
+      ? (parsed.commentIntent as CommentIntent)
+      : undefined,
   };
 }
 
@@ -878,10 +1049,26 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
   };
 }
 
-function fallbackComment(agent: AgentRow, targetPost: RecentPost | null, random: () => number): string {
+function fallbackComment(agent: AgentRow, targetPost: RecentPost | null, random: () => number, intent?: CommentIntent | null): string {
   const topic = pickTopic(agent, random);
   if (!targetPost) {
     return blueprintFor(agent).comment({ id: "", title: topic, content: "", category: "free", tags: [], comment_count: 0, upvote_count: 0, created_at: "", author_id: "" }, topic);
+  }
+  const title = targetPost.title;
+  if (intent === "budget_compare") {
+    return `${title}이면 기본가보다 마지막에 실제로 내는 총액을 먼저 나눠보면 좋을 것 같아요. 포함 항목, 필수 추가금, 선택 옵션을 따로 적어두면 비교가 조금 더 쉬워지지 않을까요?`;
+  }
+  if (intent === "contract_check") {
+    return `${title} 내용이면 말로 들은 안내보다 문서에 적힌 조건을 다시 보는 게 안전해 보여요. 포함 항목, 별도 비용, 변경/취소 조건이 각각 적혀 있는지 먼저 확인해보면 어떨까요?`;
+  }
+  if (intent === "empathy") {
+    return `${title}은 정답을 바로 고르기보다 서로 부담을 덜 느끼게 말 꺼내는 게 먼저일 것 같아요. 기준을 같이 정해보자고 시작하면 조금 덜 부딪히지 않을까요?`;
+  }
+  if (intent === "summary_bridge") {
+    return `${title}에서 나온 이야기는 조건을 한 번에 보지 말고 나눠서 확인하는 쪽으로 정리할 수 있을 것 같아요. 비용, 포함 항목, 결정 시점을 따로 적어보면 다음 선택이 조금 선명해질 것 같습니다.`;
+  }
+  if (intent === "first_response" || intent === "clarifying_question") {
+    return `${title} 보니까 저도 먼저 기준을 나눠서 봐야겠다는 생각이 들어요. 지금 받은 안내에서 포함 항목이랑 별도 비용이 따로 적혀 있었는지 확인해보셨나요?`;
   }
   return blueprintFor(agent).comment(targetPost, topic);
 }
@@ -923,6 +1110,8 @@ async function generateAction(input: {
   posts: RecentPost[];
   cohortRooms: Array<{ id: string; name: string; message_count: number }>;
   targetPost?: RecentPost | null;
+  targetComments?: RecentComment[];
+  commentIntent?: CommentIntent | null;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -942,6 +1131,13 @@ async function generateAction(input: {
     comments: post.comment_count,
     likes: post.upvote_count,
     body: stripTags(post.content).slice(0, 520),
+  }));
+  const commentContext = (input.targetComments ?? []).slice(-12).map((comment) => ({
+    id: comment.id,
+    parentId: comment.parent_id,
+    authorKind: comment.author_id === input.agent.backing_user_id ? "same_agent" : "community_member",
+    likes: comment.upvote_count,
+    body: stripTags(comment.content).slice(0, 280),
   }));
 
   const system = [
@@ -964,6 +1160,7 @@ async function generateAction(input: {
       targetCohortRoomId: "required for cohort_message",
       title: "required for post",
       content: "plain Korean text or simple paragraphs",
+      commentIntent: "required for comment",
       sourceUrls: "required for news/statistics, otherwise []",
       confidence: "0 to 1",
       reason: "short internal reason",
@@ -977,6 +1174,8 @@ async function generateAction(input: {
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
     personaDirective: personaDirective(input.agent, input.action),
+    commentIntent: input.commentIntent,
+    commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
     selectedTargetPost: input.targetPost
       ? {
           id: input.targetPost.id,
@@ -987,6 +1186,7 @@ async function generateAction(input: {
           likes: input.targetPost.upvote_count,
         }
       : null,
+    existingCommentsOnSelectedPost: commentContext,
     communityPosts: postContext,
     cohortRooms: input.cohortRooms,
     qualityBar: {
@@ -996,6 +1196,7 @@ async function generateAction(input: {
         "Add one useful question, comparison point, or checklist item.",
         "Do not say '좋은 글 감사합니다' or generic filler.",
         "Do not pretend you visited, contracted, paid, or received a quote.",
+        "Do not repeat an existing comment. Add a new angle based on the selected commentIntent.",
       ],
       post: [
         "Title should be natural and specific, 18-45 Korean chars.",
@@ -1050,12 +1251,120 @@ async function generateAction(input: {
       agent_slug: input.agent.slug,
       desired_action: input.action,
       selected_target_post_id: input.targetPost?.id ?? null,
+      selected_comment_intent: input.commentIntent ?? null,
+      context_comment_count: commentContext.length,
       context_post_ids: postContext.map((post) => post.id),
     },
   });
 
   return {
     action: parseGeneratedAction(rawText, input.action),
+    tokensInput: message.usage?.input_tokens ?? 0,
+    tokensOutput: message.usage?.output_tokens ?? 0,
+    rawText,
+    latencyMs,
+  };
+}
+
+async function reviseGeneratedAction(input: {
+  agent: AgentRow;
+  requestedAction: AutomationAction;
+  draft: GeneratedAction;
+  review: DraftQualityReview;
+  targetPost: RecentPost | null;
+  targetComments: RecentComment[];
+  commentIntent: CommentIntent | null;
+  model: string;
+}): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY_missing");
+  }
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const system = [
+    "You are revising one Korean wedding community persona draft.",
+    "Fix only the quality issues. Keep the persona voice and stay grounded in the selected post and existing comments.",
+    "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
+    "Return valid JSON only.",
+  ].join(" ");
+
+  const user = JSON.stringify({
+    requestedAction: input.requestedAction,
+    reviewIssues: input.review.issues,
+    reviewScore: input.review.score,
+    originalDraft: input.draft,
+    persona: {
+      publicNickname: input.agent.public_nickname,
+      role: input.agent.role,
+      profile: input.agent.profile,
+      sampleLines: input.agent.sample_lines?.slice(0, 2),
+    },
+    commentIntent: input.commentIntent,
+    commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
+    selectedTargetPost: input.targetPost
+      ? {
+          id: input.targetPost.id,
+          title: input.targetPost.title,
+          body: stripTags(input.targetPost.content).slice(0, 900),
+          tags: input.targetPost.tags ?? [],
+        }
+      : null,
+    existingCommentsOnSelectedPost: input.targetComments.slice(-12).map((comment) => ({
+      id: comment.id,
+      body: stripTags(comment.content).slice(0, 260),
+    })),
+    outputSchema: {
+      targetType: input.requestedAction === "post" ? "post" : input.requestedAction === "comment" ? "comment" : input.draft.targetType,
+      contentOrigin: input.requestedAction === "comment" ? "comment" : "question | checklist | summary",
+      category: "free | tips_v2 | tour_review | is_normal | ama",
+      targetPostId: input.targetPost ? input.targetPost.id : undefined,
+      title: input.requestedAction === "post" ? "required" : undefined,
+      content: "improved Korean text",
+      commentIntent: input.commentIntent,
+      sourceUrls: [],
+      confidence: "0 to 1",
+      reason: "what was improved",
+    },
+  });
+
+  const startedAt = startLatencyClock();
+  const message = await anthropic.messages.create({
+    model: input.model,
+    max_tokens: 480,
+    temperature: 0.58,
+    system,
+    messages: [{ role: "user", content: user }],
+  });
+
+  const firstBlock = message.content[0];
+  const rawText = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+  const latencyMs = elapsedMs(startedAt);
+
+  void logAIInteraction({
+    userId: input.agent.backing_user_id ?? null,
+    interactionType: "community_agent_auto",
+    specialistType: "general",
+    userInput: null,
+    aiOutput: rawText,
+    latencyMs,
+    success: rawText.length > 0,
+    model: input.model,
+    tokensInput: message.usage?.input_tokens,
+    tokensOutput: message.usage?.output_tokens,
+    metadata: {
+      endpoint: "community-agent-automation",
+      stage: "revision",
+      agent_id: input.agent.id,
+      agent_slug: input.agent.slug,
+      desired_action: input.requestedAction,
+      selected_target_post_id: input.targetPost?.id ?? null,
+      selected_comment_intent: input.commentIntent ?? null,
+      review_issues: input.review.issues,
+    },
+  });
+
+  return {
+    action: parseGeneratedAction(rawText, input.requestedAction),
     tokensInput: message.usage?.input_tokens ?? 0,
     tokensOutput: message.usage?.output_tokens ?? 0,
     rawText,
@@ -1179,6 +1488,8 @@ export async function runCommunityAgentAutomation(
         const backingUserId = await ensureAgentIdentity(supabase, agent);
         let generated: GeneratedAction;
         let selectedTargetPost: RecentPost | null = null;
+        let targetComments: RecentComment[] = [];
+        let commentIntent: CommentIntent | null = null;
 
         if (action === "reaction") {
           const targetPostId = await chooseReactionTarget(supabase, backingUserId, posts, random);
@@ -1207,9 +1518,20 @@ export async function runCommunityAgentAutomation(
               items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "no_comment_target" });
               continue;
             }
+            targetComments = await fetchPostComments(supabase, selectedTargetPost.id);
+            commentIntent = chooseCommentIntent(agent, selectedTargetPost, targetComments);
           }
 
-          const generation = await generateAction({ agent, action, posts, cohortRooms, targetPost: selectedTargetPost, model });
+          const generation = await generateAction({
+            agent,
+            action,
+            posts,
+            cohortRooms,
+            targetPost: selectedTargetPost,
+            targetComments,
+            commentIntent,
+            model,
+          });
           tokensInput += generation.tokensInput;
           tokensOutput += generation.tokensOutput;
           generated = generation.action;
@@ -1241,6 +1563,7 @@ export async function runCommunityAgentAutomation(
             targetPostId: selectedTargetPost.id,
             targetCommentId: undefined,
             targetCohortRoomId: undefined,
+            commentIntent: commentIntent ?? generated.commentIntent,
           };
         }
         if (generated.targetType === "cohort_message" && !cohortRooms.some((room) => room.id === generated.targetCohortRoomId)) {
@@ -1256,7 +1579,7 @@ export async function runCommunityAgentAutomation(
         }
         if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
           if (generated.targetType === "comment") {
-            generated.content = fallbackComment(agent, selectedTargetPost, random);
+            generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
           } else if (generated.targetType === "cohort_message") {
             generated.content = fallbackCohortMessage(agent);
           } else {
@@ -1264,7 +1587,7 @@ export async function runCommunityAgentAutomation(
           }
         }
         if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
-          generated.content = fallbackComment(agent, selectedTargetPost, random);
+          generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
         }
         if (generated.targetType === "post" && isLowQualityPost(generated)) {
           generated = fallbackPost(agent, random);
@@ -1279,6 +1602,118 @@ export async function runCommunityAgentAutomation(
                 ? generated.contentOrigin
                 : replacement.contentOrigin,
           };
+        }
+
+        if (generated.targetType === "comment" || generated.targetType === "post") {
+          let qualityReview = reviewGeneratedDraft({
+            action: generated,
+            requestedAction: action,
+            targetPost: selectedTargetPost,
+            targetComments,
+            commentIntent,
+          });
+
+          if (!qualityReview.ok) {
+            try {
+              const revision = await reviseGeneratedAction({
+                agent,
+                requestedAction: action,
+                draft: generated,
+                review: qualityReview,
+                targetPost: selectedTargetPost,
+                targetComments,
+                commentIntent,
+                model,
+              });
+              tokensInput += revision.tokensInput;
+              tokensOutput += revision.tokensOutput;
+
+              if (action === "comment" && selectedTargetPost) {
+                generated = {
+                  ...generated,
+                  ...revision.action,
+                  targetType: "comment",
+                  contentOrigin: "comment",
+                  category: undefined,
+                  title: undefined,
+                  targetPostId: selectedTargetPost.id,
+                  targetCommentId: undefined,
+                  targetCohortRoomId: undefined,
+                  commentIntent: commentIntent ?? revision.action.commentIntent ?? generated.commentIntent,
+                };
+              } else if (action === "post") {
+                generated = {
+                  ...generated,
+                  ...revision.action,
+                  targetType: "post",
+                  targetPostId: undefined,
+                  targetCommentId: undefined,
+                  targetCohortRoomId: undefined,
+                };
+              }
+            } catch {
+              qualityReview = {
+                ok: false,
+                score: qualityReview.score,
+                issues: [...new Set([...qualityReview.issues, "revision_failed"])],
+              };
+            }
+
+            if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
+              if (generated.targetType === "comment") {
+                generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+              } else {
+                generated = fallbackPost(agent, random);
+              }
+            }
+            if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
+              generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+            }
+            if (generated.targetType === "post" && isLowQualityPost(generated)) {
+              generated = fallbackPost(agent, random);
+            }
+
+            qualityReview = reviewGeneratedDraft({
+              action: generated,
+              requestedAction: action,
+              targetPost: selectedTargetPost,
+              targetComments,
+              commentIntent,
+            });
+          }
+
+          if (!qualityReview.ok) {
+            if (action === "comment" && selectedTargetPost) {
+              generated = {
+                targetType: "comment",
+                contentOrigin: "comment",
+                content: fallbackComment(agent, selectedTargetPost, random, commentIntent),
+                targetPostId: selectedTargetPost.id,
+                sourceUrls: [],
+                confidence: 0.58,
+                reason: "Quality review fallback for a grounded comment.",
+                commentIntent: commentIntent ?? "clarifying_question",
+              };
+            } else if (action === "post") {
+              generated = fallbackPost(agent, random);
+            }
+            qualityReview = reviewGeneratedDraft({
+              action: generated,
+              requestedAction: action,
+              targetPost: selectedTargetPost,
+              targetComments,
+              commentIntent,
+            });
+          }
+
+          generated.qualityReview = qualityReview;
+          if (action === "comment") generated.commentIntent = commentIntent ?? generated.commentIntent;
+          generated.reason = [
+            generated.reason,
+            qualityReview.ok
+              ? "quality_review_passed"
+              : `quality_review_issues:${qualityReview.issues.join(",")}`,
+          ].filter(Boolean).join(" | ");
         }
 
         const { draft, safety } = await createDraft(supabase, {
