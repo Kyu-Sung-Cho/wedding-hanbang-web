@@ -129,6 +129,8 @@ interface GeneratedAction {
   reason?: string;
   commentIntent?: CommentIntent;
   qualityReview?: DraftQualityReview;
+  modelUsed?: string;
+  informationMode?: boolean;
 }
 
 export interface CommunityAgentAutomationOptions {
@@ -166,6 +168,7 @@ export interface CommunityAgentAutomationResult {
 }
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_INFORMATION_MODEL = "claude-sonnet-4-5-20250929";
 const VALID_CATEGORIES: CommunityCategory[] = ["is_normal", "tour_review", "tips_v2", "ama", "free"];
 const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "first_response",
@@ -176,6 +179,7 @@ const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "checklist",
   "summary_bridge",
 ];
+const INFORMATION_AGENT_ROLES = new Set(["official_checker", "thread_summarizer", "contract_checker"]);
 const POSTGRES_INT_MAX = 2_147_483_647;
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -457,6 +461,10 @@ function topicScore(agent: AgentRow, post: RecentPost): number {
   }, 0);
 }
 
+function isInformationPostRequest(agent: AgentRow, action: AutomationAction): boolean {
+  return action === "post" && (agent.public_mode === "official" || INFORMATION_AGENT_ROLES.has(agent.role));
+}
+
 function boundedCategory(category: unknown): CommunityCategory {
   return VALID_CATEGORIES.includes(category as CommunityCategory) ? (category as CommunityCategory) : "free";
 }
@@ -717,6 +725,8 @@ async function createDraft(supabase: SupabaseClient, input: {
         reason: raw.reason ?? null,
         comment_intent: raw.commentIntent ?? null,
         quality_review: raw.qualityReview ?? null,
+        model_used: raw.modelUsed ?? null,
+        information_mode: raw.informationMode ?? false,
       },
     })
     .select("*")
@@ -1112,6 +1122,7 @@ async function generateAction(input: {
   targetPost?: RecentPost | null;
   targetComments?: RecentComment[];
   commentIntent?: CommentIntent | null;
+  informationMode?: boolean;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -1147,11 +1158,15 @@ async function generateAction(input: {
     "For comments, you must respond to the selected target post, not to the general topic.",
     "If you do not know, ask a careful question or give a checklist-style next step.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
+    input.informationMode
+      ? "This is an informational post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim."
+      : "",
     "Return valid JSON only. No markdown outside JSON.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
   const user = JSON.stringify({
     desiredAction: input.action,
+    informationMode: input.informationMode ?? false,
     outputSchema: {
       targetType: "post | comment | cohort_message",
       contentOrigin: "question | comment | summary | checklist | news",
@@ -1204,6 +1219,9 @@ async function generateAction(input: {
         "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
         "No fake first-person vendor experience.",
         "No unsupported price averages or vendor ranking.",
+        input.informationMode
+          ? "For information posts, use Sonnet-level caution: if source-backed facts are unavailable, explicitly write that exact figures/news could not be verified and keep the post as a cautious checklist or question."
+          : "Question posts can stay personal and cautious without factual claims.",
       ],
     },
     constraints: {
@@ -1274,6 +1292,7 @@ async function reviseGeneratedAction(input: {
   targetPost: RecentPost | null;
   targetComments: RecentComment[];
   commentIntent: CommentIntent | null;
+  informationMode?: boolean;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -1285,11 +1304,15 @@ async function reviseGeneratedAction(input: {
     "You are revising one Korean wedding community persona draft.",
     "Fix only the quality issues. Keep the persona voice and stay grounded in the selected post and existing comments.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
+    input.informationMode
+      ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it."
+      : "",
     "Return valid JSON only.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
   const user = JSON.stringify({
     requestedAction: input.requestedAction,
+    informationMode: input.informationMode ?? false,
     reviewIssues: input.review.issues,
     reviewScore: input.review.score,
     originalDraft: input.draft,
@@ -1380,6 +1403,7 @@ export async function runCommunityAgentAutomation(
   const autoPublish = options.autoPublish ?? true;
   const maxActions = Math.max(1, Math.min(options.maxActions ?? 6, 20));
   const model = process.env.COMMUNITY_AGENT_MODEL ?? DEFAULT_MODEL;
+  const informationModel = process.env.COMMUNITY_AGENT_INFORMATION_MODEL ?? DEFAULT_INFORMATION_MODEL;
   const day = todayKey();
   let runId: string | null = null;
   const items: AutomationResultItem[] = [];
@@ -1393,7 +1417,7 @@ export async function runCommunityAgentAutomation(
       status: "running",
       dry_run: dryRun,
       model,
-      metadata: { auto_publish: autoPublish, max_actions: maxActions },
+      metadata: { auto_publish: autoPublish, max_actions: maxActions, information_model: informationModel },
     })
     .select("id")
     .single();
@@ -1490,6 +1514,8 @@ export async function runCommunityAgentAutomation(
         let selectedTargetPost: RecentPost | null = null;
         let targetComments: RecentComment[] = [];
         let commentIntent: CommentIntent | null = null;
+        const informationMode = isInformationPostRequest(agent, action);
+        const selectedModel = informationMode ? informationModel : model;
 
         if (action === "reaction") {
           const targetPostId = await chooseReactionTarget(supabase, backingUserId, posts, random);
@@ -1530,7 +1556,8 @@ export async function runCommunityAgentAutomation(
             targetPost: selectedTargetPost,
             targetComments,
             commentIntent,
-            model,
+            informationMode,
+            model: selectedModel,
           });
           tokensInput += generation.tokensInput;
           tokensOutput += generation.tokensOutput;
@@ -1605,6 +1632,8 @@ export async function runCommunityAgentAutomation(
         }
 
         if (generated.targetType === "comment" || generated.targetType === "post") {
+          generated.modelUsed = selectedModel;
+          generated.informationMode = informationMode;
           let qualityReview = reviewGeneratedDraft({
             action: generated,
             requestedAction: action,
@@ -1623,7 +1652,8 @@ export async function runCommunityAgentAutomation(
                 targetPost: selectedTargetPost,
                 targetComments,
                 commentIntent,
-                model,
+                informationMode,
+                model: selectedModel,
               });
               tokensInput += revision.tokensInput;
               tokensOutput += revision.tokensOutput;
@@ -1715,6 +1745,8 @@ export async function runCommunityAgentAutomation(
               : `quality_review_issues:${qualityReview.issues.join(",")}`,
           ].filter(Boolean).join(" | ");
         }
+        generated.modelUsed = selectedModel;
+        generated.informationMode = informationMode;
 
         const { draft, safety } = await createDraft(supabase, {
           agent,
