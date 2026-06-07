@@ -109,6 +109,10 @@ function validOrigin(value: unknown): value is AgentContentOrigin {
   return value === "question" || value === "comment" || value === "summary" || value === "news" || value === "checklist" || value === "reaction";
 }
 
+function hasBodyContent(input: string | null | undefined): boolean {
+  return sanitizeText(input ?? "").length >= 2;
+}
+
 async function fetchAgentByIdOrSlug(
   supabase: ReturnType<typeof getServiceClient>,
   input: { agentId?: string; slug?: string }
@@ -362,6 +366,9 @@ export async function POST(req: Request) {
     const title = body.title ? sanitizeText(body.title).slice(0, 200) : null;
     const rawContent = body.targetType === "reaction" ? body.content || "like" : body.content ?? "";
     const content = sanitizeHtml(rawContent).slice(0, 50000);
+    if (body.targetType !== "reaction" && !hasBodyContent(content)) {
+      return NextResponse.json({ error: "본문이 비어 있는 초안은 만들 수 없습니다." }, { status: 400 });
+    }
     const safety = validateAgentContent({
       origin: body.contentOrigin,
       title,
@@ -450,6 +457,9 @@ export async function POST(req: Request) {
     }
     if (draft.verification_status === "source_required") {
       return NextResponse.json({ error: "출처가 필요한 초안입니다.", flags: draft.safety_flags }, { status: 400 });
+    }
+    if (draft.target_type !== "reaction" && !hasBodyContent(draft.content)) {
+      return NextResponse.json({ error: "본문이 비어 있는 초안은 게시할 수 없습니다.", flags: draft.safety_flags }, { status: 400 });
     }
 
     const agent = await fetchAgentByIdOrSlug(supabase, { agentId: draft.agent_id });

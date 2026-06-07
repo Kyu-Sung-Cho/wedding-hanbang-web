@@ -176,6 +176,10 @@ function stripTags(input: string): string {
   return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function hasBodyContent(input: string | null | undefined): boolean {
+  return stripTags(input ?? "").length >= 2;
+}
+
 function boundedCategory(category: unknown): CommunityCategory {
   return VALID_CATEGORIES.includes(category as CommunityCategory) ? (category as CommunityCategory) : "free";
 }
@@ -382,6 +386,10 @@ async function createDraft(supabase: SupabaseClient, input: {
     ? "like"
     : sanitizeHtml(raw.content ?? "").slice(0, 50000);
 
+  if (raw.targetType !== "reaction" && !hasBodyContent(content)) {
+    throw new Error("empty_generated_content");
+  }
+
   const safety = validateAgentContent({
     origin: raw.contentOrigin,
     title,
@@ -441,6 +449,9 @@ async function publishDraft(supabase: SupabaseClient, draft: DraftRow, agent: Ag
   }
   if (draft.verification_status === "source_required") {
     throw new Error("source_required");
+  }
+  if (draft.target_type !== "reaction" && !hasBodyContent(draft.content)) {
+    throw new Error("empty_content");
   }
 
   const backingUserId = await ensureAgentIdentity(supabase, agent);
@@ -913,6 +924,22 @@ export async function runCommunityAgentAutomation(
         }
         if (generated.targetType === "cohort_message" && !cohortRooms.some((room) => room.id === generated.targetCohortRoomId)) {
           generated.targetCohortRoomId = cohortRooms[Math.floor(random() * cohortRooms.length)]?.id;
+        }
+        if (generated.targetType === "comment" && !generated.targetPostId) {
+          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "missing_comment_target" });
+          continue;
+        }
+        if (generated.targetType === "cohort_message" && !generated.targetCohortRoomId) {
+          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "missing_cohort_target" });
+          continue;
+        }
+        if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
+          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "empty_generated_content" });
+          continue;
+        }
+        if (generated.targetType === "post" && !hasBodyContent(generated.title)) {
+          items.push({ agentSlug: agent.slug, action, status: "skipped", reason: "empty_generated_title" });
+          continue;
         }
 
         const { draft, safety } = await createDraft(supabase, {

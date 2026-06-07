@@ -165,6 +165,19 @@ function plainText(value: string): string {
     .trim();
 }
 
+function hasDraftBody(draft: AgentDraft): boolean {
+  return draft.target_type === "reaction" || plainText(draft.content).length >= 2;
+}
+
+function isDraftPublishBlocked(draft: AgentDraft): boolean {
+  return (
+    draft.verification_status === "blocked" ||
+    draft.verification_status === "source_required" ||
+    draft.safety_flags.includes("empty_content") ||
+    !hasDraftBody(draft)
+  );
+}
+
 export default function CommunityAgentsAdminPage() {
   const [authState, setAuthState] = useState<"loading" | "admin" | "denied">("loading");
   const [data, setData] = useState<AgentsResponse | null>(null);
@@ -450,7 +463,8 @@ export default function CommunityAgentsAdminPage() {
                   ? agents.find((agentItem) => agentItem.id === draft.agent_id)
                   : agents.find((agentItem) => agentItem.slug === item.agentSlug);
                 const expanded = draft ? expandedDraftIds.has(draft.id) : false;
-                const blocked = draft?.verification_status === "blocked" || draft?.verification_status === "source_required";
+                const blocked = draft ? isDraftPublishBlocked(draft) : false;
+                const missingBody = draft ? !hasDraftBody(draft) : false;
 
                 return (
                   <article key={item.draftId ?? `${item.agentSlug}-${index}`} className="rounded-xl border border-[#e5d8ca] bg-[#fffdf8] p-4">
@@ -470,9 +484,14 @@ export default function CommunityAgentsAdminPage() {
 
                     {draft ? (
                       <>
-                        {draft.content && (
+                        {hasDraftBody(draft) && (
                           <p className={`${expanded ? "" : "line-clamp-5"} whitespace-pre-line text-sm leading-6 text-[#635b51]`}>
                             {plainText(draft.content)}
+                          </p>
+                        )}
+                        {missingBody && (
+                          <p className="rounded-xl bg-white px-3 py-2 text-sm font-semibold leading-6 text-[#8a641a]">
+                            본문이 비어 있어 게시할 수 없습니다.
                           </p>
                         )}
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[#928980]">
@@ -492,7 +511,7 @@ export default function CommunityAgentsAdminPage() {
                           </div>
                         )}
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {draft.content && (
+                          {hasDraftBody(draft) && (
                             <button
                               onClick={() =>
                                 setExpandedDraftIds((current) => {
@@ -511,7 +530,7 @@ export default function CommunityAgentsAdminPage() {
                             <>
                               <button
                                 onClick={() => runAction("approveDraft", { draftId: draft.id })}
-                                disabled={!!actionLoading}
+                                disabled={missingBody || !!actionLoading}
                                 className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -707,7 +726,8 @@ export default function CommunityAgentsAdminPage() {
                 )}
                 {(data?.drafts ?? []).map((draft) => {
                   const agent = agents.find((item) => item.id === draft.agent_id);
-                  const blocked = draft.verification_status === "blocked" || draft.verification_status === "source_required";
+                  const blocked = isDraftPublishBlocked(draft);
+                  const missingBody = !hasDraftBody(draft);
                   return (
                     <article key={draft.id} className="rounded-xl border border-[#e5d8ca] bg-[#fffdf8] p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
@@ -717,8 +737,13 @@ export default function CommunityAgentsAdminPage() {
                         </div>
                         <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-[#36534E]">{draft.status}</span>
                       </div>
-                      {draft.content && (
+                      {hasDraftBody(draft) && (
                         <p className="line-clamp-3 text-sm leading-6 text-[#635b51]">{draft.content.replace(/<[^>]*>/g, " ")}</p>
+                      )}
+                      {missingBody && (
+                        <p className="rounded-lg bg-[#fff3d9] px-2 py-1 text-xs font-semibold text-[#8a641a]">
+                          본문 없음 · 게시 불가
+                        </p>
                       )}
                       {draft.safety_flags.length > 0 && (
                         <div className="mt-2 rounded-lg bg-[#fff3d9] px-2 py-1 text-xs font-semibold text-[#8a641a]">
@@ -730,8 +755,8 @@ export default function CommunityAgentsAdminPage() {
                           <>
                             <button
                               onClick={() => runAction("approveDraft", { draftId: draft.id })}
-                              disabled={!!actionLoading}
-                              className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E]"
+                              disabled={missingBody || !!actionLoading}
+                              className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               승인
