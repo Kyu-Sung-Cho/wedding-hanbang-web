@@ -18,6 +18,7 @@ const VENDOR_PATHS = [
 function isProtectedPath(pathname: string): "customer" | "vendor" | "admin" | null {
   if (CUSTOMER_PATHS.some((p) => pathname.startsWith(p))) return "customer";
   if (VENDOR_PATHS.some((p) => pathname.startsWith(p))) return "vendor";
+  if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   return null;
 }
