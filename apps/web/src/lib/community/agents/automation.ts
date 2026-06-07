@@ -133,6 +133,7 @@ export interface CommunityAgentAutomationResult {
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const VALID_CATEGORIES: CommunityCategory[] = ["is_normal", "tour_review", "tips_v2", "ama", "free"];
+const POSTGRES_INT_MAX = 2_147_483_647;
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
   return !!error && (error.code === "42P01" || /does not exist|schema cache/i.test(error.message ?? ""));
@@ -149,6 +150,10 @@ function hashString(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function postgresIntSeed(input: string): number {
+  return hashString(input) % POSTGRES_INT_MAX;
 }
 
 function seededRandom(seed: number): () => number {
@@ -293,7 +298,7 @@ async function ensureDailyState(supabase: SupabaseClient, agent: AgentRow, day: 
       done_reactions: 0,
       done_cohort_messages: 0,
       mood: "normal",
-      seed: hashString(`${day}:${agent.slug}`),
+      seed: postgresIntSeed(`${day}:${agent.slug}`),
     })
     .select("*")
     .single();
