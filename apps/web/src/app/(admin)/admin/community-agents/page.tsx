@@ -207,6 +207,45 @@ export default function CommunityAgentsAdminPage() {
     }
   }
 
+  async function runAutomationNow(dryRun: boolean) {
+    const actionKey = dryRun ? "automationDryRun" : "automationRun";
+    setActionLoading(actionKey);
+    setMessage("");
+    try {
+      const res = await fetch("/api/cron/community-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dryRun,
+          autoPublish: !dryRun,
+          maxActions: dryRun ? 4 : 6,
+          seedIfEmpty: true,
+        }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        posted?: number;
+        drafted?: number;
+        skipped?: number;
+        failed?: number;
+      };
+      if (!res.ok) {
+        throw new Error(result.message ?? result.error ?? "Automation failed.");
+      }
+      await loadAgents();
+      setMessage(
+        dryRun
+          ? `Dry run complete: drafted ${result.drafted ?? 0}, skipped ${result.skipped ?? 0}, failed ${result.failed ?? 0}`
+          : `Automation complete: posted ${result.posted ?? 0}, drafted ${result.drafted ?? 0}, skipped ${result.skipped ?? 0}`
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Automation failed.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function createDraft() {
     const sourceUrls = sourceUrlsText
       .split(/\n|,/)
@@ -289,6 +328,22 @@ export default function CommunityAgentsAdminPage() {
             >
               <Sparkles className="h-4 w-4" />
               20개 기본 agent 심기
+            </button>
+            <button
+              onClick={() => runAutomationNow(true)}
+              disabled={!!actionLoading}
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-[#e5d8ca] bg-white px-4 text-sm font-semibold text-[#36534E] disabled:opacity-60"
+            >
+              {actionLoading === "automationDryRun" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              자동 dry-run
+            </button>
+            <button
+              onClick={() => runAutomationNow(false)}
+              disabled={!!actionLoading}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-[#263832] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(38,56,50,0.18)] disabled:opacity-60"
+            >
+              {actionLoading === "automationRun" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+              자동 활동 실행
             </button>
           </div>
         </header>

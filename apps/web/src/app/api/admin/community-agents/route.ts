@@ -286,7 +286,7 @@ export async function POST(req: Request) {
       internal_label: agent.internalLabel,
       role: agent.role,
       public_mode: agent.publicMode,
-      status: agent.defaultStatus,
+      status: agent.defaultStatus === "retired" ? "retired" : "active",
       profile: agent.profile,
       behavior: agent.behavior,
       safety: agent.safety,

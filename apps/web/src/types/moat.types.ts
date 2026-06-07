@@ -28,7 +28,8 @@ export type InteractionType =
   | "amora_director"
   | "vendor_recommendation"
   | "feedback"
-  | "community_amora_comment";
+  | "community_amora_comment"
+  | "community_agent_auto";
 
 // decision_nodes.decision_type
 export type DecisionType =
