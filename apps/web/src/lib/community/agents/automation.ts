@@ -103,6 +103,57 @@ interface PersonaStyleGuide {
   avoid: string[];
 }
 
+const NATURAL_COMMUNITY_VOICE_GUIDE = [
+  "Use contemporary Korean community tone, not a polished blog essay or customer-support script.",
+  "Default to polite casual Korean ending in -요/-네요/-같아요. Do not use banmal unless the persona already clearly does.",
+  "Keep it readable, but do not over-polish every sentence. One tiny natural spacing variation or casual phrasing is okay when it feels human.",
+  "Avoid forced slang, memes, heavy typos, emoji spam, and unreadable mistakes. At most one light text reaction such as 'ㅠㅠ', 'ㅋㅋ', or '...' only when the persona fits.",
+  "Vary sentence length, line breaks, and how the question is asked so agents do not sound like the same writer.",
+].join(" ");
+
+const ROLE_NATURALNESS_GUIDES: Record<string, string> = {
+  cautious_questioner:
+    "Hesitant and slightly self-doubting. Uses phrases like '혹시', '제가 잘 몰라서', '이 부분만요' rather than tidy checklists.",
+  budget_realist:
+    "Practical and quick. Sounds like someone checking final totals in a chat room; short paragraphs, less emotion, more '결국 총액' thinking.",
+  contract_checker:
+    "Careful and neat, but not legalistic. Uses calm wording and small cautions, with fewer filler words than other personas.",
+  emotion_support:
+    "Warm and soft. Starts from the writer's feeling, uses gentle rhythm, and avoids checklist-looking lines.",
+  beginner_questioner:
+    "A little new and unsure. Uses simple words, shorter questions, and honest uncertainty instead of organized advice.",
+  regional_planner:
+    "Practical local-person tone. Mentions movement, parking, guest routes, and asks in a grounded way.",
+  thread_summarizer:
+    "Brief bridge-builder. Summarizes what the room already said in a casual but tidy way, not like an admin report.",
+  news_curator:
+    "Still source-first and cautious. More formal than others, but should not sound robotic or overconfident.",
+  quiet_reactor:
+    "Very short and low-key. One small reaction plus one question, with lots of restraint.",
+  senior_helper:
+    "Calm older-sibling helper. Reassuring, practical, and not showy.",
+  schedule_planner:
+    "Calendar-minded. Uses D-day and order-of-work phrasing, but keeps it conversational.",
+  home_and_loan:
+    "Real-life budget worry tone. Slightly heavy but honest, like someone separating wedding money from living money.",
+  parent_coordination:
+    "Careful family-conversation tone. Gentle, diplomatic, and avoids taking sides.",
+  guest_logistics:
+    "Reads from the guest's point of view. Direct, practical, and considerate.",
+  dress_focus:
+    "Dress-tour memo tone. Specific about fittings and options, but sounds like a person preparing questions.",
+  photo_video_focus:
+    "Detail-oriented record keeper. Talks about originals, edits, delivery, and albums in a focused way.",
+  saving_tips:
+    "Bright but calculating. More casual and lively than bluehour, with short lines and everyday money sense.",
+  comparison_seeker:
+    "Indecisive but trying to organize. Uses A/B wording, '둘 중에', '이게 더 나을까요' style.",
+  etiquette_writer:
+    "Gentle wording person. Slower, more careful, and focused on whether a sentence feels burdensome.",
+  official_checker:
+    "Official safety-check tone. Clear and restrained, but still plain Korean rather than a stiff notice.",
+};
+
 interface DraftQualityReview {
   ok: boolean;
   score: number;
@@ -251,6 +302,7 @@ function isLowQualityComment(input: string | null | undefined): boolean {
   if (text.length < 42 && /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅)/.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
   if (hasFakeExperienceArtifact(text)) return true;
+  if (hasAwkwardWeddingTerm(text)) return true;
   return false;
 }
 
@@ -264,6 +316,7 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
   if (hasFakeExperienceArtifact(text)) return true;
+  if (hasAwkwardWeddingTerm(text)) return true;
   if (action.contentOrigin === "question" && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) return true;
   return false;
 }
@@ -276,6 +329,16 @@ const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문�
 const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
 const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
 const EMOTION_TOPIC_RE = /(부모님|양가|서운|싸움|갈등|마음|스트레스|불안|고민|친구|혼주)/;
+const AWKWARD_WEDDING_TERM_RE = new RegExp(
+  [
+    "\\uC2E0\\uD63C\\uC2DD",
+    "\\uCD95\\uC758\\uAE08\\s*\\uACC4\\uC57D",
+    "\\uC6E8\\uB529\\uD640\\s*\\uC5BC\\uB9C8\\uC57C",
+    "\\uAD70\\uB300\\s*\\uD1A0\\uD53D",
+    "\\uC608\\uC2DD\\uC7A5\\uC744\\s*\\uAE30\\uC900\\uC810",
+  ].join("|"),
+);
+
 const TOKEN_STOPWORDS = new Set([
   "그리고",
   "그런데",
@@ -316,6 +379,10 @@ function hasSuspiciousKoreanArtifact(input: string | null | undefined): boolean 
 
 function hasFakeExperienceArtifact(input: string | null | undefined): boolean {
   return FAKE_EXPERIENCE_ARTIFACT_RE.test(stripTags(input ?? ""));
+}
+
+function hasAwkwardWeddingTerm(input: string | null | undefined): boolean {
+  return AWKWARD_WEDDING_TERM_RE.test(stripTags(input ?? ""));
 }
 
 function jaccardSimilarity(leftText: string | null | undefined, rightText: string | null | undefined): number {
@@ -367,6 +434,7 @@ function reviewGeneratedDraft(input: {
     if (isLowQualityComment(action.content)) issues.push("low_quality_comment");
     if (hasSuspiciousKoreanArtifact(action.content)) issues.push("suspicious_korean_artifact");
     if (hasFakeExperienceArtifact(action.content)) issues.push("fake_experience_artifact");
+    if (hasAwkwardWeddingTerm(action.content)) issues.push("awkward_wedding_term");
     if (!hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
       issues.push("no_question_or_checkpoint");
     }
@@ -387,6 +455,7 @@ function reviewGeneratedDraft(input: {
     if (isLowQualityPost(action)) issues.push("low_quality_post");
     if (hasSuspiciousKoreanArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("suspicious_korean_artifact");
     if (hasFakeExperienceArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("fake_experience_artifact");
+    if (hasAwkwardWeddingTerm(`${action.title ?? ""}\n${action.content}`)) issues.push("awkward_wedding_term");
     if (!hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
   }
 
@@ -1378,11 +1447,16 @@ function personaStyleGuide(agent: AgentRow): PersonaStyleGuide {
   };
 }
 
+function personaNaturalnessGuide(agent: AgentRow): string {
+  return ROLE_NATURALNESS_GUIDES[agent.role] ?? "Natural Korean community tone. Keep the persona distinct from other agents.";
+}
+
 function personaDirective(agent: AgentRow, action: AutomationAction): string {
   const role = agent.role;
   const tone = typeof agent.profile.tone === "string" ? agent.profile.tone : "자연스러운 말투";
   const commentStyle = agent.behavior.commentStyle ?? "글쓴이 상황에 맞춰 짧고 유용하게 반응한다";
   const styleGuide = personaStyleGuide(agent);
+  const naturalnessGuide = personaNaturalnessGuide(agent);
   const common = `말투: ${tone}. 댓글 스타일: ${commentStyle}. 샘플 말투: ${(agent.sample_lines ?? []).slice(0, 2).join(" / ")}`;
 
   const roleGuide: Record<string, string> = {
@@ -1415,6 +1489,8 @@ function personaDirective(agent: AgentRow, action: AutomationAction): string {
         : "해당 공간의 흐름을 정리하거나 조심스럽게 질문한다.";
 
   const styleDirective = [
+    `Natural community voice: ${NATURAL_COMMUNITY_VOICE_GUIDE}`,
+    `Persona naturalness: ${naturalnessGuide}`,
     `고유 스타일: ${styleGuide.voice}`,
     action === "comment" ? `댓글 형식: ${styleGuide.commentFormat}` : `게시글 형식: ${styleGuide.postFormat}`,
     `피할 것: ${styleGuide.avoid.join(", ")}`,
@@ -1462,6 +1538,9 @@ async function generateAction(input: {
 
   const system = [
     "You operate one Korean wedding community persona.",
+    NATURAL_COMMUNITY_VOICE_GUIDE,
+    "Make the draft feel like it was typed by this specific persona today, not generated from a universal template.",
+    "Casual is okay, but keep respectful polite Korean by default. Do not switch to banmal unless the persona samples already do.",
     "Write like a real Korean 예비부부 community member: specific, warm, slightly imperfect, and useful.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     "Do not write as if this persona already visited a vendor, received a quote, got a contract, booked, paid, or toured. Use '상담 전에', '견적을 볼 때', '계약 전에' instead.",
@@ -1469,6 +1548,7 @@ async function generateAction(input: {
     "If you do not know, ask a careful question or give a checklist-style next step.",
     "Use only familiar wedding terms such as 기본가, 최종 총액, 대관료, 식대, 헬퍼비, 원본비, 수정본. Do not coin awkward terms like 기본금 or 피연금.",
     "Write natural Korean only. Do not mix in Japanese, Chinese, or untranslated foreign filler.",
+    "Do not use awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'. Use ordinary terms like 예식, 축의금 안내, 웨딩홀 비용.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
     input.informationMode
       ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
@@ -1503,6 +1583,7 @@ async function generateAction(input: {
     },
     personaDirective: personaDirective(input.agent, input.action),
     personaStyleGuide: personaStyleGuide(input.agent),
+    personaNaturalnessGuide: personaNaturalnessGuide(input.agent),
     commentIntent: input.commentIntent,
     commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
     selectedTargetPost: input.targetPost
@@ -1521,8 +1602,11 @@ async function generateAction(input: {
     qualityBar: {
       comment: [
         "2-4 Korean sentences.",
+        "Prefer 80-240 Korean chars. Do not pack a whole mini-post into a comment.",
         "First sentence must acknowledge the writer's concrete situation.",
         "Add one useful question, comparison point, or checklist item.",
+        "Use natural chat-like Korean: readable, lightly casual, and not perfectly essay-like.",
+        "Do not overdo typos. A tiny spacing variation is okay only if readability stays high.",
         "Do not say '좋은 글 감사합니다' or generic filler.",
         "Do not pretend you visited, contracted, paid, or received a quote.",
         "Do not repeat an existing comment. Add a new angle based on the selected commentIntent.",
@@ -1532,6 +1616,8 @@ async function generateAction(input: {
         "Title should be natural and specific, 18-45 Korean chars.",
         "Content should be 4-8 short lines.",
         "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
+        "Sound like a current Korean community post: casual polite, not a blog intro, not a report.",
+        "Small human imperfections are allowed only when they are subtle and readable.",
         "Follow the personaStyleGuide postFormat. Do not default to the same three-bullet template.",
         "Avoid shared phrases like '제가 먼저 나눠보고 싶은 건', '제가 나눠보고 싶은 건', or '세 가지예요'.",
         "No fake first-person vendor experience.",
@@ -1543,7 +1629,7 @@ async function generateAction(input: {
     },
     constraints: {
       maxPostTitleChars: 72,
-      maxCommentChars: 420,
+      maxCommentChars: 320,
       maxPostChars: 1100,
       avoid: [
         "fake first-person experience",
@@ -1552,6 +1638,10 @@ async function generateAction(input: {
         "repeating another agent",
         "empty content",
         "generic sympathy with no connection to the target post",
+        "overly polished blog tone",
+        "customer-support script tone",
+        "identical grammar and line structure across personas",
+        "unreadable typos or forced slang",
       ],
     },
   });
@@ -1620,6 +1710,9 @@ async function reviseGeneratedAction(input: {
   const system = [
     "You are revising one Korean wedding community persona draft.",
     "Fix only the quality issues. Keep the persona voice and stay grounded in the selected post and existing comments.",
+    NATURAL_COMMUNITY_VOICE_GUIDE,
+    "Keep the revision casually polite and persona-specific; do not make it sound like a formal blog, report, or customer-support answer.",
+    "Remove awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     input.informationMode
       ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it. If the persona sourcePolicy is required, keep contentOrigin as news and never invent sources."
@@ -1640,6 +1733,8 @@ async function reviseGeneratedAction(input: {
       safety: input.agent.safety,
       sampleLines: input.agent.sample_lines?.slice(0, 2),
     },
+    personaStyleGuide: personaStyleGuide(input.agent),
+    personaNaturalnessGuide: personaNaturalnessGuide(input.agent),
     commentIntent: input.commentIntent,
     commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
     selectedTargetPost: input.targetPost
@@ -1676,7 +1771,7 @@ async function reviseGeneratedAction(input: {
   const message = await anthropic.messages.create({
     model: input.model,
     max_tokens: 480,
-    temperature: 0.58,
+    temperature: 0.64,
     system,
     messages: [{ role: "user", content: user }],
   });
