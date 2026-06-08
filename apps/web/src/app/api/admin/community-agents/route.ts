@@ -170,6 +170,51 @@ function isApprovalBlockedDraft(draft: DraftRow): boolean {
   );
 }
 
+const PRESERVED_DRAFT_FLAGS = new Set(["official_manual_review"]);
+
+function arraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function refreshedDraftSafety(draft: DraftRow): Pick<DraftRow, "verification_status" | "safety_flags" | "source_urls"> {
+  const safety = validateAgentContent({
+    origin: draft.content_origin,
+    title: draft.title,
+    content: draft.content,
+    sourceUrls: draft.source_urls,
+  });
+  const preservedFlags = (draft.safety_flags ?? []).filter((flag) => PRESERVED_DRAFT_FLAGS.has(flag));
+  return {
+    verification_status: safety.status,
+    safety_flags: [...new Set([...preservedFlags, ...safety.flags])],
+    source_urls: safety.normalizedSourceUrls,
+  };
+}
+
+async function refreshDraftSafetyIfNeeded(
+  supabase: ReturnType<typeof getServiceClient>,
+  draft: DraftRow
+): Promise<DraftRow> {
+  const refreshed = refreshedDraftSafety(draft);
+  const changed =
+    draft.verification_status !== refreshed.verification_status ||
+    !arraysEqual(draft.safety_flags ?? [], refreshed.safety_flags) ||
+    !arraysEqual(draft.source_urls ?? [], refreshed.source_urls);
+
+  if (!changed) return draft;
+
+  await supabase
+    .from("community_agent_content_drafts")
+    .update({
+      verification_status: refreshed.verification_status,
+      safety_flags: refreshed.safety_flags,
+      source_urls: refreshed.source_urls,
+    })
+    .eq("id", draft.id);
+
+  return { ...draft, ...refreshed };
+}
+
 async function fetchAgentByIdOrSlug(
   supabase: ReturnType<typeof getServiceClient>,
   input: { agentId?: string; slug?: string }
@@ -630,7 +675,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "초안을 찾을 수 없습니다." }, { status: 404 });
       }
 
-      const draft = draftRaw as DraftRow;
+      const draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
       if (isApprovalBlockedDraft(draft)) {
         return NextResponse.json(
           { error: "출처 확인 또는 안전검사가 필요한 초안은 승인할 수 없습니다.", flags: draft.safety_flags },
@@ -670,7 +715,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "초안을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const draft = draftRaw as DraftRow;
+    const draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
     if (draft.status === "posted") {
       return NextResponse.json({ error: "이미 게시된 초안입니다." }, { status: 409 });
     }
