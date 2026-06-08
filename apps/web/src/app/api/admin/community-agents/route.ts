@@ -419,6 +419,12 @@ export async function GET(req: Request) {
   }
 
   const supabase = getServiceClient();
+  const url = new URL(req.url);
+  const requestedDraftLimit = Number(url.searchParams.get("draftLimit") ?? "200");
+  const draftLimit = Number.isFinite(requestedDraftLimit)
+    ? Math.min(Math.max(Math.floor(requestedDraftLimit), 30), 300)
+    : 200;
+  const draftQueryLimit = Math.min(draftLimit * 2, 500);
 
   const { data: agentsRaw, error } = await supabase
     .from("community_agent_personas")
@@ -445,10 +451,10 @@ export async function GET(req: Request) {
     .from("community_agent_content_drafts")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(draftQueryLimit);
   const drafts = await enrichDraftTargets(
     supabase,
-    ((draftsRaw ?? []) as DraftRow[]).filter(isActionableDraft).slice(0, 30)
+    ((draftsRaw ?? []) as DraftRow[]).filter(isActionableDraft).slice(0, draftLimit)
   );
 
   const agentUserIds = agents
@@ -456,11 +462,16 @@ export async function GET(req: Request) {
     .filter((id): id is string => Boolean(id));
 
   const metrics = agents.length > 0 ? await loadMetrics(supabase, agentUserIds) : null;
+  const draftTotal = metrics
+    ? Object.values(metrics.draftsByStatus).reduce((sum, count) => sum + Number(count), 0)
+    : drafts.length;
 
   return NextResponse.json({
     setupRequired: agents.length === 0,
     agents: agents.length > 0 ? agents : defaultAgentPayload(),
     drafts,
+    draftTotal,
+    draftLimit,
     metrics,
   });
 }

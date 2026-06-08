@@ -22,6 +22,8 @@ import {
 type AgentStatus = "draft" | "active" | "paused" | "retired";
 type TargetType = "post" | "comment" | "reaction" | "cohort_message";
 type ContentOrigin = "question" | "comment" | "summary" | "news" | "checklist" | "reaction";
+type DraftTypeFilter = "all" | TargetType;
+type DraftStatusFilter = "all" | AgentDraft["status"];
 
 interface AdminAgent {
   id: string;
@@ -139,6 +141,8 @@ interface AgentsResponse {
   setupRequired: boolean;
   agents: AdminAgent[];
   drafts: AgentDraft[];
+  draftTotal?: number;
+  draftLimit?: number;
   metrics: AgentMetrics | null;
   message?: string;
 }
@@ -173,6 +177,11 @@ const TARGET_LABEL: Record<TargetType, string> = {
   cohort_message: "동기방 메시지",
 };
 
+const DRAFT_TYPE_FILTER_LABEL: Record<DraftTypeFilter, string> = {
+  all: "전체",
+  ...TARGET_LABEL,
+};
+
 const DRAFT_STATUS_LABEL: Record<AgentDraft["status"], string> = {
   draft: "초안",
   needs_review: "검토 필요",
@@ -180,6 +189,11 @@ const DRAFT_STATUS_LABEL: Record<AgentDraft["status"], string> = {
   posted: "게시됨",
   rejected: "반려",
   archived: "보관",
+};
+
+const DRAFT_STATUS_FILTER_LABEL: Record<DraftStatusFilter, string> = {
+  all: "전체 상태",
+  ...DRAFT_STATUS_LABEL,
 };
 
 function formatDate(value: string): string {
@@ -228,6 +242,9 @@ export default function CommunityAgentsAdminPage() {
   const [message, setMessage] = useState("");
   const [lastAutomation, setLastAutomation] = useState<AutomationRunState | null>(null);
   const [expandedDraftIds, setExpandedDraftIds] = useState<Set<string>>(() => new Set());
+  const [draftTypeFilter, setDraftTypeFilter] = useState<DraftTypeFilter>("all");
+  const [draftStatusFilter, setDraftStatusFilter] = useState<DraftStatusFilter>("all");
+  const [showFullDraftBodies, setShowFullDraftBodies] = useState(false);
 
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [targetType, setTargetType] = useState<TargetType>("post");
@@ -243,6 +260,29 @@ export default function CommunityAgentsAdminPage() {
   const persistedAgents = useMemo(() => agents.filter((agent) => !agent.isDefaultPreview), [agents]);
   const activeCount = agents.filter((agent) => agent.status === "active").length;
   const draftById = useMemo(() => new Map((data?.drafts ?? []).map((draft) => [draft.id, draft])), [data?.drafts]);
+  const drafts = useMemo(() => data?.drafts ?? [], [data?.drafts]);
+  const filteredDrafts = useMemo(
+    () =>
+      drafts.filter((draft) => {
+        const typeMatches = draftTypeFilter === "all" || draft.target_type === draftTypeFilter;
+        const statusMatches = draftStatusFilter === "all" || draft.status === draftStatusFilter;
+        return typeMatches && statusMatches;
+      }),
+    [draftStatusFilter, draftTypeFilter, drafts]
+  );
+  const draftTypeCounts = useMemo(() => {
+    const counts: Record<DraftTypeFilter, number> = {
+      all: drafts.length,
+      post: 0,
+      comment: 0,
+      reaction: 0,
+      cohort_message: 0,
+    };
+    for (const draft of drafts) counts[draft.target_type] += 1;
+    return counts;
+  }, [drafts]);
+  const loadedDraftCount = drafts.length;
+  const totalDraftCount = data?.draftTotal ?? loadedDraftCount;
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? null,
@@ -252,7 +292,7 @@ export default function CommunityAgentsAdminPage() {
   const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/community-agents");
+      const res = await fetch("/api/admin/community-agents?draftLimit=240");
       if (!res.ok) throw new Error("load_failed");
       const next = (await res.json()) as AgentsResponse;
       setData(next);
@@ -616,7 +656,148 @@ export default function CommunityAgentsAdminPage() {
           <MetricCard label="Agent" value={`${agents.length}명`} helper={`활성 ${activeCount}명`} />
           <MetricCard label="Agent 활동" value={`${data?.metrics?.agent.posts ?? 0}글`} helper={`${data?.metrics?.agent.comments ?? 0}댓글 · ${data?.metrics?.agent.reactions ?? 0}좋아요`} />
           <MetricCard label="사람 활동" value={`${data?.metrics?.human.posts ?? 0}글`} helper={`${data?.metrics?.human.comments ?? 0}댓글 · 최근 ${data?.metrics?.periodDays ?? 30}일`} />
-          <MetricCard label="초안" value={`${data?.drafts.length ?? 0}개`} helper={`검토중 ${data?.metrics?.draftsByStatus?.needs_review ?? 0}개`} />
+          <MetricCard label="초안" value={`${totalDraftCount}개`} helper={`표시 ${loadedDraftCount}개 · 검토중 ${data?.metrics?.draftsByStatus?.needs_review ?? 0}개`} />
+        </section>
+
+        <section className="mb-5 rounded-2xl border border-[#e5d8ca] bg-white/95 p-5 shadow-[0_12px_32px_rgba(50,36,17,0.05)]">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#36534E]">Draft Review</p>
+              <h2 className="mt-1 font-serif-kr text-2xl font-medium text-[#263832]">초안 검토함</h2>
+              <p className="mt-1 text-sm font-medium leading-6 text-[#635b51]">
+                전체 {totalDraftCount}개 중 {loadedDraftCount}개를 불러왔고, 현재 필터에 {filteredDrafts.length}개가 보입니다.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex h-10 items-center gap-2 rounded-full border border-[#e5d8ca] bg-[#fffdf8] px-3 text-xs font-bold text-[#36534E]">
+                <input
+                  type="checkbox"
+                  checked={showFullDraftBodies}
+                  onChange={(event) => setShowFullDraftBodies(event.target.checked)}
+                  className="h-4 w-4 accent-[#36534E]"
+                />
+                본문 전체
+              </label>
+              <select
+                value={draftStatusFilter}
+                onChange={(event) => setDraftStatusFilter(event.target.value as DraftStatusFilter)}
+                className="h-10 rounded-full border border-[#e5d8ca] bg-[#fffdf8] px-3 text-xs font-bold text-[#36534E] outline-none"
+              >
+                {Object.entries(DRAFT_STATUS_FILTER_LABEL).map(([key, text]) => (
+                  <option key={key} value={key}>{text}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            {Object.entries(DRAFT_TYPE_FILTER_LABEL).map(([key, text]) => (
+              <button
+                key={key}
+                onClick={() => setDraftTypeFilter(key as DraftTypeFilter)}
+                className={`inline-flex h-9 items-center rounded-full px-3 text-xs font-bold transition-colors ${
+                  draftTypeFilter === key
+                    ? "bg-[#36534E] text-white"
+                    : "border border-[#e5d8ca] bg-white text-[#36534E]"
+                }`}
+              >
+                {text} {draftTypeCounts[key as DraftTypeFilter] ?? 0}
+              </button>
+            ))}
+          </div>
+
+          {filteredDrafts.length === 0 ? (
+            <p className="rounded-xl bg-[#fbf8f2] p-4 text-sm text-[#928980]">조건에 맞는 초안이 없습니다.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {filteredDrafts.map((draft) => {
+                const agent = agents.find((item) => item.id === draft.agent_id);
+                const blocked = isDraftPublishBlocked(draft);
+                const missingBody = !hasDraftBody(draft);
+                const expanded = showFullDraftBodies || expandedDraftIds.has(draft.id);
+
+                return (
+                  <article key={draft.id} className="rounded-xl border border-[#e5d8ca] bg-[#fffdf8] p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#928980]">
+                          {agent?.public_nickname ?? "agent"} · {TARGET_LABEL[draft.target_type]} · {ORIGIN_LABEL[draft.content_origin]}
+                        </p>
+                        <h3 className="mt-1 text-base font-bold leading-6 text-[#263832]">
+                          {draft.title || TARGET_LABEL[draft.target_type]}
+                        </h3>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#36534E]">
+                        {DRAFT_STATUS_LABEL[draft.status]}
+                      </span>
+                    </div>
+
+                    <DraftTargetContext draft={draft} />
+
+                    {hasDraftBody(draft) ? (
+                      <p className={`${expanded ? "" : "line-clamp-5"} whitespace-pre-line text-sm leading-6 text-[#635b51]`}>
+                        {plainText(draft.content)}
+                      </p>
+                    ) : (
+                      <p className="rounded-xl bg-white px-3 py-2 text-sm font-semibold leading-6 text-[#8a641a]">
+                        본문이 비어 있어 게시할 수 없습니다.
+                      </p>
+                    )}
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[#928980]">
+                      <span>{formatDate(draft.created_at)}</span>
+                      {draft.source_urls.length > 0 && <span>출처 {draft.source_urls.length}개</span>}
+                      <span title={draft.id}>draft {shortId(draft.id)}</span>
+                    </div>
+
+                    {draft.safety_flags.length > 0 && (
+                      <div className="mt-3 rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
+                        {draft.safety_flags.join(", ")}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {hasDraftBody(draft) && !showFullDraftBodies && (
+                        <button
+                          onClick={() =>
+                            setExpandedDraftIds((current) => {
+                              const next = new Set(current);
+                              if (next.has(draft.id)) next.delete(draft.id);
+                              else next.add(draft.id);
+                              return next;
+                            })
+                          }
+                          className="inline-flex h-8 items-center rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E]"
+                        >
+                          {expanded ? "접기" : "전체 보기"}
+                        </button>
+                      )}
+                      {draft.status !== "posted" && (
+                        <>
+                          <button
+                            onClick={() => runAction("approveDraft", { draftId: draft.id })}
+                            disabled={blocked || missingBody || !!actionLoading}
+                            className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            승인
+                          </button>
+                          <button
+                            onClick={() => runAction("publishDraft", { draftId: draft.id })}
+                            disabled={blocked || !!actionLoading}
+                            className="inline-flex h-8 items-center gap-1 rounded-full bg-[#36534E] px-3 text-xs font-bold text-white disabled:opacity-45"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            게시
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -761,66 +942,6 @@ export default function CommunityAgentsAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-[#e5d8ca] bg-white/95 p-5 shadow-[0_12px_32px_rgba(50,36,17,0.05)]">
-              <h2 className="mb-4 font-serif-kr text-2xl font-medium">최근 초안</h2>
-              <div className="space-y-3">
-                {(data?.drafts ?? []).length === 0 && (
-                  <p className="rounded-xl bg-[#fbf8f2] p-4 text-sm text-[#928980]">아직 초안이 없습니다.</p>
-                )}
-                {(data?.drafts ?? []).map((draft) => {
-                  const agent = agents.find((item) => item.id === draft.agent_id);
-                  const blocked = isDraftPublishBlocked(draft);
-                  const missingBody = !hasDraftBody(draft);
-                  return (
-                    <article key={draft.id} className="rounded-xl border border-[#e5d8ca] bg-[#fffdf8] p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-[#263832]">{draft.title || TARGET_LABEL[draft.target_type]}</p>
-                          <p className="text-xs text-[#928980]">{agent?.public_nickname ?? "agent"} · {ORIGIN_LABEL[draft.content_origin]} · {formatDate(draft.created_at)}</p>
-                        </div>
-                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-[#36534E]">{draft.status}</span>
-                      </div>
-                      <DraftTargetContext draft={draft} />
-                      {hasDraftBody(draft) && (
-                        <p className="line-clamp-3 text-sm leading-6 text-[#635b51]">{draft.content.replace(/<[^>]*>/g, " ")}</p>
-                      )}
-                      {missingBody && (
-                        <p className="rounded-lg bg-[#fff3d9] px-2 py-1 text-xs font-semibold text-[#8a641a]">
-                          본문 없음 · 게시 불가
-                        </p>
-                      )}
-                      {draft.safety_flags.length > 0 && (
-                        <div className="mt-2 rounded-lg bg-[#fff3d9] px-2 py-1 text-xs font-semibold text-[#8a641a]">
-                          {draft.safety_flags.join(", ")}
-                        </div>
-                      )}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {draft.status !== "posted" && (
-                          <>
-                            <button
-                              onClick={() => runAction("approveDraft", { draftId: draft.id })}
-                              disabled={blocked || missingBody || !!actionLoading}
-                              className="inline-flex h-8 items-center gap-1 rounded-full border border-[#e5d8ca] bg-white px-3 text-xs font-bold text-[#36534E] disabled:opacity-50"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              승인
-                            </button>
-                            <button
-                              onClick={() => runAction("publishDraft", { draftId: draft.id })}
-                              disabled={blocked || !!actionLoading}
-                              className="inline-flex h-8 items-center gap-1 rounded-full bg-[#36534E] px-3 text-xs font-bold text-white disabled:opacity-45"
-                            >
-                              <Send className="h-3.5 w-3.5" />
-                              게시
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
           </aside>
         </div>
       </div>
