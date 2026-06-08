@@ -52,6 +52,44 @@ interface DraftRow {
   updated_at: string;
 }
 
+interface DraftTargetPost {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  author_id: string | null;
+  author_nickname: string | null;
+  comment_count: number;
+  upvote_count: number;
+  created_at: string;
+}
+
+interface DraftTargetComment {
+  id: string;
+  post_id: string;
+  parent_id: string | null;
+  content: string;
+  author_id: string | null;
+  author_nickname: string | null;
+  upvote_count: number;
+  created_at: string;
+}
+
+interface DraftTargetCohortRoom {
+  id: string;
+  name: string;
+  year: number;
+  month: number;
+  room_number: number;
+  message_count: number;
+}
+
+type EnrichedDraftRow = DraftRow & {
+  target_post: DraftTargetPost | null;
+  target_comment: DraftTargetComment | null;
+  target_cohort_room: DraftTargetCohortRoom | null;
+};
+
 interface AgentRequestBody {
   action?: "seed" | "setStatus" | "createDraft" | "approveDraft" | "rejectDraft" | "publishDraft";
   agentId?: string;
@@ -245,6 +283,135 @@ async function loadMetrics(supabase: ReturnType<typeof getServiceClient>, agentU
   };
 }
 
+async function loadCommunityProfiles(
+  supabase: ReturnType<typeof getServiceClient>,
+  userIds: string[]
+): Promise<Map<string, string>> {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueUserIds.length === 0) return new Map();
+
+  const { data } = await supabase
+    .from("community_profiles")
+    .select("user_id,nickname")
+    .in("user_id", uniqueUserIds);
+
+  const entries: Array<[string, string]> = [];
+  for (const profile of data ?? []) {
+    const userId = profile.user_id as string | null;
+    const nickname = profile.nickname as string | null;
+    if (userId && nickname) entries.push([userId, nickname]);
+  }
+
+  return new Map(entries);
+}
+
+async function enrichDraftTargets(
+  supabase: ReturnType<typeof getServiceClient>,
+  drafts: DraftRow[]
+): Promise<EnrichedDraftRow[]> {
+  if (drafts.length === 0) return [];
+
+  const targetPostIds = [
+    ...new Set(
+      drafts
+        .map((draft) => draft.target_post_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const targetCommentIds = [
+    ...new Set(
+      drafts
+        .map((draft) => draft.target_comment_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const targetRoomIds = [
+    ...new Set(
+      drafts
+        .map((draft) => draft.target_cohort_room_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  const [postsResult, commentsResult, roomsResult] = await Promise.all([
+    targetPostIds.length
+      ? supabase
+          .from("community_posts")
+          .select("id,title,content,category,author_id,comment_count,upvote_count,created_at")
+          .in("id", targetPostIds)
+      : Promise.resolve({ data: [] }),
+    targetCommentIds.length
+      ? supabase
+          .from("community_comments")
+          .select("id,post_id,parent_id,content,author_id,upvote_count,created_at")
+          .in("id", targetCommentIds)
+      : Promise.resolve({ data: [] }),
+    targetRoomIds.length
+      ? supabase
+          .from("cohort_rooms")
+          .select("id,name,year,month,room_number,message_count")
+          .in("id", targetRoomIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const authorIds = [
+    ...((postsResult.data ?? []) as Array<{ author_id?: string | null }>).map((post) => post.author_id),
+    ...((commentsResult.data ?? []) as Array<{ author_id?: string | null }>).map((comment) => comment.author_id),
+  ].filter((id): id is string => Boolean(id));
+  const nicknames = await loadCommunityProfiles(supabase, authorIds);
+
+  const posts = new Map(
+    ((postsResult.data ?? []) as Array<{
+      id: string;
+      title: string;
+      content: string;
+      category: string;
+      author_id: string | null;
+      comment_count: number | null;
+      upvote_count: number | null;
+      created_at: string;
+    }>).map((post) => [
+      post.id,
+      {
+        ...post,
+        author_nickname: post.author_id ? nicknames.get(post.author_id) ?? null : null,
+        comment_count: post.comment_count ?? 0,
+        upvote_count: post.upvote_count ?? 0,
+      },
+    ])
+  );
+
+  const comments = new Map(
+    ((commentsResult.data ?? []) as Array<{
+      id: string;
+      post_id: string;
+      parent_id: string | null;
+      content: string;
+      author_id: string | null;
+      upvote_count: number | null;
+      created_at: string;
+    }>).map((comment) => [
+      comment.id,
+      {
+        ...comment,
+        author_nickname: comment.author_id ? nicknames.get(comment.author_id) ?? null : null,
+        upvote_count: comment.upvote_count ?? 0,
+      },
+    ])
+  );
+
+  const rooms = new Map(
+    ((roomsResult.data ?? []) as DraftTargetCohortRoom[]).map((room) => [room.id, room])
+  );
+
+  return drafts.map((draft) => ({
+    ...draft,
+    target_post: draft.target_post_id ? posts.get(draft.target_post_id) ?? null : null,
+    target_comment: draft.target_comment_id ? comments.get(draft.target_comment_id) ?? null : null,
+    target_cohort_room: draft.target_cohort_room_id ? rooms.get(draft.target_cohort_room_id) ?? null : null,
+  }));
+}
+
 export async function GET(req: Request) {
   const { authorized } = await verifyAdmin(req);
   if (!authorized) {
@@ -279,7 +446,10 @@ export async function GET(req: Request) {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(80);
-  const drafts = ((draftsRaw ?? []) as DraftRow[]).filter(isActionableDraft).slice(0, 30);
+  const drafts = await enrichDraftTargets(
+    supabase,
+    ((draftsRaw ?? []) as DraftRow[]).filter(isActionableDraft).slice(0, 30)
+  );
 
   const agentUserIds = agents
     .map((agent) => agent.backing_user_id)

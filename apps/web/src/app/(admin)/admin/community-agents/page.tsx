@@ -6,14 +6,17 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  ExternalLink,
   FileText,
   Loader2,
+  MessageSquare,
   PauseCircle,
   PlayCircle,
   RefreshCw,
   Send,
   ShieldCheck,
   Sparkles,
+  ThumbsUp,
 } from "lucide-react";
 
 type AgentStatus = "draft" | "active" | "paused" | "retired";
@@ -63,10 +66,45 @@ interface AgentDraft {
   safety_flags: string[];
   verification_status: string;
   target_post_id: string | null;
+  target_comment_id: string | null;
+  target_cohort_room_id: string | null;
   posted_post_id: string | null;
   posted_comment_id: string | null;
   posted_cohort_message_id: string | null;
   created_at: string;
+  target_post: DraftTargetPost | null;
+  target_comment: DraftTargetComment | null;
+  target_cohort_room: DraftTargetCohortRoom | null;
+}
+
+interface DraftTargetPost {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  author_nickname: string | null;
+  comment_count: number;
+  upvote_count: number;
+  created_at: string;
+}
+
+interface DraftTargetComment {
+  id: string;
+  post_id: string;
+  parent_id: string | null;
+  content: string;
+  author_nickname: string | null;
+  upvote_count: number;
+  created_at: string;
+}
+
+interface DraftTargetCohortRoom {
+  id: string;
+  name: string;
+  year: number;
+  month: number;
+  room_number: number;
+  message_count: number;
 }
 
 interface AutomationRunItem {
@@ -163,6 +201,10 @@ function plainText(value: string): string {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function shortId(value: string): string {
+  return value.slice(0, 8);
 }
 
 function hasDraftBody(draft: AgentDraft): boolean {
@@ -484,6 +526,7 @@ export default function CommunityAgentsAdminPage() {
 
                     {draft ? (
                       <>
+                        <DraftTargetContext draft={draft} />
                         {hasDraftBody(draft) && (
                           <p className={`${expanded ? "" : "line-clamp-5"} whitespace-pre-line text-sm leading-6 text-[#635b51]`}>
                             {plainText(draft.content)}
@@ -737,6 +780,7 @@ export default function CommunityAgentsAdminPage() {
                         </div>
                         <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-[#36534E]">{draft.status}</span>
                       </div>
+                      <DraftTargetContext draft={draft} />
                       {hasDraftBody(draft) && (
                         <p className="line-clamp-3 text-sm leading-6 text-[#635b51]">{draft.content.replace(/<[^>]*>/g, " ")}</p>
                       )}
@@ -782,6 +826,118 @@ export default function CommunityAgentsAdminPage() {
       </div>
     </main>
   );
+}
+
+function DraftTargetContext({ draft }: { draft: AgentDraft }) {
+  if (draft.target_type === "comment" || draft.target_type === "reaction") {
+    const post = draft.target_post;
+    const label = draft.target_type === "comment" ? "댓글 대상 글" : "좋아요 대상 글";
+    const Icon = draft.target_type === "comment" ? MessageSquare : ThumbsUp;
+
+    return (
+      <div className="mb-3 rounded-xl border border-[#eadfce] bg-white px-3 py-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-[#36534E]">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span>{label}</span>
+          </div>
+          {post ? (
+            <Link
+              href={`/wedding/community/post/${post.id}`}
+              target="_blank"
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-[#e5d8ca] px-2.5 text-[11px] font-bold text-[#36534E]"
+            >
+              <ExternalLink className="h-3 w-3" />
+              원글 열기
+            </Link>
+          ) : null}
+        </div>
+
+        {post ? (
+          <div className="space-y-2">
+            <div>
+              <p className="line-clamp-2 text-sm font-bold leading-5 text-[#263832]">{post.title}</p>
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#635b51]">{plainText(post.content)}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-[#928980]">
+              <span>{post.category}</span>
+              {post.author_nickname ? <span>· {post.author_nickname}</span> : null}
+              <span>· 댓글 {post.comment_count}</span>
+              <span>· 좋아요 {post.upvote_count}</span>
+              <span>· {formatDate(post.created_at)}</span>
+              <span title={post.id}>· post {shortId(post.id)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
+            대상 글 정보를 불러오지 못했습니다.
+            {draft.target_post_id ? <span title={draft.target_post_id}> post {shortId(draft.target_post_id)}</span> : " target_post_id가 없습니다."}
+          </div>
+        )}
+
+        {draft.target_comment ? (
+          <div className="mt-2 rounded-lg bg-[#fbf8f2] px-3 py-2">
+            <p className="mb-1 text-[11px] font-bold text-[#928980]">답글 대상 댓글</p>
+            <p className="line-clamp-2 text-xs leading-5 text-[#635b51]">{plainText(draft.target_comment.content)}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-[#928980]">
+              {draft.target_comment.author_nickname ? <span>{draft.target_comment.author_nickname}</span> : null}
+              <span>좋아요 {draft.target_comment.upvote_count}</span>
+              <span>{formatDate(draft.target_comment.created_at)}</span>
+              <span title={draft.target_comment.id}>comment {shortId(draft.target_comment.id)}</span>
+            </div>
+          </div>
+        ) : draft.target_comment_id ? (
+          <div className="mt-2 rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold text-[#8a641a]">
+            답글 대상 댓글을 불러오지 못했습니다. <span title={draft.target_comment_id}>comment {shortId(draft.target_comment_id)}</span>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (draft.target_type === "cohort_message") {
+    const room = draft.target_cohort_room;
+
+    return (
+      <div className="mb-3 rounded-xl border border-[#eadfce] bg-white px-3 py-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-[#36534E]">
+            <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+            <span>동기방 대상</span>
+          </div>
+          {room ? (
+            <Link
+              href={`/wedding/community/cohort/${room.id}`}
+              target="_blank"
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-[#e5d8ca] px-2.5 text-[11px] font-bold text-[#36534E]"
+            >
+              <ExternalLink className="h-3 w-3" />
+              방 열기
+            </Link>
+          ) : null}
+        </div>
+
+        {room ? (
+          <>
+            <p className="text-sm font-bold leading-5 text-[#263832]">{room.name}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-[#928980]">
+              <span>{room.year}년 {room.month}월</span>
+              <span>· {room.room_number}방</span>
+              <span>· 메시지 {room.message_count}</span>
+              <span title={room.id}>· room {shortId(room.id)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
+            대상 동기방 정보를 불러오지 못했습니다.
+            {draft.target_cohort_room_id ? <span title={draft.target_cohort_room_id}> room {shortId(draft.target_cohort_room_id)}</span> : " target_cohort_room_id가 없습니다."}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function MetricCard({ label, value, helper }: { label: string; value: string; helper: string }) {
