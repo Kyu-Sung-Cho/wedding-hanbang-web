@@ -196,6 +196,15 @@ const DRAFT_STATUS_FILTER_LABEL: Record<DraftStatusFilter, string> = {
   ...DRAFT_STATUS_LABEL,
 };
 
+const SAFETY_FLAG_LABEL: Record<string, string> = {
+  official_manual_review: "공식 계정 수동 검토",
+  source_required: "출처 확인 필요",
+  empty_content: "본문 없음",
+  blocked_fake_first_person_experience: "가짜 경험담 의심",
+  blocked_fake_experience_artifact: "경험담 표현 차단",
+  blocked_vendor_judgment_without_review: "업체 평가 표현 검토 필요",
+};
+
 function formatDate(value: string): string {
   if (!value) return "-";
   return new Date(value).toLocaleString("ko-KR", {
@@ -232,6 +241,10 @@ function isDraftPublishBlocked(draft: AgentDraft): boolean {
     draft.safety_flags.includes("empty_content") ||
     !hasDraftBody(draft)
   );
+}
+
+function formatSafetyFlags(flags: string[] | undefined): string {
+  return [...new Set(flags ?? [])].map((flag) => SAFETY_FLAG_LABEL[flag] ?? flag).join(", ");
 }
 
 export default function CommunityAgentsAdminPage() {
@@ -590,7 +603,7 @@ export default function CommunityAgentsAdminPage() {
                         </div>
                         {(draft.safety_flags.length > 0 || item.flags?.length) && (
                           <div className="mt-3 rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
-                            {[...new Set([...(draft.safety_flags ?? []), ...(item.flags ?? [])])].join(", ")}
+                            {formatSafetyFlags([...(draft.safety_flags ?? []), ...(item.flags ?? [])])}
                           </div>
                         )}
                         <div className="mt-4 flex flex-wrap gap-2">
@@ -752,7 +765,7 @@ export default function CommunityAgentsAdminPage() {
 
                     {draft.safety_flags.length > 0 && (
                       <div className="mt-3 rounded-lg bg-[#fff3d9] px-3 py-2 text-xs font-semibold leading-5 text-[#8a641a]">
-                        {draft.safety_flags.join(", ")}
+                        {formatSafetyFlags(draft.safety_flags)}
                       </div>
                     )}
 

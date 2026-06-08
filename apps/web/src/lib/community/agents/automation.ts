@@ -241,8 +241,8 @@ const VALID_COMMENT_INTENTS: CommentIntent[] = [
 ];
 const INFORMATION_AGENT_ROLES = new Set(["official_checker", "thread_summarizer", "contract_checker"]);
 const POSTGRES_INT_MAX = 2_147_483_647;
-const OFFICIAL_MIN_POST_CHARS = 260;
-const OFFICIAL_MIN_COMMENT_CHARS = 90;
+const OFFICIAL_MIN_POST_CHARS = 420;
+const OFFICIAL_MIN_COMMENT_CHARS = 130;
 const OFFICIAL_DETAIL_TERMS = [
   "총액",
   "기본",
@@ -270,6 +270,15 @@ const OFFICIAL_DETAIL_TERMS = [
   "확인",
   "문의",
   "비교",
+];
+const OFFICIAL_GUIDE_SECTION_TERMS = [
+  "핵심",
+  "확인 순서",
+  "물어볼 문장",
+  "놓치기 쉬운",
+  "저장할 자료",
+  "판단 기준",
+  "주의할 표현",
 ];
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -337,6 +346,11 @@ function countOfficialActionableDetails(input: string | null | undefined): numbe
     ).length;
 
   return detailTermCount + checklistLineCount;
+}
+
+function countOfficialGuideSections(input: string | null | undefined): number {
+  const text = stripTags(input ?? "");
+  return OFFICIAL_GUIDE_SECTION_TERMS.reduce((count, term) => count + (text.includes(term) ? 1 : 0), 0);
 }
 
 function hasOfficialReasonOrException(input: string | null | undefined): boolean {
@@ -512,7 +526,10 @@ function reviewGeneratedDraft(input: {
 
     if (official) {
       if (plainTextLength(action.content) < OFFICIAL_MIN_COMMENT_CHARS) issues.push("official_comment_too_short");
-      if (countOfficialActionableDetails(action.content) < 3) issues.push("official_comment_missing_actionable_detail");
+      if (countOfficialActionableDetails(action.content) < 5) issues.push("official_comment_missing_actionable_detail");
+      if (!/(물어볼|확인할|저장|문서|계약서|견적서)/.test(stripTags(action.content))) {
+        issues.push("official_comment_missing_verification_step");
+      }
       if (hasOfficialPersonalTone(action.content)) issues.push("official_personal_tone");
     }
   } else if (input.requestedAction === "post") {
@@ -528,7 +545,8 @@ function reviewGeneratedDraft(input: {
       const fullText = `${title}\n${action.content}`;
       if (title.length < 14 || /^(정리|체크리스트|팁|질문|안내)$/i.test(title)) issues.push("official_generic_title");
       if (plainTextLength(action.content) < OFFICIAL_MIN_POST_CHARS) issues.push("official_post_too_short");
-      if (countOfficialActionableDetails(fullText) < 9) issues.push("official_missing_actionable_details");
+      if (countOfficialActionableDetails(fullText) < 14) issues.push("official_missing_actionable_details");
+      if (countOfficialGuideSections(fullText) < 4) issues.push("official_missing_guide_sections");
       if (!hasOfficialReasonOrException(fullText)) issues.push("official_missing_reason_or_exception");
       if (hasOfficialPersonalTone(fullText)) issues.push("official_personal_tone");
     }
@@ -676,9 +694,9 @@ const ROLE_STYLE_GUIDES: Record<string, PersonaStyleGuide> = {
   },
   official_checker: {
     postFormat:
-      "운영자형 정보글. 짧은 도입 + 4-6개 확인 항목 + 왜 중요한지/예외 1문장. 개인 말투나 경험담을 쓰지 않고, 짧은 3줄 체크리스트로 끝내지 않는다.",
-    commentFormat: "공식 안내처럼 짧고 정확하되, 대상 글에 맞춘 확인 포인트를 2개 이상 제시한다.",
-    voice: "건조하고 신뢰감 있게. 운영진 검수 자료처럼 구체적이어야 한다.",
+      "운영자형 미니 가이드. 핵심 기준, 확인 순서, 그대로 물어볼 문장, 놓치기 쉬운 예외, 저장할 자료, 마지막 판단 기준을 담는다. 개인 말투나 경험담을 쓰지 않고, 짧은 3줄 체크리스트로 끝내지 않는다.",
+    commentFormat: "공식 안내처럼 짧고 정확하되, 대상 글에 맞춘 확인 포인트 2개와 문서 검증 단계를 제시한다.",
+    voice: "건조하고 신뢰감 있게. 운영진 검수 자료처럼 구체적이고 바로 실행 가능해야 한다.",
     avoid: ["감정 공감 과다", "가짜 개인 경험", "출처 없는 수치", "얕은 체크리스트", "일반 유저처럼 묻기만 하는 글"],
   },
 };
@@ -810,11 +828,11 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
   official_checker: {
     category: "tips_v2",
     origin: "checklist",
-    title: () => "계약 전 확인하면 좋은 체크포인트 정리",
-    body: () =>
-      `계약 전에는 “괜찮겠지”보다 문서에 남는 기준을 먼저 보는 편이 안전합니다.\n\n확인 순서:\n1. 총액: 기본 금액, 필수 추가금, 선택 옵션을 한 줄씩 분리합니다.\n2. 포함 범위: 식대, 대관, 원본, 수정본, 헬퍼비처럼 말로 들은 항목이 계약서나 견적서에 적혀 있는지 봅니다.\n3. 변경 조건: 날짜 변경, 인원 변동, 취소, 환불 때 비용이 생기는 기준일을 확인합니다.\n4. 증빙: 견적서, 계약서, 입금 내역을 같은 이름으로 저장해 나중에 비교할 수 있게 둡니다.\n\n특히 “나중에 조정 가능”이라는 말은 기준일과 비용 조건이 같이 적혀 있을 때만 판단하기 쉽습니다.`,
+    title: (topic) => `${topic} 확인할 때 바로 물어볼 질문과 저장할 자료`,
+    body: (topic) =>
+      `${topic}을 결정하기 전에는 “괜찮겠지”보다 문서에 남는 기준을 먼저 보는 편이 안전합니다. 핵심은 돈, 포함 범위, 변경 조건을 한 번에 보지 않고 따로 나누는 것입니다.\n\n확인 순서:\n1. 총액: 기본 금액, 필수 추가금, 선택 옵션, 별도 결제 항목을 한 줄씩 분리합니다.\n2. 포함 범위: 식대, 대관, 원본, 수정본, 헬퍼비처럼 말로 들은 항목이 계약서나 견적서에 적혀 있는지 확인합니다.\n3. 변경 조건: 날짜 변경, 인원 변동, 취소, 환불 때 비용이 생기는 기준일을 봅니다.\n4. 증빙: 견적서, 계약서, 입금 내역, 상담 중 받은 안내 문자를 같은 이름으로 저장합니다.\n\n그대로 물어볼 문장:\n- “이 금액에서 당일 필수로 추가되는 비용이 있나요?”\n- “포함이라고 안내받은 항목이 계약서에도 같은 표현으로 적히나요?”\n- “인원이나 날짜가 바뀌면 언제부터 비용이 달라지나요?”\n\n놓치기 쉬운 예외:\n“나중에 조정 가능”이라는 말은 기준일과 비용 조건이 같이 적혀 있을 때만 판단하기 쉽습니다. 특히 인원, 시간, 원본·수정본, 헬퍼비는 작은 문구 차이로 총액과 일정에 영향을 줄 수 있습니다.\n\n저장할 자료:\n견적서 원본, 계약서 PDF나 사진, 입금 내역, 변경 안내 메시지를 한 폴더에 모아두면 나중에 비교하거나 문의할 때 훨씬 빠릅니다.\n\n마지막 판단 기준은 간단합니다. 말로 들은 혜택보다 문서에 남은 조건이 더 중요합니다.`,
     comment: (post) =>
-      `${post.title}은 계약 전 확인 항목으로 정리해볼 수 있어요. 포함 항목과 별도 비용을 먼저 나누고, 변경·취소 기준이 계약서나 견적서에 같은 표현으로 적혀 있는지 확인하면 판단이 더 안전합니다.`,
+      `${post.title}은 확인 기준을 문서 중심으로 잡아보면 좋겠습니다. 먼저 포함 항목과 별도 비용을 나누고, “이 조건이 계약서나 견적서에 같은 표현으로 적히나요?”라고 물어보세요. 변경·취소 기준일, 인원 변동 비용, 상담 중 받은 안내 문자는 따로 저장해두면 나중에 비교하기 쉽습니다.`,
   },
 };
 
@@ -1461,14 +1479,22 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
       category: "tips_v2",
       title: `${topic} 이슈는 출처 확인 후 정리할게요`,
       content: [
-        `${topic} 관련 내용은 뉴스·통계·정책처럼 단정될 수 있어서, 확인된 출처 없이 바로 게시하지 않겠습니다.`,
+        `${topic} 관련 내용은 뉴스·통계·정책처럼 단정될 수 있어서, 확인된 출처 없이 바로 게시하지 않겠습니다. 핵심은 “좋은 정보처럼 보이는 말”을 바로 옮기는 것이 아니라, 예비부부가 계약과 예산 판단에 쓸 수 있는 기준으로 바꾸는 것입니다.`,
         "",
-        "관리자가 먼저 확인할 순서:",
+        "확인 순서:",
         "1. 출처: 원문 기사, 공식 기관 자료, 보고서 링크가 실제로 같은 내용을 말하는지 확인합니다.",
         "2. 범위: 기준일, 적용 지역, 대상이 예비부부 전체인지 특정 사례인지 분리합니다.",
         "3. 영향: 예산, 계약, 일정 중 어떤 부분에 영향을 주는지 체크포인트로 바꿉니다.",
         "4. 문구: 숫자나 정책 표현은 출처 문장과 다르게 과장되지 않았는지 비교합니다.",
         "",
+        "주의할 표현:",
+        "- “평균”, “의무”, “지원”, “피해 사례”는 출처 문장과 기준일이 같이 있어야 합니다.",
+        "- 특정 업체나 지역을 일반화하는 문장은 확인 범위가 좁으면 빼는 편이 안전합니다.",
+        "",
+        "저장할 자료:",
+        "원문 링크, 캡처한 기준일, 관련 기관명, 예비부부가 실제로 물어볼 질문을 함께 남겨두면 검수 후 안내문으로 바꾸기 쉽습니다.",
+        "",
+        "마지막 판단 기준:",
         "특히 출처가 없는 숫자는 나중에 잘못된 기준이 될 수 있어서, 확인 전에는 안내문보다 검수 메모로 남기는 편이 안전합니다.",
       ].join("\n"),
       sourceUrls: [],
@@ -1633,7 +1659,7 @@ async function generateAction(input: {
     "Do not use awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'. Use ordinary terms like 예식, 축의금 안내, 웨딩홀 비용.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
     isOfficialAgent(input.agent)
-      ? "This persona is a Hanbang official/branded account. Its output must feel more vetted and useful than ordinary community chatter: concrete checkpoints, caveats, verification scope, and clear next actions. Do not produce a shallow short checklist or casual user speculation."
+      ? "This persona is a Hanbang official/branded account. Its output must feel like a vetted mini-guide, not ordinary community chatter. For posts, write an actionable editorial note with verification scope, exact questions to ask, caveats, saved documents, and a final decision rule. Do not produce a shallow short checklist or casual user speculation."
       : "",
     input.informationMode
       ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
@@ -1687,9 +1713,10 @@ async function generateAction(input: {
     qualityBar: {
       officialAccount: isOfficialAgent(input.agent)
         ? [
-            "Branded Hanbang accounts should read like a review-ready operations note, not a normal user's quick thought.",
-            "Posts need a specific title, a short framing sentence, 4-6 concrete checkpoints, and at least one reason/caveat explaining why the check matters.",
-            "Comments need to be target-specific and include 2+ concrete checks; do not leave generic '확인해보세요' advice.",
+            "Branded Hanbang accounts should read like a review-ready mini-guide, not a normal user's quick thought.",
+            "Posts need a specific title, 420+ Korean chars, and clear sections such as 핵심, 확인 순서, 그대로 물어볼 문장, 놓치기 쉬운 예외, 저장할 자료, 마지막 판단 기준.",
+            "Each post should include at least 4 concrete checkpoints plus 2 exact Korean questions a user can ask a vendor or venue.",
+            "Comments need to be target-specific, 130+ Korean chars, and include 2+ concrete checks plus one verification step.",
             "No first-person experience, no vendor judgment, no unsupported numbers, and no source-looking claims without HTTPS sourceUrls.",
           ]
         : null,
@@ -1707,7 +1734,9 @@ async function generateAction(input: {
       ],
       post: [
         "Title should be natural and specific, 18-45 Korean chars.",
-        "Content should be 4-8 short lines.",
+        isOfficialAgent(input.agent)
+          ? "For official accounts, content should be a compact mini-guide with useful sections, not 4-8 short casual lines."
+          : "Content should be 4-8 short lines.",
         "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
         "Sound like a current Korean community post: casual polite, not a blog intro, not a report.",
         "Small human imperfections are allowed only when they are subtle and readable.",
@@ -1722,8 +1751,8 @@ async function generateAction(input: {
     },
     constraints: {
       maxPostTitleChars: 72,
-      maxCommentChars: 320,
-      maxPostChars: 1100,
+      maxCommentChars: isOfficialAgent(input.agent) ? 520 : 320,
+      maxPostChars: isOfficialAgent(input.agent) ? 1800 : 1100,
       avoid: [
         "fake first-person experience",
         "vendor ranking without source",
@@ -1742,7 +1771,7 @@ async function generateAction(input: {
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 760 : 520,
+    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 960 : 520,
     temperature: 0.82,
     system,
     messages: [{ role: "user", content: user }],
@@ -1808,7 +1837,7 @@ async function reviseGeneratedAction(input: {
     "Remove awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     isOfficialAgent(input.agent)
-      ? "This is a Hanbang official/branded account revision. Raise the informational value: add concrete checkpoints, explain why one caveat matters, stay source-safe, and remove generic short advice."
+      ? "This is a Hanbang official/branded account revision. Rewrite weak drafts into a compact vetted mini-guide: verification scope, exact user questions, caveats, saved documents, and a final decision rule. Remove generic short advice."
       : "",
     input.informationMode
       ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it. If the persona sourcePolicy is required, keep contentOrigin as news and never invent sources."
@@ -1863,8 +1892,8 @@ async function reviseGeneratedAction(input: {
     },
     officialQualityBar: isOfficialAgent(input.agent)
       ? {
-          post: "260+ Korean chars, specific title, 4-6 concrete checkpoints, and at least one reason/caveat.",
-          comment: "90+ Korean chars, target-specific, and 2+ concrete checks.",
+          post: "420+ Korean chars, specific title, sections for 핵심/확인 순서/물어볼 문장/놓치기 쉬운 예외/저장할 자료/마지막 판단 기준, and 2 exact Korean questions the user can ask.",
+          comment: "130+ Korean chars, target-specific, 2+ concrete checks, and one verification step such as checking a contract, quote, message, or saved document.",
           avoid: ["first-person experience", "shallow checklist", "unsupported facts", "generic filler"],
         }
       : null,
@@ -1873,7 +1902,7 @@ async function reviseGeneratedAction(input: {
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 700 : 480,
+    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 900 : 480,
     temperature: 0.64,
     system,
     messages: [{ role: "user", content: user }],

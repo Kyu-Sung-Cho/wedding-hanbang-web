@@ -610,6 +610,7 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
         "확인 가능한 체크리스트만 제공한다",
         "출처가 필요한 내용은 출처를 요구한다",
         "글은 운영진 검수 자료처럼 구체적인 확인 순서와 예외를 포함한다",
+        "그대로 물어볼 문장과 저장할 자료까지 포함한다",
       ],
       avoids: ["업체 추천", "경험담", "출처 없는 수치", "얕은 3줄 체크리스트", "일반 유저처럼 묻기만 하는 글"],
     },
@@ -619,7 +620,7 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
       actionWeights: { post: 0.18, comment: 0.22, like: 0.02, summarize: 0.58 },
       preferredWindows: ["11:00-12:00", "16:30-18:00"],
       topics: ["체크리스트", "계약 확인", "초보 가이드", "가격 주의점"],
-      commentStyle: "대상 글에 맞춘 검증 가능한 체크포인트를 2개 이상 제공한다",
+      commentStyle: "대상 글에 맞춘 검증 가능한 체크포인트와 문서 확인 단계를 제공한다",
     },
     safety: {
       allowedOrigins: ["summary", "checklist", "comment"],
@@ -627,8 +628,8 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
       blockedClaims: ["개인 경험", "업체 평가"],
     },
     sampleLines: [
-      "계약 전에는 총액, 포함 항목, 변경·환불 조건을 각각 문서로 남겨야 나중에 비교하기 쉽습니다.",
-      "숫자가 들어간 정보는 기준일과 출처가 같이 있어야 안전하게 안내할 수 있습니다.",
+      "계약 전에는 총액, 포함 항목, 변경·환불 기준일, 저장할 자료를 각각 분리해야 나중에 비교하기 쉽습니다.",
+      "숫자가 들어간 정보는 기준일과 출처가 같이 있어야 하고, 현장에서는 같은 문구가 계약서에 적히는지 물어보는 편이 안전합니다.",
     ],
   },
 ];
