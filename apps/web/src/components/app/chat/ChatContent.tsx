@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search } from "lucide-react";
+import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
+import type { CommunityCategory } from "@/types/community.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "@/components/app/chat/ChatBubble";
@@ -36,9 +37,79 @@ interface AttachmentItem {
   fileName: string;
 }
 
+interface CommunityAskDraft {
+  sourceMessageId: string;
+  title: string;
+  content: string;
+  category: CommunityCategory;
+  postedPostId: string | null;
+}
+
 interface ChatContentProps {
   /** 풀페이지(/chat)는 false, 다른 레이아웃 안에서 렌더되면 true. */
   embedded?: boolean;
+}
+
+const SENSITIVE_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
+  { label: "전화번호", pattern: /(?:01[016789]|02|0[3-6][1-5])[-.\s]?\d{3,4}[-.\s]?\d{4}/ },
+  { label: "이메일", pattern: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i },
+  { label: "계좌 정보", pattern: /(계좌|예금주|은행명|계좌번호)/ },
+  { label: "연락처", pattern: /(연락처|전화번호|카카오톡|카톡\s*ID|오픈채팅|오픈톡)/i },
+  { label: "계약 식별 정보", pattern: /(계약번호|예약번호|주민등록|상세주소|집주소)/ },
+];
+
+function normalizeChatText(input: string): string {
+  return input
+    .replace(/\[(?:vendor|product|staff|date|time):[^\]]*\]/g, "")
+    .replace(/\[quote_analysis\]/g, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateText(input: string, maxLength: number): string {
+  const text = normalizeChatText(input);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trim()}…`;
+}
+
+function inferCommunityCategory(text: string): CommunityCategory {
+  return /(견적|비용|예산|추가금|가격|계약|환불|식대|대관료|헬퍼비|원본비|수정본)/.test(text)
+    ? "tips_v2"
+    : "free";
+}
+
+function buildCommunityAskDraft(userQuestion: string, amoraAnswer: string, sourceMessageId: string): CommunityAskDraft {
+  const question = truncateText(userQuestion, 700);
+  const answer = truncateText(amoraAnswer, 700);
+  const baseTitle = truncateText(question.replace(/[?？]+$/g, ""), 46);
+  const title = baseTitle.length >= 8 ? baseTitle : "아모라 답변이 애매해서 의견 듣고 싶어요";
+  const category = inferCommunityCategory(`${question}\n${answer}`);
+
+  return {
+    sourceMessageId,
+    title,
+    category,
+    postedPostId: null,
+    content: [
+      "아모라에게 물어봤는데 아직 판단이 애매해서 커뮤니티에도 의견을 듣고 싶어요.",
+      "",
+      "궁금한 점:",
+      question || "결혼 준비 중 확인이 필요한 부분이 있습니다.",
+      "",
+      "아모라가 짚어준 내용:",
+      answer || "아모라 답변만으로는 판단이 애매했습니다.",
+      "",
+      "비슷한 상황에서 꼭 확인해야 할 부분이나 놓치기 쉬운 점이 있으면 알려주세요.",
+    ].join("\n"),
+  };
+}
+
+function detectSensitiveText(input: string): string[] {
+  const labels = SENSITIVE_TEXT_PATTERNS
+    .filter((item) => item.pattern.test(input))
+    .map((item) => item.label);
+  return [...new Set(labels)];
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
@@ -124,7 +195,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const prefill = searchParams?.get("prefill");
     if (!prefill) return;
     prefillAppliedRef.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInput(prefill);
     // URL 정리 — prefill만 제거
     const next = new URLSearchParams(searchParams.toString());
@@ -277,6 +347,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 메시지 검색 — 헤더 검색 바, 클라 사이드 필터
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [communityDraft, setCommunityDraft] = useState<CommunityAskDraft | null>(null);
+  const [communityPosting, setCommunityPosting] = useState(false);
+  const [communityPostError, setCommunityPostError] = useState<string | null>(null);
 
   // 컨테이너 스크롤 추적 — 바닥 근처 여부 + ↓ 버튼 표시
   useEffect(() => {
@@ -572,6 +645,49 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
   );
 
+  const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
+    setCommunityDraft(buildCommunityAskDraft(userMessage.content, aiMessage.content, aiMessage.id));
+    setCommunityPostError(null);
+  }, []);
+
+  const submitCommunityDraft = useCallback(async () => {
+    if (!communityDraft || communityPosting) return;
+    const sensitiveLabels = detectSensitiveText(`${communityDraft.title}\n${communityDraft.content}`);
+    if (sensitiveLabels.length > 0) {
+      setCommunityPostError(`먼저 ${sensitiveLabels.join(", ")} 표현을 지워주세요.`);
+      return;
+    }
+
+    setCommunityPosting(true);
+    setCommunityPostError(null);
+    try {
+      const res = await fetch("/api/community/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: communityDraft.category,
+          title: communityDraft.title.trim(),
+          content: communityDraft.content.trim(),
+          images: [],
+          visibility: "public",
+          vendor_tags: [],
+          tags: ["아모라상담"],
+          ad_disclosure: "general",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "게시글 작성에 실패했습니다.");
+      }
+      const postId = typeof data?.post?.id === "string" ? data.post.id : null;
+      setCommunityDraft((draft) => draft ? { ...draft, postedPostId: postId } : draft);
+    } catch (err) {
+      setCommunityPostError(err instanceof Error ? err.message : "게시글 작성에 실패했습니다.");
+    } finally {
+      setCommunityPosting(false);
+    }
+  }, [communityDraft, communityPosting]);
+
   // 배너에서 수동 중재 요청
   const handleManualMediation = useCallback(() => {
     setShowMediationBanner(false);
@@ -705,6 +821,168 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         </div>
       )}
+
+      {communityDraft && (() => {
+        const sensitiveLabels = detectSensitiveText(`${communityDraft.title}\n${communityDraft.content}`);
+        const postedHref = communityDraft.postedPostId
+          ? weddingPath(`/community/post/${communityDraft.postedPostId}`)
+          : null;
+        const canPost =
+          !communityPosting &&
+          !communityDraft.postedPostId &&
+          communityDraft.title.trim().length > 0 &&
+          communityDraft.content.trim().length > 0 &&
+          sensitiveLabels.length === 0;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={() => setCommunityDraft(null)}
+          >
+            <div
+              className="w-full max-w-[36rem] rounded-2xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-[#F0EFED] px-5 py-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.18em] text-[#795252]">COMMUNITY</p>
+                  <h3 className="mt-1 font-serif-kr text-xl text-[#1A1A1F]">이 내용으로 커뮤니티에 물어볼게요</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCommunityDraft(null)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#928980] hover:bg-[#F6F3F2] hover:text-[#1A1A1F] transition-colors"
+                  aria-label="닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {communityDraft.postedPostId ? (
+                <div className="px-5 py-6">
+                  <div className="flex items-start gap-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2E7D5A]" />
+                    <div>
+                      <p className="text-sm font-semibold text-[#1A1A1F]">커뮤니티에 올라갔어요</p>
+                      <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+                        다른 예비부부들이 댓글로 의견을 남길 수 있습니다.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCommunityDraft(null)}
+                      className="rounded-xl border border-[#E8DDD3] px-4 py-2 text-sm font-medium text-[#504444] hover:bg-[#FAF7F2] transition-colors"
+                    >
+                      닫기
+                    </button>
+                    {postedHref && (
+                      <a
+                        href={postedHref}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#2F5F51] px-4 py-2 text-sm font-semibold text-white hover:bg-[#264f43] transition-colors"
+                      >
+                        글 보러가기
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-h-[72dvh] overflow-y-auto px-5 py-4">
+                  <div className="rounded-xl border border-[#F0E6D8] bg-[#FFF9EB] px-4 py-3">
+                    <p className="text-sm leading-relaxed text-[#6E5732]">
+                      커뮤니티에 공개되는 글입니다. 이름, 전화번호, 이메일, 계좌, 계약번호가 들어가 있으면 지우고 올려주세요.
+                    </p>
+                  </div>
+
+                  {sensitiveLabels.length > 0 && (
+                    <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F2D3C7] bg-[#FFF4EF] px-4 py-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#B25A3C]" />
+                      <p className="text-sm leading-relaxed text-[#8A4A35]">
+                        {sensitiveLabels.join(", ")} 표현이 보입니다. 해당 부분을 지우면 바로 게시할 수 있어요.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#F6F3F2] p-1">
+                    {[
+                      { key: "free" as CommunityCategory, label: "자유게시판" },
+                      { key: "tips_v2" as CommunityCategory, label: "정보/체크" },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => {
+                          setCommunityPostError(null);
+                          setCommunityDraft((draft) => draft ? { ...draft, category: item.key } : draft);
+                        }}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          communityDraft.category === item.key
+                            ? "bg-white text-[#795252] shadow-sm"
+                            : "text-[#928980] hover:text-[#504444]"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="mt-4 block">
+                    <span className="mb-1.5 block text-sm font-medium text-[#504444]">제목</span>
+                    <input
+                      value={communityDraft.title}
+                      onChange={(e) => {
+                        setCommunityPostError(null);
+                        setCommunityDraft((draft) => draft ? { ...draft, title: e.target.value.slice(0, 200) } : draft);
+                      }}
+                      className="w-full rounded-xl border border-[#E8DDD3] bg-white px-3 py-2.5 text-base text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="mb-1.5 block text-sm font-medium text-[#504444]">본문</span>
+                    <textarea
+                      value={communityDraft.content}
+                      onChange={(e) => {
+                        setCommunityPostError(null);
+                        setCommunityDraft((draft) => draft ? { ...draft, content: e.target.value.slice(0, 50000) } : draft);
+                      }}
+                      rows={11}
+                      className="w-full resize-none rounded-xl border border-[#E8DDD3] bg-white px-3 py-2.5 text-base leading-relaxed text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+                    />
+                  </label>
+
+                  {communityPostError && (
+                    <p className="mt-3 rounded-xl bg-[#FFF4EF] px-3 py-2 text-sm text-[#8A4A35]">
+                      {communityPostError}
+                    </p>
+                  )}
+
+                  <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setCommunityDraft(null)}
+                      className="rounded-xl border border-[#E8DDD3] px-4 py-2.5 text-sm font-medium text-[#504444] hover:bg-[#FAF7F2] transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={submitCommunityDraft}
+                      disabled={!canPost}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#264f43] disabled:cursor-not-allowed disabled:bg-[#A8B6AD] transition-colors"
+                    >
+                      {communityPosting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      이대로 게시
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
     <div className="h-full flex flex-col w-full">
       {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
@@ -1031,12 +1309,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
-          return filteredMessages.map((msg) => {
+          return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
               msg.metadata.toolResults.length > 0;
+            const previousHumanMessage = msg.sender_role === "ai"
+              ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
+              : undefined;
+            const canAskCommunity =
+              !isDemo &&
+              msg.sender_role === "ai" &&
+              recentAiIds.has(msg.id) &&
+              previousHumanMessage?.sender_id === profile?.id;
 
             return (
               <div
@@ -1049,6 +1335,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   currentUserRole={profile?.role}
                   isRecentAi={recentAiIds.has(msg.id)}
                 />
+                {canAskCommunity && previousHumanMessage && (
+                  <div className="ml-11 mt-1 flex max-w-[94%] sm:ml-14 sm:max-w-[53.75rem]">
+                    <button
+                      type="button"
+                      onClick={() => openCommunityDraft(msg, previousHumanMessage)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      커뮤니티에 물어보기
+                    </button>
+                  </div>
+                )}
                 {hasToolResults &&
                   // 같은 메시지 안에서 동일한 (toolName, success, displayMessage)
                   // 조합으로 중복된 카드는 1개만 표시. AI 가 DB 부족 등으로 같은
