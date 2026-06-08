@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Send, Sparkles, Trash2, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -45,6 +45,11 @@ interface CommunityAskDraft {
   postedPostId: string | null;
 }
 
+interface CommunityAskCue {
+  label: string;
+  ariaLabel: string;
+}
+
 interface ChatContentProps {
   /** 풀페이지(/chat)는 false, 다른 레이아웃 안에서 렌더되면 true. */
   embedded?: boolean;
@@ -56,6 +61,46 @@ const SENSITIVE_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "계좌 정보", pattern: /(계좌|예금주|은행명|계좌번호)/ },
   { label: "연락처", pattern: /(연락처|전화번호|카카오톡|카톡\s*ID|오픈채팅|오픈톡)/i },
   { label: "계약 식별 정보", pattern: /(계약번호|예약번호|주민등록|상세주소|집주소)/ },
+];
+
+const SYSTEM_ACTION_TOOL_NAMES = new Set([
+  "update_budget",
+  "update_wedding_date",
+  "update_task_status",
+  "update_venue",
+  "update_category_budget",
+  "apply_budget_plan",
+  "add_custom_category",
+  "delete_category",
+  "reset_category",
+  "add_schedule_event",
+  "update_schedule_event",
+  "delete_schedule_event",
+  "toggle_checklist_item",
+  "add_amora_action",
+  "update_amora_action",
+  "create_booking",
+  "cancel_booking",
+]);
+
+const UNCERTAIN_ANSWER_PATTERNS = [
+  /확인(?:이|해)?\s*필요/,
+  /정확(?:한|히)?[^.!?\n]*(?:확인|문의)/,
+  /판단(?:이)?\s*(?:어렵|애매|모호)/,
+  /답변(?:이)?\s*(?:어렵|제한)/,
+  /상황(?:에)?\s*따라/,
+  /업체(?:에|에게)?\s*(?:확인|문의)/,
+  /계약서(?:를|에서)?\s*(?:확인|봐야|보셔야)/,
+  /다른\s*(?:분들|예비부부|사람들).*?(?:경험|의견|후기)/,
+  /커뮤니티(?:에도|에서)?\s*(?:물어|의견|확인)/,
+];
+
+const COMMUNITY_EXPERIENCE_PATTERNS = [
+  /후기|경험|사례|실제|보통|평균/,
+  /견적|비용|예산|추가금|가격|계약|환불|할인/,
+  /괜찮|고민|불안|비교|추천|어떻게|해야|맞나|적당/,
+  /부모님|상견례|예단|축의금|답례품|지방|지역/,
+  /웨딩홀|예식장|스드메|드레스|메이크업|스냅|스튜디오|플래너/,
 ];
 
 function normalizeChatText(input: string): string {
@@ -110,6 +155,52 @@ function detectSensitiveText(input: string): string[] {
     .filter((item) => item.pattern.test(input))
     .map((item) => item.label);
   return [...new Set(labels)];
+}
+
+function includesAnyPattern(text: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function hasSuccessfulSystemAction(message: ChatMessage): boolean {
+  return (message.metadata?.toolResults ?? []).some(
+    (result) => result.success && SYSTEM_ACTION_TOOL_NAMES.has(result.toolName)
+  );
+}
+
+function getCommunityAskCue(
+  aiMessage: ChatMessage,
+  userMessage: ChatMessage,
+  wasMarkedUnhelpful: boolean
+): CommunityAskCue | null {
+  if (hasSuccessfulSystemAction(aiMessage)) return null;
+
+  if (wasMarkedUnhelpful) {
+    return {
+      label: "사람들 의견도 듣기",
+      ariaLabel: "아모라 답변이 아쉬워서 커뮤니티에 의견 묻기",
+    };
+  }
+
+  const answer = normalizeChatText(aiMessage.content);
+  const question = normalizeChatText(userMessage.content);
+
+  if (includesAnyPattern(answer, UNCERTAIN_ANSWER_PATTERNS)) {
+    return {
+      label: "커뮤니티에 물어보기",
+      ariaLabel: "아모라가 확실히 답하지 못한 내용을 커뮤니티에 묻기",
+    };
+  }
+
+  const asksForHumanExperience = includesAnyPattern(question, COMMUNITY_EXPERIENCE_PATTERNS);
+  const answerInvitesExperience = includesAnyPattern(answer, [/다른\s*(?:분들|예비부부|사람들).*?(?:경험|의견|후기)/]);
+  if (asksForHumanExperience && answerInvitesExperience) {
+    return {
+      label: "비슷한 경험 물어보기",
+      ariaLabel: "비슷한 경험을 커뮤니티에 묻기",
+    };
+  }
+
+  return null;
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
@@ -350,6 +441,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [communityDraft, setCommunityDraft] = useState<CommunityAskDraft | null>(null);
   const [communityPosting, setCommunityPosting] = useState(false);
   const [communityPostError, setCommunityPostError] = useState<string | null>(null);
+  const [communityPromptMessageIds, setCommunityPromptMessageIds] = useState<Set<string>>(() => new Set());
 
   // 컨테이너 스크롤 추적 — 바닥 근처 여부 + ↓ 버튼 표시
   useEffect(() => {
@@ -648,6 +740,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
     setCommunityDraft(buildCommunityAskDraft(userMessage.content, aiMessage.content, aiMessage.id));
     setCommunityPostError(null);
+  }, []);
+
+  const markCommunityFallbackAvailable = useCallback((message: ChatMessage) => {
+    setCommunityPromptMessageIds((prev) => {
+      if (prev.has(message.id)) return prev;
+      const next = new Set(prev);
+      next.add(message.id);
+      return next;
+    });
   }, []);
 
   const submitCommunityDraft = useCallback(async () => {
@@ -1318,11 +1419,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const previousHumanMessage = msg.sender_role === "ai"
               ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
               : undefined;
-            const canAskCommunity =
+            const canConsiderCommunityFallback =
               !isDemo &&
               msg.sender_role === "ai" &&
               recentAiIds.has(msg.id) &&
               previousHumanMessage?.sender_id === profile?.id;
+            const communityAskCue = canConsiderCommunityFallback && previousHumanMessage
+              ? getCommunityAskCue(
+                msg,
+                previousHumanMessage,
+                communityPromptMessageIds.has(msg.id)
+              )
+              : null;
 
             return (
               <div
@@ -1334,16 +1442,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   isCurrentUser={isCurrentUser}
                   currentUserRole={profile?.role}
                   isRecentAi={recentAiIds.has(msg.id)}
+                  onNegativeFeedback={markCommunityFallbackAvailable}
                 />
-                {canAskCommunity && previousHumanMessage && (
+                {communityAskCue && previousHumanMessage && (
                   <div className="ml-11 mt-1 flex max-w-[94%] sm:ml-14 sm:max-w-[53.75rem]">
                     <button
                       type="button"
                       onClick={() => openCommunityDraft(msg, previousHumanMessage)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+                      aria-label={communityAskCue.ariaLabel}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
-                      커뮤니티에 물어보기
+                      {communityAskCue.label}
                     </button>
                   </div>
                 )}

@@ -15,6 +15,7 @@ interface ChatBubbleProps {
   currentUserRole?: "bride" | "groom" | null;
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
+  onNegativeFeedback?: (message: ChatMessage) => void;
 }
 
 // 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
@@ -55,7 +56,13 @@ async function submitFeedback(messageId: string, rating: "good" | "bad", correct
 }
 
 // AI 메시지 피드백 UI
-function AiFeedbackRow({ messageId }: { messageId: string }) {
+function AiFeedbackRow({
+  messageId,
+  onNegativeFeedback,
+}: {
+  messageId: string;
+  onNegativeFeedback?: () => void;
+}) {
   const [status, setStatus] = useState<"idle" | "input" | "submitted">(() => {
     const saved = getFeedbackState();
     return saved[messageId] ? "submitted" : "idle";
@@ -74,8 +81,9 @@ function AiFeedbackRow({ messageId }: { messageId: string }) {
   }, [messageId]);
 
   const handleBadClick = useCallback(() => {
+    onNegativeFeedback?.();
     setStatus("input");
-  }, []);
+  }, [onNegativeFeedback]);
 
   const handleBadSubmit = useCallback(async () => {
     if (!correction.trim()) return;
@@ -347,6 +355,7 @@ export default function ChatBubble({
   isCurrentUser,
   currentUserRole,
   isRecentAi = false,
+  onNegativeFeedback,
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
 
@@ -424,7 +433,10 @@ export default function ChatBubble({
               과잉). */}
           {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
           {isRecentAi && (
-            <AiFeedbackRow messageId={message.id} />
+            <AiFeedbackRow
+              messageId={message.id}
+              onNegativeFeedback={() => onNegativeFeedback?.(message)}
+            />
           )}
         </div>
       </div>
