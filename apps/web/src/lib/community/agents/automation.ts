@@ -190,6 +190,7 @@ interface GeneratedAction {
   qualityReview?: DraftQualityReview;
   modelUsed?: string;
   informationMode?: boolean;
+  requiresManualReview?: boolean;
 }
 
 export interface CommunityAgentAutomationOptions {
@@ -240,6 +241,36 @@ const VALID_COMMENT_INTENTS: CommentIntent[] = [
 ];
 const INFORMATION_AGENT_ROLES = new Set(["official_checker", "thread_summarizer", "contract_checker"]);
 const POSTGRES_INT_MAX = 2_147_483_647;
+const OFFICIAL_MIN_POST_CHARS = 260;
+const OFFICIAL_MIN_COMMENT_CHARS = 90;
+const OFFICIAL_DETAIL_TERMS = [
+  "총액",
+  "기본",
+  "추가금",
+  "포함",
+  "별도",
+  "문서",
+  "계약서",
+  "견적서",
+  "환불",
+  "취소",
+  "변경",
+  "일정",
+  "조건",
+  "기준",
+  "인원",
+  "식대",
+  "대관",
+  "원본",
+  "수정본",
+  "헬퍼비",
+  "피팅비",
+  "증빙",
+  "저장",
+  "확인",
+  "문의",
+  "비교",
+];
 
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
   return !!error && (error.code === "42P01" || /does not exist|schema cache/i.test(error.message ?? ""));
@@ -288,6 +319,32 @@ function hasBodyContent(input: string | null | undefined): boolean {
 
 function plainTextLength(input: string | null | undefined): number {
   return stripTags(input ?? "").length;
+}
+
+function isOfficialAgent(agent: AgentRow): boolean {
+  return agent.public_mode === "official" || /^웨딩한방/.test(agent.public_nickname ?? "");
+}
+
+function countOfficialActionableDetails(input: string | null | undefined): number {
+  const text = stripTags(input ?? "");
+  const detailTermCount = OFFICIAL_DETAIL_TERMS.reduce((count, term) => count + (text.includes(term) ? 1 : 0), 0);
+  const checklistLineCount = (input ?? "")
+    .split(/\n+/)
+    .map((line) => stripTags(line))
+    .filter((line) =>
+      /^(?:[-*•]|\d+[.)]|[①②③④⑤⑥⑦⑧⑨⑩])\s*/.test(line) ||
+      /(확인|분리|문서|저장|문의|비교|기록|물어보기|나누기|체크)/.test(line)
+    ).length;
+
+  return detailTermCount + checklistLineCount;
+}
+
+function hasOfficialReasonOrException(input: string | null | undefined): boolean {
+  return /(왜냐하면|이유|특히|다만|예외|나중에|영향|분쟁|혼선|기준일|변동|놓치기|비교하기|판단하기)/.test(stripTags(input ?? ""));
+}
+
+function hasOfficialPersonalTone(input: string | null | undefined): boolean {
+  return /(저는|저도|제가|제 경우|저희는|다녀왔|방문했|상담받|견적받|계약했|예약했|결제했)/.test(stripTags(input ?? ""));
 }
 
 function hasConversationalQuestion(input: string | null | undefined): boolean {
@@ -419,6 +476,7 @@ function intentInstruction(intent: CommentIntent): string {
 }
 
 function reviewGeneratedDraft(input: {
+  agent: AgentRow;
   action: GeneratedAction;
   requestedAction: AutomationAction;
   targetPost: RecentPost | null;
@@ -427,6 +485,7 @@ function reviewGeneratedDraft(input: {
 }): DraftQualityReview {
   const issues: string[] = [];
   const action = input.action;
+  const official = isOfficialAgent(input.agent);
 
   if (input.requestedAction === "comment") {
     if (action.targetType !== "comment") issues.push("not_a_comment");
@@ -450,13 +509,29 @@ function reviewGeneratedDraft(input: {
 
     const duplicate = input.targetComments.some((comment) => jaccardSimilarity(comment.content, action.content) >= 0.5);
     if (duplicate) issues.push("duplicates_existing_comment");
+
+    if (official) {
+      if (plainTextLength(action.content) < OFFICIAL_MIN_COMMENT_CHARS) issues.push("official_comment_too_short");
+      if (countOfficialActionableDetails(action.content) < 3) issues.push("official_comment_missing_actionable_detail");
+      if (hasOfficialPersonalTone(action.content)) issues.push("official_personal_tone");
+    }
   } else if (input.requestedAction === "post") {
     if (action.targetType !== "post") issues.push("not_a_post");
     if (isLowQualityPost(action)) issues.push("low_quality_post");
     if (hasSuspiciousKoreanArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("suspicious_korean_artifact");
     if (hasFakeExperienceArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("fake_experience_artifact");
     if (hasAwkwardWeddingTerm(`${action.title ?? ""}\n${action.content}`)) issues.push("awkward_wedding_term");
-    if (!hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
+    if (!official && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
+
+    if (official) {
+      const title = stripTags(action.title ?? "");
+      const fullText = `${title}\n${action.content}`;
+      if (title.length < 14 || /^(정리|체크리스트|팁|질문|안내)$/i.test(title)) issues.push("official_generic_title");
+      if (plainTextLength(action.content) < OFFICIAL_MIN_POST_CHARS) issues.push("official_post_too_short");
+      if (countOfficialActionableDetails(fullText) < 9) issues.push("official_missing_actionable_details");
+      if (!hasOfficialReasonOrException(fullText)) issues.push("official_missing_reason_or_exception");
+      if (hasOfficialPersonalTone(fullText)) issues.push("official_personal_tone");
+    }
   }
 
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) issues.push("placeholder_content");
@@ -600,10 +675,11 @@ const ROLE_STYLE_GUIDES: Record<string, PersonaStyleGuide> = {
     avoid: ["햇살 같은 절약 메모", "비용 체크리스트", "제가 먼저 나눠보고 싶은 건"],
   },
   official_checker: {
-    postFormat: "운영자형 안전 체크. 짧은 도입 + 확인 항목. 개인 말투나 경험담을 쓰지 않는다.",
-    commentFormat: "공식 안내처럼 짧고 정확하게 확인 포인트만 제시한다.",
-    voice: "건조하고 신뢰감 있게.",
-    avoid: ["감정 공감 과다", "가짜 개인 경험", "출처 없는 수치"],
+    postFormat:
+      "운영자형 정보글. 짧은 도입 + 4-6개 확인 항목 + 왜 중요한지/예외 1문장. 개인 말투나 경험담을 쓰지 않고, 짧은 3줄 체크리스트로 끝내지 않는다.",
+    commentFormat: "공식 안내처럼 짧고 정확하되, 대상 글에 맞춘 확인 포인트를 2개 이상 제시한다.",
+    voice: "건조하고 신뢰감 있게. 운영진 검수 자료처럼 구체적이어야 한다.",
+    avoid: ["감정 공감 과다", "가짜 개인 경험", "출처 없는 수치", "얕은 체크리스트", "일반 유저처럼 묻기만 하는 글"],
   },
 };
 
@@ -736,9 +812,9 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
     origin: "checklist",
     title: () => "계약 전 확인하면 좋은 체크포인트 정리",
     body: () =>
-      `계약 전에는 감으로 결정하기보다 확인 항목을 나눠보는 편이 안전합니다.\n\n- 기본 금액과 필수 추가금을 분리하기\n- 포함 항목과 별도 결제 항목을 문서로 확인하기\n- 취소, 변경, 환불 조건을 저장해두기\n- 일정 변경 시 비용이 생기는지 물어보기\n\n비용 이야기는 기준이 분명할 때만 비교하는 게 좋습니다.`,
+      `계약 전에는 “괜찮겠지”보다 문서에 남는 기준을 먼저 보는 편이 안전합니다.\n\n확인 순서:\n1. 총액: 기본 금액, 필수 추가금, 선택 옵션을 한 줄씩 분리합니다.\n2. 포함 범위: 식대, 대관, 원본, 수정본, 헬퍼비처럼 말로 들은 항목이 계약서나 견적서에 적혀 있는지 봅니다.\n3. 변경 조건: 날짜 변경, 인원 변동, 취소, 환불 때 비용이 생기는 기준일을 확인합니다.\n4. 증빙: 견적서, 계약서, 입금 내역을 같은 이름으로 저장해 나중에 비교할 수 있게 둡니다.\n\n특히 “나중에 조정 가능”이라는 말은 기준일과 비용 조건이 같이 적혀 있을 때만 판단하기 쉽습니다.`,
     comment: (post) =>
-      `${post.title}은 계약 전 확인 항목으로 정리해볼 수 있어요. 포함 항목, 별도 비용, 변경 조건을 각각 문서로 확인하면 판단이 더 안전합니다.`,
+      `${post.title}은 계약 전 확인 항목으로 정리해볼 수 있어요. 포함 항목과 별도 비용을 먼저 나누고, 변경·취소 기준이 계약서나 견적서에 같은 표현으로 적혀 있는지 확인하면 판단이 더 안전합니다.`,
   },
 };
 
@@ -760,7 +836,7 @@ function topicScore(agent: AgentRow, post: RecentPost): number {
 }
 
 function isInformationPostRequest(agent: AgentRow, action: AutomationAction): boolean {
-  return action === "post" && (agent.public_mode === "official" || INFORMATION_AGENT_ROLES.has(agent.role));
+  return action === "post" && (isOfficialAgent(agent) || INFORMATION_AGENT_ROLES.has(agent.role));
 }
 
 function hasRequiredSourcePolicy(agent: AgentRow): boolean {
@@ -1026,7 +1102,11 @@ async function createDraft(supabase: SupabaseClient, input: {
     sourceUrls: raw.sourceUrls,
   });
 
-  const draftStatus = safety.blocked || safety.status === "source_required" ? "needs_review" : "draft";
+  const requiresManualReview = raw.requiresManualReview || (isOfficialAgent(input.agent) && raw.targetType !== "reaction");
+  const safetyFlags = requiresManualReview
+    ? [...new Set([...safety.flags, "official_manual_review"])]
+    : safety.flags;
+  const draftStatus = requiresManualReview || safety.blocked || safety.status === "source_required" ? "needs_review" : "draft";
   const { data, error } = await supabase
     .from("community_agent_content_drafts")
     .insert({
@@ -1038,7 +1118,7 @@ async function createDraft(supabase: SupabaseClient, input: {
       title,
       content,
       source_urls: safety.normalizedSourceUrls,
-      safety_flags: safety.flags,
+      safety_flags: safetyFlags,
       verification_status: safety.status,
       target_post_id: raw.targetPostId ?? null,
       target_comment_id: raw.targetCommentId ?? null,
@@ -1054,6 +1134,7 @@ async function createDraft(supabase: SupabaseClient, input: {
         quality_review: raw.qualityReview ?? null,
         model_used: raw.modelUsed ?? null,
         information_mode: raw.informationMode ?? false,
+        requires_manual_review: requiresManualReview,
       },
     })
     .select("*")
@@ -1068,12 +1149,12 @@ async function createDraft(supabase: SupabaseClient, input: {
     metadata: {
       automation_run_id: input.runId,
       safety_status: safety.status,
-      flags: safety.flags,
+      flags: safetyFlags,
       auto_publish: input.autoPublish,
     },
   });
 
-  return { draft: data as DraftRow, safety };
+  return { draft: data as DraftRow, safety: { ...safety, flags: safetyFlags } };
 }
 
 async function publishDraft(supabase: SupabaseClient, draft: DraftRow, agent: AgentRow, actorUserId?: string | null) {
@@ -1550,6 +1631,9 @@ async function generateAction(input: {
     "Write natural Korean only. Do not mix in Japanese, Chinese, or untranslated foreign filler.",
     "Do not use awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'. Use ordinary terms like 예식, 축의금 안내, 웨딩홀 비용.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
+    isOfficialAgent(input.agent)
+      ? "This persona is a Hanbang official/branded account. Its output must feel more vetted and useful than ordinary community chatter: concrete checkpoints, caveats, verification scope, and clear next actions. Do not produce a shallow short checklist or casual user speculation."
+      : "",
     input.informationMode
       ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
       : "",
@@ -1600,6 +1684,14 @@ async function generateAction(input: {
     communityPosts: postContext,
     cohortRooms: input.cohortRooms,
     qualityBar: {
+      officialAccount: isOfficialAgent(input.agent)
+        ? [
+            "Branded Hanbang accounts should read like a review-ready operations note, not a normal user's quick thought.",
+            "Posts need a specific title, a short framing sentence, 4-6 concrete checkpoints, and at least one reason/caveat explaining why the check matters.",
+            "Comments need to be target-specific and include 2+ concrete checks; do not leave generic '확인해보세요' advice.",
+            "No first-person experience, no vendor judgment, no unsupported numbers, and no source-looking claims without HTTPS sourceUrls.",
+          ]
+        : null,
       comment: [
         "2-4 Korean sentences.",
         "Prefer 80-240 Korean chars. Do not pack a whole mini-post into a comment.",
@@ -1649,7 +1741,7 @@ async function generateAction(input: {
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: 520,
+    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 760 : 520,
     temperature: 0.82,
     system,
     messages: [{ role: "user", content: user }],
@@ -1714,6 +1806,9 @@ async function reviseGeneratedAction(input: {
     "Keep the revision casually polite and persona-specific; do not make it sound like a formal blog, report, or customer-support answer.",
     "Remove awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
+    isOfficialAgent(input.agent)
+      ? "This is a Hanbang official/branded account revision. Raise the informational value: add concrete checkpoints, explain why one caveat matters, stay source-safe, and remove generic short advice."
+      : "",
     input.informationMode
       ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it. If the persona sourcePolicy is required, keep contentOrigin as news and never invent sources."
       : "",
@@ -1765,12 +1860,19 @@ async function reviseGeneratedAction(input: {
       confidence: "0 to 1",
       reason: "what was improved",
     },
+    officialQualityBar: isOfficialAgent(input.agent)
+      ? {
+          post: "260+ Korean chars, specific title, 4-6 concrete checkpoints, and at least one reason/caveat.",
+          comment: "90+ Korean chars, target-specific, and 2+ concrete checks.",
+          avoid: ["first-person experience", "shallow checklist", "unsupported facts", "generic filler"],
+        }
+      : null,
   });
 
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: 480,
+    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 700 : 480,
     temperature: 0.64,
     system,
     messages: [{ role: "user", content: user }],
@@ -1931,7 +2033,8 @@ export async function runCommunityAgentAutomation(
         let targetComments: RecentComment[] = [];
         let commentIntent: CommentIntent | null = null;
         const informationMode = isInformationPostRequest(agent, action);
-        const selectedModel = informationMode ? informationModel : model;
+        const officialMode = isOfficialAgent(agent) && action !== "reaction";
+        const selectedModel = informationMode || officialMode ? informationModel : model;
 
         if (action === "reaction") {
           const targetPostId = await chooseReactionTarget(supabase, backingUserId, posts, random);
@@ -2053,6 +2156,7 @@ export async function runCommunityAgentAutomation(
           generated.modelUsed = selectedModel;
           generated.informationMode = informationMode;
           let qualityReview = reviewGeneratedDraft({
+            agent,
             action: generated,
             requestedAction: action,
             targetPost: selectedTargetPost,
@@ -2122,6 +2226,7 @@ export async function runCommunityAgentAutomation(
             }
 
             qualityReview = reviewGeneratedDraft({
+              agent,
               action: generated,
               requestedAction: action,
               targetPost: selectedTargetPost,
@@ -2146,6 +2251,7 @@ export async function runCommunityAgentAutomation(
               generated = fallbackPost(agent, random);
             }
             qualityReview = reviewGeneratedDraft({
+              agent,
               action: generated,
               requestedAction: action,
               targetPost: selectedTargetPost,
@@ -2170,16 +2276,11 @@ export async function runCommunityAgentAutomation(
         if (informationMode && hasRequiredSourcePolicy(agent)) {
           const verifiedSourceUrls = normalizeAgentSourceUrls(generated.sourceUrls);
           if (verifiedSourceUrls.length === 0) {
-            items.push({
-              agentSlug: agent.slug,
-              action,
-              status: "skipped",
-              reason: "missing_verified_source",
-              flags: ["source_required"],
-            });
-            continue;
+            generated.requiresManualReview = true;
+            generated.reason = [generated.reason, "missing_verified_source_for_admin_review"].filter(Boolean).join(" | ");
+          } else {
+            generated.sourceUrls = verifiedSourceUrls;
           }
-          generated.sourceUrls = verifiedSourceUrls;
         }
 
         const { draft, safety } = await createDraft(supabase, {
@@ -2190,7 +2291,8 @@ export async function runCommunityAgentAutomation(
           autoPublish,
         });
 
-        const canPublish = autoPublish && !dryRun && !safety.blocked && safety.status !== "source_required";
+        const canPublish =
+          autoPublish && !dryRun && draft.status !== "needs_review" && !safety.blocked && safety.status !== "source_required";
         if (!canPublish) {
           items.push({
             agentSlug: agent.slug,
