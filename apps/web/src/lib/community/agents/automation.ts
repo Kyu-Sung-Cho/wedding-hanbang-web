@@ -239,7 +239,6 @@ const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "checklist",
   "summary_bridge",
 ];
-const INFORMATION_AGENT_ROLES = new Set(["official_checker", "thread_summarizer", "contract_checker"]);
 const POSTGRES_INT_MAX = 2_147_483_647;
 const OFFICIAL_MIN_POST_CHARS = 420;
 const OFFICIAL_MIN_COMMENT_CHARS = 130;
@@ -854,7 +853,7 @@ function topicScore(agent: AgentRow, post: RecentPost): number {
 }
 
 function isInformationPostRequest(agent: AgentRow, action: AutomationAction): boolean {
-  return action === "post" && (isOfficialAgent(agent) || INFORMATION_AGENT_ROLES.has(agent.role));
+  return action === "post" && isOfficialAgent(agent);
 }
 
 function hasRequiredSourcePolicy(agent: AgentRow): boolean {
@@ -2042,7 +2041,11 @@ export async function runCommunityAgentAutomation(
     const random = seededRandom(hashString(runSeed));
     const shuffledAgents = dryRun
       ? [...agents].sort(
-          (left, right) => hashString(`${runId}:${left.slug}:dry-run-order`) - hashString(`${runId}:${right.slug}:dry-run-order`)
+          (left, right) => {
+            const officialRank = Number(isOfficialAgent(right)) - Number(isOfficialAgent(left));
+            if (officialRank !== 0) return officialRank;
+            return hashString(`${runId}:${left.slug}:dry-run-order`) - hashString(`${runId}:${right.slug}:dry-run-order`);
+          }
         )
       : [...agents].sort(() => random() - 0.5);
 
