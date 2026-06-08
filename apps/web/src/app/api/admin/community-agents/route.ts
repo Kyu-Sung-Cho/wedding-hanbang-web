@@ -171,9 +171,62 @@ function isApprovalBlockedDraft(draft: DraftRow): boolean {
 }
 
 const PRESERVED_DRAFT_FLAGS = new Set(["official_manual_review"]);
+const OFFICIAL_COPY_SECTION_TERMS = [
+  "한눈에 보기",
+  "확인할 것",
+  "물어볼 말",
+  "놓치기 쉬운 것",
+  "저장할 것",
+  "마지막 기준",
+  "출처 확인",
+  "주의할 말",
+];
+const OFFICIAL_COPY_BAD_TITLE_RE =
+  /이슈|정리할게요|확인 후|바로\s*물어볼|물어볼\s*질문|초보\s*가이드|괜찮|좋을까요|어떻게|뭐|무엇|궁금|질문/i;
+const OFFICIAL_COPY_BAD_OPENING_RE =
+  /결정하기\s*전에는|단정될\s*수\s*있어서|좋은\s*정보처럼\s*보이는\s*말|기준으로\s*바꾸는\s*것|괜찮겠지|핵심은\s*돈|검수\s*메모|정리할게요/i;
+const OFFICIAL_COPY_BAD_BODY_RE =
+  /바로\s*물어볼\s*질문|그대로\s*물어볼\s*문장|초보\s*가이드|좋은\s*정보처럼\s*보이는\s*말|기준으로\s*바꾸는\s*것|괜찮겠지|검수\s*메모|정리할게요/i;
 
 function arraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function isOfficialAgent(agent: AgentRow): boolean {
+  return agent.public_mode === "official" || /^웨딩한방/.test(agent.public_nickname ?? "");
+}
+
+function firstSentence(input: string | null | undefined): string {
+  const text = sanitizeText(input ?? "").replace(/\s+/g, " ").trim();
+  const match = text.match(/^[^.!?。！？\n]+/);
+  return (match?.[0] ?? text).trim();
+}
+
+function officialCopyIssueFlags(draft: DraftRow, agent: AgentRow): string[] {
+  if (!isOfficialAgent(agent) || draft.target_type !== "post") return [];
+
+  const title = sanitizeText(draft.title ?? "").trim();
+  const content = sanitizeText(draft.content ?? "");
+  const fullText = `${title}\n${content}`;
+  const opening = firstSentence(content);
+  const sectionCount = OFFICIAL_COPY_SECTION_TERMS.reduce((count, term) => count + (fullText.includes(term) ? 1 : 0), 0);
+  const flags: string[] = [];
+
+  if (title.length < 12 || title.length > 34 || /[?？]/.test(title) || OFFICIAL_COPY_BAD_TITLE_RE.test(title)) {
+    flags.push("official_copy_plain_title_required");
+  }
+  if (opening.length < 18 || opening.length > 86 || OFFICIAL_COPY_BAD_OPENING_RE.test(opening)) {
+    flags.push("official_copy_plain_opening_required");
+  }
+  if (/[?？]/.test(fullText)) flags.push("official_copy_question_mark_blocked");
+  if (OFFICIAL_COPY_BAD_BODY_RE.test(fullText)) flags.push("official_copy_awkward_wording");
+  if (sectionCount < 4) flags.push("official_copy_sections_required");
+
+  return flags;
+}
+
+function hasOfficialCopyBlock(draft: DraftRow): boolean {
+  return (draft.safety_flags ?? []).some((flag) => flag.startsWith("official_copy_"));
 }
 
 function refreshedDraftSafety(draft: DraftRow): Pick<DraftRow, "verification_status" | "safety_flags" | "source_urls"> {
@@ -213,6 +266,30 @@ async function refreshDraftSafetyIfNeeded(
     .eq("id", draft.id);
 
   return { ...draft, ...refreshed };
+}
+
+async function refreshOfficialCopyFlagsIfNeeded(
+  supabase: ReturnType<typeof getServiceClient>,
+  draft: DraftRow,
+  agent: AgentRow
+): Promise<DraftRow> {
+  const copyFlags = officialCopyIssueFlags(draft, agent);
+  const preservedFlags = (draft.safety_flags ?? []).filter((flag) => !flag.startsWith("official_copy_"));
+  const nextFlags = [...new Set([...preservedFlags, ...copyFlags])];
+  const nextStatus = copyFlags.length > 0 && draft.status !== "posted" ? "needs_review" : draft.status;
+  const changed = !arraysEqual(draft.safety_flags ?? [], nextFlags) || draft.status !== nextStatus;
+
+  if (!changed) return draft;
+
+  await supabase
+    .from("community_agent_content_drafts")
+    .update({
+      safety_flags: nextFlags,
+      status: nextStatus,
+    })
+    .eq("id", draft.id);
+
+  return { ...draft, safety_flags: nextFlags, status: nextStatus };
 }
 
 async function fetchAgentByIdOrSlug(
@@ -675,7 +752,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "초안을 찾을 수 없습니다." }, { status: 404 });
       }
 
-      const draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
+      let draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
+      const agent = await fetchAgentByIdOrSlug(supabase, { agentId: draft.agent_id });
+      if (!agent) return NextResponse.json({ error: "에이전트를 찾을 수 없습니다." }, { status: 404 });
+
+      draft = await refreshOfficialCopyFlagsIfNeeded(supabase, draft, agent);
+      if (hasOfficialCopyBlock(draft)) {
+        return NextResponse.json(
+          { error: "공식 계정 글쓰기 기준에 맞지 않아 승인할 수 없습니다.", flags: draft.safety_flags },
+          { status: 400 }
+        );
+      }
       if (isApprovalBlockedDraft(draft)) {
         return NextResponse.json(
           { error: "출처 확인 또는 안전검사가 필요한 초안은 승인할 수 없습니다.", flags: draft.safety_flags },
@@ -715,7 +802,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "초안을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
+    let draft = await refreshDraftSafetyIfNeeded(supabase, draftRaw as DraftRow);
     if (draft.status === "posted") {
       return NextResponse.json({ error: "이미 게시된 초안입니다." }, { status: 409 });
     }
@@ -731,6 +818,13 @@ export async function POST(req: Request) {
 
     const agent = await fetchAgentByIdOrSlug(supabase, { agentId: draft.agent_id });
     if (!agent) return NextResponse.json({ error: "에이전트를 찾을 수 없습니다." }, { status: 404 });
+    draft = await refreshOfficialCopyFlagsIfNeeded(supabase, draft, agent);
+    if (hasOfficialCopyBlock(draft)) {
+      return NextResponse.json(
+        { error: "공식 계정 글쓰기 기준에 맞지 않아 게시할 수 없습니다.", flags: draft.safety_flags },
+        { status: 400 }
+      );
+    }
 
     const backingUserId = await ensureAgentIdentity(supabase, agent);
 

@@ -200,6 +200,11 @@ const SAFETY_FLAG_LABEL: Record<string, string> = {
   official_manual_review: "공식 계정 수동 검토",
   source_required: "출처 확인 필요",
   empty_content: "본문 없음",
+  official_copy_plain_title_required: "공식글 제목 재작성 필요",
+  official_copy_plain_opening_required: "공식글 첫 문장 재작성 필요",
+  official_copy_question_mark_blocked: "공식글 물음표 제거 필요",
+  official_copy_awkward_wording: "공식글 어색한 표현 재검토",
+  official_copy_sections_required: "공식글 구성 보강 필요",
   blocked_fake_first_person_experience: "가짜 경험담 의심",
   blocked_fake_experience_artifact: "경험담 표현 차단",
   blocked_vendor_judgment_without_review: "업체 평가 표현 검토 필요",
@@ -239,6 +244,7 @@ function isDraftPublishBlocked(draft: AgentDraft): boolean {
     draft.verification_status === "blocked" ||
     draft.verification_status === "source_required" ||
     draft.safety_flags.includes("empty_content") ||
+    draft.safety_flags.some((flag) => flag.startsWith("official_copy_")) ||
     !hasDraftBody(draft)
   );
 }
