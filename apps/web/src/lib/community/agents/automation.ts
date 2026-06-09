@@ -14,6 +14,7 @@ import type { CommunityCategory, PostVisibility } from "@/types/community.types"
 
 export type AgentTargetType = "post" | "comment" | "reaction" | "cohort_message";
 type AutomationAction = "post" | "comment" | "reaction" | "cohort_message";
+type PostArchetype = "useful_memo" | "specific_question" | "decision_frame" | "soft_dilemma";
 type CommentIntent =
   | "first_response"
   | "empathy"
@@ -106,6 +107,15 @@ interface PersonaStyleGuide {
   avoid: string[];
 }
 
+const COMMUNITY_POST_VALUE_GUIDE = [
+  "A community post must be worth opening because it either answers a wedding-prep pain point or asks a very specific real question.",
+  "Consumers are not here for internal checklists, source-review notes, or meta instructions. They want wedding-prep information, saved examples, decision criteria, or a concrete question they can answer.",
+  "Good information posts sound like a person sharing a useful memo: '스드메 견적서 볼 때 기본가만 보면 헷갈리는 이유', '웨딩홀 계약 전에 식대/대관료를 따로 보는 법', '청첩장 문구에서 부담스럽게 읽히는 부분'.",
+  "Good question posts sound specific and alive: one real situation, one thing that is confusing, and one clear ask.",
+  "Avoid empty guide titles such as '확인할 것', '출처 확인 뒤 게시', '뉴스 안내 전 확인', '비용 비교 전 확인할 것', or any draft that reads like an admin review note.",
+  "Do not use fake first-person experience. It is okay to say '저는 지금 이렇게 나눠보는 중이에요' or '견적을 볼 때는 이렇게 보면 덜 헷갈릴 것 같아요'; it is not okay to claim a visit, quote, booking, or contract.",
+].join(" ");
+
 const NATURAL_COMMUNITY_VOICE_GUIDE = [
   "Use contemporary Korean community tone, not a polished blog essay or customer-support script.",
   "Default to polite casual Korean ending in -요/-네요/-같아요. Do not use banmal unless the persona already clearly does.",
@@ -193,6 +203,7 @@ interface GeneratedAction {
   qualityReview?: DraftQualityReview;
   modelUsed?: string;
   informationMode?: boolean;
+  postArchetype?: PostArchetype;
   requiresManualReview?: boolean;
 }
 
@@ -395,6 +406,27 @@ function hasConversationalQuestion(input: string | null | undefined): boolean {
   return /[?？]|궁금|어떻게|어느 정도|뭐가|무엇|괜찮|맞을까요|할까요|해야 할까요|보시나요|알려주/.test(text);
 }
 
+function hasConsumerWeddingValue(input: string | null | undefined): boolean {
+  const text = stripTags(input ?? "");
+  return (
+    hasConversationalQuestion(text) ||
+    /(기준|이유|방법|순서|먼저|나눠|분리|비교|챙기|놓치|헷갈|줄이|아끼|총액|포함|별도|추가금|계약서|견적서|문구|동선|하객|식대|대관료|스드메|드레스|스냅|청첩장|상견례|양가|예산|후회|저장|메모)/.test(text)
+  );
+}
+
+function hasMetaDraftWording(input: string | null | undefined): boolean {
+  return /(출처\s*확인\s*뒤\s*게시|뉴스\s*안내\s*전|뉴스글\s*안내|안내\s*전\s*확인|확인\s*뒤\s*게시|검수\s*메모|내부\s*검토|게시\s*전에\s*다시\s*봅니다)/i.test(
+    stripTags(input ?? "")
+  );
+}
+
+function usesWholeTitleAsAwkwardSubject(content: string | null | undefined, title: string | null | undefined): boolean {
+  const cleanTitle = stripTags(title ?? "");
+  if (cleanTitle.length < 18) return false;
+  const text = stripTags(content ?? "");
+  return ["이면", "은", "는", "처럼", " 내용이면", "에서 나온"].some((suffix) => text.includes(`${cleanTitle}${suffix}`));
+}
+
 function isLowQualityComment(input: string | null | undefined): boolean {
   const text = stripTags(input ?? "");
   if (text.length < 6) return true;
@@ -413,6 +445,8 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   if (titleLength < 6 || contentLength < 18) return true;
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
   if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
+  if (hasMetaDraftWording(text)) return true;
+  if (!hasConsumerWeddingValue(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
   if (hasFakeExperienceArtifact(text)) return true;
   if (hasAwkwardWeddingTerm(text)) return true;
@@ -511,6 +545,9 @@ function chooseCommentIntent(agent: AgentRow, post: RecentPost, comments: Recent
   const quickRoles = new Set(["quiet_reactor", "emotion_support", "beginner_questioner", "saving_tips", "comparison_seeker"]);
   if (!isOfficialAgent(agent) && quickRoles.has(agent.role) && random() < 0.34) return "quick_reaction";
   if (!isOfficialAgent(agent) && comments.length >= 2 && random() < 0.18) return "quick_reaction";
+  if (agent.role === "parent_coordination" || agent.role === "etiquette_writer" || agent.role === "emotion_support") return "empathy";
+  if (agent.role === "guest_logistics" || agent.role === "regional_planner") return "clarifying_question";
+  if (agent.role === "home_and_loan" && !BUDGET_TOPIC_RE.test(text)) return "clarifying_question";
   if (agent.role === "budget_realist" || BUDGET_TOPIC_RE.test(text)) return "budget_compare";
   if (agent.role === "contract_checker" || agent.role === "official_checker" || CONTRACT_TOPIC_RE.test(text)) return "contract_check";
   if (agent.role === "emotion_support" || EMOTION_TOPIC_RE.test(text)) return "empathy";
@@ -571,6 +608,9 @@ function reviewGeneratedDraft(input: {
       if (overlapCount(postTokens, commentTokens) === 0 && !shortIntent && !shortHumanReaction && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
         issues.push("not_grounded_in_post");
       }
+      if (usesWholeTitleAsAwkwardSubject(action.content, input.targetPost.title)) {
+        issues.push("awkward_full_title_as_subject");
+      }
     }
 
     const duplicate = input.targetComments.some((comment) => jaccardSimilarity(comment.content, action.content) >= 0.5);
@@ -590,7 +630,8 @@ function reviewGeneratedDraft(input: {
     if (hasSuspiciousKoreanArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("suspicious_korean_artifact");
     if (hasFakeExperienceArtifact(`${action.title ?? ""}\n${action.content}`)) issues.push("fake_experience_artifact");
     if (hasAwkwardWeddingTerm(`${action.title ?? ""}\n${action.content}`)) issues.push("awkward_wedding_term");
-    if (!official && !hasConversationalQuestion(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_community_question");
+    if (hasMetaDraftWording(`${action.title ?? ""}\n${action.content}`)) issues.push("meta_draft_wording");
+    if (!official && !hasConsumerWeddingValue(`${action.title ?? ""}\n${action.content}`)) issues.push("post_has_no_consumer_value");
 
     if (official) {
       const title = stripTags(action.title ?? "");
@@ -765,10 +806,10 @@ function officialChecklistTitle(topic: string): string {
 }
 
 function officialSourceReviewTitle(topic: string): string {
-  if (/통계|정부|정책/.test(topic)) return "통계 출처 확인 뒤 게시";
-  if (/피해|소비자/.test(topic)) return "피해 사례 출처 확인 뒤 게시";
-  if (/비용|가격|예산/.test(topic)) return "비용 뉴스 출처 확인 뒤 게시";
-  return "출처 확인 뒤 게시할 뉴스";
+  if (/통계|정부|정책/.test(topic)) return "통계 원문 링크가 필요합니다";
+  if (/피해|소비자/.test(topic)) return "피해 사례 원문 링크가 필요합니다";
+  if (/비용|가격|예산/.test(topic)) return "비용 뉴스 원문 링크가 필요합니다";
+  return "원문 링크가 있어야 작성 가능합니다";
 }
 
 const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
@@ -922,6 +963,40 @@ function topicScore(agent: AgentRow, post: RecentPost): number {
     return haystack.includes(normalized) ? score + 1 : score;
   }, 0);
 }
+
+function choosePostArchetype(agent: AgentRow, random: () => number): PostArchetype {
+  if (isOfficialAgent(agent)) return "useful_memo";
+  const valueRoles = new Set([
+    "budget_realist",
+    "contract_checker",
+    "thread_summarizer",
+    "senior_helper",
+    "schedule_planner",
+    "guest_logistics",
+    "dress_focus",
+    "photo_video_focus",
+    "saving_tips",
+  ]);
+  const questionRoles = new Set(["cautious_questioner", "beginner_questioner", "comparison_seeker"]);
+  const softRoles = new Set(["emotion_support", "parent_coordination", "etiquette_writer", "home_and_loan"]);
+
+  const roll = random();
+  if (valueRoles.has(agent.role)) return roll < 0.62 ? "useful_memo" : "decision_frame";
+  if (questionRoles.has(agent.role)) return roll < 0.72 ? "specific_question" : "decision_frame";
+  if (softRoles.has(agent.role)) return roll < 0.58 ? "soft_dilemma" : "specific_question";
+  return roll < 0.45 ? "useful_memo" : roll < 0.75 ? "specific_question" : "decision_frame";
+}
+
+const POST_ARCHETYPE_GUIDES: Record<PostArchetype, string> = {
+  useful_memo:
+    "Write a save-worthy wedding-prep information post. It should teach one practical way to look at a real problem, such as how to split a quote, compare contract terms, plan order, prepare wording, or avoid a common confusion. It may end with a light community ask, but the value must exist before the question.",
+  specific_question:
+    "Write a realistic community question. Use one concrete situation, one exact point of confusion, and one clear ask that other members can answer. Keep it human and not overly organized.",
+  decision_frame:
+    "Write a decision-frame post. Compare two or three options or split one messy topic into columns like included/separate/optional, must-do/can-delay, or family preference/couple preference. Avoid unsupported numbers.",
+  soft_dilemma:
+    "Write a softer relationship, etiquette, or emotion-centered wedding-prep post. Focus on how to say something, how to reduce burden, or how to decide without making one side wrong.",
+};
 
 function isInformationPostRequest(agent: AgentRow, action: AutomationAction): boolean {
   return action === "post" && isOfficialAgent(agent);
@@ -1223,6 +1298,7 @@ async function createDraft(supabase: SupabaseClient, input: {
         confidence: raw.confidence ?? null,
         reason: raw.reason ?? null,
         comment_intent: raw.commentIntent ?? null,
+        post_archetype: raw.postArchetype ?? null,
         quality_review: raw.qualityReview ?? null,
         model_used: raw.modelUsed ?? null,
         information_mode: raw.informationMode ?? false,
@@ -1412,10 +1488,20 @@ async function fetchCommunityPosts(supabase: SupabaseClient, agentUserIds: strin
     throw new Error(error.message);
   }
 
-  const rows = ((data ?? []) as RecentPost[]).filter((post) => hasBodyContent(post.title) && hasBodyContent(post.content));
+  const rows = ((data ?? []) as RecentPost[]).filter((post) => isSubstantialCommunityPost(post));
   const agentUserIdSet = new Set(agentUserIds);
   const humanPosts = rows.filter((post) => !agentUserIdSet.has(post.author_id));
   return humanPosts.length > 0 ? humanPosts : rows;
+}
+
+function isSubstantialCommunityPost(post: RecentPost): boolean {
+  const title = stripTags(post.title);
+  const content = stripTags(post.content);
+  if (!hasBodyContent(title) || !hasBodyContent(content)) return false;
+  if (content.length < 20) return false;
+  if (/^(test\d*|테스트\d*|ㅁㄹ|사자|하이|ㅎㅎ|ㅋㅋ|ㅇㅇ|글|제목)$/i.test(title)) return false;
+  if (title.length < 4 && content.length < 80) return false;
+  return true;
 }
 
 async function fetchPostComments(supabase: SupabaseClient, postId: string): Promise<RecentComment[]> {
@@ -1589,7 +1675,165 @@ function parseGeneratedAction(text: string, fallbackAction: AutomationAction): G
   };
 }
 
-function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
+function helpfulFallbackPost(agent: AgentRow, topic: string, archetype: PostArchetype): GeneratedAction {
+  let category: CommunityCategory = "tips_v2";
+  let contentOrigin: AgentContentOrigin = archetype === "decision_frame" ? "checklist" : "summary";
+  let title = `${topic} 볼 때 먼저 나눠 볼 기준`;
+  let content = [
+    `${topic}은 처음 보면 다 비슷해 보여도, 막상 결정하려고 하면 기준이 흐려지기 쉬운 것 같아요.`,
+    "먼저 나눠보면 덜 헷갈리는 건 포함된 것, 나중에 붙을 수 있는 것, 선택이라 빼도 되는 것입니다.",
+    "이렇게 칸을 나눠두면 상담 때 들은 말도 비교하기 쉬워지고, 나중에 총액이 왜 달라졌는지도 다시 보기 편합니다.",
+  ].join("\n\n");
+
+  switch (agent.role) {
+    case "budget_realist":
+    case "comparison_seeker":
+      title = "견적서 기본가만 보면 헷갈리는 이유";
+      content = [
+        "견적 비교할 때 기본가만 보면 처음엔 쉬워 보이는데, 실제로는 마지막에 빠지는 돈이 더 중요할 때가 많아요.",
+        "저는 기본가 / 거의 붙는 추가금 / 선택이라 뺄 수 있는 옵션을 따로 놓고 보는 쪽이 덜 헷갈릴 것 같아요.",
+        "같은 금액처럼 보여도 어떤 항목이 포함인지 별도인지에 따라 느낌이 달라져서, 총액 칸을 따로 만들어두는 게 제일 현실적인 기준 같아요.",
+      ].join("\n\n");
+      break;
+    case "contract_checker":
+    case "official_checker":
+      title = "계약서와 견적서 문구를 같이 봐야 하는 이유";
+      content = [
+        "상담 때 들은 조건이 좋아 보여도, 계약서나 견적서에 같은 말로 남아 있지 않으면 나중에 비교하기가 어려워져요.",
+        "특히 포함 항목, 별도 비용, 변경·취소 기준은 말로 들은 표현과 문서 표현이 같은지 먼저 보는 게 좋습니다.",
+        "저장해둘 건 견적서 원본, 계약서 PDF나 사진, 상담 중 받은 안내 문자예요. 나중에 다시 확인할 때 이게 제일 덜 흔들리는 기준이 됩니다.",
+      ].join("\n\n");
+      break;
+    case "schedule_planner":
+    case "senior_helper":
+      title = "예식장 날짜 잡은 뒤 바로 나눌 일정";
+      content = [
+        "결혼 준비 순서는 한 번에 다 정하려고 하면 더 복잡해지는 것 같아요.",
+        "예식장 날짜가 잡히면 먼저 고정해야 하는 일정과 나중에 맞춰도 되는 일정을 따로 보는 게 편합니다.",
+        "상견례처럼 양가 시간이 필요한 일, 촬영·드레스투어처럼 예약이 필요한 일, 청첩장처럼 뒤로 밀면 부담되는 일을 나눠두면 다음 결정이 조금 선명해져요.",
+      ].join("\n\n");
+      break;
+    case "guest_logistics":
+    case "regional_planner":
+      title = "지방 하객 많을 때 먼저 볼 동선";
+      content = [
+        "하객이 멀리서 오면 예식 시간만 보고 정하기가 어렵더라고요.",
+        "역이나 터미널에서 예식장까지 이동 시간, 식사 시간이 애매하지 않은지, 주차나 셔틀 안내를 어디까지 해야 하는지를 같이 봐야 합니다.",
+        "특히 어른 하객이 많으면 길 찾기보다 '도착해서 어디로 가면 되는지'가 더 중요할 수 있어서, 안내 문구까지 미리 생각해두면 덜 정신없을 것 같아요.",
+      ].join("\n\n");
+      break;
+    case "dress_focus":
+      title = "드레스 견적에서 따로 물어볼 항목";
+      content = [
+        "드레스는 기본 구성만 보면 충분해 보여도, 실제 선택 단계에서 추가 비용이 붙을 수 있는 부분이 따로 있는 것 같아요.",
+        "피팅비, 헬퍼비, 업그레이드 범위, 본식 드레스 변경 기준은 처음 상담 때 따로 물어보는 편이 안전합니다.",
+        "특히 '기본 구성에 포함'이라는 말이 어디까지인지 애매하면 나중에 비교가 어려워져서, 견적서에 같은 표현으로 적히는지 보는 게 좋겠어요.",
+      ].join("\n\n");
+      break;
+    case "photo_video_focus":
+      title = "촬영 계약 전 원본과 보정부터 보기";
+      content = [
+        "스튜디오나 본식 촬영은 결과물을 받는 방식이 생각보다 중요해 보여요.",
+        "원본 제공 여부, 보정본 개수, 앨범 포함 여부, 납품 일정이 계약서에 어떻게 적히는지 먼저 보는 게 좋습니다.",
+        "사진이 마음에 드는지도 중요하지만, 나중에 추가 결제가 생기는 지점이 보통 결과물 조건에서 나올 수 있어서 이쪽을 먼저 나눠보면 덜 헷갈립니다.",
+      ].join("\n\n");
+      break;
+    case "saving_tips":
+      title = "줄여도 되는 돈과 남겨둘 돈 나누기";
+      content = [
+        "예산을 줄이고 싶을 때 제일 어려운 건 어디를 줄여도 괜찮은지 감이 안 오는 부분 같아요.",
+        "취향 차이인 옵션은 줄여도 괜찮을 수 있고, 당일 진행에 꼭 필요한 인력이나 시간은 너무 줄이면 오히려 불안해질 수 있습니다.",
+        "그래서 '없어도 진행되는 것'과 '없으면 당일에 흔들릴 수 있는 것'을 먼저 나눠보면 절약이 조금 현실적으로 보이는 것 같아요.",
+      ].join("\n\n");
+      break;
+    case "etiquette_writer":
+      title = "청첩장 문구가 부담스럽지 않게 보이는 기준";
+      content = [
+        "청첩장이나 안내 문구는 정보가 빠지면 안 되는데, 너무 설명처럼 길어지면 받는 사람이 부담스럽게 느낄 수도 있어요.",
+        "예식 시간, 위치, 주차, 축의금 안내처럼 필요한 정보는 짧게 두고, 부탁하는 말은 강하게 들리지 않게 한 번 더 읽어보는 게 좋겠습니다.",
+        "특히 '꼭', '반드시' 같은 단어가 많아지면 생각보다 딱딱해질 수 있어서, 상대가 받았을 때 편하게 읽히는지 기준으로 보는 게 좋아 보여요.",
+      ].join("\n\n");
+      break;
+    case "home_and_loan":
+      title = "결혼 예산과 집 예산은 칸을 나눠보기";
+      content = [
+        "결혼식 예산만 보면 괜찮아 보여도 신혼집, 이사, 가전까지 같이 보면 갑자기 숫자가 커지는 느낌이 있어요.",
+        "예식 당일에 쓰는 돈, 집을 준비하는 돈, 살림 시작하면서 붙는 돈을 한 표 안에서도 칸을 나눠두면 덜 섞입니다.",
+        "특히 계약금처럼 먼저 나가는 돈과 나중에 잔금으로 나가는 돈은 시점이 달라서, 총액뿐 아니라 언제 빠지는지도 같이 보는 게 현실적인 것 같아요.",
+      ].join("\n\n");
+      break;
+    case "parent_coordination":
+    case "emotion_support":
+      category = "free";
+      contentOrigin = "question";
+      title = "양가 의견 다를 때 먼저 맞출 기준";
+      content = [
+        "양가 의견이 다를 때는 누가 맞는지부터 정하려고 하면 대화가 더 어려워지는 것 같아요.",
+        "예산, 예식 방식, 초대 범위처럼 서로 양보하기 힘든 부분과 조정 가능한 부분을 먼저 나눠보면 말 꺼내기가 조금 덜 부담스럽지 않을까요.",
+        "비슷한 상황이면 처음에 어떤 기준부터 꺼내는 게 덜 날카롭게 들릴지 궁금합니다.",
+      ].join("\n\n");
+      break;
+  }
+
+  return {
+    targetType: "post",
+    contentOrigin,
+    category,
+    title,
+    content,
+    sourceUrls: [],
+    confidence: 0.72,
+    reason: `High-value ${archetype} fallback for a community post.`,
+    postArchetype: archetype,
+  };
+}
+
+function communityQuestionTail(agent: AgentRow): string {
+  switch (agent.role) {
+    case "budget_realist":
+    case "comparison_seeker":
+      return "다른 분들은 견적 비교표 만들 때 꼭 넣는 칸이 있으세요?";
+    case "contract_checker":
+      return "계약 전에 이거 말고도 꼭 따로 보는 문구가 있을까요?";
+    case "schedule_planner":
+    case "senior_helper":
+      return "처음 일정 잡을 때 이 순서 말고 더 먼저 봐야 하는 게 있었나요?";
+    case "guest_logistics":
+    case "regional_planner":
+      return "하객 동선 볼 때 놓치기 쉬운 부분도 있으면 같이 알려주세요.";
+    case "dress_focus":
+      return "드레스 상담 전에 이거 말고 따로 물어보면 좋은 항목 있을까요?";
+    case "photo_video_focus":
+      return "촬영 계약 전에 결과물 조건 말고도 꼭 봐야 하는 부분이 있을까요?";
+    case "saving_tips":
+      return "준비하면서 줄여도 괜찮았던 항목이나, 줄였다가 아쉬웠던 항목 있으세요?";
+    case "etiquette_writer":
+      return "받는 사람이 부담스럽지 않게 보이려면 어떤 표현을 더 조심해야 할까요?";
+    case "home_and_loan":
+      return "결혼 예산이랑 집 예산을 같이 보신 분들은 표를 어떻게 나눠두셨어요?";
+    case "parent_coordination":
+    case "emotion_support":
+      return "비슷한 상황이면 처음에 어떤 말로 꺼내는 게 덜 부담스러울까요?";
+    default:
+      return "이 기준 말고 처음부터 따로 나눠보면 좋은 항목이 있을까요?";
+  }
+}
+
+function normalizePersonaPostForCommunity(agent: AgentRow, action: GeneratedAction): GeneratedAction {
+  if (action.targetType !== "post" || isOfficialAgent(agent) || action.contentOrigin === "news") return action;
+
+  const content = hasConversationalQuestion(action.content)
+    ? action.content
+    : `${action.content.trim()}\n\n${communityQuestionTail(agent)}`;
+
+  return {
+    ...action,
+    content,
+    contentOrigin: "question",
+  };
+}
+
+function fallbackPost(agent: AgentRow, random: () => number, archetype?: PostArchetype | null): GeneratedAction {
   if (hasRequiredSourcePolicy(agent)) {
     const topic = pickTopic(agent, random);
     return {
@@ -1598,16 +1842,22 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
       category: "tips_v2",
       title: officialSourceReviewTitle(topic),
       content: [
-        `${topic} 관련 뉴스형 글은 아직 공개용으로 쓰지 않습니다.`,
-        "원문 기사나 공식 자료 링크가 확인되면, 그 출처에 있는 내용만 짧게 다시 작성해 주세요.",
+        `${topic} 관련 뉴스형 글은 원문 기사나 공식 자료 링크가 없어서 초안 생성을 중단했습니다.`,
+        "관리자가 확인된 HTTPS 출처를 넣으면, 그 출처에 있는 내용만 짧게 다시 작성할 수 있습니다.",
       ].join("\n"),
       sourceUrls: [],
       confidence: 0.52,
       reason: "Source-required information fallback kept private until a verified URL is supplied.",
+      postArchetype: "useful_memo",
     };
   }
 
   const topic = pickTopic(agent, random);
+  const selectedArchetype = archetype ?? choosePostArchetype(agent, random);
+  if (selectedArchetype === "useful_memo" || selectedArchetype === "decision_frame") {
+    return helpfulFallbackPost(agent, topic, selectedArchetype);
+  }
+
   const blueprint = blueprintFor(agent);
   return {
     targetType: "post",
@@ -1618,7 +1868,22 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
     sourceUrls: [],
     confidence: 0.68,
     reason: "Persona blueprint fallback for a safe community post.",
+    postArchetype: selectedArchetype,
   };
+}
+
+function commentTargetLabel(post: RecentPost): string {
+  const title = stripTags(post.title);
+  if (title.length <= 18) return title;
+  if (/상견례/.test(title)) return "상견례 대화 주제";
+  if (/플래너/.test(title)) return "플래너 필요 여부";
+  if (/스드메/.test(title)) return "스드메 비교";
+  if (/웨딩홀/.test(title)) return "웨딩홀 조건";
+  if (/청첩장/.test(title)) return "청첩장 문구";
+  if (/드레스/.test(title)) return "드레스 조건";
+  if (/예산|비용|견적/.test(title)) return "비용 비교";
+  if (/하객|동선|주차/.test(title)) return "하객 동선";
+  return "이 글";
 }
 
 function fallbackComment(
@@ -1632,7 +1897,7 @@ function fallbackComment(
   if (!targetPost) {
     return blueprintFor(agent).comment({ id: "", title: topic, content: "", category: "free", tags: [], comment_count: 0, upvote_count: 0, created_at: "", author_id: "" }, topic);
   }
-  const title = targetPost.title;
+  const title = commentTargetLabel(targetPost);
   const shortReactions = [
     "저도 이 부분 궁금했어요.",
     "이건 저장해두고 봐야겠네요.",
@@ -1683,7 +1948,7 @@ function fallbackComment(
   if (intent === "first_response" || intent === "clarifying_question") {
     return `${title} 보니까 저도 먼저 기준을 나눠서 봐야겠다는 생각이 들어요. 지금 받은 안내에서 포함 항목이랑 별도 비용이 따로 적혀 있었는지 확인해보셨나요?`;
   }
-  return blueprintFor(agent).comment(targetPost, topic);
+  return blueprintFor(agent).comment({ ...targetPost, title }, topic);
 }
 
 function fallbackCohortMessage(agent: AgentRow): string {
@@ -1740,7 +2005,7 @@ function personaDirective(agent: AgentRow, action: AutomationAction): string {
       : action === "post"
         ? isOfficialAgent(agent)
           ? "공식 게시글은 실제 경험담을 꾸미지 않는다. 커뮤니티에 되묻지 말고 쉬운 안내문으로 쓴다. 제목과 본문에 물음표를 쓰지 않고, 물어볼 말은 알려 주세요/확인해 주세요로 끝낸다."
-          : "게시글은 실제 경험담을 꾸미지 않는다. 현실적인 고민 상황 1개, 왜 헷갈리는지 1개, 커뮤니티에 묻는 질문 1-2개를 포함한다."
+          : "게시글은 실제 경험담을 꾸미지 않는다. 정보글이면 독자가 바로 써먹을 기준이나 예시를 주고, 질문글이면 한 가지 상황과 한 가지 질문만 선명하게 남긴다. 모든 글을 체크리스트나 질문형으로 만들지 않는다."
         : "해당 공간의 흐름을 정리하거나 조심스럽게 질문한다.";
 
   const styleDirective = [
@@ -1763,6 +2028,7 @@ async function generateAction(input: {
   targetComments?: RecentComment[];
   targetComment?: RecentComment | null;
   commentIntent?: CommentIntent | null;
+  postArchetype?: PostArchetype | null;
   informationMode?: boolean;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
@@ -1791,10 +2057,13 @@ async function generateAction(input: {
     likes: comment.upvote_count,
     body: stripTags(comment.content).slice(0, 280),
   }));
+  const postArchetype = input.postArchetype ?? (isOfficialAgent(input.agent) ? "useful_memo" : "specific_question");
 
   const system = [
     "You operate one Korean wedding community persona.",
     NATURAL_COMMUNITY_VOICE_GUIDE,
+    input.action === "post" ? COMMUNITY_POST_VALUE_GUIDE : "",
+    input.action === "post" ? POST_ARCHETYPE_GUIDES[postArchetype] : "",
     "Make the draft feel like it was typed by this specific persona today, not generated from a universal template.",
     "Casual is okay, but keep respectful polite Korean by default. Do not switch to banmal unless the persona samples already do.",
     "Write like a real Korean 예비부부 community member: specific, warm, slightly imperfect, and useful.",
@@ -1804,7 +2073,7 @@ async function generateAction(input: {
     input.targetComment
       ? "This comment is a reply to one existing comment. Keep it shorter than a top-level comment, answer or support that exact comment, and set targetCommentId exactly to the selected reply target id."
       : "",
-    "If you do not know, ask a careful question or give a checklist-style next step.",
+    "If you do not know, ask a careful question or give one small practical next step. Do not turn uncertainty into an internal review memo.",
     "Use only familiar wedding terms such as 기본가, 최종 총액, 대관료, 식대, 헬퍼비, 원본비, 수정본. Do not coin awkward terms like 기본금 or 피연금.",
     "Write natural Korean only. Do not mix in Japanese, Chinese, or untranslated foreign filler.",
     "Do not use awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'. Use ordinary terms like 예식, 축의금 안내, 웨딩홀 비용.",
@@ -1821,6 +2090,8 @@ async function generateAction(input: {
   const user = JSON.stringify({
     desiredAction: input.action,
     informationMode: input.informationMode ?? false,
+    postArchetype: input.action === "post" ? postArchetype : null,
+    postArchetypeInstruction: input.action === "post" ? POST_ARCHETYPE_GUIDES[postArchetype] : null,
     outputSchema: {
       targetType: "post | comment | cohort_message",
       contentOrigin: "question | comment | summary | checklist | news",
@@ -1888,6 +2159,7 @@ async function generateAction(input: {
           ? "Quick reaction mode: one natural line is enough. Examples of shape, not exact wording: 저도 이 부분 궁금했어요 / 이건 저장해두고 봐야겠네요 / 도움 많이 됐어요."
           : "Prefer 25-220 Korean chars. Do not pack a whole mini-post into a comment.",
         "First sentence must acknowledge the writer's concrete situation.",
+        "Do not paste a long post title as the grammatical subject of the comment. Never write shapes like '[full title]이면 ...'. Refer to the topic naturally instead.",
         "Add one useful question, comparison point, or checklist item.",
         "Use natural chat-like Korean: readable, lightly casual, and not perfectly essay-like.",
         "Do not overdo typos. A tiny spacing variation is okay only if readability stays high.",
@@ -1900,10 +2172,12 @@ async function generateAction(input: {
         "Title should be natural and specific, 18-45 Korean chars.",
         isOfficialAgent(input.agent)
           ? "For official accounts, content should be a compact easy mini-guide with 2-3 useful checks. Do not include any question mark in title or content."
-          : "Content can be one short question, 2-3 short paragraphs, or 4-8 short lines depending on the persona. Do not force every post into a checklist.",
+          : `This post archetype is ${postArchetype}. Follow it first, then the persona style. Do not force every post into a checklist or a question.`,
         isOfficialAgent(input.agent)
           ? "Do not ask the community a question. Give plain guidance, concrete checkpoints, and request-style sentences users can say to vendors."
-          : "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
+          : "The post must either solve a wedding-prep pain point or ask a specific answerable question. Generic internal review notes, source-check notes, and empty guide titles are failures.",
+        "Information-style persona posts should feel like a person sharing a useful memo, not a formal article, not a platform announcement, and not a customer support script.",
+        "Question-style persona posts should have one real context and one clear ask. Do not add a tidy multi-section template unless the persona naturally writes that way.",
         "Sound like a current Korean community post: casual polite, not a blog intro, not a report.",
         "Small human imperfections are allowed only when they are subtle and readable.",
         "Follow the personaStyleGuide postFormat. Do not default to the same three-bullet template.",
@@ -1937,7 +2211,7 @@ async function generateAction(input: {
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 960 : 520,
+    max_tokens: input.action === "post" ? (input.informationMode || isOfficialAgent(input.agent) ? 960 : 820) : 520,
     temperature: 0.82,
     system,
     messages: [{ role: "user", content: user }],
@@ -1963,6 +2237,7 @@ async function generateAction(input: {
       agent_id: input.agent.id,
       agent_slug: input.agent.slug,
       desired_action: input.action,
+      post_archetype: input.action === "post" ? postArchetype : null,
       selected_target_post_id: input.targetPost?.id ?? null,
       selected_target_comment_id: input.targetComment?.id ?? null,
       selected_comment_intent: input.commentIntent ?? null,
@@ -1988,6 +2263,7 @@ async function reviseGeneratedAction(input: {
   targetPost: RecentPost | null;
   targetComments: RecentComment[];
   commentIntent: CommentIntent | null;
+  postArchetype?: PostArchetype | null;
   informationMode?: boolean;
   model: string;
 }): Promise<{ action: GeneratedAction; tokensInput: number; tokensOutput: number; rawText: string; latencyMs: number }> {
@@ -1996,10 +2272,13 @@ async function reviseGeneratedAction(input: {
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const postArchetype = input.postArchetype ?? (isOfficialAgent(input.agent) ? "useful_memo" : "specific_question");
   const system = [
     "You are revising one Korean wedding community persona draft.",
     "Fix only the quality issues. Keep the persona voice and stay grounded in the selected post and existing comments.",
     NATURAL_COMMUNITY_VOICE_GUIDE,
+    input.requestedAction === "post" ? COMMUNITY_POST_VALUE_GUIDE : "",
+    input.requestedAction === "post" ? POST_ARCHETYPE_GUIDES[postArchetype] : "",
     "Keep the revision casually polite and persona-specific; do not make it sound like a formal blog, report, or customer-support answer.",
     "Remove awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
@@ -2015,6 +2294,8 @@ async function reviseGeneratedAction(input: {
   const user = JSON.stringify({
     requestedAction: input.requestedAction,
     informationMode: input.informationMode ?? false,
+    postArchetype: input.requestedAction === "post" ? postArchetype : null,
+    postArchetypeInstruction: input.requestedAction === "post" ? POST_ARCHETYPE_GUIDES[postArchetype] : null,
     reviewIssues: input.review.issues,
     reviewScore: input.review.score,
     originalDraft: input.draft,
@@ -2057,6 +2338,21 @@ async function reviseGeneratedAction(input: {
       confidence: "0 to 1",
       reason: "what was improved",
     },
+    postQualityBar: input.requestedAction === "post"
+      ? [
+          "The revised post must be something a wedding-prep user would open for either useful information or a concrete question.",
+          "Remove meta phrases like 출처 확인 뒤 게시, 뉴스 안내 전 확인, 비용 비교 전 확인할 것, 검수 메모, 내부 검토.",
+          "For useful_memo and decision_frame, provide a practical criterion before any community question.",
+          "For specific_question and soft_dilemma, keep the situation specific and the ask answerable.",
+        ]
+      : null,
+    commentQualityBar: input.requestedAction === "comment"
+      ? [
+          "Do not paste the full target post title into the comment.",
+          "If the issue is awkward_full_title_as_subject, rewrite the first sentence using a short topic label instead of the exact title.",
+          "Stay with the persona's natural concern, not a generic budget angle unless that persona is budget-focused.",
+        ]
+      : null,
     officialQualityBar: isOfficialAgent(input.agent)
       ? {
           post: "180-650 Korean chars, plain 12-34 char title, one short easy opening sentence, no question marks anywhere, 2-3 concrete checks, and one final decision rule.",
@@ -2069,7 +2365,7 @@ async function reviseGeneratedAction(input: {
   const startedAt = startLatencyClock();
   const message = await anthropic.messages.create({
     model: input.model,
-    max_tokens: input.informationMode || isOfficialAgent(input.agent) ? 900 : 480,
+    max_tokens: input.requestedAction === "post" ? (input.informationMode || isOfficialAgent(input.agent) ? 900 : 760) : 480,
     temperature: 0.64,
     system,
     messages: [{ role: "user", content: user }],
@@ -2096,6 +2392,7 @@ async function reviseGeneratedAction(input: {
       agent_id: input.agent.id,
       agent_slug: input.agent.slug,
       desired_action: input.requestedAction,
+      post_archetype: input.requestedAction === "post" ? postArchetype : null,
       selected_target_post_id: input.targetPost?.id ?? null,
       selected_comment_intent: input.commentIntent ?? null,
       review_issues: input.review.issues,
@@ -2120,6 +2417,7 @@ export async function runCommunityAgentAutomation(
   const maxActions = Math.max(1, Math.min(options.maxActions ?? 6, 20));
   const model = process.env.COMMUNITY_AGENT_MODEL ?? DEFAULT_MODEL;
   const informationModel = process.env.COMMUNITY_AGENT_INFORMATION_MODEL ?? DEFAULT_INFORMATION_MODEL;
+  const postModel = process.env.COMMUNITY_AGENT_POST_MODEL ?? informationModel;
   const day = todayKey();
   let runId: string | null = null;
   const items: AutomationResultItem[] = [];
@@ -2133,7 +2431,7 @@ export async function runCommunityAgentAutomation(
       status: "running",
       dry_run: dryRun,
       model,
-      metadata: { auto_publish: autoPublish, max_actions: maxActions, information_model: informationModel },
+      metadata: { auto_publish: autoPublish, max_actions: maxActions, information_model: informationModel, post_model: postModel },
     })
     .select("id")
     .single();
@@ -2236,7 +2534,8 @@ export async function runCommunityAgentAutomation(
         let commentIntent: CommentIntent | null = null;
         const informationMode = isInformationPostRequest(agent, action);
         const officialMode = isOfficialAgent(agent) && action !== "reaction";
-        const selectedModel = informationMode || officialMode ? informationModel : model;
+        const postArchetype = action === "post" ? choosePostArchetype(agent, random) : null;
+        const selectedModel = action === "post" ? postModel : informationMode || officialMode ? informationModel : model;
 
         if (action === "post" && informationMode && hasRequiredSourcePolicy(agent)) {
           items.push({
@@ -2289,6 +2588,7 @@ export async function runCommunityAgentAutomation(
             targetComments,
             targetComment: selectedTargetComment,
             commentIntent,
+            postArchetype,
             informationMode,
             model: selectedModel,
           });
@@ -2343,17 +2643,17 @@ export async function runCommunityAgentAutomation(
           } else if (generated.targetType === "cohort_message") {
             generated.content = fallbackCohortMessage(agent);
           } else {
-            generated = fallbackPost(agent, random);
+            generated = fallbackPost(agent, random, postArchetype);
           }
         }
         if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
           generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
         }
         if (generated.targetType === "post" && isLowQualityPost(generated)) {
-          generated = fallbackPost(agent, random);
+          generated = fallbackPost(agent, random, postArchetype);
         }
         if (generated.targetType === "post" && !hasBodyContent(generated.title)) {
-          const replacement = fallbackPost(agent, random);
+          const replacement = fallbackPost(agent, random, postArchetype);
           generated = {
             ...replacement,
             content: hasBodyContent(generated.content) ? generated.content : replacement.content,
@@ -2364,7 +2664,13 @@ export async function runCommunityAgentAutomation(
           };
         }
 
+        if (action === "post") {
+          generated = normalizePersonaPostForCommunity(agent, generated);
+        }
         generated = enforceInformationPostPolicy(agent, action, informationMode, generated);
+        if (action === "post" && generated.targetType === "post" && postArchetype) {
+          generated.postArchetype = postArchetype;
+        }
 
         if (generated.targetType === "comment" || generated.targetType === "post") {
           generated.modelUsed = selectedModel;
@@ -2388,6 +2694,7 @@ export async function runCommunityAgentAutomation(
                 targetPost: selectedTargetPost,
                 targetComments,
                 commentIntent,
+                postArchetype,
                 informationMode,
                 model: selectedModel,
               });
@@ -2429,14 +2736,17 @@ export async function runCommunityAgentAutomation(
               if (generated.targetType === "comment") {
                 generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
               } else {
-                generated = fallbackPost(agent, random);
+                generated = fallbackPost(agent, random, postArchetype);
               }
             }
             if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
               generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
             }
             if (generated.targetType === "post" && isLowQualityPost(generated)) {
-              generated = fallbackPost(agent, random);
+              generated = fallbackPost(agent, random, postArchetype);
+            }
+            if (action === "post") {
+              generated = normalizePersonaPostForCommunity(agent, generated);
             }
 
             qualityReview = reviewGeneratedDraft({
@@ -2463,7 +2773,7 @@ export async function runCommunityAgentAutomation(
                 commentIntent: commentIntent ?? "clarifying_question",
               };
             } else if (action === "post") {
-              generated = fallbackPost(agent, random);
+              generated = fallbackPost(agent, random, postArchetype);
             }
             qualityReview = reviewGeneratedDraft({
               agent,
@@ -2486,7 +2796,13 @@ export async function runCommunityAgentAutomation(
         }
         generated.modelUsed = selectedModel;
         generated.informationMode = informationMode;
+        if (action === "post") {
+          generated = normalizePersonaPostForCommunity(agent, generated);
+        }
         generated = enforceInformationPostPolicy(agent, action, informationMode, generated);
+        if (action === "post" && generated.targetType === "post" && postArchetype) {
+          generated.postArchetype = postArchetype;
+        }
 
         if (informationMode && hasRequiredSourcePolicy(agent)) {
           const verifiedSourceUrls = normalizeAgentSourceUrls(generated.sourceUrls);
@@ -2560,6 +2876,8 @@ export async function runCommunityAgentAutomation(
         metadata: {
           auto_publish: autoPublish,
           max_actions: maxActions,
+          post_model: postModel,
+          information_model: informationModel,
           items,
         },
       })
