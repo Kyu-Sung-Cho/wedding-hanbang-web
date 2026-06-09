@@ -12,6 +12,7 @@ import { maybeSummarize } from "@/lib/ai/summarize";
 import { maybeExtractDecision } from "@/lib/ai/extract-decision";
 import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
+import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -512,7 +513,7 @@ export async function POST(request: Request) {
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, feedbackLessons] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, feedbackLessons, amoraProfiles] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -554,6 +555,8 @@ export async function POST(request: Request) {
       .limit(5),
     // 7. 피드백 학습 내용 (AI 품질 개선용)
     loadFeedbackLessons(coupleId),
+    // 8. 아모라 장기 개인화 프로필 (shared + 본인 private만)
+    loadAmoraProfiles(coupleId, visibility),
   ]);
 
   const journey = journeyResult.data;
@@ -742,6 +745,7 @@ export async function POST(request: Request) {
     scheduleEvents,
     chatSummaries,
     preferences: preferences ?? undefined,
+    amoraProfiles,
     feedbackLessons,
     pastDecisions,
     pastConflicts,
@@ -943,6 +947,19 @@ export async function POST(request: Request) {
               stageTag,
             });
 
+            // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
+            void maybeUpdateAmoraProfile({
+              coupleId,
+              userId: user.id,
+              visibility,
+              messages: messagesWithLatest,
+              lastUserText,
+              aiResponseText: cleanText,
+              currentProfile: visibility === "shared" ? amoraProfiles.shared : amoraProfiles.private,
+              stageTag,
+              isDemo,
+            });
+
             clearInterval(heartbeat);
             controller.close();
             return;
@@ -1088,6 +1105,19 @@ export async function POST(request: Request) {
           lastUserText,
           aiResponseText: cleanText,
           stageTag,
+        });
+
+        // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
+        void maybeUpdateAmoraProfile({
+          coupleId,
+          userId: user.id,
+          visibility,
+          messages: messagesWithLatest,
+          lastUserText,
+          aiResponseText: cleanText,
+          currentProfile: visibility === "shared" ? amoraProfiles.shared : amoraProfiles.private,
+          stageTag,
+          isDemo,
         });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)

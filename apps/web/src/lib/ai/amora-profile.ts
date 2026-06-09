@@ -1,0 +1,403 @@
+// =============================================
+// Amora Couple Profile Memory
+// =============================================
+// Quietly compiles durable couple-specific preferences after useful chat turns.
+// This does not train the global model. It updates a per-couple profile row that
+// is injected into future prompts, with shared/private visibility isolation.
+// =============================================
+
+import Anthropic from "@anthropic-ai/sdk";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { elapsedMs, logAIInteraction, startLatencyClock } from "@/lib/compliance/ai-log";
+
+export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
+
+export interface AmoraProfileEvidence {
+  insight: string;
+  source?: string;
+  confidence?: number;
+  at?: string;
+}
+
+export interface AmoraCoupleProfile {
+  id: string;
+  coupleId: string;
+  visibility: AmoraProfileVisibility;
+  personaSummary: string | null;
+  budgetPosture: string | null;
+  decisionStyle: string | null;
+  tasteProfile: string | null;
+  communicationStyle: string | null;
+  conflictPattern: string | null;
+  sensitiveTopics: string[];
+  recommendationRules: string[];
+  openQuestions: string[];
+  confidenceScore: number;
+  evidence: AmoraProfileEvidence[];
+  version: number;
+  lastCompiledAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface AmoraProfileBundle {
+  shared: AmoraCoupleProfile | null;
+  private: AmoraCoupleProfile | null;
+}
+
+interface DbAmoraCoupleProfile {
+  id: string;
+  couple_id: string;
+  visibility: AmoraProfileVisibility;
+  persona_summary: string | null;
+  budget_posture: string | null;
+  decision_style: string | null;
+  taste_profile: string | null;
+  communication_style: string | null;
+  conflict_pattern: string | null;
+  sensitive_topics: string[] | null;
+  recommendation_rules: string[] | null;
+  open_questions: string[] | null;
+  confidence_score: number | string | null;
+  evidence: unknown;
+  version: number | null;
+  last_compiled_at: string | null;
+  updated_at: string | null;
+}
+
+interface MessageInput {
+  role: "user" | "assistant";
+  content: string | unknown;
+  id?: string;
+}
+
+interface MaybeUpdateAmoraProfileInput {
+  coupleId: string;
+  userId?: string | null;
+  visibility: AmoraProfileVisibility;
+  messages: MessageInput[];
+  lastUserText: string;
+  aiResponseText: string;
+  currentProfile?: AmoraCoupleProfile | null;
+  stageTag?: string | null;
+  isDemo?: boolean;
+}
+
+const PROFILE_MODEL = "claude-haiku-4-5-20251001";
+const MAX_MESSAGE_CHARS = 900;
+const MAX_INPUT_CHARS = 8_000;
+const MAX_TEXT_FIELD_CHARS = 500;
+const MAX_LIST_ITEMS = 8;
+const MAX_LIST_ITEM_CHARS = 140;
+const MAX_EVIDENCE_ITEMS = 6;
+
+const SIGNAL_WORDS = [
+  "좋아", "싫어", "원해", "선호", "스타일", "취향", "중요", "걱정", "불안", "고민",
+  "예산", "비싸", "저렴", "가성비", "프리미엄", "부모", "엄마", "아빠", "시어",
+  "신랑", "신부", "하객", "계약", "예약", "결정", "변경", "취소", "상담",
+];
+
+const SKIP_MARKERS = [
+  "[INITIAL_GREETING]",
+  "[MEDIATION_REQUEST]",
+  "[quote_analysis]",
+];
+
+function mapRow(row: DbAmoraCoupleProfile): AmoraCoupleProfile {
+  const evidence = Array.isArray(row.evidence)
+    ? row.evidence
+        .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+        .map((item) => ({
+          insight: typeof item.insight === "string" ? item.insight : "",
+          source: typeof item.source === "string" ? item.source : undefined,
+          confidence: typeof item.confidence === "number" ? item.confidence : undefined,
+          at: typeof item.at === "string" ? item.at : undefined,
+        }))
+        .filter((item) => item.insight.length > 0)
+        .slice(0, MAX_EVIDENCE_ITEMS)
+    : [];
+
+  return {
+    id: row.id,
+    coupleId: row.couple_id,
+    visibility: row.visibility,
+    personaSummary: row.persona_summary,
+    budgetPosture: row.budget_posture,
+    decisionStyle: row.decision_style,
+    tasteProfile: row.taste_profile,
+    communicationStyle: row.communication_style,
+    conflictPattern: row.conflict_pattern,
+    sensitiveTopics: row.sensitive_topics ?? [],
+    recommendationRules: row.recommendation_rules ?? [],
+    openQuestions: row.open_questions ?? [],
+    confidenceScore: Number(row.confidence_score ?? 0.5),
+    evidence,
+    version: row.version ?? 1,
+    lastCompiledAt: row.last_compiled_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function loadAmoraProfiles(
+  coupleId: string,
+  visibility: AmoraProfileVisibility
+): Promise<AmoraProfileBundle> {
+  try {
+    const admin = createAdminClient();
+    const visibilities = visibility === "shared" ? ["shared"] : ["shared", visibility];
+    const { data, error } = await admin
+      .from("amora_couple_profiles")
+      .select(
+        "id, couple_id, visibility, persona_summary, budget_posture, decision_style, taste_profile, communication_style, conflict_pattern, sensitive_topics, recommendation_rules, open_questions, confidence_score, evidence, version, last_compiled_at, updated_at"
+      )
+      .eq("couple_id", coupleId)
+      .in("visibility", visibilities);
+
+    if (error) {
+      console.warn("[amora-profile] load skipped:", error.message);
+      return { shared: null, private: null };
+    }
+
+    const rows = ((data ?? []) as DbAmoraCoupleProfile[]).map(mapRow);
+    return {
+      shared: rows.find((row) => row.visibility === "shared") ?? null,
+      private: visibility === "shared"
+        ? null
+        : rows.find((row) => row.visibility === visibility) ?? null,
+    };
+  } catch (err) {
+    console.warn("[amora-profile] load failed:", err);
+    return { shared: null, private: null };
+  }
+}
+
+function stringifyContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((block): block is { type: string; text?: string } =>
+        typeof block === "object" && block !== null && "type" in block
+      )
+      .filter((block) => block.type === "text")
+      .map((block) => block.text ?? "")
+      .join(" ");
+  }
+  return "";
+}
+
+function formatMessagesForProfile(messages: MessageInput[]): string {
+  const lines: string[] = [];
+  for (const message of messages.slice(-6)) {
+    const text = stringifyContent(message.content).trim();
+    if (!text) continue;
+    const role = message.role === "assistant" ? "아모라" : "사용자";
+    const truncated = text.length > MAX_MESSAGE_CHARS ? `${text.slice(0, MAX_MESSAGE_CHARS)}...` : text;
+    lines.push(`${role}: ${truncated}`);
+  }
+  const joined = lines.join("\n");
+  return joined.length > MAX_INPUT_CHARS ? joined.slice(-MAX_INPUT_CHARS) : joined;
+}
+
+function shouldAttemptProfileUpdate(input: MaybeUpdateAmoraProfileInput): boolean {
+  if (input.isDemo) return false;
+  const userText = input.lastUserText.trim();
+  const aiText = input.aiResponseText.trim();
+  if (!userText || !aiText) return false;
+  if (SKIP_MARKERS.some((marker) => userText.includes(marker))) return false;
+  if (userText.length >= 12) return true;
+  return SIGNAL_WORDS.some((word) => userText.includes(word));
+}
+
+function profileForPrompt(profile: AmoraCoupleProfile | null | undefined): Record<string, unknown> | null {
+  if (!profile) return null;
+  return {
+    persona_summary: profile.personaSummary,
+    budget_posture: profile.budgetPosture,
+    decision_style: profile.decisionStyle,
+    taste_profile: profile.tasteProfile,
+    communication_style: profile.communicationStyle,
+    conflict_pattern: profile.conflictPattern,
+    sensitive_topics: profile.sensitiveTopics,
+    recommendation_rules: profile.recommendationRules,
+    open_questions: profile.openQuestions,
+    confidence_score: profile.confidenceScore,
+    evidence: profile.evidence,
+    version: profile.version,
+  };
+}
+
+function compactJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function sanitizeText(value: unknown, fallback: string | null): string | null {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed.length > MAX_TEXT_FIELD_CHARS ? trimmed.slice(0, MAX_TEXT_FIELD_CHARS) : trimmed;
+}
+
+function sanitizeList(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const list = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.slice(0, MAX_LIST_ITEM_CHARS));
+  return Array.from(new Set(list)).slice(0, MAX_LIST_ITEMS);
+}
+
+function sanitizeConfidence(value: unknown, fallback: number): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(1, Math.max(0, Math.round(numeric * 100) / 100));
+}
+
+function sanitizeEvidence(value: unknown, fallback: AmoraProfileEvidence[]): AmoraProfileEvidence[] {
+  if (!Array.isArray(value)) return fallback.slice(0, MAX_EVIDENCE_ITEMS);
+  const evidence = value
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      insight: typeof item.insight === "string" ? item.insight.trim().slice(0, MAX_LIST_ITEM_CHARS) : "",
+      source: typeof item.source === "string" ? item.source.trim().slice(0, 60) : undefined,
+      confidence: typeof item.confidence === "number" ? sanitizeConfidence(item.confidence, 0.5) : undefined,
+      at: typeof item.at === "string" ? item.at.trim().slice(0, 40) : undefined,
+    }))
+    .filter((item) => item.insight.length > 0);
+  return evidence.slice(0, MAX_EVIDENCE_ITEMS);
+}
+
+function parseProfileResponse(text: string): { shouldUpdate: boolean; profile: Record<string, unknown> | null } | null {
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+  const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  const shouldUpdate = parsed.should_update === true || parsed.shouldUpdate === true;
+  const profile = typeof parsed.profile === "object" && parsed.profile !== null
+    ? parsed.profile as Record<string, unknown>
+    : null;
+  return { shouldUpdate, profile };
+}
+
+const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 아모라의 "커플 개인화 프로필 편집기"입니다.
+
+목표:
+- 전역 모델을 학습시키지 않고, 이 커플에게만 적용할 장기 프로필을 갱신합니다.
+- 한 턴짜리 잡담이 아니라 오래 유지해도 되는 취향, 의사결정 방식, 예산 태도, 말투 선호, 민감한 주제만 반영합니다.
+- 무료 이용자의 질문 횟수를 아끼기 위해 "다시 물어볼 질문"을 남발하지 말고, 확실한 정보는 조용히 실행 규칙으로 저장합니다.
+
+규칙:
+- 절대 지어내지 마세요. 증거가 약하면 confidence_score를 낮추거나 open_questions에만 남깁니다.
+- 사용자가 방금 정정한 내용은 기존 프로필보다 우선합니다.
+- 공유 visibility에는 두 사람이 함께 봐도 되는 정보만 저장합니다.
+- bride_private/groom_private visibility에는 해당 사용자의 개인 상담에서만 쓸 정보를 저장합니다. 파트너에게 들은 것처럼 말하지 않게 표현하세요.
+- 민감한 가족/갈등/돈 이야기는 "단정"보다 "주의해서 다룰 신호"로 저장하세요.
+- 출력은 JSON만. 설명, 코드블록, Markdown 금지.
+
+출력 형식:
+{
+  "should_update": true,
+  "profile": {
+    "persona_summary": "이 커플을 한 문단으로 요약",
+    "budget_posture": "예산 태도와 비용 판단 기준",
+    "decision_style": "결정을 내리는 방식",
+    "taste_profile": "취향과 피하고 싶은 스타일",
+    "communication_style": "아모라가 답할 때 맞춰야 할 말투/길이/방식",
+    "conflict_pattern": "반복되는 갈등 또는 조율 패턴",
+    "sensitive_topics": ["주의할 민감 주제"],
+    "recommendation_rules": ["다음 답변에서 바로 적용할 실무 규칙"],
+    "open_questions": ["정말 필요할 때만 확인할 미해결 질문"],
+    "confidence_score": 0.0,
+    "evidence": [{"insight":"근거 요약","source":"recent_chat","confidence":0.0}]
+  }
+}
+
+업데이트할 장기 정보가 없으면:
+{"should_update": false, "profile": null}`;
+
+export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInput): Promise<void> {
+  try {
+    if (!shouldAttemptProfileUpdate(input)) return;
+
+    const conversation = formatMessagesForProfile(input.messages);
+    if (!conversation) return;
+
+    const currentProfile = input.currentProfile ?? null;
+    const currentProfileJson = compactJson(profileForPrompt(currentProfile));
+    const visibilityLabel = input.visibility === "shared"
+      ? "shared: 두 사람이 함께 보는 아모라 대화에만 사용"
+      : `${input.visibility}: 해당 사용자 개인 상담에만 사용`;
+
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    const startedAt = startLatencyClock();
+    const response = await anthropic.messages.create({
+      model: PROFILE_MODEL,
+      max_tokens: 750,
+      system: PROFILE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content:
+            `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
+            `[현재 프로필]\n${currentProfileJson}\n\n` +
+            `[최근 대화]\n${conversation}`,
+        },
+      ],
+    });
+
+    const firstBlock = response.content[0];
+    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+    if (!text) return;
+
+    const parsed = parseProfileResponse(text);
+    if (!parsed?.shouldUpdate || !parsed.profile) return;
+
+    const profile = parsed.profile;
+    const payload = {
+      couple_id: input.coupleId,
+      visibility: input.visibility,
+      persona_summary: sanitizeText(profile.persona_summary, currentProfile?.personaSummary ?? null),
+      budget_posture: sanitizeText(profile.budget_posture, currentProfile?.budgetPosture ?? null),
+      decision_style: sanitizeText(profile.decision_style, currentProfile?.decisionStyle ?? null),
+      taste_profile: sanitizeText(profile.taste_profile, currentProfile?.tasteProfile ?? null),
+      communication_style: sanitizeText(profile.communication_style, currentProfile?.communicationStyle ?? null),
+      conflict_pattern: sanitizeText(profile.conflict_pattern, currentProfile?.conflictPattern ?? null),
+      sensitive_topics: sanitizeList(profile.sensitive_topics, currentProfile?.sensitiveTopics ?? []),
+      recommendation_rules: sanitizeList(profile.recommendation_rules, currentProfile?.recommendationRules ?? []),
+      open_questions: sanitizeList(profile.open_questions, currentProfile?.openQuestions ?? []),
+      confidence_score: sanitizeConfidence(profile.confidence_score, currentProfile?.confidenceScore ?? 0.5),
+      evidence: sanitizeEvidence(profile.evidence, currentProfile?.evidence ?? []),
+      version: (currentProfile?.version ?? 0) + 1,
+      last_compiled_at: new Date().toISOString(),
+    };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("amora_couple_profiles")
+      .upsert(payload, { onConflict: "couple_id,visibility" });
+
+    if (error) {
+      console.warn("[amora-profile] upsert skipped:", error.message);
+      return;
+    }
+
+    void logAIInteraction({
+      userId: input.userId ?? null,
+      coupleId: input.coupleId,
+      interactionType: "chat_turn",
+      userInput: null,
+      aiOutput: payload.persona_summary,
+      latencyMs: elapsedMs(startedAt),
+      success: true,
+      model: PROFILE_MODEL,
+      tokensInput: response.usage?.input_tokens,
+      tokensOutput: response.usage?.output_tokens,
+      metadata: {
+        endpoint: "chat/amora-profile",
+        visibility: input.visibility,
+        stage_tag: input.stageTag,
+        profile_version: payload.version,
+      },
+    });
+  } catch (err) {
+    console.warn("[amora-profile] update failed:", err);
+  }
+}

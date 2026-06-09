@@ -134,6 +134,32 @@ export function getWeddingPlannerSystemPrompt(context: {
     guestCount?: string | null; // "50이하", "50-100", "100-200", "200-300", "300+"
   };
   feedbackLessons?: string[];
+  amoraProfiles?: {
+    shared?: {
+      personaSummary?: string | null;
+      budgetPosture?: string | null;
+      decisionStyle?: string | null;
+      tasteProfile?: string | null;
+      communicationStyle?: string | null;
+      conflictPattern?: string | null;
+      sensitiveTopics?: string[];
+      recommendationRules?: string[];
+      openQuestions?: string[];
+      confidenceScore?: number;
+    } | null;
+    private?: {
+      personaSummary?: string | null;
+      budgetPosture?: string | null;
+      decisionStyle?: string | null;
+      tasteProfile?: string | null;
+      communicationStyle?: string | null;
+      conflictPattern?: string | null;
+      sensitiveTopics?: string[];
+      recommendationRules?: string[];
+      openQuestions?: string[];
+      confidenceScore?: number;
+    } | null;
+  };
   /**
    * Memory Step C: 이 커플의 과거 결정·선호 히스토리 (최근 15개).
    * AI 대화 추출 + favorites/bookings/onboarding 전부 통합.
@@ -321,6 +347,55 @@ export function getWeddingPlannerSystemPrompt(context: {
       `값을 바꾸고 싶다는 명시적 의사가 있을 때만 재확인.`;
   }
 
+  // 아모라 장기 개인화 프로필 — 대화 후 비동기로 갱신되는 커플별 맞춤 메모리
+  type PromptAmoraProfile = NonNullable<NonNullable<typeof context.amoraProfiles>["shared"]>;
+  const formatAmoraProfile = (profile: PromptAmoraProfile, title: string): string => {
+    const lines = [
+      profile.personaSummary ? `- 커플 요약: ${profile.personaSummary}` : null,
+      profile.budgetPosture ? `- 예산 판단 기준: ${profile.budgetPosture}` : null,
+      profile.decisionStyle ? `- 결정 방식: ${profile.decisionStyle}` : null,
+      profile.tasteProfile ? `- 취향/스타일: ${profile.tasteProfile}` : null,
+      profile.communicationStyle ? `- 답변 방식: ${profile.communicationStyle}` : null,
+      profile.conflictPattern ? `- 조율 패턴: ${profile.conflictPattern}` : null,
+      profile.sensitiveTopics && profile.sensitiveTopics.length > 0
+        ? `- 조심할 주제: ${profile.sensitiveTopics.join(", ")}`
+        : null,
+      profile.recommendationRules && profile.recommendationRules.length > 0
+        ? `- 추천 규칙: ${profile.recommendationRules.join(" / ")}`
+        : null,
+      profile.openQuestions && profile.openQuestions.length > 0
+        ? `- 아직 애매한 점: ${profile.openQuestions.join(" / ")}`
+        : null,
+      typeof profile.confidenceScore === "number"
+        ? `- 프로필 신뢰도: ${profile.confidenceScore.toFixed(2)}`
+        : null,
+    ].filter(Boolean);
+    return lines.length > 0 ? `### ${title}\n${lines.join("\n")}` : "";
+  };
+
+  const profileBlocks = [
+    context.amoraProfiles?.shared
+      ? formatAmoraProfile(context.amoraProfiles.shared, "공유 맞춤 프로필")
+      : "",
+    context.amoraProfiles?.private
+      ? formatAmoraProfile(context.amoraProfiles.private, "나만 상담 맞춤 프로필")
+      : "",
+  ].filter(Boolean);
+
+  const amoraProfileSection = profileBlocks.length > 0
+    ? `\n## 아모라 개인화 프로필
+아래는 이 커플에게 맞춰 답하기 위한 내부 프로필입니다. 사용자가 "프로필에 적혀 있다"는 느낌을 받지 않게 자연스럽게 반영하세요.
+
+${profileBlocks.join("\n\n")}
+
+**개인화 적용 원칙:**
+1. 확실한 정보는 다시 묻지 말고 바로 반영하세요.
+2. 애매한 정보는 단정하지 말고 낮은 강도의 가정으로 답하세요. "제가 보기엔..." 정도로 충분합니다.
+3. 질문은 아껴 쓰세요. 예약, 결제, 큰 금액, 가족 갈등처럼 되돌리기 어렵거나 민감한 선택일 때만 1개로 확인합니다.
+4. 나만 상담 맞춤 프로필은 해당 개인 상담 안에서만 쓰고, 공유 대화나 상대방에게 들은 것처럼 말하지 마세요.
+5. 추천할 때는 일반 평균보다 이 커플의 판단 기준을 우선하세요.`
+    : "";
+
   // 행동 패턴 인사이트 생성
   const behaviorInsights = generateBehaviorInsights(context);
   let insightsSection = "";
@@ -476,7 +551,7 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
 
 ## 아모라의 사고방식
 
