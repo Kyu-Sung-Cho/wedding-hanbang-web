@@ -694,6 +694,133 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["category"],
     },
   },
+  {
+    name: "analyze_contract_readiness",
+    description:
+      "계약 전 확인 도우미입니다. 사용자가 계약서/견적서/카톡 조건/환불/위약금/추가금/구두 약속/예식장 계약을 확인해달라고 할 때 사용합니다. 법률 판단을 확정하지 말고, 계약 전 문서화가 필요한 항목과 업체에 보낼 질문을 정리합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["venue", "sdm_package", "studio", "dress", "makeup", "snap", "other"],
+          description: "계약 카테고리. venue=예식장, sdm_package=스드메 패키지, snap=본식 스냅/영상",
+        },
+        vendor_name: {
+          type: "string",
+          description: "업체명 (선택)",
+        },
+        contract_amount: {
+          type: "number",
+          description: "계약 총액 (만원 단위). 사용자가 원 단위로 말했어도 만원으로 환산해서 넣으세요.",
+        },
+        deposit_amount: {
+          type: "number",
+          description: "계약금/예약금 (만원 단위)",
+        },
+        has_written_contract: {
+          type: "boolean",
+          description: "계약서 또는 확정 견적서가 문서로 있는지",
+        },
+        uses_standard_contract: {
+          type: "boolean",
+          description: "표준계약서 또는 표준 약관 기반인지. 모르면 생략.",
+        },
+        included_items: {
+          type: "array",
+          items: { type: "string" },
+          description: "사용자가 문서/캡처에서 확인한 포함 항목. 추측 금지.",
+        },
+        checked_clauses: {
+          type: "array",
+          items: { type: "string" },
+          description: "이미 문서로 확인된 조항 id 또는 자연어 항목. 예: cancellation_refund, 보증 인원, 원본 제공",
+        },
+        missing_clauses: {
+          type: "array",
+          items: { type: "string" },
+          description: "사용자가 없다고 말한 조항 id 또는 자연어 항목",
+        },
+        evidence_types: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["quote", "contract", "deposit", "message_capture", "receipt", "schedule", "vendor_policy"],
+          },
+          description: "사용자가 갖고 있는 증빙 종류",
+        },
+        oral_promises: {
+          type: "array",
+          items: { type: "string" },
+          description: "상담 중 말로 들은 무료 제공/할인/서비스 약속. 문서화 여부 확인 대상.",
+        },
+        cancellation_policy: {
+          type: "string",
+          description: "취소/환불/위약금 관련 문구",
+        },
+        change_policy: {
+          type: "string",
+          description: "날짜/시간/인원/담당자 변경 관련 문구",
+        },
+        payment_schedule: {
+          type: "string",
+          description: "계약금/잔금/결제일 관련 문구",
+        },
+        extra_fee_policy: {
+          type: "string",
+          description: "추가금/별도 비용/옵션 관련 문구",
+        },
+        memo: {
+          type: "string",
+          description: "문서나 캡처에서 읽힌 주요 내용 요약. 첨부 파일을 본 경우 핵심 문구를 여기에 넣으세요.",
+        },
+      },
+      required: ["category"],
+    },
+  },
+  {
+    name: "simulate_guest_guarantee",
+    description:
+      "예식장 하객 수, 식대, 보증 인원 시뮬레이터입니다. 사용자가 하객 수/식대/보증인원/최종 인원 통보/식대 손실을 묻거나 예식장 계약을 검토할 때 사용합니다. 업체 연동 없이 사용자 입력 기준으로 손실 후보와 확인 질문을 계산합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        estimated_guests: {
+          type: "number",
+          description: "예상 하객 수",
+        },
+        guaranteed_guests: {
+          type: "number",
+          description: "계약서상 보증 인원 또는 최소 보증 인원",
+        },
+        meal_price: {
+          type: "number",
+          description: "1인 식대 (만원 단위). 예: 7.5 = 7만5천원. 원 단위로 입력된 경우 실행기가 보정합니다.",
+        },
+        confirmed_rsvp_guests: {
+          type: "number",
+          description: "이미 참석 확정된 하객 수 (선택)",
+        },
+        no_show_rate_percent: {
+          type: "number",
+          description: "노쇼/불참 가정 비율. 모르면 생략하면 기본 8%로 계산.",
+        },
+        notice_deadline: {
+          type: "string",
+          description: "최종 인원 통보 마감일 (YYYY-MM-DD, 선택)",
+        },
+        venue_name: {
+          type: "string",
+          description: "예식장명 (선택)",
+        },
+        memo: {
+          type: "string",
+          description: "계약서나 상담 내용에서 확인된 특이사항",
+        },
+      },
+      required: [],
+    },
+  },
   // 네이버 지역 검색 API 장소 검색
   {
     name: "search_nearby_places",

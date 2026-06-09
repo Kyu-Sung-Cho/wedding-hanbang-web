@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
+import ProtectionToolCard, { PROTECTION_TOOL_NAMES } from "./ProtectionToolCard";
 
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
@@ -31,6 +32,7 @@ export const VENDOR_TOOL_NAMES = new Set([
   "cancel_booking",
   "search_nearby_places",
   "analyze_quote",
+  ...PROTECTION_TOOL_NAMES,
 ]);
 
 interface VendorToolCardProps {
@@ -63,6 +65,9 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <PlaceCards result={result} />;
     case "analyze_quote":
       return <QuoteAnalysisCard result={result} onSend={onSend} disabled={disabled} />;
+    case "analyze_contract_readiness":
+    case "simulate_guest_guarantee":
+      return <ProtectionToolCard result={result} />;
     default:
       return null;
   }
