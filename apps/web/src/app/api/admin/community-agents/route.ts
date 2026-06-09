@@ -174,7 +174,9 @@ const PRESERVED_DRAFT_FLAGS = new Set(["official_manual_review"]);
 const OFFICIAL_COPY_SECTION_TERMS = [
   "한눈에 보기",
   "확인할 것",
+  "먼저 볼 것",
   "물어볼 말",
+  "이렇게 물어보면 좋습니다",
   "놓치기 쉬운 것",
   "저장할 것",
   "마지막 기준",
@@ -220,7 +222,7 @@ function officialCopyIssueFlags(draft: DraftRow, agent: AgentRow): string[] {
   }
   if (/[?？]/.test(fullText)) flags.push("official_copy_question_mark_blocked");
   if (OFFICIAL_COPY_BAD_BODY_RE.test(fullText)) flags.push("official_copy_awkward_wording");
-  if (sectionCount < 4) flags.push("official_copy_sections_required");
+  if (sectionCount < 2) flags.push("official_copy_sections_required");
 
   return flags;
 }
@@ -309,11 +311,38 @@ async function fetchAgentByIdOrSlug(
   return (data as AgentRow | null) ?? null;
 }
 
+async function syncAgentPublicProfile(
+  supabase: ReturnType<typeof getServiceClient>,
+  userId: string,
+  agent: AgentRow
+): Promise<void> {
+  await supabase.from("profiles").upsert({
+    id: userId,
+    email: `agent-${agent.slug}@agents.hanbang.ai`,
+    name: agent.public_nickname,
+    onboarding_completed: true,
+    onboarding_step: 5,
+    is_admin: false,
+  });
+
+  await supabase.from("community_profiles").upsert({
+    user_id: userId,
+    nickname: agent.public_nickname,
+    avatar_url: agent.avatar_url,
+    badge: "member",
+    rank: "sprout",
+    wedding_completed: false,
+  });
+}
+
 async function ensureAgentIdentity(
   supabase: ReturnType<typeof getServiceClient>,
   agent: AgentRow
 ): Promise<string> {
-  if (agent.backing_user_id) return agent.backing_user_id;
+  if (agent.backing_user_id) {
+    await syncAgentPublicProfile(supabase, agent.backing_user_id, agent);
+    return agent.backing_user_id;
+  }
 
   const email = `agent-${agent.slug}@agents.hanbang.ai`;
   const tempPassword = `agent-${agent.slug}-${crypto.randomUUID()}`;
@@ -334,26 +363,7 @@ async function ensureAgentIdentity(
 
   const userId = data.user.id;
 
-  await supabase.from("profiles").upsert({
-    id: userId,
-    email,
-    name: agent.public_nickname,
-    onboarding_completed: true,
-    onboarding_step: 5,
-    is_admin: false,
-  });
-
-  await supabase.from("community_profiles").upsert({
-    user_id: userId,
-    nickname: agent.public_nickname,
-    avatar_url: agent.avatar_url,
-    badge: "member",
-    rank: "sprout",
-    post_count: 0,
-    comment_count: 0,
-    total_upvotes_received: 0,
-    wedding_completed: false,
-  });
+  await syncAgentPublicProfile(supabase, userId, agent);
 
   await supabase
     .from("community_agent_personas")
@@ -636,8 +646,14 @@ export async function POST(req: Request) {
 
     const { data: seeded } = await supabase
       .from("community_agent_personas")
-      .select("id")
+      .select("*")
       .in("slug", DEFAULT_COMMUNITY_AGENT_SEEDS.map((agent) => agent.slug));
+
+    await Promise.all(
+      ((seeded ?? []) as AgentRow[])
+        .filter((agent) => Boolean(agent.backing_user_id))
+        .map((agent) => syncAgentPublicProfile(supabase, agent.backing_user_id as string, agent))
+    );
 
     await supabase.from("community_agent_activity_log").insert(
       (seeded ?? []).map((agent) => ({

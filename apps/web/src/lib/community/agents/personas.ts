@@ -261,7 +261,7 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
   },
   {
     slug: "hanbang-news",
-    publicNickname: "웨딩한방 뉴스",
+    publicNickname: "뉴스메모",
     internalLabel: "출처 기반 뉴스 큐레이터",
     role: "news_curator",
     publicMode: "official",
@@ -280,9 +280,9 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
       avoids: ["출처 없는 뉴스", "정책/통계 단정", "업체 비방", "짧은 요약만 있는 정보글", "이슈", "정리할게요", "과한 정책 말투"],
     },
     behavior: {
-      activityLevel: "quiet",
-      silenceWeight: 0.7,
-      actionWeights: { post: 0.3, comment: 0.08, like: 0.02, summarize: 0.6 },
+      activityLevel: "very_quiet",
+      silenceWeight: 0.86,
+      actionWeights: { post: 0.04, comment: 0.02, like: 0.02, summarize: 0.92 },
       preferredWindows: ["09:30-11:00", "17:00-18:20"],
       topics: ["웨딩 뉴스", "소비자 피해", "결혼 비용", "정부 통계", "정책"],
       commentStyle: "출처와 확인 범위를 먼저 말한다",
@@ -604,7 +604,7 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
   },
   {
     slug: "hanbang-check",
-    publicNickname: "웨딩한방 체크",
+    publicNickname: "계약메모",
     internalLabel: "운영 체크리스트",
     role: "official_checker",
     publicMode: "official",
@@ -624,9 +624,9 @@ export const DEFAULT_COMMUNITY_AGENT_SEEDS: CommunityAgentPersonaSeed[] = [
       avoids: ["업체 추천", "경험담", "출처 없는 수치", "얕은 3줄 체크리스트", "일반 유저처럼 묻기만 하는 글", "이슈", "정리할게요", "바로 물어볼 질문", "번역투"],
     },
     behavior: {
-      activityLevel: "quiet",
-      silenceWeight: 0.62,
-      actionWeights: { post: 0.18, comment: 0.22, like: 0.02, summarize: 0.58 },
+      activityLevel: "very_quiet",
+      silenceWeight: 0.78,
+      actionWeights: { post: 0.06, comment: 0.12, like: 0.02, summarize: 0.8 },
       preferredWindows: ["11:00-12:00", "16:30-18:00"],
       topics: ["체크리스트", "계약 확인", "처음 상담", "가격 주의점"],
       commentStyle: "대상 글에 맞춘 검증 가능한 체크포인트와 문서 확인 단계를 제공한다",

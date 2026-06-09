@@ -17,6 +17,9 @@ type AutomationAction = "post" | "comment" | "reaction" | "cohort_message";
 type CommentIntent =
   | "first_response"
   | "empathy"
+  | "quick_reaction"
+  | "reply_support"
+  | "reply_question"
   | "clarifying_question"
   | "budget_compare"
   | "contract_check"
@@ -233,6 +236,9 @@ const VALID_CATEGORIES: CommunityCategory[] = ["is_normal", "tour_review", "tips
 const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "first_response",
   "empathy",
+  "quick_reaction",
+  "reply_support",
+  "reply_question",
   "clarifying_question",
   "budget_compare",
   "contract_check",
@@ -240,8 +246,8 @@ const VALID_COMMENT_INTENTS: CommentIntent[] = [
   "summary_bridge",
 ];
 const POSTGRES_INT_MAX = 2_147_483_647;
-const OFFICIAL_MIN_POST_CHARS = 420;
-const OFFICIAL_MIN_COMMENT_CHARS = 130;
+const OFFICIAL_MIN_POST_CHARS = 180;
+const OFFICIAL_MIN_COMMENT_CHARS = 70;
 const OFFICIAL_DETAIL_TERMS = [
   "총액",
   "기본",
@@ -273,7 +279,9 @@ const OFFICIAL_DETAIL_TERMS = [
 const OFFICIAL_GUIDE_SECTION_TERMS = [
   "한눈에 보기",
   "확인할 것",
+  "먼저 볼 것",
   "물어볼 말",
+  "이렇게 물어보면 좋습니다",
   "놓치기 쉬운 것",
   "저장할 것",
   "마지막 기준",
@@ -389,9 +397,8 @@ function hasConversationalQuestion(input: string | null | undefined): boolean {
 
 function isLowQualityComment(input: string | null | undefined): boolean {
   const text = stripTags(input ?? "");
-  if (text.length < 18) return true;
+  if (text.length < 6) return true;
   if (/^(like|empty_content|본문 없음|댓글|좋아요)$/i.test(text)) return true;
-  if (text.length < 42 && /(좋은 글|감사합니다|공감합니다|잘 봤어요|도움 됐어요|화이팅)/.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
   if (hasFakeExperienceArtifact(text)) return true;
   if (hasAwkwardWeddingTerm(text)) return true;
@@ -403,7 +410,7 @@ function isLowQualityPost(action: GeneratedAction): boolean {
   const contentLength = plainTextLength(action.content);
   const text = `${action.title ?? ""}\n${stripTags(action.content)}`;
   if (action.contentOrigin === "comment" || action.contentOrigin === "reaction") return true;
-  if (titleLength < 8 || contentLength < 55) return true;
+  if (titleLength < 6 || contentLength < 18) return true;
   if (/^(like|empty_content|본문 없음)$/i.test(stripTags(action.content))) return true;
   if (GENERIC_POST_TEMPLATE_RE.test(text)) return true;
   if (hasSuspiciousKoreanArtifact(text)) return true;
@@ -418,6 +425,8 @@ const GENERIC_POST_TEMPLATE_RE = /(준비할 때 기준을 어떻게 잡으세�
 const SUSPICIOUS_KOREAN_ARTIFACT_RE = /(피연금|기본금|대관금|헬퍼금|원본금|수정본금|[\u3040-\u30ff])/;
 const FAKE_EXPERIENCE_ARTIFACT_RE = /(상담\s*(다녀왔|받았|받으면서)|견적서?\s*(받았|받으니까)|투어\s*(다녀왔|했|하고)|방문\s*(했|하고)|계약\s*(했|하고)|예약\s*(했|하고)|결제\s*(했|하고))/;
 const USEFUL_CHECKPOINT_RE = /(확인|비교|포함|별도|추가금|계약|문서|환불|취소|기준|정리|나눠|물어보|체크|총액|일정)/;
+const NATURAL_SHORT_REACTION_RE =
+  /(저도|저두|공감|도움|저장|참고|맞아요|맞네요|궁금|감사|봐야겠|좋네요|헷갈렸|메모|이 부분|그러게요|오 이거)/;
 const BUDGET_TOPIC_RE = /(가격|비용|견적|만원|추가금|총액|예산|대관료|식대|보증인원|옵션)/;
 const CONTRACT_TOPIC_RE = /(계약|환불|취소|원본|수정본|헬퍼비|문서|약관|보증|포함|별도)/;
 const EMOTION_TOPIC_RE = /(부모님|양가|서운|싸움|갈등|마음|스트레스|불안|고민|친구|혼주)/;
@@ -457,6 +466,11 @@ function normalizedTokens(input: string | null | undefined): Set<string> {
   return new Set(tokens);
 }
 
+function isNaturalShortReaction(input: string | null | undefined): boolean {
+  const text = stripTags(input ?? "");
+  return text.length >= 6 && text.length <= 70 && NATURAL_SHORT_REACTION_RE.test(text);
+}
+
 function overlapCount(left: Set<string>, right: Set<string>): number {
   let count = 0;
   for (const token of left) {
@@ -486,8 +500,17 @@ function jaccardSimilarity(leftText: string | null | undefined, rightText: strin
   return union === 0 ? 0 : intersection / union;
 }
 
-function chooseCommentIntent(agent: AgentRow, post: RecentPost, comments: RecentComment[]): CommentIntent {
+function chooseCommentIntent(agent: AgentRow, post: RecentPost, comments: RecentComment[], targetComment?: RecentComment | null): CommentIntent {
   const text = `${post.title}\n${stripTags(post.content)}\n${(post.tags ?? []).join(" ")}`;
+  if (targetComment) {
+    const targetText = stripTags(targetComment.content);
+    if (/[?？]|궁금|어떻게|괜찮|맞나요|모르겠/.test(targetText)) return "reply_question";
+    return "reply_support";
+  }
+  const random = seededRandom(hashString(`${agent.slug}:${post.id}:${comments.length}:comment-intent`));
+  const quickRoles = new Set(["quiet_reactor", "emotion_support", "beginner_questioner", "saving_tips", "comparison_seeker"]);
+  if (!isOfficialAgent(agent) && quickRoles.has(agent.role) && random() < 0.34) return "quick_reaction";
+  if (!isOfficialAgent(agent) && comments.length >= 2 && random() < 0.18) return "quick_reaction";
   if (agent.role === "budget_realist" || BUDGET_TOPIC_RE.test(text)) return "budget_compare";
   if (agent.role === "contract_checker" || agent.role === "official_checker" || CONTRACT_TOPIC_RE.test(text)) return "contract_check";
   if (agent.role === "emotion_support" || EMOTION_TOPIC_RE.test(text)) return "empathy";
@@ -501,6 +524,9 @@ function intentInstruction(intent: CommentIntent): string {
   const instructions: Record<CommentIntent, string> = {
     first_response: "첫 댓글처럼 글쓴이의 상황을 받아주고, 바로 답을 확정하지 말고 확인 질문 하나를 남긴다.",
     empathy: "감정 부담을 먼저 인정하고, 상대와 조율할 때 덜 부딪히는 말 꺼내기 질문을 덧붙인다.",
+    quick_reaction: "한 줄 또는 아주 짧은 두 문장. 도움 됐다는 반응, 저장/공감/나도 궁금함 중 하나만 자연스럽게 남긴다.",
+    reply_support: "대상 댓글에 다는 대댓글이다. 댓글 내용에 공감하거나 한 가지를 보태되, 1-2문장으로 짧게 쓴다.",
+    reply_question: "대상 댓글에 다는 대댓글이다. 상대 댓글의 질문을 이어받아, 확인하면 좋을 한 가지를 짧게 되묻는다.",
     clarifying_question: "글쓴이가 빠뜨렸을 수 있는 확인 질문 하나를 조심스럽게 묻는다.",
     budget_compare: "기본가보다 최종 총액, 포함 항목, 필수 추가금 관점으로 비교 포인트를 준다.",
     contract_check: "문서에 적힌 포함 항목, 별도 비용, 변경/취소 조건을 확인하도록 좁힌다.",
@@ -523,21 +549,26 @@ function reviewGeneratedDraft(input: {
   const official = isOfficialAgent(input.agent);
 
   if (input.requestedAction === "comment") {
+    const shortHumanReaction = isNaturalShortReaction(action.content);
+    const shortIntent =
+      input.commentIntent === "quick_reaction" ||
+      input.commentIntent === "reply_support" ||
+      input.commentIntent === "reply_question";
     if (action.targetType !== "comment") issues.push("not_a_comment");
     if (!input.targetPost) issues.push("missing_target_post");
     if (isLowQualityComment(action.content)) issues.push("low_quality_comment");
     if (hasSuspiciousKoreanArtifact(action.content)) issues.push("suspicious_korean_artifact");
     if (hasFakeExperienceArtifact(action.content)) issues.push("fake_experience_artifact");
     if (hasAwkwardWeddingTerm(action.content)) issues.push("awkward_wedding_term");
-    if (!hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
+    if (!shortHumanReaction && !hasConversationalQuestion(action.content) && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
       issues.push("no_question_or_checkpoint");
     }
-    if (GENERIC_COMMENT_RE.test(stripTags(action.content))) issues.push("generic_filler");
+    if (!shortIntent && GENERIC_COMMENT_RE.test(stripTags(action.content))) issues.push("generic_filler");
 
     if (input.targetPost) {
       const postTokens = normalizedTokens(`${input.targetPost.title} ${input.targetPost.content} ${(input.targetPost.tags ?? []).join(" ")}`);
       const commentTokens = normalizedTokens(action.content);
-      if (overlapCount(postTokens, commentTokens) === 0 && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
+      if (overlapCount(postTokens, commentTokens) === 0 && !shortIntent && !shortHumanReaction && !USEFUL_CHECKPOINT_RE.test(stripTags(action.content))) {
         issues.push("not_grounded_in_post");
       }
     }
@@ -547,7 +578,7 @@ function reviewGeneratedDraft(input: {
 
     if (official) {
       if (plainTextLength(action.content) < OFFICIAL_MIN_COMMENT_CHARS) issues.push("official_comment_too_short");
-      if (countOfficialActionableDetails(action.content) < 5) issues.push("official_comment_missing_actionable_detail");
+      if (countOfficialActionableDetails(action.content) < 2) issues.push("official_comment_missing_actionable_detail");
       if (!/(물어볼|확인할|저장|문서|계약서|견적서)/.test(stripTags(action.content))) {
         issues.push("official_comment_missing_verification_step");
       }
@@ -570,8 +601,8 @@ function reviewGeneratedDraft(input: {
       if (!isOfficialOpeningReadable(action.content)) issues.push("official_plain_opening_required");
       if (OFFICIAL_BAD_BODY_RE.test(fullText)) issues.push("official_awkward_official_wording");
       if (plainTextLength(action.content) < OFFICIAL_MIN_POST_CHARS) issues.push("official_post_too_short");
-      if (countOfficialActionableDetails(fullText) < 14) issues.push("official_missing_actionable_details");
-      if (countOfficialGuideSections(fullText) < 4) issues.push("official_missing_guide_sections");
+      if (countOfficialActionableDetails(fullText) < 5) issues.push("official_missing_actionable_details");
+      if (countOfficialGuideSections(fullText) < 2) issues.push("official_missing_guide_sections");
       if (!hasOfficialReasonOrException(fullText)) issues.push("official_missing_reason_or_exception");
       if (hasOfficialPersonalTone(fullText)) issues.push("official_personal_tone");
     }
@@ -719,7 +750,7 @@ const ROLE_STYLE_GUIDES: Record<string, PersonaStyleGuide> = {
   },
   official_checker: {
     postFormat:
-      "운영자형 쉬운 안내문. 제목은 12-34자 안의 쉬운 명사형으로 쓰고 물음표를 쓰지 않는다. 첫 문장은 왜 확인해야 하는지 한 문장으로 쓴다. 한눈에 보기, 확인할 것, 물어볼 말, 놓치기 쉬운 것, 저장할 것, 마지막 기준을 담는다.",
+      "운영자형 쉬운 안내문. 제목은 12-34자 안의 쉬운 명사형으로 쓰고 물음표를 쓰지 않는다. 짧은 첫 문장 뒤에 2-3개의 실전 체크만 남긴다. 긴 매뉴얼처럼 모든 섹션을 억지로 넣지 않는다.",
     commentFormat: "공식 안내처럼 짧고 정확하되, 대상 글에 맞춘 확인 포인트 2개와 문서 검증 단계를 제시한다.",
     voice: "중학생도 이해할 수 있는 쉬운 공식 말투. 짧고 구체적이며 바로 실행 가능해야 한다.",
     avoid: ["감정 공감 과다", "가짜 개인 경험", "출처 없는 수치", "얕은 체크리스트", "일반 유저처럼 묻기만 하는 글", "이슈", "정리할게요", "바로 물어볼 질문", "번역투"],
@@ -727,17 +758,17 @@ const ROLE_STYLE_GUIDES: Record<string, PersonaStyleGuide> = {
 };
 
 function officialChecklistTitle(topic: string): string {
-  if (/계약/.test(topic)) return "계약 전 꼭 볼 비용과 조건";
-  if (/가격|비용|예산/.test(topic)) return "비용 비교 전 확인할 것";
-  if (/초보|처음/.test(topic)) return "처음 상담 전 확인할 것";
-  return "상담 전 꼭 볼 확인 기준";
+  if (/계약/.test(topic)) return "계약서에서 먼저 볼 항목";
+  if (/가격|비용|예산/.test(topic)) return "견적 볼 때 나눠 볼 항목";
+  if (/초보|처음/.test(topic)) return "처음 상담 때 챙길 기준";
+  return "상담 전 메모할 기준";
 }
 
 function officialSourceReviewTitle(topic: string): string {
-  if (/통계|정부|정책/.test(topic)) return "통계 글 안내 전 확인할 것";
-  if (/피해|소비자/.test(topic)) return "피해 사례 안내 전 확인할 것";
-  if (/비용|가격|예산/.test(topic)) return "비용 뉴스 안내 전 확인할 것";
-  return "뉴스 글 안내 전 확인할 것";
+  if (/통계|정부|정책/.test(topic)) return "통계 출처 확인 뒤 게시";
+  if (/피해|소비자/.test(topic)) return "피해 사례 출처 확인 뒤 게시";
+  if (/비용|가격|예산/.test(topic)) return "비용 뉴스 출처 확인 뒤 게시";
+  return "출처 확인 뒤 게시할 뉴스";
 }
 
 const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
@@ -869,7 +900,7 @@ const ROLE_BLUEPRINTS: Record<string, Partial<WritingBlueprint>> = {
     origin: "checklist",
     title: (topic) => officialChecklistTitle(topic),
     body: () =>
-      `상담이나 계약 전에는 말로 들은 내용보다 문서에 적힌 조건을 먼저 봐야 합니다. 비용, 포함 항목, 변경 조건을 따로 적으면 나중에 비교가 쉬워집니다.\n\n한눈에 보기:\n- 기본 금액과 추가금은 따로 적습니다.\n- 포함 항목은 계약서와 견적서에서 확인합니다.\n- 변경과 환불 조건은 기준일을 봅니다.\n\n확인할 것:\n1. 총액: 기본 금액, 필수 추가금, 선택 옵션, 별도 결제 항목을 한 줄씩 나눕니다.\n2. 포함 항목: 식대, 대관료, 원본비, 수정본, 헬퍼비가 계약서나 견적서에 적혀 있는지 봅니다.\n3. 변경 조건: 날짜, 인원, 시간, 취소, 환불 때 비용이 달라지는 기준일을 확인합니다.\n4. 증빙: 견적서, 계약서, 입금 내역, 상담 중 받은 안내 문자를 같은 이름으로 저장합니다.\n\n물어볼 말:\n- 이 금액에서 당일에 꼭 추가되는 비용을 알려 주세요.\n- 포함 항목이 계약서에도 같은 표현으로 적히는지 확인해 주세요.\n- 인원이나 날짜가 바뀔 때 비용이 달라지는 기준일을 알려 주세요.\n\n놓치기 쉬운 것:\n나중에 조정 가능하다는 말은 기준일과 비용 조건이 같이 적혀 있을 때만 비교하기 쉽습니다. 특히 인원, 시간, 원본비, 수정본, 헬퍼비는 작은 문구 차이로 총액과 일정에 영향을 줄 수 있습니다.\n\n저장할 것:\n견적서 원본, 계약서 PDF나 사진, 입금 내역, 변경 안내 메시지를 한 폴더에 모아두면 나중에 비교하거나 문의할 때 빠릅니다.\n\n마지막 기준:\n말로 들은 혜택보다 계약서와 견적서에 남은 조건을 기준으로 비교합니다.`,
+      `상담 때 들은 말은 계약서나 견적서에 같은 표현으로 남아야 비교하기 쉽습니다.\n\n먼저 볼 것\n- 기본 금액과 당일 추가될 수 있는 비용을 따로 적습니다.\n- 식대, 대관료, 원본비, 수정본, 헬퍼비가 포함인지 별도인지 확인합니다.\n- 날짜나 인원이 바뀔 때 비용이 달라지는 기준일을 봅니다.\n\n이렇게 물어보면 좋습니다\n- 이 금액에서 당일에 추가되는 비용을 알려 주세요.\n- 포함 항목이 계약서에도 같은 표현으로 적히는지 확인해 주세요.\n\n마지막 기준\n말로 들은 혜택보다 계약서와 견적서에 남은 조건을 기준으로 비교합니다.`,
     comment: (post) =>
       `${post.title}은 확인 기준을 문서 중심으로 잡아보면 좋겠습니다. 먼저 포함 항목과 별도 비용을 나누고, 같은 조건이 계약서나 견적서에 적히는지 확인해 주세요. 변경·취소 기준일, 인원 변동 비용, 상담 중 받은 안내 문자는 따로 저장해두면 나중에 비교하기 쉽습니다.`,
   },
@@ -1013,8 +1044,8 @@ function chooseDryRunAction(
   const successfulComments = items.filter((item) => item.action === "comment" && item.status === "drafted").length;
   const postWeight = agent.behavior.actionWeights?.post ?? 0;
 
-  if (successfulPosts < 2 && attemptedPosts < 4 && postWeight > 0.04) return "post";
   if (posts.length > 0 && successfulComments < 2) return "comment";
+  if (successfulPosts < 2 && attemptedPosts < 4 && postWeight > 0.04 && !hasRequiredSourcePolicy(agent)) return "post";
   if (cohortRooms.length > 0 && (agent.behavior.actionWeights?.summarize ?? 0) > 0.12) return "cohort_message";
   return posts.length > 0 ? "reaction" : "post";
 }
@@ -1086,8 +1117,31 @@ async function incrementDailyDone(supabase: SupabaseClient, state: DailyState, a
   state[field] = current + 1;
 }
 
+async function syncAgentPublicProfile(supabase: SupabaseClient, userId: string, agent: AgentRow): Promise<void> {
+  await supabase.from("profiles").upsert({
+    id: userId,
+    email: `agent-${agent.slug}@agents.hanbang.ai`,
+    name: agent.public_nickname,
+    onboarding_completed: true,
+    onboarding_step: 5,
+    is_admin: false,
+  });
+
+  await supabase.from("community_profiles").upsert({
+    user_id: userId,
+    nickname: agent.public_nickname,
+    avatar_url: agent.avatar_url,
+    badge: "member",
+    rank: "sprout",
+    wedding_completed: false,
+  });
+}
+
 async function ensureAgentIdentity(supabase: SupabaseClient, agent: AgentRow): Promise<string> {
-  if (agent.backing_user_id) return agent.backing_user_id;
+  if (agent.backing_user_id) {
+    await syncAgentPublicProfile(supabase, agent.backing_user_id, agent);
+    return agent.backing_user_id;
+  }
 
   const email = `agent-${agent.slug}@agents.hanbang.ai`;
   const tempPassword = `agent-${agent.slug}-${crypto.randomUUID()}`;
@@ -1105,26 +1159,7 @@ async function ensureAgentIdentity(supabase: SupabaseClient, agent: AgentRow): P
   if (error || !data.user) throw new Error(error?.message ?? "agent_user_create_failed");
 
   const userId = data.user.id;
-  await supabase.from("profiles").upsert({
-    id: userId,
-    email,
-    name: agent.public_nickname,
-    onboarding_completed: true,
-    onboarding_step: 5,
-    is_admin: false,
-  });
-
-  await supabase.from("community_profiles").upsert({
-    user_id: userId,
-    nickname: agent.public_nickname,
-    avatar_url: agent.avatar_url,
-    badge: "member",
-    rank: "sprout",
-    post_count: 0,
-    comment_count: 0,
-    total_upvotes_received: 0,
-    wedding_completed: false,
-  });
+  await syncAgentPublicProfile(supabase, userId, agent);
 
   await supabase
     .from("community_agent_personas")
@@ -1400,6 +1435,51 @@ async function fetchPostComments(supabase: SupabaseClient, postId: string): Prom
   return ((data ?? []) as RecentComment[]).filter((comment) => hasBodyContent(comment.content));
 }
 
+function chooseReplyTargetComment(
+  agent: AgentRow,
+  comments: RecentComment[],
+  random: () => number,
+  blockedAuthorIds: Set<string>
+): RecentComment | null {
+  if (isOfficialAgent(agent)) return null;
+
+  const replyChanceByRole: Record<string, number> = {
+    quiet_reactor: 0.46,
+    emotion_support: 0.38,
+    beginner_questioner: 0.32,
+    comparison_seeker: 0.3,
+    senior_helper: 0.28,
+    saving_tips: 0.26,
+    contract_checker: 0.18,
+    budget_realist: 0.18,
+  };
+  const replyChance = replyChanceByRole[agent.role] ?? 0.2;
+  if (random() > replyChance) return null;
+
+  const candidates = comments
+    .filter((comment) => !blockedAuthorIds.has(comment.author_id))
+    .filter((comment) => stripTags(comment.content).length >= 4)
+    .filter((comment) => stripTags(comment.content).length <= 500)
+    .filter((comment) => !hasFakeExperienceArtifact(comment.content) && !hasSuspiciousKoreanArtifact(comment.content));
+
+  if (candidates.length === 0) return null;
+
+  return [...candidates]
+    .sort((left, right) => {
+      const leftScore =
+        (left.parent_id ? 0.8 : 1.2) +
+        (/[?？]|궁금|어떻게|괜찮|맞나요|모르겠/.test(stripTags(left.content)) ? 1.1 : 0) +
+        Math.min(2, left.upvote_count * 0.25) +
+        random();
+      const rightScore =
+        (right.parent_id ? 0.8 : 1.2) +
+        (/[?？]|궁금|어떻게|괜찮|맞나요|모르겠/.test(stripTags(right.content)) ? 1.1 : 0) +
+        Math.min(2, right.upvote_count * 0.25) +
+        random();
+      return rightScore - leftScore;
+    })[0] ?? null;
+}
+
 async function fetchOpenCohortRooms(supabase: SupabaseClient): Promise<Array<{ id: string; name: string; message_count: number }>> {
   const { data } = await supabase
     .from("cohort_rooms")
@@ -1518,32 +1598,12 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
       category: "tips_v2",
       title: officialSourceReviewTitle(topic),
       content: [
-        `${topic}처럼 뉴스나 통계가 들어간 글은 출처를 먼저 확인해야 합니다. 출처가 없으면 예비부부가 잘못된 기준으로 계약이나 예산을 판단할 수 있습니다.`,
-        "",
-        "출처 확인:",
-        "- 원문 기사, 공식 기관 자료, 보고서 링크가 같은 내용을 말하는지 봅니다.",
-        "- 기준일, 적용 지역, 대상이 글 내용과 맞는지 확인합니다.",
-        "- 숫자나 정책 표현은 출처 문장보다 크게 말하지 않습니다.",
-        "",
-        "확인할 것:",
-        "1. 날짜: 자료가 나온 날짜와 기준일을 적습니다.",
-        "2. 범위: 전국 기준인지 특정 지역 기준인지 나눕니다.",
-        "3. 영향: 예산, 계약, 일정 중 어디에 영향을 주는지 적습니다.",
-        "4. 표현: 평균, 의무, 지원, 피해 사례 같은 단어는 출처 문장과 함께 봅니다.",
-        "",
-        "주의할 말:",
-        "- 출처가 없는 숫자는 안내문에 넣지 않습니다.",
-        "- 특정 업체나 지역을 일반화하는 문장은 확인 범위가 좁으면 빼는 편이 안전합니다.",
-        "",
-        "저장할 것:",
-        "원문 링크, 캡처한 기준일, 관련 기관명, 예비부부가 확인해야 할 항목을 함께 남겨 둡니다.",
-        "",
-        "마지막 기준:",
-        "공식 출처로 확인된 내용만 안내문으로 쓰고, 확인되지 않은 내용은 게시 전에 다시 봅니다.",
+        `${topic} 관련 뉴스형 글은 아직 공개용으로 쓰지 않습니다.`,
+        "원문 기사나 공식 자료 링크가 확인되면, 그 출처에 있는 내용만 짧게 다시 작성해 주세요.",
       ].join("\n"),
       sourceUrls: [],
       confidence: 0.52,
-      reason: "Source-required information fallback pending admin source review.",
+      reason: "Source-required information fallback kept private until a verified URL is supplied.",
     };
   }
 
@@ -1561,12 +1621,44 @@ function fallbackPost(agent: AgentRow, random: () => number): GeneratedAction {
   };
 }
 
-function fallbackComment(agent: AgentRow, targetPost: RecentPost | null, random: () => number, intent?: CommentIntent | null): string {
+function fallbackComment(
+  agent: AgentRow,
+  targetPost: RecentPost | null,
+  random: () => number,
+  intent?: CommentIntent | null,
+  targetComment?: RecentComment | null
+): string {
   const topic = pickTopic(agent, random);
   if (!targetPost) {
     return blueprintFor(agent).comment({ id: "", title: topic, content: "", category: "free", tags: [], comment_count: 0, upvote_count: 0, created_at: "", author_id: "" }, topic);
   }
   const title = targetPost.title;
+  const shortReactions = [
+    "저도 이 부분 궁금했어요.",
+    "이건 저장해두고 봐야겠네요.",
+    "도움 많이 됐어요, 저도 체크해볼게요.",
+    "이 얘기 은근 놓치기 쉬운 것 같아요.",
+    "저도 여기서 좀 헷갈렸어요.",
+  ];
+  if (!isOfficialAgent(agent) && intent === "quick_reaction") {
+    return shortReactions[pickInt(random, 0, shortReactions.length - 1)] ?? shortReactions[0];
+  }
+  if (!isOfficialAgent(agent) && targetComment && (intent === "reply_support" || intent === "reply_question")) {
+    if (intent === "reply_question" || /[?？]|궁금|어떻게|괜찮|맞나요|모르겠/.test(stripTags(targetComment.content))) {
+      const replies = [
+        "저도 이거 궁금해요. 특히 포함 항목을 어디까지 봐야 하는지요.",
+        "그러게요, 계약서에 같은 문구로 적히는지도 같이 봐야 할 것 같아요.",
+        "저도 헷갈렸는데 최종 총액 기준으로 물어보면 좀 낫지 않을까요?",
+      ];
+      return replies[pickInt(random, 0, replies.length - 1)] ?? replies[0];
+    }
+    const replies = [
+      "맞아요, 이 부분은 미리 물어보는 게 마음 편할 것 같아요.",
+      "저도 공감해요. 말로만 듣고 넘기면 나중에 헷갈리더라고요.",
+      "이 댓글 보고 저도 체크해야겠다고 생각했어요.",
+    ];
+    return replies[pickInt(random, 0, replies.length - 1)] ?? replies[0];
+  }
   if (isOfficialAgent(agent)) {
     if (intent === "budget_compare") {
       return `${title}에서는 기본가보다 실제로 내는 총액을 먼저 나눠보는 편이 안전합니다. 포함 항목, 필수 추가금, 선택 옵션, 별도 결제 항목을 따로 적고 계약서나 견적서에 같은 표현으로 남는지 확인해 주세요.`;
@@ -1669,6 +1761,7 @@ async function generateAction(input: {
   cohortRooms: Array<{ id: string; name: string; message_count: number }>;
   targetPost?: RecentPost | null;
   targetComments?: RecentComment[];
+  targetComment?: RecentComment | null;
   commentIntent?: CommentIntent | null;
   informationMode?: boolean;
   model: string;
@@ -1708,13 +1801,16 @@ async function generateAction(input: {
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     "Do not write as if this persona already visited a vendor, received a quote, got a contract, booked, paid, or toured. Use '상담 전에', '견적을 볼 때', '계약 전에' instead.",
     "For comments, you must respond to the selected target post, not to the general topic.",
+    input.targetComment
+      ? "This comment is a reply to one existing comment. Keep it shorter than a top-level comment, answer or support that exact comment, and set targetCommentId exactly to the selected reply target id."
+      : "",
     "If you do not know, ask a careful question or give a checklist-style next step.",
     "Use only familiar wedding terms such as 기본가, 최종 총액, 대관료, 식대, 헬퍼비, 원본비, 수정본. Do not coin awkward terms like 기본금 or 피연금.",
     "Write natural Korean only. Do not mix in Japanese, Chinese, or untranslated foreign filler.",
     "Do not use awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'. Use ordinary terms like 예식, 축의금 안내, 웨딩홀 비용.",
     "Numeric, statistical, legal, policy, or news claims require HTTPS source URLs. Without sources, avoid those claims.",
     isOfficialAgent(input.agent)
-      ? "This persona is a Hanbang official/branded account. Official posts must read like a plain vetted guide that a Korean middle-school student can understand. For posts, use a simple 12-34 character title, one short opening sentence, no question marks anywhere, polite request sentences ending with 알려 주세요/확인해 주세요 instead of questions, caveats, saved documents, and a final decision rule. Avoid weird titles or wording such as 이슈, 정리할게요, 바로 물어볼 질문, 초보 가이드 확인할 때, 괜찮겠지, and 검수 메모."
+      ? "This persona is an official helper account, but the public copy should not mention Hanbang or 웨딩한방 unless a verified source specifically requires it. Official posts must read like a plain vetted guide that a Korean middle-school student can understand. For posts, use a simple 12-34 character title, one short opening sentence, no question marks anywhere, polite request sentences ending with 알려 주세요/확인해 주세요 instead of questions, caveats, saved documents, and a final decision rule. Avoid weird titles or wording such as 이슈, 정리할게요, 바로 물어볼 질문, 초보 가이드 확인할 때, 괜찮겠지, and 검수 메모."
       : "",
     input.informationMode
       ? "This is an informational/news post request. Use the higher-trust mode: no hallucinations, no unsourced facts, say you do not know or that verification is needed when sources are missing, and include only HTTPS sourceUrls you are certain support the claim. If the persona sourcePolicy is required, do not turn the post into a casual question-only draft; use contentOrigin news, clearly state what still needs verification when sources are missing, and leave sourceUrls empty rather than inventing sources."
@@ -1730,6 +1826,7 @@ async function generateAction(input: {
       contentOrigin: "question | comment | summary | checklist | news",
       category: "free | tips_v2 | tour_review | is_normal | ama",
       targetPostId: input.targetPost ? `for comment, MUST be exactly ${input.targetPost.id}` : "required for comment",
+      targetCommentId: input.targetComment ? `for reply, MUST be exactly ${input.targetComment.id}` : "null unless replying to an existing comment",
       targetCohortRoomId: "required for cohort_message",
       title: "required for post",
       content: "plain Korean text or simple paragraphs",
@@ -1752,6 +1849,14 @@ async function generateAction(input: {
     personaNaturalnessGuide: personaNaturalnessGuide(input.agent),
     commentIntent: input.commentIntent,
     commentIntentInstruction: input.commentIntent ? intentInstruction(input.commentIntent) : null,
+    selectedReplyTargetComment: input.targetComment
+      ? {
+          id: input.targetComment.id,
+          parentId: input.targetComment.parent_id,
+          body: stripTags(input.targetComment.content).slice(0, 360),
+          likes: input.targetComment.upvote_count,
+        }
+      : null,
     selectedTargetPost: input.targetPost
       ? {
           id: input.targetPost.id,
@@ -1768,23 +1873,25 @@ async function generateAction(input: {
     qualityBar: {
       officialAccount: isOfficialAgent(input.agent)
         ? [
-            "Branded Hanbang accounts should read like a review-ready easy official guide, not a normal user's quick thought.",
+            "Official helper accounts should read like a review-ready easy guide, not a normal user's quick thought, and should not mention Hanbang/웨딩한방 in the public copy.",
             "Official post titles must be plain Korean, 12-34 chars, no question marks, and no words such as 이슈, 정리할게요, 바로 물어볼 질문, 초보 가이드.",
             "The first sentence must be one simple sentence under 86 Korean chars that explains why the user should check this.",
-            "Posts need 420+ Korean chars and clear sections such as 한눈에 보기, 확인할 것, 물어볼 말, 놓치기 쉬운 것, 저장할 것, 마지막 기준.",
+            "Posts can be compact: roughly 180-650 Korean chars, 2-3 useful checkpoints, and one final decision rule.",
             "Use request-style vendor prompts without question marks, such as 알려 주세요 or 확인해 주세요.",
-            "Comments need to be target-specific, 130+ Korean chars, and include 2+ concrete checks plus one verification step.",
+            "Comments need to be target-specific, 70-260 Korean chars, and include one concrete check or verification step.",
             "No first-person experience, no vendor judgment, no unsupported numbers, and no source-looking claims without HTTPS sourceUrls.",
           ]
         : null,
       comment: [
-        "2-4 Korean sentences.",
-        "Prefer 80-240 Korean chars. Do not pack a whole mini-post into a comment.",
+        input.targetComment ? "This is a reply. Prefer 1-2 Korean sentences and 18-110 Korean chars." : "Top-level comments can be 1-4 Korean sentences.",
+        input.commentIntent === "quick_reaction"
+          ? "Quick reaction mode: one natural line is enough. Examples of shape, not exact wording: 저도 이 부분 궁금했어요 / 이건 저장해두고 봐야겠네요 / 도움 많이 됐어요."
+          : "Prefer 25-220 Korean chars. Do not pack a whole mini-post into a comment.",
         "First sentence must acknowledge the writer's concrete situation.",
         "Add one useful question, comparison point, or checklist item.",
         "Use natural chat-like Korean: readable, lightly casual, and not perfectly essay-like.",
         "Do not overdo typos. A tiny spacing variation is okay only if readability stays high.",
-        "Do not say '좋은 글 감사합니다' or generic filler.",
+        "Short supportive reactions are allowed when they fit the target. Avoid copy-paste filler that could go under any post.",
         "Do not pretend you visited, contracted, paid, or received a quote.",
         "Do not repeat an existing comment. Add a new angle based on the selected commentIntent.",
         "Follow the personaStyleGuide. Do not reuse the structure or tone of another agent.",
@@ -1792,8 +1899,8 @@ async function generateAction(input: {
       post: [
         "Title should be natural and specific, 18-45 Korean chars.",
         isOfficialAgent(input.agent)
-          ? "For official accounts, content should be a compact easy mini-guide with useful sections, not 4-8 short casual lines. Do not include any question mark in title or content."
-          : "Content should be 4-8 short lines.",
+          ? "For official accounts, content should be a compact easy mini-guide with 2-3 useful checks. Do not include any question mark in title or content."
+          : "Content can be one short question, 2-3 short paragraphs, or 4-8 short lines depending on the persona. Do not force every post into a checklist.",
         isOfficialAgent(input.agent)
           ? "Do not ask the community a question. Give plain guidance, concrete checkpoints, and request-style sentences users can say to vendors."
           : "Include one realistic dilemma, one concrete checkpoint, and one question to the community.",
@@ -1810,7 +1917,7 @@ async function generateAction(input: {
     },
     constraints: {
       maxPostTitleChars: 72,
-      maxCommentChars: isOfficialAgent(input.agent) ? 520 : 320,
+      maxCommentChars: input.targetComment || input.commentIntent === "quick_reaction" ? 160 : isOfficialAgent(input.agent) ? 360 : 280,
       maxPostChars: isOfficialAgent(input.agent) ? 1800 : 1100,
       avoid: [
         "fake first-person experience",
@@ -1857,6 +1964,7 @@ async function generateAction(input: {
       agent_slug: input.agent.slug,
       desired_action: input.action,
       selected_target_post_id: input.targetPost?.id ?? null,
+      selected_target_comment_id: input.targetComment?.id ?? null,
       selected_comment_intent: input.commentIntent ?? null,
       context_comment_count: commentContext.length,
       context_post_ids: postContext.map((post) => post.id),
@@ -1896,7 +2004,7 @@ async function reviseGeneratedAction(input: {
     "Remove awkward wedding coinages such as '신혼식', '축의금 계약', or '웨딩홀 얼마야'.",
     "Never invent a personal visit, contract, quote, booking, payment, vendor recommendation, or first-hand review.",
     isOfficialAgent(input.agent)
-      ? "This is a Hanbang official/branded account revision. Rewrite weak drafts into a plain vetted guide that a Korean middle-school student can understand: simple title, one short opening sentence, no question marks anywhere, request-style vendor prompts ending with 알려 주세요/확인해 주세요, caveats, saved documents, and a final decision rule. Remove weird titles and wording such as 이슈, 정리할게요, 바로 물어볼 질문, 초보 가이드 확인할 때, 괜찮겠지, and 검수 메모."
+      ? "This is an official helper account revision. Do not mention Hanbang or 웨딩한방 in the public copy unless a verified source specifically requires it. Rewrite weak drafts into a plain vetted guide that a Korean middle-school student can understand: simple title, one short opening sentence, no question marks anywhere, request-style vendor prompts ending with 알려 주세요/확인해 주세요, caveats, saved documents, and a final decision rule. Remove weird titles and wording such as 이슈, 정리할게요, 바로 물어볼 질문, 초보 가이드 확인할 때, 괜찮겠지, and 검수 메모."
       : "",
     input.informationMode
       ? "This is an informational post revision. No hallucinations. If a fact, news item, statistic, legal/policy point, or average cost is not backed by a certain HTTPS source URL, say it is not verified or remove it. If the persona sourcePolicy is required, keep contentOrigin as news and never invent sources."
@@ -1951,8 +2059,8 @@ async function reviseGeneratedAction(input: {
     },
     officialQualityBar: isOfficialAgent(input.agent)
       ? {
-          post: "420+ Korean chars, plain 12-34 char title, one short easy opening sentence, no question marks anywhere, sections for 한눈에 보기/확인할 것/물어볼 말/놓치기 쉬운 것/저장할 것/마지막 기준, and 2+ request-style sentences users can say to vendors.",
-          comment: "130+ Korean chars, target-specific, 2+ concrete checks, and one verification step such as checking a contract, quote, message, or saved document.",
+          post: "180-650 Korean chars, plain 12-34 char title, one short easy opening sentence, no question marks anywhere, 2-3 concrete checks, and one final decision rule.",
+          comment: "70-260 Korean chars, target-specific, one concrete check, and one verification step such as checking a contract, quote, message, or saved document.",
           avoid: ["first-person experience", "shallow checklist", "unsupported facts", "generic filler", "question marks", "이슈", "정리할게요", "바로 물어볼 질문", "번역투"],
         }
       : null,
@@ -2102,7 +2210,7 @@ export async function runCommunityAgentAutomation(
     const shuffledAgents = dryRun
       ? [...agents].sort(
           (left, right) => {
-            const officialRank = Number(isOfficialAgent(right)) - Number(isOfficialAgent(left));
+            const officialRank = Number(isOfficialAgent(left)) - Number(isOfficialAgent(right));
             if (officialRank !== 0) return officialRank;
             return hashString(`${runId}:${left.slug}:dry-run-order`) - hashString(`${runId}:${right.slug}:dry-run-order`);
           }
@@ -2123,11 +2231,22 @@ export async function runCommunityAgentAutomation(
         const backingUserId = await ensureAgentIdentity(supabase, agent);
         let generated: GeneratedAction;
         let selectedTargetPost: RecentPost | null = null;
+        let selectedTargetComment: RecentComment | null = null;
         let targetComments: RecentComment[] = [];
         let commentIntent: CommentIntent | null = null;
         const informationMode = isInformationPostRequest(agent, action);
         const officialMode = isOfficialAgent(agent) && action !== "reaction";
         const selectedModel = informationMode || officialMode ? informationModel : model;
+
+        if (action === "post" && informationMode && hasRequiredSourcePolicy(agent)) {
+          items.push({
+            agentSlug: agent.slug,
+            action,
+            status: "skipped",
+            reason: "verified_source_required_before_news_post",
+          });
+          continue;
+        }
 
         if (action === "reaction") {
           const targetPostId = await chooseReactionTarget(supabase, backingUserId, posts, random);
@@ -2157,7 +2276,8 @@ export async function runCommunityAgentAutomation(
               continue;
             }
             targetComments = await fetchPostComments(supabase, selectedTargetPost.id);
-            commentIntent = chooseCommentIntent(agent, selectedTargetPost, targetComments);
+            selectedTargetComment = chooseReplyTargetComment(agent, targetComments, random, new Set([...activeAgentUserIds, backingUserId]));
+            commentIntent = chooseCommentIntent(agent, selectedTargetPost, targetComments, selectedTargetComment);
           }
 
           const generation = await generateAction({
@@ -2167,6 +2287,7 @@ export async function runCommunityAgentAutomation(
             cohortRooms,
             targetPost: selectedTargetPost,
             targetComments,
+            targetComment: selectedTargetComment,
             commentIntent,
             informationMode,
             model: selectedModel,
@@ -2200,7 +2321,7 @@ export async function runCommunityAgentAutomation(
             category: undefined,
             title: undefined,
             targetPostId: selectedTargetPost.id,
-            targetCommentId: undefined,
+            targetCommentId: selectedTargetComment?.id,
             targetCohortRoomId: undefined,
             commentIntent: commentIntent ?? generated.commentIntent,
           };
@@ -2218,7 +2339,7 @@ export async function runCommunityAgentAutomation(
         }
         if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
           if (generated.targetType === "comment") {
-            generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+            generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
           } else if (generated.targetType === "cohort_message") {
             generated.content = fallbackCohortMessage(agent);
           } else {
@@ -2226,7 +2347,7 @@ export async function runCommunityAgentAutomation(
           }
         }
         if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
-          generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+          generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
         }
         if (generated.targetType === "post" && isLowQualityPost(generated)) {
           generated = fallbackPost(agent, random);
@@ -2282,7 +2403,7 @@ export async function runCommunityAgentAutomation(
                   category: undefined,
                   title: undefined,
                   targetPostId: selectedTargetPost.id,
-                  targetCommentId: undefined,
+                  targetCommentId: selectedTargetComment?.id,
                   targetCohortRoomId: undefined,
                   commentIntent: commentIntent ?? revision.action.commentIntent ?? generated.commentIntent,
                 };
@@ -2306,13 +2427,13 @@ export async function runCommunityAgentAutomation(
 
             if (generated.targetType !== "reaction" && !hasBodyContent(generated.content)) {
               if (generated.targetType === "comment") {
-                generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+                generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
               } else {
                 generated = fallbackPost(agent, random);
               }
             }
             if (generated.targetType === "comment" && isLowQualityComment(generated.content)) {
-              generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent);
+              generated.content = fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment);
             }
             if (generated.targetType === "post" && isLowQualityPost(generated)) {
               generated = fallbackPost(agent, random);
@@ -2333,8 +2454,9 @@ export async function runCommunityAgentAutomation(
               generated = {
                 targetType: "comment",
                 contentOrigin: "comment",
-                content: fallbackComment(agent, selectedTargetPost, random, commentIntent),
+                content: fallbackComment(agent, selectedTargetPost, random, commentIntent, selectedTargetComment),
                 targetPostId: selectedTargetPost.id,
+                targetCommentId: selectedTargetComment?.id,
                 sourceUrls: [],
                 confidence: 0.58,
                 reason: "Quality review fallback for a grounded comment.",
