@@ -296,6 +296,20 @@ function appliesToCategory(rule: ClauseRule, category: ContractShieldCategory): 
   return rule.scopes.includes("all") || rule.scopes.includes(category);
 }
 
+function hasOralPromiseContext(input: ContractShieldInput): boolean {
+  if ((input.oralPromises ?? []).length > 0) return true;
+  const text = [
+    input.memo,
+    ...(input.includedItems ?? []),
+  ].filter(Boolean).join(" ");
+  return /(구두|말로|무료|서비스|할인|약속|카톡|문자)/.test(text);
+}
+
+function isRuleRelevant(rule: ClauseRule, input: ContractShieldInput): boolean {
+  if (rule.id === "oral_promises_written") return hasOralPromiseContext(input);
+  return true;
+}
+
 function normalizeToken(value: string): string {
   return value
     .toLowerCase()
@@ -414,7 +428,7 @@ function buildEvidenceList(input: ContractShieldInput, missing: ContractClauseCh
 
 export function analyzeContractReadiness(input: ContractShieldInput): ContractShieldResult {
   const category = input.category ?? "other";
-  const rules = CLAUSES.filter((rule) => appliesToCategory(rule, category));
+  const rules = CLAUSES.filter((rule) => appliesToCategory(rule, category) && isRuleRelevant(rule, input));
   const mentioned = resolveMentionedClauseIds(input, rules);
   const forcedMissing = resolveForcedMissingIds(input);
 
