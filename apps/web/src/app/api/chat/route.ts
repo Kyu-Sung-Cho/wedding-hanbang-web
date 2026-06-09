@@ -972,7 +972,7 @@ export async function POST(request: Request) {
           const UI_RENDERED_TOOLS = new Set([
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
-            "analyze_quote",
+            "analyze_quote", "analyze_contract_readiness", "simulate_guest_guarantee",
           ]);
 
           const toolResultContents: ContentBlockParam[] = [];

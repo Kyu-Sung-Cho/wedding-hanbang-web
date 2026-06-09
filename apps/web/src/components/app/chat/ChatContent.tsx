@@ -15,6 +15,8 @@ import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 import { weddingPath } from "@/lib/weddingPaths";
 
+type CommunityDraftPrivacyMode = "shared" | "redacted_private";
+
 const MAX_ATTACHMENTS = 5;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
@@ -43,6 +45,7 @@ interface CommunityAskDraft {
   content: string;
   category: CommunityCategory;
   postedPostId: string | null;
+  privacyMode: CommunityDraftPrivacyMode;
 }
 
 interface CommunityAskCue {
@@ -118,24 +121,60 @@ function truncateText(input: string, maxLength: number): string {
   return `${text.slice(0, maxLength - 1).trim()}…`;
 }
 
+function redactCommunityDraftText(input: string): string {
+  return normalizeChatText(input)
+    .replace(/(?:01[016789]|02|0[3-6][1-5])[-.\s]?\d{3,4}[-.\s]?\d{4}/g, "[연락처 제거]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[이메일 제거]")
+    .replace(/(계좌|예금주|은행명|계약번호|예약번호|주민등록|상세주소)\s*[:：]?\s*[^\s,.)]+/g, "$1 [비공개]")
+    .replace(/(카카오톡|카톡|오픈채팅|인스타|DM|디엠)\s*(ID|아이디)?\s*[:：]?\s*[^\s,.)]+/gi, "$1 [비공개]")
+    .trim();
+}
+
 function inferCommunityCategory(text: string): CommunityCategory {
   return /(견적|비용|예산|추가금|가격|계약|환불|식대|대관료|헬퍼비|원본비|수정본)/.test(text)
     ? "tips_v2"
     : "free";
 }
 
-function buildCommunityAskDraft(userQuestion: string, amoraAnswer: string, sourceMessageId: string): CommunityAskDraft {
-  const question = truncateText(userQuestion, 700);
+function buildCommunityAskDraft(
+  userQuestion: string,
+  amoraAnswer: string,
+  sourceMessageId: string,
+  privacyMode: CommunityDraftPrivacyMode = "shared"
+): CommunityAskDraft {
+  const questionSource = privacyMode === "redacted_private"
+    ? redactCommunityDraftText(userQuestion)
+    : userQuestion;
+  const question = truncateText(questionSource, privacyMode === "redacted_private" ? 520 : 700);
   const answer = truncateText(amoraAnswer, 700);
   const baseTitle = truncateText(question.replace(/[?？]+$/g, ""), 46);
-  const title = baseTitle.length >= 8 ? baseTitle : "아모라 답변이 애매해서 의견 듣고 싶어요";
+  const title = baseTitle.length >= 8 ? baseTitle : "비슷한 상황 겪어본 분들 의견이 궁금해요";
   const category = inferCommunityCategory(`${question}\n${answer}`);
+
+  if (privacyMode === "redacted_private") {
+    return {
+      sourceMessageId,
+      title,
+      category,
+      postedPostId: null,
+      privacyMode,
+      content: [
+        "비슷한 상황 겪어본 분들 의견이 궁금해요.",
+        "",
+        "상황:",
+        question || "결혼 준비 중 판단이 필요한 상황이 있는데, 공개 가능한 내용만 남겨서 질문드려요.",
+        "",
+        "개인적인 내용은 빼고 핵심만 적었어요. 실제로 놓치기 쉬운 점이나 업체에 물어봐야 할 질문이 있으면 알려주세요.",
+      ].join("\n"),
+    };
+  }
 
   return {
     sourceMessageId,
     title,
     category,
     postedPostId: null,
+    privacyMode,
     content: [
       "아모라에게 물어봤는데 아직 판단이 애매해서 커뮤니티에도 의견을 듣고 싶어요.",
       "",
@@ -738,7 +777,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   );
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
-    setCommunityDraft(buildCommunityAskDraft(userMessage.content, aiMessage.content, aiMessage.id));
+    const privacyMode: CommunityDraftPrivacyMode =
+      aiMessage.visibility === "shared" && userMessage.visibility === "shared"
+        ? "shared"
+        : "redacted_private";
+    setCommunityDraft(buildCommunityAskDraft(userMessage.content, aiMessage.content, aiMessage.id, privacyMode));
     setCommunityPostError(null);
   }, []);
 
@@ -996,6 +1039,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       커뮤니티에 공개되는 글입니다. 이름, 전화번호, 이메일, 계좌, 계약번호가 들어가 있으면 지우고 올려주세요.
                     </p>
                   </div>
+
+                  {communityDraft.privacyMode === "redacted_private" && (
+                    <div className="mt-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
+                      <p className="text-sm leading-relaxed text-[#2F5F51]">
+                        비공개 상담에서 만든 익명화 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 그래도 올리기 전에 개인적인 표현이 남아있는지 한 번만 확인해주세요.
+                      </p>
+                    </div>
+                  )}
 
                   {sensitiveLabels.length > 0 && (
                     <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F2D3C7] bg-[#FFF4EF] px-4 py-3">
@@ -1419,17 +1470,39 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const previousHumanMessage = msg.sender_role === "ai"
               ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
               : undefined;
+            const isSharedCommunityFallback =
+              activeTab === "shared" &&
+              msg.visibility === "shared" &&
+              previousHumanMessage?.visibility === "shared";
+            const isPrivateCommunityFallback =
+              activeTab === "private" &&
+              !!myPrivateVisibility &&
+              msg.visibility === myPrivateVisibility &&
+              previousHumanMessage?.visibility === myPrivateVisibility;
             const canConsiderCommunityFallback =
               !isDemo &&
               msg.sender_role === "ai" &&
+              !hasSuccessfulSystemAction(msg) &&
               recentAiIds.has(msg.id) &&
-              previousHumanMessage?.sender_id === profile?.id;
+              previousHumanMessage?.sender_id === profile?.id &&
+              (isSharedCommunityFallback || isPrivateCommunityFallback);
             const communityAskCue = canConsiderCommunityFallback && previousHumanMessage
               ? getCommunityAskCue(
                 msg,
                 previousHumanMessage,
                 communityPromptMessageIds.has(msg.id)
               )
+              : null;
+            const displayCommunityAskCue = canConsiderCommunityFallback
+              ? isPrivateCommunityFallback
+                ? {
+                    label: "익명으로 물어보기",
+                    ariaLabel: "비공개 아모라 상담 내용을 익명화해 커뮤니티에 묻기",
+                  }
+                : communityAskCue ?? {
+                    label: "커뮤니티에 물어보기",
+                    ariaLabel: "아모라 답변을 바탕으로 커뮤니티에 의견 묻기",
+                  }
               : null;
 
             return (
@@ -1444,16 +1517,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   isRecentAi={recentAiIds.has(msg.id)}
                   onNegativeFeedback={markCommunityFallbackAvailable}
                 />
-                {communityAskCue && previousHumanMessage && (
+                {displayCommunityAskCue && previousHumanMessage && (
                   <div className="ml-11 mt-1 flex max-w-[94%] sm:ml-14 sm:max-w-[53.75rem]">
                     <button
                       type="button"
                       onClick={() => openCommunityDraft(msg, previousHumanMessage)}
-                      aria-label={communityAskCue.ariaLabel}
+                      aria-label={displayCommunityAskCue.ariaLabel}
                       className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
-                      {communityAskCue.label}
+                      {displayCommunityAskCue.label}
                     </button>
                   </div>
                 )}

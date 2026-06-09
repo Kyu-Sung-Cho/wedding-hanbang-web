@@ -90,10 +90,44 @@ const MAX_LIST_ITEMS = 8;
 const MAX_LIST_ITEM_CHARS = 140;
 const MAX_EVIDENCE_ITEMS = 6;
 
+type AmoraProfileMemoryMode = "off" | "conservative" | "full";
+
+function getAmoraProfileMemoryMode(): AmoraProfileMemoryMode {
+  const raw = (
+    process.env.AMORA_PROFILE_MEMORY_MODE ??
+    process.env.AMORA_PROFILE_MEMORY_ENABLED ??
+    "conservative"
+  ).toLowerCase();
+
+  if (raw === "false" || raw === "0" || raw === "off") return "off";
+  if (raw === "full") return "full";
+  return "conservative";
+}
+
+function isAmoraProfileMemoryEnabled(): boolean {
+  return getAmoraProfileMemoryMode() !== "off";
+}
+
+function canStoreSensitiveProfileFields(): boolean {
+  return getAmoraProfileMemoryMode() === "full";
+}
+
 const SIGNAL_WORDS = [
   "좋아", "싫어", "원해", "선호", "스타일", "취향", "중요", "걱정", "불안", "고민",
   "예산", "비싸", "저렴", "가성비", "프리미엄", "부모", "엄마", "아빠", "시어",
   "신랑", "신부", "하객", "계약", "예약", "결정", "변경", "취소", "상담",
+];
+
+const PROFILE_SIGNAL_PATTERNS = [
+  /저희|우리|저는|제가|나는|예산|취향|선호|싫어|좋아|중요|고민|걱정|불안/,
+  /부모|엄마|아빠|시댁|친정|신랑|신부|상대|둘이|하객|지역|날짜|결혼식/,
+  /웨딩홀|스드메|스튜디오|드레스|메이크업|본식|스냅|계약|예약|결정/,
+  /비싸|저렴|가성비|프리미엄|추가금|보증인원|식대|대관료/,
+];
+
+const GENERIC_REQUEST_PATTERNS = [
+  /알려줘|정리해줘|설명해줘|체크해줘|분석해줘|추천해줘/,
+  /뭐부터|어떻게 해야|괜찮아|맞아|틀렸|확인/,
 ];
 
 const SKIP_MARKERS = [
@@ -137,10 +171,21 @@ function mapRow(row: DbAmoraCoupleProfile): AmoraCoupleProfile {
   };
 }
 
+function applyProfileMemoryMode(profile: AmoraCoupleProfile): AmoraCoupleProfile {
+  if (canStoreSensitiveProfileFields()) return profile;
+  return {
+    ...profile,
+    conflictPattern: null,
+    sensitiveTopics: [],
+  };
+}
+
 export async function loadAmoraProfiles(
   coupleId: string,
   visibility: AmoraProfileVisibility
 ): Promise<AmoraProfileBundle> {
+  if (!isAmoraProfileMemoryEnabled()) return { shared: null, private: null };
+
   try {
     const admin = createAdminClient();
     const visibilities = visibility === "shared" ? ["shared"] : ["shared", visibility];
@@ -157,7 +202,7 @@ export async function loadAmoraProfiles(
       return { shared: null, private: null };
     }
 
-    const rows = ((data ?? []) as DbAmoraCoupleProfile[]).map(mapRow);
+    const rows = ((data ?? []) as DbAmoraCoupleProfile[]).map(mapRow).map(applyProfileMemoryMode);
     return {
       shared: rows.find((row) => row.visibility === "shared") ?? null,
       private: visibility === "shared"
@@ -203,8 +248,17 @@ function shouldAttemptProfileUpdate(input: MaybeUpdateAmoraProfileInput): boolea
   const aiText = input.aiResponseText.trim();
   if (!userText || !aiText) return false;
   if (SKIP_MARKERS.some((marker) => userText.includes(marker))) return false;
-  if (userText.length >= 12) return true;
-  return SIGNAL_WORDS.some((word) => userText.includes(word));
+  const hasProfileSignal =
+    PROFILE_SIGNAL_PATTERNS.some((pattern) => pattern.test(userText)) ||
+    SIGNAL_WORDS.some((word) => userText.includes(word));
+  if (!hasProfileSignal) return false;
+
+  const looksGenericOnly =
+    GENERIC_REQUEST_PATTERNS.some((pattern) => pattern.test(userText)) &&
+    !/(저희|우리|저는|제가|나는|예산|취향|선호|고민|걱정|불안|부모|신랑|신부|하객|지역|날짜)/.test(userText);
+  if (looksGenericOnly) return false;
+
+  return userText.length >= 8;
 }
 
 function profileForPrompt(profile: AmoraCoupleProfile | null | undefined): Record<string, unknown> | null {
@@ -315,6 +369,7 @@ const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 아모라의 
 
 export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInput): Promise<void> {
   try {
+    if (!isAmoraProfileMemoryEnabled()) return;
     if (!shouldAttemptProfileUpdate(input)) return;
 
     const conversation = formatMessagesForProfile(input.messages);
@@ -351,6 +406,11 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
     if (!parsed?.shouldUpdate || !parsed.profile) return;
 
     const profile = parsed.profile;
+    const canStoreSensitive = canStoreSensitiveProfileFields();
+    const confidenceScore = sanitizeConfidence(profile.confidence_score, currentProfile?.confidenceScore ?? 0.5);
+    const evidence = sanitizeEvidence(profile.evidence, currentProfile?.evidence ?? []);
+    if (confidenceScore < 0.55 || evidence.length === 0) return;
+
     const payload = {
       couple_id: input.coupleId,
       visibility: input.visibility,
@@ -359,15 +419,32 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       decision_style: sanitizeText(profile.decision_style, currentProfile?.decisionStyle ?? null),
       taste_profile: sanitizeText(profile.taste_profile, currentProfile?.tasteProfile ?? null),
       communication_style: sanitizeText(profile.communication_style, currentProfile?.communicationStyle ?? null),
-      conflict_pattern: sanitizeText(profile.conflict_pattern, currentProfile?.conflictPattern ?? null),
-      sensitive_topics: sanitizeList(profile.sensitive_topics, currentProfile?.sensitiveTopics ?? []),
+      conflict_pattern: canStoreSensitive
+        ? sanitizeText(profile.conflict_pattern, currentProfile?.conflictPattern ?? null)
+        : currentProfile?.conflictPattern ?? null,
+      sensitive_topics: canStoreSensitive
+        ? sanitizeList(profile.sensitive_topics, currentProfile?.sensitiveTopics ?? [])
+        : currentProfile?.sensitiveTopics ?? [],
       recommendation_rules: sanitizeList(profile.recommendation_rules, currentProfile?.recommendationRules ?? []),
       open_questions: sanitizeList(profile.open_questions, currentProfile?.openQuestions ?? []),
-      confidence_score: sanitizeConfidence(profile.confidence_score, currentProfile?.confidenceScore ?? 0.5),
-      evidence: sanitizeEvidence(profile.evidence, currentProfile?.evidence ?? []),
+      confidence_score: confidenceScore,
+      evidence,
       version: (currentProfile?.version ?? 0) + 1,
       last_compiled_at: new Date().toISOString(),
     };
+
+    const hasUsefulProfileContent =
+      [
+        payload.persona_summary,
+        payload.budget_posture,
+        payload.decision_style,
+        payload.taste_profile,
+        payload.communication_style,
+        payload.conflict_pattern,
+      ].some((value) => typeof value === "string" && value.trim().length > 0) ||
+      payload.recommendation_rules.length > 0 ||
+      payload.open_questions.length > 0;
+    if (!hasUsefulProfileContent) return;
 
     const admin = createAdminClient();
     const { error } = await admin
