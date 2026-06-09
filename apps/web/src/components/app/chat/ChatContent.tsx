@@ -136,6 +136,103 @@ function inferCommunityCategory(text: string): CommunityCategory {
     : "free";
 }
 
+function polishCommunityQuestion(input: string): string {
+  let question = normalizeChatText(input)
+    .replace(/\*\*/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/하는게/g, "하는 게")
+    .replace(/할까[?？]?$/g, "할까요?")
+    .replace(/해야해[?？]?$/g, "해야 할까요?")
+    .replace(/괜찮아[?？]?$/g, "괜찮을까요?")
+    .replace(/좋아[?？]?$/g, "좋을까요?")
+    .trim();
+
+  if (!question) return "";
+  if (!/[?？.!。]$/.test(question)) question = `${question}?`;
+  return question;
+}
+
+function buildCommunityTitle(question: string, category: CommunityCategory): string {
+  const clean = question.replace(/[?？]+$/g, "").trim();
+  if (clean.length >= 8) return truncateText(clean, 56);
+  return category === "tips_v2"
+    ? "비슷한 상황에서 실제 기준이 궁금해요"
+    : "비슷한 상황 겪어본 분들 의견이 궁금해요";
+}
+
+function extractCommunityContext(userQuestion: string, amoraAnswer: string): string[] {
+  const text = `${normalizeChatText(userQuestion)} ${normalizeChatText(amoraAnswer).replace(/\*\*/g, "")}`;
+  const items: string[] = [];
+  const seen = new Set<string>();
+  const add = (item: string) => {
+    if (!seen.has(item)) {
+      seen.add(item);
+      items.push(item);
+    }
+  };
+
+  const budgetMatch = text.match(/(?:총\s*)?예산[^\d]*(\d{1,3}(?:,\d{3})*|\d+)\s*(?:만\s*원|만원)/);
+  if (budgetMatch) add(`총 예산은 ${budgetMatch[1]}만원 정도로 보고 있어요.`);
+
+  if (/(예식장|웨딩홀)[^.!?\n]{0,30}(미정|아직|정하지|못 정)/.test(text) || /아직[^.!?\n]{0,20}(예식장|웨딩홀)/.test(text)) {
+    add("예식장은 아직 확정하지 않았어요.");
+  }
+
+  if (/(호텔|컨벤션|웨딩홀|야외)/.test(text) && /(예식\s*형태|웨딩\s*형태|예식장\s*비중|비중)/.test(text)) {
+    add("예식 형태에 따라 예식장/스드메 비중이 달라질 수 있다고 들었어요.");
+  }
+
+  if (/스드메|스튜디오|드레스|메이크업/.test(text) && /예산|분배|비중|추가금|비용/.test(text)) {
+    add("스드메와 예식장 사이에서 어느 쪽에 더 비중을 둘지 고민 중이에요.");
+  }
+
+  if (/계약|환불|위약금|취소|추가금/.test(text) && /견적|계약|업체/.test(text)) {
+    add("계약 전에 빠뜨리기 쉬운 비용이나 조건이 있는지도 같이 보고 싶어요.");
+  }
+
+  return items.slice(0, 3);
+}
+
+function buildCommunityGuideBullets(question: string, category: CommunityCategory): string[] {
+  const text = normalizeChatText(question);
+
+  if (/예산|비용|분배|항목|총액|가격/.test(text)) {
+    return [
+      "처음 예산 잡을 때 먼저 고정하면 좋은 항목",
+      "생각보다 많이 늘어나는 항목",
+      "줄여도 후회가 적었던 항목이나 반대로 꼭 남겨야 했던 항목",
+    ];
+  }
+
+  if (/계약|견적|환불|위약금|추가금|원본|수정본|헬퍼비/.test(text)) {
+    return [
+      "계약 전에 꼭 문서로 확인해야 하는 항목",
+      "견적서에 작게 적혀 있어도 나중에 크게 느껴지는 비용",
+      "업체에 바로 물어보면 좋은 질문",
+    ];
+  }
+
+  if (/웨딩홀|예식장|식대|보증|하객|대관료/.test(text)) {
+    return [
+      "예식장 상담 때 먼저 확인하면 좋은 조건",
+      "식대나 보증 인원에서 놓치기 쉬운 부분",
+      "실제로 계약 후에 알았으면 좋았을 점",
+    ];
+  }
+
+  return category === "tips_v2"
+    ? [
+        "실제로 준비하면서 먼저 확인하면 좋은 것",
+        "나중에 비용이나 일정이 커질 수 있는 부분",
+        "업체에 물어보면 좋은 질문",
+      ]
+    : [
+        "비슷한 상황에서 어떻게 결정했는지",
+        "지금 단계에서 놓치기 쉬운 점",
+        "경험상 먼저 확인하면 좋은 부분",
+      ];
+}
+
 function buildCommunityAskDraft(
   userQuestion: string,
   amoraAnswer: string,
@@ -145,11 +242,26 @@ function buildCommunityAskDraft(
   const questionSource = privacyMode === "redacted_private"
     ? redactCommunityDraftText(userQuestion)
     : userQuestion;
-  const question = truncateText(questionSource, privacyMode === "redacted_private" ? 520 : 700);
-  const answer = truncateText(amoraAnswer, 700);
-  const baseTitle = truncateText(question.replace(/[?？]+$/g, ""), 46);
-  const title = baseTitle.length >= 8 ? baseTitle : "비슷한 상황 겪어본 분들 의견이 궁금해요";
-  const category = inferCommunityCategory(`${question}\n${answer}`);
+  const question = truncateText(polishCommunityQuestion(questionSource), privacyMode === "redacted_private" ? 420 : 520);
+  const category = inferCommunityCategory(`${question}\n${amoraAnswer}`);
+  const title = buildCommunityTitle(question, category);
+  const contextItems = extractCommunityContext(questionSource, amoraAnswer);
+  const guideBullets = buildCommunityGuideBullets(question, category);
+  const intro = privacyMode === "redacted_private"
+    ? "개인적인 내용은 빼고, 비슷한 상황 겪어본 분들 의견을 듣고 싶어요."
+    : "실제로 준비해보신 분들 기준이 궁금해서 올려요.";
+  const contentLines = [
+    intro,
+    "",
+    "궁금한 점",
+    question || "결혼 준비 중 판단이 필요한 부분이 있어요.",
+    "",
+    ...(contextItems.length > 0
+      ? ["현재 상황", ...contextItems.map((item) => `- ${item}`), ""]
+      : []),
+    "특히 알고 싶은 것",
+    ...guideBullets.map((item) => `- ${item}`),
+  ];
 
   if (privacyMode === "redacted_private") {
     return {
@@ -158,14 +270,7 @@ function buildCommunityAskDraft(
       category,
       postedPostId: null,
       privacyMode,
-      content: [
-        "비슷한 상황 겪어본 분들 의견이 궁금해요.",
-        "",
-        "상황:",
-        question || "결혼 준비 중 판단이 필요한 상황이 있는데, 공개 가능한 내용만 남겨서 질문드려요.",
-        "",
-        "개인적인 내용은 빼고 핵심만 적었어요. 실제로 놓치기 쉬운 점이나 업체에 물어봐야 할 질문이 있으면 알려주세요.",
-      ].join("\n"),
+      content: contentLines.join("\n"),
     };
   }
 
@@ -175,17 +280,7 @@ function buildCommunityAskDraft(
     category,
     postedPostId: null,
     privacyMode,
-    content: [
-      "아모라에게 물어봤는데 아직 판단이 애매해서 커뮤니티에도 의견을 듣고 싶어요.",
-      "",
-      "궁금한 점:",
-      question || "결혼 준비 중 확인이 필요한 부분이 있습니다.",
-      "",
-      "아모라가 짚어준 내용:",
-      answer || "아모라 답변만으로는 판단이 애매했습니다.",
-      "",
-      "비슷한 상황에서 꼭 확인해야 할 부분이나 놓치기 쉬운 점이 있으면 알려주세요.",
-    ].join("\n"),
+    content: contentLines.join("\n"),
   };
 }
 
