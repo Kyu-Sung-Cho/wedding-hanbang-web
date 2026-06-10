@@ -4,6 +4,13 @@
 모든 AI 호출은 ai_interactions_log에 기록되며,
 모든 커플 의사결정은 decision_nodes에 기록된다.
 
+## 📍 현재 상태 (2026-06-10 기준 — 새 세션은 여기부터)
+- **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG (전부 docs/, 같은 날짜).
+- **구현 완료(커밋 7a172c20)**: 모멘트 루프 v1(moments.ts 12종 + momentLoop + proactive 배선 + log_wedding_event 툴), 라운지 주차 카드·첫 행동 카드, AiCommentBox 부활, 운영자 핀 API, 시세 공개, 페르소나 자동화 킬스위치(기본 off — `COMMUNITY_AGENTS_ENABLED=true`로만 재가동, AI 표시 체계 갖추기 전 금지).
+- **확정 결정**: 계약-법률 서비스 금지 / 견적 등기소 보류 / AI 유저 위장·유료 순위 영구 금지 / 업체 기능은 공급 확보 전 숨김 유지.
+- **대기 중인 수동 작업**: Supabase SQL Editor에서 마이그레이션 2개 실행 — `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql` (미실행 상태에서도 앱은 안전).
+- **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건) + 다음 기능 후보: D-1 브리핑 캡처-공유 카드, 동기방 "오늘의 한 질문".
+
 ---
 
 # 웨딩한방 웹 (hanbang.ai) - Claude Code 가이드
