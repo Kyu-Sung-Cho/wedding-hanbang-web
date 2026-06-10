@@ -28,6 +28,7 @@ import { useCommunityStore } from "@/stores/communityStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import { sanitizeHtml } from "@/utils/sanitize";
+import AiCommentBox from "@/components/community/AiCommentBox";
 import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import ServiceCTA from "@/components/community/ServiceCTA";
@@ -612,6 +613,13 @@ export default function PostDetailPage() {
                 </div>
               )}
 
+              {/* 아모라 AI 가격 코멘트 (출처 기반 시세 비교, AI 표기) */}
+              {!isMembersOnly && post.ai_comment && (
+                <div className="mt-5">
+                  <AiCommentBox aiComment={post.ai_comment} />
+                </div>
+              )}
+
               {/* 라이트박스 */}
               {lightboxIndex !== null && post.images && (
                 <div
@@ -870,7 +878,13 @@ export default function PostDetailPage() {
         {/* 서비스 CTA (게시글과 댓글 사이) */}
         {!isMembersOnly && (
           <div className="mt-3">
-            <ServiceCTA category={post.category} postId={post.id} postTitle={post.title} />
+            <ServiceCTA
+              category={post.category}
+              postId={post.id}
+              postTitle={post.title}
+              postContent={isMembersOnly ? undefined : post.content}
+              priceData={isMembersOnly ? undefined : post.price_data}
+            />
           </div>
         )}
 

@@ -405,6 +405,44 @@ export const WEDDING_TOOLS: Tool[] = [
     },
   },
   {
+    name: "log_wedding_event",
+    description:
+      "사용자가 대화 중 결혼 준비 일정의 날짜를 말하면 즉시 저장합니다. 예: '토요일에 상견례야', '다음 주 금요일에 드레스 투어 잡았어', '청첩장 모임 25일이야'. 저장하면 아모라가 그 일정의 3일 전 챙김 → 전날 체크리스트 → 다음날 안부까지 먼저 챙깁니다. 상대 날짜('토요일', '다음 주')는 오늘 날짜 기준으로 정확한 YYYY-MM-DD로 변환해 저장하고, 애매하면 사용자에게 날짜를 먼저 확인하세요. 같은 종류 일정이 여러 번 있을 수 있습니다(청첩장 모임 그룹별 등).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        moment_type: {
+          type: "string",
+          enum: [
+            "family_greeting",
+            "sanggyeonrye",
+            "venue_tour",
+            "dress_tour",
+            "studio_shoot",
+            "dress_fitting",
+            "invitation_meeting",
+            "first_holiday",
+          ],
+          description:
+            "일정 종류: family_greeting(양가 첫인사), sanggyeonrye(상견례), venue_tour(예식장 투어), dress_tour(드레스 투어), studio_shoot(스튜디오 촬영), dress_fitting(가봉·최종피팅), invitation_meeting(청첩장 모임), first_holiday(결혼 후 첫 명절)",
+        },
+        date: {
+          type: "string",
+          description: "일정 날짜 YYYY-MM-DD",
+        },
+        title: {
+          type: "string",
+          description: "일정 제목. 생략하면 종류 기본 라벨. 청첩장 모임은 그룹을 담아 '대학친구 청첩장 모임'처럼",
+        },
+        memo: {
+          type: "string",
+          description: "장소·인원 등 참고 메모 (선택)",
+        },
+      },
+      required: ["moment_type", "date"],
+    },
+  },
+  {
     name: "get_amora_actions",
     description:
       "아모라가 저장한 다음 행동 목록을 조회합니다. 사용자가 '내가 해야 할 일 뭐야?', '아모라가 기억한 것 보여줘', '남은 액션 보여줘'라고 할 때 사용합니다.",

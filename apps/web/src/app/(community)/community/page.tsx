@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CommunityLandingClient from "@/components/community/CommunityLandingClient";
 import CommunityGuide from "@/components/community/CommunityGuide";
 import CommunityTutorial from "@/components/community/CommunityTutorial";
+import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function CommunityFeedPage({
       <CommunityLandingClient
         initialQuery={normalizeCommunityFeedQuery(resolvedSearchParams)}
       />
+      <GuideOpenButton eventName="hanbang:open-community-guide" label="커뮤니티 이용 가이드 보기" />
       <CommunityGuide />
       <CommunityTutorial />
     </Suspense>

@@ -30,6 +30,8 @@ import {
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
 import ServiceGuide from "@/components/app/ServiceGuide";
+import WeeklyCard from "@/components/app/WeeklyCard";
+import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { useAuthStore } from "@/stores/authStore";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -231,6 +233,19 @@ export default function DashboardPage() {
       .catch(() => {});
   }, [couple, inviteCode, isDemo, partner]);
 
+  // 모멘트 루프 — 라운지 진입 시 아모라가 챙길 게 있는지 확인 (fire-and-forget, 발화는 채팅 shared로 들어옴)
+  // sessionStorage 스로틀: StrictMode 이중 이펙트·잦은 재방문의 중복 호출 방지 (서버 dedupe의 1차 방어선)
+  useEffect(() => {
+    if (isDemo) return;
+    try {
+      const key = "hanbang_proactive_last_ts";
+      const last = Number(sessionStorage.getItem(key) ?? 0);
+      if (Date.now() - last < 10 * 60 * 1000) return;
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch { /* sessionStorage 불가 환경은 서버 dedupe에 위임 */ }
+    fetch("/api/chat/proactive").catch(() => {});
+  }, [isDemo]);
+
   async function copyCode() {
     if (!inviteCode) return;
     await navigator.clipboard.writeText(inviteCode);
@@ -305,6 +320,44 @@ export default function DashboardPage() {
             </button>
           </div>
         </section>
+      )}
+
+      {/* 신규 유저(예식일 미정): 0% 나열 대신 첫 행동 1개 / 기존 유저: 이번 주 한 장 */}
+      {!journey?.wedding_date ? (
+        <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+            시작하기
+            <Sparkles className="h-4 w-4" />
+          </p>
+          <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.3] text-[#061a34] md:text-[28px]">
+            예식일 하나만 알려주세요
+          </h2>
+          <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
+            날짜가 있어야 매주 &lsquo;이번 주 한 장&rsquo;으로 할 일을 골라드리고, 상견례·투어 같은 일정도
+            3일 전부터 먼저 챙겨드릴 수 있어요. 아직 미정이어도 괜찮아요 — 예상 시기만 잡아도 됩니다.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <Link
+              href={weddingPath("/settings")}
+              className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E]"
+            >
+              예식일 입력하기
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href={weddingPath("/chat")}
+              className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
+            >
+              아직 막막하면, 아모라랑 시작하기
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <WeeklyCard
+          weddingDate={journey?.wedding_date}
+          totalBudget={journey?.total_budget}
+          progress={progress}
+        />
       )}
 
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
@@ -547,6 +600,7 @@ export default function DashboardPage() {
         onClose={() => setSelectedCategory(null)}
         onStatusChange={updateCategoryStatus}
       />
+      <GuideOpenButton eventName="hanbang:open-service-guide" label="처음이신가요? 이용 가이드 보기" />
       <ServiceGuide />
       <ServiceDashboardTutorial />
     </div>

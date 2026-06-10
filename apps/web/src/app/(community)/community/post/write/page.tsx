@@ -648,7 +648,9 @@ function PostWriteContent() {
       vendor_tags: vendorTags,
       ad_disclosure: adDisclosure,
       sponsorship_detail: sponsorshipDetail || undefined,
-      ...(category === "is_normal" && priceData ? { price_data: priceData } : {}),
+      ...((category === "is_normal" || category === "tour_review" || category === "tips_v2") && priceData
+        ? { price_data: priceData }
+        : {}),
       ...(pollPayload ? { poll: pollPayload } : {}),
     };
 
@@ -1160,11 +1162,11 @@ function PostWriteContent() {
               )}
             </section>
 
-            {/* "이거 정상이야?" 가격 폼 */}
-            {category === "is_normal" && (
+            {/* 가격 정보 폼 — 가격이 오갈 수 있는 카테고리 전체에 노출 (아모라 시세 코멘트 트리거) */}
+            {(category === "is_normal" || category === "tour_review" || category === "tips_v2") && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
-                  가격 질문 (선택)
+                  {category === "is_normal" ? "가격 질문 (선택)" : "가격 정보 (선택)"}
                 </label>
                 <PriceQuestionForm onChange={setPriceData} />
               </section>

@@ -95,6 +95,8 @@ export default function AmoraQuoteCheckPage() {
   const [quotePrice, setQuotePrice] = useState("320");
   const [vendorName, setVendorName] = useState("");
   const [memo, setMemo] = useState("");
+  const [bookingChannel, setBookingChannel] = useState("unknown");
+  const [quoteStage, setQuoteStage] = useState("quote_only");
   const [includedItemIds, setIncludedItemIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -145,6 +147,8 @@ export default function AmoraQuoteCheckPage() {
           memo,
           includedItemIds: [...includedItemIds],
           userPriceTierOverride: overrideTier ?? priceTierOverride ?? undefined,
+          bookingChannel,
+          quoteStage,
         }),
       });
       const data = await res.json();
@@ -268,6 +272,35 @@ export default function AmoraQuoteCheckPage() {
                   placeholder="선택 입력"
                   className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#36534E]"
                 />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-[#263832]">견적 받은 경로</span>
+                <select
+                  value={bookingChannel}
+                  onChange={(event) => setBookingChannel(event.target.value)}
+                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
+                >
+                  <option value="unknown">잘 모르겠어요</option>
+                  <option value="walk_in">직접 방문 (워크인)</option>
+                  <option value="planner">플래너 동행·소개</option>
+                  <option value="agency_package">대행사 패키지</option>
+                </select>
+                <span className="mt-1 block text-xs text-[#928980]">
+                  같은 업체도 경로에 따라 가격이 달라서, 정확한 비교에 꼭 필요해요.
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-[#263832]">진행 단계</span>
+                <select
+                  value={quoteStage}
+                  onChange={(event) => setQuoteStage(event.target.value)}
+                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
+                >
+                  <option value="quote_only">견적만 받았어요</option>
+                  <option value="contracted">계약까지 했어요</option>
+                </select>
               </label>
             </div>
 

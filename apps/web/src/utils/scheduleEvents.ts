@@ -51,7 +51,7 @@ export function findCategoryScheduleEvent(
 // 이벤트 추가 → 새 progress 반환
 export function addEvent(
   progress: Record<string, unknown>,
-  data: { date: string; title: string; memo?: string; categoryKey?: string; sourceKey?: string }
+  data: { date: string; title: string; memo?: string; categoryKey?: string; sourceKey?: string; momentType?: string }
 ): { newProgress: Record<string, unknown>; newEvent: ScheduleEvent } {
   const events = getEvents(progress);
   const now = new Date().toISOString();
@@ -62,12 +62,52 @@ export function addEvent(
     memo: data.memo,
     categoryKey: data.categoryKey,
     sourceKey: data.sourceKey,
+    momentType: data.momentType,
     createdAt: now,
     updatedAt: now,
   };
   return {
     newProgress: { ...progress, [EVENTS_KEY]: [...events, newEvent] },
     newEvent,
+  };
+}
+
+/**
+ * 모멘트 이벤트 upsert — (momentType, date) 기준 중복 방지.
+ * 같은 momentType이라도 날짜가 다르면 별개 이벤트(청첩장 모임 그룹별 복수 가능).
+ */
+export function upsertMomentEvent(
+  progress: Record<string, unknown>,
+  data: { momentType: string; date: string; title: string; memo?: string }
+): { newProgress: Record<string, unknown>; event: ScheduleEvent; created: boolean } {
+  const events = getEvents(progress);
+  const existing = events.find(
+    (event) => event.momentType === data.momentType && event.date === data.date
+  );
+
+  if (!existing) {
+    const { newProgress, newEvent } = addEvent(progress, {
+      date: data.date,
+      title: data.title,
+      memo: data.memo,
+      momentType: data.momentType,
+    });
+    return { newProgress, event: newEvent, created: true };
+  }
+
+  const updatedEvent: ScheduleEvent = {
+    ...existing,
+    title: data.title || existing.title,
+    memo: data.memo ?? existing.memo,
+    updatedAt: new Date().toISOString(),
+  };
+  return {
+    newProgress: {
+      ...progress,
+      [EVENTS_KEY]: events.map((event) => (event.id === existing.id ? updatedEvent : event)),
+    },
+    event: updatedEvent,
+    created: false,
   };
 }
 

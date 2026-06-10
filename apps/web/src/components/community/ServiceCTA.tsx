@@ -11,12 +11,14 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { weddingPath } from "@/lib/weddingPaths";
-import type { CommunityCategory } from "@/types/community.types";
+import type { CommunityCategory, PriceData } from "@/types/community.types";
 
 interface ServiceCTAProps {
   category: CommunityCategory;
   postTitle?: string;
   postId?: string;
+  postContent?: string;
+  priceData?: PriceData | null;
 }
 
 interface CTAConfig {
@@ -68,11 +70,38 @@ const CTA_MAP: Record<string, CTAConfig> = {
 const BUDGET_CATEGORIES = new Set(["is_normal"]);
 const SCHEDULE_CATEGORIES = new Set(["tips_v2", "ama"]);
 
-function buildChatHref(postTitle?: string, postId?: string) {
+// HTML 본문 → 프롬프트용 평문 발췌 (아모라가 링크가 아니라 내용 자체를 받게)
+function toPlainExcerpt(html: string, maxLen = 500): string {
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
+}
+
+function formatPriceLine(priceData: PriceData): string {
+  const parts = [
+    priceData.region ? `지역 ${priceData.region}` : null,
+    `기본금 ${priceData.base_price}만원`,
+    priceData.extra_price != null ? `추가금 ${priceData.extra_price}만원` : null,
+    priceData.details ? `상세: ${priceData.details.slice(0, 200)}` : null,
+  ].filter(Boolean);
+  return `글에 적힌 가격 정보(${priceData.vendor_category}): ${parts.join(", ")}`;
+}
+
+function buildChatHref(
+  postTitle?: string,
+  postId?: string,
+  postContent?: string,
+  priceData?: PriceData | null
+) {
   if (!postTitle) return weddingPath("/chat");
   const prompt = [
     "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
     `글 제목: ${postTitle}`,
+    postContent ? `글 내용: ${toPlainExcerpt(postContent)}` : null,
+    priceData ? formatPriceLine(priceData) : null,
     postId ? `글 링크: ${weddingPath(`/community/post/${postId}`)}` : null,
     "내가 확인해야 할 일정, 예산, 체크리스트를 알려줘.",
   ]
@@ -81,10 +110,13 @@ function buildChatHref(postTitle?: string, postId?: string) {
   return weddingPath(`/chat?prefill=${encodeURIComponent(prompt)}`);
 }
 
-export default function ServiceCTA({ category, postTitle, postId }: ServiceCTAProps) {
+export default function ServiceCTA({ category, postTitle, postId, postContent, priceData }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
   const MainIcon = mainCta.icon;
-  const mainHref = mainCta.href === "/chat" ? buildChatHref(postTitle, postId) : weddingPath(mainCta.href);
+  const mainHref =
+    mainCta.href === "/chat"
+      ? buildChatHref(postTitle, postId, postContent, priceData)
+      : weddingPath(mainCta.href);
 
   let secondaryCta: CTAConfig | null = null;
   if (BUDGET_CATEGORIES.has(category)) {

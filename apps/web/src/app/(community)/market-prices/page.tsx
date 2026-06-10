@@ -60,7 +60,8 @@ export default function MarketPricesPage() {
   const currentPeriod = PRICE_PERIODS.find(p => p.id === periodId)!;
 
   return (
-    <div className="space-y-4 pb-12">
+    // (app) 레이아웃 컨테이너에 기대던 페이지 — (community) 그룹은 페이지가 자체 컨테이너를 가짐
+    <div className="mx-auto w-full max-w-[1120px] space-y-4 px-4 pt-6 pb-12 sm:px-6">
       {/* 헤더 */}
       <div className={`${SERVICE_CARD} p-4 md:p-5`}>
         <p className={KICKER}>WEDDING MARKET DATA</p>

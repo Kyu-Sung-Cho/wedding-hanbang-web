@@ -468,25 +468,19 @@ export default function ServiceGuide() {
   const [slidePhase, setSlidePhase] = useState<"visible" | "fading-out" | "fading-in">("visible");
 
   useEffect(() => {
+    // 첫 방문 자동 팝업 비활성 — 첫 세션의 목표는 가이드 시청이 아니라 첫 행동 1개(UX 감사 결론).
+    // 가이드는 "hanbang:open-service-guide" 이벤트로만 수동 오픈한다.
     let entryFrame = 0;
     let nestedFrame = 0;
-    const timer = window.setTimeout(() => {
-      try {
-        const seen = localStorage.getItem(STORAGE_KEY);
-        const dismissedThisSession = sessionStorage.getItem(SESSION_DISMISSED_KEY);
-        if (!seen && !dismissedThisSession) {
-          setVisible(true);
-          // 약간 딜레이 후 엔트리 애니메이션
-          entryFrame = requestAnimationFrame(() => {
-            nestedFrame = requestAnimationFrame(() => setEntered(true));
-          });
-        }
-      } catch {
-        // localStorage 접근 실패 시 가이드 표시하지 않음
-      }
-    }, 0);
+    const open = () => {
+      setVisible(true);
+      entryFrame = requestAnimationFrame(() => {
+        nestedFrame = requestAnimationFrame(() => setEntered(true));
+      });
+    };
+    window.addEventListener("hanbang:open-service-guide", open);
     return () => {
-      window.clearTimeout(timer);
+      window.removeEventListener("hanbang:open-service-guide", open);
       cancelAnimationFrame(entryFrame);
       cancelAnimationFrame(nestedFrame);
     };

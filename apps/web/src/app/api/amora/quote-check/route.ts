@@ -28,6 +28,10 @@ const LEAD_CATEGORY_BY_QUOTE_CATEGORY: Record<AmoraQuoteCategory, string> = {
   makeup: "makeup",
 };
 
+const BOOKING_CHANNEL_SET = new Set(["walk_in", "planner", "agency_package", "platform", "unknown"]);
+const QUOTE_STAGE_SET = new Set(["quote_only", "contracted"]);
+const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 interface QuoteCheckBody {
   category?: string;
   region?: string;
@@ -36,6 +40,11 @@ interface QuoteCheckBody {
   vendorName?: string;
   memo?: string;
   userPriceTierOverride?: string;
+  bookingChannel?: string;
+  quoteStage?: string;
+  contractYm?: string;
+  weddingYm?: string;
+  plannerFeeManwon?: number;
 }
 
 function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
@@ -74,6 +83,22 @@ function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
   };
 }
 
+// 분포 통계의 조건축 — 엔진 입력이 아니라 저장 조건이라 별도 파싱.
+// 미입력은 강제 추정 대신 정직한 결측(unknown/quote_only/null)으로 남긴다.
+function parseConditions(body: QuoteCheckBody) {
+  const bookingChannel = BOOKING_CHANNEL_SET.has(body.bookingChannel ?? "")
+    ? (body.bookingChannel as string)
+    : "unknown";
+  const quoteStage = QUOTE_STAGE_SET.has(body.quoteStage ?? "")
+    ? (body.quoteStage as string)
+    : "quote_only";
+  const contractYm = body.contractYm && YM_RE.test(body.contractYm) ? body.contractYm : null;
+  const weddingYm = body.weddingYm && YM_RE.test(body.weddingYm) ? body.weddingYm : null;
+  const fee = Number(body.plannerFeeManwon);
+  const plannerFeeManwon = Number.isFinite(fee) && fee >= 0 && fee <= 10000 ? fee : null;
+  return { bookingChannel, quoteStage, contractYm, weddingYm, plannerFeeManwon };
+}
+
 function buildQuoteLeadPlaceId(vendorName: string, category: string, region: string): string {
   const normalizedName = vendorName
     .trim()
@@ -98,7 +123,9 @@ export async function POST(req: NextRequest) {
     });
     if (limited) return limited;
 
-    const input = parseBody((await req.json()) as QuoteCheckBody);
+    const body = (await req.json()) as QuoteCheckBody;
+    const input = parseBody(body);
+    const conditions = parseConditions(body);
     const analysis = analyzeAmoraQuoteCheck(input);
 
     let savedId: string | null = null;
@@ -124,6 +151,11 @@ export async function POST(req: NextRequest) {
           memo: input.memo ?? null,
           analysis,
           source: "community_quote_check",
+          booking_channel: conditions.bookingChannel,
+          quote_stage: conditions.quoteStage,
+          contract_ym: conditions.contractYm,
+          wedding_ym: conditions.weddingYm,
+          planner_fee_manwon: conditions.plannerFeeManwon,
         })
         .select("id")
         .maybeSingle();

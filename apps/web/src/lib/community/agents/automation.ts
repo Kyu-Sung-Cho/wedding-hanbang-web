@@ -2412,6 +2412,22 @@ export async function runCommunityAgentAutomation(
   supabase: SupabaseClient,
   options: CommunityAgentAutomationOptions
 ): Promise<CommunityAgentAutomationResult> {
+  // 킬스위치: 공정위 추천·보증 심사지침(2026-06, AI 가상인물 표시 의무) 대응으로 기본 비활성.
+  // AI 표시 체계를 갖추기 전까지 COMMUNITY_AGENTS_ENABLED=true 없이는 cron/admin 어느 경로로도 실행되지 않는다.
+  if (process.env.COMMUNITY_AGENTS_ENABLED !== "true") {
+    return {
+      ok: false,
+      runId: null,
+      dryRun: options.dryRun ?? false,
+      planned: 0,
+      posted: 0,
+      drafted: 0,
+      skipped: 0,
+      failed: 0,
+      items: [],
+      message: "community agents disabled (COMMUNITY_AGENTS_ENABLED!=true)",
+    };
+  }
   const dryRun = options.dryRun ?? false;
   const autoPublish = options.autoPublish ?? true;
   const maxActions = Math.max(1, Math.min(options.maxActions ?? 6, 20));

@@ -66,6 +66,8 @@ export interface ScheduleEvent {
   memo?: string;
   categoryKey?: string;
   sourceKey?: string;
+  /** 모멘트 루프 트리거 — constants/moments.ts의 MomentType. 같은 타입 복수 이벤트 허용(예: 청첩장 모임 그룹별) */
+  momentType?: string;
   createdAt: string;
   updatedAt: string;
 }

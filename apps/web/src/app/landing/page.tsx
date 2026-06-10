@@ -410,15 +410,15 @@ function ConnectedSection() {
               실제 커뮤니티와 시세 정보가 연결돼요.
             </h2>
             <p className="text-[13px] font-semibold leading-[1.8] text-[#5d6879]">
-              수많은 예비부부의 경험과 가격 데이터를 기반으로
+              한국소비자원 공공 시세와 검증된 준비 가이드를 기반으로
               더 정확한 의사결정을 도와드려요.
             </p>
 
             <div className="mt-[38px] grid grid-cols-3 gap-[14px] border-t border-[#eadfc9] pt-6">
               {[
-                { icon: FileSearch, label: "실제 후기 데이터", value: "120만+", suffix: "건" },
-                { icon: Landmark, label: "신뢰도 높은 시세", value: "25만+", suffix: "개" },
-                { icon: Building2, label: "제휴 업체 데이터", value: "1,200+", suffix: "곳" },
+                { icon: FileSearch, label: "예절·준비 가이드", value: "25", suffix: "개 주제" },
+                { icon: Landmark, label: "숨은 추가금 체크", value: "48", suffix: "개 항목" },
+                { icon: Building2, label: "공공기관 시세", value: "14", suffix: "개 지역" },
               ].map((metric, index) => (
                 <div
                   key={metric.label}

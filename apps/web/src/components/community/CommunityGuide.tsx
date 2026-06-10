@@ -504,12 +504,11 @@ export default function CommunityGuide() {
   const [direction, setDirection] = useState<"next" | "prev">("next");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-    try {
-      if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
-    } catch { /* */ }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    // 첫 방문 자동 팝업 비활성 — 콘텐츠를 보기 전 모달 연쇄가 최대 이탈 지점(UX 감사 결론).
+    // 가이드는 "hanbang:open-community-guide" 이벤트로만 수동 오픈한다.
+    const open = () => setVisible(true);
+    window.addEventListener("hanbang:open-community-guide", open);
+    return () => window.removeEventListener("hanbang:open-community-guide", open);
   }, []);
 
   const close = useCallback(() => {

@@ -7,9 +7,11 @@ const CUSTOMER_PATHS = [
   "/invitations", "/money", "/scripts", "/onboarding",
   "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
   "/wedding/fitting", "/wedding/etiquette", "/wedding/settings", "/wedding/bookings", "/wedding/invitations",
-  "/wedding/money", "/wedding/scripts", "/wedding/vendors", "/wedding/market-prices", "/wedding/favorites",
+  "/wedding/money", "/wedding/scripts", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
 ];
+// /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
+// "스드메 시세" 류 검색 유입의 유일한 입구다.
 const VENDOR_PATHS = [
   "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings",
   "/vendor/contracts", "/vendor/settlements", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",

@@ -605,9 +605,9 @@ export async function POST(req: NextRequest) {
       console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
     }
 
-    // is_normal + price_data: AI 코멘트 생성 — fire-and-forget
-    // (Claude 호출이 1~3초 걸려서 응답을 막으면 글 작성이 답답함. 백그라운드에서 채워넣음)
-    if (category === "is_normal" && priceData) {
+    // price_data가 있으면 카테고리 무관 AI 코멘트 생성 — fire-and-forget
+    // (코멘트는 결정론적 시세 벤치마크라 비용 부담 없음. 응답을 막지 않게 백그라운드 처리)
+    if (priceData) {
       void (async () => {
         try {
           const aiComment = await generateAiPriceComment(priceData);

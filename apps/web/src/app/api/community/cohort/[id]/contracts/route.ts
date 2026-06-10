@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortContractCategory } from "@/types/community.types";
@@ -44,9 +45,13 @@ export async function GET(
       );
     }
 
-    const { data: contracts, error: contractsErr } = await supabase
+    // 익명성 원칙: 본인 행 외 원본(업체명·금액·user_id)은 절대 반환하지 않는다.
+    // RLS가 본인 행만 허용하므로(20260610110000 마이그레이션) 방 전체 읽기는
+    // service role로만 — 브라우저의 anon key 직접 호출 경로가 데이터 계층에서 막힌다.
+    const admin = createAdminClient();
+    const { data: rawContracts, error: contractsErr } = await admin
       .from("cohort_contracts")
-      .select("*")
+      .select("id, category, created_at, user_id, vendor_name, base_price, extra_price, notes")
       .eq("room_id", roomId)
       .order("created_at", { ascending: false });
 
@@ -58,14 +63,33 @@ export async function GET(
       );
     }
 
-    const { data: stats } = await supabase
+    const rows = rawContracts ?? [];
+    const contracts = rows.map((row) => ({
+      id: row.id,
+      category: row.category,
+      created_at: row.created_at,
+      is_mine: row.user_id === user.id,
+    }));
+    const myContracts = rows
+      .filter((row) => row.user_id === user.id)
+      .map(({ user_id: _userId, ...rest }) => rest);
+
+    const MIN_SAMPLE = 5;
+    const { data: rawStats } = await admin
       .from("cohort_stats")
       .select("*")
       .eq("room_id", roomId);
 
+    const stats = (rawStats ?? []).map((stat) =>
+      (stat.sample_size ?? 0) >= MIN_SAMPLE
+        ? stat
+        : { room_id: stat.room_id, category: stat.category, sample_size: stat.sample_size }
+    );
+
     return NextResponse.json({
-      contracts: contracts ?? [],
-      stats: stats ?? [],
+      contracts,
+      my_contracts: myContracts,
+      stats,
     });
   } catch (err) {
     console.error("Contracts GET error:", err);

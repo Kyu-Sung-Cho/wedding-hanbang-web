@@ -35,6 +35,8 @@ import {
   HIDDEN_COSTS, RED_FLAGS, getGradeFromScore, estimateHiddenCosts,
   type HiddenCostItem, type RedFlag,
 } from "@/constants/hiddenCosts";
+import { MOMENTS, type MomentType } from "@/constants/moments";
+import { upsertMomentEvent } from "@/utils/scheduleEvents";
 import {
   ymdInKst,
   kstMidnightFromYmd,
@@ -353,6 +355,8 @@ export async function executeTool(
         return executeGetScheduleEvents(toolInput, context);
       case "add_amora_action":
         return await executeAddAmoraAction(toolInput, context);
+      case "log_wedding_event":
+        return await executeLogWeddingEvent(toolInput, context);
       case "get_amora_actions":
         return executeGetAmoraActions(toolInput, context);
       case "update_amora_action":
@@ -1262,6 +1266,57 @@ async function saveProgress(ctx: ExecutionContext, progress: Record<string, unkn
     .eq("couple_id", ctx.coupleId);
   if (error) throw error;
   ctx.weddingContext.progress = progress as unknown as ExecutionContext["weddingContext"]["progress"];
+}
+
+async function executeLogWeddingEvent(
+  input: Record<string, unknown>,
+  ctx: ExecutionContext
+): Promise<ToolExecutionResult> {
+  const momentType = String(input.moment_type ?? "");
+  const def = MOMENTS[momentType as MomentType];
+  if (!def || def.trigger !== "event") {
+    return {
+      toolName: "log_wedding_event",
+      toolInput: input,
+      toolOutput: { error: "unsupported moment_type" },
+      success: false,
+      displayMessage: "지원하지 않는 일정 종류예요.",
+    };
+  }
+
+  const date = String(input.date ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
+    return {
+      toolName: "log_wedding_event",
+      toolInput: input,
+      toolOutput: { error: "invalid date" },
+      success: false,
+      displayMessage: "날짜를 YYYY-MM-DD 형식으로 알려주세요.",
+    };
+  }
+
+  const title =
+    typeof input.title === "string" && input.title.trim()
+      ? input.title.trim().slice(0, 60)
+      : def.label;
+  const memo = typeof input.memo === "string" ? input.memo.slice(0, 300) : undefined;
+
+  const { newProgress, event, created } = upsertMomentEvent(
+    ctx.weddingContext.progress as Record<string, unknown>,
+    { momentType, date, title, memo }
+  );
+
+  await saveProgress(ctx, newProgress);
+
+  return {
+    toolName: "log_wedding_event",
+    toolInput: input,
+    toolOutput: { event, created, moment_label: def.label },
+    success: true,
+    displayMessage: created
+      ? `${date} "${title}" 일정을 저장했어요. 3일 전에 챙길 것, 전날 체크리스트, 다음날 안부까지 제가 먼저 챙길게요.`
+      : `${date} "${title}" 일정을 업데이트했어요.`,
+  };
 }
 
 async function executeAddAmoraAction(
