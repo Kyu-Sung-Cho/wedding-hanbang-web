@@ -9,8 +9,9 @@
 - **Week 1 수술 완료 (2026-06-11)**: 페르소나 자동화·AI 대본·피팅 스텁·B2B·청첩장·방명록·결제(Toss)·정산·전자계약·벤더포털 **코드 전체 삭제** (커밋 3개, 약 -2.5만 줄, 라우트 213→127). 실데이터 확인(payments·settlements·contracts 0행, 청첩장·방명록 각 2건 테스트) 후 진행. DB 테이블은 보존, 복구는 `pre-surgery` 태그. 예약(bookings)은 방문·상담 예약으로 단순화(취소는 아모라 채팅 cancel_booking). 축의금은 moneyStore/money.types로 분리되어 유지.
 - **보안 핫픽스 완료 (2026-06-11)**: signup rate limit + enumeration 차단, chat-image RLS 커플 스코프(마이그레이션), proactive 배선(채팅 진입 시 1회 호출 — 모멘트 루프 활성). ※환불 API 수정은 이후 결제층 삭제로 함께 제거됨.
 - **확정 결정**: 계약-법률 서비스 금지 / 견적 등기소 보류 / AI 유저 위장·유료 순위 영구 금지 / 업체 기능은 공급 확보 전 숨김 유지 / 거래 레일은 S1 게이트(업체 인터뷰) 통과 시에만 pre-surgery 태그에서 부활.
-- **대기 중인 수동 작업**: Supabase SQL Editor 마이그레이션 — 실행 여부 확인: `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql`, `20260611100000_chat_image_rls_couple_scope.sql`(보안 우선).
-- **다음 단계 (Week 1 잔여, SESSION_SYNTHESIS §2)**: ①DB 핫픽스(booking RPC 소유권·security_invoker 뷰·데모 시드 제거) ②Sentry·PostHog 초기화 + UTM 퍼널 ③시세·예절 로그인 벽 제거 ④`/check` 비로그인 견적 진단 페이지 ⑤지식iN·카페 유통 테스트.
+- **Week 1 잔여분도 완료 (2026-06-11 저녁)**: ①DB 핫픽스 마이그레이션 작성(booking RPC service_role 전용·PII 뷰 8개 DROP·데모 시드 제거) ②Sentry·PostHog 초기화 + 퍼널 이벤트(signup_started/chat_message_sent/quote_check_submitted, UTM은 $pageview 자동) ③예절 가이드 (community) 그룹 이동으로 공개(시세는 이미 공개) ④`/check`→견적 진단 리다이렉트(UTM 보존). 키 입력 필요: Vercel 환경변수 `NEXT_PUBLIC_SENTRY_DSN`/`NEXT_PUBLIC_POSTHOG_KEY` (미설정 시 자동 no-op).
+- **대기 중인 수동 작업**: Supabase SQL Editor 마이그레이션 — 실행 여부 확인: `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql`, `20260611100000_chat_image_rls_couple_scope.sql`(보안 우선), `20260611150000_week1_db_hotfix.sql`(보안 — **실행 전까지 타 커플 명의 예약 생성·PII 뷰 노출 가능**).
+- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트(착지 A=/check·B=온보딩 UTM 분리) → 랜딩 허수 실측 교체 → JSONB 블랍 해체 → 아모라 2질문 온보딩. 30일차 G1 판정(채널 전환 ≥3%).
 - **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건).
 
 ---
