@@ -7,7 +7,14 @@ export type ContractStatus = "draft" | "sent" | "viewed" | "signed" | "cancelled
 export type PaymentStatus = "pending" | "paid" | "refunded" | "failed";
 export type PaymentType = "deposit" | "remaining" | "refund";
 export type PaymentMethod = "card" | "naverpay" | "kakaopay" | "tosspay" | "transfer" | "vbank";
-export type SettlementStatus = "pending" | "processing" | "completed" | "failed";
+// cancelled: 지급 전 환불로 정산 취소 / clawback_required: 지급 후 환불 — 업체 회수 필요
+export type SettlementStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "clawback_required";
 
 // --- 계약 조항 ---
 export interface ContractClause {

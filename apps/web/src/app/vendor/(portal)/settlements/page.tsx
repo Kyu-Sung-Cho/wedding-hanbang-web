@@ -23,6 +23,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   processing: { label: "처리 중", color: "text-blue-600 bg-blue-500/10", icon: ArrowUpRight },
   completed: { label: "정산 완료", color: "text-[#2E7D5A] bg-[#2E7D5A]/10", icon: CheckCircle },
   failed: { label: "실패", color: "text-red-500 bg-red-500/10", icon: Clock },
+  cancelled: { label: "환불로 취소", color: "text-taupe-500 bg-black/[0.04]", icon: Clock },
+  clawback_required: { label: "환불 — 회수 예정", color: "text-red-500 bg-red-500/10", icon: Clock },
 };
 
 export default function VendorSettlementsPage() {

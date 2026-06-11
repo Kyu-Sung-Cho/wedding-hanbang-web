@@ -1709,6 +1709,8 @@ export default function AdminPage() {
                 processing: { text: "처리 중", cls: "bg-blue-500/10 text-blue-600" },
                 completed: { text: "완료", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
                 failed: { text: "실패", cls: "bg-red-500/10 text-red-500" },
+                cancelled: { text: "환불로 취소", cls: "bg-black/[0.04] text-taupe-500" },
+                clawback_required: { text: "환불 — 회수 필요", cls: "bg-red-500/10 text-red-500" },
               };
 
               return (

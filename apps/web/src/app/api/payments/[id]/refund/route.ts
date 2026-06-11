@@ -21,8 +21,9 @@ export async function POST(
 
     const admin = createAdminClient();
 
-    const body = await req.json();
-    const { reason, amount } = body;
+    const body = await req.json().catch(() => ({}));
+    // 보안: 환불 금액은 클라이언트가 지정할 수 없음 — 항상 서버에서 취소 정책 기반 산정
+    const reason = typeof body.reason === "string" ? body.reason : "";
 
     // 결제 조회 (본인 결제만 환불 가능)
     const { data: payment } = await supabase
@@ -47,8 +48,8 @@ export async function POST(
       .eq("id", payment.contract_id)
       .single();
 
-    let refundAmount = amount;
-    if (!refundAmount && contract?.cancellation_policy) {
+    let refundAmount = 0;
+    if (contract?.cancellation_policy) {
       // 예약일 기준 취소 정책 적용
       const { data: booking } = await supabase
         .from("vendor_bookings")
@@ -70,9 +71,12 @@ export async function POST(
       }
     }
 
-    if (!refundAmount || refundAmount <= 0) {
+    // 결제 금액을 넘는 환불은 불가 (정책 데이터 오류 방어)
+    refundAmount = Math.min(refundAmount, payment.amount);
+
+    if (refundAmount <= 0) {
       return NextResponse.json(
-        { error: "취소 정책에 따라 환불이 불가합니다." },
+        { error: "취소 정책에 따라 환불이 불가합니다. 고객센터로 문의해주세요." },
         { status: 400 }
       );
     }
@@ -86,10 +90,9 @@ export async function POST(
           refundAmount < payment.amount ? refundAmount : undefined
         );
       } catch (err) {
+        // PG 환불이 실패했는데 DB만 '환불됨'이 되면 실돈과 장부가 어긋남 — 환경 불문 중단
         console.error("토스 환불 실패:", err);
-        if (process.env.NODE_ENV !== "development") {
-          return NextResponse.json({ error: "환불 처리에 실패했습니다." }, { status: 500 });
-        }
+        return NextResponse.json({ error: "환불 처리에 실패했습니다." }, { status: 500 });
       }
     }
 
@@ -107,6 +110,31 @@ export async function POST(
       .single();
 
     if (error) throw error;
+
+    // 정산 역전 — 환불된 결제의 정산이 pending으로 남으면 업체에 이중 지급됨.
+    // 미지급(pending/processing)은 취소, 이미 지급(completed)은 회수 필요로 표시.
+    const { data: settlement } = await admin
+      .from("settlements")
+      .select("id, status")
+      .eq("payment_id", id)
+      .maybeSingle();
+
+    if (settlement) {
+      const reversedStatus =
+        settlement.status === "completed" ? "clawback_required" : "cancelled";
+      const { error: settlementError } = await admin
+        .from("settlements")
+        .update({
+          status: reversedStatus,
+          memo: `환불 발생 — 환불액 ${refundAmount.toLocaleString()}원 (${new Date().toISOString().slice(0, 10)})`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", settlement.id);
+      if (settlementError) {
+        // 환불 자체는 이미 PG에서 완료 — 정산 역전 실패는 운영자가 수동 처리해야 함
+        console.error("[refund] 정산 역전 실패 — 수동 확인 필요:", settlementError);
+      }
+    }
 
     // 계약 취소 처리
     await admin
