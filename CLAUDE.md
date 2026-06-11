@@ -4,12 +4,14 @@
 모든 AI 호출은 ai_interactions_log에 기록되며,
 모든 커플 의사결정은 decision_nodes에 기록된다.
 
-## 📍 현재 상태 (2026-06-10 기준 — 새 세션은 여기부터)
-- **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG (전부 docs/, 같은 날짜).
-- **구현 완료(커밋 7a172c20)**: 모멘트 루프 v1(moments.ts 12종 + momentLoop + proactive 배선 + log_wedding_event 툴), 라운지 주차 카드·첫 행동 카드, AiCommentBox 부활, 운영자 핀 API, 시세 공개, 페르소나 자동화 킬스위치(기본 off — `COMMUNITY_AGENTS_ENABLED=true`로만 재가동, AI 표시 체계 갖추기 전 금지).
-- **확정 결정**: 계약-법률 서비스 금지 / 견적 등기소 보류 / AI 유저 위장·유료 순위 영구 금지 / 업체 기능은 공급 확보 전 숨김 유지.
-- **대기 중인 수동 작업**: Supabase SQL Editor에서 마이그레이션 3개 실행 — `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql` (미실행 상태에서도 앱은 안전), `20260611100000_chat_image_rls_couple_scope.sql` (**보안 핫픽스 — 실행 전까지 타 커플 채팅 이미지 삭제/덮어쓰기 가능, 우선 실행**).
-- **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건) + 다음 기능 후보: D-1 브리핑 캡처-공유 카드, 동기방 "오늘의 한 질문".
+## 📍 현재 상태 (2026-06-11 기준 — 새 세션은 여기부터)
+- **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG + SESSION_SYNTHESIS_2026-06-11 (전부 docs/).
+- **Week 1 수술 완료 (2026-06-11)**: 페르소나 자동화·AI 대본·피팅 스텁·B2B·청첩장·방명록·결제(Toss)·정산·전자계약·벤더포털 **코드 전체 삭제** (커밋 3개, 약 -2.5만 줄, 라우트 213→127). 실데이터 확인(payments·settlements·contracts 0행, 청첩장·방명록 각 2건 테스트) 후 진행. DB 테이블은 보존, 복구는 `pre-surgery` 태그. 예약(bookings)은 방문·상담 예약으로 단순화(취소는 아모라 채팅 cancel_booking). 축의금은 moneyStore/money.types로 분리되어 유지.
+- **보안 핫픽스 완료 (2026-06-11)**: signup rate limit + enumeration 차단, chat-image RLS 커플 스코프(마이그레이션), proactive 배선(채팅 진입 시 1회 호출 — 모멘트 루프 활성). ※환불 API 수정은 이후 결제층 삭제로 함께 제거됨.
+- **확정 결정**: 계약-법률 서비스 금지 / 견적 등기소 보류 / AI 유저 위장·유료 순위 영구 금지 / 업체 기능은 공급 확보 전 숨김 유지 / 거래 레일은 S1 게이트(업체 인터뷰) 통과 시에만 pre-surgery 태그에서 부활.
+- **대기 중인 수동 작업**: Supabase SQL Editor 마이그레이션 — 실행 여부 확인: `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql`, `20260611100000_chat_image_rls_couple_scope.sql`(보안 우선).
+- **다음 단계 (Week 1 잔여, SESSION_SYNTHESIS §2)**: ①DB 핫픽스(booking RPC 소유권·security_invoker 뷰·데모 시드 제거) ②Sentry·PostHog 초기화 + UTM 퍼널 ③시세·예절 로그인 벽 제거 ④`/check` 비로그인 견적 진단 페이지 ⑤지식iN·카페 유통 테스트.
+- **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건).
 
 ---
 
