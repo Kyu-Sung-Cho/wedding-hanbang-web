@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { recordDecision } from "@/lib/memory/record-decision";
@@ -51,8 +52,9 @@ export async function POST(req: Request) {
     // 이전엔 capacity COUNT → INSERT 를 client 호출 2단계로 수행해 동시 호출 시
     // 둘 다 capacity 통과 후 둘 다 INSERT → max_bookings 초과. RPC 가 timeslot row
     // FOR UPDATE 락 + COUNT + INSERT 단일 트랜잭션 → 직렬화.
-    // (migration: 20260517000000_atomic_booking_rpc.sql)
-    const { data: bookingId, error: rpcError } = await supabase.rpc("create_booking_atomic", {
+    // RPC는 service_role 전용(20260611150000) — couple_id는 위에서 본인 프로필로 검증됨.
+    const admin = createAdminClient();
+    const { data: bookingId, error: rpcError } = await admin.rpc("create_booking_atomic", {
       p_vendor_id: vendorId,
       p_couple_id: profile?.couple_id || null,
       p_booking_date: date,
