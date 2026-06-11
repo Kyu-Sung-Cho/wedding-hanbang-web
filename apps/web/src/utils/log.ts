@@ -7,6 +7,8 @@
 // 점진 마이그레이션: 기존 console.error는 그대로 두고, 새 코드부터 log.* 사용.
 // (기존 코드 일괄 변경은 회귀 위험으로 보류)
 
+import * as Sentry from "@sentry/nextjs";
+
 const isDev = process.env.NODE_ENV === "development";
 
 type LogPayload = unknown;
@@ -16,9 +18,12 @@ export const log = {
     if (isDev) {
       // eslint-disable-next-line no-console
       console.error(msg, err);
+      return;
     }
-    // 프로덕션: Sentry 연결 시 여기에 capture
-    // (현재 Sentry DSN 미연결 — devDependency만 있음)
+    // 프로덕션: Sentry capture (DSN 미설정이면 SDK가 no-op)
+    Sentry.captureException(err instanceof Error ? err : new Error(msg), {
+      extra: { msg, payload: err },
+    });
   },
 
   warn: (msg: string, payload?: LogPayload) => {

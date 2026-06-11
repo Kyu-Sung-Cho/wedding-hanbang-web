@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { captureEvent } from "@/lib/analytics";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -783,6 +784,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       return;
     }
+    captureEvent("chat_message_sent", { target });
 
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
