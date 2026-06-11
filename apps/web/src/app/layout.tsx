@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import "./globals.css";
 
 // 모든 기기에서 일관된 viewport — iPhone notch (viewport-fit=cover) 대응 +
@@ -53,7 +54,10 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AnalyticsProvider />
+        {children}
+      </body>
     </html>
   );
 }

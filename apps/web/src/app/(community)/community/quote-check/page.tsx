@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { captureEvent } from "@/lib/analytics";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -134,6 +135,7 @@ export default function AmoraQuoteCheckPage() {
     setLoading(true);
     setResult(null);
     setSavedId(null);
+    captureEvent("quote_check_submitted", { category, region });
 
     try {
       const res = await fetch("/api/amora/quote-check", {

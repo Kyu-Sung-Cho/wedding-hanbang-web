@@ -9,13 +9,10 @@ const weddingAppRoutes = [
   "chat",
   "budget",
   "schedule",
-  "fitting",
   "etiquette",
   "settings",
   "bookings",
-  "invitations",
   "money",
-  "scripts",
   "vendors",
   "market-prices",
   "favorites",
@@ -46,6 +43,12 @@ const nextConfig: NextConfig = {
       {
         source: "/",
         destination: "/wedding",
+        permanent: false,
+      },
+      // 유통 테스트 착지 A — 비로그인 견적·추가금 진단 (UTM 쿼리는 자동 보존됨)
+      {
+        source: "/check",
+        destination: "/wedding/community/quote-check",
         permanent: false,
       },
       {

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import { captureEvent } from "@/lib/analytics";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -128,6 +129,7 @@ export default function LoginPage() {
 
       if (mode === "signup") {
         // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
+        captureEvent("signup_started", { method: "email" });
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -3,13 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
-  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/etiquette", "/settings", "/bookings",
+  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/settings", "/bookings",
   "/money", "/onboarding",
   "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
-  "/wedding/etiquette", "/wedding/settings", "/wedding/bookings",
+  "/wedding/settings", "/wedding/bookings",
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
 ];
+// /market-prices·/etiquette 는 의도적 공개 — SEO 유입 자산 (시세·예절 콘텐츠)
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
 // "스드메 시세" 류 검색 유입의 유일한 입구다.
 function isProtectedPath(pathname: string): "customer" | "admin" | null {
