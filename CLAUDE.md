@@ -15,7 +15,9 @@
 - **온보딩 상견례 추가 완료 (2026-06-11)**: 온보딩 Step3에 상견례 날짜 질문 추가 → API가 `upsertMomentEvent`로 `progress.__events`에 `momentType:"sanggyeonrye"` 태깅 저장(create·join 양쪽) + decision_nodes 기록. join 시 파트너 journey가 이미 있어도 상견례 이벤트가 없으면 병합(있으면 파트너 데이터 보존). 첫 관계 모멘트(상견례 D-3/D-1/D+1)가 가입 즉시 살아남. 랜딩 허수는 라이브 마케팅 표면(NumbersAnchor 등) 이미 출처 명기 상태로 확인 — `/landing`은 미링크·미색인 보존 페이지라 손대지 않음.
 - **테스트 인프라 복구 (2026-06-11 밤)**: 떠돌던 미커밋 테스트 5종(vendorMapper·authStore·checklist·rateLimit·sanitize, 145개) 수리·커밋 + vitest/jsdom 설치 + `npm test`(turbo) 연결 — 어제 감사의 "로컬 typecheck/build 깨짐" 해소, typecheck·build·test 전부 그린. 미사용 @tosspayments/tosspayments-sdk 제거(mammoth는 채팅 docx 추출에 사용 중이라 유지). QA 스크린샷 PNG 115개 정리 + gitignore.
 - **견적 진단 정밀화 + 시세 자동화 (2026-06-11 심야)**: ①진단 엔진을 지역별 중위가 비교로 전환(서울 350 vs 경기/인천 230 — 2분법이 경기 정상 견적을 미끼가격으로 오판하던 버그 제거), 결과에 `marketComparatorLabel`로 비교 기준 명시, toolExecutor의 죽은 중복 엔진 218줄 삭제, 회귀 테스트 10개. ②참가격 시세를 price.go.kr AJAX에서 자동 수집하는 `npm run update:market-prices` 파이프라인 구축(`marketPricesData.generated.ts` 재생성, 구조 검증 내장) — 수동 전사가 2026-02 전국 합산을 통째로 오입력했고(원본이 3/27 개정됨) 3·4월 공백도 있었음. 현재 2026년 4월 기준. **시세 갱신은 격월로 스크립트 재실행** (참가격 격월 발표).
-- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트(착지 A=/check·B=온보딩 UTM 분리) → 모멘트 D-3/D-1/D+1 lifecycle 통합 → (선택) JSONB 후속: 일정/액션 테이블 분리. 30일차 G1 판정(채널 전환 ≥3%).
+- **법적 리스크 감사 + Contract Shield 판정 제거 (2026-06-12)**: 견적 체크 리팩토링 후 전수 감사 — 업체명 노출(공개 표면 제외 확인✅)·표시광고(출처 명기✅)·개인정보(공개 API 요약만✅)·참가격 스크래핑(공공데이터+출처표시, 격월 13회 경량✅). 발견·수정 2건: ①Contract Shield가 "{업체명} 계약은 진행하지 않는 편이 안전해요" 류 업체 상대 부정 문장 생성 → 업체명 제거+문서 확인 상태 사실 서술로 교체, 등급/점수 제거, "진행 가능" 보증성 라벨 제거(분쟁 시 신뢰 리스크) ②실태조사 인용 인과 단정 완화. AI 프롬프트에도 업체 상대 권고·단정 금지 지침.
+- **모멘트 lifecycle 통합 = 이미 완료 확인 (2026-06-12)**: proactive 라우트가 `__events`의 momentType 이벤트(상견례 등)+예식일 기반 모멘트를 D-3/D-1/D+1 셀로 계산·발화, dedupe는 유니크 인덱스로 레이스까지 차단 — 추가 작업 불필요. KST 날짜 연산 회귀 테스트 10개 신규(momentLoop.test.ts, 총 165개). 남은 선택지: D+1 답변의 memoryKeys 전용 수집 파이프(현재는 일반 채팅 AI가 처리 — 공백 아님).
+- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트(착지 A=/check·B=온보딩 UTM 분리) — **유일하게 남은 Week 1 항목, 사용자 실행 필요** → (선택) JSONB 후속: 일정/액션 테이블 분리. 30일차 G1 판정(채널 전환 ≥3%).
 - **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건).
 
 ---

@@ -2888,7 +2888,7 @@ function executeAnalyzeContractReadiness(input: Record<string, unknown>): ToolEx
     toolInput: input,
     toolOutput: { ...result },
     success: true,
-    displayMessage: `${result.summaryTitle} (${result.grade}등급, ${result.score}점)`,
+    displayMessage: result.summaryTitle,
   };
 }
 

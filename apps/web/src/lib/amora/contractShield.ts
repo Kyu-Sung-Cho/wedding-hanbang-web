@@ -51,8 +51,6 @@ export interface ContractShieldResult {
   category: ContractShieldCategory;
   categoryLabel: string;
   vendorName: string | null;
-  score: number;
-  grade: "A" | "B" | "C" | "D" | "F";
   riskLevel: ContractRiskLevel;
   riskLabel: string;
   summaryTitle: string;
@@ -254,10 +252,12 @@ const CLAUSES: ClauseRule[] = [
   },
 ];
 
+// 사실 기반 라벨 — "진행 가능/보류 권장" 같은 보증·권고가 아니라 문서 확인 상태만 말한다.
+// (보증성 표현은 사용자가 그걸 믿고 진행했다 분쟁 시 신뢰 리스크, 업체 상대 권고는 업무방해 시비 소지)
 const RISK_LABELS: Record<ContractRiskLevel, string> = {
-  low: "진행 가능",
-  medium: "확인 필요",
-  high: "계약 보류 권장",
+  low: "주요 항목 문서 확인됨",
+  medium: "확인 필요 항목 있음",
+  high: "필수 항목 미확인",
 };
 
 const NEGATIVE_CLAUSE_PATTERNS: Record<string, RegExp[]> = {
@@ -317,13 +317,6 @@ function normalizeToken(value: string): string {
     .replace(/[^\p{Letter}\p{Number}_가-힣]/gu, "");
 }
 
-function toGrade(score: number): ContractShieldResult["grade"] {
-  if (score >= 90) return "A";
-  if (score >= 78) return "B";
-  if (score >= 65) return "C";
-  if (score >= 50) return "D";
-  return "F";
-}
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
@@ -481,14 +474,16 @@ export function analyzeContractReadiness(input: ContractShieldInput): ContractSh
 
   const categoryLabel = CATEGORY_LABELS[category];
   const vendorName = input.vendorName?.trim() || null;
-  const titleTarget = vendorName ? `${vendorName} ${categoryLabel}` : categoryLabel;
 
+  // 제목에 업체명을 넣지 않는다 — "{업체명} 계약은 진행하지 마세요" 류 문장은
+  // 캡처·공유 시 특정 업체에 대한 부정 단정으로 읽혀 업무방해 시비 소지.
+  // 문서 확인 상태라는 사실만 말한다.
   const summaryTitle =
     riskLevel === "high"
-      ? `${titleTarget} 계약은 지금 바로 진행하지 않는 편이 안전해요`
+      ? `${categoryLabel} 계약에서 서면으로 확인 안 된 필수 항목이 있어요`
       : riskLevel === "medium"
-        ? `${titleTarget} 계약 전 몇 가지를 문서로 확인해야 해요`
-        : `${titleTarget} 계약 조건은 큰 틀에서 정리되어 있어요`;
+        ? `${categoryLabel} 계약 전 몇 가지를 문서로 확인해야 해요`
+        : `입력하신 기준으로 ${categoryLabel} 계약의 주요 조건이 문서로 확인됐어요`;
 
   const summaryText =
     blockers.length > 0
@@ -512,8 +507,6 @@ export function analyzeContractReadiness(input: ContractShieldInput): ContractSh
     category,
     categoryLabel,
     vendorName,
-    score,
-    grade: toGrade(score),
     riskLevel,
     riskLabel: RISK_LABELS[riskLevel],
     summaryTitle,

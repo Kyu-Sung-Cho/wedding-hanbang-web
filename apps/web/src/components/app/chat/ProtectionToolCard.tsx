@@ -99,8 +99,6 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
   const data = result.toolOutput as {
     categoryLabel?: string;
     vendorName?: string | null;
-    grade?: string;
-    score?: number;
     riskLevel?: RiskLevel;
     riskLabel?: string;
     summaryTitle?: string;
@@ -139,19 +137,15 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 divide-x divide-black/[0.06] border-b border-black/[0.06]">
+        <div className="grid grid-cols-2 divide-x divide-black/[0.06] border-b border-black/[0.06]">
           <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[#928980]">판정</p>
+            <p className="text-xs text-[#928980]">문서 확인 상태</p>
             <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${risk.bg} ${risk.text}`}>
-              {data.riskLabel ?? "확인 필요"}
+              {data.riskLabel ?? "확인 필요 항목 있음"}
             </p>
           </div>
           <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[#928980]">등급</p>
-            <p className="mt-1 text-lg font-semibold text-[#1A1A1F]">{data.grade ?? "-"} · {data.score ?? 0}점</p>
-          </div>
-          <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[#928980]">필수 누락</p>
+            <p className="text-xs text-[#928980]">필수 미확인</p>
             <p className="mt-1 text-lg font-semibold text-[#1A1A1F]">{blockers.length}개</p>
           </div>
         </div>
