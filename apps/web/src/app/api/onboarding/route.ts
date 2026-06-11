@@ -3,7 +3,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { determineStage } from "@/lib/ai/stage-router";
-import { upsertMomentEvent } from "@/utils/scheduleEvents";
+import { getEvents, upsertMomentEvent } from "@/utils/scheduleEvents";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,16 +50,17 @@ export async function POST(request: Request) {
 
     // 상견례 날짜를 받으면 모멘트 루프 연료로 progress.__events에 태깅 저장.
     // (D-3/D-1/D+1에 아모라가 먼저 챙기는 첫 관계 모멘트 — moments.ts:sanggyeonrye)
+    const hasSanggyeonryeDate =
+      typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate);
     const baseProgress =
       progress && typeof progress === "object" ? (progress as Record<string, unknown>) : {};
-    const journeyProgress =
-      typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate)
-        ? upsertMomentEvent(baseProgress, {
-            momentType: "sanggyeonrye",
-            date: sanggyeonryeDate,
-            title: "상견례",
-          }).newProgress
-        : baseProgress;
+    const journeyProgress = hasSanggyeonryeDate
+      ? upsertMomentEvent(baseProgress, {
+          momentType: "sanggyeonrye",
+          date: sanggyeonryeDate,
+          title: "상견례",
+        }).newProgress
+      : baseProgress;
 
     // admin 클라이언트 (RLS 우회)
     const admin = getAdmin();
@@ -268,7 +269,7 @@ export async function POST(request: Request) {
       // 6. 기존 웨딩 여정 확인 (파트너가 이미 세팅해둔 것 공유)
       const { data: existingJourney } = await admin
         .from("wedding_journeys")
-        .select("id")
+        .select("id, progress")
         .eq("couple_id", coupleId)
         .maybeSingle();
 
@@ -280,6 +281,31 @@ export async function POST(request: Request) {
           total_budget: totalBudget || 20000000,
           progress: journeyProgress,
         });
+      } else if (hasSanggyeonryeDate) {
+        // 파트너가 이미 journey를 만들어둔 경우에도 join하는 쪽이 입력한 상견례
+        // 날짜는 버리지 않고 병합 — 단, 파트너가 이미 등록했다면 보존 우선(덮어쓰기 금지).
+        const existingProgress = (existingJourney.progress ?? {}) as Record<string, unknown>;
+        const alreadyHasSanggyeonrye = getEvents(existingProgress).some(
+          (event) => event.momentType === "sanggyeonrye"
+        );
+        if (!alreadyHasSanggyeonrye) {
+          const { newProgress } = upsertMomentEvent(existingProgress, {
+            momentType: "sanggyeonrye",
+            date: sanggyeonryeDate,
+            title: "상견례",
+          });
+          const { error: patchError } = await admin.rpc("apply_journey_progress_patch", {
+            p_couple_id: coupleId,
+            p_patch: { __events: getEvents(newProgress) },
+          });
+          if (patchError) {
+            // RPC 미배포 폴백 — 온보딩 직후라 동시수정 경합은 사실상 없음
+            await admin
+              .from("wedding_journeys")
+              .update({ progress: newProgress })
+              .eq("id", existingJourney.id);
+          }
+        }
       }
 
       console.log("[온보딩 조인] 완료! coupleId:", coupleId);
@@ -322,7 +348,7 @@ export async function POST(request: Request) {
           });
         }
 
-        if (typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate)) {
+        if (hasSanggyeonryeDate) {
           await recordDecision({
             coupleId,
             userId: user.id,
