@@ -467,6 +467,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     };
   }, [coupleId, isDemo, loadMessages, subscribeToMessages]);
 
+  // 모멘트 루프/라이프사이클 proactive 체크 — 채팅 진입 시 1회 fire-and-forget.
+  // 발화 시 서버가 chat_messages에 INSERT → Realtime 구독·3초 폴링으로 자연 수신.
+  // 중복 발화는 서버측 dedupeKey 유니크 인덱스 + 6시간 쿨다운이 막아줌.
+  const proactiveCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!coupleId || isDemo || proactiveCheckedRef.current) return;
+    proactiveCheckedRef.current = true;
+    fetch("/api/chat/proactive").catch(() => {});
+  }, [coupleId, isDemo]);
+
   // 탭 복귀 시 놓친 메시지 safety-net fetch (Realtime 구독이 백그라운드에서
   // 끊겼을 때 커버). 단:
   // 1) 마지막 fetch 후 60초 이내면 skip (pollNewMessages 가 3초마다 돌고 있어
