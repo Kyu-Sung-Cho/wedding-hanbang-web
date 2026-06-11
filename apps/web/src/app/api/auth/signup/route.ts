@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 // Admin 클라이언트 (service role key)
 function getAdminSupabase() {
@@ -18,6 +19,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
     }
 
+    // IP당 + 이메일당 rate limit — 가입 폭주·Resend 메일 폭탄 방어
+    const ipLimited = checkRateLimit(rateLimitKey("signup", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return ipLimited;
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const emailLimited = checkRateLimit(`signup-email:${normalizedEmail}`, {
+      maxRequests: 3,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (emailLimited) return emailLimited;
+
     const supabase = getAdminSupabase();
 
     // Admin API로 확인 링크 생성 (유저 생성 + 이메일 확인 링크)
@@ -32,12 +47,13 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      // 이미 가입된 이메일
+      // 이미 가입된 이메일 — 성공과 동일한 응답으로 계정 존재 여부 노출 차단 (enumeration 방지)
       if (error.message.includes("already been registered") || error.message.includes("already registered")) {
-        return NextResponse.json({ error: "이미 가입된 이메일입니다. 로그인해주세요." }, { status: 409 });
+        return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
       }
       console.error("generateLink error:", error);
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      // 내부 에러 메시지 노출 금지
+      return NextResponse.json({ error: "회원가입 처리 중 오류가 발생했습니다." }, { status: 400 });
     }
 
     if (!data?.properties?.action_link) {
