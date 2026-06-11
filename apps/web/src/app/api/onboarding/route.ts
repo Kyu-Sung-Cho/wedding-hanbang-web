@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { determineStage } from "@/lib/ai/stage-router";
+import { upsertMomentEvent } from "@/utils/scheduleEvents";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       partnerInviteCode,
       weddingDate,
       venue,
+      sanggyeonryeDate,
       totalBudget,
       progress,
     } = body;
@@ -45,6 +47,19 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // 상견례 날짜를 받으면 모멘트 루프 연료로 progress.__events에 태깅 저장.
+    // (D-3/D-1/D+1에 아모라가 먼저 챙기는 첫 관계 모멘트 — moments.ts:sanggyeonrye)
+    const baseProgress =
+      progress && typeof progress === "object" ? (progress as Record<string, unknown>) : {};
+    const journeyProgress =
+      typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate)
+        ? upsertMomentEvent(baseProgress, {
+            momentType: "sanggyeonrye",
+            date: sanggyeonryeDate,
+            title: "상견례",
+          }).newProgress
+        : baseProgress;
 
     // admin 클라이언트 (RLS 우회)
     const admin = getAdmin();
@@ -134,7 +149,7 @@ export async function POST(request: Request) {
         wedding_date: weddingDate || null,
         venue: venue || null,
         total_budget: totalBudget || 20000000,
-        progress: progress || {},
+        progress: journeyProgress,
       });
 
       if (journeyError) {
@@ -263,7 +278,7 @@ export async function POST(request: Request) {
           wedding_date: weddingDate || null,
           venue: venue || null,
           total_budget: totalBudget || 20000000,
-          progress: progress || {},
+          progress: journeyProgress,
         });
       }
 
@@ -303,6 +318,21 @@ export async function POST(request: Request) {
             stageTag,
             source: "onboarding",
             confidence: 0.7,
+            metadata: baseMeta,
+          });
+        }
+
+        if (typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate)) {
+          await recordDecision({
+            coupleId,
+            userId: user.id,
+            category: "timeline",
+            title: "상견례 일정",
+            chosenValue: { sanggyeonrye_date: sanggyeonryeDate },
+            decisionType: "decided",
+            stageTag,
+            source: "onboarding",
+            confidence: 0.9,
             metadata: baseMeta,
           });
         }

@@ -11,7 +11,8 @@
 - **확정 결정**: 계약-법률 서비스 금지 / 견적 등기소 보류 / AI 유저 위장·유료 순위 영구 금지 / 업체 기능은 공급 확보 전 숨김 유지 / 거래 레일은 S1 게이트(업체 인터뷰) 통과 시에만 pre-surgery 태그에서 부활.
 - **Week 1 잔여분도 완료 (2026-06-11 저녁)**: ①DB 핫픽스 마이그레이션 작성(booking RPC service_role 전용·PII 뷰 8개 DROP·데모 시드 제거) ②Sentry·PostHog 초기화 + 퍼널 이벤트(signup_started/chat_message_sent/quote_check_submitted, UTM은 $pageview 자동) ③예절 가이드 (community) 그룹 이동으로 공개(시세는 이미 공개) ④`/check`→견적 진단 리다이렉트(UTM 보존). 키 입력 필요: Vercel 환경변수 `NEXT_PUBLIC_SENTRY_DSN`/`NEXT_PUBLIC_POSTHOG_KEY` (미설정 시 자동 no-op).
 - **대기 중인 수동 작업**: Supabase SQL Editor 마이그레이션 — 실행 여부 확인: `20260610090000_quote_check_channel_fields.sql`, `20260610110000_cohort_anonymity_rls.sql`, `20260611100000_chat_image_rls_couple_scope.sql`(보안 우선), `20260611150000_week1_db_hotfix.sql`(보안 — **실행 전까지 타 커플 명의 예약 생성·PII 뷰 노출 가능**).
-- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트(착지 A=/check·B=온보딩 UTM 분리) → 랜딩 허수 실측 교체 → JSONB 블랍 해체 → 아모라 2질문 온보딩. 30일차 G1 판정(채널 전환 ≥3%).
+- **온보딩 상견례 추가 완료 (2026-06-11)**: 온보딩 Step3에 상견례 날짜 질문 추가 → API가 `upsertMomentEvent`로 `progress.__events`에 `momentType:"sanggyeonrye"` 태깅 저장(create·join 양쪽) + decision_nodes 기록. 첫 관계 모멘트(상견례 D-3/D-1/D+1)가 가입 즉시 살아남. 랜딩 허수는 라이브 마케팅 표면(NumbersAnchor 등) 이미 출처 명기 상태로 확인 — `/landing`은 미링크·미색인 보존 페이지라 손대지 않음.
+- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트(착지 A=/check·B=온보딩 UTM 분리) → JSONB 블랍 해체(마지막 critical) → 모멘트 D-3/D-1/D+1 lifecycle 통합. 30일차 G1 판정(채널 전환 ≥3%).
 - **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건).
 
 ---

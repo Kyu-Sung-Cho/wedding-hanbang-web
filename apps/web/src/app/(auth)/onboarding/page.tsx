@@ -98,6 +98,7 @@ export default function OnboardingPage() {
             store.coupleAction === "join" ? store.partnerInviteCode : undefined,
           weddingDate: store.weddingDateUndecided ? null : store.weddingDate,
           venue: store.venueUndecided ? null : store.venue,
+          sanggyeonryeDate: store.sanggyeonryeUndecided ? null : store.sanggyeonryeDate,
           totalBudget: store.approximateBudget,
           progress,
         }),
@@ -193,11 +194,15 @@ export default function OnboardingPage() {
                   weddingDateUndecided={store.weddingDateUndecided}
                   venue={store.venue}
                   venueUndecided={store.venueUndecided}
+                  sanggyeonryeDate={store.sanggyeonryeDate}
+                  sanggyeonryeUndecided={store.sanggyeonryeUndecided}
                   budget={store.approximateBudget}
                   onDateChange={store.setWeddingDate}
                   onDateUndecidedChange={store.setWeddingDateUndecided}
                   onVenueChange={store.setVenue}
                   onVenueUndecidedChange={store.setVenueUndecided}
+                  onSanggyeonryeDateChange={store.setSanggyeonryeDate}
+                  onSanggyeonryeUndecidedChange={store.setSanggyeonryeUndecided}
                   onBudgetChange={store.setBudget}
                 />
               )}

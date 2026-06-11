@@ -23,6 +23,8 @@ interface OnboardingStoreState {
   weddingDateUndecided: boolean;
   venue: string | null;
   venueUndecided: boolean;
+  sanggyeonryeDate: string | null;
+  sanggyeonryeUndecided: boolean;
   approximateBudget: number;
   preferences: WeddingPreferences;
   progressChecklist: ProgressChecklistItem[];
@@ -38,6 +40,8 @@ interface OnboardingStoreState {
   setWeddingDateUndecided: (value: boolean) => void;
   setVenue: (venue: string | null) => void;
   setVenueUndecided: (value: boolean) => void;
+  setSanggyeonryeDate: (date: string | null) => void;
+  setSanggyeonryeUndecided: (value: boolean) => void;
   setBudget: (budget: number) => void;
   setWeddingStyle: (style: WeddingStyle) => void;
   togglePriority: (item: PriorityItem) => void;
@@ -66,6 +70,8 @@ const initialState = {
   weddingDateUndecided: false,
   venue: null as string | null,
   venueUndecided: false,
+  sanggyeonryeDate: null as string | null,
+  sanggyeonryeUndecided: false,
   approximateBudget: 20000000,
   preferences: { ...initialPreferences },
   progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
@@ -87,6 +93,9 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   setVenue: (venue) => set({ venue }),
   setVenueUndecided: (value) =>
     set({ venueUndecided: value, venue: value ? null : undefined }),
+  setSanggyeonryeDate: (date) => set({ sanggyeonryeDate: date }),
+  setSanggyeonryeUndecided: (value) =>
+    set(value ? { sanggyeonryeUndecided: true, sanggyeonryeDate: null } : { sanggyeonryeUndecided: false }),
   setBudget: (budget) => set({ approximateBudget: budget }),
   setWeddingStyle: (style) =>
     set((s) => ({ preferences: { ...s.preferences, weddingStyle: style } })),

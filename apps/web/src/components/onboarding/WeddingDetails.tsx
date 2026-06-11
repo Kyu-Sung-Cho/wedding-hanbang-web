@@ -7,11 +7,15 @@ interface WeddingDetailsProps {
   weddingDateUndecided: boolean;
   venue: string | null;
   venueUndecided: boolean;
+  sanggyeonryeDate: string | null;
+  sanggyeonryeUndecided: boolean;
   budget: number;
   onDateChange: (date: string | null) => void;
   onDateUndecidedChange: (value: boolean) => void;
   onVenueChange: (venue: string | null) => void;
   onVenueUndecidedChange: (value: boolean) => void;
+  onSanggyeonryeDateChange: (date: string | null) => void;
+  onSanggyeonryeUndecidedChange: (value: boolean) => void;
   onBudgetChange: (budget: number) => void;
   isPartnerData?: boolean;
 }
@@ -31,11 +35,15 @@ export default function WeddingDetails({
   weddingDateUndecided,
   venue,
   venueUndecided,
+  sanggyeonryeDate,
+  sanggyeonryeUndecided,
   budget,
   onDateChange,
   onDateUndecidedChange,
   onVenueChange,
   onVenueUndecidedChange,
+  onSanggyeonryeDateChange,
+  onSanggyeonryeUndecidedChange,
   onBudgetChange,
   isPartnerData,
 }: WeddingDetailsProps) {
@@ -85,6 +93,36 @@ export default function WeddingDetails({
             미정
           </button>
         </div>
+      </div>
+
+      {/* 상견례 날짜 — 모멘트 루프 연료(친언니가 먼저 챙기는 첫 순간) */}
+      <div className="space-y-2">
+        <label className="text-[14px] font-medium text-noir-800">상견례 날짜</label>
+        <div className="flex gap-2">
+          <input
+            type="date"
+            value={sanggyeonryeDate ?? ""}
+            onChange={(e) => onSanggyeonryeDateChange(e.target.value || null)}
+            disabled={sanggyeonryeUndecided}
+            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+          />
+          <button
+            onClick={() => {
+              onSanggyeonryeUndecidedChange(!sanggyeonryeUndecided);
+              if (!sanggyeonryeUndecided) onSanggyeonryeDateChange(null);
+            }}
+            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+              sanggyeonryeUndecided
+                ? "bg-[#795252] text-white"
+                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+            }`}
+          >
+            미정
+          </button>
+        </div>
+        <p className="text-[12px] text-taupe-400 leading-relaxed">
+          날짜를 알려주면 상견례 3일 전·전날·다음날에 아모라가 먼저 챙겨드려요.
+        </p>
       </div>
 
       {/* 예식장 */}
