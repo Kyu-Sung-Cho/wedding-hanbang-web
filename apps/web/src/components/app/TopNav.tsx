@@ -27,8 +27,6 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
   { prefix: "/vendors/favorites", title: "찜한 업체" },
   { prefix: "/vendors", title: "업체 탐색" },
   { prefix: "/bookings", title: "예약 관리" },
-  { prefix: "/fitting", title: "AI 드레스 피팅" },
-  { prefix: "/scripts", title: "대본 리딩" },
 ];
 
 const quickLinks = [

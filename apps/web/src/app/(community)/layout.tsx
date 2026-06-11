@@ -89,7 +89,6 @@ function CommunityFooter() {
             { label: "이용약관", href: "/terms" },
             { label: "개인정보처리방침", href: "/privacy" },
             { label: "AI 정책", href: "/ai-policy" },
-            { label: "제휴 / 제보문의", href: "/business" },
           ]}
         />
 

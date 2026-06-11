@@ -3,11 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
-  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/fitting", "/etiquette", "/settings", "/bookings",
-  "/invitations", "/money", "/scripts", "/onboarding",
+  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/etiquette", "/settings", "/bookings",
+  "/invitations", "/money", "/onboarding",
   "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
-  "/wedding/fitting", "/wedding/etiquette", "/wedding/settings", "/wedding/bookings", "/wedding/invitations",
-  "/wedding/money", "/wedding/scripts", "/wedding/vendors", "/wedding/favorites",
+  "/wedding/etiquette", "/wedding/settings", "/wedding/bookings", "/wedding/invitations",
+  "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
 ];
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,

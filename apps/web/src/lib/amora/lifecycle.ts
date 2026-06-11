@@ -337,9 +337,9 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       guardrails.push({
         id: "final_script_ready",
         title: "본식 문구와 진행을 준비해요",
-        body: "사회자 대본, 부모님 편지, 하객 안내, 감사 인사 초안을 미리 만들어두면 당일이 편해져요.",
-        href: weddingPath("/scripts"),
-        cta: "대본 준비",
+        body: "사회자 대본, 부모님 편지, 하객 안내, 감사 인사 초안을 아모라와 함께 잡아두면 당일이 편해져요.",
+        href: weddingPath("/chat"),
+        cta: "아모라와 준비",
         severity: dday <= 14 ? "critical" : "warning",
         iconKey: "script",
       });
@@ -351,7 +351,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       id: "aftercare_thanks",
       title: "식 후 감사 인사까지 같이 챙길게요",
       body: "축의금 정리, 감사 문자, 업체 후기, 앨범 수령 일정을 이어서 관리하세요.",
-      href: weddingPath("/scripts"),
+      href: weddingPath("/chat"),
       cta: "감사 문구",
       severity: "warning",
       iconKey: "script",
@@ -425,9 +425,9 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     },
     {
       id: "script",
-      label: dday !== null && dday < 0 ? "감사 인사" : "AI 대본",
-      text: "식 전후 문구와 전화 스크립트",
-      href: weddingPath("/scripts"),
+      label: dday !== null && dday < 0 ? "감사 인사" : "본식 문구",
+      text: "식 전후 문구는 아모라와 함께",
+      href: weddingPath("/chat"),
       iconKey: "script",
     },
   ];

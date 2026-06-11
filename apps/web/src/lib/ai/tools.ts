@@ -398,7 +398,7 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         href: {
           type: "string",
-          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget, /wedding/scripts",
+          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget, /wedding/etiquette",
         },
       },
       required: ["title"],

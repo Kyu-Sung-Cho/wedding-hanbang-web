@@ -1254,7 +1254,7 @@ function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) 
   if (source === "budget") return weddingPath("/budget");
   if (source === "schedule") return weddingPath("/schedule");
   if (categoryKey === "invitation") return weddingPath("/schedule");
-  if (categoryKey === "mc" || categoryKey === "gift") return weddingPath("/scripts");
+  if (categoryKey === "mc" || categoryKey === "gift") return weddingPath("/etiquette");
   return weddingPath("/lounge");
 }
 

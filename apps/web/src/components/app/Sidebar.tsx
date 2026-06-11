@@ -9,12 +9,10 @@ import {
   BookOpen,
   CalendarClock,
   CalendarCheck,
-  FileText,
   LayoutDashboard,
   LogOut,
   MessageCircle,
   Settings,
-  Shirt,
   Wallet,
   X,
 } from "lucide-react";
@@ -23,7 +21,7 @@ import { stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-const hiddenInComingSoon = ["/money", "/fitting", "/scripts"];
+const hiddenInComingSoon = ["/money"];
 
 const menuItems = [
   { href: weddingPath("/lounge"), legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
@@ -33,9 +31,7 @@ const menuItems = [
   { href: weddingPath("/market-prices"), legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
   { href: weddingPath("/vendors"), legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { href: weddingPath("/bookings"), legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { href: weddingPath("/fitting"), legacyPath: "/fitting", icon: Shirt, label: "드레스 피팅" },
   { href: weddingPath("/etiquette"), legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
-  { href: weddingPath("/scripts"), legacyPath: "/scripts", icon: FileText, label: "대본 리딩" },
   { href: weddingPath("/money"), legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
   { href: weddingPath("/settings"), legacyPath: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));

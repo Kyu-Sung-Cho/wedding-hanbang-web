@@ -616,12 +616,6 @@ export default function AdminPage() {
             <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
-            <a href="/vendor/dashboard" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
-              <Building2 className="w-3.5 h-3.5" /> 업체 포털
-            </a>
-            <a href="/admin/community-agents" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
-              <Bot className="w-3.5 h-3.5" /> Agent 관리
-            </a>
             <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LogOut className="w-3.5 h-3.5" /> 로그아웃
             </button>
