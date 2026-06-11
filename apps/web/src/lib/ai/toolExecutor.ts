@@ -518,20 +518,7 @@ async function executeUpdateTaskStatus(
   const label = CATEGORY_LABELS[category] || category;
   const statusLabel = STATUS_LABELS[status] || status;
 
-  const newProgress = {
-    ...ctx.weddingContext.progress,
-    [category]: { category, status },
-  };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress;
+  await patchJourneyProgress(ctx, { [category]: { category, status } });
 
   return {
     toolName: "update_task_status",
@@ -564,19 +551,7 @@ async function executeUpdateCategoryBudget(
     changes.push(`지출 ${formatWon(newSpent)}`);
   }
 
-  const newProgress = {
-    ...ctx.weddingContext.progress,
-    [category]: updates,
-  };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, { [category]: updates });
 
   return {
     toolName: "update_category_budget",
@@ -634,13 +609,14 @@ async function executeApplyBudgetPlan(
   }
 
   // progress 갱신 — 기존 status/checklist 보존하면서 budget 만 덮어쓰기
-  const newProgress: Record<string, unknown> = { ...ctx.weddingContext.progress };
+  // 카테고리 budget 키만 patch (기존 status/checklist 등은 DB 병합으로 보존)
+  const progressPatch: Record<string, unknown> = {};
   for (const alloc of finalAllocations) {
-    const existing = (newProgress[alloc.category] ?? {
+    const existing = (ctx.weddingContext.progress[alloc.category] ?? {
       category: alloc.category,
       status: "not_started",
     }) as Record<string, unknown>;
-    newProgress[alloc.category] = {
+    progressPatch[alloc.category] = {
       ...existing,
       category: alloc.category,
       budget: alloc.budget,
@@ -649,16 +625,16 @@ async function executeApplyBudgetPlan(
 
   const admin = getAdminClient();
 
-  // 총 예산 + progress 한 번에 갱신
-  const { error: journeyError } = await admin
+  // 총 예산은 단일 컬럼이라 그대로 갱신
+  const { error: budgetError } = await admin
     .from("wedding_journeys")
-    .update({ total_budget: totalBudget, progress: newProgress })
+    .update({ total_budget: totalBudget })
     .eq("couple_id", ctx.coupleId);
-  if (journeyError) throw journeyError;
-
-  // 컨텍스트도 즉시 동기화
+  if (budgetError) throw budgetError;
   ctx.weddingContext.budget = totalBudget;
-  ctx.weddingContext.progress = newProgress as ExecutionContext["weddingContext"]["progress"];
+
+  // 카테고리 배분은 원자적 patch — 동시 수정된 다른 키(__events 등) 보존
+  await patchJourneyProgress(ctx, progressPatch);
 
   // intake_summary 를 decision_nodes 에 preference 로 저장 (있을 때만)
   // 다음 vendor 추천 / 갈등 중재 시 system prompt 에 자동 주입됨.
@@ -724,19 +700,7 @@ async function executeAddCustomCategory(
     changes.push(`지출 ${formatWon(input.spent as number)}`);
   }
 
-  const newProgress = {
-    ...ctx.weddingContext.progress,
-    [key]: updates,
-  };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, { [key]: updates });
 
   const desc = changes.length > 0 ? ` (${changes.join(", ")})` : "";
   return {
@@ -771,17 +735,8 @@ async function executeDeleteCategory(
         displayMessage: `"${label}"은(는) 이미 삭제되어 있습니다.`,
       };
     }
-    const { [key]: _removed, ...rest } = progress;
-    const newProgress = { ...rest, __hidden: [...hiddenList, key] };
-
-    const admin = getAdminClient();
-    const { error } = await admin
-      .from("wedding_journeys")
-      .update({ progress: newProgress })
-      .eq("couple_id", ctx.coupleId);
-    if (error) throw error;
-
-    ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+    // 고정 카테고리: __hidden 목록에 추가 + 해당 키 제거 (원자적)
+    await patchJourneyProgress(ctx, { __hidden: [...hiddenList, key] }, [key]);
   } else {
     // 커스텀 카테고리: progress에서 완전히 제거
     if (!progress[key]) {
@@ -793,16 +748,7 @@ async function executeDeleteCategory(
         displayMessage: `"${key}" 카테고리를 찾을 수 없습니다.`,
       };
     }
-    const { [key]: _removed, ...rest } = progress;
-
-    const admin = getAdminClient();
-    const { error } = await admin
-      .from("wedding_journeys")
-      .update({ progress: rest })
-      .eq("couple_id", ctx.coupleId);
-    if (error) throw error;
-
-    ctx.weddingContext.progress = rest as unknown as ExecutionContext["weddingContext"]["progress"];
+    await patchJourneyProgress(ctx, {}, [key]);
   }
 
   return {
@@ -825,16 +771,7 @@ async function executeResetCategory(
     ? CATEGORY_LABELS[key]
     : (progress[key] as Record<string, unknown>)?.label as string ?? key;
 
-  const { [key]: _removed, ...rest } = progress;
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: rest })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = rest as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, {}, [key]);
 
   return {
     toolName: "reset_category",
@@ -1009,16 +946,7 @@ async function executeAddScheduleEvent(
     const updatedEvents = events.map((event) =>
       event.id === existingCategoryEvent.id ? updatedEvent : event
     );
-    const newProgress = { ...ctx.weddingContext.progress, __events: updatedEvents };
-
-    const admin = getAdminClient();
-    const { error } = await admin
-      .from("wedding_journeys")
-      .update({ progress: newProgress })
-      .eq("couple_id", ctx.coupleId);
-    if (error) throw error;
-
-    ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+    await patchJourneyProgress(ctx, { __events: updatedEvents });
 
     return {
       toolName: "add_schedule_event",
@@ -1034,16 +962,7 @@ async function executeAddScheduleEvent(
     date, title, memo, categoryKey, sourceKey, createdAt: now, updatedAt: now,
   };
 
-  const newProgress = { ...ctx.weddingContext.progress, __events: [...events, newEvent] };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, { __events: [...events, newEvent] });
 
   return {
     toolName: "add_schedule_event", toolInput: input,
@@ -1076,16 +995,7 @@ async function executeUpdateScheduleEvent(
   const updatedEvents = events.map((e) =>
     e.id === eventId ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e
   );
-  const newProgress = { ...ctx.weddingContext.progress, __events: updatedEvents };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, { __events: updatedEvents });
   const updated = updatedEvents.find((e) => e.id === eventId)!;
 
   return {
@@ -1111,19 +1021,7 @@ async function executeDeleteScheduleEvent(
     };
   }
 
-  const newProgress = {
-    ...ctx.weddingContext.progress,
-    __events: events.filter((e) => e.id !== eventId),
-  };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as unknown as ExecutionContext["weddingContext"]["progress"];
+  await patchJourneyProgress(ctx, { __events: events.filter((e) => e.id !== eventId) });
 
   return {
     toolName: "delete_schedule_event", toolInput: input,
@@ -1169,22 +1067,12 @@ async function executeToggleChecklistItem(
     };
   }
 
-  const newProgress = {
-    ...ctx.weddingContext.progress,
+  await patchJourneyProgress(ctx, {
     [category]: {
       ...(existing ?? { category }),
       category, status: newStatus, checklist: updated,
     },
-  };
-
-  const admin = getAdminClient();
-  const { error } = await admin
-    .from("wedding_journeys")
-    .update({ progress: newProgress })
-    .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-
-  ctx.weddingContext.progress = newProgress as ExecutionContext["weddingContext"]["progress"];
+  });
 
   return {
     toolName: "toggle_checklist_item", toolInput: input,
@@ -1258,14 +1146,67 @@ function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) 
   return weddingPath("/lounge");
 }
 
-async function saveProgress(ctx: ExecutionContext, progress: Record<string, unknown>) {
+/**
+ * wedding_journeys.progress 를 "변경된 최상위 키만" 원자적으로 병합한다.
+ * apply_journey_progress_patch RPC(20260611160000) 가 DB row lock 으로 현재 값을 읽어
+ * 병합하므로, 커플 2인이 서로 다른 키를 동시에 고쳐도 lost update 가 나지 않는다.
+ *
+ * RPC 가 아직 배포(마이그레이션 적용)되지 않았으면 기존 whole-blob 방식으로 폴백한다
+ * → 마이그레이션 적용 전에도 무중단. 적용되는 순간 자동으로 원자 경로로 전환된다.
+ *
+ * @param patch      교체/추가할 최상위 키 (예: { studio: {...} }, { __events: [...] })
+ * @param removeKeys 삭제할 최상위 키 (예: 카테고리 삭제/초기화)
+ */
+async function patchJourneyProgress(
+  ctx: ExecutionContext,
+  patch: Record<string, unknown>,
+  removeKeys: string[] = []
+): Promise<void> {
   const admin = getAdminClient();
-  const { error } = await admin
+  const { data, error } = await admin.rpc("apply_journey_progress_patch", {
+    p_couple_id: ctx.coupleId,
+    p_patch: patch,
+    p_remove_keys: removeKeys,
+  });
+
+  if (!error && data) {
+    ctx.weddingContext.progress = data as ExecutionContext["weddingContext"]["progress"];
+    return;
+  }
+
+  // 폴백: RPC 미배포(함수 없음) 또는 오류 시 기존 방식 — ctx 스냅샷 기반이라
+  // 동시수정 유실 위험이 남지만, RPC 적용 후 위 경로로 자동 해소된다.
+  const merged: Record<string, unknown> = { ...(ctx.weddingContext.progress as Record<string, unknown>) };
+  for (const key of removeKeys) delete merged[key];
+  Object.assign(merged, patch);
+  const { error: fallbackError } = await admin
     .from("wedding_journeys")
-    .update({ progress })
+    .update({ progress: merged })
     .eq("couple_id", ctx.coupleId);
-  if (error) throw error;
-  ctx.weddingContext.progress = progress as unknown as ExecutionContext["weddingContext"]["progress"];
+  if (fallbackError) throw fallbackError;
+  ctx.weddingContext.progress = merged as unknown as ExecutionContext["weddingContext"]["progress"];
+}
+
+/**
+ * 전체 progress 객체를 받아 이전 스냅샷과 diff 해 변경된 최상위 키만 원자적으로 반영.
+ * 기존 saveProgress 호출부(아모라 액션·log_wedding_event 등)는 그대로 두고도
+ * 원자 경로를 타게 하기 위한 호환 래퍼.
+ */
+async function saveProgress(ctx: ExecutionContext, progress: Record<string, unknown>) {
+  const prev = (ctx.weddingContext.progress ?? {}) as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  const removeKeys: string[] = [];
+
+  for (const key of Object.keys(progress)) {
+    if (JSON.stringify(progress[key]) !== JSON.stringify(prev[key])) {
+      patch[key] = progress[key];
+    }
+  }
+  for (const key of Object.keys(prev)) {
+    if (!(key in progress)) removeKeys.push(key);
+  }
+
+  await patchJourneyProgress(ctx, patch, removeKeys);
 }
 
 async function executeLogWeddingEvent(
