@@ -518,10 +518,6 @@ export default function LoginPage() {
           <Link href="/wedding" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
             ← 홈으로
           </Link>
-          <span className="text-[#e5d8ca]">|</span>
-          <Link href="/vendor/login" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
-            업체 파트너 로그인
-          </Link>
         </div>
       </motion.div>
     </div>

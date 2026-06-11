@@ -12,14 +12,8 @@ const CUSTOMER_PATHS = [
 ];
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
 // "스드메 시세" 류 검색 유입의 유일한 입구다.
-const VENDOR_PATHS = [
-  "/vendor/dashboard", "/vendor/profile", "/vendor/products", "/vendor/timeslots", "/vendor/bookings",
-  "/vendor/contracts", "/vendor/settlements", "/vendor/settings", "/vendor/messages", "/vendor/analytics", "/vendor/staff",
-];
-
-function isProtectedPath(pathname: string): "customer" | "vendor" | "admin" | null {
+function isProtectedPath(pathname: string): "customer" | "admin" | null {
   if (CUSTOMER_PATHS.some((p) => pathname.startsWith(p))) return "customer";
-  if (VENDOR_PATHS.some((p) => pathname.startsWith(p))) return "vendor";
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   return null;
@@ -44,7 +38,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 데모 모드는 고객 앱 shell에만 허용한다. 업체/관리자 보호 경로는 실제 인증 필요.
+  // 데모 모드는 고객 앱 shell에만 허용한다. 관리자 보호 경로는 실제 인증 필요.
   if (protectedType === "customer" && request.cookies.get("demo_mode")?.value === "true") {
     return supabaseResponse;
   }
@@ -80,13 +74,7 @@ export async function updateSession(request: NextRequest) {
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {
     const url = request.nextUrl.clone();
-    if (protectedType === "vendor") {
-      url.pathname = "/vendor/login";
-    } else if (protectedType === "admin") {
-      url.pathname = "/admin/login";
-    } else {
-      url.pathname = "/login";
-    }
+    url.pathname = protectedType === "admin" ? "/admin/login" : "/login";
     return NextResponse.redirect(url);
   }
 
