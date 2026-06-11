@@ -7,10 +7,9 @@ import {
 } from "@/constants/hiddenCosts";
 import {
   PRICE_PERIODS,
+  SDM_PACKAGES,
   getCategoryMarketPrice,
   getLatestPeriodId,
-  getNationalTotal,
-  getSeoulTotal,
 } from "@/constants/marketPrices";
 
 export type AmoraQuoteCategory = "sdm_package" | "studio" | "dress" | "makeup";
@@ -65,6 +64,8 @@ export interface AmoraQuoteCheckResult {
   scope: AmoraQuoteScope;
   quotePriceManwon: number;
   marketMedianManwon: number;
+  /** 어떤 기준가와 비교했는지 — UI에 그대로 표기 (예: "경기/인천 스드메 패키지 중위가") */
+  marketComparatorLabel: string;
   priceDiffPercent: number;
   /** 자동 분류된 가격대 (사용자 override 적용 후) */
   priceTier: AmoraPriceTier;
@@ -136,12 +137,61 @@ function toCheckItem(item: HiddenCostItem, scope: AmoraQuoteScope): AmoraQuoteCh
   };
 }
 
-function getMarketMedian(category: AmoraQuoteCategory, scope: AmoraQuoteScope): number {
+// 한국소비자원 스드메 패키지 통계의 지역 구분에 입력 지역을 매핑.
+// 서울(350만원대)과 경기/인천(230만원대)은 중위가가 50% 이상 차이나므로
+// scope(서울/전국) 2분법으로 뭉개면 진단이 정반대로 나올 수 있다 — 지역별 비교가 필수.
+const SDM_REGION_BY_QUOTE_REGION: Record<AmoraQuoteRegion, string> = {
+  seoul: "서울",
+  gyeonggi: "경기/인천",
+  busan: "5대광역시",
+  daegu: "5대광역시",
+  other: "기타지역",
+};
+
+function findSdmPackageRow(region: AmoraQuoteRegion) {
+  const pid = getLatestPeriodId();
+  const sdmRegion = SDM_REGION_BY_QUOTE_REGION[region];
+  return (
+    SDM_PACKAGES.find((row) => row.periodId === pid && row.region === sdmRegion) ??
+    SDM_PACKAGES.find((row) => row.periodId === pid && row.region === "전체")
+  );
+}
+
+function getMarketMedian(
+  category: AmoraQuoteCategory,
+  region: AmoraQuoteRegion,
+  scope: AmoraQuoteScope
+): { median: number; comparatorLabel: string } {
+  const scopeLabel = scope === "seoul" ? "서울" : "전국";
+
+  // 스드메 패키지·스튜디오는 지역별 패키지 통계가 있으므로 그것과 비교 —
+  // "패키지 견적 vs 패키지 중위가"로 비교 단위를 일치시킨다.
   if (category === "sdm_package") {
-    return scope === "seoul" ? getSeoulTotal().sdm : getNationalTotal().sdm;
+    const row = findSdmPackageRow(region);
+    return {
+      median: row?.packageMedian ?? 0,
+      comparatorLabel: `${row?.region ?? scopeLabel} 스드메 패키지 중위가`,
+    };
+  }
+  if (category === "studio") {
+    const row = findSdmPackageRow(region);
+    return {
+      median: row?.studioBasic ?? getCategoryMarketPrice("studio", scope) ?? 0,
+      comparatorLabel: `${row?.region ?? scopeLabel} 스튜디오 기본촬영 중위가`,
+    };
   }
 
-  return getCategoryMarketPrice(category, scope) ?? 0;
+  // 드레스·메이크업은 전국/서울 2단계 통계만 존재 — 비교 기준 항목을 명시한다.
+  if (category === "dress") {
+    return {
+      median: getCategoryMarketPrice("dress", scope) ?? 0,
+      comparatorLabel: `${scopeLabel} 본식 드레스 대여 중위가`,
+    };
+  }
+  return {
+    median: getCategoryMarketPrice("makeup", scope) ?? 0,
+    comparatorLabel: `${scopeLabel} 촬영 메이크업 중위가`,
+  };
 }
 
 function getVerdict(
@@ -239,15 +289,15 @@ function getSummaryCopy(result: {
       return {
         title:
           critical > 0
-            ? `한국 평균보다 현저히 낮은 견적 + 필수 항목 ${critical}개 누락`
-            : `한국 평균보다 현저히 낮은 견적 + 추가금 항목 ${nonCritical}개 누락`,
-        text: `평균보다 낮은 견적인데 ${phrase}이 빠져 있어요. 빠진 항목 기준 약 ${minHidden}~${maxHidden}만원이 추가 청구될 패턴이 흔해요.`,
+            ? `기준 시세보다 현저히 낮은 견적 + 필수 항목 ${critical}개 누락`
+            : `기준 시세보다 현저히 낮은 견적 + 추가금 항목 ${nonCritical}개 누락`,
+        text: `같은 지역 중위가보다 낮은 견적인데 ${phrase}이 빠져 있어요. 빠진 항목 기준 약 ${minHidden}~${maxHidden}만원이 추가 청구될 패턴이 흔해요.`,
         action: "낮은 견적일수록 빠진 항목과 추가금 상한을 계약서로 받아두세요. 구두 약속은 변경되기 쉬워요.",
       };
     }
     return {
-      title: `한국 평균 대비 낮은 견적이에요`,
-      text: `가격이 평균 대비 낮아요. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 누락 항목을 꼼꼼히 보세요. (빠진 항목 ${totalMissing}개)`,
+      title: `같은 지역 기준 시세 대비 낮은 견적이에요`,
+      text: `가격이 같은 지역 중위가 대비 낮아요. 가격을 낮춰 잡고 빠진 항목으로 추가 청구하는 패턴이 흔하므로 누락 항목을 꼼꼼히 보세요. (빠진 항목 ${totalMissing}개)`,
       action: "아래 질문을 업체에 그대로 보내고 답변을 받은 뒤 계약 여부를 결정하세요.",
     };
   }
@@ -297,7 +347,11 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
   const includedIdSet = new Set(input.includedItemIds);
   const included = allItems.filter((item) => includedIdSet.has(item.id));
   const missing = allItems.filter((item) => !includedIdSet.has(item.id));
-  const marketMedianManwon = getMarketMedian(input.category, scope);
+  const { median: marketMedianManwon, comparatorLabel: marketComparatorLabel } = getMarketMedian(
+    input.category,
+    input.region,
+    scope
+  );
   const priceDiffPercent =
     marketMedianManwon > 0
       ? Math.round(((input.quotePriceManwon - marketMedianManwon) / marketMedianManwon) * 100)
@@ -365,6 +419,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     scope,
     quotePriceManwon: input.quotePriceManwon,
     marketMedianManwon,
+    marketComparatorLabel,
     priceDiffPercent,
     priceTier,
     priceTierAutoInferred,

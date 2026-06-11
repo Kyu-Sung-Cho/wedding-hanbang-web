@@ -35,11 +35,11 @@ const PRICE_TIER_LABELS: Record<AmoraPriceTier, string> = {
 };
 
 const PRICE_TIER_DESCRIPTIONS: Record<AmoraPriceTier, string> = {
-  suspicious_low: "시장 평균보다 현저히 낮은 견적이에요 — 미끼 가격일 수 있어요",
-  standard: "한국소비자원 중위가 기준의 일반 가격대예요",
-  premium: "한국 평균의 1.3~2배 가격대예요 — 프리미엄 급",
+  suspicious_low: "같은 지역 중위가보다 현저히 낮은 견적이에요 — 미끼 가격일 수 있어요",
+  standard: "한국소비자원 같은 지역 중위가 기준의 일반 가격대예요",
+  premium: "같은 지역 중위가의 1.3~2배 가격대예요 — 프리미엄 급",
   highend:
-    "한국 평균의 2배 이상이라 평균값과의 비교는 의미가 적어요. 가격 비교 대신 빠진 항목과 추가금 가능성에 집중해서 봐주세요.",
+    "같은 지역 중위가의 2배 이상이라 평균값과의 비교는 의미가 적어요. 가격 비교 대신 빠진 항목과 추가금 가능성에 집중해서 봐주세요.",
 };
 
 const PRICE_TIER_PILL_STYLES: Record<AmoraPriceTier, string> = {
@@ -692,7 +692,10 @@ function ResultPanel({
       <div className={`mt-5 grid gap-3 ${result.showPriceComparison ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
         {result.showPriceComparison && (
-          <ResultMetric label="한국 평균 (참고)" value={formatManwon(result.marketMedianManwon)} />
+          <ResultMetric
+            label={`${result.marketComparatorLabel ?? "한국 평균"} (참고)`}
+            value={formatManwon(result.marketMedianManwon)}
+          />
         )}
         <ResultMetric
           label="빠진 항목 추가금 추정"
