@@ -79,3 +79,8 @@ Thumbs.db
 # Misc
 .cache
 .gstack/
+
+# QA/디자인 세션 스크린샷 산출물 (apps/web 루트에 생성됨 — 커밋 금지)
+apps/web/*.png
+apps/web/.screenshots/
+apps/web/.screenshots-test/
