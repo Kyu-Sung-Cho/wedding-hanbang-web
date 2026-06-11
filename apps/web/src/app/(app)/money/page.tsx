@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/stores/authStore";
-import { useInvitationStore } from "@/stores/invitationStore";
-import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/invitation.types";
+import { useMoneyStore } from "@/stores/moneyStore";
+import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/money.types";
 import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
@@ -18,7 +18,7 @@ const METHODS: { key: MoneyMethod; label: string }[] = [
 
 export default function MoneyPage() {
   const { couple } = useAuthStore();
-  const { moneyList, moneyLoading, loadMoney, addMoney, updateMoney, deleteMoney } = useInvitationStore();
+  const { moneyList, moneyLoading, loadMoney, addMoney, updateMoney, deleteMoney } = useMoneyStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");

@@ -18,8 +18,6 @@ export type CohortContractCategory = "venue" | "studio" | "dress" | "makeup" | "
 export type CohortEventType =
   | "venue_booked" | "studio_booked" | "dress_booked" | "makeup_booked"
   | "tour_done" | "contract_done" | "invitation_sent" | "progress_update" | "wedding_done";
-export type GuestRelation = "university_friend" | "work_colleague" | "family" | "old_friend" | "partner" | "other";
-export type GuestbookMessageType = "general" | "congratulations" | "speech" | "photo";
 
 // ────────────────────────────────────────
 // 프로필
@@ -294,59 +292,6 @@ export interface CohortStat {
   avg_base_price: number;
   avg_extra_price: number;
   avg_total: number;
-}
-
-// ────────────────────────────────────────
-// 방명록
-// ────────────────────────────────────────
-export interface Guestbook {
-  id: string;
-  owner_id: string;
-  slug: string;
-  bride_name: string;
-  groom_name: string;
-  wedding_date: string;
-  venue: string | null;
-  cover_image_url: string | null;
-  our_story: string | null;
-  proposal_story: string | null;
-  thank_you_message: string | null;
-  is_active: boolean;
-  message_count: number;
-  view_count: number;
-  rolling_paper_url: string | null;
-  rolling_paper_generated_at: string | null;
-  created_at: string;
-}
-
-export interface GuestbookPhoto {
-  id: string;
-  guestbook_id: string;
-  url: string;
-  caption: string | null;
-  position: number;
-  created_at: string;
-}
-
-export type GuestbookReactionType = "love" | "congrats" | "touched";
-
-export interface GuestbookMessageReactions {
-  counts: Record<GuestbookReactionType, number>;
-  mine: Record<GuestbookReactionType, boolean>;
-}
-
-export interface GuestbookMessage {
-  id: string;
-  guestbook_id: string;
-  guest_name: string;
-  relation: GuestRelation | null;
-  message: string;
-  image_url: string | null;
-  message_type: GuestbookMessageType;
-  is_approved: boolean;
-  created_at: string;
-  /** 서버에서 GET 응답에만 포함됨 (집계 + 호출자 IP가 누른 것). INSERT 응답에는 없음. */
-  reactions?: GuestbookMessageReactions;
 }
 
 // ────────────────────────────────────────
