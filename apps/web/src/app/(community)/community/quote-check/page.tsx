@@ -20,34 +20,11 @@ import {
   AMORA_QUOTE_CATEGORY_LABELS,
   AMORA_QUOTE_REGION_LABELS,
   getQuoteCheckItems,
-  type AmoraPriceTier,
   type AmoraQuoteCategory,
   type AmoraQuoteCheckResult,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
-
-const PRICE_TIER_LABELS: Record<AmoraPriceTier, string> = {
-  suspicious_low: "이상하게 낮은 가격대",
-  standard: "일반 가격대",
-  premium: "프리미엄 가격대",
-  highend: "하이엔드 가격대",
-};
-
-const PRICE_TIER_DESCRIPTIONS: Record<AmoraPriceTier, string> = {
-  suspicious_low: "같은 지역 중위가보다 현저히 낮은 견적이에요 — 미끼 가격일 수 있어요",
-  standard: "한국소비자원 같은 지역 중위가 기준의 일반 가격대예요",
-  premium: "같은 지역 중위가의 1.3~2배 가격대예요 — 프리미엄 급",
-  highend:
-    "같은 지역 중위가의 2배 이상이라 평균값과의 비교는 의미가 적어요. 가격 비교 대신 빠진 항목과 추가금 가능성에 집중해서 봐주세요.",
-};
-
-const PRICE_TIER_PILL_STYLES: Record<AmoraPriceTier, string> = {
-  suspicious_low: "bg-amber-50 text-amber-700 border-amber-200",
-  standard: "bg-sky-50 text-sky-700 border-sky-200",
-  premium: "bg-violet-50 text-violet-700 border-violet-200",
-  highend: "bg-slate-100 text-slate-700 border-slate-300",
-};
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
@@ -64,21 +41,21 @@ const SEVERITY_STYLES = {
   medium: "border-[#e5d8ca] bg-[#f6efe5] text-[#635b51]",
 } as const;
 
-// 톤: 평가가 아닌 정보 노출 — 빠진 항목이 많을수록 시각적 강도만 올림.
-const VERDICT_STYLES = {
-  safe: {
+// 톤: 평가가 아닌 정보 노출 — 빠진 항목 개수에서 시각적 강도만 유도.
+const INTENSITY_STYLES = {
+  clear: {
     icon: CheckCircle2,
     bg: "bg-white",
     border: "border-[#e5d8ca]",
     text: "text-[#263832]",
   },
-  caution: {
+  attention: {
     icon: ClipboardCheck,
     bg: "bg-[#f6efe5]",
     border: "border-[#e5d8ca]",
     text: "text-[#36534E]",
   },
-  danger: {
+  critical: {
     icon: AlertTriangle,
     bg: "bg-amber-50",
     border: "border-amber-200",
@@ -103,7 +80,6 @@ export default function AmoraQuoteCheckPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [priceTierOverride, setPriceTierOverride] = useState<AmoraPriceTier | null>(null);
 
   const items = useMemo(() => getQuoteCheckItems(category, region), [category, region]);
   const requiredItems = items.filter((item) => item.severity === "critical");
@@ -130,7 +106,7 @@ export default function AmoraQuoteCheckPage() {
     });
   };
 
-  const submit = async (overrideTier?: AmoraPriceTier | null) => {
+  const submit = async () => {
     setError(null);
     setLoading(true);
     setResult(null);
@@ -148,7 +124,6 @@ export default function AmoraQuoteCheckPage() {
           vendorName,
           memo,
           includedItemIds: [...includedItemIds],
-          userPriceTierOverride: overrideTier ?? priceTierOverride ?? undefined,
           bookingChannel,
           quoteStage,
         }),
@@ -162,16 +137,6 @@ export default function AmoraQuoteCheckPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleTierOverride = (tier: AmoraPriceTier) => {
-    setPriceTierOverride(tier);
-    void submit(tier);
-  };
-
-  const clearTierOverride = () => {
-    setPriceTierOverride(null);
-    void submit(null);
   };
 
   return (
@@ -352,14 +317,7 @@ export default function AmoraQuoteCheckPage() {
             </button>
           </section>
 
-          {result && (
-            <ResultPanel
-              result={result}
-              savedId={savedId}
-              onTierOverride={handleTierOverride}
-              onClearTierOverride={clearTierOverride}
-            />
-          )}
+          {result && <ResultPanel result={result} savedId={savedId} />}
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
@@ -451,22 +409,20 @@ function ItemGroup({
 function ResultPanel({
   result,
   savedId,
-  onTierOverride,
-  onClearTierOverride,
 }: {
   result: AmoraQuoteCheckResult;
   savedId: string | null;
-  onTierOverride: (tier: AmoraPriceTier) => void;
-  onClearTierOverride: () => void;
 }) {
-  const style = VERDICT_STYLES[result.verdict];
+  const missingTotal =
+    result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
+  const intensity =
+    result.missingCriticalCount > 0 ? "critical" : missingTotal > 0 ? "attention" : "clear";
+  const style = INTENSITY_STYLES[intensity];
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareSharing, setShareSharing] = useState(false);
   const [instaCopied, setInstaCopied] = useState(false);
-  const [showTierMenu, setShowTierMenu] = useState(false);
-  const isOverridden = result.priceTier !== result.priceTierAutoInferred;
 
   // missingItems 중 추가금 발생 가능성이 높은 것 우선 — 공유/포스트 노출용
   const topMissing = useMemo(() => {
@@ -519,10 +475,6 @@ function ResultPanel({
       });
       lines.push("");
     }
-    lines.push(
-      `예상 추가 청구: ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`
-    );
-    lines.push("");
     lines.push("이거 보통 이렇게 빠지나요? 추가 질문 받습니다 🙏");
     return lines.join("\n");
   }, [result, topMissing]);
@@ -549,7 +501,7 @@ function ResultPanel({
   // 공유 텍스트 — 빠진 세부 항목까지 포함 (이슈 6)
   const buildShareText = (compact = false) => {
     const head = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — ${result.summaryTitle}`;
-    const meta = `빠진 항목 ${result.missingCriticalCount + result.missingHighCount + result.missingMediumCount}개 · 추가금 추정 ${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`;
+    const meta = `견적서에서 확인 안 된 항목 ${missingTotal}개 (필수 ${result.missingCriticalCount}개)`;
     if (compact || topMissing.length === 0) return `${head}\n${meta}`;
 
     const detailLines = topMissing.slice(0, 5).map((item) => {
@@ -604,75 +556,6 @@ function ResultPanel({
 
   return (
     <section className={`mt-5 rounded-xl border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
-      {/* 가격대 분류 배너 — 사용자가 어느 가격대로 분석됐는지 명확히 + 보정 옵션 */}
-      <div className="mb-4 rounded-lg border border-white/60 bg-white/70 p-3 sm:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${PRICE_TIER_PILL_STYLES[result.priceTier]}`}
-              >
-                {PRICE_TIER_LABELS[result.priceTier]}
-              </span>
-              {isOverridden && (
-                <span className="text-[11px] text-[#928980]">
-                  · 직접 보정함 (자동: {PRICE_TIER_LABELS[result.priceTierAutoInferred]})
-                </span>
-              )}
-            </div>
-            <p className="mt-1.5 text-xs leading-5 text-[#635b51] sm:text-sm">
-              {PRICE_TIER_DESCRIPTIONS[result.priceTier]}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-col items-start sm:items-end">
-            <button
-              type="button"
-              onClick={() => setShowTierMenu((v) => !v)}
-              className="text-xs font-medium text-[#36534E] underline-offset-2 hover:underline"
-            >
-              {showTierMenu ? "닫기" : "이 분석이 안 맞아요"}
-            </button>
-            {isOverridden && (
-              <button
-                type="button"
-                onClick={onClearTierOverride}
-                className="mt-1 text-xs text-[#928980] underline-offset-2 hover:underline"
-              >
-                자동 분류로 되돌리기
-              </button>
-            )}
-          </div>
-        </div>
-        {showTierMenu && (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {(["suspicious_low", "standard", "premium", "highend"] as AmoraPriceTier[]).map(
-              (tier) => (
-                <button
-                  key={tier}
-                  type="button"
-                  onClick={() => {
-                    onTierOverride(tier);
-                    setShowTierMenu(false);
-                  }}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                    result.priceTier === tier
-                      ? "border-[#36534E] bg-[#f6efe5] text-[#263832]"
-                      : "border-[#e5d8ca] bg-white text-[#635b51] hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
-                  }`}
-                >
-                  <div className="text-sm font-medium text-[#263832]">
-                    {PRICE_TIER_LABELS[tier]}
-                  </div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-[#928980]">
-                    {PRICE_TIER_DESCRIPTIONS[tier]}
-                  </div>
-                </button>
-              )
-            )}
-          </div>
-        )}
-      </div>
-
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white ${style.text}`}>
@@ -688,22 +571,23 @@ function ResultPanel({
         </div>
       </div>
 
-      {/* 메트릭 카드 — 하이엔드는 한국 평균 비교 숨김 */}
-      <div className={`mt-5 grid gap-3 ${result.showPriceComparison ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+      {/* 메트릭 카드 — 전부 사실: 입력가 · 참고 시세(비교 기준 명시) · 빠진 항목 */}
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
-        {result.showPriceComparison && (
-          <ResultMetric
-            label={`${result.marketComparatorLabel ?? "한국 평균"} (참고)`}
-            value={formatManwon(result.marketMedianManwon)}
-          />
-        )}
         <ResultMetric
-          label="빠진 항목 추가금 추정"
-          value={`${formatManwon(result.estimatedHiddenMinManwon)}~${formatManwon(result.estimatedHiddenMaxManwon)}`}
+          label={`${result.marketComparatorLabel} (참고)`}
+          value={formatManwon(result.marketMedianManwon)}
         />
-        <ResultMetric label="합산 추정 (참고)" value={`${formatManwon(result.estimatedTotalMinManwon)}~${formatManwon(result.estimatedTotalMaxManwon)}`} />
+        <ResultMetric
+          label="견적서에서 확인 안 된 항목"
+          value={`${missingTotal}개 (필수 ${result.missingCriticalCount})`}
+        />
       </div>
+      <p className="mt-2 text-xs leading-5 text-[#928980]">
+        시세는 공공 통계 참고값이에요. 구성·시즌에 따라 크게 달라져서, 가격이 좋다·나쁘다는 판정은 하지 않아요.
+      </p>
 
+      {result.contractQuestions.length > 0 && (
       <div className="mt-5 rounded-lg bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-[#263832]">계약 전 그대로 보낼 질문</h3>
@@ -728,20 +612,6 @@ function ResultPanel({
           ))}
         </ul>
       </div>
-
-      {result.redFlags.length > 0 && (
-        <div className="mt-4 rounded-lg bg-white p-4">
-          <h3 className="text-sm font-semibold text-[#263832]">참고: 자주 보이는 패턴</h3>
-          <p className="mt-1 text-xs text-[#928980]">아래는 입력한 견적과 비슷한 형태에서 흔히 나타난 패턴이에요. 단정은 아니에요.</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {result.redFlags.map((flag) => (
-              <div key={flag.id} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-                <div className="text-sm font-medium text-amber-800">{flag.name}</div>
-                <div className="mt-1 text-xs leading-5 text-amber-800/80">{flag.description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#36534E]">

@@ -35,19 +35,14 @@ export async function GET(
 
     const analysis = data.analysis as AmoraQuoteCheckResult;
 
-    // 공개 가능 필드만 선별 — 개인정보, 협상 스크립트 등은 본인 페이지에서만
+    // 공개 가능 필드만 선별 — 개인정보, 협상 스크립트 등은 본인 페이지에서만.
+    // 점수·등급·판정·추정액은 제품에서 제거됨(사실만 노출) — 과거 저장분도 노출하지 않는다.
     const publicAnalysis = {
-      verdict: analysis.verdict,
-      grade: analysis.grade,
-      score: analysis.score,
       category: analysis.category,
       quotePriceManwon: analysis.quotePriceManwon,
       marketMedianManwon: analysis.marketMedianManwon,
+      marketComparatorLabel: analysis.marketComparatorLabel ?? null,
       priceDiffPercent: analysis.priceDiffPercent,
-      estimatedHiddenMinManwon: analysis.estimatedHiddenMinManwon,
-      estimatedHiddenMaxManwon: analysis.estimatedHiddenMaxManwon,
-      estimatedTotalMinManwon: analysis.estimatedTotalMinManwon,
-      estimatedTotalMaxManwon: analysis.estimatedTotalMaxManwon,
       missingCriticalCount: analysis.missingCriticalCount,
       missingHighCount: analysis.missingHighCount,
       missingMediumCount: analysis.missingMediumCount,

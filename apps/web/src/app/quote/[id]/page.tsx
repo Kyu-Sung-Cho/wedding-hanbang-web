@@ -15,6 +15,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 
 // 카톡 공유 진단 결과 페이지 — 공개 (RLS service role 우회).
 // 캐논 v2 referral 루프 핵심: 공유 받은 친구가 → "나도 진단 받기" CTA 클릭
+// 원칙: 판정(점수·등급·안전/위험) 없음 — 빠진 항목 개수와 출처 있는 참고 시세만.
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -26,24 +27,17 @@ interface PublicQuoteData {
   region: AmoraQuoteRegion;
   analysis: Pick<
     AmoraQuoteCheckResult,
-    | "verdict"
-    | "grade"
-    | "score"
     | "category"
     | "quotePriceManwon"
     | "marketMedianManwon"
     | "priceDiffPercent"
-    | "estimatedHiddenMinManwon"
-    | "estimatedHiddenMaxManwon"
-    | "estimatedTotalMinManwon"
-    | "estimatedTotalMaxManwon"
     | "missingCriticalCount"
     | "missingHighCount"
     | "missingMediumCount"
     | "summaryTitle"
     | "summaryText"
     | "sourceNote"
-  >;
+  > & { marketComparatorLabel?: string };
   createdAt: string;
 }
 
@@ -64,17 +58,11 @@ async function fetchQuoteData(id: string): Promise<PublicQuoteData | null> {
     category: data.category as AmoraQuoteCategory,
     region: data.region as AmoraQuoteRegion,
     analysis: {
-      verdict: analysis.verdict,
-      grade: analysis.grade,
-      score: analysis.score,
       category: analysis.category,
       quotePriceManwon: analysis.quotePriceManwon,
       marketMedianManwon: analysis.marketMedianManwon,
+      marketComparatorLabel: analysis.marketComparatorLabel,
       priceDiffPercent: analysis.priceDiffPercent,
-      estimatedHiddenMinManwon: analysis.estimatedHiddenMinManwon,
-      estimatedHiddenMaxManwon: analysis.estimatedHiddenMaxManwon,
-      estimatedTotalMinManwon: analysis.estimatedTotalMinManwon,
-      estimatedTotalMaxManwon: analysis.estimatedTotalMaxManwon,
       missingCriticalCount: analysis.missingCriticalCount,
       missingHighCount: analysis.missingHighCount,
       missingMediumCount: analysis.missingMediumCount,
@@ -106,7 +94,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     data.analysis.missingCriticalCount + data.analysis.missingHighCount;
 
   const title = `${regionLabel} ${categoryLabel} ${formatManwon(data.analysis.quotePriceManwon)} 견적 체크리스트 — 빠진 항목 ${missingTotal}개`;
-  const description = `${data.analysis.summaryTitle} · ${data.analysis.summaryText} · 추가금 추정 ${formatManwon(data.analysis.estimatedHiddenMinManwon)}~${formatManwon(data.analysis.estimatedHiddenMaxManwon)}`;
+  const description = `${data.analysis.summaryTitle} · ${data.analysis.summaryText}`;
 
   return {
     title,
@@ -121,11 +109,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-// 평가 라벨 대신, 빠진 항목 강도만 시각화
-const VERDICT_STYLES = {
-  safe: { icon: CheckCircle2, color: "text-[#1b1c1c]", bg: "bg-white", border: "border-[#e4e2e1]", label: "확인 완료 항목 위주" },
-  caution: { icon: ClipboardCheck, color: "text-[#795252]", bg: "bg-[#fffdfb]", border: "border-[#e4d8d1]", label: "확인 필요한 항목 있음" },
-  danger: { icon: AlertTriangle, color: "text-amber-800", bg: "bg-amber-50", border: "border-amber-200", label: "필수 항목 누락 있음" },
+// 평가 라벨이 아니라 "빠진 항목 강도"만 시각화 — 저장 시점과 무관하게 개수에서 유도
+const INTENSITY_STYLES = {
+  clear: { icon: CheckCircle2, color: "text-[#1b1c1c]", bg: "bg-white", border: "border-[#e4e2e1]", label: "주요 항목 확인됨" },
+  attention: { icon: ClipboardCheck, color: "text-[#795252]", bg: "bg-[#fffdfb]", border: "border-[#e4d8d1]", label: "확인 필요한 항목 있음" },
+  critical: { icon: AlertTriangle, color: "text-amber-800", bg: "bg-amber-50", border: "border-amber-200", label: "필수 항목 누락 있음" },
 } as const;
 
 export default async function PublicQuoteResultPage({ params }: PageProps) {
@@ -137,16 +125,18 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
   }
 
   const { analysis } = data;
-  const verdictStyle = VERDICT_STYLES[analysis.verdict] ?? VERDICT_STYLES.caution;
-  const VerdictIcon = verdictStyle.icon;
   const categoryLabel = AMORA_QUOTE_CATEGORY_LABELS[data.category];
   const regionLabel = AMORA_QUOTE_REGION_LABELS[data.region];
   const missingTotal =
     analysis.missingCriticalCount + analysis.missingHighCount + analysis.missingMediumCount;
+  const intensity =
+    analysis.missingCriticalCount > 0 ? "critical" : missingTotal > 0 ? "attention" : "clear";
+  const intensityStyle = INTENSITY_STYLES[intensity];
+  const IntensityIcon = intensityStyle.icon;
 
   const shareUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://hanbang.ai"}/quote/${data.id}`;
   const shareTitle = `${regionLabel} ${categoryLabel} ${formatManwon(analysis.quotePriceManwon)} 견적 체크리스트`;
-  const shareText = `${analysis.summaryTitle} — 빠진 항목 ${missingTotal}개, 추가금 추정 ${formatManwon(analysis.estimatedHiddenMinManwon)}~${formatManwon(analysis.estimatedHiddenMaxManwon)}`;
+  const shareText = `${analysis.summaryTitle} — 빠진 항목 ${missingTotal}개 (필수 ${analysis.missingCriticalCount}개)`;
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -175,33 +165,32 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
             {analysis.summaryTitle}
           </h1>
 
-          <div className={`mt-5 flex items-center gap-3 rounded-xl border ${verdictStyle.border} ${verdictStyle.bg} px-4 py-3`}>
-            <VerdictIcon className={`h-5 w-5 ${verdictStyle.color}`} />
+          <div className={`mt-5 flex items-center gap-3 rounded-xl border ${intensityStyle.border} ${intensityStyle.bg} px-4 py-3`}>
+            <IntensityIcon className={`h-5 w-5 ${intensityStyle.color}`} />
             <div>
-              <div className={`text-sm font-medium ${verdictStyle.color}`}>{verdictStyle.label}</div>
+              <div className={`text-sm font-medium ${intensityStyle.color}`}>{intensityStyle.label}</div>
               <div className="text-xs text-[#625b4d]">평가가 아닌 빠진 항목 카운트입니다</div>
             </div>
           </div>
 
           <p className="mt-5 text-sm leading-7 text-[#504444]">{analysis.summaryText}</p>
 
-          {/* 숫자 요약 */}
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {/* 숫자 요약 — 참고 시세 + 빠진 항목 (전부 사실) */}
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-lg bg-[#f6f3f2] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">한국 평균 대비 (참고)</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">
+                {analysis.marketComparatorLabel ?? "기준 시세"} (참고)
+              </div>
               <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
-                {analysis.priceDiffPercent >= 0 ? "+" : ""}
-                {analysis.priceDiffPercent}%
+                {formatManwon(analysis.marketMedianManwon)}
+                <span className="ml-1.5 text-xs font-medium text-[#928980]">
+                  대비 {analysis.priceDiffPercent >= 0 ? "+" : ""}
+                  {analysis.priceDiffPercent}%
+                </span>
               </div>
             </div>
             <div className="rounded-lg bg-[#f6f3f2] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">빠진 항목 추가금 추정</div>
-              <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
-                {formatManwon(analysis.estimatedHiddenMinManwon)}~{formatManwon(analysis.estimatedHiddenMaxManwon)}
-              </div>
-            </div>
-            <div className="rounded-lg bg-[#f6f3f2] p-3 col-span-2 sm:col-span-1">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">빠진 항목</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">견적서에서 확인 안 된 항목</div>
               <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
                 {missingTotal}개 (필수 {analysis.missingCriticalCount})
               </div>
@@ -226,7 +215,7 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
             <strong className="text-[#1b1c1c]">출처:</strong> {analysis.sourceNote}
           </p>
           <p>
-            견적의 좋고 나쁨을 평가하는 도구가 아닙니다. 결혼 처음 준비하면 빠뜨리기 쉬운 항목과 한국소비자원 평균 가격을 참고로 보여드릴 뿐이에요. 각자 예산·우선순위에 따라 적정선이 다르니, 최종 판단은 본인이 직접 하시고 큰 의사결정은 전문가 검토를 권장합니다.
+            견적의 좋고 나쁨을 평가하는 도구가 아닙니다. 결혼 처음 준비하면 빠뜨리기 쉬운 항목과 한국소비자원 같은 지역 중위가를 참고로 보여드릴 뿐이에요. 시세는 구성·시즌에 따라 크게 달라지니, 최종 판단은 본인이 직접 하시고 큰 의사결정은 전문가 검토를 권장합니다.
           </p>
         </div>
 

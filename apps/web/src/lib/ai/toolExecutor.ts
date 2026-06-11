@@ -3340,13 +3340,6 @@ function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): Too
     priceDiff: analysis.quotePriceManwon - analysis.marketMedianManwon,
     priceDiffPercent: analysis.priceDiffPercent,
     dataSource: analysis.sourceNote,
-    transparencyScore: analysis.score,
-    grade: analysis.grade,
-    verdict: analysis.verdict,
-    estimatedHiddenMin: analysis.estimatedHiddenMinManwon,
-    estimatedHiddenMax: analysis.estimatedHiddenMaxManwon,
-    estimatedTotalMin: analysis.estimatedTotalMinManwon,
-    estimatedTotalMax: analysis.estimatedTotalMaxManwon,
     missingItems: analysis.missingItems.map((item) => ({
       name: item.name,
       category: item.category,
@@ -3365,7 +3358,6 @@ function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): Too
     missingCriticalCount: analysis.missingCriticalCount,
     missingHighCount: analysis.missingHighCount,
     missingMediumCount: analysis.missingMediumCount,
-    redFlags: analysis.redFlags,
     summaryTitle: analysis.summaryTitle,
     summaryText: analysis.summaryText,
     recommendedAction: analysis.recommendedAction,
@@ -3379,7 +3371,10 @@ function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): Too
     toolInput: input,
     toolOutput: output,
     success: true,
-    displayMessage: `견적 분석 완료: 투명도 ${analysis.grade}등급(${analysis.score}점), 예상 실제 비용 ${analysis.estimatedTotalMinManwon}~${analysis.estimatedTotalMaxManwon}만원`,
+    displayMessage:
+      analysis.missingCriticalCount + analysis.missingHighCount + analysis.missingMediumCount > 0
+        ? `견적 체크 완료: 필수 ${analysis.missingCriticalCount}개·추가금 항목 ${analysis.missingHighCount + analysis.missingMediumCount}개가 견적서에서 확인되지 않았어요`
+        : "견적 체크 완료: 체크리스트의 주요 항목이 모두 견적서에 명시돼 있어요",
   };
 }
 

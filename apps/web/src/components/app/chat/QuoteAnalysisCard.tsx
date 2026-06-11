@@ -30,14 +30,6 @@ const SEVERITY_STYLES = {
   medium: { bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", badge: "bg-slate-100 text-slate-600", label: "선택" },
 };
 
-const GRADE_STYLES: Record<string, { bg: string; text: string }> = {
-  A: { bg: "bg-emerald-50", text: "text-emerald-700" },
-  B: { bg: "bg-blue-50", text: "text-blue-700" },
-  C: { bg: "bg-amber-50", text: "text-amber-700" },
-  D: { bg: "bg-orange-50", text: "text-orange-700" },
-  F: { bg: "bg-red-50", text: "text-red-700" },
-};
-
 interface ChecklistItem {
   id: string;
   name: string;
@@ -277,22 +269,15 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
   const quotePrice = (data.quotePrice as number) || 0;
   const category = (data.category as string) || "sdm_package";
-  const grade = (data.grade as string) || "C";
-  const score = (data.transparencyScore as number) || 0;
   const marketMedian = (data.marketMedian as number) || 0;
+  const marketComparatorLabel = (data.marketComparatorLabel as string) || "기준 시세 중위가";
   const priceDiffPercent = (data.priceDiffPercent as number) || 0;
-  const estimatedHiddenMin = (data.estimatedHiddenMin as number) || 0;
-  const estimatedHiddenMax = (data.estimatedHiddenMax as number) || 0;
-  const estimatedTotalMin = (data.estimatedTotalMin as number) || 0;
-  const estimatedTotalMax = (data.estimatedTotalMax as number) || 0;
   const missingItems = (data.missingItems as MissingItem[]) || [];
   const includedItems = (data.includedItems as { name: string; category: string; severity: string }[]) || [];
-  const redFlags = (data.redFlags as { id: string; name: string; description: string }[]) || [];
   const dataSource = (data.dataSource as string) || "";
   const statsNote = (data.statsNote as string) || "";
   const vendorName = (data.vendorName as string) || "";
 
-  const gradeStyle = GRADE_STYLES[grade] || GRADE_STYLES.C;
   const missingCritical = missingItems.filter((i) => i.severity === "critical");
   const missingHigh = missingItems.filter((i) => i.severity === "high");
   const missingMedium = missingItems.filter((i) => i.severity === "medium");
@@ -303,87 +288,50 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
-      {/* 헤더 */}
+      {/* 헤더 — 판정(점수·등급) 없이 빠진 항목 개수만 */}
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-6 py-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-white/50 font-medium tracking-wider uppercase">AI 견적 분석 리포트</p>
+            <p className="text-sm text-white/50 font-medium tracking-wider uppercase">견적 체크리스트</p>
             <p className="text-[1.0625rem] text-white font-medium mt-1">
               {vendorName || CATEGORY_LABELS[category] || "스드메"} 견적
             </p>
           </div>
-          <div className={`w-16 h-16 rounded-2xl ${gradeStyle.bg} flex flex-col items-center justify-center`}>
-            <span className={`text-2xl font-bold ${gradeStyle.text}`}>{grade}</span>
-            <span className={`text-xs ${gradeStyle.text} -mt-0.5`}>{score}점</span>
+          <div className="rounded-2xl bg-white/10 px-3 py-2 text-center">
+            <p className="text-xl font-bold text-white">{missingItems.length}</p>
+            <p className="text-xs text-white/60 -mt-0.5">확인 안 됨</p>
           </div>
         </div>
       </div>
 
-      {/* 핵심 수치 3개 */}
+      {/* 핵심 수치 — 전부 사실 */}
       <div className="grid grid-cols-3 divide-x divide-black/[0.06] border-b border-black/[0.06]">
         <div className="px-3 py-3.5 text-center">
           <p className="text-sm text-[#B5ADA3]">견적가</p>
           <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{quotePrice}만</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">예상 추가금</p>
-          <p className="text-lg font-semibold text-red-600 mt-1">
-            +{estimatedHiddenMin}~{estimatedHiddenMax}만
-          </p>
+          <p className="text-sm text-[#B5ADA3]">참고 중위가</p>
+          <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{marketMedian}만</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">예상 실제 비용</p>
-          <p className="text-lg font-semibold text-[#1A1A1F] mt-1">
-            {estimatedTotalMin}~{estimatedTotalMax}만
+          <p className="text-sm text-[#B5ADA3]">필수 누락</p>
+          <p className={`text-lg font-semibold mt-1 ${missingCritical.length > 0 ? "text-amber-700" : "text-[#1A1A1F]"}`}>
+            {missingCritical.length}개
           </p>
         </div>
       </div>
 
-      {/* 시세 비교 */}
+      {/* 시세 참고 — 비교 기준을 명시, 판정 없음 */}
       <div className="px-5 py-3.5 border-b border-black/[0.06]">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="text-sm text-[#928980]">시세 대비</span>
-          <span className="text-xs text-[#B5ADA3]">{dataSource}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${priceDiffPercent > 20 ? "bg-red-400" : priceDiffPercent < -30 ? "bg-amber-400" : "bg-emerald-400"}`}
-              style={{ width: `${Math.max(10, Math.min(100, 50 + priceDiffPercent))}%` }}
-            />
-          </div>
-          <span className={`text-base font-semibold ${
-            priceDiffPercent > 20 ? "text-red-600" : priceDiffPercent < -30 ? "text-amber-600" : "text-emerald-600"
-          }`}>
-            {priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent}%
-          </span>
-        </div>
+        <p className="text-sm text-[#1A1A1F]">
+          {marketComparatorLabel} {marketMedian}만원 대비{" "}
+          <b>{priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent}%</b>
+        </p>
         <p className="text-xs text-[#B5ADA3] mt-1.5">
-          시세 중위값 {marketMedian}만원 기준
-          {priceDiffPercent < -30 && " · ⚠️ 기본가가 지나치게 낮을 수 있음"}
+          {dataSource} · 구성·시즌에 따라 달라지는 참고값이에요
         </p>
       </div>
-
-      {/* 레드플래그 */}
-      {redFlags.length > 0 && (
-        <div className="px-5 py-3.5 border-b border-black/[0.06] bg-red-50/50">
-          <div className="flex items-center gap-2 mb-2.5">
-            <AlertTriangle className="w-5 h-5 text-red-500" />
-            <span className="text-base font-semibold text-red-700">레드플래그 {redFlags.length}건</span>
-          </div>
-          <div className="space-y-2">
-            {redFlags.map((flag) => (
-              <div key={flag.id} className="flex items-start gap-2">
-                <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-red-700">{flag.name}</p>
-                  <p className="text-xs text-red-600/70">{flag.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 빠진 항목 */}
       <div className="border-b border-black/[0.06]">
