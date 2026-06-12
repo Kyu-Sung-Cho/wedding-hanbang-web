@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 
 // Admin 클라이언트 (service role key)
 function getAdminSupabase() {
@@ -39,8 +39,7 @@ export async function POST(request: Request) {
     });
     if (ipLimited) return ipLimited;
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const emailLimited = checkRateLimit(`signup-email:${normalizedEmail}`, {
+    const emailLimited = checkRateLimit(`signup-email:${normalizeEmailForRateLimit(email)}`, {
       maxRequests: 3,
       windowMs: 60 * 60 * 1000,
     });

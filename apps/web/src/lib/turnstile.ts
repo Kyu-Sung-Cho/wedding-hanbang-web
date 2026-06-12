@@ -35,12 +35,32 @@ export async function verifyTurnstile(
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
+      // siteverify 지연으로 가입 표면이 무방비 통과 모드에 빠지지 않도록 타임아웃.
+      signal: AbortSignal.timeout(5000),
     });
     const data = (await res.json()) as { success?: boolean };
     return { ok: data.success === true, skipped: false };
   } catch {
-    // 검증 서버 장애 시 가입을 완전히 막지 않는다(fail-open) — 단,
-    // 시크릿이 설정된 상태이므로 정상 경로에선 거의 발생하지 않는다.
-    return { ok: true, skipped: true };
+    // fail-closed: 시크릿이 설정됐는데 검증을 못 했다면 가입을 거부한다.
+    // (이메일 폭탄 방어가 목적인 표면이라, 장애 시 통과보다 거부가 안전.
+    //  시크릿 미설정 시는 위에서 이미 통과 반환하므로 영향 없음.)
+    return { ok: false, skipped: false };
   }
+}
+
+// 이메일 기반 rate limit 키를 위한 정규화 — Gmail dot/plus 별칭을 하나로 합쳐
+// victim+1@, v.i.c.t.i.m@ 같은 변형으로 이메일당 한도를 우회하는 폭탄을 막는다.
+export function normalizeEmailForRateLimit(raw: string): string {
+  const email = String(raw).trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  if (at < 0) return email;
+  let local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    local = local.split("+")[0].replace(/\./g, "");
+    return `${local}@gmail.com`;
+  }
+  // 그 외 도메인은 plus 별칭만 제거(점은 도메인마다 의미가 달라 보존).
+  local = local.split("+")[0];
+  return `${local}@${domain}`;
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 
 function getAdminSupabase() {
   return createClient(
@@ -11,11 +13,29 @@ function getAdminSupabase() {
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, turnstileToken } = await request.json();
 
     if (!email) {
       return NextResponse.json({ error: "이메일을 입력해주세요." }, { status: 400 });
     }
+
+    // signup과 동일한 발송 표면 — Turnstile + rate limit으로 이메일 폭탄을 막는다.
+    // enumeration 방지를 위해 차단 시에도 동일하게 success를 반환(무발송)한다.
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const turnstile = await verifyTurnstile(turnstileToken, clientIp);
+    if (!turnstile.ok) {
+      return NextResponse.json({ success: true });
+    }
+    const ipLimited = checkRateLimit(rateLimitKey("forgot", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return NextResponse.json({ success: true });
+    const emailLimited = checkRateLimit(`forgot-email:${normalizeEmailForRateLimit(email)}`, {
+      maxRequests: 3,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (emailLimited) return NextResponse.json({ success: true });
 
     const supabase = getAdminSupabase();
 
