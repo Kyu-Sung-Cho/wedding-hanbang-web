@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 // Admin 클라이언트 (service role key)
 function getAdminSupabase() {
@@ -13,10 +14,22 @@ function getAdminSupabase() {
 
 export async function POST(request: Request) {
   try {
-    const { email, password, name } = await request.json();
+    const { email, password, name, turnstileToken } = await request.json();
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
+    }
+
+    // Cloudflare Turnstile — 봇/스크립트 차단(임의 피해자 이메일 폭탄 방어의 핵심).
+    // 시크릿 미설정 시 자동 통과(no-op)라 키 발급 전에도 가입은 정상 동작.
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const clientIp = forwardedFor?.split(",")[0]?.trim();
+    const turnstile = await verifyTurnstile(turnstileToken, clientIp);
+    if (!turnstile.ok) {
+      return NextResponse.json(
+        { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
+        { status: 400 }
+      );
     }
 
     // IP당 + 이메일당 rate limit — 가입 폭주·Resend 메일 폭탄 방어

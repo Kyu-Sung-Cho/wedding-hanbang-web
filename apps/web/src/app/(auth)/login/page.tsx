@@ -6,6 +6,9 @@ import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
+
+const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -44,6 +47,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -116,6 +120,10 @@ export default function LoginPage() {
         setError("비밀번호가 일치하지 않습니다.");
         return;
       }
+      if (TURNSTILE_ENABLED && !turnstileToken) {
+        setError("봇 확인을 완료해주세요.");
+        return;
+      }
     }
 
     setLoading("email");
@@ -133,7 +141,7 @@ export default function LoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({ email, password, name, turnstileToken }),
         });
         const result = await res.json();
         if (!res.ok) {
@@ -373,6 +381,11 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {/* 봇 확인 — 회원가입 모드 + 사이트키 설정 시에만 노출 */}
+                {mode === "signup" && TURNSTILE_ENABLED && (
+                  <TurnstileWidget onVerify={setTurnstileToken} />
+                )}
+
                 {error && (
                   <p className="text-[12px] text-[#9A6B62] px-1">{error}</p>
                 )}
@@ -388,7 +401,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim())) || (mode === "forgot" && !email)}
+                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && !email)}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
