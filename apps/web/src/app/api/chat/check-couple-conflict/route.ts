@@ -26,6 +26,9 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-detector";
 import { extractMediation } from "@/lib/ai/mediation";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
+import { logAIInteraction } from "@/lib/compliance/ai-log";
 
 const MEDIATION_MODEL = "claude-sonnet-4-6";
 const MEDIATION_COOLDOWN_MIN = 10;
@@ -49,13 +52,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
+    // Rate limit — 이 라우트는 mediation 시 LLM(Sonnet)을 호출하므로, 메인 채팅과
+    // 별개로 호출 빈도를 제한해 borderline 구간 반복 호출로 인한 LLM 폭주를 막는다.
+    const limited = checkRateLimit(rateLimitKey("conflict-check", req, user.id), {
+      maxRequests: 30,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return NextResponse.json({ triggered: false, reason: "rate_limited" });
+
     const body = (await req.json().catch(() => ({}))) as { coupleId?: string };
     const requestCoupleId = body.coupleId;
 
     const admin = getAdminClient();
     const { data: profile } = await admin
       .from("profiles")
-      .select("couple_id, role, name")
+      .select("couple_id, role, name, is_admin")
       .eq("id", user.id)
       .single();
 
@@ -65,6 +76,16 @@ export async function POST(req: NextRequest) {
     }
     if (requestCoupleId && requestCoupleId !== coupleId) {
       return NextResponse.json({ triggered: false, reason: "couple_mismatch" }, { status: 403 });
+    }
+
+    // 비용 가드 — mediation LLM 호출도 메인 채팅과 같은 장부(chat_turn)를 공유한다.
+    // 상한 도달 시 detector 실행 전에 차단(가드 밖 LLM 호출 사각지대 제거).
+    const guard = await checkAmoraCostGuard(admin, {
+      coupleId,
+      isAdmin: profile?.is_admin === true,
+    });
+    if (!guard.allowed) {
+      return NextResponse.json({ triggered: false, reason: "cost_guard" });
     }
 
     // ── 2. cooldown 락 — 최근 10분 mediation 메시지 검사 ──────
@@ -309,6 +330,21 @@ export async function POST(req: NextRequest) {
       })
       .select("id")
       .single();
+
+    // mediation LLM 호출을 비용 장부(chat_turn)에 기록 — costGuard 카운트에 편입.
+    void logAIInteraction({
+      userId: user.id,
+      coupleId,
+      interactionType: "chat_turn",
+      specialistType: "general",
+      userInput: detection.conflictContext ?? "",
+      aiOutput: cleanText,
+      success: true,
+      model: MEDIATION_MODEL,
+      tokensInput: completion.usage?.input_tokens ?? null,
+      tokensOutput: completion.usage?.output_tokens ?? null,
+      metadata: { source: "auto_conflict_detection", score: detection.score },
+    });
 
     return NextResponse.json({
       triggered: true,

@@ -1157,11 +1157,13 @@ export async function POST(request: Request) {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error("채팅 API 에러:", errMsg);
+        // 내부 에러 원문(모델명·스택·DB 제약 등)을 클라이언트에 노출하지 않는다.
+        // 원문은 위 console.error·아래 logAIInteraction에만 남긴다.
         send({
           type: "error",
           message: errMsg.includes("timeout") || errMsg.includes("abort")
             ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-            : `AI 응답 생성에 실패했습니다: ${errMsg}`,
+            : "AI 응답 생성에 실패했어요. 잠시 후 다시 시도해주세요.",
         });
 
         // D1: 실패 turn 로깅 (fire-and-forget)

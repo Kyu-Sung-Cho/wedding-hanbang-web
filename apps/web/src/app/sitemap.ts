@@ -12,8 +12,6 @@ function getServiceClient() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = getServiceClient();
-
   // 정적 페이지
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -35,6 +33,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      url: `${BASE_URL}/wedding/community/quote-check`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
       url: `${BASE_URL}/login`,
       lastModified: new Date(),
       changeFrequency: "monthly",
@@ -42,12 +46,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // 커뮤니티 게시글 동적 페이지
+  // 환경변수 미설정 시 정적 페이지만 반환 (sitemap.xml 전체 500 방지)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return staticPages;
+  }
+
+  // 커뮤니티 게시글 동적 페이지 — 공개(public) 글만. draft·members 글은
+  // 크롤러가 401/404를 받으므로 제외(크롤 품질·비공개 ID 누출 방지).
   let communityPages: MetadataRoute.Sitemap = [];
   try {
+    const supabase = getServiceClient();
     const { data: posts } = await supabase
       .from("community_posts")
       .select("id, updated_at")
+      .eq("visibility", "public")
       .order("updated_at", { ascending: false })
       .limit(5000);
 

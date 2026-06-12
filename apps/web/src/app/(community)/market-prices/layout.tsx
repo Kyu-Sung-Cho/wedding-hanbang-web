@@ -10,6 +10,10 @@ export const metadata: Metadata = {
     title: "스드메·웨딩 시세표 — 한국소비자원 참가격 기준",
     description: "웨딩 평균 가격 공개, 출처 명기, 무료 열람.",
     url: "/wedding/market-prices",
+    siteName: "웨딩한방",
+    locale: "ko_KR",
+    type: "article",
+    images: [{ url: "/images/og-image.png", width: 1200, height: 630, alt: "웨딩한방 웨딩 시세표" }],
   },
 };
 

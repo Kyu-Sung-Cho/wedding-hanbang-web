@@ -10,6 +10,10 @@ export const metadata: Metadata = {
     title: "스드메 견적 체크리스트 — 계약 전 빠진 항목 확인",
     description: "빠진 항목 + 소비자원 평균가 + 계약 전 질문. 로그인 없이 무료.",
     url: "/wedding/community/quote-check",
+    siteName: "웨딩한방",
+    locale: "ko_KR",
+    type: "article",
+    images: [{ url: "/images/og-image.png", width: 1200, height: 630, alt: "웨딩한방 견적 체크리스트" }],
   },
 };
 

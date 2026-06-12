@@ -34,10 +34,10 @@ export async function POST(request: Request) {
       role,
       coupleAction,
       partnerInviteCode,
-      weddingDate,
-      venue,
+      weddingDate: rawWeddingDate,
+      venue: rawVenue,
       sanggyeonryeDate,
-      totalBudget,
+      totalBudget: rawTotalBudget,
       progress,
     } = body;
 
@@ -47,6 +47,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // 입력 검증 — 인증·커플 스코프지만 거대 숫자/음수/무제한 텍스트가 예산 계산·
+    // 표시를 깨뜨릴 수 있어 경계에서 정규화한다.
+    const weddingDate =
+      typeof rawWeddingDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawWeddingDate)
+        ? rawWeddingDate
+        : null;
+    const venue =
+      typeof rawVenue === "string" && rawVenue.trim() ? rawVenue.trim().slice(0, 100) : null;
+    const budgetNum = Number(rawTotalBudget);
+    const totalBudget =
+      Number.isFinite(budgetNum) && budgetNum > 0 && budgetNum <= 10_000_000_000
+        ? Math.round(budgetNum)
+        : null;
 
     // 상견례 날짜를 받으면 모멘트 루프 연료로 progress.__events에 태깅 저장.
     // (D-3/D-1/D+1에 아모라가 먼저 챙기는 첫 관계 모멘트 — moments.ts:sanggyeonrye)
