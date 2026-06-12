@@ -965,7 +965,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             const parsed = JSON.parse(errText);
             if (typeof parsed?.error === "string" && parsed.error) friendly = parsed.error;
           } catch { /* errText가 JSON이 아니면 기본 문구 */ }
-          throw new Error(friendly);
+          const quotaErr = new Error(friendly);
+          quotaErr.name = "QuotaError"; // catch에서 메시지를 그대로 노출하기 위한 마커
+          throw quotaErr;
         }
         throw new Error(`AI 응답 실패 (${res.status})`);
       }
@@ -1008,10 +1010,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     } catch (err) {
       console.error("AI 응답 에러:", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const isQuota = err instanceof Error && err.name === "QuotaError";
       set({
         error: isAbort
           ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-          : "AI 응답을 받지 못했습니다.",
+          : isQuota
+            ? err.message // 비용 가드의 친화적 안내 그대로 노출
+            : "AI 응답을 받지 못했습니다.",
       });
     } finally {
       set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });

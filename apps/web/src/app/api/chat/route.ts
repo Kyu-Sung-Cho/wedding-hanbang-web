@@ -498,10 +498,9 @@ export async function POST(request: Request) {
   }
 
   // 비용 가드레일 — 커플 누적/전역 일일 상한 (유통 테스트 전 지갑 보호).
-  // 데모·관리자는 면제. 차단 시 429로 친화적 안내.
+  // 면제는 DB로 검증된 is_admin만 — body의 isDemo는 클라이언트 조작 가능이라 신뢰 금지.
   const costGuard = await checkAmoraCostGuard(getServiceClient(), {
     coupleId,
-    isDemo,
     isAdmin: userProfile?.is_admin === true,
   });
   if (!costGuard.allowed) {

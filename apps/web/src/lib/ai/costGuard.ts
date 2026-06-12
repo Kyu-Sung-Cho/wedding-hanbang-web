@@ -1,11 +1,17 @@
 // 아모라(Claude) 비용 가드레일 — 유통 테스트 전 지갑 보호용.
 //
 // 두 겹의 차단기:
-//  1) 커플당 누적 무료 메시지 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
-//  2) 전역 일일 메시지 상한 — 정상 유저가 많아도 하루 총비용에 천장(서킷브레이커).
+//  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
+//  2) 전역 일일 상한 — 정상 유저가 많아도 하루 총비용에 천장(서킷브레이커).
 //
-// 카운트는 chat_messages(role='user')를 DB에서 직접 세므로 서버리스에서도 정확
-// (인메모리 rate limit과 달리 인스턴스 간 공유됨). service_role로 호출해 RLS 우회.
+// 카운트 기준은 ai_interactions_log의 chat_turn — 모든 LLM 턴이 isDemo·저장 여부와
+// 무관하게 무조건 기록되는 비용 장부라 클라이언트가 어떤 값을 조작해도 속일 수 없다.
+// (chat_messages 기준은 두 번 기각: ①user 메시지 카운트는 파트너 메시지(비용 0)까지
+// 깎아 부당 차단 ②AI 메시지 카운트는 isDemo 위조 시 저장 스킵으로 카운트 우회 가능)
+// DB 카운트라 서버리스에서도 정확. service_role로 RLS 우회.
+//
+// ⚠️ 면제는 is_admin(DB 검증)만. 클라이언트가 보내는 값(body의 isDemo 등)으로
+// 면제하면 안 됨 — 인증 유저가 그 값을 조작해 가드를 우회할 수 있다.
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
 //   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
@@ -26,20 +32,19 @@ export interface CostGuardResult {
 
 const ALLOW: CostGuardResult = { allowed: true };
 
-// 커플(또는 데모) 단위로 아모라 사용 가능 여부 판정. user 역할 메시지만 카운트.
+// 커플 단위로 아모라 사용 가능 여부 판정. LLM 턴 로그 수로 비용을 추정.
 export async function checkAmoraCostGuard(
   admin: SupabaseClient,
-  params: { coupleId: string; isDemo: boolean; isAdmin: boolean }
+  params: { coupleId: string; isAdmin: boolean }
 ): Promise<CostGuardResult> {
-  // 데모는 별도 분기에서 실제 API를 태우지 않음 + 관리자 면제 + 킬스위치 off
-  if (!GUARD_ENABLED || params.isDemo || params.isAdmin) return ALLOW;
+  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
 
-  // 1) 전역 일일 상한 — KST 자정 기준 오늘 발생한 모든 user 메시지 수
+  // 1) 전역 일일 상한 — KST 자정 기준 오늘 발생한 LLM 턴 수
   const startOfTodayKstUtc = getStartOfTodayKstAsUtcIso();
   const { count: globalToday, error: globalErr } = await admin
-    .from("chat_messages")
+    .from("ai_interactions_log")
     .select("id", { count: "exact", head: true })
-    .eq("role", "user")
+    .eq("interaction_type", "chat_turn")
     .gte("created_at", startOfTodayKstUtc);
 
   if (globalErr) {
@@ -56,12 +61,12 @@ export async function checkAmoraCostGuard(
     };
   }
 
-  // 2) 커플 누적 무료 상한
+  // 2) 커플 누적 무료 상한 — 이 커플이 발생시킨 LLM 턴 수
   const { count: coupleTotal, error: coupleErr } = await admin
-    .from("chat_messages")
+    .from("ai_interactions_log")
     .select("id", { count: "exact", head: true })
     .eq("couple_id", params.coupleId)
-    .eq("role", "user");
+    .eq("interaction_type", "chat_turn");
 
   if (coupleErr) {
     console.error("[costGuard] 커플 카운트 실패 (통과 처리):", coupleErr.message);

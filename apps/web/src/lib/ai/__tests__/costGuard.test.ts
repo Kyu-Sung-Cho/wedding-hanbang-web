@@ -28,7 +28,7 @@ function makeAdmin(counts: { global?: number; couple?: number; error?: boolean }
   } as never;
 }
 
-const BASE = { coupleId: "c1", isDemo: false, isAdmin: false };
+const BASE = { coupleId: "c1", isAdmin: false };
 
 describe("checkAmoraCostGuard", () => {
   const ENV = process.env;
@@ -41,11 +41,6 @@ describe("checkAmoraCostGuard", () => {
   });
   afterEach(() => {
     process.env = ENV;
-  });
-
-  it("데모는 카운트 없이 통과", async () => {
-    const r = await checkAmoraCostGuard(makeAdmin({ global: 9999, couple: 9999 }), { ...BASE, isDemo: true });
-    expect(r.allowed).toBe(true);
   });
 
   it("관리자는 면제", async () => {
