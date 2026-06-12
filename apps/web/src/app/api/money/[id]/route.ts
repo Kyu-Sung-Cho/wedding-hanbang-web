@@ -55,6 +55,18 @@ export async function PATCH(
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });
     }
+    // amount가 수정 대상이면 POST와 동일하게 범위 검증
+    if ("amount" in update) {
+      const amount = Number(update.amount);
+      if (!Number.isInteger(amount) || amount < 0 || amount > 100_000_000) {
+        return NextResponse.json({ error: "금액을 0~1억원 사이 숫자로 입력해주세요." }, { status: 400 });
+      }
+      update.amount = amount;
+    }
+    if (typeof update.guest_name === "string") {
+      update.guest_name = update.guest_name.trim().slice(0, 60);
+      if (!update.guest_name) return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("congratulatory_money")

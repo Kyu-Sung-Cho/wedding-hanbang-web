@@ -57,16 +57,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "커플 정보 없음" }, { status: 400 });
     }
 
+    // 입력 검증 — amount는 INTEGER 컬럼에 CHECK 제약이 없어 음수·비정수·오버플로가
+    // 합계를 왜곡하거나 500을 유발할 수 있다. 경계에서 막는다.
+    const amount = Number(body.amount);
+    if (!Number.isInteger(amount) || amount < 0 || amount > 100_000_000) {
+      return NextResponse.json({ error: "금액을 0~1억원 사이 숫자로 입력해주세요." }, { status: 400 });
+    }
+    const guestName = typeof body.guest_name === "string" ? body.guest_name.trim().slice(0, 60) : "";
+    if (!guestName) {
+      return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("congratulatory_money")
       .insert({
         couple_id: profile.couple_id,
-        guest_name: body.guest_name,
-        amount: body.amount,
+        guest_name: guestName,
+        amount,
         side: body.side,
         relation: body.relation,
         method: body.method || "cash",
-        memo: body.memo,
+        memo: typeof body.memo === "string" ? body.memo.slice(0, 500) : null,
         received_at: body.received_at || new Date().toISOString().slice(0, 10),
       })
       .select()

@@ -86,8 +86,12 @@ export async function POST(req: Request) {
           return { year, quarter, month: quarterToMonth(quarter) };
         })();
 
-    // 4. 기존 RPC 호출 (인원 30 자동 분할 + 멤버 등록 + community_profiles wedding_year/month 갱신)
-    const { data: roomId, error: rpcError } = await supabase.rpc("community_assign_cohort", {
+    // 4. 기존 RPC 호출 (인원 30 자동 분할 + 멤버 등록 + community_profiles wedding_year/month 갱신).
+    //    ⚠️ service client로 호출 — 이 RPC는 p_user_id를 파라미터로 받아 auth.uid() 강제가
+    //    안 되므로 authenticated EXECUTE를 회수했다(마이그레이션). 라우트가 세션의 user.id만
+    //    넘기므로 타인 강제 배정(IDOR)이 불가능하다.
+    const serviceClient = getServiceClient();
+    const { data: roomId, error: rpcError } = await serviceClient.rpc("community_assign_cohort", {
       p_user_id: user.id,
       p_year: target.year,
       p_month: target.month,
@@ -102,7 +106,6 @@ export async function POST(req: Request) {
     }
 
     if (roomId) {
-      const serviceClient = getServiceClient();
       await serviceClient
         .from("cohort_members")
         .update({ is_active: true })
