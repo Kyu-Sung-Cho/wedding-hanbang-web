@@ -13,6 +13,7 @@ import { maybeExtractDecision } from "@/lib/ai/extract-decision";
 import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
+import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -488,12 +489,23 @@ export async function POST(request: Request) {
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
   const { data: userProfile } = await supabase
     .from("profiles")
-    .select("couple_id, role")
+    .select("couple_id, role, is_admin")
     .eq("id", user.id)
     .single();
 
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
+  // 비용 가드레일 — 커플 누적/전역 일일 상한 (유통 테스트 전 지갑 보호).
+  // 데모·관리자는 면제. 차단 시 429로 친화적 안내.
+  const costGuard = await checkAmoraCostGuard(getServiceClient(), {
+    coupleId,
+    isDemo,
+    isAdmin: userProfile?.is_admin === true,
+  });
+  if (!costGuard.allowed) {
+    return NextResponse.json({ error: costGuard.message }, { status: 429 });
   }
 
   if (requestedVisibility !== "shared") {

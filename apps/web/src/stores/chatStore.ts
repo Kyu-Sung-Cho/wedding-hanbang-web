@@ -958,6 +958,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         console.error("AI API 에러:", res.status, errText);
+        // 429(비용 가드·rate limit): 서버의 친화적 안내 메시지를 그대로 사용자에게 노출
+        if (res.status === 429) {
+          let friendly = "지금은 잠시 쉬어가고 있어요. 잠시 후 다시 시도해주세요.";
+          try {
+            const parsed = JSON.parse(errText);
+            if (typeof parsed?.error === "string" && parsed.error) friendly = parsed.error;
+          } catch { /* errText가 JSON이 아니면 기본 문구 */ }
+          throw new Error(friendly);
+        }
         throw new Error(`AI 응답 실패 (${res.status})`);
       }
 
