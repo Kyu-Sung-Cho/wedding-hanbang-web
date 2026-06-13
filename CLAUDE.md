@@ -17,317 +17,47 @@
 - **견적 진단 정밀화 + 시세 자동화 (2026-06-11 심야)**: ①진단 엔진을 지역별 중위가 비교로 전환(서울 350 vs 경기/인천 230 — 2분법이 경기 정상 견적을 미끼가격으로 오판하던 버그 제거), 결과에 `marketComparatorLabel`로 비교 기준 명시, toolExecutor의 죽은 중복 엔진 218줄 삭제, 회귀 테스트 10개. ②참가격 시세를 price.go.kr AJAX에서 자동 수집하는 `npm run update:market-prices` 파이프라인 구축(`marketPricesData.generated.ts` 재생성, 구조 검증 내장) — 수동 전사가 2026-02 전국 합산을 통째로 오입력했고(원본이 3/27 개정됨) 3·4월 공백도 있었음. 현재 2026년 4월 기준. **시세 갱신은 격월로 스크립트 재실행** (참가격 격월 발표).
 - **법적 리스크 감사 + Contract Shield 판정 제거 (2026-06-12)**: 견적 체크 리팩토링 후 전수 감사 — 업체명 노출(공개 표면 제외 확인✅)·표시광고(출처 명기✅)·개인정보(공개 API 요약만✅)·참가격 스크래핑(공공데이터+출처표시, 격월 13회 경량✅). 발견·수정 2건: ①Contract Shield가 "{업체명} 계약은 진행하지 않는 편이 안전해요" 류 업체 상대 부정 문장 생성 → 업체명 제거+문서 확인 상태 사실 서술로 교체, 등급/점수 제거, "진행 가능" 보증성 라벨 제거(분쟁 시 신뢰 리스크) ②실태조사 인용 인과 단정 완화. AI 프롬프트에도 업체 상대 권고·단정 금지 지침.
 - **모멘트 lifecycle 통합 = 이미 완료 확인 (2026-06-12)**: proactive 라우트가 `__events`의 momentType 이벤트(상견례 등)+예식일 기반 모멘트를 D-3/D-1/D+1 셀로 계산·발화, dedupe는 유니크 인덱스로 레이스까지 차단 — 추가 작업 불필요. KST 날짜 연산 회귀 테스트 10개 신규(momentLoop.test.ts, 총 165개). 남은 선택지: D+1 답변의 memoryKeys 전용 수집 파이프(현재는 일반 채팅 AI가 처리 — 공백 아님).
-- **유통 테스트 준비 완료 (2026-06-12)**: `docs/DISTRIBUTION_TEST_KIT_2026-06-12.md`(UTM 링크·운영 수칙·PostHog 퍼널 설정법·기록표) + `docs/KIN_ANSWER_BANK_2026-06-12.md`(유형별 답변 초안 8종). 프로덕션 사전점검: `/check` UTM 보존 리다이렉트 ✅, 예절·시세 비로그인 200 ✅. SEO 입구 3페이지(예절·시세·견적체크)에 개별 메타데이터(title/OG/canonical) 추가 — 링크 미리보기 개별화.
-- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트 — **유일하게 남은 Week 1 항목, 사용자 실행 필요** (키트·답변뱅크로 즉시 시작 가능) → (선택) JSONB 후속: 일정/액션 테이블 분리. 30일차 G1 판정(채널 전환 ≥3%).
-- **아모라 비용 가드레일 (2026-06-12)**: 유통 테스트 전 지갑 보호. `lib/ai/costGuard.ts` — ai_interactions_log(chat_turn) DB 카운트 기준 ①커플당 누적 무료 100 ②전역 일일 300(서킷). is_admin만 면제(클라 값 불신), fail-open. 환경변수 조정/긴급 비활성. + Anthropic 콘솔 월 한도 $30 설정(최후 보험). 셀프리뷰로 우회 3건 잡음(isDemo 면제 제거, 카운트 소스 교체, 429 안내 노출).
-- **SEO 공백 해소 = SSR 전환 완료 (2026-06-12)**: 예절·시세 페이지가 클라이언트 렌더라 서버 HTML 본문 0이던 문제 해결. 기존 페이지→`components/app/{etiquette,market-prices}/XxxClient.tsx`로 이동(회귀 0), 서버 page.tsx가 SEO 콘텐츠(`XxxSeoContent.tsx`)+클라이언트 UI 함께 렌더. 예절은 25파트 전문을 native `<details>`(JS 불필요)로, 시세는 카테고리·지역 표 정적 렌더. 둘 다 정적 프리렌더(○), HTML에 본문 색인 확인. **남은 SEO 후속(선택)**: 시세 페이지 양산(지역별 랜딩), 구조화 데이터(JSON-LD).
-- **출시 전 보안 감사 4표면 (2026-06-12)**: 채팅·SSR/SEO·가입퍼널·어드민 병렬 리뷰. 수정 완료: ①[CRITICAL] is_admin 자기승격 — `profiles_update_own`에 WITH CHECK 없어 anon 키로 본인 is_admin=true 가능했음 → BEFORE UPDATE 트리거로 잠금(마이그레이션 `20260612120000`, **SQL Editor 실행 필요**). production 점검 결과 부정 승격 피해 0(정당 어드민 1개뿐). ②[HIGH] check-couple-conflict가 비용가드·rate limit 밖 LLM 경로였음 → 가드+rate limit+chat_turn 로깅 편입. ③[MAJOR] SEO layout og:image 소실 복구, sitemap public 필터+quote-check 추가+env 가드. ④[MED] onboarding 입력검증, 채팅 에러 원문 노출 제거. ⑤[HIGH] signup 이메일폭탄 → Cloudflare Turnstile 봇 차단 배선(`lib/turnstile.ts`+`TurnstileWidget`, 키 미설정 시 no-op — **Cloudflare 사이트키/시크릿 발급 + Vercel 입력 필요**). **남은 미해결(소규모): 첨부 텍스트 프롬프트 인젝션 경계, vendor_leads 익명연계 오염, 인메모리 rate limit 분산화(Turnstile로 핵심 표면은 막힘).
-- **미검토 표면 감사 2차 (2026-06-12)**: 라우트 ~75개 중 1차에서 안 본 표면(커플연동·계정수명·커뮤니티참여·동기방·금전·예약)을 3개 리뷰어로 전수. 수정(마이그레이션 `20260612130000` **SQL Editor 실행 필요**): ①[CRIT] profiles.couple_id/role + couples.bride_id/groom_id 자가변경 → 커플 탈취·축출(is_admin과 같은 WITH CHECK 부재, current_user 판별 트리거로 잠금) ②[CRIT] join_couple 기존소속 미검사 → 고아화(검사 추가) ③[HIGH] 초대코드 2^24→2^48 ④[HIGH] community_assign_cohort PUBLIC EXECUTE → 강제 동기방 배정 IDOR(REVOKE + auto-assign 라우트 service client 전환) ⑤[MED] money amount/guest_name 검증. **안전 확인(미변경)**: auth/delete·money IDOR·bookings·cohort 계약 익명성·upload·search·댓글 소유권·투표 멱등성. **별도(제품 결정)**: under_review 자동숨김(역 grief 위험), comment-vote ON CONFLICT race(간헐 500), select(*) 과다노출. **여전히 미검토**: AI 코어(toolExecutor 125KB·prompts 86KB·tools 40KB — 인증 채팅 뒤 가드 안), 모바일 앱(apps/mobile 전체).
+- **유통 테스트 준비 완료 (2026-06-12)**: `docs/DISTRIBUTION_TEST_KIT_2026-06-12.md`(UTM 링크·운영 수칙·PostHog 퍼널 설정법·기록표) + `docs/KIN_ANSWER_BANK_2026-06-12.md`(유형별 답변 초안 8종) + `docs/DISTRIBUTION_POSTS_READY_2026-06-12.md`(카페 글 2종 복붙용 + 지식iN 8종 완성본, 2026-04 실측 수치·UTM 사전기입). 프로덕션 사전점검: `/check` UTM 보존 리다이렉트 ✅, 예절·시세 비로그인 200 ✅. SEO 입구 3페이지에 개별 메타데이터(title/OG/canonical).
+- **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트 — **유일하게 남은 Week 1 항목, 사용자 실행 필요** (완성본으로 즉시 시작 가능) → (선택) JSONB 후속: 일정/액션 테이블 분리. 30일차 G1 판정(채널 전환 ≥3%).
+- **아모라 비용 가드레일 (2026-06-12)**: 유통 테스트 전 지갑 보호. `lib/ai/costGuard.ts` — ai_interactions_log(chat_turn) DB 카운트 기준 ①커플당 누적 무료 100 ②전역 일일 300(서킷). is_admin만 면제(클라 값 불신), fail-open. 환경변수 조정/긴급 비활성. + Anthropic 콘솔 월 한도 $30 설정(최후 보험). check-couple-conflict의 mediation LLM 호출도 같은 장부에 편입(2차 감사).
+- **SEO 공백 해소 = SSR 전환 완료 (2026-06-12)**: 예절·시세 페이지가 클라이언트 렌더라 서버 HTML 본문 0이던 문제 해결. 기존 페이지→`components/app/{etiquette,market-prices}/XxxClient.tsx`로 이동(회귀 0), 서버 page.tsx가 SEO 콘텐츠(`XxxSeoContent.tsx`)+클라이언트 UI 함께 렌더. 둘 다 정적 프리렌더(○), HTML 본문 색인 확인. **남은 SEO 후속(선택)**: 시세 페이지 양산(지역별 랜딩), 구조화 데이터(JSON-LD).
+- **출시 전 보안 감사 2라운드 완료·적용 (2026-06-12)**: 채팅·SSR/SEO·가입퍼널·어드민·커플연동·동기방·금전 표면 전수 리뷰. 마이그레이션 2개 **SQL Editor 실행·원격 검증 완료**: `20260612120000`(is_admin 자기승격 트리거 잠금 — 부정승격 피해 0 확인), `20260612130000`(profiles.couple_id/role + couples 슬롯 자가변경 잠금=커플 탈취 차단 / join_couple 기존소속 검사=고아화 차단 / 초대코드 2^48 / community_assign_cohort REVOKE=강제배정 IDOR 차단 — cohort RPC permission denied·초대코드 2^48 원격 확인). 코드: check-couple-conflict 가드 편입, SEO og:image·sitemap, onboarding/money 입력검증, 채팅 에러 마스킹, **Cloudflare Turnstile 봇차단 배선**(signup+forgot-password, 키 미설정 no-op). **안전 확인(미변경)**: auth/delete·money IDOR·bookings·cohort 계약 익명성·upload·search·댓글 소유권·투표 멱등성. **별도(제품 결정)**: under_review 자동숨김(역 grief), comment-vote race, select(*) 과다노출.
+- **남은 사용자 작업**: ①**Cloudflare Turnstile 사이트키/시크릿 발급 + Vercel 입력**(코드 배선 완료, 키만 넣으면 활성) ②유통 테스트 게시. **여전히 미검토(출시 비차단)**: AI 코어(toolExecutor 125KB·prompts 86KB·tools 40KB — 인증 채팅 뒤 가드 안), 모바일 앱(apps/mobile 전체).
 - **백로그**: `docs/KNOWN_ISSUES_2026-06-10.md` (마이너 15건).
 
 ---
 
-# 웨딩한방 웹 (hanbang.ai) - Claude Code 가이드
+# 웨딩한방 웹 (hanbang.ai) — 프로젝트 레퍼런스
 
-## 🎯 프로젝트 개요
+> 미션·전략·진행 상황은 위 **📍 현재 상태**와 `docs/`를 본다. 아래는 잘 안 바뀌는 사실 + 컨벤션만.
+> **출처 우선 원칙**: 색상·환경변수·DB 스키마·라우트·디렉토리 구조는 아래에 베끼지 않는다 —
+> 베껴두면 코드와 어긋난다(드리프트). 항상 실제 소스를 ground truth로 본다.
 
-**한 줄 요약**: 웨딩한방 모바일 앱의 웹 버전 + 마케팅 랜딩페이지. 같은 Supabase 백엔드를 공유하여 앱과 웹 데이터가 실시간 동기화됨.
+## 개요·스택
+- **무엇**: 한국 AI 웨딩 플래너 "아모라". 모바일 앱(별도 레포, React Native)과 **같은 Supabase 프로젝트** 공유.
+- **스택**: Next.js 16 App Router · TypeScript · Tailwind · Zustand · Supabase(PostgreSQL/Auth/Realtime/Storage) · Claude API · Resend. 배포 Vercel.
+- **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `wedding/`.
 
-**도메인**: hanbang.ai (www.hanbang.ai)
-**배포**: Vercel
-**기존 앱**: React Native CLI (별도 레포)
+## 진짜 출처 (여기를 본다)
+| 알고 싶은 것 | 본다 |
+|---|---|
+| 색상·디자인 토큰 | `apps/web/src/app/globals.css`, `@hanbang/design-tokens` |
+| 환경변수 (전체 목록·설명) | `apps/web/.env.example` |
+| DB 스키마·RLS·RPC | `supabase/migrations/` (시간순) |
+| 라우트·페이지 구조 | `apps/web/src/app/` (App Router 디렉토리 = 라우트) |
+| 시세 데이터 | `apps/web/src/constants/marketPricesData.generated.ts` (자동생성, `npm run update:market-prices`) |
+| 폰트 | Noto Serif/Sans KR, Cormorant Garamond (제목·숫자) |
 
-## 🏗 기술 스택
+## 코딩 컨벤션
+- 함수형 컴포넌트만 (`export default function`). 스타일은 Tailwind만(인라인 style 금지).
+- 서버 데이터는 Supabase Realtime, 로컬 상태는 Zustand. `any` 금지, props 타입 필수.
+- 네이밍: 컴포넌트 PascalCase, 함수/변수 camelCase, 파일은 컴포넌트 PascalCase·유틸 camelCase.
+- 에러는 try-catch + 사용자 친화 메시지(내부 원문 노출 금지). 주석은 한국어로 핵심 로직에만.
+- 입력은 시스템 경계에서 검증. 비밀값·`.env`는 절대 커밋 금지.
 
-| 레이어 | 기술 | 이유 |
-|--------|------|------|
-| Framework | Next.js 14 (App Router) | SSR, API Routes, Vercel 최적화 |
-| Language | TypeScript | 타입 안정성 |
-| Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
-| State | Zustand | 앱과 동일한 패턴 |
-| Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | Claude API (Anthropic) | 웨딩 AI 플래너 채팅 |
-| Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
-| 배포 | Vercel | 자동 배포, Edge Functions |
-| 이메일 | Resend | 사전등록 확인 메일 |
+## 커밋 컨벤션
+`feat:` 기능 / `fix:` 버그 / `style:` 디자인 / `refactor:` 리팩토링 / `docs:` 문서 / `chore:` 설정·패키지
 
-## 📁 프로젝트 구조
-
-```
-hanbang-web/
-├── CLAUDE.md                    # 이 파일
-├── next.config.ts
-├── tailwind.config.ts
-├── package.json
-├── .env.local                   # 환경변수 (git 제외)
-│
-├── public/
-│   ├── fonts/                   # 커스텀 폰트
-│   ├── images/                  # 정적 이미지
-│   └── og-image.png             # 소셜 공유 이미지
-│
-├── src/
-│   ├── app/                     # Next.js App Router
-│   │   ├── layout.tsx           # 루트 레이아웃
-│   │   ├── page.tsx             # 랜딩페이지 (/)
-│   │   ├── globals.css          # 글로벌 스타일
-│   │   │
-│   │   ├── (auth)/              # 인증 그룹
-│   │   │   ├── login/page.tsx   # 로그인
-│   │   │   ├── signup/page.tsx  # 회원가입
-│   │   │   └── callback/page.tsx # OAuth 콜백
-│   │   │
-│   │   ├── (app)/               # 로그인 후 앱 기능 그룹
-│   │   │   ├── layout.tsx       # 앱 레이아웃 (사이드바/네비)
-│   │   │   ├── dashboard/page.tsx    # 대시보드 (홈)
-│   │   │   ├── chat/page.tsx         # AI 채팅
-│   │   │   ├── budget/page.tsx       # 예산 관리
-│   │   │   ├── schedule/page.tsx     # 일정 관리
-│   │   │   ├── fitting/page.tsx      # AI 드레스 피팅
-│   │   │   ├── vendors/page.tsx      # 업체 탐색
-│   │   │   ├── etiquette/page.tsx    # 예절 가이드
-│   │   │   └── settings/page.tsx     # 설정
-│   │   │
-│   │   ├── (admin)/             # 관리자 (사전등록 현황 등)
-│   │   │   └── admin/page.tsx
-│   │   │
-│   │   └── api/                 # API Routes
-│   │       ├── auth/callback/route.ts
-│   │       ├── chat/route.ts         # AI 채팅 API
-│   │       ├── preregister/route.ts  # 사전등록
-│   │       └── vendors/route.ts      # 업체 검색
-│   │
-│   ├── components/
-│   │   ├── landing/             # 랜딩페이지 섹션들
-│   │   │   ├── Hero.tsx
-│   │   │   ├── PainPoints.tsx
-│   │   │   ├── Solutions.tsx
-│   │   │   ├── Comparison.tsx
-│   │   │   ├── VirtualFitting.tsx
-│   │   │   ├── Stats.tsx
-│   │   │   ├── HowItWorks.tsx
-│   │   │   ├── Testimonials.tsx
-│   │   │   ├── CTA.tsx
-│   │   │   └── SparkleCanvas.tsx
-│   │   │
-│   │   ├── app/                 # 앱 기능 컴포넌트
-│   │   │   ├── chat/
-│   │   │   │   ├── ChatBubble.tsx
-│   │   │   │   ├── ChatInput.tsx
-│   │   │   │   ├── ButtonOptions.tsx
-│   │   │   │   └── VendorCard.tsx
-│   │   │   ├── budget/
-│   │   │   │   ├── BudgetOverview.tsx
-│   │   │   │   └── BudgetBar.tsx
-│   │   │   ├── schedule/
-│   │   │   │   ├── Calendar.tsx
-│   │   │   │   └── Timeline.tsx
-│   │   │   └── common/
-│   │   │       ├── Sidebar.tsx
-│   │   │       ├── TopNav.tsx
-│   │   │       └── LoadingSpinner.tsx
-│   │   │
-│   │   └── ui/                  # 공통 UI 컴포넌트
-│   │       ├── Button.tsx
-│   │       ├── Card.tsx
-│   │       ├── Input.tsx
-│   │       └── Modal.tsx
-│   │
-│   ├── lib/
-│   │   ├── supabase/
-│   │   │   ├── client.ts        # 브라우저용 클라이언트
-│   │   │   ├── server.ts        # 서버용 클라이언트
-│   │   │   └── middleware.ts    # Auth 미들웨어
-│   │   ├── ai/
-│   │   │   ├── claude.ts        # Claude API 호출
-│   │   │   └── prompts.ts       # 시스템 프롬프트
-│   │   └── resend.ts            # 이메일 발송
-│   │
-│   ├── stores/                  # Zustand 스토어
-│   │   ├── authStore.ts
-│   │   ├── chatStore.ts
-│   │   ├── budgetStore.ts
-│   │   └── scheduleStore.ts
-│   │
-│   ├── types/
-│   │   ├── database.types.ts    # Supabase 생성 타입
-│   │   ├── chat.types.ts
-│   │   └── vendor.types.ts
-│   │
-│   ├── constants/
-│   │   ├── categories.ts        # 20개 웨딩 카테고리
-│   │   ├── prices.ts            # 평균 가격 데이터
-│   │   └── design.ts            # 디자인 토큰
-│   │
-│   └── utils/
-│       ├── format.ts            # 가격, 날짜 포맷
-│       └── validators.ts        # 입력 검증
-│
-└── middleware.ts                 # Next.js 미들웨어 (인증 체크)
-```
-
-## 🎨 디자인 시스템
-
-앱과 동일한 컬러 팔레트 (실제 [globals.css](apps/web/src/app/globals.css) 기준 — 이 문서는 ground truth 아니므로 globals.css 가 항상 우선):
-
-```css
-/* Primary - Noir / Atelier */
---noir-800: #1C1917;
---noir-900: #0D0D0F;
---noir-soft: #2D2D33;
---charcoal: #4A4A52;
-
-/* Accent - Atelier Dusty Rose (브랜드 메인 brown) */
---rose-500: #795252;      /* 버튼·헤더 그라데이션 시작 */
---rose-600: #946a6a;      /* 그라데이션 끝 */
---rose-light: #D4AFA0;
---rose-pale: #E8D5CD;
-
-/* 보조 액센트 — Rose Champagne (일부 컴포넌트에서 raw 사용) */
-/* #C4967E / #9A6B62 — 새 코드는 가능하면 위 rose-* 토큰 사용 */
-
-/* Background - Warm Ivory */
---ivory-50: #fcf9f8;
---ivory-100: #fcf9f8;
---ivory-200: #f6f3f2;
---ivory-warm: #FAF7F2;
---ivory-deep: #F5F0E8;
-
-/* Taupe */
---taupe-400: #B5ADA3;
---taupe-500: #504444;
-
-/* Sage (secondary) */
---sage-500: #5a6147;
-
-/* Gold */
---gold: #C9A96E;
-```
-
-폰트:
-- 한글 제목: Noto Serif KR (300, 400, 500)
-- 한글 본문: Noto Sans KR (300, 400, 500, 600)
-- 영문 제목/숫자: Cormorant Garamond (300, 400, 600)
-
-## 🔑 환경변수 (.env.local)
-
-```
-# Supabase (기존 앱과 동일한 프로젝트!)
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
-SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
-
-# Claude AI
-ANTHROPIC_API_KEY=sk-ant-xxx...
-
-# Resend (이메일)
-RESEND_API_KEY=re_xxx...
-
-# 도메인
-NEXT_PUBLIC_SITE_URL=https://hanbang.ai
-```
-
-## 🗄 Supabase 공유
-
-모바일 앱과 **같은 Supabase 프로젝트**를 사용합니다.
-기존 테이블: profiles, couples, wedding_journeys, chat_messages, chat_summaries, schedules, budgets, budget_items, vendors, customer_insights, fitting_requests
-
-웹 전용 추가 테이블:
-```sql
--- 사전등록 (기존 프로토타입에서 이미 있을 수 있음)
-CREATE TABLE IF NOT EXISTS preregistrations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  wedding_date TEXT,
-  source TEXT DEFAULT 'web',  -- 'web', 'app', 'instagram'
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE preregistrations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true);
-```
-
-## 📐 페이지별 라우팅
-
-| URL | 설명 | 인증 필요 |
-|-----|------|----------|
-| `/` | 랜딩페이지 | ❌ |
-| `/login` | 로그인 | ❌ |
-| `/signup` | 회원가입 | ❌ |
-| `/dashboard` | 대시보드 | ✅ |
-| `/chat` | AI 채팅 | ✅ |
-| `/budget` | 예산 관리 | ✅ |
-| `/schedule` | 일정 관리 | ✅ |
-| `/fitting` | AI 드레스 피팅 | ✅ |
-| `/vendors` | 업체 탐색 | ✅ |
-| `/etiquette` | 예절 가이드 | ✅ |
-| `/settings` | 설정 | ✅ |
-| `/admin` | 관리자 (사전등록 현황) | ✅ (admin만) |
-
-## 🔒 인증 플로우
-
-1. 랜딩페이지 → "무료로 시작하기" 클릭
-2. `/login` → 카카오 or 구글 소셜 로그인
-3. Supabase Auth → OAuth 콜백 → `/callback`
-4. 프로필 체크 → 신규면 온보딩, 기존이면 대시보드
-5. middleware.ts에서 (app) 그룹 페이지 접근 시 인증 체크
-
-## 🛠 개발 순서 (권장)
-
-### Phase 1: 기초 셋업 (Day 1)
-1. `npx create-next-app@latest hanbang-web --typescript --tailwind --app --src-dir`
-2. 폰트, 컬러, 글로벌 스타일 설정
-3. Supabase 클라이언트 설정 (기존 프로젝트 키 사용)
-4. 환경변수 설정
-
-### Phase 2: 랜딩 + 사전등록 (Day 1-2)
-1. 랜딩페이지 컴포넌트로 분리 (기존 HTML → React 컴포넌트)
-2. 사전등록 API Route (/api/preregister)
-3. Supabase에 이메일 저장
-4. Resend로 확인 이메일 발송
-5. 관리자 페이지 (등록 현황 확인)
-
-### Phase 3: 인증 (Day 2-3)
-1. Supabase Auth 설정 (카카오, 구글)
-2. 로그인/회원가입 페이지
-3. OAuth 콜백 처리
-4. middleware.ts 인증 가드
-5. 앱 레이아웃 (사이드바 + 탑네비)
-
-### Phase 4: 핵심 기능 (Day 3-7)
-1. 대시보드 (D-day, 진행률, 카테고리 현황)
-2. AI 채팅 (Claude API 연동)
-3. 예산 관리
-4. 일정 관리
-5. 업체 탐색
-
-### Phase 5: 고급 기능 (Day 7-10)
-1. AI 드레스 피팅 (Decart API)
-2. 예절 가이드
-3. 커플 연동 (초대 코드)
-4. 알림 (웹 푸시)
-
-## 🧪 코딩 컨벤션
-
-- **컴포넌트**: 함수형 컴포넌트만, `export default function ComponentName()`
-- **스타일**: Tailwind CSS만 (인라인 style 금지)
-- **상태관리**: 서버 데이터는 Supabase Realtime, 로컬 상태는 Zustand
-- **타입**: any 금지, 모든 props에 타입 정의
-- **네이밍**: 컴포넌트 PascalCase, 함수/변수 camelCase, 파일 PascalCase(컴포넌트) / camelCase(유틸)
-- **에러 처리**: try-catch + 사용자 친화적 에러 메시지
-- **주석**: 한국어로 핵심 로직에만
-
-## 📝 커밋 컨벤션
-
-```
-feat: 새 기능 추가
-fix: 버그 수정
-style: 디자인/스타일 변경
-refactor: 코드 리팩토링
-docs: 문서 수정
-chore: 설정, 패키지 등
-```
+## 빌드·검증
+커밋 전 `apps/web`에서 `npx tsc --noEmit` + `npx vitest run` + `npx next build` 통과 확인.
+마이그레이션은 Supabase CLI 링크가 없어 항상 **SQL Editor 수동 실행** — 새 마이그레이션은 사용자에게 복붙용 SQL로 전달.
