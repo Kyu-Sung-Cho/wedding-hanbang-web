@@ -23,6 +23,7 @@
     "supabase:baseline:history": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-baseline-history.ps1",
     "supabase:normalize:history": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-normalize-legacy-history.ps1",
     "supabase:apply:pending": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-pending.ps1",
+    "supabase:ship:safe": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-ship-safe.ps1",
     "supabase:security:probe": "node ./scripts/supabase-anon-probe.mjs",
     "clean": "turbo run clean && rm -rf node_modules"
   },
