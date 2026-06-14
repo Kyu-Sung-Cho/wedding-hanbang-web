@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 export function getServiceClient() {
@@ -11,7 +11,7 @@ export function getServiceClient() {
 // 관리자 인증: Supabase Auth + is_admin 플래그만 허용
 export async function verifyAdmin(request: Request): Promise<{ authorized: boolean; userId?: string }> {
   try {
-    const supabase = await createClient();
+    const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) return { authorized: false };

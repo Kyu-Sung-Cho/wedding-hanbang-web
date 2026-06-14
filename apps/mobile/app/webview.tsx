@@ -12,6 +12,37 @@ import { colors } from "@hanbang/design-tokens";
 
 const HANBANG_HOST = "hanbang.ai";
 
+function firstParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function normalizeHanbangUrl(value: string | null): string | null {
+  if (!value || value.length > 2048) return null;
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    const isAllowedHost = host === HANBANG_HOST || host.endsWith(`.${HANBANG_HOST}`);
+
+    if (parsed.protocol !== "https:" || !isAllowedHost) return null;
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function canOpenExternally(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "https:" || protocol === "http:" || protocol === "mailto:" || protocol === "tel:";
+  } catch {
+    return false;
+  }
+}
+
 function titleFromUrl(url: string): string {
   try {
     const pathname = new URL(url).pathname;
@@ -32,36 +63,39 @@ function titleFromUrl(url: string): string {
 }
 
 export default function WebViewScreen() {
-  const { url } = useLocalSearchParams<{ url: string }>();
+  const params = useLocalSearchParams<{ url?: string | string[] }>();
+  const url = firstParam(params.url);
+  const safeUrl = normalizeHanbangUrl(url);
   const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
-  const [currentTitle, setCurrentTitle] = useState(titleFromUrl(url ?? ""));
+  const [currentTitle, setCurrentTitle] = useState(titleFromUrl(safeUrl ?? ""));
 
   const handleShare = useCallback(async () => {
-    if (!url) return;
+    if (!safeUrl) return;
     try {
-      await Share.share({ url, message: url });
+      await Share.share({ url: safeUrl, message: safeUrl });
     } catch {
       // 공유 취소
     }
-  }, [url]);
+  }, [safeUrl]);
 
   // hanbang.ai 링크는 WebView에서, 외부 링크는 브라우저에서
   const handleNavigation = useCallback((event: { url: string }) => {
-    try {
-      const host = new URL(event.url).hostname;
-      if (host.includes(HANBANG_HOST)) {
-        setCurrentTitle(titleFromUrl(event.url));
-        return true;
-      }
-      Linking.openURL(event.url);
-      return false;
-    } catch {
+    const nextUrl = normalizeHanbangUrl(event.url);
+    if (nextUrl) {
+      setCurrentTitle(titleFromUrl(nextUrl));
       return true;
     }
+
+    if (canOpenExternally(event.url)) {
+      Linking.openURL(event.url).catch(() => undefined);
+      return false;
+    }
+
+    return false;
   }, []);
 
-  if (!url) {
+  if (!safeUrl) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
@@ -101,7 +135,7 @@ export default function WebViewScreen() {
       {/* WebView */}
       <WebView
         ref={webViewRef}
-        source={{ uri: url }}
+        source={{ uri: safeUrl }}
         style={{ flex: 1 }}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}

@@ -10,6 +10,54 @@ interface VendorTagPickerProps {
   onChange: (ids: string[]) => void;
 }
 
+function toVendorTagInfo(value: unknown): VendorTagInfo | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const id = typeof row.id === "string" ? row.id : "";
+  const vendorName =
+    typeof row.vendor_name === "string"
+      ? row.vendor_name
+      : typeof row.business_name === "string"
+        ? row.business_name
+        : typeof row.name === "string"
+          ? row.name
+          : "";
+
+  if (!id || !vendorName) return null;
+
+  const rating =
+    typeof row.avg_rating === "number"
+      ? row.avg_rating
+      : typeof row.rating === "number"
+        ? row.rating
+        : null;
+
+  return {
+    id,
+    vendor_name: vendorName,
+    business_name: vendorName,
+    category: typeof row.category === "string" ? row.category : null,
+    region:
+      typeof row.region === "string"
+        ? row.region
+        : typeof row.location === "string"
+          ? row.location
+          : null,
+    mention_count: typeof row.mention_count === "number" ? row.mention_count : 0,
+    avg_rating: rating,
+    avg_base_price: typeof row.avg_base_price === "number" ? row.avg_base_price : null,
+    avg_extra_price: typeof row.avg_extra_price === "number" ? row.avg_extra_price : null,
+    extra_rate: typeof row.extra_rate === "number" ? row.extra_rate : null,
+    rating,
+    thumbnail_url:
+      typeof row.thumbnail_url === "string"
+        ? row.thumbnail_url
+        : typeof row.thumbnailUrl === "string"
+          ? row.thumbnailUrl
+          : null,
+  };
+}
+
 export default function VendorTagPicker({
   vendorIds,
   onChange,
@@ -33,10 +81,11 @@ export default function VendorTagPicker({
     Promise.all(
       vendorIds.map(async (id) => {
         try {
-          const res = await fetch(`/api/vendors?id=${id}`);
+          const res = await fetch(`/api/vendors?ids=${encodeURIComponent(id)}&limit=1`);
           if (!res.ok) return null;
           const data = await res.json();
-          return data as VendorTagInfo;
+          const list = Array.isArray(data) ? data : data.vendors ?? [];
+          return toVendorTagInfo(list[0]);
         } catch {
           return null;
         }
@@ -61,10 +110,10 @@ export default function VendorTagPicker({
       );
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const list: VendorTagInfo[] = Array.isArray(data)
+      const list: unknown[] = Array.isArray(data)
         ? data
         : data.vendors ?? [];
-      setResults(list);
+      setResults(list.map(toVendorTagInfo).filter((v): v is VendorTagInfo => v !== null));
       setIsOpen(true);
     } catch {
       setResults([]);

@@ -10,6 +10,9 @@ import SurveyProgress from './components/SurveyProgress';
 import SectionHeader from './components/SectionHeader';
 import QuestionRenderer from './components/QuestionRenderer';
 import NavigationButtons from './components/NavigationButtons';
+import TurnstileWidget from '@/components/auth/TurnstileWidget';
+
+const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 export default function CustomerSurveyPage() {
   const {
@@ -36,6 +39,7 @@ export default function CustomerSurveyPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   const visibleQuestions = getVisibleQuestions(currentSectionIndex);
 
@@ -59,6 +63,10 @@ export default function CustomerSurveyPage() {
 
   // 설문 제출
   const submitSurvey = useCallback(async () => {
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      alert('봇 확인을 완료해주세요.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/survey', {
@@ -68,6 +76,7 @@ export default function CustomerSurveyPage() {
           answers,
           otherTexts,
           completionTimeSeconds,
+          turnstileToken,
         }),
       });
 
@@ -78,7 +87,7 @@ export default function CustomerSurveyPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, otherTexts, completionTimeSeconds, markCompleted]);
+  }, [answers, otherTexts, completionTimeSeconds, markCompleted, turnstileToken]);
 
   // 다음 버튼 핸들러
   const handleNext = useCallback(() => {
@@ -193,6 +202,12 @@ export default function CustomerSurveyPage() {
         </AnimatePresence>
 
         {/* 네비게이션 */}
+        {TURNSTILE_ENABLED && (
+          <div className="mt-6">
+            <TurnstileWidget onVerify={setTurnstileToken} />
+          </div>
+        )}
+
         <NavigationButtons
           onPrev={handlePrev}
           onNext={handleNext}

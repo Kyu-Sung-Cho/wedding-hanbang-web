@@ -15,6 +15,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { elapsedMs, logAIInteraction, startLatencyClock } from "@/lib/compliance/ai-log";
 
 const FAST_MODEL = "claude-haiku-4-5-20251001";
 
@@ -344,6 +345,7 @@ function runHeuristics(
 
 async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
+  audit?: { coupleId?: string | null; userId?: string | null }
 ): Promise<{ isConflict: boolean; reason: string }> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return { isConflict: false, reason: "ANTHROPIC_API_KEY 없음 — LLM 검증 스킵" };
@@ -378,6 +380,7 @@ ${formatted}
 응답은 정확히 한 줄 JSON만:
 {"conflict": true|false, "reason": "한국어 한 줄로 판단 이유 (30자 이내)"}`;
 
+  const startedAt = startLatencyClock();
   try {
     const res = await client.messages.create({
       model: FAST_MODEL,
@@ -392,6 +395,20 @@ ${formatted}
       .join("")
       .trim();
 
+    void logAIInteraction({
+      userId: audit?.userId ?? null,
+      coupleId: audit?.coupleId ?? null,
+      interactionType: "chat_turn",
+      userInput: formatted,
+      aiOutput: text,
+      latencyMs: elapsedMs(startedAt),
+      success: true,
+      model: FAST_MODEL,
+      tokensInput: res.usage?.input_tokens ?? null,
+      tokensOutput: res.usage?.output_tokens ?? null,
+      metadata: { source: "conflict_detector_verify" },
+    });
+
     // JSON 추출 — 응답 앞뒤에 다른 텍스트 있을 수 있어 robust 파싱
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -403,6 +420,18 @@ ${formatted}
       reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 80) : "이유 없음",
     };
   } catch (err) {
+    void logAIInteraction({
+      userId: audit?.userId ?? null,
+      coupleId: audit?.coupleId ?? null,
+      interactionType: "chat_turn",
+      userInput: formatted,
+      aiOutput: null,
+      latencyMs: elapsedMs(startedAt),
+      success: false,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      model: FAST_MODEL,
+      metadata: { source: "conflict_detector_verify" },
+    });
     return {
       isConflict: false,
       reason: `LLM 검증 에러: ${err instanceof Error ? err.message : String(err)}`,
@@ -415,10 +444,11 @@ ${formatted}
 // ──────────────────────────────────────────────────────────────
 
 const HARD_TRIGGER_SCORE = 10; // 이 이상이면 LLM 검증 없이 즉시 트리거
-const LLM_VERIFY_LOWER = 5; // borderline 시작점
 const HARD_REJECT_SCORE = 5; // 미만이면 무조건 비-갈등
 
 export async function detectCoupleConflict(params: {
+  coupleId?: string | null;
+  userId?: string | null;
   /** 최근 shared visibility 메시지 (시간 오름차순) */
   recentSharedMessages: CoupleMessage[];
   /** 같은 커플의 과거 conflict_resolution decision_nodes */
@@ -474,7 +504,10 @@ export async function detectCoupleConflict(params: {
   }
 
   // borderline — LLM 검증
-  const llm = await verifyWithLLM(coupleMessages);
+  const llm = await verifyWithLLM(coupleMessages, {
+    coupleId: params.coupleId ?? null,
+    userId: params.userId ?? null,
+  });
   return {
     triggered: llm.isConflict,
     score: h.score,

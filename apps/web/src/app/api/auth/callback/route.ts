@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { clearDemoCookies } from "@/lib/demoSession";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
     if (!profile || !profile.onboarding_completed) {
       const response = NextResponse.redirect(`${origin}/wedding/onboarding`);
       // 실제 로그인 시 데모 모드 쿠키 제거
-      response.cookies.set("demo_mode", "", { path: "/", maxAge: 0 });
+      clearDemoCookies(response);
       return response;
     }
 
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
       maxAge: 60 * 60 * 24 * 365,
     });
     // 실제 로그인 시 데모 모드 쿠키 제거
-    response.cookies.set("demo_mode", "", { path: "/", maxAge: 0 });
+    clearDemoCookies(response);
     return response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

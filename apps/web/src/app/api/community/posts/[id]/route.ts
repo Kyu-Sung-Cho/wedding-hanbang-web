@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
 
@@ -40,7 +41,7 @@ export async function GET(
     const { data: post, error } = await supabase
       .from("community_posts")
       .select(
-        "*"
+        COMMUNITY_POST_PUBLIC_SELECT
       )
       .eq("id", id)
       .single();

@@ -1,3 +1,9 @@
+-- ⚠️ LEGACY SNAPSHOT ONLY
+-- 이 파일은 현재 Supabase 마이그레이션 체인(supabase/migrations/*.sql)의
+-- 실행 대상이 아닙니다. 오래된 초기 스키마 스냅샷이라 현재 컬럼명/RLS 정책과
+-- 다를 수 있으므로 운영 DB나 새 환경에 직접 적용하지 마세요.
+-- 실제 적용은 supabase/migrations 디렉터리의 timestamped migration만 사용합니다.
+
 -- ===================================================
 -- 웨딩한방 서비스 DB 마이그레이션
 -- Phase 1: vendors, vendor_products, bookings, messages, vendor_views

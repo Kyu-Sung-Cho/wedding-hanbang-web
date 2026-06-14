@@ -5,6 +5,9 @@ import Link from "next/link";
 import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 import DatePickerPopover from "./DatePickerPopover";
 import { weddingPath } from "@/lib/weddingPaths";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
+
+const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 interface BetaFormProps {
   current: number;
@@ -23,6 +26,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +37,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
     }
     if (!role) {
       setError("신부 또는 신랑을 선택해주세요.");
+      return;
+    }
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setError("봇 확인을 완료해주세요.");
       return;
     }
     setSubmitting(true);
@@ -47,6 +55,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           role: role || undefined,
           message: message || undefined,
           isBetaCandidate: true,
+          turnstileToken,
         }),
       });
       const data = await res.json();
@@ -191,6 +200,8 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
             maxLength={300}
           />
         </Field>
+
+        {TURNSTILE_ENABLED && <TurnstileWidget onVerify={setTurnstileToken} />}
 
         {error && (
           <p className="text-[13px] text-rose-light leading-relaxed">{error}</p>

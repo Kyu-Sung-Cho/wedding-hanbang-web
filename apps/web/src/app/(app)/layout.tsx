@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import AppClientLayout from "./AppClientLayout";
+import { verifyDemoSessionToken } from "@/lib/demoSession";
 
 /**
  * (app) 그룹 서버 컴포넌트 가드.
@@ -22,7 +23,9 @@ export default async function AppServerGuard({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const isDemo = cookieStore.get("demo_mode")?.value === "true";
+  const isDemo =
+    cookieStore.get("demo_mode")?.value === "true" &&
+    verifyDemoSessionToken(cookieStore.get("demo_session")?.value);
 
   // 데모 모드는 인증 우회 (기존 middleware 와 동일 정책)
   if (!isDemo) {

@@ -92,6 +92,13 @@ describe("sanitizeHtml", () => {
       expect(result).toContain('rel="noopener noreferrer"');
     });
 
+    it("overrides unsafe rel on target blank links", () => {
+      const result = sanitizeHtml('<a href="/safe" target="_blank" rel="opener">link</a>');
+      expect(result).toContain('target="_blank"');
+      expect(result).toContain('rel="noopener noreferrer"');
+      expect(result).not.toContain('rel="opener"');
+    });
+
     it("does not add href/target to non-<a> tags", () => {
       const result = sanitizeHtml('<p href="/evil">text</p>');
       expect(result).not.toContain("href");

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("community_posts")
       .select(
-        "*",
+        COMMUNITY_POST_PUBLIC_SELECT,
         { count: "exact" }
       );
 

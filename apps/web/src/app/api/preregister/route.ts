@@ -1,39 +1,95 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import {
+  cleanOptionalBoolean,
+  cleanOptionalEnum,
+  cleanOptionalIsoDate,
+  cleanOptionalText,
+  isBodyTooLarge,
+  isRecord,
+  normalizeEmail,
+} from "@/utils/requestValidation";
 
 export const dynamic = "force-dynamic";
 
-// Service role 클라이언트 (서버 전용)
+const MAX_BODY_BYTES = 16 * 1024;
+const ROLE_VALUES = ["bride", "groom"] as const;
+
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, name, weddingDate, role, message, isBetaCandidate } = body as {
-      email?: string;
-      name?: string;
-      weddingDate?: string;
-      role?: "bride" | "groom";
-      message?: string;
-      isBetaCandidate?: boolean;
-    };
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
 
-    // 이메일 유효성 검사
-    if (!email || !email.includes("@")) {
+    const ipLimited = checkRateLimit(rateLimitKey("preregister", request), {
+      maxRequests: 10,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (ipLimited) return ipLimited;
+
+    const body = await request.json();
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
+    const email = normalizeEmailForRateLimit(normalizeEmail(body.email) ?? "");
+    const name = cleanOptionalText(body.name, 60);
+    const weddingDate = cleanOptionalIsoDate(body.weddingDate);
+    const role = cleanOptionalEnum(body.role, ROLE_VALUES);
+    const message = cleanOptionalText(body.message, 500);
+    const isBetaCandidate = cleanOptionalBoolean(body.isBetaCandidate);
+
+    if (!email) {
       return NextResponse.json(
         { error: "유효한 이메일을 입력해주세요." },
         { status: 400 }
       );
     }
 
+    if (body.weddingDate !== undefined && weddingDate === undefined) {
+      return NextResponse.json(
+        { error: "결혼 예정일 형식이 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+
+    if (body.role !== undefined && body.role !== "" && !role) {
+      return NextResponse.json(
+        { error: "역할 값이 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+
+    const emailLimited = checkRateLimit(`preregister-email:${email}`, {
+      maxRequests: 3,
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (emailLimited) return emailLimited;
+
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const turnstile = await verifyTurnstile(
+      typeof body.turnstileToken === "string" ? body.turnstileToken : null,
+      clientIp
+    );
+    if (!turnstile.ok) {
+      return NextResponse.json(
+        { error: "봇 확인에 실패했습니다. 새로고침 후 다시 시도해주세요." },
+        { status: 400 }
+      );
+    }
+
     const supabase = getServiceClient();
 
-    // 중복 이메일 체크
     const { data: existing } = await supabase
       .from("preregistrations")
       .select("id, is_beta_candidate")
@@ -41,7 +97,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existing) {
-      // 기존 사전등록자가 베타 신청 → is_beta_candidate만 업데이트 (upgrade)
       if (isBetaCandidate && !existing.is_beta_candidate) {
         await supabase
           .from("preregistrations")
@@ -61,22 +116,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // UTM 파라미터 추출
     const url = new URL(request.url);
-    const utm_source = url.searchParams.get("utm_source");
-    const utm_medium = url.searchParams.get("utm_medium");
-    const utm_campaign = url.searchParams.get("utm_campaign");
+    const utm_source = cleanOptionalText(url.searchParams.get("utm_source"), 80);
+    const utm_medium = cleanOptionalText(url.searchParams.get("utm_medium"), 80);
+    const utm_campaign = cleanOptionalText(url.searchParams.get("utm_campaign"), 120);
 
-    // Supabase에 저장
     const { error: insertError } = await supabase
       .from("preregistrations")
       .insert({
         email,
-        name: name ?? null,
+        name,
         wedding_date: weddingDate ?? null,
-        role: role ?? null,
-        message: message ?? null,
-        is_beta_candidate: isBetaCandidate ?? false,
+        role,
+        message,
+        is_beta_candidate: isBetaCandidate,
         source: isBetaCandidate ? "beta" : "web",
         utm_source,
         utm_medium,
@@ -84,20 +137,19 @@ export async function POST(request: NextRequest) {
       });
 
     if (insertError) {
-      console.error("사전등록 저장 실패:", insertError);
+      console.error("preregistration insert failed:", insertError);
       return NextResponse.json(
         { error: "등록 중 오류가 발생했습니다." },
         { status: 500 }
       );
     }
 
-    // 확인 이메일 발송 (비동기, 실패해도 등록은 성공)
     const { sendPreregistrationEmail } = await import("@/lib/resend");
-    sendPreregistrationEmail(email);
+    void sendPreregistrationEmail(email);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("사전등록 API 오류:", error);
+    console.error("preregistration API error:", error);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

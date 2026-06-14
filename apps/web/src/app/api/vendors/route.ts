@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { vendorRowToVendor, productRowToProduct } from "@/lib/utils/vendorMapper";
+import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
+import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
 
 // 카테고리 alias — DB에는 영어 슬러그·한글 라벨·변형이 섞여 들어가 있어서,
 // 한 카테고리 선택 시 가능한 모든 표기를 OR로 매칭한다.
@@ -22,10 +23,18 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const id = searchParams.get("id");
     const ids = searchParams.get("ids");
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
+    const idList = [
+      id,
+      ...(ids?.split(",") ?? []),
+    ]
+      .map((value) => value?.trim())
+      .filter((value): value is string => !!value && isUuid(value))
+      .slice(0, 100);
 
     // 캐논 v2: ai_recommend 우선 정렬 제거. 평점 + 등록순으로만.
     // (Phase 2에서 "조건 공개"/"검증 참여" 기반 설명 가능한 랭킹으로 재도입 예정)
@@ -38,11 +47,11 @@ export async function GET(req: Request) {
       .range(offset, offset + limit - 1);
 
     // ID 목록으로 필터 (찜한 업체 등)
-    if (ids) {
-      const idList = ids.split(",").filter(Boolean);
-      if (idList.length > 0) {
-        query = query.in("id", idList);
+    if (id || ids) {
+      if (idList.length === 0) {
+        return NextResponse.json({ vendors: [], total: 0, page, limit });
       }
+      query = query.in("id", idList);
     }
 
     if (category) {
@@ -51,7 +60,11 @@ export async function GET(req: Request) {
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,tags.cs.{${search}}`);
+      const safeSearch = cleanPostgrestSearchTerm(search);
+      if (safeSearch) {
+        const escapedSearch = escapePostgrestLikePattern(safeSearch);
+        query = query.or(`name.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`);
+      }
     }
 
     const { data: vendorRows, count, error } = await query;
@@ -77,7 +90,7 @@ export async function GET(req: Request) {
       const vendorProducts = (productRows ?? [])
         .filter((p) => p.vendor_id === row.id)
         .map((p) => productRowToProduct(p));
-      return vendorRowToVendor(row, [], vendorProducts);
+      return vendorToPublicVendor(vendorRowToVendor(row, [], vendorProducts));
     });
 
     return NextResponse.json({

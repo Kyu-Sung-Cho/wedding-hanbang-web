@@ -1,6 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 import type { CommunityCategory } from "@/types/community.types";
 
 type CommunityPostWithAuthorId = {
@@ -102,7 +104,7 @@ export async function GET(req: NextRequest) {
     // search_vector를 사용한 전문 검색
     let query = supabase
       .from("community_posts")
-      .select("*", { count: "exact" })
+      .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
       .textSearch("search_vector", q, {
         type: "plain",
         config: "simple",
@@ -122,10 +124,17 @@ export async function GET(req: NextRequest) {
 
       // search_vector 칼럼이 없는 경우 ilike 폴백
       // SQL 특수 문자 이스케이프 (SQL injection 방지)
-      const escaped = q.replace(/[%_\\]/g, (c) => `\\${c}`);
+      const safeTerm = cleanPostgrestSearchTerm(q, 100);
+      const escaped = safeTerm ? escapePostgrestLikePattern(safeTerm) : "";
+      if (!escaped) {
+        return NextResponse.json(
+          { error: "검색어를 입력해주세요." },
+          { status: 400 }
+        );
+      }
       let fallbackQuery = supabase
         .from("community_posts")
-        .select("*", { count: "exact" })
+        .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
         .eq("visibility", "public")
         .order("created_at", { ascending: false })

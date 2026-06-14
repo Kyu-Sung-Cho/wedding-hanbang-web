@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { bookingRowToBooking } from "@/lib/utils/vendorMapper";
+import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      if (req.headers.get("cookie")?.includes("demo_mode=true")) {
+      if (hasSignedDemoSessionFromCookieHeader(req.headers.get("cookie"))) {
         return NextResponse.json({ bookings: [] });
       }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });

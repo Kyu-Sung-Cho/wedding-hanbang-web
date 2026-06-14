@@ -1,24 +1,53 @@
+import { timingSafeEqual } from "node:crypto";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { cleanOptionalText, isRecord, normalizeEmail } from "@/utils/requestValidation";
 
 function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
 
-// 현재 로그인한 유저의 관리자 여부 확인 + 관리자 존재 여부
+function safeEqualString(left: unknown, right: string): boolean {
+  if (typeof left !== "string") return false;
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isStrongAdminPassword(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= 12 &&
+    /[a-z]/.test(value) &&
+    /[A-Z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
+}
+
+const ADMIN_PASSWORD_ERROR =
+  "관리자 계정 비밀번호는 12자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다.";
+
 export async function GET(req: Request) {
   try {
-    const serviceClient = getServiceClient();
     const url = new URL(req.url);
     const checkOnly = url.searchParams.get("check") === "exists";
 
-    // 관리자 존재 여부만 확인 (로그인 페이지에서 호출)
     if (checkOnly) {
-      const { count } = await serviceClient
+      const limited = checkRateLimit(rateLimitKey("admin-auth-check", req), {
+        maxRequests: 30,
+        windowMs: 10 * 60 * 1000,
+      });
+      if (limited) return limited;
+
+      const { count } = await getServiceClient()
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("is_admin", true);
@@ -26,13 +55,18 @@ export async function GET(req: Request) {
     }
 
     const supabase = await createClientFromRequest(req);
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ isAdmin: false, error: "로그인이 필요합니다." }, { status: 401 });
+      return NextResponse.json(
+        { isAdmin: false, error: "로그인이 필요합니다." },
+        { status: 401 }
+      );
     }
 
-    const { data: profile } = await serviceClient
+    const { data: profile } = await getServiceClient()
       .from("profiles")
       .select("is_admin")
       .eq("id", user.id)
@@ -47,7 +81,6 @@ export async function GET(req: Request) {
   }
 }
 
-// 관리자 로그인 (이메일/비밀번호 + ADMIN_PASSWORD)
 export async function POST(req: Request) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
@@ -56,36 +89,53 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { setupPassword, action } = body;
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
 
-    if (setupPassword !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "관리자 인증 비밀번호가 틀렸습니다." }, { status: 403 });
+    const action = typeof body.action === "string" ? body.action : "login";
+    const limited = checkRateLimit(rateLimitKey(`admin-auth:${action}`, req), {
+      maxRequests: 8,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (limited) return limited;
+
+    if (!safeEqualString(body.setupPassword, ADMIN_PASSWORD)) {
+      return NextResponse.json(
+        { error: "관리자 인증 비밀번호가 틀렸습니다." },
+        { status: 403 }
+      );
     }
 
     const serviceClient = getServiceClient();
 
-    // action === "initial-setup": 최초 관리자 설정 (관리자 0명일 때만 허용)
     if (action === "initial-setup") {
-      const { email: initEmail, password: initPassword, name: initName } = body;
+      const initEmail = normalizeEmail(body.email);
+      const initPassword = body.password;
+      const initName = cleanOptionalText(body.name, 60) ?? "어드민 관리자";
 
-      // 관리자가 이미 존재하는지 확인
       const { count } = await serviceClient
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("is_admin", true);
 
       if ((count ?? 0) > 0) {
-        return NextResponse.json({ error: "이미 관리자가 존재합니다. 기존 관리자로 로그인해주세요." }, { status: 403 });
+        return NextResponse.json(
+          { error: "이미 관리자가 존재합니다. 기존 관리자로 로그인해주세요." },
+          { status: 403 }
+        );
       }
 
       if (!initEmail || !initPassword) {
-        return NextResponse.json({ error: "이메일과 비밀번호를 입력해주세요." }, { status: 400 });
+        return NextResponse.json(
+          { error: "이메일과 비밀번호를 입력해주세요." },
+          { status: 400 }
+        );
       }
-      if (initPassword.length < 6) {
-        return NextResponse.json({ error: "비밀번호는 6자 이상이어야 합니다." }, { status: 400 });
+      if (!isStrongAdminPassword(initPassword)) {
+        return NextResponse.json({ error: ADMIN_PASSWORD_ERROR }, { status: 400 });
       }
 
-      // 계정 생성
       const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
         email: initEmail,
         password: initPassword,
@@ -93,10 +143,16 @@ export async function POST(req: Request) {
       });
 
       if (createError) {
-        if (createError.message.includes("already been registered") || createError.message.includes("already exists")) {
+        if (
+          createError.message.includes("already been registered") ||
+          createError.message.includes("already exists")
+        ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
-        return NextResponse.json({ error: `계정 생성 실패: ${createError.message}` }, { status: 500 });
+        return NextResponse.json(
+          { error: `계정 생성 실패: ${createError.message}` },
+          { status: 500 }
+        );
       }
 
       if (!newUser.user) {
@@ -105,7 +161,7 @@ export async function POST(req: Request) {
 
       await serviceClient.from("profiles").upsert({
         id: newUser.user.id,
-        name: initName || "헤드 관리자",
+        name: initName,
         email: initEmail,
         onboarding_completed: true,
         onboarding_step: 5,
@@ -118,16 +174,19 @@ export async function POST(req: Request) {
       });
     }
 
-    // action === "create-admin": 기존 관리자가 새 관리자 추가 (관리자 대시보드에서만 호출)
     if (action === "create-admin") {
-      const { email: newEmail, password: newPassword, name: newName } = body;
+      const newEmail = normalizeEmail(body.email);
+      const newPassword = body.password;
+      const newName = cleanOptionalText(body.name, 60) ?? "관리자";
 
-      // 요청한 사람이 기존 관리자인지 확인
       const supabase = await createClientFromRequest(req);
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
       if (!currentUser) {
         return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
       }
+
       const { data: currentProfile } = await serviceClient
         .from("profiles")
         .select("is_admin")
@@ -138,13 +197,15 @@ export async function POST(req: Request) {
       }
 
       if (!newEmail || !newPassword) {
-        return NextResponse.json({ error: "이메일과 비밀번호를 입력해주세요." }, { status: 400 });
+        return NextResponse.json(
+          { error: "이메일과 비밀번호를 입력해주세요." },
+          { status: 400 }
+        );
       }
-      if (newPassword.length < 6) {
-        return NextResponse.json({ error: "비밀번호는 6자 이상이어야 합니다." }, { status: 400 });
+      if (!isStrongAdminPassword(newPassword)) {
+        return NextResponse.json({ error: ADMIN_PASSWORD_ERROR }, { status: 400 });
       }
 
-      // 서비스 클라이언트로 계정 생성
       const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
         email: newEmail,
         password: newPassword,
@@ -152,20 +213,25 @@ export async function POST(req: Request) {
       });
 
       if (createError) {
-        if (createError.message.includes("already been registered") || createError.message.includes("already exists")) {
+        if (
+          createError.message.includes("already been registered") ||
+          createError.message.includes("already exists")
+        ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
-        return NextResponse.json({ error: `계정 생성 실패: ${createError.message}` }, { status: 500 });
+        return NextResponse.json(
+          { error: `계정 생성 실패: ${createError.message}` },
+          { status: 500 }
+        );
       }
 
       if (!newUser.user) {
         return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
-      // 프로필 생성 + is_admin 설정
       await serviceClient.from("profiles").upsert({
         id: newUser.user.id,
-        name: newName || "관리자",
+        name: newName,
         email: newEmail,
         onboarding_completed: true,
         onboarding_step: 5,
@@ -178,15 +244,15 @@ export async function POST(req: Request) {
       });
     }
 
-    // action === "login": 기존 계정 로그인 + 관리자 확인
     const supabase = await createClientFromRequest(req);
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    // is_admin이 이미 true인지 확인
     const { data: profile } = await serviceClient
       .from("profiles")
       .select("is_admin")
@@ -197,8 +263,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "관리자 로그인 성공" });
     }
 
-    // is_admin이 아닌 경우 승격하지 않고 거부
-    return NextResponse.json({ error: "관리자 권한이 없는 계정입니다. 기존 관리자에게 권한을 요청하세요." }, { status: 403 });
+    return NextResponse.json(
+      { error: "관리자 권한이 없는 계정입니다. 기존 관리자에게 권한을 요청하세요." },
+      { status: 403 }
+    );
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

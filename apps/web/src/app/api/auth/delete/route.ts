@@ -1,6 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { cleanOptionalText, isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 function getAdminClient() {
   return createServiceClient(
@@ -11,6 +15,10 @@ function getAdminClient() {
 
 export async function DELETE(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
@@ -21,10 +29,16 @@ export async function DELETE(request: Request) {
     }
 
     // 탈퇴 사유 파싱
+    const limited = checkRateLimit(rateLimitKey("auth:delete", request, user.id), {
+      maxRequests: 3,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
+
     let reason = "unknown";
     try {
       const body = await request.json();
-      reason = body.reason ?? "unknown";
+      reason = isRecord(body) ? cleanOptionalText(body.reason, 500) ?? "unknown" : "unknown";
     } catch {
       // body가 없을 수 있음 (하위 호환)
     }

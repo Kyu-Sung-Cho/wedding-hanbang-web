@@ -1,6 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 /**
  * "둘 다 새로시작" 상호 동의 플로우.
@@ -22,12 +26,6 @@ import { NextResponse } from "next/server";
  *   → 메타데이터만 declined 로 변경.
  */
 
-interface RequestBody {
-  action?: "request" | "accept" | "decline";
-  coupleId?: string;
-  messageId?: string;
-}
-
 interface ClearRequestMeta {
   type: "shared";
   requestedBy: string;
@@ -40,6 +38,10 @@ interface ClearRequestMeta {
 
 export async function POST(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
@@ -48,9 +50,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = (await request.json()) as RequestBody;
+    const limited = checkRateLimit(rateLimitKey("chat:clear-request", request, user.id), {
+      maxRequests: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (limited) return limited;
+
+    const body = await request.json().catch(() => null);
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
     const action = body.action;
-    if (!action) {
+    if (action !== "request" && action !== "accept" && action !== "decline") {
       return NextResponse.json({ error: "action 이 필요합니다." }, { status: 400 });
     }
 
@@ -73,10 +85,11 @@ export async function POST(request: Request) {
 
     // ── action: request (새 동의 요청 만들기) ─────────────────────────
     if (action === "request") {
-      if (!body.coupleId) {
+      const requestedCoupleId = isUuid(body.coupleId) ? body.coupleId : null;
+      if (!requestedCoupleId) {
         return NextResponse.json({ error: "coupleId 가 필요합니다." }, { status: 400 });
       }
-      if (myCoupleId !== body.coupleId) {
+      if (myCoupleId !== requestedCoupleId) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
       }
 
@@ -92,7 +105,7 @@ export async function POST(request: Request) {
       const { data: inserted, error } = await admin
         .from("chat_messages")
         .insert({
-          couple_id: body.coupleId,
+          couple_id: requestedCoupleId,
           sender_id: user.id,
           sender_type: myRole ?? "bride",
           content: "함께 대화를 새로 시작하자고 제안했어요. 동의하면 양쪽 화면이 깨끗하게 정리돼요.",
@@ -109,7 +122,8 @@ export async function POST(request: Request) {
     }
 
     // ── action: accept | decline (응답) ──────────────────────────────
-    if (!body.messageId) {
+    const messageId = isUuid(body.messageId) ? body.messageId : null;
+    if (!messageId) {
       return NextResponse.json({ error: "messageId 가 필요합니다." }, { status: 400 });
     }
 
@@ -117,7 +131,7 @@ export async function POST(request: Request) {
     const { data: reqMsg, error: reqErr } = await admin
       .from("chat_messages")
       .select("id, couple_id, sender_id, created_at, metadata")
-      .eq("id", body.messageId)
+      .eq("id", messageId)
       .single();
     if (reqErr || !reqMsg) {
       return NextResponse.json({ error: "요청을 찾을 수 없습니다." }, { status: 404 });

@@ -204,9 +204,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemo = () => {
-    document.cookie = "demo_mode=true; path=/; max-age=86400";
-    window.location.href = "/wedding/lounge";
+  const handleDemo = async () => {
+    setLoading("demo");
+    setError("");
+    try {
+      const res = await fetch("/api/demo/start", { method: "POST" });
+      if (!res.ok) throw new Error("demo start failed");
+      window.location.href = "/wedding/lounge";
+    } catch {
+      setError("데모 모드를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setLoading(null);
+    }
   };
 
   return (

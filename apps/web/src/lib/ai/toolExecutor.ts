@@ -40,6 +40,7 @@ import {
   addDaysUtc,
 } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
+import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례",
@@ -403,6 +404,24 @@ export async function executeTool(
   }
 }
 
+function requireDestructiveConfirmation(
+  toolName: string,
+  input: Record<string, unknown>,
+  message: string
+): ToolExecutionResult | null {
+  if (input.confirmed === true) return null;
+  return {
+    toolName,
+    toolInput: input,
+    toolOutput: {
+      requires_confirmation: true,
+      confirmation_field: "confirmed",
+    },
+    success: false,
+    displayMessage: message,
+  };
+}
+
 async function executeUpdateBudget(
   input: Record<string, unknown>,
   ctx: ExecutionContext
@@ -712,6 +731,13 @@ async function executeDeleteCategory(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  const confirmation = requireDestructiveConfirmation(
+    "delete_category",
+    input,
+    "카테고리를 삭제하려면 먼저 사용자 확인이 필요합니다. 삭제할 항목을 다시 확인해주세요."
+  );
+  if (confirmation) return confirmation;
+
   const key = input.category as string;
   const isKnown = key in CATEGORY_LABELS;
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
@@ -760,6 +786,13 @@ async function executeResetCategory(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  const confirmation = requireDestructiveConfirmation(
+    "reset_category",
+    input,
+    "카테고리 데이터를 초기화하려면 먼저 사용자 확인이 필요합니다. 초기화할 항목을 다시 확인해주세요."
+  );
+  if (confirmation) return confirmation;
+
   const key = input.category as string;
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
   const isKnown = key in CATEGORY_LABELS;
@@ -1006,6 +1039,13 @@ async function executeDeleteScheduleEvent(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  const confirmation = requireDestructiveConfirmation(
+    "delete_schedule_event",
+    input,
+    "일정을 삭제하려면 먼저 사용자 확인이 필요합니다. 삭제할 일정을 다시 확인해주세요."
+  );
+  if (confirmation) return confirmation;
+
   const eventId = input.event_id as string;
   const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
   const existing = events.find((e) => e.id === eventId);
@@ -1432,7 +1472,11 @@ async function executeSearchVendors(
     query = query.eq("category", dbCat);
   }
   if (input.location) {
-    query = query.or(`location.ilike.%${input.location}%,region.ilike.%${input.location}%`);
+    const location = cleanPostgrestSearchTerm(input.location);
+    if (location) {
+      const escapedLocation = escapePostgrestLikePattern(location);
+      query = query.or(`location.ilike.%${escapedLocation}%,region.ilike.%${escapedLocation}%`);
+    }
   }
   if (input.price_max) {
     query = query.lte("price_min", input.price_max as number);
@@ -1441,7 +1485,11 @@ async function executeSearchVendors(
     query = query.gte("price_max", input.price_min as number);
   }
   if (input.search) {
-    query = query.or(`name.ilike.%${input.search}%,tags.cs.{${input.search}}`);
+    const search = cleanPostgrestSearchTerm(input.search);
+    if (search) {
+      const escapedSearch = escapePostgrestLikePattern(search);
+      query = query.or(`name.ilike.%${escapedSearch}%`);
+    }
   }
 
   query = query.order("rating", { ascending: false });
@@ -1690,7 +1738,11 @@ async function executeRecommendVendors(
 
   // 지역 필터
   if (location) {
-    query = query.or(`location.ilike.%${location}%,region.ilike.%${location}%`);
+    const safeLocation = cleanPostgrestSearchTerm(location);
+    if (safeLocation) {
+      const escapedLocation = escapePostgrestLikePattern(safeLocation);
+      query = query.or(`location.ilike.%${escapedLocation}%,region.ilike.%${escapedLocation}%`);
+    }
   }
 
   const { data: vendors, error } = await query;
@@ -2641,6 +2693,12 @@ async function executeCancelBooking(
 ): Promise<ToolExecutionResult> {
   const admin = getAdminClient();
   const bookingId = input.booking_id as string;
+  const confirmation = requireDestructiveConfirmation(
+    "cancel_booking",
+    input,
+    "예약을 취소하려면 먼저 사용자 확인이 필요합니다. 취소할 예약을 다시 확인해주세요."
+  );
+  if (confirmation) return confirmation;
 
   // booking_id 형식 방어 — AI 가 placeholder/추측 id 보내는 경우 silent skip.
   // (현실 발생 케이스: 사용자 "응 취소해줘" 같은 vague 발화에 AI 가 cancel_booking
@@ -3377,4 +3435,3 @@ function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): Too
         : "견적 체크 완료: 체크리스트의 주요 항목이 모두 견적서에 명시돼 있어요",
   };
 }
-

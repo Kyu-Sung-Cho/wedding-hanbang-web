@@ -133,7 +133,6 @@ export default function ChatScreen() {
       for (const line of raw.split("\n")) { if (!line.startsWith("data: ")) continue; const j = line.slice(6).trim(); if (j === "[DONE]" || !j) continue; try { const p = JSON.parse(j); if (p.type === "content_block_delta" && p.delta?.text) full += p.delta.text; else if (p.text) full += p.text; else if (p.chunk) full += p.chunk; } catch { if (j) full += j; } }
       if (!full && raw) { try { const json = JSON.parse(raw); full = json.text || json.content || raw; } catch { full = raw; } }
       const clean = full.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim() || full || "응답을 받지 못했어요.";
-      await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: null, sender_type: "ai", role: "assistant", content: clean });
       setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: clean } : m));
       scrollToEnd();
     } catch (err) {

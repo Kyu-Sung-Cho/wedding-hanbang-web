@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { ArrowLeft, ChevronUp, ChevronDown, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
+import { ArrowLeft, ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch, apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -81,7 +81,6 @@ export default function PostDetailScreen() {
 
   // 애니메이션
   const upScale = useRef(new Animated.Value(1)).current;
-  const downScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
 
   const loadPost = useCallback(async () => {
@@ -138,7 +137,7 @@ export default function PostDetailScreen() {
   }
 
   // 투표 처리
-  async function handleVote(voteType: 1 | -1) {
+  async function handleVote() {
     if (!post) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -146,9 +145,9 @@ export default function PostDetailScreen() {
       return;
     }
 
-    animatePress(voteType === 1 ? upScale : downScale);
+    animatePress(upScale);
 
-    const newVote = userVote === voteType ? 0 : voteType;
+    const newVote = userVote === 1 ? 0 : 1;
     const prevVote = userVote;
 
     // 낙관적 업데이트
@@ -156,12 +155,9 @@ export default function PostDetailScreen() {
     setPost((prev) => {
       if (!prev) return prev;
       let up = prev.upvote_count;
-      let down = prev.downvote_count;
       if (prevVote === 1) up--;
-      if (prevVote === -1) down--;
       if (newVote === 1) up++;
-      if (newVote === -1) down++;
-      return { ...prev, upvote_count: up, downvote_count: down };
+      return { ...prev, upvote_count: Math.max(0, up), downvote_count: 0 };
     });
 
     try {
@@ -247,7 +243,7 @@ export default function PostDetailScreen() {
     );
   }
 
-  const votes = post.upvote_count - post.downvote_count;
+  const votes = post.upvote_count;
   const adBadge = AD_LABELS[post.ad_disclosure];
   const catLabel = CATEGORY_LABELS[post.category] ?? post.category;
   const authorName = post.author?.nickname ?? "익명";
@@ -313,7 +309,7 @@ export default function PostDetailScreen() {
             <View style={styles.voteGroup}>
               <Animated.View style={{ transform: [{ scale: upScale }] }}>
                 <Pressable
-                  onPress={() => handleVote(1)}
+                  onPress={handleVote}
                   hitSlop={8}
                   style={[styles.voteBtn, userVote === 1 && styles.voteBtnActive]}
                 >
@@ -326,20 +322,7 @@ export default function PostDetailScreen() {
               <Text style={[
                 styles.voteCount,
                 userVote === 1 && { color: colors.rose[500] },
-                userVote === -1 && { color: colors.taupe[400] },
               ]}>{votes}</Text>
-              <Animated.View style={{ transform: [{ scale: downScale }] }}>
-                <Pressable
-                  onPress={() => handleVote(-1)}
-                  hitSlop={8}
-                  style={[styles.voteBtn, userVote === -1 && styles.voteBtnActive]}
-                >
-                  <ChevronDown
-                    size={20}
-                    color={userVote === -1 ? colors.rose[500] : colors.taupe[400]}
-                  />
-                </Pressable>
-              </Animated.View>
             </View>
             <View style={styles.actionGroup}>
               <MessageCircle size={18} color={colors.taupe[400]} />

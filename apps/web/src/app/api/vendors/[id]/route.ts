@@ -1,10 +1,14 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { vendorRowToVendor, productRowToProduct } from "@/lib/utils/vendorMapper";
+import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
+import { isUuid } from "@/utils/requestValidation";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
+    }
     const supabase = await createClientFromRequest(req);
 
     // 업체 정보
@@ -97,7 +101,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const vendor = vendorRowToVendor(vendorRow, enrichedTimeslots, products);
+    const vendor = vendorToPublicVendor(vendorRowToVendor(vendorRow, enrichedTimeslots, products));
 
     // 조회수 기록
     const { data: { user } } = await supabase.auth.getUser();

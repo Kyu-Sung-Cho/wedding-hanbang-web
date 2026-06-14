@@ -1,6 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { cleanOptionalText, isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 function getAdminClient() {
   return createServiceClient(
@@ -12,6 +16,10 @@ function getAdminClient() {
 // 프로필 업데이트 (이름 등)
 export async function PATCH(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -19,11 +27,26 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const limited = checkRateLimit(rateLimitKey("profile:update", request, user.id), {
+      maxRequests: 30,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
+
     const admin = getAdminClient();
     const body = await request.json();
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     const updates: Record<string, unknown> = {};
 
-    if (body.name !== undefined) updates.name = body.name;
+    if (body.name !== undefined) {
+      const name = cleanOptionalText(body.name, 80);
+      if (!name) {
+        return NextResponse.json({ error: "이름 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+      updates.name = name;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });

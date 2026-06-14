@@ -1,10 +1,14 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 import type { CohortThreadTopic } from "@/types/community.types";
 import {
   normalizeCohortThreadTopic,
   resolveCohortThreadTopic,
 } from "@/lib/community/cohortTopicClassifier";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
@@ -28,6 +32,9 @@ export async function GET(
 ) {
   try {
     const { id: roomId } = await params;
+    if (!isUuid(roomId)) {
+      return NextResponse.json({ error: "잘못된 동기방 ID입니다." }, { status: 400 });
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -116,6 +123,13 @@ export async function POST(
 ) {
   try {
     const { id: roomId } = await params;
+    if (!isUuid(roomId)) {
+      return NextResponse.json({ error: "잘못된 동기방 ID입니다." }, { status: 400 });
+    }
+    if (isBodyTooLarge(req, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 본문이 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -125,6 +139,12 @@ export async function POST(
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const limited = checkRateLimit(rateLimitKey("cohort:message:create", req, user.id), {
+      maxRequests: 60,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
+
     const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
       return NextResponse.json(
@@ -133,13 +153,14 @@ export async function POST(
       );
     }
 
-    const body = (await req.json()) as {
-      content: string;
-      thread_topic?: CohortThreadTopic;
-      reply_to?: string;
-    };
+    const body = await req.json();
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
 
-    const content = body.content?.trim();
+    const content = typeof body.content === "string"
+      ? body.content.replace(/\0/g, "").trim().slice(0, 2000)
+      : "";
     if (!content) {
       return NextResponse.json(
         { error: "메시지를 입력해주세요." },
@@ -147,16 +168,24 @@ export async function POST(
       );
     }
 
-    const threadTopic = resolveCohortThreadTopic(body.thread_topic, content);
+    const threadTopic = resolveCohortThreadTopic(
+      typeof body.thread_topic === "string"
+        ? (body.thread_topic as CohortThreadTopic)
+        : undefined,
+      content
+    );
+    const replyTo = typeof body.reply_to === "string" && isUuid(body.reply_to)
+      ? body.reply_to
+      : null;
 
     const { data: inserted, error } = await supabase
       .from("cohort_messages")
       .insert({
         room_id: roomId,
         author_id: user.id,
-        content: content.slice(0, 2000),
+        content,
         thread_topic: threadTopic,
-        reply_to: body.reply_to ?? null,
+        reply_to: replyTo,
       })
       .select("*")
       .single();

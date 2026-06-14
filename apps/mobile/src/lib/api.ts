@@ -10,6 +10,10 @@ const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
  * Supabase 세션 토큰을 Authorization header에 실어서 보냄
  */
 export async function apiFetch(path: string, options: RequestInit = {}) {
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    throw new Error("내부 API 경로만 호출할 수 있습니다.");
+  }
+
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
 

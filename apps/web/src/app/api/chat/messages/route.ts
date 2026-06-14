@@ -1,6 +1,11 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 // 사용자가 해당 커플에 속하는지 + role 반환
 async function verifyCoupleOwnership(
@@ -29,13 +34,16 @@ type ClearMode =
 // "새 채팅" — clearMode 따라 분기
 export async function DELETE(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const cookieHeader = request.headers.get("cookie") || "";
-    const isDemo = cookieHeader.includes("demo_mode=true");
+    const isDemo = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
 
     if (!user && !isDemo) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
@@ -45,8 +53,18 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
-    const body = await request.json();
-    const { coupleId, mode: rawMode } = body as { coupleId?: string; mode?: ClearMode };
+    const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
+      maxRequests: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (limited) return limited;
+
+    const body = await request.json().catch(() => null);
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    const coupleId = isUuid(body.coupleId) ? body.coupleId : null;
+    const rawMode = typeof body.mode === "string" ? (body.mode as ClearMode) : undefined;
 
     if (!coupleId) {
       return NextResponse.json({ error: "coupleId가 필요합니다." }, { status: 400 });

@@ -5,6 +5,7 @@ import {
   timeslotRowsToSlots,
   slotsToTimeslotInserts,
   vendorRowToVendor,
+  vendorToPublicVendor,
   vendorToInsertRow,
   vendorToUpdateRow,
   productRowToProduct,
@@ -215,6 +216,20 @@ describe("vendorRowToVendor", () => {
   it("defaults timeSlots to [] when not provided", () => {
     const vendor = vendorRowToVendor(baseVendorRow);
     expect(vendor.timeSlots).toEqual([]);
+  });
+
+  it("redacts owner and verification fields for public responses", () => {
+    const vendor = vendorToPublicVendor(vendorRowToVendor(baseVendorRow));
+    expect(vendor.ownerId).toBeNull();
+    expect(vendor.ownerName).toBe("");
+    expect(vendor.email).toBe("");
+    expect(vendor.businessNumber).toBe("");
+    expect(vendor.businessLicenseUrl).toBe("");
+    expect(vendor.notificationSettings).toEqual({
+      booking: false,
+      message: false,
+      marketing: false,
+    });
   });
 });
 

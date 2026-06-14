@@ -1,11 +1,12 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
     const includeDebug = process.env.NODE_ENV !== "production";
-    const isDemoRequest = request.headers.get("cookie")?.includes("demo_mode=true");
+    const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
     const {
       data: { user },
     } = await supabase.auth.getUser();

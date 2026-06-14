@@ -11,6 +11,7 @@ import { router } from "expo-router";
 import { ArrowLeft, TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -157,7 +158,15 @@ export default function BudgetScreen() {
     if (!coupleId) return;
     const num = parseInt(totalInput, 10);
     if (isNaN(num) || num < 0) { Alert.alert("알림", "올바른 금액을 입력해주세요 (만원)"); return; }
-    await supabase.from("wedding_journeys").update({ total_budget: num * 10000 }).eq("couple_id", coupleId);
+    const res = await apiFetch("/api/journey", {
+      method: "PATCH",
+      body: JSON.stringify({ total_budget: num * 10000 }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      Alert.alert("오류", err.error || "총 예산 저장에 실패했어요");
+      return;
+    }
     setEditingTotal(false);
     loadData();
   }
@@ -172,7 +181,14 @@ export default function BudgetScreen() {
       const sv = spentInput ? parseInt(spentInput, 10) * 10000 : undefined;
       const bv = budgetInput ? parseInt(budgetInput, 10) * 10000 : undefined;
       cur[editingKey] = { ...ex, category: editingKey, ...(sv !== undefined ? { spent: sv } : {}), ...(bv !== undefined ? { budget: bv } : {}), payer: payerInput };
-      await supabase.from("wedding_journeys").update({ progress: cur }).eq("couple_id", coupleId);
+      const res = await apiFetch("/api/journey", {
+        method: "PATCH",
+        body: JSON.stringify({ progress_patch: { [editingKey]: cur[editingKey] } }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "저장에 실패했어요");
+      }
       setEditingKey(null);
       loadData();
     } catch { Alert.alert("오류", "저장에 실패했어요"); }

@@ -66,7 +66,7 @@ const TOPICS = [
   { key: "all", label: "전체" },
   { key: "price", label: "가격" },
   { key: "review", label: "후기" },
-  { key: "worry", label: "고민" },
+  { key: "concern", label: "고민" },
   { key: "chat", label: "잡담" },
 ] as const;
 
@@ -356,30 +356,18 @@ export default function CohortChatScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Supabase 직접 INSERT (API 멤버 체크 우회)
-      const { error } = await supabase.from("cohort_messages").insert({
-        room_id: id,
-        author_id: user.id,
-        content: text,
-        thread_topic: selectedTopic === "all" ? null : selectedTopic,
+      const topic = selectedTopic === "all" ? undefined : selectedTopic ?? undefined;
+      const res = await apiFetch(`/api/community/cohort/${id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: text,
+          thread_topic: topic,
+        }),
       });
 
-      if (error) {
-        console.error("메시지 전송 에러:", error.message);
-        // RLS 에러면 멤버 재가입 시도
-        if (error.message.includes("policy") || error.message.includes("violates")) {
-          await supabase.from("cohort_members").upsert(
-            { room_id: id, user_id: user.id },
-            { onConflict: "room_id,user_id" }
-          );
-          // 재시도
-          await supabase.from("cohort_messages").insert({
-            room_id: id,
-            author_id: user.id,
-            content: text,
-            thread_topic: selectedTopic === "all" ? null : selectedTopic,
-          });
-        }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "메시지 전송에 실패했습니다.");
       }
 
       setInput("");

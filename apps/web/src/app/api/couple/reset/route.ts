@@ -1,6 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 4 * 1024;
 
 interface ResetBody {
   confirmText?: string;
@@ -8,6 +12,10 @@ interface ResetBody {
 
 export async function POST(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
@@ -16,6 +24,12 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const limited = checkRateLimit(rateLimitKey("couple:reset", request, user.id), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (limited) return limited;
 
     const body = (await request.json().catch(() => ({}))) as ResetBody;
     if (body.confirmText !== "초기화합니다") {

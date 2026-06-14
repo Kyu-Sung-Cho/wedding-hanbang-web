@@ -1,6 +1,19 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import {
+  cleanOptionalEnum,
+  cleanOptionalIsoDate,
+  cleanOptionalText,
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+} from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
+const MONEY_SIDES = ["groom", "bride", "both"] as const;
+const MONEY_METHODS = ["cash", "transfer", "etc"] as const;
 
 // 축의금 항목 소유권 검증: row의 couple_id와 사용자의 couple_id 일치 여부
 async function assertMoneyOwner(
@@ -38,9 +51,22 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "잘못된 기록 ID입니다." }, { status: 400 });
+    }
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 본문이 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+
+    const limited = checkRateLimit(rateLimitKey("money:update", request, user.id), {
+      maxRequests: 60,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
 
     const ownerCheck = await assertMoneyOwner(supabase, id, user.id);
     if (!ownerCheck.ok) {
@@ -48,6 +74,10 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
     const update: Record<string, unknown> = {};
     for (const key of PATCHABLE_FIELDS) {
       if (key in body) update[key] = body[key];
@@ -63,9 +93,33 @@ export async function PATCH(
       }
       update.amount = amount;
     }
-    if (typeof update.guest_name === "string") {
-      update.guest_name = update.guest_name.trim().slice(0, 60);
-      if (!update.guest_name) return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
+    if ("guest_name" in update) {
+      const guestName = cleanOptionalText(update.guest_name, 60);
+      if (!guestName) return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
+      update.guest_name = guestName;
+    }
+    if ("side" in update) {
+      const side = cleanOptionalEnum(update.side, MONEY_SIDES);
+      if (!side) return NextResponse.json({ error: "구분을 선택해주세요." }, { status: 400 });
+      update.side = side;
+    }
+    if ("method" in update) {
+      const method = cleanOptionalEnum(update.method, MONEY_METHODS);
+      if (!method) return NextResponse.json({ error: "수령 방식을 선택해주세요." }, { status: 400 });
+      update.method = method;
+    }
+    if ("relation" in update) {
+      update.relation = cleanOptionalText(update.relation, 60);
+    }
+    if ("memo" in update) {
+      update.memo = cleanOptionalText(update.memo, 500);
+    }
+    if ("received_at" in update) {
+      const receivedAt = cleanOptionalIsoDate(update.received_at);
+      if (!receivedAt) {
+        return NextResponse.json({ error: "날짜 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+      update.received_at = receivedAt;
     }
 
     const { data, error } = await supabase
@@ -92,9 +146,19 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "잘못된 기록 ID입니다." }, { status: 400 });
+    }
+
     const supabase = await createClientFromRequest(_request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+
+    const limited = checkRateLimit(rateLimitKey("money:delete", _request, user.id), {
+      maxRequests: 30,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
 
     const ownerCheck = await assertMoneyOwner(supabase, id, user.id);
     if (!ownerCheck.ok) {

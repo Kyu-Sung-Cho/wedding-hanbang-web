@@ -121,6 +121,18 @@ export function vendorRowToVendor(
   };
 }
 
+export function vendorToPublicVendor(vendor: Vendor): Vendor {
+  return {
+    ...vendor,
+    ownerId: null,
+    ownerName: "",
+    email: "",
+    businessNumber: "",
+    businessLicenseUrl: "",
+    notificationSettings: { booking: false, message: false, marketing: false },
+  };
+}
+
 export function vendorToInsertRow(vendor: Partial<Vendor> & { ownerId: string }): Record<string, unknown> {
   return {
     owner_id: vendor.ownerId,

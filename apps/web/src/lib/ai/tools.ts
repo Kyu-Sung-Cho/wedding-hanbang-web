@@ -196,6 +196,10 @@ export const WEDDING_TOOLS: Tool[] = [
           description:
             "삭제할 카테고리 키. 기존 카테고리: meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve. 커스텀 카테고리: custom_로 시작하는 키. 먼저 get_budget_summary로 현재 카테고리 목록을 확인하세요.",
         },
+        confirmed: {
+          type: "boolean",
+          description: "사용자가 삭제를 명시적으로 확인한 뒤에만 true로 설정합니다.",
+        },
       },
       required: ["category"],
     },
@@ -211,6 +215,10 @@ export const WEDDING_TOOLS: Tool[] = [
           type: "string",
           description:
             "초기화할 카테고리 키. meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve 또는 custom_으로 시작하는 커스텀 키",
+        },
+        confirmed: {
+          type: "boolean",
+          description: "사용자가 초기화를 명시적으로 확인한 뒤에만 true로 설정합니다.",
         },
       },
       required: ["category"],
@@ -305,6 +313,10 @@ export const WEDDING_TOOLS: Tool[] = [
         event_id: {
           type: "string",
           description: "삭제할 일정의 ID",
+        },
+        confirmed: {
+          type: "boolean",
+          description: "사용자가 일정 삭제를 명시적으로 확인한 뒤에만 true로 설정합니다.",
         },
       },
       required: ["event_id"],
@@ -706,6 +718,10 @@ export const WEDDING_TOOLS: Tool[] = [
         booking_id: {
           type: "string",
           description: "예약 ID",
+        },
+        confirmed: {
+          type: "boolean",
+          description: "사용자가 예약 취소를 명시적으로 확인한 뒤에만 true로 설정합니다.",
         },
       },
       required: ["booking_id"],

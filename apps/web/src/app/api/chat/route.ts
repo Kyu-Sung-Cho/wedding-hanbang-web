@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
@@ -471,7 +472,9 @@ export async function POST(request: Request) {
   }
 
   const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo, clientRequestId: bodyClientRequestId, visibility: bodyVisibility } = body;
-  const isDemo = bodyIsDemo === true;
+  const isDemo =
+    bodyIsDemo === true &&
+    hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
   const clientRequestId: string | null = typeof bodyClientRequestId === "string" && bodyClientRequestId.length > 0
     ? bodyClientRequestId
     : null;

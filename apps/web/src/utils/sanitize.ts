@@ -62,8 +62,9 @@ function sanitizeAttributes(tagName: string, rawAttrs: string): string {
   }
 
   if (tagName === "a") {
-    const hasRel = attrs.some((attr) => attr.startsWith("rel="));
-    if (!hasRel) attrs.push('rel="noopener noreferrer"');
+    const relIndex = attrs.findIndex((attr) => attr.startsWith("rel="));
+    if (relIndex >= 0) attrs.splice(relIndex, 1);
+    attrs.push('rel="noopener noreferrer"');
   }
 
   return attrs.length ? ` ${attrs.join(" ")}` : "";

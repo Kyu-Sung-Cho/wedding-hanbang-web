@@ -148,6 +148,8 @@ export async function POST(req: NextRequest) {
 
     // ── 5. detector 실행 ──────────────────────────────────────
     const detection = await detectCoupleConflict({
+      coupleId,
+      userId: user.id,
       recentSharedMessages: recentMessages,
       pastConflicts,
       windowMinutes: 5,

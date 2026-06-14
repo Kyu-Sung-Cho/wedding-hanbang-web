@@ -1,5 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -69,7 +71,11 @@ export async function GET(
 ) {
   try {
     const { name: rawName } = await params;
-    const name = decodeURIComponent(rawName);
+    const name = cleanPostgrestSearchTerm(decodeURIComponent(rawName), 100);
+    if (!name) {
+      return NextResponse.json({ error: "잘못된 업체명입니다." }, { status: 400 });
+    }
+    const escapedName = escapePostgrestLikePattern(name);
     const service = getServiceClient();
 
     const { data: tag } = await service
@@ -80,8 +86,8 @@ export async function GET(
 
     const { data: posts } = await service
       .from("community_posts")
-      .select("*")
-      .or(`title.ilike.%${name}%,content.ilike.%${name}%`)
+      .select(COMMUNITY_POST_PUBLIC_SELECT)
+      .or(`title.ilike.%${escapedName}%,content.ilike.%${escapedName}%`)
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
       .limit(50);
@@ -104,7 +110,7 @@ export async function GET(
         .select(
           "id, name, category, region, address, thumbnail_url, rating, review_count, price_min, price_max, price_range, description"
         )
-        .ilike("name", `%${name}%`)
+        .ilike("name", `%${escapedName}%`)
         .eq("status", "approved")
         .limit(1)
         .maybeSingle();

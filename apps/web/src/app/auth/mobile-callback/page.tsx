@@ -6,7 +6,7 @@
 // 플로우:
 // 1. Supabase redirects to: https://hanbang.ai/auth/mobile-callback#access_token=xxx&refresh_token=xxx
 // 2. 이 페이지가 hash fragment에서 토큰 추출
-// 3. exp:// 또는 hanbang:// 딥링크로 앱에 토큰 전달
+// 3. hanbang:// deep link receives the token fragment
 // 4. 앱이 토큰으로 세션 생성
 
 import { useEffect, useState } from "react";
@@ -25,23 +25,35 @@ export default function MobileCallbackPage() {
 
     if (accessToken && refreshToken) {
       // 앱으로 딥링크 전달
-      const appUrl = `hanbang://auth/callback#access_token=${accessToken}&refresh_token=${refreshToken}`;
+      const tokenFragment = new URLSearchParams({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).toString();
+      const appUrl = `hanbang://auth/callback#${tokenFragment}`;
+      const devExpoCallback = process.env.NEXT_PUBLIC_EXPO_AUTH_CALLBACK_URL;
 
       // Expo Go용 (개발 환경)
-      const expoUrl = `exp://192.168.0.23:8081/--/auth/callback#access_token=${accessToken}&refresh_token=${refreshToken}`;
+      let devFallbackTimer: number | undefined;
 
-      // 먼저 hanbang:// 시도, 실패하면 exp:// 시도
+      // Production only attempts the app scheme. Dev fallback is opt-in by env.
       window.location.href = appUrl;
 
       // 0.5초 후 아직 이 페이지에 있으면 Expo Go URL 시도
-      setTimeout(() => {
-        window.location.href = expoUrl;
-      }, 500);
+      if (process.env.NODE_ENV !== "production" && devExpoCallback) {
+        devFallbackTimer = window.setTimeout(() => {
+          window.location.href = `${devExpoCallback}#${tokenFragment}`;
+        }, 500);
+      }
 
       // 2초 후에도 이 페이지에 있으면 수동 안내
-      setTimeout(() => {
+      const statusTimer = window.setTimeout(() => {
         setStatus("앱이 열리지 않으면 Expo Go 앱으로 직접 돌아가주세요.");
       }, 2000);
+
+      return () => {
+        if (devFallbackTimer) window.clearTimeout(devFallbackTimer);
+        window.clearTimeout(statusTimer);
+      };
     } else {
       const timer = window.setTimeout(() => {
         setStatus("토큰을 받지 못했습니다. 다시 로그인해주세요.");

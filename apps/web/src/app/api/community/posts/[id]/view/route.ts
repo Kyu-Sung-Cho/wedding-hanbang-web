@@ -1,6 +1,14 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+
+function getServiceClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // 조회수 증가
 export async function POST(
@@ -18,9 +26,29 @@ export async function POST(
     if (rlResult) return rlResult;
 
     const supabase = await createClientFromRequest(req);
+    const { data: visiblePost, error: visibilityError } = await supabase
+      .from("community_posts")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (visibilityError) {
+      console.error("View visibility check error:", visibilityError);
+      return NextResponse.json(
+        { error: "게시글 접근 확인에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (!visiblePost) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
 
     // RPC로 원자적 조회수 증가
-    const { error } = await supabase.rpc("community_increment_view", {
+    const { error } = await getServiceClient().rpc("community_increment_view", {
       p_post_id: id,
     });
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 /* ───── types ───── */
@@ -259,10 +260,10 @@ export default function ScheduleScreen() {
         checklist: updatedChecklist,
       };
 
-      await supabase
-        .from("wedding_journeys")
-        .update({ progress: currentProgress })
-        .eq("couple_id", coupleId);
+      await apiFetch("/api/journey", {
+        method: "PATCH",
+        body: JSON.stringify({ progress_patch: { [categoryKey]: currentProgress[categoryKey] } }),
+      });
     }
 
     // 진행률 재계산
@@ -340,10 +341,14 @@ export default function ScheduleScreen() {
       updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
 
       const updatedProgress = { ...currentProgress, __events: updatedEvents };
-      await supabase
-        .from("wedding_journeys")
-        .update({ progress: updatedProgress })
-        .eq("couple_id", coupleId);
+      const res = await apiFetch("/api/journey", {
+        method: "PATCH",
+        body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "저장에 실패했어요");
+      }
 
       setModalVisible(false);
       loadData();
@@ -373,10 +378,14 @@ export default function ScheduleScreen() {
           const updatedEvents = currentEvents.filter((_, i) => i !== editingIdx);
           const updatedProgress = { ...currentProgress, __events: updatedEvents };
 
-          await supabase
-            .from("wedding_journeys")
-            .update({ progress: updatedProgress })
-            .eq("couple_id", coupleId);
+          const res = await apiFetch("/api/journey", {
+            method: "PATCH",
+            body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
+          });
+          if (!res.ok) {
+            Alert.alert("오류", "삭제에 실패했어요. 다시 시도해주세요.");
+            return;
+          }
 
           setModalVisible(false);
           loadData();

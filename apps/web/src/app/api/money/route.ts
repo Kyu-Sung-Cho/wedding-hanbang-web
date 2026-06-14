@@ -1,5 +1,18 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import {
+  cleanOptionalEnum,
+  cleanOptionalIsoDate,
+  cleanOptionalText,
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+} from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
+const MONEY_SIDES = ["groom", "bride", "both"] as const;
+const MONEY_METHODS = ["cash", "transfer", "etc"] as const;
 
 export async function GET(request: Request) {
   try {
@@ -10,6 +23,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const coupleId = searchParams.get("coupleId");
     if (!coupleId) return NextResponse.json({ error: "coupleId 필요" }, { status: 400 });
+    if (!isUuid(coupleId)) return NextResponse.json({ error: "coupleId 형식이 올바르지 않습니다." }, { status: 400 });
 
     // 본인 couple만 조회 가능
     const { data: profile } = await supabase
@@ -41,11 +55,24 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 본문이 너무 큽니다." }, { status: 413 });
+    }
+
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
+    const limited = checkRateLimit(rateLimitKey("money:create", request, user.id), {
+      maxRequests: 60,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
+
     const body = await request.json();
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -67,6 +94,19 @@ export async function POST(request: Request) {
     if (!guestName) {
       return NextResponse.json({ error: "이름을 입력해주세요." }, { status: 400 });
     }
+    const side = cleanOptionalEnum(body.side, MONEY_SIDES);
+    if (!side) {
+      return NextResponse.json({ error: "구분을 선택해주세요." }, { status: 400 });
+    }
+    const method = cleanOptionalEnum(body.method ?? "cash", MONEY_METHODS);
+    if (!method) {
+      return NextResponse.json({ error: "수령 방식을 선택해주세요." }, { status: 400 });
+    }
+    const cleanReceivedAt = cleanOptionalIsoDate(body.received_at);
+    if (cleanReceivedAt === undefined) {
+      return NextResponse.json({ error: "날짜 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const receivedAt = cleanReceivedAt ?? new Date().toISOString().slice(0, 10);
 
     const { data, error } = await supabase
       .from("congratulatory_money")
@@ -74,11 +114,11 @@ export async function POST(request: Request) {
         couple_id: profile.couple_id,
         guest_name: guestName,
         amount,
-        side: body.side,
-        relation: body.relation,
-        method: body.method || "cash",
-        memo: typeof body.memo === "string" ? body.memo.slice(0, 500) : null,
-        received_at: body.received_at || new Date().toISOString().slice(0, 10),
+        side,
+        relation: cleanOptionalText(body.relation, 60),
+        method,
+        memo: cleanOptionalText(body.memo, 500),
+        received_at: receivedAt,
       })
       .select()
       .single();
