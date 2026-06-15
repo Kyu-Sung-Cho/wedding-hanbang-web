@@ -60,7 +60,6 @@ export default function CohortCardContainer() {
         /* auto-assign 실패는 silent — UI에선 "동기방 가입하기" 버튼 그대로 노출 */
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {

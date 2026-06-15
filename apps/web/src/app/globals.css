@@ -71,15 +71,15 @@
   --color-platinum: #E6DDD2;
 
   /* Fonts — 끝에 emoji fallback 추가 (국기 등 regional indicator 조합 깨짐 방지) */
-  --font-serif-kr: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
-  --font-sans-kr: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
-  --font-display: 'Cormorant Garamond', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
-  --font-jakarta: 'Plus Jakarta Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-serif-kr: var(--font-noto-serif-kr), serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-sans-kr: var(--font-noto-sans-kr), sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-display: var(--font-cormorant-garamond), serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-jakarta: var(--font-plus-jakarta-sans), sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
 }
 
 /* PRD: Editorial headline utility — Noto Serif Italic 혼용 */
 .headline-italic {
-  font-family: 'Noto Serif KR', serif;
+  font-family: var(--font-noto-serif-kr), serif;
   font-style: italic;
   font-weight: 400;
   letter-spacing: 0;
@@ -87,7 +87,7 @@
 
 /* PRD: 영문/숫자 본문 — Plus Jakarta Sans (한글은 Noto Sans KR fallback) */
 .font-jakarta {
-  font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
+  font-family: var(--font-plus-jakarta-sans), var(--font-noto-sans-kr), sans-serif;
 }
 
 /* ─────────────────────────────────────────────
@@ -97,7 +97,7 @@
 
 /* 페이지 최상단 타이틀 (h1) — 큰 serif italic 톤 */
 .h-page {
-  font-family: 'Noto Serif KR', serif;
+  font-family: var(--font-noto-serif-kr), serif;
   font-weight: 500;
   color: #263832;
   font-size: 1.625rem;
@@ -112,7 +112,7 @@
 
 /* 섹션 헤더 (h2) — 카드/그룹 제목 */
 .h-section {
-  font-family: 'Noto Serif KR', serif;
+  font-family: var(--font-noto-serif-kr), serif;
   font-weight: 500;
   color: #263832;
   font-size: 1.375rem;
@@ -126,7 +126,7 @@
 
 /* 카드 안 헤더 (h3) — 작은 카드 안의 타이틀 */
 .h-card {
-  font-family: 'Noto Serif KR', serif;
+  font-family: var(--font-noto-serif-kr), serif;
   font-weight: 500;
   color: #263832;
   font-size: 1.125rem;
@@ -164,7 +164,7 @@ html {
 }
 
 body {
-  font-family: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  font-family: var(--font-noto-sans-kr), sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
   background: var(--ivory-50);
   color: var(--noir-800);
   -webkit-font-smoothing: antialiased;
@@ -690,7 +690,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 /* App/community typography bridge. Keep navigation and small controls free to size
  * themselves, but make page content headings and body copy share one hierarchy. */
 :where(.hanbang-service-theme, .hanbang-community-theme) {
-  font-family: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  font-family: var(--font-noto-sans-kr), sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
   letter-spacing: 0;
 }
 
@@ -700,13 +700,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) :where(button, input, textarea, select) {
-  font-family: 'Noto Sans KR', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  font-family: var(--font-noto-sans-kr), sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
   letter-spacing: 0;
 }
 
 .hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]),
 .hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]) {
-  font-family: 'Noto Serif KR', serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji' !important;
+  font-family: var(--font-noto-serif-kr), serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji' !important;
   font-style: normal !important;
   letter-spacing: 0 !important;
 }

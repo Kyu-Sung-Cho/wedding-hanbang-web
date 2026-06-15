@@ -44,6 +44,8 @@ const VENUE_OPTIONAL_NAMES = [
 ];
 
 // 옵션 시세 항목명 — 사이트 표 순서 고정 (S4 옵션 리스트와 1:1)
+void VENUE_OPTIONAL_NAMES;
+
 const STUDIO_OPTION_NAMES = [
   "앨범페이지 추가", "드레스 추가", "드레스 외 의상 추가", "수정비용", "액자변경",
   "촬영시간 추가", "선수정본", "컨펌비", "담당자 지정", "야외촬영",

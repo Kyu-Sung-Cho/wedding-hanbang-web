@@ -43,8 +43,15 @@ function getDaysUntil(dateStr: string, now: Date): string {
 
 export default function UpcomingTab() {
   const { journey } = useAuthStore();
-  const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const progress = useMemo(
+    () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
+    [journey?.progress]
+  );
+  const weddingDateValue = journey?.wedding_date;
+  const weddingDate = useMemo(
+    () => (weddingDateValue ? new Date(weddingDateValue) : null),
+    [weddingDateValue]
+  );
 
   // hydration-safe: now는 클라이언트에서만 설정
   const [now, setNow] = useState<Date | null>(null);

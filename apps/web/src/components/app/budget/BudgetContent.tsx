@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   TrendingDown,
   TrendingUp,
@@ -682,7 +682,10 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
   const { journey, updateJourney, isDemo } = useAuthStore();
 
   const totalBudget = journey?.total_budget ?? 20000000;
-  const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+  const progress = useMemo(
+    () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
+    [journey?.progress]
+  );
   const hiddenKeys = new Set(((progress as Record<string, unknown>).__hidden as string[]) ?? []);
 
   // 커스텀 카테고리 추가 폼
@@ -848,7 +851,8 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     async (key: string) => {
       const existing = progress[key];
       if (!existing) return;
-      const { spent: _spent, ...rest } = existing;
+      const rest = { ...existing };
+      delete rest.spent;
       const newProgress = {
         ...progress,
         [key]: { ...rest, category: key },
@@ -902,7 +906,8 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
   const handleResetCategory = useCallback(
     async (key: string) => {
-      const { [key]: _removed, ...rest } = progress;
+      const rest = { ...progress };
+      delete rest[key];
       await updateJourney({ progress: rest });
       setDeletingKey(null);
     },
@@ -913,10 +918,12 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     async (key: string) => {
       if (KNOWN_KEYS.has(key)) {
         const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
-        const { [key]: _removed, ...rest } = progress;
+        const rest = { ...progress };
+        delete rest[key];
         await updateJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> });
       } else {
-        const { [key]: _removed, ...rest } = progress;
+        const rest = { ...progress };
+        delete rest[key];
         await updateJourney({ progress: rest });
       }
       setDeletingKey(null);

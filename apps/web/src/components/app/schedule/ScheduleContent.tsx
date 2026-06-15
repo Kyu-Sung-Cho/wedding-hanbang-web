@@ -94,11 +94,18 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const [pendingChecklistSchedule, setPendingChecklistSchedule] =
     useState<PendingChecklistSchedule | null>(null);
 
-  const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const progress = useMemo(
+    () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
+    [journey?.progress]
+  );
+  const weddingDateValue = journey?.wedding_date;
+  const weddingDate = useMemo(
+    () => (weddingDateValue ? new Date(weddingDateValue) : null),
+    [weddingDateValue]
+  );
 
   // 이벤트 목록
-  const events = getEvents(progress as Record<string, unknown>);
+  const events = useMemo(() => getEvents(progress as Record<string, unknown>), [progress]);
 
   // 다가오는 일정
   const todayStr = new Date().toISOString().slice(0, 10);

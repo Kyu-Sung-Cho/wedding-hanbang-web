@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, HelpCircle, Shield, TrendingDown, TrendingUp, XCircle, Search, Circle, Check } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, HelpCircle, Shield, XCircle, Search, Circle, Check } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 
 interface QuoteAnalysisCardProps {

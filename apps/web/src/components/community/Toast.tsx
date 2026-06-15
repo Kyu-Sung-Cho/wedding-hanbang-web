@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 

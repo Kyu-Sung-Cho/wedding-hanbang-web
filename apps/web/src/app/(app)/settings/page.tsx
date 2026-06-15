@@ -199,7 +199,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setDraftPrefs(prefs ?? {});
-  }, [journey?.progress]);
+  }, [prefs]);
 
   const updatePreferences = async (
     partial: Partial<{

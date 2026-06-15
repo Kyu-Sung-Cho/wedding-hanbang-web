@@ -540,6 +540,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 {attachments.map((att, i) => (
                   <div key={i} className="relative group">
                     {att.previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Local object URLs are previews only, so next/image cannot optimize them.
                       <img src={att.previewUrl} alt="" className="w-12 h-12 rounded-lg object-cover border border-black/[0.06]" />
                     ) : (
                       <div className="w-12 h-12 rounded-lg border border-black/[0.06] bg-gray-50 flex flex-col items-center justify-center">

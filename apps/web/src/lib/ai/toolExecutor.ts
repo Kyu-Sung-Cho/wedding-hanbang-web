@@ -6,7 +6,7 @@ import {
   getNationalTotal, getSeoulTotal, getLatestPeriodId,
   VENUE_NECESSARY, SDM_PACKAGES, DRESS_PRICES, MAKEUP_PRICES,
   OPTION_PRICES, SEASONAL_DATA, PRICE_PERIODS,
-  getVenueOptionalItems, getRegionalCosts, REGION_LABELS,
+  getVenueOptionalItems,
 } from "@/constants/marketPrices";
 import {
   analyzeAmoraQuoteCheck,

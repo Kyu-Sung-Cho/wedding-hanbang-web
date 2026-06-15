@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { Users, ChevronRight, Sparkles, Calendar } from "lucide-react";
+import { Users, ChevronRight, Sparkles } from "lucide-react";
 import { useToast } from "./Toast";
 import type { CohortRoom, CommunityProfile } from "@/types/community.types";
 

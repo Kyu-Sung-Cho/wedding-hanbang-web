@@ -341,7 +341,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const { profile, couple, journey, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const {
     messages,
-    isLoading,
     isStreaming,
     streamingContent,
     streamingToolResults,
@@ -1830,6 +1829,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {attachments.map((att, i) => (
               <div key={i} className="relative group">
                 {att.previewUrl.startsWith("blob:") ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Local object URLs are previews only, so next/image cannot optimize them.
                   <img
                     src={att.previewUrl}
                     alt={att.fileName}

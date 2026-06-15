@@ -109,7 +109,7 @@ export default function VendorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, trackEvent]);
 
   useEffect(() => {
     const timer = setTimeout(fetchVendors, searchQuery ? 300 : 0);

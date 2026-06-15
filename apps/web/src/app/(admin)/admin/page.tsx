@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
-  Loader2, LogOut, LayoutDashboard, Building2, CalendarCheck,
+  Loader2, LogOut, LayoutDashboard, CalendarCheck,
   UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
-  Banknote, Flag, Bot,
+  Flag,
 } from "lucide-react";
 
 interface Registration {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
@@ -236,8 +236,8 @@ function VendorDetailCard({
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  const products = output.products ?? [];
-  const staff = output.staff ?? [];
+  const products = useMemo(() => output.products ?? [], [output.products]);
+  const staff = useMemo(() => output.staff ?? [], [output.staff]);
   const hasStaff = staff.length > 0;
 
   const handleConfirm = useCallback((productId: string, staffId: string | null) => {

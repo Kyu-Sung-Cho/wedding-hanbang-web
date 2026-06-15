@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   X,
   Check,
@@ -82,7 +82,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   const [saving, setSaving] = useState(false);
 
   const template = CHECKLIST_MAP[categoryKey];
-  const progress = journey?.progress ?? {};
+  const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const existing = progress[categoryKey] as ProgressItem | undefined;
 
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       setChecklist(merged);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isOpen, categoryKey, template, existing?.checklist]);
+  }, [isOpen, categoryKey, template, existing?.checklist, existing?.status]);
 
   const toggleItem = useCallback(
     async (itemId: string) => {

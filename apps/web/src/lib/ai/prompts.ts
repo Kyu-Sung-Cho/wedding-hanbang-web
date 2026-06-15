@@ -28,8 +28,6 @@ function generateBehaviorInsights(context: {
   }
 
   // 카테고리별 예산/지출/상태 집계
-  let totalBudget = 0;
-  let totalSpent = 0;
   let completedCount = 0;
   const highBudgetCategories: string[] = [];
   const overBudgetCategories: string[] = [];
@@ -40,9 +38,6 @@ function generateBehaviorInsights(context: {
     const catBudget = (p.budget ?? 0) as number;
     const catSpent = ((p.spent ?? p.cost ?? 0) as number);
     const status = p.status as string | undefined;
-
-    totalBudget += catBudget;
-    totalSpent += catSpent;
 
     if (status === "completed") {
       completedCount++;

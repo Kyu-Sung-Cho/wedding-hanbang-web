@@ -135,6 +135,7 @@ function ChatImageAttachments({ metadata }: { metadata: ChatMessage["metadata"] 
             <span className="text-sm text-white/80">PDF 문서</span>
           </a>
         ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- Dynamic signed attachment URLs are not good candidates for next/image optimization.
           <img
             key={i}
             src={url}
@@ -445,7 +446,6 @@ function stripSelectionTags(text: string): string {
 export default function ChatBubble({
   message,
   isCurrentUser,
-  currentUserRole,
   isRecentAi = false,
   onNegativeFeedback,
 }: ChatBubbleProps) {
@@ -457,7 +457,6 @@ export default function ChatBubble({
       <ClearRequestCard
         message={message}
         isRequester={isCurrentUser}
-        createdAt={created_at}
       />
     );
   }
@@ -652,11 +651,9 @@ export default function ChatBubble({
 function ClearRequestCard({
   message,
   isRequester,
-  createdAt,
 }: {
   message: ChatMessage;
   isRequester: boolean;
-  createdAt: string;
 }) {
   const cr = message.metadata?.clearRequest;
   const respondToClearRequest = useChatStore((s) => s.respondToClearRequest);

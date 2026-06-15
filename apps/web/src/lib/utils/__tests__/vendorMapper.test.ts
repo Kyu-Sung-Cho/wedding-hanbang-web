@@ -8,7 +8,6 @@ import {
   vendorToPublicVendor,
   vendorToInsertRow,
   vendorToUpdateRow,
-  productRowToProduct,
   bookingRowToBooking,
 } from "../vendorMapper";
 import type { VendorRow, VendorTimeslotRow, VendorBookingRow } from "@/types/vendor.types";

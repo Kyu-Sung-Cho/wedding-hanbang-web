@@ -305,12 +305,14 @@ function syncToolResult(result: ToolExecutionResult) {
       const isKnownDel = delKey in (curProgressDel as Record<string, unknown>) || ["meeting","venue","studio","dress","makeup","ring","hanbok","yedan","honeymoon","houseware","housing","invitation","snap","shoes","bouquet","gift","mc","ham","pyebaek","reserve"].includes(delKey);
       if (isKnownDel) {
         const hiddenDel: string[] = ((curProgressDel as Record<string, unknown>).__hidden as string[]) ?? [];
-        const { [delKey]: _r, ...restDel } = curProgressDel as Record<string, unknown>;
+        const restDel = { ...(curProgressDel as Record<string, unknown>) };
+        delete restDel[delKey];
         authStore.updateJourneyLocal({
           progress: { ...restDel, __hidden: [...hiddenDel, delKey] } as unknown as typeof curProgressDel,
         });
       } else {
-        const { [delKey]: _r, ...restDel } = curProgressDel as Record<string, unknown>;
+        const restDel = { ...(curProgressDel as Record<string, unknown>) };
+        delete restDel[delKey];
         authStore.updateJourneyLocal({ progress: restDel as typeof curProgressDel });
       }
       break;
@@ -319,7 +321,8 @@ function syncToolResult(result: ToolExecutionResult) {
       if (!result.success) break;
       const resetKey = result.toolOutput.key as string;
       const curProgressReset = authStore.journey?.progress ?? {};
-      const { [resetKey]: _rr, ...restReset } = curProgressReset as Record<string, unknown>;
+      const restReset = { ...(curProgressReset as Record<string, unknown>) };
+      delete restReset[resetKey];
       authStore.updateJourneyLocal({ progress: restReset as typeof curProgressReset });
       break;
     }

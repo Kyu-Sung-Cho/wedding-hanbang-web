@@ -16,7 +16,6 @@ type LogPayload = unknown;
 export const log = {
   error: (msg: string, err?: LogPayload) => {
     if (isDev) {
-      // eslint-disable-next-line no-console
       console.error(msg, err);
       return;
     }
@@ -28,21 +27,18 @@ export const log = {
 
   warn: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      // eslint-disable-next-line no-console
       console.warn(msg, payload);
     }
   },
 
   info: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      // eslint-disable-next-line no-console
       console.info(msg, payload);
     }
   },
 
   debug: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      // eslint-disable-next-line no-console
       console.debug(msg, payload);
     }
   },

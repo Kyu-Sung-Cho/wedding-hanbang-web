@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getRegionalCosts, REGION_LABELS, type RegionKey, type RegionalCost } from "@/constants/marketPrices";
+import { getRegionalCosts, REGION_LABELS, type RegionKey } from "@/constants/marketPrices";
 
 interface RegionalCostTableProps {
   periodId: string;

@@ -432,6 +432,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   <div className="grid grid-cols-3 gap-2">
                     {allImages.slice(0, 9).map((src, idx) => (
                       <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-[#F6F3F2] group">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Vendor portfolio URLs are user-managed remote assets. */}
                         <img src={src} alt={`포트폴리오 ${idx + 1}`} className="w-full h-full object-cover" />
                         <button
                           onClick={() => togglePhotoLike(src)}
@@ -506,6 +507,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                         <div className="flex gap-1.5 mb-2">
                           {review.images.slice(0, 4).map((img, idx) => (
                             <div key={idx} className="w-16 h-16 rounded-lg overflow-hidden bg-[#F6F3F2] flex-shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- Review images are user-managed remote assets. */}
                               <img src={img} alt={`리뷰 사진 ${idx + 1}`} className="w-full h-full object-cover" />
                             </div>
                           ))}

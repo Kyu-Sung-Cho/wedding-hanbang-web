@@ -359,7 +359,6 @@ export default function PostCard({ post }: PostCardProps) {
                 className="w-full h-full object-cover"
               />
             ) : firstSlide ? (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
               <video
                 src={firstSlide.url}
                 preload="metadata"

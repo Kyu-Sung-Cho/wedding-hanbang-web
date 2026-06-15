@@ -1,6 +1,39 @@
 import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond, Noto_Sans_KR, Noto_Serif_KR, Plus_Jakarta_Sans } from "next/font/google";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import "./globals.css";
+
+const notoSansKr = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-noto-sans-kr",
+});
+
+const notoSerifKr = Noto_Serif_KR({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-noto-serif-kr",
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["300", "400", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-cormorant-garamond",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-plus-jakarta-sans",
+});
+
+const fontVariables = [
+  notoSansKr.variable,
+  notoSerifKr.variable,
+  cormorantGaramond.variable,
+  plusJakartaSans.variable,
+].join(" ");
 
 // 모든 기기에서 일관된 viewport — iPhone notch (viewport-fit=cover) 대응 +
 // 사용자 줌 허용 (maximumScale 미지정 — 접근성).
@@ -45,15 +78,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" data-scroll-behavior="smooth">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
-        />
-      </head>
+    <html lang="ko" data-scroll-behavior="smooth" className={fontVariables}>
       <body className="antialiased">
         <AnalyticsProvider />
         {children}

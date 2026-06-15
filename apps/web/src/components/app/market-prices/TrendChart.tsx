@@ -9,7 +9,6 @@ export default function TrendChart() {
   const data = TREND_DATA;
   const maxTotal = Math.max(...data.map(d => d.medianTotal));
   const minTotal = Math.min(...data.map(d => d.medianTotal));
-  const maxSdm = Math.max(...data.map(d => d.medianSdm));
 
   const W = 800;
   const H = 300;

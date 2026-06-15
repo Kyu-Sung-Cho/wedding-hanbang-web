@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { checkRateLimit, rateLimitKey } from "../rateLimit";
+import { rateLimitKey } from "../rateLimit";
 
 // The module-level `buckets` Map and `lastCleanup` are encapsulated in the module.
 // Re-importing resets nothing — we need to use fake timers to control Date.now().

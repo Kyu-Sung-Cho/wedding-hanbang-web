@@ -72,7 +72,10 @@ export async function GET(
     }));
     const myContracts = rows
       .filter((row) => row.user_id === user.id)
-      .map(({ user_id: _userId, ...rest }) => rest);
+      .map(({ user_id, ...rest }) => {
+        void user_id;
+        return rest;
+      });
 
     const MIN_SAMPLE = 5;
     const { data: rawStats } = await admin
