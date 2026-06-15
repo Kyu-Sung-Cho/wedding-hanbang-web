@@ -3,6 +3,55 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { recordDecision } from "@/lib/memory/record-decision";
+import { syncBookingProgressAfterCreate } from "@/lib/bookings/progressSync";
+import {
+  cleanOptionalIsoDate,
+  cleanOptionalText,
+  isRecord,
+  isUuid,
+} from "@/utils/requestValidation";
+
+const BOOKING_TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
+
+interface BookingRequestBody {
+  vendorId: string;
+  productId?: string | null;
+  staffId?: string | null;
+  date: string;
+  time: string;
+  brideName?: string | null;
+  groomName?: string | null;
+  contactPhone?: string | null;
+  memo?: string | null;
+}
+
+interface ProductPriceRow {
+  price: number | null;
+  discount_price: number | null;
+  name: string | null;
+}
+
+function parseBookingRequestBody(body: unknown): BookingRequestBody | null {
+  if (!isRecord(body)) return null;
+
+  const date = cleanOptionalIsoDate(body.date);
+  if (!isUuid(body.vendorId) || date === undefined || date === null) return null;
+  if (body.productId !== undefined && body.productId !== null && !isUuid(body.productId)) return null;
+  if (body.staffId !== undefined && body.staffId !== null && !isUuid(body.staffId)) return null;
+  if (typeof body.time !== "string" || !BOOKING_TIME_RE.test(body.time)) return null;
+
+  return {
+    vendorId: body.vendorId,
+    productId: typeof body.productId === "string" ? body.productId : null,
+    staffId: typeof body.staffId === "string" ? body.staffId : null,
+    date,
+    time: body.time.slice(0, 5),
+    brideName: cleanOptionalText(body.brideName, 80),
+    groomName: cleanOptionalText(body.groomName, 80),
+    contactPhone: cleanOptionalText(body.contactPhone, 40),
+    memo: cleanOptionalText(body.memo, 500),
+  };
+}
 
 export async function POST(req: Request) {
   try {
@@ -20,12 +69,11 @@ export async function POST(req: Request) {
     );
     if (rlResult) return rlResult;
 
-    const body = await req.json();
-    const { vendorId, productId, staffId, date, time, brideName, groomName, contactPhone, memo } = body;
-
-    if (!vendorId || !date || !time) {
-      return NextResponse.json({ error: "업체, 날짜, 시간은 필수입니다." }, { status: 400 });
+    const body = parseBookingRequestBody(await req.json().catch(() => null));
+    if (!body) {
+      return NextResponse.json({ error: "예약 요청 형식이 올바르지 않습니다." }, { status: 400 });
     }
+    const { vendorId, productId, staffId, date, time, brideName, groomName, contactPhone, memo } = body;
 
     // 프로필에서 couple_id 가져오기
     const { data: profile } = await supabase
@@ -34,17 +82,25 @@ export async function POST(req: Request) {
       .eq("id", user.id)
       .single();
 
+    if (!profile?.couple_id) {
+      return NextResponse.json({ error: "커플 정보가 필요합니다." }, { status: 404 });
+    }
+
     // 상품 금액 조회
+    const admin = createAdminClient();
     let amount = 0;
+    let productName: string | null = null;
     if (productId) {
-      const { data: product } = await supabase
+      const { data: product } = await admin
         .from("vendor_products")
-        .select("price, discount_price")
+        .select("price, discount_price, name")
         .eq("id", productId)
         .eq("vendor_id", vendorId)
         .maybeSingle();
       if (product) {
-        amount = product.discount_price ?? product.price;
+        const typedProduct = product as ProductPriceRow;
+        amount = typedProduct.discount_price ?? typedProduct.price ?? 0;
+        productName = typedProduct.name ?? null;
       }
     }
 
@@ -53,10 +109,9 @@ export async function POST(req: Request) {
     // 둘 다 capacity 통과 후 둘 다 INSERT → max_bookings 초과. RPC 가 timeslot row
     // FOR UPDATE 락 + COUNT + INSERT 단일 트랜잭션 → 직렬화.
     // RPC는 service_role 전용(20260611150000) — couple_id는 위에서 본인 프로필로 검증됨.
-    const admin = createAdminClient();
     const { data: bookingId, error: rpcError } = await admin.rpc("create_booking_atomic", {
       p_vendor_id: vendorId,
-      p_couple_id: profile?.couple_id || null,
+      p_couple_id: profile.couple_id,
       p_booking_date: date,
       p_booking_time: time,
       p_product_id: productId || null,
@@ -99,8 +154,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "예약 조회에 실패했습니다." }, { status: 500 });
     }
 
+    const syncResult = await syncBookingProgressAfterCreate(admin, {
+      coupleId: profile.couple_id,
+      booking: {
+        id: bookingId as unknown as string,
+        date,
+        time,
+        amount,
+      },
+      vendorId,
+      productId,
+      staffId,
+      productName,
+    });
+    if (!syncResult.persisted) {
+      console.error("[bookings] progress sync failed:", syncResult.error);
+    }
+
     // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
-    if (booking && profile?.couple_id) {
+    if (booking && profile.couple_id) {
       void (async () => {
         try {
           const { data: vendor } = await supabase
@@ -111,7 +183,7 @@ export async function POST(req: Request) {
           const v = vendor as { name: string; category: string } | null;
 
           await recordDecision({
-            coupleId: profile.couple_id!,
+            coupleId: profile.couple_id,
             userId: user.id,
             category: v?.category ?? "vendor",
             title: `예약: ${v?.name ?? "업체"}`,
@@ -133,7 +205,18 @@ export async function POST(req: Request) {
       })();
     }
 
-    return NextResponse.json({ booking, message: "예약이 접수되었습니다." });
+    return NextResponse.json({
+      booking,
+      sync: {
+        persisted: syncResult.persisted,
+        scheduleAdded: syncResult.scheduleAdded,
+        scheduleUpdated: syncResult.scheduleUpdated,
+        budgetUpdated: syncResult.budgetUpdated,
+        budgetExceededBy: syncResult.budgetExceededBy,
+        categoryKey: syncResult.syncedCategoryKey,
+      },
+      message: "예약이 접수되었습니다.",
+    });
   } catch (err) {
     console.error("Booking create error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

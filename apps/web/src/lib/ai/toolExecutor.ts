@@ -23,6 +23,8 @@ import { simulateGuestGuarantee } from "@/lib/amora/guestGuarantee";
 import {
   getAmoraActions,
   createAmoraActionId,
+  mergeAmoraActions,
+  normalizeAmoraAction,
   withAddedAmoraAction,
   withUpdatedAmoraAction,
   getActionStatusLabel,
@@ -31,6 +33,13 @@ import {
   type AmoraActionSource,
   type AmoraActionStatus,
 } from "@/lib/amora/actions";
+import {
+  insertAmoraActionRecord,
+  isAmoraActionStorageUnavailable,
+  listAmoraActionRecords,
+  updateAmoraActionRecord,
+  type AmoraActionUpdate,
+} from "@/lib/amora/actionRepository";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { upsertMomentEvent } from "@/utils/scheduleEvents";
 import {
@@ -355,7 +364,7 @@ export async function executeTool(
       case "log_wedding_event":
         return await executeLogWeddingEvent(toolInput, context);
       case "get_amora_actions":
-        return executeGetAmoraActions(toolInput, context);
+        return await executeGetAmoraActions(toolInput, context);
       case "update_amora_action":
         return await executeUpdateAmoraAction(toolInput, context);
       case "search_vendors":
@@ -1245,6 +1254,50 @@ async function saveProgress(ctx: ExecutionContext, progress: Record<string, unkn
   await patchJourneyProgress(ctx, patch, removeKeys);
 }
 
+async function listStoredAmoraActions(ctx: ExecutionContext): Promise<AmoraActionItem[] | null> {
+  try {
+    return await listAmoraActionRecords(getAdminClient(), ctx.coupleId, { status: "all" });
+  } catch (error) {
+    if (!isAmoraActionStorageUnavailable(error)) {
+      console.warn("amora action table read skipped:", error instanceof Error ? error.message : String(error));
+    }
+    return null;
+  }
+}
+
+async function getAmoraActionSnapshot(ctx: ExecutionContext): Promise<AmoraActionItem[]> {
+  const legacy = getAmoraActions(ctx.weddingContext.progress as Record<string, unknown>);
+  const stored = await listStoredAmoraActions(ctx);
+  return stored ? mergeAmoraActions(stored, legacy) : legacy;
+}
+
+async function mirrorAmoraActionToProgress(
+  ctx: ExecutionContext,
+  action: AmoraActionItem,
+  mode: "add" | "update"
+): Promise<void> {
+  try {
+    const currentProgress = ctx.weddingContext.progress as Record<string, unknown>;
+    const legacyHasAction = getAmoraActions(currentProgress).some((item) => item.id === action.id);
+    const shouldAddToLegacy = mode === "add" || !legacyHasAction;
+    const newProgress = shouldAddToLegacy
+      ? withAddedAmoraAction(currentProgress, action)
+      : withUpdatedAmoraAction(currentProgress, action.id, {
+          title: action.title,
+          description: action.description,
+          dueDate: action.dueDate,
+          categoryKey: action.categoryKey,
+          priority: action.priority,
+          status: action.status,
+          href: action.href,
+        });
+
+    await saveProgress(ctx, newProgress);
+  } catch (error) {
+    console.warn("amora action progress mirror skipped:", error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function executeLogWeddingEvent(
   input: Record<string, unknown>,
   ctx: ExecutionContext
@@ -1319,8 +1372,8 @@ async function executeAddAmoraAction(
     ? input.href
     : getDefaultActionHref(categoryKey, source);
   const actionId = createAmoraActionId();
-
-  const newProgress = withAddedAmoraAction(ctx.weddingContext.progress as Record<string, unknown>, {
+  const now = new Date().toISOString();
+  const draftAction = normalizeAmoraAction({
     id: actionId,
     title: title.slice(0, 80),
     description: typeof input.description === "string" ? input.description.slice(0, 300) : undefined,
@@ -1329,12 +1382,22 @@ async function executeAddAmoraAction(
     priority: normalizeActionPriority(input.priority),
     source,
     href,
+    status: "open",
+    createdAt: now,
+    updatedAt: now,
   });
 
-  await saveProgress(ctx, newProgress);
+  let action = draftAction;
+  try {
+    action = await insertAmoraActionRecord(getAdminClient(), ctx.coupleId, draftAction);
+  } catch (error) {
+    if (!isAmoraActionStorageUnavailable(error)) {
+      console.warn("amora action table insert skipped:", error instanceof Error ? error.message : String(error));
+    }
+  }
 
-  const actions = getAmoraActions(newProgress);
-  const action = actions.find((item) => item.id === actionId);
+  await mirrorAmoraActionToProgress(ctx, action, "add");
+  const actions = await getAmoraActionSnapshot(ctx);
 
   return {
     toolName: "add_amora_action",
@@ -1345,12 +1408,12 @@ async function executeAddAmoraAction(
   };
 }
 
-function executeGetAmoraActions(
+async function executeGetAmoraActions(
   input: Record<string, unknown>,
   ctx: ExecutionContext
-): ToolExecutionResult {
+): Promise<ToolExecutionResult> {
   const status = typeof input.status === "string" ? input.status : "open";
-  const allActions = getAmoraActions(ctx.weddingContext.progress as Record<string, unknown>);
+  const allActions = await getAmoraActionSnapshot(ctx);
   const actions = status === "all"
     ? allActions
     : allActions.filter((item) => item.status === status);
@@ -1376,8 +1439,9 @@ async function executeUpdateAmoraAction(
 ): Promise<ToolExecutionResult> {
   const actionId = String(input.action_id ?? "");
   const currentProgress = ctx.weddingContext.progress as Record<string, unknown>;
-  const currentActions = getAmoraActions(currentProgress);
+  const currentActions = await getAmoraActionSnapshot(ctx);
   const existing = currentActions.find((item) => item.id === actionId);
+  const legacyHasAction = getAmoraActions(currentProgress).some((item) => item.id === actionId);
 
   if (!existing) {
     return {
@@ -1400,9 +1464,52 @@ async function executeUpdateAmoraAction(
     if (status) updates.status = status;
   }
 
-  const newProgress = withUpdatedAmoraAction(currentProgress, actionId, updates);
-  await saveProgress(ctx, newProgress);
-  const updated = getAmoraActions(newProgress).find((item) => item.id === actionId);
+  let updated: AmoraActionItem | null | undefined = null;
+  let storageUnavailable = false;
+  const storageUpdates: AmoraActionUpdate = {
+    title: updates.title,
+    description: updates.description,
+    dueDate: updates.dueDate,
+    priority: updates.priority,
+    status: updates.status,
+    href: updates.href,
+  };
+
+  try {
+    updated = await updateAmoraActionRecord(getAdminClient(), ctx.coupleId, actionId, storageUpdates);
+  } catch (error) {
+    if (isAmoraActionStorageUnavailable(error)) {
+      storageUnavailable = true;
+    } else {
+      console.error("amora action table update failed:", error instanceof Error ? error.message : String(error));
+      return {
+        toolName: "update_amora_action",
+        toolInput: input,
+        toolOutput: { error: "action table update failed", action_id: actionId },
+        success: false,
+        displayMessage: "아모라 행동 카드를 수정하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      };
+    }
+  }
+
+  if (updated) {
+    await mirrorAmoraActionToProgress(ctx, updated, "update");
+  } else if (legacyHasAction) {
+    const newProgress = withUpdatedAmoraAction(currentProgress, actionId, updates);
+    await saveProgress(ctx, newProgress);
+    updated = getAmoraActions(newProgress).find((item) => item.id === actionId);
+  } else {
+    return {
+      toolName: "update_amora_action",
+      toolInput: input,
+      toolOutput: {
+        error: storageUnavailable ? "action storage unavailable" : "action not updated",
+        action_id: actionId,
+      },
+      success: false,
+      displayMessage: "아모라 행동 카드를 수정하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    };
+  }
 
   return {
     toolName: "update_amora_action",

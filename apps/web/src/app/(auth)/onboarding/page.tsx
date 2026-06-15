@@ -49,7 +49,7 @@ export default function OnboardingPage() {
         return store.role !== null;
       case 2:
         if (store.coupleAction === "join") {
-          return /^WH-[A-Z0-9]{6}$/.test(store.partnerInviteCode);
+          return /^WH-[A-Z0-9]{6,12}$/.test(store.partnerInviteCode);
         }
         return store.coupleAction !== null;
       case 3:

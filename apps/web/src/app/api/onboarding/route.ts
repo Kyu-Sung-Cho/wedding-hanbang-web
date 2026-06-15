@@ -4,6 +4,21 @@ import { NextResponse } from "next/server";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { determineStage } from "@/lib/ai/stage-router";
 import { getEvents, upsertMomentEvent } from "@/utils/scheduleEvents";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+
+const ONBOARDING_JOIN_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
+
+function getJoinCoupleErrorMessage(error: string | undefined) {
+  if (error === "Invalid invite code.") return "초대 코드가 올바르지 않습니다. 코드를 다시 확인해주세요.";
+  if (error === "This account is already linked to another couple.") {
+    return "이미 다른 커플에 연결된 계정입니다.";
+  }
+  if (error === "Bride slot is already linked.") return "이미 신부 역할이 연결되어 있습니다.";
+  if (error === "Groom slot is already linked.") return "이미 신랑 역할이 연결되어 있습니다.";
+  if (error === "Invalid role.") return "역할 정보가 올바르지 않습니다.";
+  if (error === "Unauthenticated.") return "로그인이 필요합니다.";
+  return error ?? "커플 연결에 실패했습니다.";
+}
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,6 +61,14 @@ export async function POST(request: Request) {
         { error: "역할과 커플 연동 방법을 선택해주세요." },
         { status: 400 }
       );
+    }
+
+    if (role !== "bride" && role !== "groom") {
+      return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 });
+    }
+
+    if (coupleAction !== "create" && coupleAction !== "join") {
+      return NextResponse.json({ error: "유효하지 않은 커플 연결 방식입니다." }, { status: 400 });
     }
 
     // 입력 검증 — 인증·커플 스코프지만 거대 숫자/음수/무제한 텍스트가 예산 계산·
@@ -171,6 +194,96 @@ export async function POST(request: Request) {
         console.error("웨딩 여정 생성 에러:", journeyError);
       }
     } else {
+      const useLegacyDirectJoin = false;
+
+      if (!useLegacyDirectJoin) {
+        const limited = checkRateLimit(
+          rateLimitKey("onboarding_couple_join", request, user.id),
+          ONBOARDING_JOIN_RATE
+        );
+        if (limited) return limited;
+
+        if (!partnerInviteCode || typeof partnerInviteCode !== "string") {
+          return NextResponse.json({ error: "파트너 초대 코드를 입력해주세요." }, { status: 400 });
+        }
+
+        const trimmedCode = partnerInviteCode.trim().toUpperCase();
+        if (!/^WH-[A-Z0-9]{6,12}$/.test(trimmedCode)) {
+          return NextResponse.json({ error: "초대 코드 형식이 올바르지 않습니다." }, { status: 400 });
+        }
+
+        const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
+          p_invite_code: trimmedCode,
+          p_role: role,
+        });
+
+        if (joinError) {
+          console.error("[onboarding join] RPC failed:", joinError);
+          return NextResponse.json({ error: "커플 연결에 실패했습니다." }, { status: 500 });
+        }
+
+        const result = joinResult as { success?: boolean; error?: string; couple_id?: string; invite_code?: string };
+        if (result.error || !result.success || !result.couple_id) {
+          return NextResponse.json(
+            { error: getJoinCoupleErrorMessage(result.error) },
+            { status: result.error === "Invalid invite code." ? 404 : 409 }
+          );
+        }
+
+        coupleId = result.couple_id;
+        inviteCode = result.invite_code ?? trimmedCode;
+
+        const { error: profileCompletionError } = await admin
+          .from("profiles")
+          .update({
+            onboarding_completed: true,
+            onboarding_step: 5,
+          })
+          .eq("id", user.id);
+
+        if (profileCompletionError) {
+          console.error("[onboarding join] profile completion failed:", profileCompletionError);
+        }
+
+        const { data: existingJourney } = await admin
+          .from("wedding_journeys")
+          .select("id, progress")
+          .eq("couple_id", coupleId)
+          .maybeSingle();
+
+        if (!existingJourney) {
+          await admin.from("wedding_journeys").insert({
+            couple_id: coupleId,
+            wedding_date: weddingDate || null,
+            venue: venue || null,
+            total_budget: totalBudget || 20000000,
+            progress: journeyProgress,
+          });
+        } else if (hasSanggyeonryeDate) {
+          const existingProgress = (existingJourney.progress ?? {}) as Record<string, unknown>;
+          const alreadyHasSanggyeonrye = getEvents(existingProgress).some(
+            (event) => event.momentType === "sanggyeonrye"
+          );
+
+          if (!alreadyHasSanggyeonrye) {
+            const { newProgress } = upsertMomentEvent(existingProgress, {
+              momentType: "sanggyeonrye",
+              date: sanggyeonryeDate,
+              title: "상견례",
+            });
+            const { error: patchError } = await admin.rpc("apply_journey_progress_patch", {
+              p_couple_id: coupleId,
+              p_patch: { __events: getEvents(newProgress) },
+            });
+            if (patchError) {
+              await admin
+                .from("wedding_journeys")
+                .update({ progress: newProgress })
+                .eq("id", existingJourney.id);
+            }
+          }
+        }
+      } else {
       // ===== 파트너 코드로 기존 커플에 조인 =====
       if (!partnerInviteCode) {
         return NextResponse.json(
@@ -323,6 +436,7 @@ export async function POST(request: Request) {
       }
 
       console.log("[온보딩 조인] 완료! coupleId:", coupleId);
+      }
     }
 
     // D2 Hook 3: 온보딩 완료 시 decision_nodes 기록 (fire-and-forget)

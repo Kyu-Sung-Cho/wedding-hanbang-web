@@ -38,6 +38,29 @@ export interface WeddingJourney {
   updated_at: string;
 }
 
+export type AmoraActionPriority = "high" | "medium" | "low";
+export type AmoraActionStatus = "open" | "done" | "dismissed";
+export type AmoraActionSource = "chat" | "quote" | "schedule" | "budget" | "guardrail" | "manual";
+
+export interface AmoraAction {
+  id: string;
+  couple_id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  category_key: string | null;
+  priority: AmoraActionPriority;
+  status: AmoraActionStatus;
+  source: AmoraActionSource;
+  href: string | null;
+  metadata: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  dismissed_at: string | null;
+}
+
 export interface ChecklistItem {
   id: string;
   label: string;
@@ -89,6 +112,7 @@ export interface ChatMessageMetadata {
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
   imageUrls?: string[];
+  imagePaths?: string[];
   target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게
   lifecycle?: {
     stage?: string;

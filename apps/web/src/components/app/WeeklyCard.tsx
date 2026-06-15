@@ -7,7 +7,7 @@ import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteDa
 import { HIDDEN_COSTS } from "@/constants/hiddenCosts";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
-import { getAmoraActions } from "@/lib/amora/actions";
+import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -23,9 +23,10 @@ interface WeeklyCardProps {
   weddingDate?: string | null;
   totalBudget?: number | null;
   progress: Record<string, ProgressItem>;
+  actions?: AmoraActionItem[];
 }
 
-export default function WeeklyCard({ weddingDate, totalBudget, progress }: WeeklyCardProps) {
+export default function WeeklyCard({ weddingDate, totalBudget, progress, actions }: WeeklyCardProps) {
   const data = useMemo(() => {
     const progressRecord = progress as Record<string, unknown>;
     const weddingDateObj = weddingDate ? new Date(weddingDate) : null;
@@ -72,12 +73,12 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress }: Weekl
       HIDDEN_COSTS.find((item) => item.severity === "critical");
 
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
-    const openActions = getAmoraActions(progressRecord)
+    const openActions = (actions ?? getAmoraActions(progressRecord))
       .filter((action) => action.status === "open")
       .slice(0, 3);
 
     return { brief, briefHref, imminent, etiquettePart, trap, openActions };
-  }, [weddingDate, totalBudget, progress]);
+  }, [weddingDate, totalBudget, progress, actions]);
 
   return (
     <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">

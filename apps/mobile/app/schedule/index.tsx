@@ -30,11 +30,16 @@ interface Category {
 }
 
 interface ScheduleEvent {
+  id?: string;
   date: string;
   title: string;
   time?: string;
   categoryKey?: string;
+  sourceKey?: string;
+  momentType?: string;
   memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -64,6 +69,20 @@ function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
   return days[d.getDay()] ?? "";
+}
+
+function createEventId(): string {
+  return `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function normalizeScheduleEvent(event: ScheduleEvent): ScheduleEvent {
+  const now = new Date().toISOString();
+  return {
+    ...event,
+    id: event.id ?? createEventId(),
+    createdAt: event.createdAt ?? now,
+    updatedAt: event.updatedAt ?? now,
+  };
 }
 
 /* ───── main screen ───── */
@@ -170,7 +189,7 @@ export default function ScheduleScreen() {
       }
 
       // 이벤트 추출
-      const evts = (prog.__events as ScheduleEvent[]) ?? [];
+      const evts = ((prog.__events as ScheduleEvent[]) ?? []).map(normalizeScheduleEvent);
       setEvents(evts);
     } catch (err) {
       console.error("일정 로드 오류:", err);
@@ -322,12 +341,18 @@ export default function ScheduleScreen() {
       const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
       const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
 
+      const now = new Date().toISOString();
+      const existingEvent = editingIdx !== null ? currentEvents[editingIdx] : null;
       const newEvent: ScheduleEvent = {
+        ...(existingEvent ?? {}),
+        id: existingEvent?.id ?? createEventId(),
         date: formDate,
         title: formTitle.trim(),
-        ...(formTime ? { time: formTime.trim() } : {}),
-        ...(formCategoryKey ? { categoryKey: formCategoryKey } : {}),
-        ...(formMemo.trim() ? { memo: formMemo.trim() } : {}),
+        time: formTime.trim() || undefined,
+        categoryKey: formCategoryKey || undefined,
+        memo: formMemo.trim() || undefined,
+        createdAt: existingEvent?.createdAt ?? now,
+        updatedAt: now,
       };
 
       let updatedEvents: ScheduleEvent[];

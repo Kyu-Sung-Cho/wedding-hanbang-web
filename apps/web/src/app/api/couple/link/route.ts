@@ -5,6 +5,18 @@ import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 // 초대 코드 brute force 방어: 사용자당 10분 내 10회 시도 제한
 const COUPLE_LINK_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
 
+function getJoinCoupleErrorMessage(error: string | undefined) {
+  if (error === "Invalid invite code.") return "초대 코드가 올바르지 않습니다. 코드를 다시 확인해주세요.";
+  if (error === "This account is already linked to another couple.") {
+    return "이미 다른 커플에 연결된 계정입니다.";
+  }
+  if (error === "Bride slot is already linked.") return "이미 신부 역할이 연결되어 있습니다.";
+  if (error === "Groom slot is already linked.") return "이미 신랑 역할이 연결되어 있습니다.";
+  if (error === "Invalid role.") return "역할 정보가 올바르지 않습니다.";
+  if (error === "Unauthenticated.") return "로그인이 필요합니다.";
+  return error ?? "커플 연동에 실패했습니다.";
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -32,6 +44,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const normalizedInviteCode = String(inviteCode).trim().toUpperCase();
+    if (!/^WH-[A-Z0-9]{6,12}$/.test(normalizedInviteCode)) {
+      return NextResponse.json(
+        { error: "초대 코드 형식이 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+
     // 내 프로필 조회 (RLS: profiles_select_own)
     const { data: profile } = await supabase
       .from("profiles")
@@ -48,7 +68,7 @@ export async function POST(request: Request) {
 
     // join_couple 함수로 원자적 커플 조인 (SECURITY DEFINER)
     const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
-      p_invite_code: inviteCode,
+      p_invite_code: normalizedInviteCode,
       p_role: profile.role,
     });
 
@@ -64,8 +84,8 @@ export async function POST(request: Request) {
 
     if (result.error) {
       return NextResponse.json(
-        { error: result.error },
-        { status: 409 }
+        { error: getJoinCoupleErrorMessage(result.error) },
+        { status: result.error === "Invalid invite code." ? 404 : 409 }
       );
     }
 
