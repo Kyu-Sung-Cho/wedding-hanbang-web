@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Sparkles, X, MessageCircle, ArrowRight } from "lucide-react";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 interface AmoraMessage {
   id: string;
@@ -190,7 +190,7 @@ export default function AmoraDirector({
 
             {currentMsg.cta && (
               <Link
-                href={currentMsg.cta.href}
+                {...weddingLinkProps(currentMsg.cta.href)}
                 className="inline-flex items-center gap-2 w-full justify-center px-4 py-3 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all mb-2"
                 onClick={() => markSeen()}
               >
@@ -200,7 +200,7 @@ export default function AmoraDirector({
             )}
 
             <Link
-              href={weddingPath("/chat")}
+              {...weddingLinkProps("/chat")}
               className="inline-flex items-center gap-2 w-full justify-center px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[#504444] text-sm font-medium hover:bg-[#e4e2e1] transition-colors"
             >
               <MessageCircle className="w-4 h-4" />

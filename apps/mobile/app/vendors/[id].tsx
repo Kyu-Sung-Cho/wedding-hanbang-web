@@ -12,6 +12,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -253,47 +254,27 @@ export default function VendorDetailScreen() {
 
     setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        Alert.alert("로그인 필요", "예약을 위해 로그인해주세요.");
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("couple_id")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.couple_id) {
-        Alert.alert("커플 연동 필요", "예약을 위해 커플 연동이 필요해요.");
-        setSubmitting(false);
-        return;
-      }
-
       const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
       const timeStr = `${String(selectedHour).padStart(2, "0")}:00`;
 
-      const { error } = await supabase.from("vendor_bookings").insert({
-        vendor_id: id,
-        couple_id: profile.couple_id,
-        product_id: selectedProduct.id,
-        booking_date: dateStr,
-        booking_time: timeStr,
-        booking_type: vendor?.category ?? "general",
-        status: "pending",
-        amount: selectedProduct.price,
-        memo: memo.trim() || null,
+      const res = await apiFetch("/api/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          vendorId: id,
+          productId: selectedProduct.id,
+          date: dateStr,
+          time: timeStr,
+          memo: memo.trim() || undefined,
+        }),
       });
+      const payload = await res.json().catch(() => ({} as { error?: string; message?: string }));
 
-      if (error) {
-        console.error("예약 오류:", error);
-        Alert.alert("예약 실패", "다시 시도해주세요.");
+      if (!res.ok) {
+        Alert.alert("예약 실패", payload.error || "다시 시도해주세요.");
         return;
       }
 
-      Alert.alert("예약 완료", "예약이 완료되었어요!");
+      Alert.alert("예약 완료", payload.message || "예약이 완료되었어요!");
       closeBookingModal();
     } catch (err) {
       console.error("예약 오류:", err);

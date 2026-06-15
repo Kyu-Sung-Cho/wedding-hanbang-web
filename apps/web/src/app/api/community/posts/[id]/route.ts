@@ -3,6 +3,11 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import {
+  validateCommunityAttachmentUrl,
+  validateCommunityHtmlImageSources,
+  validateCommunityMediaUrl,
+} from "@/lib/community/mediaUrls";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
 
@@ -12,6 +17,13 @@ function getServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+function invalidCommunityMediaResponse() {
+  return NextResponse.json(
+    { error: "커뮤니티 업로드로 등록된 이미지와 영상만 첨부할 수 있습니다." },
+    { status: 400 }
   );
 }
 
@@ -204,7 +216,7 @@ export async function PATCH(
     // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
     const { data: existingPost } = await readClient
       .from("community_posts")
-      .select("author_id")
+      .select("author_id, slides")
       .eq("id", id)
       .maybeSingle();
 
@@ -222,11 +234,12 @@ export async function PATCH(
       );
     }
 
+    const mediaOwnerIds = userIsAdmin ? [existingPost.author_id, user.id] : existingPost.author_id;
     const body: UpdatePostInput = await req.json();
     const updateData: Record<string, unknown> = {};
 
     if (body.title !== undefined) {
-      const title = sanitizeText(body.title).trim().slice(0, 200);
+      const title = sanitizeText(typeof body.title === "string" ? body.title : "").trim().slice(0, 200);
       if (title.length === 0) {
         return NextResponse.json(
           { error: "제목을 입력해주세요." },
@@ -236,11 +249,16 @@ export async function PATCH(
       updateData.title = title;
     }
     if (body.content !== undefined) {
-      const content = sanitizeHtml(body.content).slice(0, 50000);
+      const content = sanitizeHtml(typeof body.content === "string" ? body.content : "").slice(0, 50000);
+      const contentImagesResult = validateCommunityHtmlImageSources(content, {
+        ownerIds: mediaOwnerIds,
+      });
+      if (!contentImagesResult.ok) return invalidCommunityMediaResponse();
+
       // 카드 게시물(슬라이드)이면 캡션 비어도 허용. 그 외엔 본문 필수.
       const willHaveSlides =
         body.slides === undefined
-          ? false // 슬라이드 변경 없으면 일반 글 규칙 적용
+          ? Array.isArray(existingPost.slides) && existingPost.slides.length > 0
           : Array.isArray(body.slides) && body.slides.length > 0;
       if (!willHaveSlides && content.trim().length === 0) {
         return NextResponse.json(
@@ -251,25 +269,49 @@ export async function PATCH(
       updateData.content = content;
     }
     if (body.images !== undefined) {
-      updateData.images = (body.images ?? [])
-        .slice(0, 10)
-        .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
+      const images: string[] = [];
+      for (const rawImageUrl of (Array.isArray(body.images) ? body.images : []).slice(0, 10)) {
+        const mediaResult = validateCommunityAttachmentUrl(rawImageUrl, {
+          ownerIds: mediaOwnerIds,
+        });
+        if (!mediaResult.ok) return invalidCommunityMediaResponse();
+        images.push(mediaResult.url);
+      }
+      updateData.images = images;
     }
     // 카드 게시물 슬라이드 — null 명시 시 일반 글로 되돌림, 배열이면 카드 게시물로 갱신.
     if (body.slides !== undefined) {
       if (body.slides === null || (Array.isArray(body.slides) && body.slides.length === 0)) {
         updateData.slides = null;
       } else if (Array.isArray(body.slides)) {
-        updateData.slides = body.slides
-          .slice(0, 10)
-          .filter((s: { url?: string }) => s && typeof s.url === "string" && s.url.startsWith("https://"))
-          .map((s: { type?: string; url?: string; width?: number; height?: number; thumbnail_url?: string }) => ({
-            type: s.type === "video" ? "video" : "image",
-            url: s.url as string,
-            ...(typeof s.width === "number" && s.width > 0 ? { width: Math.min(8192, Math.round(s.width)) } : {}),
-            ...(typeof s.height === "number" && s.height > 0 ? { height: Math.min(8192, Math.round(s.height)) } : {}),
-            ...(typeof s.thumbnail_url === "string" && s.thumbnail_url.startsWith("https://") ? { thumbnail_url: s.thumbnail_url } : {}),
-          }));
+        const slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
+        for (const s of body.slides.slice(0, 10)) {
+          const type: "image" | "video" = s?.type === "video" ? "video" : "image";
+          const mediaResult = validateCommunityMediaUrl(s?.url, {
+            kind: type,
+            ownerIds: mediaOwnerIds,
+          });
+          if (!mediaResult.ok) return invalidCommunityMediaResponse();
+
+          const slide: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
+            type,
+            url: mediaResult.url,
+          };
+          if (typeof s.width === "number" && s.width > 0) slide.width = Math.min(8192, Math.round(s.width));
+          if (typeof s.height === "number" && s.height > 0) slide.height = Math.min(8192, Math.round(s.height));
+          if (typeof s.thumbnail_url === "string" && s.thumbnail_url.trim().length > 0) {
+            const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
+              kind: "image",
+              ownerIds: mediaOwnerIds,
+            });
+            if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
+            slide.thumbnail_url = thumbnailResult.url;
+          }
+          slides.push(slide);
+        }
+        updateData.slides = slides;
+      } else {
+        return invalidCommunityMediaResponse();
       }
     }
     if (body.visibility !== undefined) {
@@ -281,11 +323,15 @@ export async function PATCH(
       }
       updateData.visibility = body.visibility;
     }
-    if (body.vendor_tags !== undefined) updateData.vendor_tags = (body.vendor_tags ?? []).slice(0, 5);
+    if (body.vendor_tags !== undefined) {
+      updateData.vendor_tags = (Array.isArray(body.vendor_tags) ? body.vendor_tags : [])
+        .filter((tag): tag is string => typeof tag === "string")
+        .slice(0, 5);
+    }
     if (body.tags !== undefined) {
-      updateData.tags = (body.tags ?? [])
+      updateData.tags = (Array.isArray(body.tags) ? body.tags : [])
         .slice(0, 10)
-        .map((t: string) => sanitizeText(t).slice(0, 30))
+        .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
         .filter((t: string) => t.length > 0);
     }
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
@@ -310,6 +356,7 @@ export async function PATCH(
     // 제목/본문/카테고리 변경 시 랜딩에서도 즉시 반영 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
+      revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
       console.error("[posts.PATCH] revalidatePath failed (non-fatal):", e);
@@ -394,6 +441,7 @@ export async function DELETE(
     // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
+      revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
       console.error("[posts.DELETE] revalidatePath failed (non-fatal):", e);

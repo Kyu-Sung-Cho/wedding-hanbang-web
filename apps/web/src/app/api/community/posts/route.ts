@@ -3,6 +3,11 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
+import {
+  validateCommunityAttachmentUrl,
+  validateCommunityHtmlImageSources,
+  validateCommunityMediaUrl,
+} from "@/lib/community/mediaUrls";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -32,6 +37,19 @@ function getServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+function cleanOptionalText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = sanitizeText(value).slice(0, maxLength);
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function invalidCommunityMediaResponse() {
+  return NextResponse.json(
+    { error: "커뮤니티 업로드로 등록된 이미지와 영상만 첨부할 수 있습니다." },
+    { status: 400 }
   );
 }
 
@@ -349,14 +367,14 @@ export async function POST(req: NextRequest) {
     const adDisclosure: AdDisclosure = rawAdDisclosure;
     let sponsorshipDetail: string | null = null;
     if (adDisclosure === "sponsored") {
-      const d = (rawSponsorshipDetail ?? "").trim();
+      const d = cleanOptionalText(rawSponsorshipDetail, 500) ?? "";
       if (!d || d.length < 5) {
         return NextResponse.json(
           { error: "협찬 내용을 5자 이상 입력해주세요." },
           { status: 400 }
         );
       }
-      sponsorshipDetail = d.slice(0, 500);
+      sponsorshipDetail = d;
     }
 
     // price_data 검증
@@ -366,14 +384,14 @@ export async function POST(req: NextRequest) {
         vendor_category: rawPriceData.vendor_category,
         base_price: rawPriceData.base_price,
         extra_price: rawPriceData.extra_price,
-        vendor_name: rawPriceData.vendor_name?.slice(0, 100),
-        region: rawPriceData.region?.slice(0, 100),
-        details: rawPriceData.details?.slice(0, 1000),
+        vendor_name: cleanOptionalText(rawPriceData.vendor_name, 100),
+        region: cleanOptionalText(rawPriceData.region, 100),
+        details: cleanOptionalText(rawPriceData.details, 1000),
       };
     }
 
     // 입력 검증 및 정화
-    const title = rawTitle?.trim().slice(0, 200);
+    const title = cleanOptionalText(rawTitle, 200);
     if (!title || title.length === 0) {
       return NextResponse.json(
         { error: "제목을 입력해주세요." },
@@ -381,7 +399,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const content = sanitizeHtml(rawContent ?? "").slice(0, 50000);
+    const content = sanitizeHtml(typeof rawContent === "string" ? rawContent : "").slice(0, 50000);
+    const contentImagesResult = validateCommunityHtmlImageSources(content, {
+      ownerIds: user.id,
+    });
+    if (!contentImagesResult.ok) return invalidCommunityMediaResponse();
+
     // 카드 게시물(슬라이드)이면 캡션이 비어도 허용 — 슬라이드 자체가 본문 역할.
     const hasSlides = Array.isArray(rawSlides) && rawSlides.length > 0;
     if (!hasSlides && (!content || content.trim().length === 0)) {
@@ -392,40 +415,56 @@ export async function POST(req: NextRequest) {
     }
 
     // 태그 검증: 최대 10개, 각 최대 30자
-    const tags = (rawTags ?? [])
+    const tags = (Array.isArray(rawTags) ? rawTags : [])
       .slice(0, 10)
-      .map((t: string) => sanitizeText(t).slice(0, 30))
+      .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
       .filter((t: string) => t.length > 0);
 
     // vendor_tags 검증: 최대 5개
-    const vendor_tags = (rawVendorTags ?? []).slice(0, 5);
+    const vendor_tags = (Array.isArray(rawVendorTags) ? rawVendorTags : [])
+      .filter((tag): tag is string => typeof tag === "string")
+      .slice(0, 5);
 
     // 이미지 검증: 최대 10개, 각 URL은 https://로 시작
-    const images = (rawImages ?? [])
-      .slice(0, 10)
-      .filter((url: string) => typeof url === "string" && url.startsWith("https://"));
+    const images: string[] = [];
+    for (const rawImageUrl of (Array.isArray(rawImages) ? rawImages : []).slice(0, 10)) {
+      const mediaResult = validateCommunityAttachmentUrl(rawImageUrl, {
+        ownerIds: user.id,
+      });
+      if (!mediaResult.ok) return invalidCommunityMediaResponse();
+      images.push(mediaResult.url);
+    }
 
     // 카드 게시물(인스타 캐러셀) 슬라이드 검증.
     // 최대 10장, 각 슬라이드는 { type: 'image'|'video', url: https:// } 필수.
     // 잘못된 형식은 자동으로 제거. 결과 배열이 비면 null로 저장 (일반 글로 처리).
     let slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> | null = null;
     if (Array.isArray(rawSlides) && rawSlides.length > 0) {
-      const cleaned = rawSlides
-        .slice(0, 10)
-        .filter((s) => s && typeof s.url === "string" && s.url.startsWith("https://"))
-        .map((s) => {
-          const type: "image" | "video" = s.type === "video" ? "video" : "image";
-          const out: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
-            type,
-            url: s.url as string,
-          };
-          if (typeof s.width === "number" && s.width > 0) out.width = Math.min(8192, Math.round(s.width));
-          if (typeof s.height === "number" && s.height > 0) out.height = Math.min(8192, Math.round(s.height));
-          if (typeof s.thumbnail_url === "string" && s.thumbnail_url.startsWith("https://")) {
-            out.thumbnail_url = s.thumbnail_url;
-          }
-          return out;
+      const cleaned: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
+      for (const s of rawSlides.slice(0, 10)) {
+        const type: "image" | "video" = s?.type === "video" ? "video" : "image";
+        const mediaResult = validateCommunityMediaUrl(s?.url, {
+          kind: type,
+          ownerIds: user.id,
         });
+        if (!mediaResult.ok) return invalidCommunityMediaResponse();
+
+        const out: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
+          type,
+          url: mediaResult.url,
+        };
+        if (typeof s.width === "number" && s.width > 0) out.width = Math.min(8192, Math.round(s.width));
+        if (typeof s.height === "number" && s.height > 0) out.height = Math.min(8192, Math.round(s.height));
+        if (typeof s.thumbnail_url === "string" && s.thumbnail_url.trim().length > 0) {
+          const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
+            kind: "image",
+            ownerIds: user.id,
+          });
+          if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
+          out.thumbnail_url = thumbnailResult.url;
+        }
+        cleaned.push(out);
+      }
       if (cleaned.length > 0) slides = cleaned;
     }
 
@@ -434,6 +473,54 @@ export async function POST(req: NextRequest) {
         { error: "필수 항목을 입력해주세요." },
         { status: 400 }
       );
+    }
+
+    let pollDraft: {
+      question: string;
+      options: Array<{ position: number; label: string; image_url: string | null }>;
+      allow_multiple: boolean;
+      is_anonymous: boolean;
+      hide_results_until_voted: boolean;
+      closes_at: string | null;
+    } | null = null;
+    if (rawPoll && typeof rawPoll === "object") {
+      const question = cleanOptionalText(rawPoll.question, 200) ?? "";
+      const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : [];
+      const cleanOptions: Array<{ position: number; label: string; image_url: string | null }> = [];
+
+      for (const [idx, option] of rawOptions.slice(0, 10).entries()) {
+        const label = cleanOptionalText(option?.label, 100) ?? "";
+        if (!label) continue;
+
+        let imageUrl: string | null = null;
+        if (typeof option?.image_url === "string" && option.image_url.trim().length > 0) {
+          const imageResult = validateCommunityMediaUrl(option.image_url, {
+            kind: "image",
+            ownerIds: user.id,
+          });
+          if (!imageResult.ok) return invalidCommunityMediaResponse();
+          imageUrl = imageResult.url;
+        }
+
+        cleanOptions.push({ position: idx, label, image_url: imageUrl });
+      }
+
+      if (question.length > 0 && cleanOptions.length >= 2) {
+        let closesAt: string | null = null;
+        if (rawPoll.closes_at && typeof rawPoll.closes_at === "string") {
+          const t = Date.parse(rawPoll.closes_at);
+          if (!isNaN(t) && t > Date.now()) closesAt = new Date(t).toISOString();
+        }
+
+        pollDraft = {
+          question,
+          options: cleanOptions,
+          allow_multiple: !!rawPoll.allow_multiple,
+          is_anonymous: !!rawPoll.is_anonymous,
+          hide_results_until_voted: !!rawPoll.hide_results_until_voted,
+          closes_at: closesAt,
+        };
+      }
     }
 
     const serviceClient = getServiceClient();
@@ -505,39 +592,22 @@ export async function POST(req: NextRequest) {
 
     // ─────── 폴 생성 (있을 경우) ───────
     // 폴 INSERT 실패 시 게시글 자체를 롤백하여 고아 글 방지
-    if (rawPoll && typeof rawPoll === "object") {
-      const question = (rawPoll.question ?? "").trim().slice(0, 200);
-      const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : [];
-      const cleanOptions = rawOptions
-        .slice(0, 10)
-        .map((o, idx) => ({
-          position: idx,
-          label: typeof o?.label === "string" ? o.label.trim().slice(0, 100) : "",
-          image_url:
-            typeof o?.image_url === "string" && o.image_url.startsWith("https://")
-              ? o.image_url
-              : null,
-        }))
-        .filter((o) => o.label.length > 0);
+    if (pollDraft) {
+      const question = pollDraft.question;
+      const cleanOptions = pollDraft.options;
 
       // 질문/옵션이 모두 충족된 경우에만 생성. 부분 입력이면 폴 없이 진행 (UX 친화적)
       if (question.length > 0 && cleanOptions.length >= 2) {
         // 마감일 검증 (미래여야 함)
-        let closesAt: string | null = null;
-        if (rawPoll.closes_at && typeof rawPoll.closes_at === "string") {
-          const t = Date.parse(rawPoll.closes_at);
-          if (!isNaN(t) && t > Date.now()) closesAt = new Date(t).toISOString();
-        }
-
         const { data: pollRow, error: pollErr } = await serviceClient
           .from("community_polls")
           .insert({
             post_id: post.id,
             question,
-            allow_multiple: !!rawPoll.allow_multiple,
-            is_anonymous: !!rawPoll.is_anonymous,
-            hide_results_until_voted: !!rawPoll.hide_results_until_voted,
-            closes_at: closesAt,
+            allow_multiple: pollDraft.allow_multiple,
+            is_anonymous: pollDraft.is_anonymous,
+            hide_results_until_voted: pollDraft.hide_results_until_voted,
+            closes_at: pollDraft.closes_at,
           })
           .select("id")
           .single();
@@ -601,6 +671,7 @@ export async function POST(req: NextRequest) {
     // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
+      revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
       console.error("[posts.POST] revalidatePath failed (non-fatal):", e);

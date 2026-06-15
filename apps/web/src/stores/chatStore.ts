@@ -800,7 +800,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
-    const imageUrls: string[] = [];
+    const imagePaths: string[] = [];
     if (images && images.length > 0 && !isDemo) {
       for (const img of images) {
         try {
@@ -816,8 +816,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             .from("chat-image")
             .upload(fileName, blob, { contentType: img.mediaType });
           if (!uploadErr) {
-            const { data: urlData } = supabase.storage.from("chat-image").getPublicUrl(fileName);
-            imageUrls.push(urlData.publicUrl);
+            imagePaths.push(fileName);
           } else {
             console.warn("Storage 업로드 실패 (무시):", uploadErr.message);
           }
@@ -827,9 +826,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
     }
 
-    // 이미지 URL이 있으면 메타데이터에 추가
-    const finalMetadata = imageUrls.length > 0
-      ? { ...msgMetadata, imageUrls }
+    // 이미지 storage path가 있으면 메타데이터에 추가
+    const finalMetadata = imagePaths.length > 0
+      ? { ...msgMetadata, imagePaths }
       : msgMetadata;
 
     // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)

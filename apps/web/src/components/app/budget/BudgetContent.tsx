@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, PayerType } from "@/types/database.types";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import Link from "next/link";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -1084,7 +1084,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
         {/* 시세 비교 안내 */}
         <Link
-          href={weddingPath("/market-prices")}
+          {...weddingLinkProps("/market-prices")}
           className="group flex items-center gap-4 rounded-[18px] border border-[#eadfc9] bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-shadow hover:shadow-[0_12px_32px_rgba(8,22,38,0.055)] animate-fade-in md:px-5"
         >
           <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#f7f3ec]">
@@ -1285,7 +1285,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
               </p>
             </div>
             <Link
-              href={weddingPath("/chat")}
+              {...weddingLinkProps("/chat")}
               className="relative inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 hover:border-white pb-1 transition-colors self-start"
             >
               아모라에게 물어보기

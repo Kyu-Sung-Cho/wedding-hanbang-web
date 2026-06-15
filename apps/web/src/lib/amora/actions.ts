@@ -1,8 +1,11 @@
-import type { ProgressItem } from "@/types/database.types";
+import type {
+  AmoraActionPriority,
+  AmoraActionSource,
+  AmoraActionStatus,
+  ProgressItem,
+} from "@/types/database.types";
 
-export type AmoraActionPriority = "high" | "medium" | "low";
-export type AmoraActionStatus = "open" | "done" | "dismissed";
-export type AmoraActionSource = "chat" | "quote" | "schedule" | "budget" | "guardrail" | "manual";
+export type { AmoraActionPriority, AmoraActionSource, AmoraActionStatus };
 
 export interface AmoraActionItem {
   id: string;
@@ -22,7 +25,7 @@ export interface AmoraActionItem {
 export type ProgressWithAmoraActions = Record<string, ProgressItem | unknown>;
 
 const ACTIONS_KEY = "__amora_actions";
-const MAX_ACTIONS = 80;
+export const MAX_ACTIONS = 80;
 
 function isAction(value: unknown): value is AmoraActionItem {
   if (!value || typeof value !== "object") return false;
@@ -30,7 +33,7 @@ function isAction(value: unknown): value is AmoraActionItem {
   return typeof item.id === "string" && typeof item.title === "string";
 }
 
-function normalizeAction(item: AmoraActionItem): AmoraActionItem {
+export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
   return {
     ...item,
     priority: item.priority ?? "medium",
@@ -41,27 +44,39 @@ function normalizeAction(item: AmoraActionItem): AmoraActionItem {
   };
 }
 
+export function sortAmoraActions(actions: AmoraActionItem[]): AmoraActionItem[] {
+  return [...actions].sort((a, b) => {
+    const statusOrder: Record<AmoraActionStatus, number> = { open: 0, done: 1, dismissed: 2 };
+    const priorityOrder: Record<AmoraActionPriority, number> = { high: 0, medium: 1, low: 2 };
+    const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+    if (statusDiff !== 0) return statusDiff;
+    const dueA = a.dueDate ?? "9999-12-31";
+    const dueB = b.dueDate ?? "9999-12-31";
+    if (dueA !== dueB) return dueA.localeCompare(dueB);
+    const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+export function mergeAmoraActions(
+  primary: AmoraActionItem[],
+  fallback: AmoraActionItem[]
+): AmoraActionItem[] {
+  const byId = new Map<string, AmoraActionItem>();
+  for (const action of [...fallback, ...primary]) {
+    byId.set(action.id, normalizeAmoraAction(action));
+  }
+  return sortAmoraActions([...byId.values()]).slice(0, MAX_ACTIONS);
+}
+
 export function createAmoraActionId() {
   return `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 export function getAmoraActions(progress: ProgressWithAmoraActions | null | undefined): AmoraActionItem[] {
   const raw = (progress?.[ACTIONS_KEY] as unknown[] | undefined) ?? [];
-  return raw
-    .filter(isAction)
-    .map(normalizeAction)
-    .sort((a, b) => {
-      const statusOrder: Record<AmoraActionStatus, number> = { open: 0, done: 1, dismissed: 2 };
-      const priorityOrder: Record<AmoraActionPriority, number> = { high: 0, medium: 1, low: 2 };
-      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-      if (statusDiff !== 0) return statusDiff;
-      const dueA = a.dueDate ?? "9999-12-31";
-      const dueB = b.dueDate ?? "9999-12-31";
-      if (dueA !== dueB) return dueA.localeCompare(dueB);
-      const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
-      if (priorityDiff !== 0) return priorityDiff;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  return sortAmoraActions(raw.filter(isAction).map(normalizeAmoraAction));
 }
 
 export function getOpenAmoraActions(progress: ProgressWithAmoraActions | null | undefined): AmoraActionItem[] {
@@ -79,7 +94,7 @@ export function withAddedAmoraAction(
 ) {
   const now = new Date().toISOString();
   const current = getAmoraActions(progress);
-  const newAction: AmoraActionItem = normalizeAction({
+  const newAction: AmoraActionItem = normalizeAmoraAction({
     ...action,
     id: action.id ?? createAmoraActionId(),
     status: action.status ?? "open",
@@ -102,8 +117,11 @@ export function withUpdatedAmoraAction(
   const current = getAmoraActions(progress);
   const next = current.map((item) => {
     if (item.id !== actionId) return item;
-    const completedAt = updates.status === "done" && item.status !== "done" ? now : item.completedAt;
-    return normalizeAction({
+    const completedAt =
+      updates.status === "done"
+        ? item.status === "done" ? item.completedAt : now
+        : updates.status ? undefined : item.completedAt;
+    return normalizeAmoraAction({
       ...item,
       ...updates,
       completedAt,

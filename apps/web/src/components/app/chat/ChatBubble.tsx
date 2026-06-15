@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2 } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import MediationCard, { type MediationBlock } from "@/components/app/chat/MediationCard";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -53,6 +53,98 @@ async function submitFeedback(messageId: string, rating: "good" | "bad", correct
   } catch {
     return false;
   }
+}
+
+function extractChatImagePathFromPublicUrl(url: string) {
+  try {
+    const marker = "/storage/v1/object/public/chat-image/";
+    const markerIndex = url.indexOf(marker);
+    if (markerIndex === -1) return null;
+    const pathWithQuery = url.slice(markerIndex + marker.length);
+    const path = pathWithQuery.split("?")[0] ?? "";
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+}
+
+function isPdfUrl(url: string) {
+  return url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
+}
+
+function ChatImageAttachments({ metadata }: { metadata: ChatMessage["metadata"] }) {
+  const storedImageUrls = metadata?.imageUrls ?? [];
+  const storedImagePaths = metadata?.imagePaths ?? [];
+  const legacyImagePaths = storedImageUrls
+    .map(extractChatImagePathFromPublicUrl)
+    .filter((path): path is string => Boolean(path));
+  const privateImagePaths = [...new Set([...storedImagePaths, ...legacyImagePaths])];
+  const privateImagePathKey = privateImagePaths.join("|");
+  const [signedImageState, setSignedImageState] = useState<{ key: string; urls: string[] }>({
+    key: "",
+    urls: [],
+  });
+
+  useEffect(() => {
+    if (!privateImagePathKey) return;
+
+    let cancelled = false;
+    const paths = privateImagePathKey.split("|");
+
+    fetch("/api/chat/image-urls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    })
+      .then((res) => (res.ok ? res.json() : { urls: [] }))
+      .then((payload: { urls?: { signedUrl?: string | null }[] }) => {
+        if (cancelled) return;
+        setSignedImageState({
+          key: privateImagePathKey,
+          urls: (payload.urls ?? [])
+            .map((item) => item.signedUrl)
+            .filter((url): url is string => Boolean(url)),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSignedImageState({ key: privateImagePathKey, urls: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [privateImagePathKey]);
+
+  const signedImageUrls =
+    signedImageState.key === privateImagePathKey ? signedImageState.urls : [];
+  const imageUrls = signedImageUrls;
+  if (imageUrls.length === 0) return null;
+
+  return (
+    <div className="flex gap-1.5 flex-wrap justify-end mb-1">
+      {imageUrls.map((url, i) =>
+        isPdfUrl(url) ? (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+          >
+            <FileText className="w-5 h-5 text-white/80" />
+            <span className="text-sm text-white/80">PDF 문서</span>
+          </a>
+        ) : (
+          <img
+            key={i}
+            src={url}
+            alt={`첨부 이미지 ${i + 1}`}
+            className="max-w-[200px] max-h-[200px] rounded-xl object-cover border border-white/20 shadow-sm"
+          />
+        )
+      )}
+    </div>
+  );
 }
 
 // AI 메시지 피드백 UI
@@ -407,7 +499,7 @@ export default function ChatBubble({
                   return (
                     <Link
                       key={num}
-                      href={weddingPath(`/etiquette?part=${num}`)}
+                      {...weddingLinkProps(`/etiquette?part=${num}`)}
                       className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border border-[#E8D5CD]/40 hover:border-[#C4967E]/30 transition-colors group"
                     >
                       <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>
@@ -469,8 +561,6 @@ export default function ChatBubble({
     | undefined;
 
   // 이미지 URL 목록
-  const imageUrls = message.metadata?.imageUrls ?? [];
-
   // 상대방에게 보낸 직접 메시지 여부
   const isPartnerMsg = message.metadata?.target === "partner";
   // 비공개 메시지 (RLS로 본인+아모라만 SELECT됨 — 여기 도달했으면 본인이 볼 권한 있음)
@@ -497,31 +587,7 @@ export default function ChatBubble({
             </div>
           )}
           {/* 첨부 파일 (이미지 + PDF) */}
-          {imageUrls.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap justify-end mb-1">
-              {imageUrls.map((url, i) =>
-                url.endsWith(".pdf") ? (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
-                  >
-                    <FileText className="w-5 h-5 text-white/80" />
-                    <span className="text-sm text-white/80">PDF 문서</span>
-                  </a>
-                ) : (
-                  <img
-                    key={i}
-                    src={url}
-                    alt={`첨부 이미지 ${i + 1}`}
-                    className="max-w-[200px] max-h-[200px] rounded-xl object-cover border border-white/20 shadow-sm"
-                  />
-                )
-              )}
-            </div>
-          )}
+          <ChatImageAttachments metadata={message.metadata} />
           <div
             className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-5 py-4 shadow-sm`}
           >

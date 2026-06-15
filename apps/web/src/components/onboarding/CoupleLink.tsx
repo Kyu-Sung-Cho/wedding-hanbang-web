@@ -29,7 +29,7 @@ export default function CoupleLink({
       setCodeError("코드를 입력해주세요");
       return false;
     }
-    if (!/^WH-[A-Z0-9]{6}$/.test(code)) {
+    if (!/^WH-[A-Z0-9]{6,12}$/.test(code)) {
       setCodeError("올바른 형식이 아닙니다 (예: WH-A3B2C1)");
       return false;
     }
@@ -109,7 +109,7 @@ export default function CoupleLink({
             onChange={(e) => handleCodeChange(e.target.value)}
             onBlur={() => partnerCode && validateCode(partnerCode)}
             placeholder="WH-A3B2C1"
-            maxLength={9}
+            maxLength={15}
             className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-noir-800 text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 placeholder:tracking-[0.2em]"
           />
           {codeError && (
