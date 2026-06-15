@@ -10,7 +10,7 @@ import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
 
 /**
@@ -96,7 +96,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           {data.brief}
           {data.briefHref && (
             <Link
-              href={data.briefHref}
+              {...weddingLinkProps(data.briefHref)}
               className="ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#36534E] underline-offset-2 hover:underline"
             >
               보러 가기
@@ -118,7 +118,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
               {data.imminent.map((category) => (
                 <li key={category.key}>
                   <Link
-                    href={weddingPath("/schedule")}
+                    {...weddingLinkProps("/schedule")}
                     className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832]"
                   >
                     <span className="truncate">{category.label}</span>
@@ -151,7 +151,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         {/* 알아둘 예절 */}
         {data.etiquettePart && (
           <Link
-            href={weddingPath(`/etiquette?part=${data.etiquettePart.number}`)}
+            {...weddingLinkProps(`/etiquette?part=${data.etiquettePart.number}`)}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
@@ -170,7 +170,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         {/* 조심할 함정 */}
         {data.trap && (
           <Link
-            href={weddingPath("/community/quote-check")}
+            {...weddingLinkProps("/community/quote-check")}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
@@ -198,7 +198,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             {data.openActions.map((action) => (
               <li key={action.id}>
                 <Link
-                  href={action.href ? weddingPath(action.href.replace(/^\/wedding/, "")) : weddingPath("/chat")}
+                  {...weddingLinkProps(action.href ? action.href.replace(/^\/wedding/, "") : "/chat")}
                   className="flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832] hover:text-[#36534E]"
                 >
                   <span className="truncate">{action.title}</span>

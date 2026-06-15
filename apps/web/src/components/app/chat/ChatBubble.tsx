@@ -7,7 +7,7 @@ import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown
 import { useChatStore } from "@/stores/chatStore";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import MediationCard, { type MediationBlock } from "@/components/app/chat/MediationCard";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -499,7 +499,7 @@ export default function ChatBubble({
                   return (
                     <Link
                       key={num}
-                      href={weddingPath(`/etiquette?part=${num}`)}
+                      {...weddingLinkProps(`/etiquette?part=${num}`)}
                       className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border border-[#E8D5CD]/40 hover:border-[#C4967E]/30 transition-colors group"
                     >
                       <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>

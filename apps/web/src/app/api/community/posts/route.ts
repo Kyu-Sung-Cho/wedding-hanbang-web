@@ -671,6 +671,7 @@ export async function POST(req: NextRequest) {
     // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
+      revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
       console.error("[posts.POST] revalidatePath failed (non-fatal):", e);

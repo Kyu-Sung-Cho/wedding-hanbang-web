@@ -35,7 +35,7 @@ describe("booking progress sync", () => {
     expect(result.syncedCategoryKey).toBe("dress");
     expect(result.syncedNewSpent).toBe(1_700_000);
     expect(result.budgetExceededBy).toBe(700_000);
-    expect(result.syncedEvent.id).toBe("evt_booking_11111111");
+    expect(result.syncedEvent.id).toBe(`evt_booking_${booking.id}`);
     expect(result.syncedEvent.sourceKey).toBe(`booking:${booking.id}`);
     expect(result.syncedEvent.title).toContain("B드레스");
     expect(result.patch).toHaveProperty("__events");

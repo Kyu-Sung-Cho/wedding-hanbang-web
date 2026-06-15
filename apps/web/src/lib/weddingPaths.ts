@@ -34,6 +34,12 @@ export function weddingRoutePath(path = ""): string {
   return stripWeddingBasePath(visiblePath);
 }
 
+export function weddingLinkProps(path = ""): { href: string; as?: string } {
+  const href = weddingRoutePath(path);
+  const as = weddingPath(path);
+  return href === as ? { href } : { href, as };
+}
+
 export function isWeddingPathActive(currentPathname: string, legacyPath: string): boolean {
   const currentPath = stripWeddingBasePath(currentPathname);
 

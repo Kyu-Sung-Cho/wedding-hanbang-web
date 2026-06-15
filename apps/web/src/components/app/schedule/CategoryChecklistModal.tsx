@@ -33,7 +33,7 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -228,7 +228,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   return (
                     <Link
                       key={num}
-                      href={weddingPath(`/etiquette?part=${num}`)}
+                      {...weddingLinkProps(`/etiquette?part=${num}`)}
                       className="flex items-center gap-2.5 px-3 py-3 rounded-xl bg-[#F6F3F2] hover:bg-[#795252]/5 transition-colors group"
                     >
                       <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>

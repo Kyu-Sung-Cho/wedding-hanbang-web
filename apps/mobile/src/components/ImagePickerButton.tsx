@@ -59,7 +59,14 @@ export default function ImagePickerButton({
       const uri = asset.uri;
       const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const filePath = `uploads/${fileName}`;
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error("이미지를 업로드하려면 로그인이 필요합니다.");
+      }
+      const filePath = `${user.id}/${fileName}`;
 
       // URI에서 blob 생성
       const response = await fetch(uri);

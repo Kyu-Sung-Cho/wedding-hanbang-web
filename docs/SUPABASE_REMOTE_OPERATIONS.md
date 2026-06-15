@@ -1,5 +1,17 @@
 # Supabase Remote Operations
 
+## Recommended Safe Flow
+
+For production or shared Supabase projects, use the guarded automation first:
+
+```powershell
+pnpm supabase:ship:safe
+```
+
+This command runs local checks, asks for the database password only inside the current PowerShell session, dry-runs pending migrations, requires typing `APPLY`, pushes migrations, and then runs the anonymous security probe.
+
+Use the manual steps below only when debugging the safe flow or when a maintainer explicitly asks for a specific Supabase CLI command.
+
 이 문서는 원격 Supabase 프로덕션 DB에 마이그레이션을 적용할 때 쓰는 최소 안전 절차다.
 
 ## 준비물

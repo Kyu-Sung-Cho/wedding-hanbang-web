@@ -17,23 +17,23 @@ import {
   X,
 } from "lucide-react";
 import Logo from "@/components/ui/Logo";
-import { stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
+import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money"];
 
 const menuItems = [
-  { href: weddingPath("/lounge"), legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
-  { href: weddingPath("/chat"), legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
-  { href: weddingPath("/budget"), legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
-  { href: weddingPath("/schedule"), legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
-  { href: weddingPath("/market-prices"), legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
-  { href: weddingPath("/vendors"), legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
-  { href: weddingPath("/bookings"), legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { href: weddingPath("/etiquette"), legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
-  { href: weddingPath("/money"), legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
-  { href: weddingPath("/settings"), legacyPath: "/settings", icon: Settings, label: "설정" },
+  { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
+  { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
+  { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
+  { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
+  { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
+  { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
+  { legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
+  { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
+  { legacyPath: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));
 
 interface SidebarProps {
@@ -65,7 +65,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         <div className="flex h-[72px] items-center justify-between px-5">
-          <Link href={weddingPath()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+          <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
             <Logo size="md" />
           </Link>
           <button
@@ -84,8 +84,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               const isActive = currentPath === item.legacyPath || (item.legacyPath !== "/lounge" && currentPath.startsWith(item.legacyPath));
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={item.legacyPath}
+                  {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${

@@ -75,7 +75,7 @@ function compactLabel(value: string | null | undefined): string {
 }
 
 function bookingEventId(bookingId: string): string {
-  return `${BOOKING_EVENT_PREFIX}${bookingId.slice(0, 8)}`;
+  return `${BOOKING_EVENT_PREFIX}${bookingId}`;
 }
 
 function bookingSourceKey(bookingId: string): string {

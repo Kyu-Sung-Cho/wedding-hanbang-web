@@ -24,7 +24,7 @@ import WeeklyCard from "@/components/app/WeeklyCard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { buildAmoraLifecyclePlan, type AmoraGuardrailSeverity } from "@/lib/amora/lifecycle";
 import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import { getEvents } from "@/utils/scheduleEvents";
@@ -588,7 +588,7 @@ export default function LoungePage() {
               <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">놓치기 쉬운 항목</h2>
             </div>
             <Link
-              href={weddingPath("/schedule")}
+              {...weddingLinkProps("/schedule")}
               className="inline-flex items-center gap-1 rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#36534E] hover:bg-[#fff8ec]"
             >
               전체 체크
@@ -642,7 +642,7 @@ export default function LoungePage() {
             href: weddingPath("/schedule"),
           },
         ].map((item) => (
-          <Link key={item.title} href={item.href} className="group flex gap-4 rounded-[16px] bg-white/80 p-4 hover:bg-white">
+          <Link key={item.title} {...weddingLinkProps(item.href)} className="group flex gap-4 rounded-[16px] bg-white/80 p-4 hover:bg-white">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]">
               <item.icon className="h-5 w-5" />
             </span>
@@ -718,7 +718,7 @@ function PriorityCard({
           <span className={`mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] ${subTone}`}>{item.body}</span>
         </span>
         <Link
-          href={item.href}
+          {...weddingLinkProps(item.href)}
           className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
             item.tone === "steady" ? "bg-white text-[#36534E]" : "bg-[#36534E] text-white"
           }`}
@@ -774,7 +774,7 @@ function CategoryRow({
 
   return (
     <Link
-      href={weddingPath("/schedule")}
+      {...weddingLinkProps("/schedule")}
       className="group rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-3.5 hover:border-[#d8bb86] hover:bg-white"
     >
       <div className="flex items-start justify-between gap-3">
@@ -832,7 +832,7 @@ function BudgetPanel({
           <span>총 {formatWon(totalBudget)}</span>
         </div>
       </div>
-      <Link href={weddingPath("/budget")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+      <Link {...weddingLinkProps("/budget")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
         예산 관리 열기
         <ArrowRight className="ml-1 h-3.5 w-3.5" />
       </Link>
@@ -853,7 +853,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
       <div className="mt-4 space-y-2">
         {events.length > 0 ? (
           events.slice(0, 3).map((event) => (
-            <Link key={event.id} href={weddingPath("/schedule")} className="flex items-start gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-3 hover:bg-white">
+            <Link key={event.id} {...weddingLinkProps("/schedule")} className="flex items-start gap-3 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-3 hover:bg-white">
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[#36534E]" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-semibold text-[#071629]">{event.title}</span>
@@ -890,7 +890,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
           </div>
         ) : posts.length > 0 ? (
           posts.map((post) => (
-            <Link key={post.id} href={weddingPath(`/community/post/${post.id}`)} className="block rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-3.5 hover:bg-white">
+            <Link key={post.id} {...weddingLinkProps(`/community/post/${post.id}`)} className="block rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-3.5 hover:bg-white">
               <p className="line-clamp-1 text-[14px] font-semibold text-[#071629]">{post.title}</p>
               <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] text-[#5d6879]">{stripHtml(post.content)}</p>
               <p className="mt-2 text-[11px] font-semibold text-[#9d6f36]">
@@ -905,7 +905,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
           </div>
         )}
       </div>
-      <Link href={weddingPath("/community/my/bookmarks")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+      <Link {...weddingLinkProps("/community/my/bookmarks")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
         북마크 전체 보기
         <ArrowRight className="ml-1 h-3.5 w-3.5" />
       </Link>
@@ -967,7 +967,7 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
           </div>
         )}
       </div>
-      <Link href={weddingPath(cohort.room ? `/community/cohort/${cohort.room.id}` : "/community/cohort")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+      <Link {...weddingLinkProps(cohort.room ? `/community/cohort/${cohort.room.id}` : "/community/cohort")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
         동기방 열기
         <ArrowRight className="ml-1 h-3.5 w-3.5" />
       </Link>
