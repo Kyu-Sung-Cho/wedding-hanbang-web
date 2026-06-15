@@ -13,11 +13,10 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import { weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 interface MenuItem {
-  href?: string;
-  as?: string;
+  linkProps?: ReturnType<typeof weddingLinkProps>;
   onClick?: () => void;
   label: string;
   sub: string;
@@ -64,11 +63,11 @@ export default function UserMenu() {
   }, [open]);
 
   const items: MenuItem[] = [
-    { href: weddingPath("/bookings"), label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
-    { href: weddingPath("/community/my"), label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
-    { href: weddingPath("/favorites"), label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
-    { href: weddingRoutePath("/community/cohort"), as: weddingPath("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
-    { href: weddingPath("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
+    { linkProps: weddingLinkProps("/bookings"), label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
+    { linkProps: weddingLinkProps("/community/my"), label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
+    { linkProps: weddingLinkProps("/favorites"), label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
+    { linkProps: weddingLinkProps("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
+    { linkProps: weddingLinkProps("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
     { onClick: handleLogout, label: "로그아웃", sub: "", Icon: LogOut },
   ];
 
@@ -107,12 +106,11 @@ export default function UserMenu() {
                   </div>
                 </div>
               );
-              if (item.href) {
+              if (item.linkProps) {
                 return (
                   <Link
                     key={item.label}
-                    href={item.href}
-                    as={item.as}
+                    {...item.linkProps}
                     onClick={() => setOpen(false)}
                     className="block"
                   >

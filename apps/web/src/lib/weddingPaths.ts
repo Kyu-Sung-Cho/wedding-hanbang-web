@@ -38,10 +38,10 @@ export function weddingRoutePath(path = ""): string {
   return stripWeddingBasePath(visiblePath);
 }
 
-export function weddingLinkProps(path = ""): { href: string; as?: string } {
+export function weddingLinkProps(path = ""): { href: string; as?: string; prefetch?: false } {
   const href = weddingRoutePath(path);
   const as = weddingPath(path);
-  return href === as ? { href } : { href, as };
+  return href === as ? { href } : { href, as, prefetch: false };
 }
 
 export function isWeddingPathActive(currentPathname: string, legacyPath: string): boolean {

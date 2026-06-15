@@ -48,7 +48,7 @@ import type {
   TimePeriod,
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
-import { weddingLinkProps, weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_YEAR,
@@ -1409,8 +1409,7 @@ function CohortPreviewPanel() {
           </p>
         </div>
         <Link
-          href={weddingRoutePath("/community/cohort")}
-          as={weddingPath("/community/cohort")}
+          {...weddingLinkProps("/community/cohort")}
           className="shrink-0 text-[13px] font-medium text-[#36534E]"
         >
           더보기
@@ -1420,8 +1419,7 @@ function CohortPreviewPanel() {
       {panelState.status === "assigned" && panelState.roomId ? (
         <div className="space-y-3">
           <Link
-            href={weddingRoutePath(`/community/cohort/${panelState.roomId}`)}
-            as={weddingPath(`/community/cohort/${panelState.roomId}`)}
+            {...weddingLinkProps(`/community/cohort/${panelState.roomId}`)}
             className="group flex min-h-[82px] items-center gap-3 rounded-[16px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[#36534E]/55 hover:bg-[#e7f0eb]"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-sm">
@@ -1442,8 +1440,7 @@ function CohortPreviewPanel() {
             </span>
           </Link>
           <Link
-            href={weddingRoutePath("/community/cohort")}
-            as={weddingPath("/community/cohort")}
+            {...weddingLinkProps("/community/cohort")}
             className="flex min-h-10 items-center justify-between rounded-[14px] border border-[#e5d8ca] bg-white px-4 text-[12px] font-semibold text-[#635b51] transition-colors hover:border-[#36534E]/35 hover:text-[#36534E]"
           >
             다른 분기로 바꾸거나 전체 동기방 보기
@@ -1470,8 +1467,7 @@ function CohortPreviewPanel() {
             {cohortPreviewRows.map((row) => (
           <Link
             key={row.period}
-            href={weddingRoutePath(row.href)}
-            as={weddingPath(row.href)}
+            {...weddingLinkProps(row.href)}
             className="flex min-h-[52px] items-center gap-3 py-2.5 text-[14px] font-medium text-[#263832] transition-colors hover:bg-[#EEF4F1]"
           >
             <span className="min-w-0 flex-1 truncate">{row.period}</span>
