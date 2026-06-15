@@ -48,7 +48,7 @@ import type {
   TimePeriod,
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
-import { weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath, weddingRoutePath } from "@/lib/weddingPaths";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_YEAR,
@@ -450,7 +450,7 @@ export default function CommunityLandingClient({
       />
       <div ref={observerRef} className="h-1" />
       <Link
-        href={weddingPath("/community/post/write")}
+        {...weddingLinkProps("/community/post/write")}
         className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
         aria-label="글쓰기"
         data-tutorial-target="community-write"
@@ -522,7 +522,7 @@ function SearchHub({
             return (
               <Link
                 key={item.label}
-                href={weddingPath(item.href ?? buildCommunityHubHref(item))}
+                {...weddingLinkProps(item.href ?? buildCommunityHubHref(item))}
                 aria-label={`${item.label} 보기`}
                 className={`group flex min-h-[64px] min-w-[96px] flex-col items-center justify-center gap-1 rounded-[14px] border px-3 text-center transition-all md:min-w-0 ${
                   active
@@ -572,7 +572,7 @@ function SearchHub({
           return (
             <Link
               key={item.label}
-              href={weddingPath(buildCommunityHubHref(item))}
+              {...weddingLinkProps(buildCommunityHubHref(item))}
               aria-label={`${item.label} 보기`}
               className={`group flex min-h-[58px] items-center gap-2 rounded-[14px] border px-3 text-left transition-all ${
                 active
@@ -608,7 +608,7 @@ function SearchHub({
           )}
           {searchQuery && (
             <Link
-              href={weddingPath()}
+              {...weddingLinkProps()}
               className="rounded-full border border-[#eadfc9] bg-white px-4 py-2 text-[13px] font-medium text-[#36534E]"
             >
               검색 초기화
@@ -797,7 +797,7 @@ function LatestPosts({
           )}
           {isPreviewFeed && posts.length > 0 && (
             <Link
-              href={fullFeedHref}
+              {...weddingLinkProps(fullFeedHref)}
               className="inline-flex h-10 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
               aria-label={feedMoreLabel}
             >
@@ -806,7 +806,7 @@ function LatestPosts({
             </Link>
           )}
           <Link
-            href={weddingPath("/community/post/write")}
+            {...weddingLinkProps("/community/post/write")}
             className="hidden h-10 w-[100px] items-center justify-center gap-1.5 rounded-full bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
             data-tutorial-target="community-write"
           >
@@ -868,7 +868,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <div className="flex justify-center py-5">
               <Link
-                href={fullFeedHref}
+                {...weddingLinkProps(fullFeedHref)}
                 className="inline-flex min-h-11 items-center rounded-full border border-[#eadfc9] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
                 aria-label={`${feedTitle} 전체 보기`}
               >
@@ -903,7 +903,7 @@ function AmoraInlinePromo() {
           </h3>
         </div>
         <Link
-          href={weddingPath("/chat")}
+          {...weddingLinkProps("/chat")}
           className="group mt-2 inline-flex min-h-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-3.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)] transition-transform hover:-translate-y-0.5 sm:mt-0"
         >
           아모라에게 물어보기
@@ -999,7 +999,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
 
   return (
     <Link
-      href={weddingPath(`/community/post/${post.id}`)}
+      {...weddingLinkProps(`/community/post/${post.id}`)}
       className={`relative grid gap-2.5 py-2 first:pt-0 last:pb-0 sm:gap-3 ${
         imageUrl
           ? "grid-cols-[minmax(0,1fr)_72px] sm:grid-cols-[minmax(0,1fr)_104px] xl:grid-cols-[minmax(0,1fr)_112px]"
@@ -1154,7 +1154,7 @@ function BestPostsPanel() {
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
-        <Link href={moreHref} className="text-[13px] font-medium text-[#9d6f36]">
+        <Link {...weddingLinkProps(moreHref)} className="text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
@@ -1171,7 +1171,7 @@ function BestPostsPanel() {
           {posts.map((post, index) => (
             <li key={post.id}>
               <Link
-                href={weddingPath(`/community/post/${post.id}`)}
+                {...weddingLinkProps(`/community/post/${post.id}`)}
                 className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
               >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
@@ -1204,7 +1204,7 @@ function AmoraSidebarPanel() {
         커뮤니티 글이 자동으로 내 견적에 반영되는 기능은 아니에요. 아모라 상담으로 이동해 상황을 설명하고 질문을 이어가는 카드입니다.
       </p>
       <Link
-        href={weddingPath("/chat")}
+        {...weddingLinkProps("/chat")}
         className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
       >
         아모라에게 바로 묻기
@@ -1262,7 +1262,7 @@ function MarketSnapshotPanel() {
           </p>
         </div>
         <Link
-          href={weddingPath("/market-prices")}
+          {...weddingLinkProps("/market-prices")}
           className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
         >
           자세히
@@ -1285,7 +1285,7 @@ function MarketPriceRow({
   item: { label: string; value: number | null; note: string; icon: LucideIcon };
 }) {
   return (
-    <Link href={weddingPath("/market-prices")} className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
+    <Link {...weddingLinkProps("/market-prices")} className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
       <span className="flex min-w-0 items-center gap-3">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
           <item.icon className="h-3.5 w-3.5" />

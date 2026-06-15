@@ -21,6 +21,10 @@ export function stripWeddingBasePath(pathname: string): string {
     return "/community";
   }
 
+  if (pathname.startsWith(`${WEDDING_BASE_PATH}?`) || pathname.startsWith(`${WEDDING_BASE_PATH}#`)) {
+    return `/community${pathname.slice(WEDDING_BASE_PATH.length)}`;
+  }
+
   if (pathname.startsWith(`${WEDDING_BASE_PATH}/`)) {
     return pathname.slice(WEDDING_BASE_PATH.length) || "/community";
   }
