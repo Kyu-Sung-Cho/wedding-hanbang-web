@@ -17,3 +17,17 @@ export function normalizeCommunityFeedQuery(searchParams?: RawSearchParams): Com
     feed: firstParam(searchParams?.feed) ?? "",
   };
 }
+
+export function canUseServerInitialCommunityFeed(query: CommunityFeedQuery): boolean {
+  const sort = query.sort || "new";
+  const period = query.period || "week";
+
+  return (
+    !query.search &&
+    !query.category &&
+    !query.tag &&
+    !query.author_id &&
+    sort === "new" &&
+    period === "week"
+  );
+}

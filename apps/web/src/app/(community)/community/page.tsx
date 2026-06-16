@@ -3,7 +3,8 @@ import CommunityLandingClient from "@/components/community/CommunityLandingClien
 import CommunityGuide from "@/components/community/CommunityGuide";
 import CommunityTutorial from "@/components/community/CommunityTutorial";
 import GuideOpenButton from "@/components/common/GuideOpenButton";
-import { normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
+import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
+import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,16 @@ export default async function CommunityFeedPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
+  const initialFeed = canUseServerInitialCommunityFeed(initialQuery)
+    ? await getInitialCommunityFeed(10)
+    : undefined;
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#fffdf7]" />}>
       <CommunityLandingClient
-        initialQuery={normalizeCommunityFeedQuery(resolvedSearchParams)}
+        initialFeed={initialFeed}
+        initialQuery={initialQuery}
       />
       <GuideOpenButton eventName="hanbang:open-community-guide" label="커뮤니티 이용 가이드 보기" />
       <CommunityGuide />
