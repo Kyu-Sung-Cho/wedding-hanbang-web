@@ -74,9 +74,12 @@ export async function GET(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const isLatestFeed = sort === "new";
     const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_cohort" || sort === "my_posts";
     const feedCacheControl = isPersonalizedFeed
       ? "private, no-store, max-age=0"
+      : isLatestFeed
+        ? "no-store, max-age=0"
       : "public, s-maxage=10, stale-while-revalidate=30";
     const feedResponse = (payload: unknown, status = 200) =>
       NextResponse.json(payload, {

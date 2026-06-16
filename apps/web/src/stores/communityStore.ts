@@ -113,6 +113,11 @@ function writeFeedCache(key: string, value: CachedFeed): void {
 // 글 작성/삭제 시 모든 피드 캐시 무력화 — 뒤로 가면 신선한 목록 보이게.
 // vote/bookmark는 in-memory state만 갱신해도 30s 안엔 stale 캐시 보일 수 있지만,
 // 백그라운드 refetch가 바로 정정하므로 무시.
+function shouldSkipFreshFeedNetwork(sort: PostSort): boolean {
+  // Latest feed should always revalidate so newly published posts appear promptly.
+  return sort !== "new";
+}
+
 function invalidateFeedCache(): void {
   if (typeof window === "undefined") return;
   try {
@@ -181,7 +186,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           isLoading: false,
           errorMessage: null,
         });
-        usingFreshCache = Date.now() - cached.ts < CACHE_FRESH_MS;
+        usingFreshCache = shouldSkipFreshFeedNetwork(currentSort) && Date.now() - cached.ts < CACHE_FRESH_MS;
         if (usingFreshCache) return; // fresh window — 네트워크 skip
         // stale → 백그라운드 refetch (loading은 안 켬)
       } else {
