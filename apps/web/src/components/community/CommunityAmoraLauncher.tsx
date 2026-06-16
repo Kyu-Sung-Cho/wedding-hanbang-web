@@ -58,12 +58,12 @@ export default function CommunityAmoraLauncher() {
         <button
           type="button"
           onClick={handleOpenAmora}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#36534E] text-white shadow-[0_14px_34px_rgba(54,83,78,0.22)] transition-transform hover:-translate-y-0.5 hover:bg-[#2f4944]"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#36534E] text-white shadow-[0_14px_34px_rgba(54,83,78,0.22)] transition-transform hover:-translate-y-0.5 hover:bg-[#2f4944] md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
           disabled={checkingAuth}
         >
-          <Sparkles className={`h-6 w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
+          <Sparkles className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
         </button>
       )}
 

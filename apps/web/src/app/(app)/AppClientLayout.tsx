@@ -72,11 +72,11 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         <button
           type="button"
           onClick={() => setChatPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
         >
-          <Sparkles className="h-6 w-6" />
+          <Sparkles className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       )}
     </div>

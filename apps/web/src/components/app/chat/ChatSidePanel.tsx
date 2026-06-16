@@ -70,6 +70,17 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const hasCouplePartner = !!(couple?.bride_id && couple?.groom_id);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isOpen || !isDemo || !coupleId || !profile) return;
 
     const welcomeMessage: ChatMessage = {
@@ -333,7 +344,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     <>
       {/* 모바일 오버레이 */}
       <div
-        className={`fixed inset-0 bg-black/40 z-40 md:hidden transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-[#071629]/45 backdrop-blur-[2px] transition-opacity duration-300 md:hidden ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         onClick={onClose}
@@ -341,13 +352,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
       {/* 패널 */}
       <div
-        className={`fixed z-40 bg-ivory-50 shadow-[-4px_0_24px_rgba(0,0,0,0.08)] flex flex-col transition-transform duration-300 ease-out
+        className={`fixed z-50 flex flex-col overflow-hidden bg-ivory-50 shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
-          max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[85vh] max-md:rounded-t-2xl
+          max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[0_-18px_45px_rgba(7,22,41,0.18)]
           ${isOpen
             ? "md:translate-x-0 max-md:translate-y-0"
             : "md:translate-x-full max-md:translate-y-full"
-          }`}
+        }`}
+        role="dialog"
+        aria-modal={isOpen}
+        aria-hidden={!isOpen}
+        aria-label="아모라 AI 상담 패널"
+        inert={!isOpen}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -398,6 +414,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              title="닫기"
+              aria-label="아모라 상담 패널 닫기"
             >
               <X className="w-4 h-4 text-taupe-500" />
             </button>
