@@ -2,6 +2,31 @@
 
 ---
 
+## 배포 기록
+
+앞으로 운영 배포가 끝날 때마다 최신 날짜를 위에 추가하고, 같은 날짜 안에서는 실제 배포 순서대로 기록합니다.
+
+### 2026-06-16 (KST)
+
+1. `16:01` `c7171a14` `fix: prevent wedding alias rsc prefetch errors`
+   - 내용: `/wedding/*` 별칭 링크에서 Next.js RSC prefetch가 잘못된 경로를 요청하며 404를 만들 수 있던 문제를 수정했습니다.
+   - 변경: 커뮤니티 푸터, 업체 목록, 예약 빈 상태 CTA의 웨딩 별칭 링크를 `weddingLinkProps` 기반으로 정리했습니다.
+   - 검증: 로컬 프로덕션 플로우 QA, GitHub Actions, Vercel 배포, 운영 `qa:live`를 통과했습니다.
+
+2. `16:20` `122aeed2` `fix: keep community latest feed fresh`
+   - 내용: 커뮤니티 최신순에서 새 글이 가끔 늦게 보이던 문제를 수정했습니다.
+   - 원인: 최신순도 짧은 sessionStorage 캐시와 API 공개 캐시 영향을 받아, 새 글 작성 직후 목록 갱신이 늦을 수 있었습니다.
+   - 변경: 최신순(`sort=new`)은 캐시가 있어도 항상 서버 재확인을 하게 하고, 최신순 API 응답은 `Cache-Control: no-store, max-age=0`로 변경했습니다.
+   - 검증: 커뮤니티 스토어 회귀 테스트, 전체 테스트, 타입체크, 린트, 빌드, Vercel 배포, 운영 `qa:live`를 통과했습니다.
+
+3. `16:40` `85130340` `fix: server render community latest feed`
+   - 내용: `/wedding` 커뮤니티 홈에서 틀만 먼저 보이고 최신글 내용이 3~4초 뒤에 뜨던 문제를 줄였습니다.
+   - 원인: 커뮤니티 홈이 첫 렌더에서 글 목록을 서버로부터 같이 받지 않고, 브라우저에서 별도 API 요청이 끝난 뒤에야 글을 채웠습니다.
+   - 변경: 기본 최신글 화면은 서버에서 최신글 10개를 먼저 가져와 `CommunityLandingClient`에 넘기도록 했고, 검색/카테고리/태그/인기순은 기존 클라이언트 흐름을 유지했습니다.
+   - 검증: 운영 `https://hanbang.ai/wedding` 첫 HTML에 최신글 제목/ID가 포함되는 것과 메인 최신글 스켈레톤 `0`개를 확인했고, 전체 테스트, 타입체크, 린트, 빌드, Vercel 배포, 운영 `qa:live`를 통과했습니다.
+
+---
+
 ## 2026-03-06 (오늘)
 
 ### B2B 설문 개선
