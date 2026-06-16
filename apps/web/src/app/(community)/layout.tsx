@@ -6,7 +6,7 @@ import CommunityAuthInitializer from "@/components/community/CommunityAuthInitia
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
-import { weddingPath } from "@/lib/weddingPaths";
+import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 export default function CommunityLayout({
   children,
@@ -31,7 +31,7 @@ export default function CommunityLayout({
 
 function FooterBrand() {
   return (
-    <Link href={weddingPath()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+    <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
       <Logo size="md" variant="white" />
     </Link>
   );
@@ -54,7 +54,7 @@ function CommunityFooter() {
             ].map((item) => (
               <Link
                 key={item.label}
-                href={weddingPath()}
+                {...weddingLinkProps()}
                 aria-label={item.label}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
@@ -111,7 +111,7 @@ function CommunityFooter() {
             개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
           </p>
           <Link
-            href={weddingPath("/lounge")}
+            {...weddingLinkProps("/lounge")}
             className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
@@ -131,11 +131,17 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
     <div>
       <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
       <div className="flex flex-col gap-2">
-        {items.map((item) => (
-          <Link key={item.label} href={item.href} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
-            {item.label}
-          </Link>
-        ))}
+        {items.map((item) => {
+          const linkProps = item.href === WEDDING_BASE_PATH || item.href.startsWith(`${WEDDING_BASE_PATH}/`)
+            ? weddingLinkProps(item.href)
+            : { href: item.href };
+
+          return (
+            <Link key={item.label} {...linkProps} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+              {item.label}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

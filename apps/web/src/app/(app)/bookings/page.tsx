@@ -7,7 +7,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import type { Booking } from "@/types/vendor.types";
 
 interface BookingWithExtra extends Booking {
@@ -91,7 +91,7 @@ export default function BookingsPage() {
             업체를 둘러보고 첫 예약을 잡아보세요
           </p>
           <Link
-            href={weddingPath("/vendors")}
+            {...weddingLinkProps("/vendors")}
             className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 둘러보기

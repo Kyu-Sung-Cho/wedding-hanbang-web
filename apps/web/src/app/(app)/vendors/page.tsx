@@ -19,7 +19,7 @@ import type { Vendor } from "@/types/vendor.types";
 import { useEventTracker } from "@/hooks/useEventTracker";
 import { useAuthStore } from "@/stores/authStore";
 import AmoraDirector from "@/components/app/AmoraDirector";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const categories = ["전체", "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행"];
 
@@ -223,7 +223,7 @@ export default function VendorsPage() {
             </p>
             <p className="mt-2 text-[13px] font-medium text-[#5d6879]">찜한 업체</p>
             <Link
-              href={weddingPath("/vendors/favorites")}
+              {...weddingLinkProps("/vendors/favorites")}
               className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#36534E] hover:text-[#2d4642]"
             >
               보기 <ArrowRight className="w-4 h-4" />
@@ -259,7 +259,7 @@ export default function VendorsPage() {
               </div>
             </div>
             <Link
-              href={weddingPath("/settings")}
+              {...weddingLinkProps("/settings")}
               className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#36534E] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
             >
               설정하기
@@ -333,7 +333,7 @@ export default function VendorsPage() {
               return (
                 <Link
                   key={vendor.id}
-                  href={weddingPath(`/vendors/${vendor.id}`)}
+                  {...weddingLinkProps(`/vendors/${vendor.id}`)}
                   className="group animate-fade-in"
                 >
                   <article className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-all duration-300 hover:shadow-[0_12px_32px_rgba(8,22,38,0.07)]">
@@ -435,7 +435,7 @@ export default function VendorsPage() {
                   믿을 수 있는 업체만 엄선해서 모시는 중이에요. 등록 직후 알려드릴게요.
                 </p>
                 <Link
-                  href={weddingPath("/chat")}
+                  {...weddingLinkProps("/chat")}
                   className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#36534E] transition-all hover:gap-3"
                 >
                   아모라에게 미리 추천 요청하기
@@ -459,7 +459,7 @@ export default function VendorsPage() {
               예산, 지역, 스타일을 알려주시면 AI 아모라가 딱 맞는 업체 3곳을 추천해드려요
             </p>
             <Link
-              href={weddingPath("/chat")}
+              {...weddingLinkProps("/chat")}
               className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec]"
             >
               맞춤 추천 받기
