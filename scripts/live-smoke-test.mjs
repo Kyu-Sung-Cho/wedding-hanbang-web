@@ -164,7 +164,10 @@ async function textOrEmpty(locator, timeout = 2_500) {
 
 async function runPageCheck(browser, options, reportDir, check) {
   const context = await browser.newContext({
-    viewport: { width: 1366, height: 900 },
+    viewport: check.viewport || { width: 1366, height: 900 },
+    isMobile: Boolean(check.isMobile),
+    hasTouch: Boolean(check.hasTouch),
+    deviceScaleFactor: check.deviceScaleFactor || 1,
     ignoreHTTPSErrors: false,
   });
   const page = await context.newPage();
@@ -312,6 +315,62 @@ function buildChecks(skipDemo) {
         }
         if (!result.h1) {
           addFailure(result, "Expected lounge page to render an h1");
+        }
+      },
+    });
+
+    checks.push({
+      name: "mobile-amora-panel",
+      path: "/login",
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      async assert(page, result, options) {
+        const demoResponse = await page.request.post(`${options.baseUrl}/api/demo/start`);
+        if (!demoResponse.ok()) {
+          addFailure(result, `Expected demo session API to succeed, got ${demoResponse.status()}`);
+          return;
+        }
+
+        const loungeResponse = await page.goto(`${options.baseUrl}/wedding/lounge`, {
+          waitUntil: "domcontentloaded",
+          timeout: options.timeoutMs,
+        });
+        await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+        await page.waitForTimeout(800);
+
+        result.status = loungeResponse?.status() ?? result.status;
+        result.finalUrl = page.url();
+        result.title = await page.title().catch(() => result.title);
+        result.h1 = await textOrEmpty(page.locator("h1").first());
+
+        if (!loungeResponse || loungeResponse.status() < 200 || loungeResponse.status() >= 400) {
+          addFailure(result, `Expected demo lounge to return 2xx/3xx, got ${loungeResponse?.status() ?? "none"}`);
+        }
+        if (!hasPath(result.finalUrl, "/wedding/lounge")) {
+          addFailure(result, `Expected demo login to land on /wedding/lounge, got ${result.finalUrl}`);
+        }
+
+        const launcher = page.getByLabel("아모라 AI 상담").last();
+        await launcher.click({ timeout: 5_000 });
+        await page.waitForTimeout(500);
+
+        const panel = page.locator('[role="dialog"][aria-label="아모라 AI 상담 패널"]');
+        await panel.waitFor({ state: "visible", timeout: 5_000 });
+        const panelBox = await panel.boundingBox();
+        const viewport = page.viewportSize();
+        if (!panelBox || !viewport) {
+          addFailure(result, "Expected mobile Amora panel to have a visible bounding box");
+          return;
+        }
+
+        const ratio = panelBox.height / viewport.height;
+        if (ratio < 0.55 || ratio > 0.82) {
+          addFailure(result, `Expected mobile Amora panel height ratio between 0.55 and 0.82, got ${ratio.toFixed(3)}`);
+        }
+        if (panelBox.y < 120) {
+          addFailure(result, `Expected mobile Amora panel to leave page context visible above it, got y=${panelBox.y}`);
         }
       },
     });

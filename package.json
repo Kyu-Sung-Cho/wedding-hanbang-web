@@ -26,6 +26,7 @@
     "supabase:ship:safe": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-ship-safe.ps1",
     "supabase:security:probe": "node ./scripts/supabase-anon-probe.mjs",
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
+    "amora:costs": "node ./scripts/amora-cost-report.mjs",
     "qa:live": "node ./scripts/live-smoke-test.mjs",
     "qa:live:local": "node ./scripts/live-smoke-test.mjs --base-url=http://localhost:3000",
     "clean": "turbo run clean && rm -rf node_modules"
