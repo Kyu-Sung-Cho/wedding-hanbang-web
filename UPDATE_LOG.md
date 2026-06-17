@@ -6,6 +6,15 @@
 
 앞으로 운영 배포가 끝날 때마다 최신 날짜를 위에 추가하고, 같은 날짜 안에서는 실제 배포 순서대로 기록합니다.
 
+### 2026-06-17 (KST)
+
+1. `09:30` `b12ffa67` `ci: update actions to node24 runtime`
+   - 내용: GitHub Actions에서 발생하던 Node.js 20 action runtime deprecation 경고를 정리했습니다.
+   - 원인: `actions/checkout@v4`, `pnpm/action-setup@v4`, `actions/setup-node@v4`가 action 실행 런타임으로 Node 20을 사용해 GitHub runner 경고가 발생했습니다.
+   - 변경: `actions/checkout@v5`, `pnpm/action-setup@v6`, `actions/setup-node@v5`로 올렸습니다.
+   - 보수적 선택: 앱 빌드에 쓰는 `node-version: 20`은 유지해 실제 애플리케이션 실행/빌드 환경은 흔들지 않고, 경고 원인인 GitHub Action 런타임만 Node 24 호환 버전으로 정리했습니다.
+   - 검증: 로컬 YAML 파싱, `pnpm typecheck`, `pnpm build:web`, `pnpm --filter @hanbang/web lint`, GitHub Actions 성공, Actions annotation `0`, Vercel 배포 성공, 운영 `qa:live` `4/4`를 확인했습니다.
+
 ### 2026-06-16 (KST)
 
 1. `16:01` `c7171a14` `fix: prevent wedding alias rsc prefetch errors`
