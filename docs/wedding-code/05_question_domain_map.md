@@ -20,6 +20,16 @@ The domains below describe concrete wedding-preparation situations that future n
 - High and low scores should describe support needs, decision patterns, or product routing, not personal worth or relationship quality.
 - Future questions should be useful for reports, Amora, quote checking, etiquette guidance, checklist actions, couple reports, or onboarding.
 
+## 1.1 Future WC-003 tagging requirements
+
+- Each future question must have a primary construct.
+- Each future question may have secondary constructs.
+- Each future question should include journey stage tags such as `dating_or_meeting`, `marriage_discussion`, `preparing_without_date`, `venue_search`, `sdm_search`, `family_meeting`, `contract_pending`, `contracted`, `wedding_week`, or `post_wedding`.
+- `emotionalSupport`, `executionSupport`, `decisionPaceRisk`, and `guidanceNeed` are internal UX/risk support constructs and should not become public identity labels by default.
+- `familyIntegration` and `coupleAutonomy` should not be forced into a simple binary until data confirms their relationship.
+- `costRisk`/`evidenceDecision` and `experienceMeaning`/`aestheticMood` may overlap; question writing must separate primary decision motivation from secondary context.
+- Future user-facing questions should be written in Korean and remain situational, neutral, and non-stigmatizing.
+
 ## 2. Construct Domain Maps
 
 ### costRisk - 비용·리스크 민감도 / Cost & Risk Orientation
@@ -77,6 +87,7 @@ Scenario domains:
 8. A partner wants to reduce a visual or memory-related item.
 9. The user imagines how the wedding will feel years later through photos or videos.
 10. Aesthetic satisfaction conflicts with quote simplicity.
+11. Ceremony content such as vows, parent gratitude, or the ceremony message feels emotionally meaningful.
 
 High score may imply:
 The user sees wedding choices as lasting memories and wants meaningful satisfaction.
@@ -262,6 +273,7 @@ Scenario domains:
 8. The user wants to avoid either family feeling excluded.
 9. Guest experience affects venue choice.
 10. Cost split, gifts, or ceremony etiquette needs family discussion.
+11. Both families have different expectations about guest count or cost-sharing.
 
 High score may imply:
 The user actively integrates family and guest considerations into wedding choices.
@@ -410,6 +422,7 @@ Scenario domains:
 8. The user feels scarcity pressure around popular dates.
 9. The user receives a bundle discount with unclear exclusions.
 10. The user signs before comparing cancellation conditions.
+11. A small deposit feels easy to pay before the user has reviewed the conditions.
 
 High score may imply:
 The user may benefit from a pause rule and contract-before-signing checklist.
@@ -447,6 +460,7 @@ Scenario domains:
 8. The user wants a short plan for the current wedding stage.
 9. The user wants guidance before doing detailed comparisons.
 10. The user feels stuck between budget, family, and mood criteria.
+11. The user does not know what to prepare before sanggyeonrye or a venue tour.
 
 High score may imply:
 The user benefits from compressed guidance, next-step cards, and Amora-led prioritization.
