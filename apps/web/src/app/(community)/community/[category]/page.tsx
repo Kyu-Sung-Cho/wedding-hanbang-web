@@ -1,9 +1,6 @@
 ﻿import { redirect } from "next/navigation";
-import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
+import { communityCategoryFeedPath, isCommunityCategory } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
-import type { CommunityCategory } from "@/types/community.types";
-
-const validCategories = new Set<CommunityCategory>(COMMUNITY_CATEGORIES.map((category) => category.key));
 
 export default async function CategoryRedirectPage({
   params,
@@ -14,20 +11,11 @@ export default async function CategoryRedirectPage({
 }) {
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const category = resolvedParams.category as CommunityCategory;
+  const category = resolvedParams.category;
 
-  if (!validCategories.has(category)) {
+  if (!isCommunityCategory(category)) {
     redirect(weddingPath());
   }
 
-  const query = new URLSearchParams({
-    category,
-    feed: "all",
-  });
-
-  if (resolvedSearchParams?.tag) {
-    query.set("tag", resolvedSearchParams.tag);
-  }
-
-  redirect(weddingPath(`/community?${query.toString()}#community-feed`));
+  redirect(communityCategoryFeedPath(category, resolvedSearchParams?.tag));
 }

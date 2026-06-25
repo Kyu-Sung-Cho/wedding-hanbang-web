@@ -20,6 +20,7 @@ import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
 import AdDisclosureBadge from "./AdDisclosureBadge";
+import { communityPostPath, communityPostUrl } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -141,7 +142,7 @@ export default function PostCard({ post }: PostCardProps) {
     e.preventDefault();
     e.stopPropagation();
     if (typeof window === "undefined") return;
-    const url = `${window.location.origin}${weddingPath(`/community/post/${post.id}`)}`;
+    const url = communityPostUrl(window.location.origin, post.id);
     const title = post.title;
 
     // 모바일 — 네이티브 시트
@@ -198,7 +199,7 @@ export default function PostCard({ post }: PostCardProps) {
               </div>
             </div>
 
-            <Link href={weddingPath(`/community/post/${post.id}`)} className="group block">
+            <Link href={communityPostPath(post.id)} className="group block">
               <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#263832] mb-2.5 hover:text-[#36534E] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
@@ -233,7 +234,7 @@ export default function PostCard({ post }: PostCardProps) {
                     : false;
                   return (
                     <Link
-                      href={weddingPath(`/community/post/${post.id}`)}
+                      href={communityPostPath(post.id)}
                       className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
                         isClosed
                           ? "text-[#928980] bg-[#f6efe5] border-[#e5d8ca] hover:bg-white"
@@ -301,7 +302,7 @@ export default function PostCard({ post }: PostCardProps) {
 
               {/* 댓글 */}
               <Link
-                href={weddingPath(`/community/post/${post.id}#comments`)}
+                href={communityPostPath(post.id, "comments")}
                 className="flex items-center gap-1 hover:text-[#36534E] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
@@ -347,7 +348,7 @@ export default function PostCard({ post }: PostCardProps) {
         {/* 썸네일 (오른쪽) — 카드 게시물 > 첨부 이미지 > 본문 인라인 fallback */}
         {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
           <Link
-            href={weddingPath(`/community/post/${post.id}`)}
+            href={communityPostPath(post.id)}
             className="relative h-24 w-28 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
           >
             {thumbUrl ? (

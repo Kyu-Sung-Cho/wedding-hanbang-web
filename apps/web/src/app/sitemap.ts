@@ -1,18 +1,30 @@
 import { MetadataRoute } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { communityPostPath } from "@/lib/community/routes";
+import { createPublicClient } from "@/lib/supabase/public";
 
 const BASE_URL = "https://hanbang.ai";
 
-// 서비스 역할 키로 Supabase 클라이언트 생성 (RLS 우회)
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+type SitemapPostRow = {
+  id: string;
+  updated_at: string;
+};
+
+type SitemapPostBuilder = {
+  eq(column: string, value: string): SitemapPostBuilder;
+  order(column: string, options: { ascending: boolean }): SitemapPostBuilder;
+  limit(count: number): Promise<{ data: SitemapPostRow[] | null }>;
+};
+
+type SitemapPostQuery = {
+  select(columns: string): SitemapPostBuilder;
+};
+
+type SitemapPublicClient = {
+  from(table: "community_posts"): SitemapPostQuery;
+};
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 정적 페이지
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}/wedding`,
@@ -46,37 +58,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // 환경변수 미설정 시 정적 페이지만 반환 (sitemap.xml 전체 500 방지)
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return staticPages;
   }
 
-  // 커뮤니티 게시글 동적 페이지 — 공개(public) 글만. draft·members 글은
-  // 크롤러가 401/404를 받으므로 제외(크롤 품질·비공개 ID 누출 방지).
   let communityPages: MetadataRoute.Sitemap = [];
   try {
-    const supabase = getServiceClient();
+    const supabase = createPublicClient() as unknown as SitemapPublicClient;
     const { data: posts } = await supabase
       .from("community_posts")
       .select("id, updated_at")
-      .eq("visibility", "public")
+      .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
       .order("updated_at", { ascending: false })
       .limit(5000);
 
     if (posts) {
       communityPages = posts.map((post) => ({
-        url: `${BASE_URL}/wedding/community/post/${post.id}`,
+        url: `${BASE_URL}${communityPostPath(post.id)}`,
         lastModified: new Date(post.updated_at),
         changeFrequency: "weekly" as const,
         priority: 0.6,
       }));
     }
   } catch {
-    // DB 오류 시 동적 페이지 없이 정적 페이지만 반환
+    // Keep sitemap.xml available even if the dynamic community post query fails.
   }
-
-  // 업체 페이지는 사용자 측 비활성 — 사이트맵에서 제외
-  // (업체 DB가 쌓이고 /vendors 사용자 측 재오픈 시 복원 검토)
 
   return [...staticPages, ...communityPages];
 }

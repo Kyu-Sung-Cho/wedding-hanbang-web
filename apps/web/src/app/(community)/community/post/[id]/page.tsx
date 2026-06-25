@@ -37,6 +37,7 @@ import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
+import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
 
@@ -392,7 +393,7 @@ export default function PostDetailPage() {
             <>
               <span className="shrink-0 text-[#B5ADA3]">/</span>
               <Link
-                href={weddingPath(`/community/${post.category}`)}
+                href={communityCategoryFeedPath(post.category)}
                 className="shrink-0 hover:text-[#36534E] transition-colors"
               >
                 {categoryInfo.label}
@@ -453,7 +454,7 @@ export default function PostDetailPage() {
                   <>
                     <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
-                      href={weddingPath(`/community/${post.category}`)}
+                      href={communityCategoryFeedPath(post.category)}
                       className="text-[13px] font-medium text-[#36534E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
@@ -743,7 +744,7 @@ export default function PostDetailPage() {
                   {post.tags.map((tag) => (
                     <Link
                       key={tag}
-                      href={weddingPath(`/community/${post.category}?tag=${encodeURIComponent(tag)}`)}
+                      href={communityCategoryFeedPath(post.category, tag)}
                       className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       #{tag}
@@ -891,11 +892,7 @@ export default function PostDetailPage() {
         {/* 목록으로 버튼 */}
         <div className="mt-3 flex">
           <Link
-            href={weddingPath(
-              categoryInfo
-                ? `/community/${post.category}`
-                : "/community"
-            )}
+            href={categoryInfo ? communityCategoryFeedPath(post.category) : weddingPath()}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#B5ADA3] hover:text-[#36534E] transition-all duration-200"
           >
             <List className="w-4 h-4" />
@@ -1129,7 +1126,7 @@ function SimilarPostsRail({ posts }: { posts: PostWithAuthor[] }) {
               return (
                 <Link
                   key={item.id}
-                  href={weddingPath(`/community/post/${item.id}`)}
+                  href={communityPostPath(item.id)}
                   className="group block overflow-hidden rounded-xl border border-[#efe4d3] bg-[#fffdf7] transition-colors hover:border-[#36534E]/40 hover:bg-white"
                 >
                   {thumb && (
@@ -1204,7 +1201,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                 return (
                   <Link
                     key={item.id}
-                    href={weddingPath(`/community/post/${item.id}`)}
+                    href={communityPostPath(item.id)}
                     className={`grid gap-3 py-3 first:pt-0 last:pb-0 ${
                       thumb ? "grid-cols-[58px_minmax(0,1fr)]" : "grid-cols-1"
                     }`}

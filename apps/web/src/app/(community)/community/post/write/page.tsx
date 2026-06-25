@@ -24,6 +24,7 @@ import VendorTagPicker from "@/components/community/VendorTagPicker";
 import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -607,7 +608,7 @@ function PostWriteContent() {
         // 임시저장 삭제
         localStorage.removeItem(DRAFT_KEY);
         setHasUnsavedChanges(false);
-        router.push(weddingPath(`/community/post/${editId}`));
+        router.push(communityPostPath(editId));
       } else {
         const postId = await createPost(input);
         if (!postId) {
@@ -620,7 +621,7 @@ function PostWriteContent() {
         if (asDraft) {
           router.push(weddingPath());
         } else {
-          router.push(weddingPath(`/community/post/${postId}`));
+          router.push(communityPostPath(postId));
         }
       }
     } catch (err) {

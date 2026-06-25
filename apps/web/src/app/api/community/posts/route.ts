@@ -9,6 +9,8 @@ import {
   validateCommunityMediaUrl,
 } from "@/lib/community/mediaUrls";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { isCommunityCategory } from "@/lib/community/routes";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
@@ -59,7 +61,8 @@ export async function GET(req: NextRequest) {
     const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
 
-    const category = searchParams.get("category") as CommunityCategory | null;
+    const categoryParam = searchParams.get("category");
+    const category = isCommunityCategory(categoryParam) ? categoryParam : null;
     const sort = (searchParams.get("sort") ?? "hot") as PostSort;
     const period = (searchParams.get("period") ?? "week") as TimePeriod;
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
@@ -134,7 +137,7 @@ export async function GET(req: NextRequest) {
         `visibility.eq.public,visibility.eq.members,and(visibility.eq.draft,author_id.eq.${user.id})`
       );
     } else {
-      query = query.eq("visibility", "public");
+      query = query.eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY);
     }
 
     // 정렬 + my_cohort / my_posts 필터

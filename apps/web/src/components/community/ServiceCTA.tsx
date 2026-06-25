@@ -10,6 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { CommunityCategory, PriceData } from "@/types/community.types";
 
@@ -102,7 +103,7 @@ function buildChatHref(
     `글 제목: ${postTitle}`,
     postContent ? `글 내용: ${toPlainExcerpt(postContent)}` : null,
     priceData ? formatPriceLine(priceData) : null,
-    postId ? `글 링크: ${weddingPath(`/community/post/${postId}`)}` : null,
+    postId ? `글 링크: ${communityPostPath(postId)}` : null,
     "내가 확인해야 할 일정, 예산, 체크리스트를 알려줘.",
   ]
     .filter(Boolean)

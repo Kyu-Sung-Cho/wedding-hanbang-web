@@ -1,4 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { createPublicClient } from "@/lib/supabase/public";
 import type {
   CommunityProfile,
   InitialCommunityFeed,
@@ -51,14 +53,14 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
   };
 
   try {
-    const supabase = createAdminClient();
+    const supabase = createPublicClient();
     const safeLimit = Math.max(1, Math.min(20, limit));
     const queryLimit = safeLimit + 1;
 
-    const { data: queriedPosts, error } = await supabase
+    const { data: queriedPosts, count, error } = await supabase
       .from("community_posts")
-      .select("*")
-      .eq("visibility", "public")
+      .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
+      .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
       .order("created_at", { ascending: false })
       .range(0, queryLimit - 1);
 
@@ -68,7 +70,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
     }
 
     const posts = queriedPosts.slice(0, safeLimit);
-    const hasMore = queriedPosts.length > safeLimit;
+    const hasMore = (count ?? queriedPosts.length) > safeLimit;
     const authorIds = [...new Set(posts.map((post) => post.author_id as string).filter(Boolean))];
     const postIds = posts.map((post) => post.id as string).filter(Boolean);
 
@@ -126,7 +128,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       } as PostWithAuthor;
     });
 
-    const total = postsWithAuthor.length + (hasMore ? 1 : 0);
+    const total = count ?? postsWithAuthor.length;
     return {
       posts: postsWithAuthor,
       total,

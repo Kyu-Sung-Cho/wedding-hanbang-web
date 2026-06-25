@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -1080,7 +1081,7 @@ function renderMessageContent(text: string): React.ReactNode {
       parts.push(
         <Link
           key={`p${match.index}`}
-          href={weddingPath(`/community/post/${postId}`)}
+          href={communityPostPath(postId)}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#36534E]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
@@ -2218,7 +2219,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
         <ul className="space-y-3.5">
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group">
-              <Link href={weddingPath(`/community/post/${p.id}`)} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
+              <Link href={communityPostPath(p.id)} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
                 <span className={`mt-0.5 shrink-0 font-serif-kr text-xl italic leading-none text-[#36534E] ${
                   i === 0 ? "" : i === 1 ? "opacity-75" : i === 2 ? "opacity-55" : "opacity-35"
                 }`}>
