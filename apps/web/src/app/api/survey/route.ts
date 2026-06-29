@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTurnstile } from "@/lib/turnstile";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
   cleanOptionalText,
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("survey", request), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("survey", request), {
       maxRequests: 5,
       windowMs: 60 * 60 * 1000,
     });

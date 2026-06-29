@@ -1937,7 +1937,7 @@ async function executeRecommendVendors(
   const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
   const results = selected.map((v) => {
     const reasons: string[] = [];
-    if (v.ai_recommend) reasons.push("AI 추천 업체");
+    if (v.ai_recommend) reasons.push("한방 큐레이션 후보");
     if (mood) {
       const moodScore = (v as Record<string, unknown>)._moodScore as number ?? 0;
       if (moodScore > 0) reasons.push(`'${mood}' 분위기 매칭`);

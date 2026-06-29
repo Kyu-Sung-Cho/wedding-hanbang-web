@@ -120,7 +120,7 @@ export default function PostDetailScreen() {
           setBookmarked(!!bmData);
         }
       } catch { /* 투표/북마크 로드 실패 무시 */ }
-    } catch (err) {
+    } catch {
       // 게시글 자체 로드 실패만 표시
     } finally {
       setLoading(false);

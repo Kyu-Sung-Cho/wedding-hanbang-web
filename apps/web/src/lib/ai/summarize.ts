@@ -9,9 +9,8 @@
 //   - 예외 전부 내부 삼킴
 // =============================================
 
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const SUMMARY_TRIGGER_THRESHOLD = 10; // 마지막 요약 이후 새 메시지 N개 이상이면 요약
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -86,15 +85,28 @@ const SUMMARY_SYSTEM_PROMPT = `당신은 웨딩 준비 대화의 요약 생성�
 - 이모지 금지. 한국어 존댓말 필요 없음 (압축 위주).`;
 
 async function generateSummary(
-  formattedConversation: string
+  formattedConversation: string,
+  audit: { userId?: string | null; coupleId: string; totalCount: number; coveredRange: string }
 ): Promise<{ summary: string; usage?: { input_tokens: number; output_tokens: number } } | null> {
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-    const response = await anthropic.messages.create({
-      model: SUMMARY_MODEL,
-      max_tokens: 200,
-      system: SUMMARY_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: formattedConversation }],
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: SUMMARY_MODEL,
+        max_tokens: 200,
+        system: SUMMARY_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: formattedConversation }],
+      },
+      audit: {
+        userId: audit.userId ?? null,
+        coupleId: audit.coupleId,
+        interactionType: "chat_turn",
+        userInput: null,
+        metadata: {
+          endpoint: "chat/summarize",
+          message_count: audit.totalCount,
+          covered_range: audit.coveredRange,
+        },
+      },
     });
     const firstBlock = response.content[0];
     const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
@@ -149,8 +161,12 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
     const conversation = formatMessagesForSummary(uncoveredSlice);
     if (!conversation) return;
 
-    const startedAt = startLatencyClock();
-    const result = await generateSummary(conversation);
+    const result = await generateSummary(conversation, {
+      userId: input.userId ?? null,
+      coupleId: input.coupleId,
+      totalCount,
+      coveredRange: `${input.lastCoveredCount}-${totalCount}`,
+    });
     if (!result) return;
 
     // INSERT — 기존 chat_summaries 스키마의 NOT NULL 필드 충족 필수
@@ -181,24 +197,6 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
       return;
     }
 
-    // D1 로깅 — 요약 호출도 기록
-    void logAIInteraction({
-      userId: input.userId ?? null,
-      coupleId: input.coupleId,
-      interactionType: "chat_turn",
-      userInput: null,   // 민감정보 — 원문 저장 X
-      aiOutput: result.summary,
-      latencyMs: elapsedMs(startedAt),
-      success: true,
-      model: SUMMARY_MODEL,
-      tokensInput: result.usage?.input_tokens,
-      tokensOutput: result.usage?.output_tokens,
-      metadata: {
-        endpoint: "chat/summarize",
-        message_count: totalCount,
-        covered_range: `${input.lastCoveredCount}-${totalCount}`,
-      },
-    });
   } catch (err) {
     console.error("[summarize] 예외 (무시):", err);
   }

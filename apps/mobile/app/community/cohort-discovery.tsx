@@ -122,11 +122,6 @@ function getQuarterLabel(month: number): string {
   return "4분기 (10~12월)";
 }
 
-function getQuarterKey(year: number, month: number): string {
-  const q = Math.ceil(month / 3);
-  return `${year}년 ${q}`;
-}
-
 function MonthlySection({
   rooms,
   onJoin,
@@ -138,7 +133,6 @@ function MonthlySection({
 }) {
   // 연도+분기별로 그룹핑
   const grouped = rooms.reduce<Record<string, CohortRoom[]>>((acc, room) => {
-    const q = Math.ceil(room.month / 3);
     const key = `${room.year}년 ${getQuarterLabel(room.month)}`;
     if (!acc[key]) acc[key] = [];
     acc[key].push(room);

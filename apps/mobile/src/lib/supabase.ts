@@ -1,5 +1,5 @@
 // Supabase 모바일 클라이언트
-// 세션은 expo-secure-store(Keychain/Keystore)에 저장 — AsyncStorage 대비 안전
+// 세션은 expo-secure-store(Keychain/Keystore)에 저장
 // 웹과 동일한 Supabase 프로젝트를 공유
 
 import "react-native-url-polyfill/auto";
@@ -16,30 +16,70 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// SecureStore는 2KB 제한 — 큰 값은 AsyncStorage로 fallback
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// SecureStore는 값 크기 제한이 있으므로 큰 세션은 여러 조각으로 나눠 저장한다.
+// 인증 토큰은 AsyncStorage로 fallback하지 않는다.
+const SECURE_CHUNK_SIZE = 1800;
+
+function chunkMetaKey(key: string) {
+  return `${key}:chunks`;
+}
+
+function chunkKey(key: string, index: number) {
+  return `${key}:chunk:${index}`;
+}
 
 const LargeSecureStore = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") return null;
-    // SecureStore에서 먼저 시도, 없으면 AsyncStorage
-    const value = await SecureStore.getItemAsync(key);
-    if (value) return value;
-    return AsyncStorage.getItem(key);
+
+    const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key));
+    const chunkCount = Number(chunkCountValue);
+    if (Number.isInteger(chunkCount) && chunkCount > 0) {
+      const chunks = await Promise.all(
+        Array.from({ length: chunkCount }, (_, index) =>
+          SecureStore.getItemAsync(chunkKey(key, index))
+        )
+      );
+      if (chunks.every((chunk): chunk is string => typeof chunk === "string")) {
+        return chunks.join("");
+      }
+      await this.removeItem(key);
+      return null;
+    }
+
+    return SecureStore.getItemAsync(key);
   },
   async setItem(key: string, value: string): Promise<void> {
     if (Platform.OS === "web") return;
-    if (value.length > 2000) {
-      // 2KB 초과: AsyncStorage에 저장 (SecureStore 실패 방지)
-      await AsyncStorage.setItem(key, value);
-    } else {
+
+    await this.removeItem(key);
+
+    if (value.length <= SECURE_CHUNK_SIZE) {
       await SecureStore.setItemAsync(key, value);
+      return;
     }
+
+    const chunks = value.match(new RegExp(`.{1,${SECURE_CHUNK_SIZE}}`, "g")) ?? [];
+    await Promise.all(
+      chunks.map((chunk, index) =>
+        SecureStore.setItemAsync(chunkKey(key, index), chunk)
+      )
+    );
+    await SecureStore.setItemAsync(chunkMetaKey(key), String(chunks.length));
   },
   async removeItem(key: string): Promise<void> {
     if (Platform.OS === "web") return;
+    const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key)).catch(() => null);
+    const chunkCount = Number(chunkCountValue);
     await SecureStore.deleteItemAsync(key).catch(() => {});
-    await AsyncStorage.removeItem(key).catch(() => {});
+    if (Number.isInteger(chunkCount) && chunkCount > 0) {
+      await Promise.all(
+        Array.from({ length: chunkCount }, (_, index) =>
+          SecureStore.deleteItemAsync(chunkKey(key, index)).catch(() => {})
+        )
+      );
+    }
+    await SecureStore.deleteItemAsync(chunkMetaKey(key)).catch(() => {});
   },
 };
 

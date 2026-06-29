@@ -66,15 +66,6 @@ interface Product {
   images: string[] | null;
 }
 
-interface Timeslot {
-  id: string;
-  vendor_id: string;
-  day: number;
-  hour: number;
-  available: boolean;
-  max_bookings: number;
-}
-
 /* ───── booking steps ───── */
 type BookingStep = "date" | "time" | "confirm";
 
@@ -311,7 +302,7 @@ export default function VendorDetailScreen() {
       await Share.share({
         message: `${vendor.name} - 웨딩한방에서 확인하세요!\nhttps://hanbang.ai/vendors/${vendor.id}`,
       });
-    } catch (_) {
+    } catch {
       // 사용자가 공유 취소
     }
   }

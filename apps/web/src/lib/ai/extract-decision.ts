@@ -15,9 +15,8 @@
 //   - 예외 전부 내부 삼킴
 // =============================================
 
-import Anthropic from "@anthropic-ai/sdk";
 import { recordDecision } from "@/lib/memory/record-decision";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 import type { StageTag, DecisionType } from "@/types/moat.types";
 
 const EXTRACT_MODEL = "claude-haiku-4-5-20251001";
@@ -129,18 +128,30 @@ interface ExtractionItem {
 }
 
 async function extractWithHaiku(
-  conversation: string
+  conversation: string,
+  audit: { userId?: string | null; coupleId: string; stageTag?: StageTag | null }
 ): Promise<{
   extractions: ExtractionItem[];
   usage?: { input_tokens: number; output_tokens: number };
 } | null> {
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-    const response = await anthropic.messages.create({
-      model: EXTRACT_MODEL,
-      max_tokens: 500,
-      system: EXTRACT_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: conversation }],
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: EXTRACT_MODEL,
+        max_tokens: 500,
+        system: EXTRACT_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: conversation }],
+      },
+      audit: {
+        userId: audit.userId ?? null,
+        coupleId: audit.coupleId,
+        interactionType: "chat_turn",
+        userInput: null,
+        metadata: {
+          endpoint: "chat/extract-decision",
+          stage_tag: audit.stageTag ?? null,
+        },
+      },
     });
     const firstBlock = response.content[0];
     const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
@@ -203,27 +214,16 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     const conversation = formatMessagesForExtraction(recent);
     if (!conversation) return;
 
-    const startedAt = startLatencyClock();
-    const result = await extractWithHaiku(conversation);
+    const result = await extractWithHaiku(conversation, {
+      userId: input.userId ?? null,
+      coupleId: input.coupleId,
+      stageTag: input.stageTag ?? null,
+    });
     if (!result) return;
 
-    const { extractions, usage } = result;
+    const { extractions } = result;
 
-    // 빈 배열이어도 로그는 남김 (정확도 측정용)
     if (extractions.length === 0) {
-      void logAIInteraction({
-        userId: input.userId ?? null,
-        coupleId: input.coupleId,
-        interactionType: "chat_turn",
-        userInput: null,
-        aiOutput: "[]",
-        latencyMs: elapsedMs(startedAt),
-        success: true,
-        model: EXTRACT_MODEL,
-        tokensInput: usage?.input_tokens,
-        tokensOutput: usage?.output_tokens,
-        metadata: { endpoint: "chat/extract-decision", extraction_count: 0 },
-      });
       return;
     }
 
@@ -260,26 +260,6 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
       nodeIds.push(nodeId);
     }
 
-    // Turn 단위 요약 로그 (개수 + 유형 + 카테고리)
-    void logAIInteraction({
-      userId: input.userId ?? null,
-      coupleId: input.coupleId,
-      interactionType: "chat_turn",
-      userInput: null,
-      aiOutput: JSON.stringify(extractions),
-      latencyMs: elapsedMs(startedAt),
-      success: nodeIds.some((id) => id !== null),
-      model: EXTRACT_MODEL,
-      tokensInput: usage?.input_tokens,
-      tokensOutput: usage?.output_tokens,
-      metadata: {
-        endpoint: "chat/extract-decision",
-        extraction_count: extractions.length,
-        types: extractions.map((e) => e.type),
-        categories: extractions.map((e) => e.category),
-        decision_node_ids: nodeIds.filter((id): id is string => id !== null),
-      },
-    });
   } catch (err) {
     console.error("[extract-decision] 예외 (무시):", err);
   }

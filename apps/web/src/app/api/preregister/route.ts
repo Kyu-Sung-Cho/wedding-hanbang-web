@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalBoolean,
   cleanOptionalEnum,
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
-    const ipLimited = checkRateLimit(rateLimitKey("preregister", request), {
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("preregister", request), {
       maxRequests: 10,
       windowMs: 60 * 60 * 1000,
     });
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emailLimited = checkRateLimit(`preregister-email:${email}`, {
+    const emailLimited = await checkRateLimitPersistent(`preregister-email:${email}`, {
       maxRequests: 3,
       windowMs: 24 * 60 * 60 * 1000,
     });

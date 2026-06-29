@@ -8,13 +8,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, X, CalendarDays, Clock, Trash2, ListChecks,
+  ChevronDown, ChevronUp, CheckCircle2, Circle,
+  Plus, X, CalendarDays, Clock, Trash2,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { AppHeader, LoadingState } from "@/components/ui/AppUI";
 
 /* ───── types ───── */
 interface ChecklistItem {
@@ -377,7 +378,7 @@ export default function ScheduleScreen() {
 
       setModalVisible(false);
       loadData();
-    } catch (err) {
+    } catch {
       Alert.alert("오류", "저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       setSaving(false);
@@ -447,23 +448,23 @@ export default function ScheduleScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <LoadingState label="체크리스트를 정리하고 있어요" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>체크리스트</Text>
-        <Pressable onPress={openAddEventModal} hitSlop={12}>
-          <Plus size={24} color={colors.rose[500]} />
-        </Pressable>
-      </View>
+      <AppHeader
+        title="체크리스트"
+        subtitle="일정과 준비 항목을 같이 관리해요"
+        onBack={() => router.back()}
+        right={
+          <Pressable onPress={openAddEventModal} hitSlop={12} accessibilityRole="button" accessibilityLabel="일정 추가">
+            <Plus size={22} color={colors.rose[500]} />
+          </Pressable>
+        }
+      />
 
       {/* 전체 진행률 — 프리미엄 카드 */}
       <View style={styles.summaryCard}>

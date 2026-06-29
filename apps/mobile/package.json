@@ -8,7 +8,7 @@
     "dev:ios": "expo start --ios --clear",
     "dev:android": "expo start --android --clear",
     "build": "echo 'Use EAS Build: eas build --platform all'",
-    "lint": "echo 'No lint yet'",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf node_modules .expo"
   },

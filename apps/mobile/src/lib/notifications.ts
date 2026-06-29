@@ -21,7 +21,7 @@ Notifications.setNotificationHandler({
 export async function registerForPushNotifications(): Promise<string | null> {
   // 실기기만 지원 (시뮬레이터 X)
   if (!Device.isDevice) {
-    console.log("[Push] 실기기에서만 푸시 알림이 작동합니다.");
+    console.warn("[Push] 실기기에서만 푸시 알림이 작동합니다.");
     return null;
   }
 
@@ -35,7 +35,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== "granted") {
-    console.log("[Push] 알림 권한이 거부되었습니다.");
+    console.warn("[Push] 알림 권한이 거부되었습니다.");
     return null;
   }
 
@@ -53,7 +53,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
   try {
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
-    console.log("[Push] Token:", token);
 
     // Supabase profiles에 push token 저장
     const { data: { user } } = await supabase.auth.getUser();

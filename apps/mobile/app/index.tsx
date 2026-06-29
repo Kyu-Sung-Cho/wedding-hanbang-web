@@ -1,7 +1,7 @@
 // 루트: 세션 → 온보딩 여부 → 대시보드 or 로그인
 import { useEffect, useState } from "react";
 import { Redirect } from "expo-router";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 
@@ -43,6 +43,7 @@ export default function Index() {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={colors.rose[500]} size="large" />
+        <Text style={styles.loadingText}>오늘의 웨딩 플랜을 준비하고 있어요</Text>
       </View>
     );
   }
@@ -63,5 +64,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.bg,
+    gap: 14,
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "center",
   },
 });

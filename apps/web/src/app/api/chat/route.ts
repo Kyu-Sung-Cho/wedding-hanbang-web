@@ -17,7 +17,7 @@ import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -458,7 +458,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
-  const limited = checkRateLimit(rateLimitKey("chat", request, user.id), {
+  const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
     maxRequests: 60,
     windowMs: 60 * 60 * 1000,
   });

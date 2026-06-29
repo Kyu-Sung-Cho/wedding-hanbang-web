@@ -1,7 +1,6 @@
 // Cloudflare Turnstile 서버 검증 — 가입 등 남용 표면의 봇 차단.
 //
-// 키가 없으면 자동 no-op(검증 통과) — 키 발급 전에도 무중단,
-// TURNSTILE_SECRET_KEY를 Vercel에 넣는 순간 강제 활성화된다(Sentry/PostHog 패턴).
+// 로컬/프리뷰에서 키가 없으면 no-op. Production에서는 키 누락도 실패 처리한다.
 //
 // 환경변수:
 //   NEXT_PUBLIC_TURNSTILE_SITE_KEY  (클라 위젯 렌더용 — 공개)
@@ -10,10 +9,14 @@
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export interface TurnstileVerifyResult {
-  /** 검증 통과 여부. 시크릿 미설정 시 항상 true(no-op). */
+  /** 검증 통과 여부. Production 시크릿 미설정은 false. */
   ok: boolean;
-  /** no-op(시크릿 미설정)으로 통과한 경우 true — 로깅 구분용. */
+  /** 로컬/프리뷰 no-op(시크릿 미설정)으로 통과한 경우 true — 로깅 구분용. */
   skipped: boolean;
+}
+
+function requiresTurnstileSecret(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 }
 
 export async function verifyTurnstile(
@@ -21,7 +24,11 @@ export async function verifyTurnstile(
   remoteIp?: string | null
 ): Promise<TurnstileVerifyResult> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return { ok: true, skipped: true };
+  if (!secret) {
+    return requiresTurnstileSecret()
+      ? { ok: false, skipped: false }
+      : { ok: true, skipped: true };
+  }
 
   if (!token) return { ok: false, skipped: false };
 

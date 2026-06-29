@@ -71,7 +71,7 @@ export default function AmoraDirector({
       candidates.push({
         id: "vendors_no_prefs",
         title: "맞춤 추천 받을까요?",
-        body: "예산과 스타일을 알려주시면 어울리는 업체에 AI 추천 뱃지를 달아드려요",
+        body: "예산과 스타일을 알려주시면 어울리는 업체에 맞춤 추천 뱃지를 달아드려요",
         cta: { label: "선호도 설정", href: weddingPath("/settings") },
         priority: 5,
       });

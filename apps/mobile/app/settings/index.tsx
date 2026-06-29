@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Linking,
   Animated,
-  Keyboard,
   Switch,
   Modal,
 } from "react-native";

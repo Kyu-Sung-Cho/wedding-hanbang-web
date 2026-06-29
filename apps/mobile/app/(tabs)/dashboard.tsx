@@ -30,6 +30,7 @@ import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
 import AppGuide from "@/components/AppGuide";
+import { AppText, SectionHeader, StatusPill, Surface } from "@/components/ui/AppUI";
 
 const APP_GUIDE_KEY = "@hanbang/app_guide_seen";
 
@@ -496,56 +497,58 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* 인사 */}
-        <Text style={styles.greeting}>{greeting}</Text>
-        <Text style={styles.brandTitle}>웨딩한방</Text>
+        {/* 오늘의 지휘 카드 */}
+        <View style={styles.intro}>
+          <AppText variant="eyebrow">WEDDING OPS</AppText>
+          <AppText variant="title" style={styles.introTitle}>
+            {greeting}
+          </AppText>
+        </View>
 
-        {/* D-day 카드 */}
-        <View
-          style={[
-            styles.ddayCard,
-            isUrgent && styles.ddayCardUrgent,
-          ]}
-          accessibilityLabel="결혼까지 D-day"
-        >
-          <View style={styles.ddayRow}>
+        <Surface tone="noir" style={styles.commandCard}>
+          <View style={styles.commandTop}>
             <View>
-              <Text
-                style={[
-                  styles.ddayLabel,
-                  isUrgent && styles.ddayLabelUrgent,
-                ]}
-              >
+              <AppText variant="caption" style={styles.commandEyebrow}>
                 결혼까지
-              </Text>
-              <Text
-                style={[
-                  styles.ddayValue,
-                  isUrgent && styles.ddayValueUrgent,
-                ]}
-              >
+              </AppText>
+              <Text style={styles.commandDday}>
                 {formatDday(data?.dday ?? null)}
               </Text>
             </View>
-            {data?.weddingDate && (
-              <Text
-                style={[
-                  styles.ddayDate,
-                  isUrgent && styles.ddayDateUrgent,
-                ]}
-              >
-                {new Date(data.weddingDate).toLocaleDateString("ko-KR", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </Text>
-            )}
+            <StatusPill
+              label={isUrgent ? "집중 관리" : "진행 중"}
+              tone={isUrgent ? "danger" : "rose"}
+            />
           </View>
-          {!data?.weddingDate && (
-            <Text style={styles.ddayHint}>결혼 예정일을 설정해보세요</Text>
+
+          {data?.weddingDate ? (
+            <AppText variant="body" style={styles.commandDate}>
+              {new Date(data.weddingDate).toLocaleDateString("ko-KR", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </AppText>
+          ) : (
+            <AppText variant="body" style={styles.commandDate}>
+              결혼 예정일을 설정하면 오늘 할 일이 더 정확해져요
+            </AppText>
           )}
-        </View>
+
+          <View style={styles.commandProgressRow}>
+            <AppText variant="caption" style={styles.commandProgressLabel}>
+              전체 진행률
+            </AppText>
+            <Text style={styles.commandProgressValue}>
+              {data?.progressPercent ?? 0}%
+            </Text>
+          </View>
+          <View style={styles.commandProgressTrack}>
+            <Animated.View
+              style={[styles.commandProgressFill, { width: progressWidth }]}
+            />
+          </View>
+        </Surface>
 
         {/* 지금 해야 할 것 */}
         {(data?.urgentTasks?.length ?? 0) > 0 && (
@@ -638,27 +641,16 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* 진행률 */}
-        <View style={styles.card}>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>전체 진행률</Text>
-            <Text style={styles.progressPct}>
-              {data?.progressPercent ?? 0}%
-            </Text>
-          </View>
-          <View style={styles.progressBar}>
-            <Animated.View
-              style={[styles.progressFill, { width: progressWidth }]}
-            />
-          </View>
-        </View>
-
         {/* 오늘의 할 일 */}
-        <View style={styles.card}>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardTitle}>오늘의 할 일</Text>
-            <Calendar size={18} color={colors.textTertiary} />
-          </View>
+        <Surface style={styles.card}>
+          <SectionHeader
+            title="오늘의 할 일"
+            action={
+              <View style={styles.sectionIcon}>
+                <Calendar size={16} color={colors.textTertiary} />
+              </View>
+            }
+          />
           {(data?.todayTasks?.length ?? 0) > 0 ? (
             data?.todayTasks.map((task, i) => (
               <View key={i} style={styles.taskRow}>
@@ -673,7 +665,7 @@ export default function DashboardScreen() {
                 : "오늘 예정된 할 일이 없어요"}
             </Text>
           )}
-        </View>
+        </Surface>
 
         {/* 바로가기 */}
         <Text style={styles.sectionLabel}>바로가기</Text>
@@ -788,6 +780,72 @@ const CARD_SHADOW = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 20, paddingBottom: 40 },
+
+  intro: {
+    marginBottom: 16,
+    gap: 4,
+  },
+  introTitle: {
+    maxWidth: 300,
+  },
+  commandCard: {
+    marginBottom: 16,
+    padding: 22,
+  },
+  commandTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  commandEyebrow: {
+    color: colors.taupe[400],
+    marginBottom: 4,
+  },
+  commandDday: {
+    fontSize: 58,
+    lineHeight: 64,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: "#FFFFFF",
+  },
+  commandDate: {
+    color: colors.taupe[400],
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  commandProgressRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  commandProgressLabel: {
+    color: colors.taupe[400],
+  },
+  commandProgressValue: {
+    fontSize: 28,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: colors.rose.light,
+  },
+  commandProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+  },
+  commandProgressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.rose[500],
+  },
+  sectionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.ivory[100],
+  },
 
   greeting: {
     fontSize: 14,

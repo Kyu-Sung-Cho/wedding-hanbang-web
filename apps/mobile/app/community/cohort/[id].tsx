@@ -12,7 +12,6 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  Animated,
   LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,7 +29,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { apiFetch, apiJson } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 /* ───── 타입 ───── */
 

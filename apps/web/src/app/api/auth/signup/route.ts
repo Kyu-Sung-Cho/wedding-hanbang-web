@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 
@@ -59,13 +59,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const ipLimited = checkRateLimit(rateLimitKey("signup", request), {
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
       maxRequests: 5,
       windowMs: 10 * 60 * 1000,
     });
     if (ipLimited) return ipLimited;
 
-    const emailLimited = checkRateLimit(`signup-email:${normalizeEmailForRateLimit(email)}`, {
+    const emailLimited = await checkRateLimitPersistent(`signup-email:${normalizeEmailForRateLimit(email)}`, {
       maxRequests: 3,
       windowMs: 60 * 60 * 1000,
     });

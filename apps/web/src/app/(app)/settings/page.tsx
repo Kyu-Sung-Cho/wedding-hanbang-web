@@ -721,7 +721,7 @@ export default function SettingsPage() {
           {[
             { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
             { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
-            { key: "ai" as const, label: "AI 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
+            { key: "ai" as const, label: "맞춤 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
             { key: "marketing" as const, label: "마케팅 알림", desc: "이벤트, 할인 정보" },
           ].map((item) => (
             <div

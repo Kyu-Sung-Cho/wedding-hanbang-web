@@ -2,17 +2,18 @@
 // 정렬, 즐겨찾기, 별점 표시 포함
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator,
+  View, Text, FlatList, StyleSheet, Pressable,
   RefreshControl, TextInput, Linking, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  ArrowLeft, Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
+  Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import ErrorRetry from "@/components/ErrorRetry";
+import { AppHeader, EmptyState, IconBadge, LoadingState } from "@/components/ui/AppUI";
 
 /* ───── types ───── */
 interface Vendor {
@@ -182,7 +183,7 @@ export default function VendorsScreen() {
         return;
       }
 
-      let mapped = (data ?? []).map((r: Record<string, unknown>) => {
+      const mapped = (data ?? []).map((r: Record<string, unknown>) => {
         // 상품 최소 가격 계산
         const products = Array.isArray(r.vendor_products) ? r.vendor_products as Array<{ price: number }> : [];
         const prices = products.map((p) => p.price).filter((p) => typeof p === "number" && p > 0);
@@ -333,26 +334,25 @@ export default function VendorsScreen() {
   function renderEmpty() {
     if (loading) return null;
     return (
-      <View style={s.emptyContainer}>
-        <View style={s.emptyIconWrap}>
-          <Store size={36} color={colors.rose[500]} />
-        </View>
-        <Text style={s.emptyTitle}>등록된 업체가 없어요</Text>
-        <Text style={s.emptyHint}>다른 카테고리나 검색어를 시도해보세요</Text>
-      </View>
+      <EmptyState
+        icon={
+          <IconBadge tone="rose" size={64}>
+            <Store size={34} color={colors.rose[500]} />
+          </IconBadge>
+        }
+        title="조건에 맞는 업체가 없어요"
+        description="다른 카테고리나 검색어를 시도해보세요"
+      />
     );
   }
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={s.headerTitle}>업체 탐색</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader
+        title="업체 탐색"
+        subtitle="가격 공개와 검증 정보를 먼저 봐요"
+        onBack={() => router.back()}
+      />
 
       {/* 검색바 */}
       <View style={s.searchBar}>
@@ -422,7 +422,7 @@ export default function VendorsScreen() {
 
       {/* 업체 목록 */}
       {loading ? (
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <LoadingState label="검증된 업체를 불러오고 있어요" />
       ) : error ? (
         <ErrorRetry
           message="업체 목록을 불러올 수 없어요"
@@ -477,21 +477,6 @@ export default function VendorsScreen() {
 /* ───── styles ───── */
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
 
   // 검색바
   searchBar: {

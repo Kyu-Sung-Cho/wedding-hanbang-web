@@ -33,6 +33,7 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import Constants from "expo-constants";
+import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
 interface ProfileData {
   name: string | null;
@@ -276,12 +277,12 @@ export default function ProfileScreen() {
             <MenuItem
               icon={CalendarCheck}
               label="일정 관리"
-              onPress={() => router.push({ pathname: "/schedule" as "/schedule" })}
+              onPress={() => router.push({ pathname: "/schedule" as const })}
             />
             <MenuItem
               icon={Wallet}
               label="예산 관리"
-              onPress={() => router.push({ pathname: "/budget" as "/budget" })}
+              onPress={() => router.push({ pathname: "/budget" as const })}
             />
             <MenuItem
               icon={Store}
@@ -417,20 +418,18 @@ function MenuItem({
   hideChevron?: boolean;
 }) {
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.menuItem,
-        !isLast && styles.menuItemBorder,
-        pressed && { opacity: 0.85, backgroundColor: colors.ivory[50] },
-      ]}
-      onPress={onPress}
-    >
-      <View style={styles.menuIconWrap}>
-        <Icon size={20} color={colors.textSecondary} />
-      </View>
-      <Text style={styles.menuLabel}>{label}</Text>
-      {!hideChevron && <ChevronRight size={16} color={colors.textTertiary} />}
-    </Pressable>
+    <View style={!isLast && styles.menuItemBorder}>
+      <ActionRow
+        icon={
+          <IconBadge tone="ivory" size={36}>
+            <Icon size={18} color={colors.textSecondary} />
+          </IconBadge>
+        }
+        title={label}
+        onPress={onPress}
+        right={hideChevron ? null : <ChevronRight size={16} color={colors.textTertiary} />}
+      />
+    </View>
   );
 }
 

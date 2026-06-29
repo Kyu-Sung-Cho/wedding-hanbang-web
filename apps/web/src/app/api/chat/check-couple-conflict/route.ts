@@ -21,14 +21,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-detector";
 import { extractMediation } from "@/lib/ai/mediation";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
-import { logAIInteraction } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const MEDIATION_MODEL = "claude-sonnet-4-6";
 const MEDIATION_COOLDOWN_MIN = 10;
@@ -274,17 +273,26 @@ export async function POST(req: NextRequest) {
     });
 
     // 6-f. Claude 호출 (non-streaming)
-    const client = new Anthropic({ apiKey });
-    const completion = await client.messages.create({
-      model: MEDIATION_MODEL,
-      max_tokens: 800,
-      system: systemPrompt,
-      messages: messageList,
-      temperature: 0.6,
+    const completion = await createAnthropicMessageWithAudit({
+      params: {
+        model: MEDIATION_MODEL,
+        max_tokens: 800,
+        system: systemPrompt,
+        messages: messageList,
+        temperature: 0.6,
+      },
+      audit: {
+        userId: user.id,
+        coupleId,
+        interactionType: "chat_turn",
+        specialistType: "general",
+        userInput: detection.conflictContext ?? "",
+        metadata: { source: "auto_conflict_detection", score: detection.score },
+      },
     });
 
     const fullText = completion.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("");
 
@@ -332,21 +340,6 @@ export async function POST(req: NextRequest) {
       })
       .select("id")
       .single();
-
-    // mediation LLM 호출을 비용 장부(chat_turn)에 기록 — costGuard 카운트에 편입.
-    void logAIInteraction({
-      userId: user.id,
-      coupleId,
-      interactionType: "chat_turn",
-      specialistType: "general",
-      userInput: detection.conflictContext ?? "",
-      aiOutput: cleanText,
-      success: true,
-      model: MEDIATION_MODEL,
-      tokensInput: completion.usage?.input_tokens ?? null,
-      tokensOutput: completion.usage?.output_tokens ?? null,
-      metadata: { source: "auto_conflict_detection", score: detection.score },
-    });
 
     return NextResponse.json({
       triggered: true,
