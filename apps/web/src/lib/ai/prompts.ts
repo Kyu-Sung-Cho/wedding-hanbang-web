@@ -113,7 +113,9 @@ export function getWeddingPlannerSystemPrompt(context: {
     date: string;
     time: string;
     status: string;
-    amount: number;
+    amount: number | null;
+    contractedAmount?: number | null;
+    actualAmount?: number | null;
   }>;
   scheduleEvents: Array<{
     date: string;
@@ -247,13 +249,50 @@ export function getWeddingPlannerSystemPrompt(context: {
     .filter(([, v]) => (v as { status: string }).status === "completed").length;
   const totalCount = Object.keys(CATEGORY_LABELS).length;
 
+  const formatWon = (amount: number) => `${(amount / 10000).toLocaleString()}만원`;
+  const isPositiveAmount = (amount: number | null | undefined): amount is number =>
+    typeof amount === "number" && Number.isFinite(amount) && amount > 0;
+
   // 예약 내역 포맷
   let bookingsSection = "";
   if (context.bookings.length > 0) {
     const bookingLines = context.bookings.map((b) => {
-      const statusLabel = b.status === "confirmed" ? "✅확정" : b.status === "pending" ? "⏳대기" : b.status;
-      const amountStr = b.amount > 0 ? `${(b.amount / 10000).toLocaleString()}만원` : "";
-      return `  - ${b.date} ${b.time} | ${b.vendorName} (${CATEGORY_LABELS[b.category] ?? b.category}) | ${statusLabel}${amountStr ? ` | ${amountStr}` : ""}`;
+      const statusLabel =
+        b.status === "confirmed"
+          ? "✅확정"
+          : b.status === "pending"
+            ? "⏳대기"
+            : b.status === "completed"
+              ? "✅완료"
+              : b.status;
+      const baselineAmount = isPositiveAmount(b.contractedAmount)
+        ? b.contractedAmount
+        : isPositiveAmount(b.amount)
+          ? b.amount
+          : null;
+      const amountParts: string[] = [];
+
+      if (isPositiveAmount(b.actualAmount)) {
+        amountParts.push(`실결제: ${formatWon(b.actualAmount)}`);
+      }
+      if (isPositiveAmount(b.contractedAmount)) {
+        amountParts.push(`계약/견적: ${formatWon(b.contractedAmount)}`);
+      } else if (isPositiveAmount(b.amount)) {
+        amountParts.push(`예약금액: ${formatWon(b.amount)}`);
+      }
+      if (isPositiveAmount(b.actualAmount) && baselineAmount !== null) {
+        const delta = b.actualAmount - baselineAmount;
+        if (delta > 0) {
+          amountParts.push(`추가금: ${formatWon(delta)}`);
+        } else if (delta < 0) {
+          amountParts.push(`견적 대비 절감: ${formatWon(Math.abs(delta))}`);
+        } else {
+          amountParts.push("추가금: 없음");
+        }
+      }
+
+      const amountStr = amountParts.length > 0 ? ` | ${amountParts.join(" | ")}` : "";
+      return `  - ${b.date} ${b.time} | ${b.vendorName} (${CATEGORY_LABELS[b.category] ?? b.category}) | ${statusLabel}${amountStr}`;
     }).join("\n");
     bookingsSection = `\n### 예약 내역\n${bookingLines}`;
   }
