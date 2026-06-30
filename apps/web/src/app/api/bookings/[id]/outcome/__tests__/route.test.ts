@@ -80,12 +80,16 @@ function mockAuthClient(userId = "user-1") {
   } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
 }
 
-function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
+function mockAdminClient(
+  tableHandlers: Record<string, TableHandler[]>,
+  rpcResult: QueryResult = { data: {}, error: null }
+) {
   const admin = {
     from: vi.fn((table: string) => {
       const handler = tableHandlers[table]?.shift() ?? {};
       return new FakeQuery(handler);
     }),
+    rpc: vi.fn().mockResolvedValue(rpcResult),
   };
   vi.mocked(createAdminClient).mockReturnValue(
     admin as unknown as ReturnType<typeof createAdminClient>
@@ -115,7 +119,7 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
     let bookingUpdate: unknown = null;
     let reviewInsert: unknown = null;
 
-    mockAdminClient({
+    const admin = mockAdminClient({
       profiles: [
         { singleResult: { data: { couple_id: "couple-1" }, error: null } },
       ],
@@ -146,6 +150,28 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
               amount: 2500000,
               contracted_amount: 2500000,
               actual_amount: 3000000,
+            },
+            error: null,
+          },
+        },
+      ],
+      wedding_journeys: [
+        {
+          singleResult: {
+            data: {
+              progress: {
+                __events: [{
+                  id: "evt_booking_12345678-1234-4234-9234-123456789abc",
+                  date: "2026-07-01",
+                  title: "테스트 스튜디오 상담",
+                  sourceKey: "booking:12345678-1234-4234-9234-123456789abc",
+                }],
+                studio: {
+                  label: "스튜디오",
+                  budget: 3500000,
+                  spent: 2500000,
+                },
+              },
             },
             error: null,
           },
@@ -193,6 +219,23 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
       is_visible: false,
     });
     expect(body.outcome.extraAmount).toBe(500000);
+    expect(body.outcome.budgetSync).toMatchObject({
+      persisted: true,
+      budgetUpdated: true,
+      budgetDelta: 500000,
+      categoryKey: "studio",
+      categorySpent: 3000000,
+    });
+    expect(admin.rpc).toHaveBeenCalledWith("apply_journey_progress_patch", {
+      p_couple_id: "couple-1",
+      p_patch: expect.objectContaining({
+        studio: expect.objectContaining({ spent: 3000000 }),
+        __booking_costs: expect.objectContaining({
+          "12345678-1234-4234-9234-123456789abc": 3000000,
+        }),
+      }),
+      p_remove_keys: [],
+    });
     expect(recordDecision).toHaveBeenCalledWith(
       expect.objectContaining({
         coupleId: "couple-1",

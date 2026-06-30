@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { syncBookingProgressAfterOutcome } from "@/lib/bookings/progressSync";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -193,6 +194,24 @@ export async function PATCH(
 
     const review = await upsertVendorReview({ admin, booking, userId: user.id, outcome });
 
+    const budgetSync = await syncBookingProgressAfterOutcome(admin, {
+      coupleId: profile.couple_id,
+      booking: {
+        id: booking.id,
+        amount: numberOrNull(booking.amount),
+        previousActualAmount: numberOrNull(booking.actual_amount),
+        actualAmount: outcome.actualAmount,
+      },
+      vendor: {
+        id: booking.vendor_id,
+        name: booking.vendor?.name ?? "업체",
+        category: booking.vendor?.category ?? null,
+      },
+    });
+    if (!budgetSync.persisted) {
+      console.error("[booking outcome] budget sync failed:", budgetSync.error);
+    }
+
     const baselineAmount =
       outcome.contractedAmount ??
       numberOrNull(booking.contracted_amount) ??
@@ -241,6 +260,13 @@ export async function PATCH(
       outcome: {
         extraAmount,
         baselineAmount,
+        budgetSync: {
+          persisted: budgetSync.persisted,
+          budgetUpdated: budgetSync.budgetUpdated,
+          budgetDelta: budgetSync.budgetDelta,
+          categoryKey: budgetSync.syncedCategoryKey,
+          categorySpent: budgetSync.syncedNewSpent,
+        },
       },
       message: "예약 결과가 저장되었습니다.",
     });
