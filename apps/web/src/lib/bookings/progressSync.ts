@@ -23,6 +23,11 @@ export interface BookingOutcomeProgressBooking {
   actualAmount: number;
 }
 
+export interface BookingCancelledProgressBooking {
+  id: string;
+  amount: number | null;
+}
+
 export interface BookingProgressBuildInput {
   progress: Record<string, unknown>;
   booking: BookingProgressBooking;
@@ -46,7 +51,7 @@ export interface BookingProgressSyncResult {
 }
 
 export interface BookingProgressPersistenceResult
-  extends Omit<BookingProgressSyncResult, "patch" | "nextProgress"> {
+  extends Omit<BookingProgressSyncResult, "patch"> {
   persisted: boolean;
   error?: string;
 }
@@ -66,7 +71,26 @@ export interface BookingOutcomeProgressSyncResult {
 }
 
 export interface BookingOutcomeProgressPersistenceResult
-  extends Omit<BookingOutcomeProgressSyncResult, "patch" | "nextProgress"> {
+  extends Omit<BookingOutcomeProgressSyncResult, "patch"> {
+  persisted: boolean;
+  error?: string;
+}
+
+export interface BookingCancelProgressSyncResult {
+  patch: Record<string, unknown>;
+  nextProgress: Record<string, unknown>;
+  scheduleRemoved: boolean;
+  budgetReverted: boolean;
+  revertedAmount: number;
+  categoryBudgetLimit: number;
+  categoryLabel: string | null;
+  syncedEventIdRemoved: string | null;
+  syncedCategoryKey: string | null;
+  syncedNewSpent: number | null;
+}
+
+export interface BookingCancelProgressPersistenceResult
+  extends Omit<BookingCancelProgressSyncResult, "patch"> {
   persisted: boolean;
   error?: string;
 }
@@ -127,8 +151,20 @@ function bookingEventId(bookingId: string): string {
   return `${BOOKING_EVENT_PREFIX}${bookingId}`;
 }
 
+function legacyBookingEventId(bookingId: string): string {
+  return `${BOOKING_EVENT_PREFIX}${bookingId.slice(0, 8)}`;
+}
+
 function bookingSourceKey(bookingId: string): string {
   return `${BOOKING_SOURCE_PREFIX}${bookingId}`;
+}
+
+function isBookingEvent(event: ScheduleEvent, bookingId: string): boolean {
+  return (
+    event.id === bookingEventId(bookingId) ||
+    event.id === legacyBookingEventId(bookingId) ||
+    event.sourceKey === bookingSourceKey(bookingId)
+  );
 }
 
 function wonMemo(amount: number): string {
@@ -168,9 +204,7 @@ export function buildBookingOutcomeProgressPatch(input: {
   const actualAmount = finiteUnknownAmount(input.booking.actualAmount);
   const existingContributions = readBookingCostContributions(progress);
   const existingEvent = getEvents(progress).find(
-    (event) =>
-      event.id === bookingEventId(input.booking.id) ||
-      event.sourceKey === bookingSourceKey(input.booking.id)
+    (event) => isBookingEvent(event, input.booking.id)
   );
 
   const nextProgress: Record<string, unknown> = { ...progress };
@@ -240,6 +274,80 @@ export function buildBookingOutcomeProgressPatch(input: {
     categoryLabel,
     syncedCategoryKey: categoryKey,
     syncedNewSpent: budgetDelta !== 0 ? nextSpent : null,
+  };
+}
+
+export function buildBookingCancelledProgressPatch(input: {
+  progress: Record<string, unknown>;
+  booking: BookingCancelledProgressBooking;
+  vendor: BookingProgressVendor;
+}): BookingCancelProgressSyncResult {
+  const progress = input.progress;
+  const categoryKey = compactLabel(input.vendor.category) || null;
+  const events = getEvents(progress);
+  const removedEvents = events.filter((event) => isBookingEvent(event, input.booking.id));
+  const nextEvents = events.filter((event) => !isBookingEvent(event, input.booking.id));
+  const scheduleRemoved = removedEvents.length > 0;
+  const existingContributions = readBookingCostContributions(progress);
+  const hasStoredContribution = Object.prototype.hasOwnProperty.call(
+    existingContributions,
+    input.booking.id
+  );
+  const previousContribution = hasStoredContribution
+    ? existingContributions[input.booking.id]
+    : scheduleRemoved
+      ? finiteUnknownAmount(input.booking.amount)
+      : 0;
+
+  const nextProgress: Record<string, unknown> = { ...progress };
+  const patch: Record<string, unknown> = {};
+
+  if (scheduleRemoved) {
+    patch.__events = nextEvents;
+    nextProgress.__events = nextEvents;
+  }
+
+  if (hasStoredContribution) {
+    const nextContributions = { ...existingContributions };
+    delete nextContributions[input.booking.id];
+    patch.__booking_costs = nextContributions;
+    nextProgress.__booking_costs = nextContributions;
+  }
+
+  const currentCategory = categoryKey && isRecord(progress[categoryKey])
+    ? progress[categoryKey]
+    : {};
+  const previousSpent = finiteUnknownAmount(currentCategory.spent);
+  const budget = finiteUnknownAmount(currentCategory.budget);
+  let syncedNewSpent: number | null = null;
+
+  if (categoryKey && previousContribution > 0) {
+    const nextSpent = Math.max(0, previousSpent - previousContribution);
+    const nextCategory = {
+      ...currentCategory,
+      spent: nextSpent,
+    };
+    patch[categoryKey] = nextCategory;
+    nextProgress[categoryKey] = nextCategory;
+    syncedNewSpent = nextSpent;
+  }
+
+  const categoryLabel =
+    typeof currentCategory.label === "string" && currentCategory.label.trim()
+      ? currentCategory.label
+      : categoryKey;
+
+  return {
+    patch,
+    nextProgress,
+    scheduleRemoved,
+    budgetReverted: syncedNewSpent !== null,
+    revertedAmount: previousContribution,
+    categoryBudgetLimit: budget,
+    categoryLabel,
+    syncedEventIdRemoved: removedEvents[0]?.id ?? null,
+    syncedCategoryKey: syncedNewSpent !== null ? categoryKey : null,
+    syncedNewSpent,
   };
 }
 
@@ -468,6 +576,68 @@ export async function syncBookingProgressAfterOutcome(
     unknown
   >;
   const syncResult = buildBookingOutcomeProgressPatch({
+    progress,
+    booking: input.booking,
+    vendor: input.vendor,
+  });
+
+  if (Object.keys(syncResult.patch).length === 0) {
+    return { persisted: true, ...syncResult };
+  }
+
+  const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
+    p_couple_id: input.coupleId,
+    p_patch: syncResult.patch,
+    p_remove_keys: [],
+  });
+
+  if (!patchError) {
+    return { persisted: true, ...syncResult };
+  }
+
+  const { error: updateError } = await client
+    .from("wedding_journeys")
+    .update({ progress: syncResult.nextProgress })
+    .eq("couple_id", input.coupleId);
+
+  return {
+    persisted: !updateError,
+    error: updateError?.message ?? patchError.message,
+    ...syncResult,
+  };
+}
+
+export async function syncBookingProgressAfterCancel(
+  client: SupabaseClient,
+  input: {
+    coupleId: string;
+    booking: BookingCancelledProgressBooking;
+    vendor: BookingProgressVendor;
+  }
+): Promise<BookingCancelProgressPersistenceResult> {
+  const { data: journeyRow, error: journeyError } = await client
+    .from("wedding_journeys")
+    .select("progress")
+    .eq("couple_id", input.coupleId)
+    .single();
+
+  if (journeyError || !journeyRow) {
+    return {
+      persisted: false,
+      error: journeyError?.message ?? "missing journey progress",
+      ...buildBookingCancelledProgressPatch({
+        progress: {},
+        booking: input.booking,
+        vendor: input.vendor,
+      }),
+    };
+  }
+
+  const progress = ((journeyRow as JourneyProgressRow).progress ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const syncResult = buildBookingCancelledProgressPatch({
     progress,
     booking: input.booking,
     vendor: input.vendor,
