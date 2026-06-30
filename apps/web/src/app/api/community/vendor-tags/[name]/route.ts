@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 
 function getServiceClient() {
@@ -14,14 +15,6 @@ type CommunityPostWithAuthorId = {
   author_id: string;
 } & Record<string, unknown>;
 
-type AuthorProfile = {
-  nickname: string;
-  avatar_url: string | null;
-  rank: string;
-  wedding_year: number | null;
-  wedding_month: number | null;
-};
-
 async function attachAuthorProfiles(
   service: ReturnType<typeof getServiceClient>,
   posts: CommunityPostWithAuthorId[]
@@ -29,39 +22,11 @@ async function attachAuthorProfiles(
   const authorIds = [...new Set(posts.map((post) => post.author_id))].filter(
     Boolean
   );
-  let authorMap: Record<string, AuthorProfile> = {};
-
-  if (authorIds.length > 0) {
-    const { data: profiles } = await service
-      .from("community_profiles")
-      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-      .in("user_id", authorIds);
-
-    if (profiles) {
-      authorMap = Object.fromEntries(
-        profiles.map((profile) => [
-          profile.user_id,
-          {
-            nickname: profile.nickname,
-            avatar_url: profile.avatar_url,
-            rank: profile.rank,
-            wedding_year: profile.wedding_year,
-            wedding_month: profile.wedding_month,
-          },
-        ])
-      );
-    }
-  }
+  const authorMap = await getCommunityAuthorMap(service, authorIds);
 
   return posts.map((post) => ({
     ...post,
-    author: authorMap[post.author_id] ?? {
-      nickname: "익명",
-      avatar_url: null,
-      rank: "sprout",
-      wedding_year: null,
-      wedding_month: null,
-    },
+    author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
   }));
 }
 

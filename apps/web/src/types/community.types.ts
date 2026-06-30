@@ -1,5 +1,7 @@
 // 커뮤니티 TypeScript 타입 정의
 
+import type { UserRole } from "@/types/database.types";
+
 export type CommunityCategory =
   | "is_normal"      // 이거 정상이야?
   | "tour_review"    // 투어/이용 후기
@@ -26,6 +28,7 @@ export interface CommunityProfile {
   user_id: string;
   nickname: string;
   avatar_url: string | null;
+  role?: UserRole | null;
   rank: CommunityRank;
   /** @deprecated 레거시 호환용 alias of rank */
   badge?: CommunityRank | string | null;

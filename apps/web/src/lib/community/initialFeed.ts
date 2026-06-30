@@ -1,48 +1,10 @@
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { createPublicClient } from "@/lib/supabase/public";
-import type {
-  CommunityProfile,
-  InitialCommunityFeed,
-  PollSummary,
-  PostWithAuthor,
-} from "@/types/community.types";
+import type { InitialCommunityFeed, PollSummary, PostWithAuthor } from "@/types/community.types";
 
 const DEFAULT_LIMIT = 10;
-
-function fallbackAuthor(userId: string): CommunityProfile {
-  return {
-    user_id: userId,
-    nickname: "익명",
-    avatar_url: null,
-    rank: "sprout",
-    wedding_year: null,
-    wedding_month: null,
-    wedding_completed: false,
-    progress_percent: 0,
-    region: null,
-    post_count: 0,
-    comment_count: 0,
-    total_upvotes_received: 0,
-    warning_count: 0,
-    is_suspended: false,
-    created_at: "",
-  };
-}
-
-function normalizeProfile(profile: Partial<CommunityProfile> | null | undefined, userId: string): CommunityProfile {
-  const fallback = fallbackAuthor(userId);
-  return {
-    ...fallback,
-    ...profile,
-    user_id: profile?.user_id ?? userId,
-    nickname: profile?.nickname || fallback.nickname,
-    avatar_url: profile?.avatar_url ?? null,
-    rank: profile?.rank ?? fallback.rank,
-    wedding_year: profile?.wedding_year ?? null,
-    wedding_month: profile?.wedding_month ?? null,
-  };
-}
 
 export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<InitialCommunityFeed> {
   const emptyFeed: InitialCommunityFeed = {
@@ -75,24 +37,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
     const authorIds = [...new Set(posts.map((post) => post.author_id as string).filter(Boolean))];
     const postIds = posts.map((post) => post.id as string).filter(Boolean);
 
-    let authorMap = new Map<string, CommunityProfile>();
-    if (authorIds.length > 0) {
-      const { data: profiles, error: profileError } = await supabase
-        .from("community_profiles")
-        .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-        .in("user_id", authorIds);
-
-      if (profileError) {
-        console.error("[community.initialFeed] profile query failed:", profileError);
-      } else {
-        authorMap = new Map(
-          (profiles ?? []).map((profile) => [
-            profile.user_id as string,
-            normalizeProfile(profile as Partial<CommunityProfile>, profile.user_id as string),
-          ]),
-        );
-      }
-    }
+    const authorMap = await getCommunityAuthorMap(supabase, authorIds);
 
     let pollSummaryMap = new Map<string, PollSummary>();
     if (postIds.length > 0) {
@@ -122,7 +67,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       const authorId = post.author_id as string;
       return {
         ...post,
-        author: authorMap.get(authorId) ?? fallbackAuthor(authorId),
+        author: authorMap[authorId] ?? fallbackCommunityAuthor(authorId),
         user_vote: null,
         user_bookmarked: false,
         poll: pollSummaryMap.get(post.id as string) ?? null,
