@@ -238,11 +238,14 @@ describe("bookingTools", () => {
     const initialProgress = {
       studio: { category: "studio", status: "in_progress", budget: 1_000_000, spent: 200_000 },
     };
-    let updatedProgress: Record<string, unknown> | null = null;
+    let progressPatch: Record<string, unknown> | null = null;
 
     mockAdminClient(
       {
-        vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
+        vendors: [
+          { singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } },
+          { singleResult: { data: { id: "vendor-1", name: "Hanbang Studio", category: "studio" }, error: null } },
+        ],
         profiles: [{
           awaitResult: {
             data: [
@@ -258,18 +261,14 @@ describe("bookingTools", () => {
             error: null,
           },
         }],
-        wedding_journeys: [
-          { singleResult: { data: { progress: initialProgress }, error: null } },
-          {
-            onUpdate: (payload) => {
-              updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-            },
-            updateResult: { error: null },
-          },
-        ],
+        wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
       },
       {
         create_booking_atomic: () => ({ data: bookingId, error: null }),
+        apply_journey_progress_patch: (args) => {
+          progressPatch = args.p_patch as Record<string, unknown>;
+          return { data: null, error: null };
+        },
       }
     );
 
@@ -303,19 +302,107 @@ describe("bookingTools", () => {
       syncedNewSpent: 700_000,
     });
     expect(result.toolOutput.syncedEvent).toMatchObject({
-      id: "evt_booking_12345678",
+      id: `evt_booking_${bookingId}`,
       date: "2026-07-06",
       categoryKey: "studio",
+      sourceKey: `booking:${bookingId}`,
     });
-    expect(updatedProgress).toMatchObject({
+    expect(progressPatch).toMatchObject({
       studio: { spent: 700_000 },
     });
-    const createdProgress = updatedProgress as unknown as Record<string, unknown>;
+    const createdProgress = ctx.weddingContext.progress as unknown as Record<string, unknown>;
     const events = createdProgress.__events as ScheduleEvent[] | undefined;
-    expect(events?.[0]).toMatchObject({ id: "evt_booking_12345678" });
+    expect(events?.[0]).toMatchObject({ id: `evt_booking_${bookingId}` });
   });
 
   it("reverts synced schedule and budget data when a booking is cancelled", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
+
+    const bookingId = "12345678-1234-4234-9234-123456789abc";
+    const initialProgress = {
+      __booking_costs: { [bookingId]: 650_000 },
+      studio: { category: "studio", status: "in_progress", budget: 1_000_000, spent: 850_000 },
+      __events: [{
+        id: `evt_booking_${bookingId}`,
+        date: "2026-07-06",
+        title: "10:00 Hanbang Studio",
+        categoryKey: "studio",
+        sourceKey: `booking:${bookingId}`,
+        createdAt: "2026-06-30T00:00:00.000Z",
+        updatedAt: "2026-06-30T00:00:00.000Z",
+      }],
+    };
+    let progressPatch: Record<string, unknown> | null = null;
+
+    mockAdminClient(
+      {
+        vendor_bookings: [
+          {
+            singleResult: {
+              data: {
+                id: bookingId,
+                vendor_id: "vendor-1",
+                product_id: "product-1",
+                booking_date: "2026-07-06",
+                booking_time: "10:00",
+                status: "pending",
+                amount: 500_000,
+              },
+              error: null,
+            },
+          },
+          { updateResult: { error: null } },
+        ],
+        vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
+        vendor_products: [{ singleResult: { data: { name: "Basic" }, error: null } }],
+        wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
+      },
+      {
+        apply_journey_progress_patch: (args) => {
+          progressPatch = args.p_patch as Record<string, unknown>;
+          return { data: null, error: null };
+        },
+      }
+    );
+
+    const ctx = createContext({
+      weddingContext: {
+        weddingDate: "2026-10-10",
+        budget: 50_000_000,
+        venue: null,
+        progress: initialProgress as unknown as ToolExecutionContext["weddingContext"]["progress"],
+      },
+    });
+
+    const result = await executeCancelBooking(
+      { booking_id: bookingId, confirmed: true },
+      ctx
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).toMatchObject({
+      bookingId,
+      status: "cancelled",
+      scheduleRemoved: true,
+      budgetReverted: true,
+      syncedEventIdRemoved: `evt_booking_${bookingId}`,
+      syncedCategoryKey: "studio",
+      syncedNewSpent: 200_000,
+    });
+    expect(progressPatch).toMatchObject({
+      studio: { spent: 200_000 },
+      __events: [],
+      __booking_costs: {},
+    });
+    expect(ctx.weddingContext.progress).toMatchObject({
+      studio: { spent: 200_000 },
+      __events: [],
+      __booking_costs: {},
+    });
+  });
+
+  it("reverts legacy short-id booking events when a booking is cancelled", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
 
@@ -331,38 +418,38 @@ describe("bookingTools", () => {
         updatedAt: "2026-06-30T00:00:00.000Z",
       }],
     };
-    let updatedProgress: Record<string, unknown> | null = null;
+    let progressPatch: Record<string, unknown> | null = null;
 
-    mockAdminClient({
-      vendor_bookings: [
-        {
-          singleResult: {
-            data: {
-              id: bookingId,
-              vendor_id: "vendor-1",
-              product_id: "product-1",
-              booking_date: "2026-07-06",
-              booking_time: "10:00",
-              status: "pending",
-              amount: 500_000,
+    mockAdminClient(
+      {
+        vendor_bookings: [
+          {
+            singleResult: {
+              data: {
+                id: bookingId,
+                vendor_id: "vendor-1",
+                product_id: "product-1",
+                booking_date: "2026-07-06",
+                booking_time: "10:00",
+                status: "pending",
+                amount: 500_000,
+              },
+              error: null,
             },
-            error: null,
           },
+          { updateResult: { error: null } },
+        ],
+        vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
+        vendor_products: [{ singleResult: { data: { name: "Basic" }, error: null } }],
+        wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
+      },
+      {
+        apply_journey_progress_patch: (args) => {
+          progressPatch = args.p_patch as Record<string, unknown>;
+          return { data: null, error: null };
         },
-        { updateResult: { error: null } },
-      ],
-      vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
-      vendor_products: [{ singleResult: { data: { name: "Basic" }, error: null } }],
-      wedding_journeys: [
-        { singleResult: { data: { progress: initialProgress }, error: null } },
-        {
-          onUpdate: (payload) => {
-            updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-          },
-          updateResult: { error: null },
-        },
-      ],
-    });
+      }
+    );
 
     const result = await executeCancelBooking(
       { booking_id: bookingId, confirmed: true },
@@ -386,7 +473,7 @@ describe("bookingTools", () => {
       syncedCategoryKey: "studio",
       syncedNewSpent: 200_000,
     });
-    expect(updatedProgress).toMatchObject({
+    expect(progressPatch).toMatchObject({
       studio: { spent: 200_000 },
       __events: [],
     });

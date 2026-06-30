@@ -1,4 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  syncBookingProgressAfterCancel,
+  syncBookingProgressAfterCreate,
+} from "@/lib/bookings/progressSync";
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
 import {
   addDaysUtc,
@@ -683,64 +687,33 @@ export async function executeCreateBooking(
   let syncedCategoryKey: string | null = null;
   let syncedNewSpent: number | null = null;
   try {
-    const categoryKey = (vendor.category as string | null) ?? null;
+    const syncResult = await syncBookingProgressAfterCreate(admin, {
+      coupleId: ctx.coupleId,
+      booking: {
+        id: booking.id,
+        date,
+        time,
+        amount,
+      },
+      vendorId,
+      productId,
+      staffId,
+      productName,
+    });
 
-    const { data: journeyRow } = await admin
-      .from("wedding_journeys")
-      .select("progress")
-      .eq("couple_id", ctx.coupleId)
-      .single();
-    const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
-
-    const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
-    const nowIso = new Date().toISOString();
-    const vendorLabel = `${vendor.name}${productName ? ` ${productName}` : ""}`;
-    const eventTitle = `${time} ${vendorLabel} 투어/상담${staffName ? ` (${staffName})` : ""}`;
-    const newEvent: ScheduleEvent = {
-      id: `evt_booking_${booking.id.slice(0, 8)}`,
-      date,
-      title: eventTitle,
-      memo: `예약 자동 등록 · booking ${booking.id.slice(0, 8)}${amount > 0 ? ` · ${(amount / 10000).toLocaleString()}만원` : ""}`,
-      categoryKey: categoryKey ?? undefined,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    };
-
-    const nextProgress: Record<string, unknown> = {
-      ...progress,
-      __events: [...events, newEvent],
-    };
-
-    let computedNewSpent: number | null = null;
-    if (categoryKey && amount > 0) {
-      const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
-      const prevSpent = (cat.spent as number | undefined) ?? 0;
-      const catBudget = (cat.budget as number | undefined) ?? 0;
-      const newSpent = prevSpent + amount;
-      computedNewSpent = newSpent;
-      nextProgress[categoryKey] = {
-        ...cat,
-        spent: newSpent,
-      };
-      budgetUpdated = true;
-      if (catBudget > 0 && newSpent > catBudget) {
-        budgetExceededBy = newSpent - catBudget;
-        categoryBudgetLimit = catBudget;
-        categoryLabelForOver = (cat.label as string | undefined) || categoryKey;
-      }
-    }
-
-    const { error: progressErr } = await admin
-      .from("wedding_journeys")
-      .update({ progress: nextProgress })
-      .eq("couple_id", ctx.coupleId);
-
-    if (!progressErr) {
-      scheduleAdded = true;
-      ctx.weddingContext.progress = nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
-      syncedEvent = newEvent;
-      syncedCategoryKey = categoryKey;
-      syncedNewSpent = computedNewSpent;
+    if (syncResult.persisted) {
+      scheduleAdded = syncResult.scheduleAdded;
+      budgetUpdated = syncResult.budgetUpdated;
+      budgetExceededBy = syncResult.budgetExceededBy;
+      categoryBudgetLimit = syncResult.categoryBudgetLimit;
+      categoryLabelForOver = syncResult.categoryLabel ?? "";
+      syncedEvent = syncResult.syncedEvent;
+      syncedCategoryKey = syncResult.syncedCategoryKey;
+      syncedNewSpent = syncResult.syncedNewSpent;
+      ctx.weddingContext.progress =
+        syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
+    } else {
+      console.error("[create_booking] auto-sync (schedule+budget) failed:", syncResult.error);
     }
   } catch (syncErr) {
     console.error("[create_booking] auto-sync (schedule+budget) failed (non-fatal):", syncErr);
@@ -918,51 +891,33 @@ export async function executeCancelBooking(
     productName = product?.name ?? "";
   }
 
-  const eventIdToRemove = `evt_booking_${bookingId.slice(0, 8)}`;
-  const cancelAmount = (booking.amount as number | undefined) ?? 0;
   let scheduleRemoved = false;
   let budgetReverted = false;
   let syncedNewSpent: number | null = null;
+  let syncedEventIdRemoved: string | null = null;
   try {
-    const { data: journeyRow } = await admin
-      .from("wedding_journeys")
-      .select("progress")
-      .eq("couple_id", ctx.coupleId)
-      .single();
-    const progress: Record<string, unknown> = (journeyRow?.progress as Record<string, unknown>) ?? {};
-    const nextProgress: Record<string, unknown> = { ...progress };
+    const syncResult = await syncBookingProgressAfterCancel(admin, {
+      coupleId: ctx.coupleId,
+      booking: {
+        id: booking.id,
+        amount: booking.amount as number | null,
+      },
+      vendor: {
+        id: booking.vendor_id,
+        name: vendorName,
+        category: categoryKey,
+      },
+    });
 
-    const events = (progress.__events as ScheduleEvent[] | undefined) ?? [];
-    const filtered = events.filter((event) => event.id !== eventIdToRemove);
-    if (filtered.length !== events.length) {
-      nextProgress.__events = filtered;
-      scheduleRemoved = true;
-    }
-
-    if (categoryKey && cancelAmount > 0) {
-      const cat = (progress[categoryKey] as Record<string, unknown> | undefined) ?? {};
-      const prevSpent = (cat.spent as number | undefined) ?? 0;
-      const newSpent = Math.max(0, prevSpent - cancelAmount);
-      syncedNewSpent = newSpent;
-      nextProgress[categoryKey] = {
-        ...cat,
-        spent: newSpent,
-      };
-      budgetReverted = true;
-    }
-
-    if (scheduleRemoved || budgetReverted) {
-      const { error: progressErr } = await admin
-        .from("wedding_journeys")
-        .update({ progress: nextProgress })
-        .eq("couple_id", ctx.coupleId);
-      if (progressErr) {
-        scheduleRemoved = false;
-        budgetReverted = false;
-        syncedNewSpent = null;
-      } else {
-        ctx.weddingContext.progress = nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
-      }
+    if (syncResult.persisted) {
+      scheduleRemoved = syncResult.scheduleRemoved;
+      budgetReverted = syncResult.budgetReverted;
+      syncedNewSpent = syncResult.syncedNewSpent;
+      syncedEventIdRemoved = syncResult.syncedEventIdRemoved;
+      ctx.weddingContext.progress =
+        syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
+    } else {
+      console.error("[cancel_booking] auto-revert (schedule+budget) failed:", syncResult.error);
     }
   } catch (syncErr) {
     console.error("[cancel_booking] auto-revert (schedule+budget) failed (non-fatal):", syncErr);
@@ -986,7 +941,7 @@ export async function executeCancelBooking(
       status: "cancelled",
       scheduleRemoved,
       budgetReverted,
-      syncedEventIdRemoved: scheduleRemoved ? eventIdToRemove : null,
+      syncedEventIdRemoved,
       syncedCategoryKey: budgetReverted ? categoryKey : null,
       syncedNewSpent,
     },

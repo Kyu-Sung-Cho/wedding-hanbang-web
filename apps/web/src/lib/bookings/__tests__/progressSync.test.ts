@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBookingCancelledProgressPatch,
   buildBookingCreatedProgressPatch,
   buildBookingOutcomeProgressPatch,
 } from "../progressSync";
@@ -203,5 +204,66 @@ describe("booking progress sync", () => {
     expect(result.syncedNewSpent).toBe(0);
     expect(result.patch.dress).toMatchObject({ spent: 0 });
     expect(result.patch.__booking_costs).toMatchObject({ [booking.id]: 0 });
+  });
+
+  it("removes full-id booking events and subtracts stored actual cost on cancellation", () => {
+    const result = buildBookingCancelledProgressPatch({
+      progress: {
+        __booking_costs: { [booking.id]: 1_900_000 },
+        __events: [{
+          id: `evt_booking_${booking.id}`,
+          date: booking.date,
+          title: "B드레스 상담",
+          sourceKey: `booking:${booking.id}`,
+        }],
+        dress: {
+          label: "드레스",
+          budget: 2_800_000,
+          spent: 1_900_000,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+      },
+      vendor,
+    });
+
+    expect(result.scheduleRemoved).toBe(true);
+    expect(result.budgetReverted).toBe(true);
+    expect(result.revertedAmount).toBe(1_900_000);
+    expect(result.syncedEventIdRemoved).toBe(`evt_booking_${booking.id}`);
+    expect(result.syncedNewSpent).toBe(0);
+    expect(result.patch.__events).toEqual([]);
+    expect(result.patch.dress).toMatchObject({ spent: 0 });
+    expect(result.patch.__booking_costs).toEqual({});
+  });
+
+  it("still removes legacy short-id booking events on cancellation", () => {
+    const result = buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [{
+          id: "evt_booking_11111111",
+          date: booking.date,
+          title: "B드레스 상담",
+        }],
+        dress: {
+          label: "드레스",
+          budget: 2_800_000,
+          spent: 1_500_000,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+      },
+      vendor,
+    });
+
+    expect(result.scheduleRemoved).toBe(true);
+    expect(result.budgetReverted).toBe(true);
+    expect(result.revertedAmount).toBe(1_500_000);
+    expect(result.syncedEventIdRemoved).toBe("evt_booking_11111111");
+    expect(result.syncedNewSpent).toBe(0);
   });
 });
