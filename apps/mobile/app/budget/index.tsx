@@ -7,7 +7,7 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -108,6 +108,7 @@ export default function BudgetScreen() {
   const [payerInput, setPayerInput] = useState<PayerType>("couple");
   const [saving, setSaving] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -123,7 +124,35 @@ export default function BudgetScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  useEffect(() => {
+    if (!coupleId) return;
+
+    const channel = supabase.channel(`budget:${coupleId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "wedding_journeys",
+        filter: `couple_id=eq.${coupleId}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [coupleId, loadData]);
 
   function getCatBudget(key: string): number {
     const item = progress[key];
