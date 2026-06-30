@@ -30,6 +30,10 @@ import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import ErrorRetry from "@/components/ErrorRetry";
+import {
+  CommunityAvatar,
+  type CommunityAvatarRole,
+} from "@/components/community/CommunityAvatar";
 
 /* ───── 타입 ───── */
 
@@ -44,7 +48,7 @@ interface PostItem {
   view_count: number;
   image_urls?: string[] | null;
   created_at: string;
-  author: { nickname: string; rank: string } | null;
+  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
 interface CohortRoom {
@@ -73,20 +77,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORIES = ["all", "is_normal", "tour_review", "tips_v2", "ama", "free"];
-
-// 아바타 배경색 — 닉네임 해시 기반
-const AVATAR_COLORS = [
-  "#C4967E", "#C9A96E", "#9A6B62", "#928980", "#B5ADA3",
-  "#D4AFA0", "#DCC9A0", "#E8D5CD", "#4A4A52", "#1A1A1F",
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -408,7 +398,6 @@ export default function CommunityScreen() {
     const preview = item.content.replace(/<[^>]*>/g, "").slice(0, 100);
     const votes = item.upvote_count - item.downvote_count;
     const nickname = item.author?.nickname ?? "익명";
-    const avatarBg = getAvatarColor(nickname);
     const hasImage = item.image_urls && item.image_urls.length > 0;
 
     return (
@@ -426,9 +415,7 @@ export default function CommunityScreen() {
           <View style={styles.postBodyLeft}>
             {/* 작성자 아바타 + 메타 */}
             <View style={styles.postMeta}>
-              <View style={[styles.authorAvatar, { backgroundColor: avatarBg }]}>
-                <Text style={styles.authorAvatarText}>{nickname.charAt(0)}</Text>
-              </View>
+              <CommunityAvatar nickname={nickname} role={item.author?.role} size={24} />
               <View style={styles.postCatBadge}>
                 <Text style={styles.postCat}>{catLabel}</Text>
               </View>
@@ -848,18 +835,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 10,
     flexWrap: "wrap",
-  },
-  authorAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  authorAvatarText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
   },
   postCatBadge: {
     backgroundColor: colors.rose.glow,

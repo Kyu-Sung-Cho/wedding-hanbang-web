@@ -60,6 +60,17 @@ interface SettingsData {
   totalBudget: string;
 }
 
+type ProfileUpdateResponse = {
+  profile?: { name?: string | null };
+  communityProfileSynced?: boolean;
+  error?: string;
+};
+
+type CommunityProfileResponse = {
+  profile?: { nickname?: string | null };
+  error?: string;
+};
+
 export default function SettingsScreen() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
@@ -158,24 +169,16 @@ export default function SettingsScreen() {
           }
         }
 
-        // 커뮤니티 프로필 (별명)
         let communityNickname = "";
-        const { data: communityProfile } = await supabase
-          .from("community_profiles")
-          .select("nickname")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (communityProfile) {
-          communityNickname = communityProfile.nickname ?? "";
-        } else {
-          // 커뮤니티 프로필 자동 생성 (이름 기반 초기 별명)
-          const initialNick = profile?.name ?? "유저" + user.id.slice(0, 4);
-          await supabase.from("community_profiles").insert({
-            user_id: user.id,
-            nickname: initialNick,
-          }).then(() => {});
-          communityNickname = initialNick;
+        try {
+          const communityRes = await apiFetch("/api/community/profile");
+          if (communityRes.ok) {
+            const communityData =
+              (await communityRes.json().catch(() => ({}))) as CommunityProfileResponse;
+            communityNickname = communityData.profile?.nickname ?? "";
+          }
+        } catch {
+          communityNickname = profile?.name ?? "";
         }
 
         // 파트너 정보 로드
@@ -233,6 +236,7 @@ export default function SettingsScreen() {
   // 변경 사항 감지
   const hasChanges = data && initialData && (
     data.nickname !== initialData.nickname ||
+    data.communityNickname !== initialData.communityNickname ||
     data.weddingDate !== initialData.weddingDate ||
     data.venue !== initialData.venue ||
     data.totalBudget !== initialData.totalBudget
@@ -243,42 +247,74 @@ export default function SettingsScreen() {
     setSaving(true);
 
     try {
-      // 프로필 업데이트 (실명)
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ name: data.nickname })
-        .eq("id", data.userId);
+      const nextData: SettingsData = {
+        ...data,
+        nickname: data.nickname.trim(),
+        communityNickname: data.communityNickname.trim(),
+      };
 
-      if (profileError) throw profileError;
+      const nameChanged = nextData.nickname !== initialData?.nickname.trim();
+      const communityNicknameChanged =
+        nextData.communityNickname !== initialData?.communityNickname.trim();
 
-      // 커뮤니티 별명 업데이트
-      if (data.communityNickname) {
-        await supabase
-          .from("community_profiles")
-          .update({ nickname: data.communityNickname })
-          .eq("user_id", data.userId);
+      if (nameChanged) {
+        const profileRes = await apiFetch("/api/profile", {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: nextData.nickname,
+            sync_community_nickname: !communityNicknameChanged,
+          }),
+        });
+        const profileBody =
+          (await profileRes.json().catch(() => ({}))) as ProfileUpdateResponse;
+
+        if (!profileRes.ok) {
+          throw new Error(profileBody.error ?? "이름 저장에 실패했어요.");
+        }
+
+        nextData.nickname = profileBody.profile?.name ?? nextData.nickname;
+        if (!communityNicknameChanged && profileBody.communityProfileSynced) {
+          nextData.communityNickname = nextData.nickname;
+        }
+      }
+
+      if (communityNicknameChanged) {
+        const communityRes = await apiFetch("/api/community/profile", {
+          method: "PATCH",
+          body: JSON.stringify({ nickname: nextData.communityNickname }),
+        });
+        const communityBody =
+          (await communityRes.json().catch(() => ({}))) as CommunityProfileResponse;
+
+        if (!communityRes.ok) {
+          throw new Error(communityBody.error ?? "커뮤니티 별명 저장에 실패했어요.");
+        }
+
+        nextData.communityNickname =
+          communityBody.profile?.nickname ?? nextData.communityNickname;
       }
 
       // 결혼 정보 업데이트
-      if (data.coupleId) {
-        const budgetNum = data.totalBudget
-          ? parseInt(data.totalBudget, 10)
+      if (nextData.coupleId) {
+        const budgetNum = nextData.totalBudget
+          ? parseInt(nextData.totalBudget, 10)
           : null;
 
         const { error: journeyError } = await supabase
           .from("wedding_journeys")
           .update({
-            wedding_date: data.weddingDate || null,
-            venue: data.venue || null,
+            wedding_date: nextData.weddingDate || null,
+            venue: nextData.venue || null,
             total_budget:
               budgetNum && !isNaN(budgetNum) ? budgetNum : null,
           })
-          .eq("couple_id", data.coupleId);
+          .eq("couple_id", nextData.coupleId);
 
         if (journeyError) throw journeyError;
       }
 
-      setInitialData(data);
+      setData(nextData);
+      setInitialData(nextData);
       setSaved(true);
 
       // 체크마크 애니메이션
