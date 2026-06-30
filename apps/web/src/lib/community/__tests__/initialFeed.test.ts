@@ -107,6 +107,7 @@ describe("getInitialCommunityFeed", () => {
     expect(mocks.supabase.from).toHaveBeenCalledWith("community_posts");
     expect(mocks.postsQuery.select).toHaveBeenCalledWith(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" });
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("visibility", "public");
+    expect(mocks.postsQuery.eq).toHaveBeenCalledWith("under_review", false);
     expect(feed.posts).toHaveLength(1);
     expect(feed.posts[0]?.id).toBe("listed-post");
     expect(feed.posts[0]?.category).toBe("is_normal");

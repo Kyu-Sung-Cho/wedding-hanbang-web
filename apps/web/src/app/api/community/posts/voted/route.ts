@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { communityReadablePostOrFilter } from "@/lib/community/publicPostRules";
 
 // 사용자가 좋아요한 글 목록 조회
 export async function GET(req: NextRequest) {
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
       .from("community_posts")
       .select("*")
       .in("id", postIds)
-      .or(`visibility.eq.public,visibility.eq.members`);
+      .or(communityReadablePostOrFilter(user.id));
 
     if (postsError) {
       console.error("Voted posts detail error:", postsError);

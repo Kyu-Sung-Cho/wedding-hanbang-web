@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { PollWithOptions } from "@/types/community.types";
 
@@ -100,17 +101,18 @@ export async function GET(
     // 부모 게시글 가시성 검증
     const { data: post } = await serviceClient
       .from("community_posts")
-      .select("visibility, author_id")
+      .select("visibility, author_id, under_review")
       .eq("id", poll.post_id)
       .maybeSingle();
     if (!post) {
       return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
     }
-    if (post.visibility === "draft" && post.author_id !== user?.id) {
-      return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
-    }
-    if (post.visibility === "members" && !user) {
-      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    if (!canReadCommunityPost(post, { userId: user?.id ?? null })) {
+      const requiresLogin = post.visibility === "members" && !user && post.under_review !== true;
+      return NextResponse.json(
+        { error: requiresLogin ? "로그인이 필요합니다." : "게시글을 찾을 수 없습니다." },
+        { status: requiresLogin ? 401 : 404 }
+      );
     }
 
     return NextResponse.json({ poll });
@@ -150,6 +152,19 @@ export async function POST(
     }
 
     const serviceClient = getServiceClient();
+    const poll = await loadPollWithOptions(serviceClient, pollId, user.id);
+    if (!poll) {
+      return NextResponse.json({ error: "투표를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const { data: post } = await serviceClient
+      .from("community_posts")
+      .select("visibility, author_id, under_review")
+      .eq("id", poll.post_id)
+      .maybeSingle();
+    if (!post || !canReadCommunityPost(post, { userId: user.id })) {
+      return NextResponse.json({ error: "투표 권한이 없습니다." }, { status: 403 });
+    }
 
     const { data: rpcRaw, error: rpcError } = await serviceClient.rpc(
       "community_cast_poll_vote",

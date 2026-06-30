@@ -9,7 +9,10 @@ import {
   validateCommunityMediaUrl,
 } from "@/lib/community/mediaUrls";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import {
+  PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
+  communityReadablePostOrFilter,
+} from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -131,13 +134,13 @@ export async function GET(req: NextRequest) {
       query = query.in("id", bookmarkedIds);
     }
 
-    // visibility 필터: public은 항상, members는 인증 시, draft는 본인만
+    // 공개/멤버/작성자 전용 visibility와 under_review 규칙은 단일 Module에서 관리한다.
     if (user) {
-      query = query.or(
-        `visibility.eq.public,visibility.eq.members,and(visibility.eq.draft,author_id.eq.${user.id})`
-      );
+      query = query.or(communityReadablePostOrFilter(user.id));
     } else {
-      query = query.eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY);
+      query = query
+        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
     }
 
     // 정렬 + my_cohort / my_posts 필터

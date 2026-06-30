@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
@@ -111,7 +111,8 @@ export async function GET(req: NextRequest) {
         type: "plain",
         config: "simple",
       })
-      .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
+      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -138,7 +139,8 @@ export async function GET(req: NextRequest) {
         .from("community_posts")
         .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
-        .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
+        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 

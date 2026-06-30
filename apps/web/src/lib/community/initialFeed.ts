@@ -1,5 +1,5 @@
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { createPublicClient } from "@/lib/supabase/public";
 import type {
   CommunityProfile,
@@ -60,7 +60,8 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
     const { data: queriedPosts, count, error } = await supabase
       .from("community_posts")
       .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
-      .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
+      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("created_at", { ascending: false })
       .range(0, queryLimit - 1);
 

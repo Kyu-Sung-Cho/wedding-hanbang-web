@@ -1,5 +1,5 @@
 import { MetadataRoute } from "next";
-import { PUBLIC_COMMUNITY_POST_VISIBILITY } from "@/lib/community/publicPostRules";
+import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { communityPostPath } from "@/lib/community/routes";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -11,7 +11,7 @@ type SitemapPostRow = {
 };
 
 type SitemapPostBuilder = {
-  eq(column: string, value: string): SitemapPostBuilder;
+  eq(column: string, value: unknown): SitemapPostBuilder;
   order(column: string, options: { ascending: boolean }): SitemapPostBuilder;
   limit(count: number): Promise<{ data: SitemapPostRow[] | null }>;
 };
@@ -68,7 +68,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const { data: posts } = await supabase
       .from("community_posts")
       .select("id, updated_at")
-      .eq("visibility", PUBLIC_COMMUNITY_POST_VISIBILITY)
+      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("updated_at", { ascending: false })
       .limit(5000);
 

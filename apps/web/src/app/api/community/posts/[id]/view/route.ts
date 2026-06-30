@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
@@ -26,9 +27,12 @@ export async function POST(
     if (rlResult) return rlResult;
 
     const supabase = await createClientFromRequest(req);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const { data: visiblePost, error: visibilityError } = await supabase
       .from("community_posts")
-      .select("id")
+      .select("id, author_id, visibility, under_review")
       .eq("id", id)
       .maybeSingle();
 
@@ -40,7 +44,10 @@ export async function POST(
       );
     }
 
-    if (!visiblePost) {
+    if (
+      !visiblePost ||
+      !canReadCommunityPost(visiblePost, { userId: user?.id ?? null })
+    ) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },
         { status: 404 }

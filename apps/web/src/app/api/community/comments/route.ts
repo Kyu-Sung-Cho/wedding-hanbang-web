@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommentWithAuthor, CreateCommentInput } from "@/types/community.types";
@@ -29,6 +30,27 @@ export async function GET(req: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    const { data: targetPost, error: postFetchError } = await supabase
+      .from("community_posts")
+      .select("id, author_id, visibility, under_review")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postFetchError) {
+      console.error("Comment parent post access check error:", postFetchError);
+      return NextResponse.json(
+        { error: "게시글 접근 확인에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (!targetPost || !canReadCommunityPost(targetPost, { userId: user?.id ?? null })) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
+        { status: 404 }
+      );
+    }
 
     // 댓글 조회
     const { data: comments, error } = await supabase
@@ -179,7 +201,7 @@ export async function POST(req: NextRequest) {
     // 가능했음 (보안 + 정합성 이슈).
     const { data: targetPost, error: postFetchError } = await supabase
       .from("community_posts")
-      .select("id, visibility")
+      .select("id, author_id, visibility, under_review")
       .eq("id", post_id)
       .maybeSingle();
 
@@ -191,7 +213,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!targetPost) {
+    if (!targetPost || !canReadCommunityPost(targetPost, { userId: user.id })) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
         { status: 404 }
