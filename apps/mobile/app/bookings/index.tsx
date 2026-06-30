@@ -1,5 +1,5 @@
 // 내 예약 목록
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
   Pressable,
@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   AlertTriangle,
   CalendarCheck,
@@ -275,11 +275,16 @@ function getBookingAction(booking: Booking): BookingAction {
 }
 
 export default function BookingsScreen() {
+  const params = useLocalSearchParams<{ bookingId?: string | string[] }>();
+  const requestedBookingId = Array.isArray(params.bookingId)
+    ? params.bookingId[0]
+    : params.bookingId;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const openedBookingIdRef = useRef<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -330,6 +335,19 @@ export default function BookingsScreen() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!requestedBookingId || openedBookingIdRef.current === requestedBookingId) return;
+
+    const booking = bookings.find((item) => item.id === requestedBookingId);
+    if (!booking) return;
+
+    openedBookingIdRef.current = requestedBookingId;
+    if (isCompleted(booking)) {
+      setTab("completed");
+    }
+    setSelectedBooking(booking);
+  }, [bookings, requestedBookingId]);
 
   const filtered = useMemo(() => {
     const today = getTodayStart();
