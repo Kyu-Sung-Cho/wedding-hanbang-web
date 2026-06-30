@@ -158,6 +158,7 @@ export default function CommentItem({
             <Avatar
               nickname={nickname}
               avatarUrl={avatarUrl}
+              role={comment.author?.role ?? null}
               size={isReply ? 28 : 32}
               className="shrink-0"
             />

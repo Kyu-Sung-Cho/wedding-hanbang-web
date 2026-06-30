@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import {
   getCommunityNicknameFallback,
   getSafeDefaultCommunityNickname,
@@ -256,18 +257,7 @@ export async function GET(req: NextRequest) {
 
     // author 프로필 조회
     const authorIds = [...new Set(sortedPosts.map((p) => p.author_id))];
-    let authorMap: Record<string, { nickname: string; avatar_url: string | null; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
-    if (authorIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("community_profiles")
-        .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-        .in("user_id", authorIds);
-      if (profiles) {
-        authorMap = Object.fromEntries(
-          profiles.map((p) => [p.user_id, { nickname: p.nickname, avatar_url: p.avatar_url, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
-        );
-      }
-    }
+    const authorMap = await getCommunityAuthorMap(supabase, authorIds);
 
     // 폴 summary 조회 (목록 카드 배지용)
     let pollSummaryMap: Record<string, PollSummary> = {};
@@ -295,7 +285,7 @@ export async function GET(req: NextRequest) {
     // 응답 데이터 조합
     const postsWithVotes = sortedPosts.map((post) => ({
       ...post,
-      author: authorMap[post.author_id] ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
+      author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
       user_vote: userVotesMap[post.id] ?? null,
       poll: pollSummaryMap[post.id] ?? null,
     }));

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import {
   validateCommunityAttachmentUrl,
@@ -128,11 +129,7 @@ export async function GET(
     }
 
     // author 프로필 조회
-    const { data: authorProfile } = await supabase
-      .from("community_profiles")
-      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-      .eq("user_id", post.author_id)
-      .single();
+    const authorMap = await getCommunityAuthorMap(supabase, [post.author_id]);
 
     // 폴 + 옵션 + 사용자 투표 상태
     let pollData: PollWithOptions | null = null;
@@ -177,7 +174,7 @@ export async function GET(
 
     return NextResponse.json({
       ...post,
-      author: authorProfile ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
+      author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
       vendor_details: vendorDetails,
       user_vote: userVote,
       user_bookmarked: userBookmarked,

@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { communityReadablePostOrFilter } from "@/lib/community/publicPostRules";
 
 // 사용자가 좋아요한 글 목록 조회
@@ -60,18 +61,7 @@ export async function GET(req: NextRequest) {
 
     // 작성자 프로필 조회
     const authorIds = [...new Set((posts ?? []).map((p) => p.author_id))];
-    let authorMap: Record<string, { nickname: string; avatar_url: string | null; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
-    if (authorIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("community_profiles")
-        .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-        .in("user_id", authorIds);
-      if (profiles) {
-        authorMap = Object.fromEntries(
-          profiles.map((p) => [p.user_id, { nickname: p.nickname, avatar_url: p.avatar_url, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
-        );
-      }
-    }
+    const authorMap = await getCommunityAuthorMap(supabase, authorIds);
 
     // 투표 순서대로 정렬 (최근 좋아요한 것이 위)
     const postMap = new Map((posts ?? []).map((p) => [p.id, p]));
@@ -80,7 +70,7 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
       .map((post) => ({
         ...post,
-        author: authorMap[post!.author_id] ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
+        author: authorMap[post!.author_id] ?? fallbackCommunityAuthor(post!.author_id),
         user_vote: 1 as const,
       }));
 
