@@ -9,7 +9,7 @@
 //   - 예외 전부 내부 삼킴
 // =============================================
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const SUMMARY_TRIGGER_THRESHOLD = 10; // 마지막 요약 이후 새 메시지 N개 이상이면 요약
@@ -17,20 +17,7 @@ const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const MAX_INPUT_CHARS = 12_000; // Haiku에 보낼 대화 전문 상한 (토큰 절약)
 const MAX_MESSAGE_CHARS = 800;  // 개별 메시지 truncate 길이
 
-// -------------------------------------------
-// Service role client (lazy)
-// -------------------------------------------
-let _admin: SupabaseClient | null = null;
-function getAdminClient(): SupabaseClient {
-  if (_admin) return _admin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("SUPABASE_SERVICE_ROLE_KEY 미설정");
-  _admin = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  return _admin;
-}
+const getAdminClient = createAdminClient;
 
 // -------------------------------------------
 // 메시지 포맷

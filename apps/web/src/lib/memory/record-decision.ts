@@ -9,7 +9,7 @@
 //   - 반환값에 nodeId (실패 시 null)
 // =============================================
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   DecisionType,
   DecisionSource,
@@ -59,22 +59,7 @@ export interface RecordDecisionResult {
   deduped?: boolean;
 }
 
-// -------------------------------------------
-// Service role 클라이언트 (lazy init)
-// -------------------------------------------
-let _admin: SupabaseClient | null = null;
-function getAdminClient(): SupabaseClient {
-  if (_admin) return _admin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY 미설정");
-  }
-  _admin = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  return _admin;
-}
+const getAdminClient = createAdminClient;
 
 // -------------------------------------------
 // 공개 헬퍼: recordDecision

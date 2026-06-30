@@ -1,12 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Service role 클라이언트 (RLS 우회)
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+const getServiceClient = createAdminClient;
 
 /**
  * 커플별 + 전체 사용자의 피드백 학습 내용을 로드
