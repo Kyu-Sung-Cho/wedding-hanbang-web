@@ -12,7 +12,7 @@ import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
-import { AppHeader, LoadingState } from "@/components/ui/AppUI";
+import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -69,6 +69,16 @@ interface ProgressItem {
   cost?: number;
   payer?: PayerType;
   [key: string]: unknown;
+}
+
+type RiskTone = "neutral" | "rose" | "warning" | "danger";
+
+interface BudgetRisk {
+  id: string;
+  title: string;
+  detail: string;
+  tone: RiskTone;
+  categoryKey?: string;
 }
 
 function formatWon(n: number): string {
@@ -150,6 +160,91 @@ export default function BudgetScreen() {
   const totalSpent = CATEGORY_RATIOS.reduce((s, c) => s + getCatSpent(c.key), 0);
   const remaining = totalBudget - totalSpent;
   const spentPct = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
+  const allocatedBudget = CATEGORY_RATIOS.reduce((a, c) => a + getCatBudget(c.key), 0);
+  const payerBreakdown = PAYER_OPTIONS.map((opt) => {
+    const amount = payerSummary[opt.value] ?? 0;
+    const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+    return { ...opt, amount, pct };
+  }).sort((a, b) => b.amount - a.amount);
+  const leadPayer = payerBreakdown[0];
+
+  const categoryOverruns = CATEGORY_RATIOS
+    .map((cat) => {
+      const budget = getCatBudget(cat.key);
+      const spent = getCatSpent(cat.key);
+      return {
+        ...cat,
+        budget,
+        spent,
+        overrun: budget > 0 ? spent - budget : 0,
+      };
+    })
+    .filter((cat) => cat.overrun > 0)
+    .sort((a, b) => b.overrun - a.overrun);
+
+  const hiddenCostWatch = CATEGORY_RATIOS
+    .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "완료")
+    .map((cat) => {
+      const budget = getCatBudget(cat.key);
+      const spent = getCatSpent(cat.key);
+      const useRate = budget > 0 ? spent / budget : 0;
+      return { ...cat, budget, spent, useRate };
+    })
+    .filter((cat) => cat.spent > 0 || cat.useRate >= 0.7)
+    .sort((a, b) => b.useRate - a.useRate);
+
+  const budgetRisks: BudgetRisk[] = [
+    ...(totalBudget <= 0
+      ? [{
+          id: "missing-total",
+          title: "총 예산을 먼저 정해야 해요",
+          detail: "카테고리별 기준 예산과 초과 위험을 계산하려면 총 예산이 필요해요.",
+          tone: "warning" as const,
+        }]
+      : []),
+    ...(remaining < 0
+      ? [{
+          id: "total-overrun",
+          title: `총 예산 ${formatWon(Math.abs(remaining))} 초과`,
+          detail: "지출 확정 전 카테고리별 초과 항목을 먼저 조정하세요.",
+          tone: "danger" as const,
+        }]
+      : []),
+    ...categoryOverruns.map((cat) => ({
+      id: `overrun-${cat.key}`,
+      title: `${cat.label} 예산 초과`,
+      detail: `${formatWon(cat.overrun)} 초과 · 배정 ${formatWon(cat.budget)} / 지출 ${formatWon(cat.spent)}`,
+      tone: "danger" as const,
+      categoryKey: cat.key,
+    })),
+    ...(leadPayer && leadPayer.amount > 0 && leadPayer.pct >= 70
+      ? [{
+          id: "payer-imbalance",
+          title: `${leadPayer.label} 분담 비중이 커요`,
+          detail: `${formatWon(leadPayer.amount)} · 전체 지출의 ${leadPayer.pct}%예요.`,
+          tone: "warning" as const,
+        }]
+      : []),
+    ...hiddenCostWatch.map((cat) => {
+      const hidden = HIDDEN_COSTS[cat.key]!;
+      return {
+        id: `hidden-${cat.key}`,
+        title: `${cat.label} 숨은 비용 체크`,
+        detail: `${hidden.warning} · 예상 ${hidden.extra}`,
+        tone: "warning" as const,
+        categoryKey: cat.key,
+      };
+    }),
+  ].slice(0, 3);
+
+  const budgetStatus =
+    totalBudget <= 0
+      ? { label: "설정 필요", tone: "warning" as const }
+      : remaining < 0
+        ? { label: "초과", tone: "danger" as const }
+        : budgetRisks.length > 0
+          ? { label: "주의", tone: "warning" as const }
+          : { label: "안정", tone: "success" as const };
 
   useEffect(() => {
     Animated.timing(progressAnim, { toValue: spentPct, duration: 800, useNativeDriver: false }).start();
@@ -235,7 +330,10 @@ export default function BudgetScreen() {
 
         {/* 총 예산 */}
         <View style={s.totalCard}>
-          <Text style={s.totalLabel}>총 예산</Text>
+          <View style={s.totalTop}>
+            <Text style={s.totalLabel}>예산 운영 상태</Text>
+            <StatusPill label={budgetStatus.label} tone={budgetStatus.tone} />
+          </View>
           {editingTotal ? (
             <View style={s.editRow}>
               <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus placeholder="0" placeholderTextColor={colors.taupe[400]} />
@@ -262,9 +360,64 @@ export default function BudgetScreen() {
           )}
         </View>
 
+        <Surface style={s.riskPanel}>
+          <View style={s.riskHeader}>
+            <View>
+              <Text style={s.riskEyebrow}>BUDGET RISK</Text>
+              <Text style={s.riskTitle}>지금 먼저 볼 돈 문제</Text>
+            </View>
+            <AlertTriangle
+              size={18}
+              color={budgetStatus.tone === "danger" ? colors.danger : colors.gold.DEFAULT}
+            />
+          </View>
+
+          {budgetRisks.length > 0 ? (
+            budgetRisks.map((risk) => (
+              <Pressable
+                key={risk.id}
+                style={({ pressed }) => [
+                  s.riskRow,
+                  pressed && risk.categoryKey && { transform: [{ scale: 0.98 }] },
+                ]}
+                onPress={() => {
+                  if (risk.categoryKey) openEdit(risk.categoryKey);
+                }}
+                disabled={!risk.categoryKey}
+              >
+                <View style={[s.riskDot, s[`riskDot_${risk.tone}`]]} />
+                <View style={s.riskCopy}>
+                  <Text style={s.riskRowTitle}>{risk.title}</Text>
+                  <Text style={s.riskRowDetail}>{risk.detail}</Text>
+                </View>
+                <StatusPill
+                  label={risk.tone === "danger" ? "위험" : "점검"}
+                  tone={risk.tone}
+                />
+              </Pressable>
+            ))
+          ) : (
+            <View style={s.safeBudgetBox}>
+              <Check size={18} color={colors.rose[500]} />
+              <Text style={s.safeBudgetTitle}>현재 큰 예산 위험은 없어요</Text>
+              <Text style={s.safeBudgetText}>
+                계약 전에는 카테고리별 숨은 비용과 시장가를 한 번 더 확인해두세요.
+              </Text>
+            </View>
+          )}
+
+          <Pressable
+            style={({ pressed }) => [s.marketLink, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push("/market-prices")}
+          >
+            <Text style={s.marketLinkText}>시장가 기준 확인하기</Text>
+            <TrendingUp size={14} color={colors.rose[500]} />
+          </Pressable>
+        </Surface>
+
         {/* 요약 */}
         <View style={s.sumRow}>
-          <View style={s.sumCard}><Wallet size={16} color={colors.textTertiary} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(CATEGORY_RATIOS.reduce((a, c) => a + getCatBudget(c.key), 0))}</Text></View>
+          <View style={s.sumCard}><Wallet size={16} color={colors.textTertiary} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(allocatedBudget)}</Text></View>
           <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
           <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
         </View>
@@ -379,7 +532,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 20, paddingBottom: 40 },
   totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
-  totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400], marginBottom: 8 },
+  totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
+  totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400] },
   totalRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   totalValue: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
   editRow: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -390,6 +544,24 @@ const s = StyleSheet.create({
   progFill: { height: "100%", borderRadius: 3 },
   progLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
   progLabel: { fontSize: 12, color: colors.taupe[400] },
+  riskPanel: { paddingVertical: 18, marginBottom: 16 },
+  riskHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
+  riskEyebrow: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textTertiary, marginBottom: 2 },
+  riskTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  riskRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  riskDot: { width: 4, height: 36, borderRadius: 2 },
+  riskDot_neutral: { backgroundColor: colors.taupe[400] },
+  riskDot_rose: { backgroundColor: colors.rose[500] },
+  riskDot_warning: { backgroundColor: colors.gold.DEFAULT },
+  riskDot_danger: { backgroundColor: colors.danger },
+  riskCopy: { flex: 1, gap: 2 },
+  riskRowTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  riskRowDetail: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, lineHeight: 18 },
+  safeBudgetBox: { alignItems: "center", paddingVertical: 18, gap: 6, borderTopWidth: 1, borderTopColor: colors.border },
+  safeBudgetTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  safeBudgetText: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 18 },
+  marketLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  marketLinkText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[500] },
   sumRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
   sumCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6 },
   sumLabel: { fontSize: 11, color: colors.textTertiary },
