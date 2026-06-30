@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildBookingCreatedProgressPatch } from "../progressSync";
+import {
+  buildBookingCreatedProgressPatch,
+  buildBookingOutcomeProgressPatch,
+} from "../progressSync";
 
 const booking = {
   id: "11111111-2222-4333-8444-555555555555",
@@ -85,5 +88,120 @@ describe("booking progress sync", () => {
     expect(result.scheduleAdded).toBe(true);
     expect(result.budgetUpdated).toBe(false);
     expect(result.syncedCategoryKey).toBeNull();
+  });
+
+  it("adjusts category spent by only the outcome delta for synced bookings", () => {
+    const result = buildBookingOutcomeProgressPatch({
+      progress: {
+        __events: [{
+          id: `evt_booking_${booking.id}`,
+          date: booking.date,
+          title: "B드레스 상담",
+          sourceKey: `booking:${booking.id}`,
+        }],
+        dress: {
+          label: "드레스",
+          budget: 2_800_000,
+          spent: 1_500_000,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+        previousActualAmount: null,
+        actualAmount: 1_900_000,
+      },
+      vendor,
+    });
+
+    expect(result.budgetUpdated).toBe(true);
+    expect(result.budgetDelta).toBe(400_000);
+    expect(result.previousContribution).toBe(1_500_000);
+    expect(result.syncedNewSpent).toBe(1_900_000);
+    expect(result.budgetExceededBy).toBe(0);
+    expect(result.patch.dress).toMatchObject({ spent: 1_900_000 });
+    expect(result.patch.__booking_costs).toMatchObject({ [booking.id]: 1_900_000 });
+  });
+
+  it("uses stored booking cost contribution when an outcome is edited later", () => {
+    const result = buildBookingOutcomeProgressPatch({
+      progress: {
+        __booking_costs: { [booking.id]: 1_900_000 },
+        dress: {
+          label: "드레스",
+          budget: 2_000_000,
+          spent: 1_900_000,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+        previousActualAmount: 1_900_000,
+        actualAmount: 2_200_000,
+      },
+      vendor,
+    });
+
+    expect(result.budgetUpdated).toBe(true);
+    expect(result.budgetDelta).toBe(300_000);
+    expect(result.previousContribution).toBe(1_900_000);
+    expect(result.syncedNewSpent).toBe(2_200_000);
+    expect(result.budgetExceededBy).toBe(200_000);
+    expect(result.patch.dress).toMatchObject({ spent: 2_200_000 });
+  });
+
+  it("adds the full actual amount when an older booking was never synced", () => {
+    const result = buildBookingOutcomeProgressPatch({
+      progress: {
+        dress: {
+          label: "드레스",
+          budget: 2_000_000,
+          spent: 0,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+        previousActualAmount: null,
+        actualAmount: 1_900_000,
+      },
+      vendor,
+    });
+
+    expect(result.previousContribution).toBe(0);
+    expect(result.budgetDelta).toBe(1_900_000);
+    expect(result.syncedNewSpent).toBe(1_900_000);
+  });
+
+  it("subtracts the previous booking contribution when actual amount is zero", () => {
+    const result = buildBookingOutcomeProgressPatch({
+      progress: {
+        __events: [{
+          id: `evt_booking_${booking.id}`,
+          date: booking.date,
+          title: "B드레스 상담",
+          sourceKey: `booking:${booking.id}`,
+        }],
+        dress: {
+          label: "드레스",
+          budget: 2_000_000,
+          spent: 1_500_000,
+        },
+      },
+      booking: {
+        id: booking.id,
+        amount: 1_500_000,
+        previousActualAmount: null,
+        actualAmount: 0,
+      },
+      vendor,
+    });
+
+    expect(result.budgetUpdated).toBe(true);
+    expect(result.previousContribution).toBe(1_500_000);
+    expect(result.budgetDelta).toBe(-1_500_000);
+    expect(result.syncedNewSpent).toBe(0);
+    expect(result.patch.dress).toMatchObject({ spent: 0 });
+    expect(result.patch.__booking_costs).toMatchObject({ [booking.id]: 0 });
   });
 });

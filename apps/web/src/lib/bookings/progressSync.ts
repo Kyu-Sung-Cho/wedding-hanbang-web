@@ -16,6 +16,13 @@ export interface BookingProgressVendor {
   category: string | null;
 }
 
+export interface BookingOutcomeProgressBooking {
+  id: string;
+  amount: number | null;
+  previousActualAmount: number | null;
+  actualAmount: number;
+}
+
 export interface BookingProgressBuildInput {
   progress: Record<string, unknown>;
   booking: BookingProgressBooking;
@@ -40,6 +47,26 @@ export interface BookingProgressSyncResult {
 
 export interface BookingProgressPersistenceResult
   extends Omit<BookingProgressSyncResult, "patch" | "nextProgress"> {
+  persisted: boolean;
+  error?: string;
+}
+
+export interface BookingOutcomeProgressSyncResult {
+  patch: Record<string, unknown>;
+  nextProgress: Record<string, unknown>;
+  budgetUpdated: boolean;
+  budgetDelta: number;
+  previousContribution: number;
+  nextContribution: number;
+  budgetExceededBy: number;
+  categoryBudgetLimit: number;
+  categoryLabel: string | null;
+  syncedCategoryKey: string | null;
+  syncedNewSpent: number | null;
+}
+
+export interface BookingOutcomeProgressPersistenceResult
+  extends Omit<BookingOutcomeProgressSyncResult, "patch" | "nextProgress"> {
   persisted: boolean;
   error?: string;
 }
@@ -70,6 +97,28 @@ function finiteAmount(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
+function finiteUnknownAmount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0;
+  }
+  return 0;
+}
+
+function finiteNonNegativeAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : null;
+  }
+  return null;
+}
+
 function compactLabel(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -88,6 +137,17 @@ function wonMemo(amount: number): string {
   return ` · ${amount.toLocaleString()}원`;
 }
 
+function readBookingCostContributions(progress: Record<string, unknown>): Record<string, number> {
+  const raw = progress.__booking_costs;
+  if (!isRecord(raw)) return {};
+
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([bookingId, amount]) => [bookingId, finiteNonNegativeAmount(amount)] as const)
+      .filter((entry): entry is readonly [string, number] => entry[1] !== null)
+  );
+}
+
 function buildEventTitle(input: BookingProgressBuildInput): string {
   const timeLabel = input.booking.time.slice(0, 5);
   const productName = compactLabel(input.productName);
@@ -96,6 +156,91 @@ function buildEventTitle(input: BookingProgressBuildInput): string {
     `${input.vendor.name}${productName ? ` ${productName}` : ""}`
   );
   return `${timeLabel} ${vendorLabel} 상담${staffName ? ` (${staffName})` : ""}`;
+}
+
+export function buildBookingOutcomeProgressPatch(input: {
+  progress: Record<string, unknown>;
+  booking: BookingOutcomeProgressBooking;
+  vendor: BookingProgressVendor;
+}): BookingOutcomeProgressSyncResult {
+  const progress = input.progress;
+  const categoryKey = compactLabel(input.vendor.category) || null;
+  const actualAmount = finiteUnknownAmount(input.booking.actualAmount);
+  const existingContributions = readBookingCostContributions(progress);
+  const existingEvent = getEvents(progress).find(
+    (event) =>
+      event.id === bookingEventId(input.booking.id) ||
+      event.sourceKey === bookingSourceKey(input.booking.id)
+  );
+
+  const nextProgress: Record<string, unknown> = { ...progress };
+  const patch: Record<string, unknown> = {};
+
+  if (!categoryKey) {
+    return {
+      patch,
+      nextProgress,
+      budgetUpdated: false,
+      budgetDelta: 0,
+      previousContribution: 0,
+      nextContribution: actualAmount,
+      budgetExceededBy: 0,
+      categoryBudgetLimit: 0,
+      categoryLabel: categoryKey,
+      syncedCategoryKey: null,
+      syncedNewSpent: null,
+    };
+  }
+
+  const storedContribution = existingContributions[input.booking.id];
+  const previousActualContribution = finiteUnknownAmount(input.booking.previousActualAmount);
+  const previousContribution =
+    storedContribution ??
+    (previousActualContribution > 0
+      ? previousActualContribution
+      : existingEvent
+        ? finiteUnknownAmount(input.booking.amount)
+        : 0);
+  const budgetDelta = actualAmount - previousContribution;
+  const currentCategory = isRecord(progress[categoryKey]) ? progress[categoryKey] : {};
+  const previousSpent = finiteUnknownAmount(currentCategory.spent);
+  const budget = finiteUnknownAmount(currentCategory.budget);
+  const nextSpent = Math.max(0, previousSpent + budgetDelta);
+  const nextCategory = {
+    ...currentCategory,
+    spent: nextSpent,
+  };
+  const nextContributions = {
+    ...existingContributions,
+    [input.booking.id]: actualAmount,
+  };
+
+  patch.__booking_costs = nextContributions;
+  nextProgress.__booking_costs = nextContributions;
+
+  if (budgetDelta !== 0) {
+    patch[categoryKey] = nextCategory;
+    nextProgress[categoryKey] = nextCategory;
+  }
+
+  const categoryLabel =
+    typeof currentCategory.label === "string" && currentCategory.label.trim()
+      ? currentCategory.label
+      : categoryKey;
+
+  return {
+    patch,
+    nextProgress,
+    budgetUpdated: budgetDelta !== 0,
+    budgetDelta,
+    previousContribution,
+    nextContribution: actualAmount,
+    budgetExceededBy: budget > 0 && nextSpent > budget ? nextSpent - budget : 0,
+    categoryBudgetLimit: budget,
+    categoryLabel,
+    syncedCategoryKey: categoryKey,
+    syncedNewSpent: budgetDelta !== 0 ? nextSpent : null,
+  };
 }
 
 export function buildBookingCreatedProgressPatch(
@@ -269,6 +414,68 @@ export async function syncBookingProgressAfterCreate(
     productName,
     staffName,
   });
+
+  const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
+    p_couple_id: input.coupleId,
+    p_patch: syncResult.patch,
+    p_remove_keys: [],
+  });
+
+  if (!patchError) {
+    return { persisted: true, ...syncResult };
+  }
+
+  const { error: updateError } = await client
+    .from("wedding_journeys")
+    .update({ progress: syncResult.nextProgress })
+    .eq("couple_id", input.coupleId);
+
+  return {
+    persisted: !updateError,
+    error: updateError?.message ?? patchError.message,
+    ...syncResult,
+  };
+}
+
+export async function syncBookingProgressAfterOutcome(
+  client: SupabaseClient,
+  input: {
+    coupleId: string;
+    booking: BookingOutcomeProgressBooking;
+    vendor: BookingProgressVendor;
+  }
+): Promise<BookingOutcomeProgressPersistenceResult> {
+  const { data: journeyRow, error: journeyError } = await client
+    .from("wedding_journeys")
+    .select("progress")
+    .eq("couple_id", input.coupleId)
+    .single();
+
+  if (journeyError || !journeyRow) {
+    return {
+      persisted: false,
+      error: journeyError?.message ?? "missing journey progress",
+      ...buildBookingOutcomeProgressPatch({
+        progress: {},
+        booking: input.booking,
+        vendor: input.vendor,
+      }),
+    };
+  }
+
+  const progress = ((journeyRow as JourneyProgressRow).progress ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const syncResult = buildBookingOutcomeProgressPatch({
+    progress,
+    booking: input.booking,
+    vendor: input.vendor,
+  });
+
+  if (Object.keys(syncResult.patch).length === 0) {
+    return { persisted: true, ...syncResult };
+  }
 
   const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
     p_couple_id: input.coupleId,
