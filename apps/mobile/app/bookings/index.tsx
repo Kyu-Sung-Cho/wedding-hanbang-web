@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   AlertTriangle,
   CalendarCheck,
@@ -283,8 +283,10 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
+  const [coupleId, setCoupleId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const openedBookingIdRef = useRef<string | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -301,9 +303,12 @@ export default function BookingsScreen() {
         .single();
 
       if (!profile?.couple_id) {
+        setCoupleId(null);
         setBookings([]);
         return;
       }
+
+      setCoupleId(profile.couple_id);
 
       const { data, error } = await supabase
         .from("vendor_bookings")
@@ -313,19 +318,22 @@ export default function BookingsScreen() {
 
       if (error) throw error;
 
-      setBookings(
-        (data ?? []).map((row: Record<string, unknown>) => ({
-          id: String(row.id ?? ""),
-          booking_date: String(row.booking_date ?? ""),
-          booking_time: row.booking_time ? String(row.booking_time) : null,
-          status: normalizeStatus(row.status),
-          amount: readAmount(row.amount),
-          contracted_amount: readAmount(row.contracted_amount),
-          actual_amount: readAmount(row.actual_amount),
-          vendor: row.vendor as Booking["vendor"],
-          product: row.product as Booking["product"],
-        }))
-      );
+      const nextBookings = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: String(row.id ?? ""),
+        booking_date: String(row.booking_date ?? ""),
+        booking_time: row.booking_time ? String(row.booking_time) : null,
+        status: normalizeStatus(row.status),
+        amount: readAmount(row.amount),
+        contracted_amount: readAmount(row.contracted_amount),
+        actual_amount: readAmount(row.actual_amount),
+        vendor: row.vendor as Booking["vendor"],
+        product: row.product as Booking["product"],
+      }));
+
+      setBookings(nextBookings);
+      setSelectedBooking((current) => (
+        current ? nextBookings.find((booking) => booking.id === current.id) ?? null : current
+      ));
     } catch (err) {
       console.error("Bookings load:", err);
     } finally {
@@ -334,7 +342,35 @@ export default function BookingsScreen() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  useEffect(() => {
+    if (!coupleId) return;
+
+    const channel = supabase.channel(`bookings:${coupleId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "vendor_bookings",
+        filter: `couple_id=eq.${coupleId}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [coupleId, loadData]);
 
   useEffect(() => {
     if (!requestedBookingId || openedBookingIdRef.current === requestedBookingId) return;
