@@ -9,11 +9,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
+  ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import ErrorRetry from "@/components/ErrorRetry";
-import { AppHeader, EmptyState, IconBadge, LoadingState } from "@/components/ui/AppUI";
+import { AppHeader, EmptyState, IconBadge, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
 /* ───── types ───── */
 interface Vendor {
@@ -28,16 +29,29 @@ interface Vendor {
   website: string | null;
   thumbnail_url: string | null;
   is_verified: boolean;
+  ai_recommend: boolean;
   rating: number | null;
+  price_range: string | null;
+  price_min: number | null;
+  price_max: number | null;
   min_price: number | null;
+  product_count: number;
   created_at: string | null;
+  trust_score: number;
 }
 
 type SortKey = "recommended" | "popular" | "newest" | "price_asc";
+type VendorTrustInput = Omit<Vendor, "trust_score">;
 
 interface SortOption {
   key: SortKey;
   label: string;
+}
+
+interface CategoryFilter {
+  key: string;
+  label: string;
+  values: string[];
 }
 
 const SORT_OPTIONS: SortOption[] = [
@@ -47,9 +61,60 @@ const SORT_OPTIONS: SortOption[] = [
   { key: "price_asc", label: "가격낮은순" },
 ];
 
-const CATEGORY_FILTERS = [
-  "전체", "스튜디오", "드레스", "메이크업", "예식장", "스냅", "한복", "예물", "허니문",
+const CATEGORY_FILTERS: CategoryFilter[] = [
+  { key: "all", label: "전체", values: [] },
+  { key: "studio", label: "스튜디오", values: ["studio", "스튜디오"] },
+  { key: "dress", label: "드레스", values: ["dress", "드레스"] },
+  { key: "makeup", label: "메이크업", values: ["makeup", "메이크업"] },
+  { key: "venue", label: "예식장", values: ["venue", "예식장"] },
+  { key: "snap", label: "스냅", values: ["snap", "스냅"] },
+  { key: "hanbok", label: "한복", values: ["hanbok", "한복"] },
+  { key: "jewelry", label: "예물", values: ["jewelry", "ring", "예물"] },
+  { key: "honeymoon", label: "허니문", values: ["honeymoon", "신혼여행"] },
 ];
+
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  CATEGORY_FILTERS.flatMap((filter) =>
+    filter.values.map((value) => [value, filter.label] as const)
+  )
+);
+
+function formatWon(n: number): string {
+  if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
+  if (n >= 10_000) return `${Math.round(n / 10_000).toLocaleString()}만원`;
+  return `${n.toLocaleString()}원`;
+}
+
+function categoryLabel(category: string | null): string | null {
+  if (!category) return null;
+  return CATEGORY_LABELS[category] ?? category;
+}
+
+function getDisplayPrice(vendor: Pick<Vendor, "min_price" | "price_range" | "price_min">): string {
+  if (vendor.min_price && vendor.min_price > 0) return `${formatWon(vendor.min_price)}부터`;
+  if (vendor.price_range) return vendor.price_range;
+  if (vendor.price_min && vendor.price_min > 0) return `${formatWon(vendor.price_min)}부터`;
+  return "문의 필요";
+}
+
+function scoreVendorTrust(vendor: VendorTrustInput): number {
+  let score = 0;
+  if (vendor.status === "approved") score += 20;
+  if (vendor.is_verified) score += 25;
+  if (vendor.min_price || vendor.price_range || vendor.price_min) score += 20;
+  if (vendor.product_count > 0) score += 15;
+  if ((vendor.rating ?? 0) >= 4.5) score += 10;
+  else if ((vendor.rating ?? 0) >= 4) score += 5;
+  if (vendor.ai_recommend) score += 5;
+  if (vendor.region) score += 5;
+  return Math.min(score, 100);
+}
+
+function getTrustStatus(score: number): { label: string; tone: "success" | "rose" | "warning" } {
+  if (score >= 75) return { label: "신뢰 높음", tone: "success" };
+  if (score >= 55) return { label: "정보 충분", tone: "rose" };
+  return { label: "확인 필요", tone: "warning" };
+}
 
 /* ───── main screen ───── */
 export default function VendorsScreen() {
@@ -58,7 +123,7 @@ export default function VendorsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedSort, setSelectedSort] = useState<SortKey>("recommended");
 
   // 즐겨찾기 상태 (vendor_id Set)
@@ -148,10 +213,12 @@ export default function VendorsScreen() {
       // 기본 select에 rating, created_at 추가, 최소 상품가격은 서브쿼리
       let query = supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, rating, created_at, vendor_products(price)");
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, price_range, price_min, price_max, created_at, vendor_products(price, is_active)")
+        .eq("status", "approved");
 
-      if (selectedCategory !== "전체") {
-        query = query.eq("category", selectedCategory);
+      const categoryFilter = CATEGORY_FILTERS.find((filter) => filter.key === selectedCategory);
+      if (categoryFilter && categoryFilter.values.length > 0) {
+        query = query.in("category", categoryFilter.values);
       }
 
       if (searchQuery.trim()) {
@@ -185,11 +252,13 @@ export default function VendorsScreen() {
 
       const mapped = (data ?? []).map((r: Record<string, unknown>) => {
         // 상품 최소 가격 계산
-        const products = Array.isArray(r.vendor_products) ? r.vendor_products as Array<{ price: number }> : [];
-        const prices = products.map((p) => p.price).filter((p) => typeof p === "number" && p > 0);
-        const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+        const products = Array.isArray(r.vendor_products) ? r.vendor_products as Array<{ price: number; is_active?: boolean }> : [];
+        const activeProducts = products.filter((p) => p.is_active !== false);
+        const prices = activeProducts.map((p) => p.price).filter((p) => typeof p === "number" && p > 0);
+        const explicitMinPrice = typeof r.price_min === "number" && r.price_min > 0 ? r.price_min : null;
+        const minPrice = prices.length > 0 ? Math.min(...prices) : explicitMinPrice;
 
-        return {
+        const vendor: VendorTrustInput = {
           id: String(r.id ?? ""),
           name: String(r.name ?? ""),
           category: r.category ? String(r.category) : null,
@@ -201,11 +270,29 @@ export default function VendorsScreen() {
           website: r.website ? String(r.website) : null,
           thumbnail_url: r.thumbnail_url ? String(r.thumbnail_url) : null,
           is_verified: Boolean(r.is_verified),
+          ai_recommend: Boolean(r.ai_recommend),
           rating: typeof r.rating === "number" ? r.rating : null,
+          price_range: r.price_range ? String(r.price_range) : null,
+          price_min: explicitMinPrice,
+          price_max: typeof r.price_max === "number" && r.price_max > 0 ? r.price_max : null,
           min_price: minPrice,
+          product_count: activeProducts.length,
           created_at: r.created_at ? String(r.created_at) : null,
         };
+
+        return {
+          ...vendor,
+          trust_score: scoreVendorTrust(vendor),
+        };
       });
+
+      if (selectedSort === "recommended") {
+        mapped.sort((a, b) => (
+          b.trust_score - a.trust_score
+          || Number(b.rating ?? 0) - Number(a.rating ?? 0)
+          || a.name.localeCompare(b.name)
+        ));
+      }
 
       // 가격낮은순 클라이언트 정렬 (null은 뒤로)
       if (selectedSort === "price_asc") {
@@ -233,8 +320,16 @@ export default function VendorsScreen() {
     Linking.openURL("https://hanbang.ai/vendor/register");
   }
 
+  const verifiedCount = vendors.filter((vendor) => vendor.is_verified).length;
+  const priceKnownCount = vendors.filter((vendor) => getDisplayPrice(vendor) !== "문의 필요").length;
+  const curatedCount = vendors.filter((vendor) => vendor.ai_recommend).length;
+
   function renderVendor({ item }: { item: Vendor }) {
     const isFav = favoriteIds.has(item.id);
+    const category = categoryLabel(item.category);
+    const trustStatus = getTrustStatus(item.trust_score);
+    const priceLabel = getDisplayPrice(item);
+    const hasBookableProducts = item.product_count > 0;
 
     return (
       <Pressable
@@ -253,6 +348,21 @@ export default function VendorsScreen() {
               <Store size={28} color={colors.textTertiary} />
             </View>
           )}
+
+          <View style={s.imageBadges}>
+            {item.ai_recommend ? (
+              <View style={s.imageBadge}>
+                <Sparkles size={12} color={colors.noir[800]} />
+                <Text style={s.imageBadgeText}>한방 큐레이션</Text>
+              </View>
+            ) : null}
+            {item.is_verified ? (
+              <View style={s.imageBadge}>
+                <ShieldCheck size={12} color={colors.noir[800]} />
+                <Text style={s.imageBadgeText}>검증됨</Text>
+              </View>
+            ) : null}
+          </View>
 
           {/* 즐겨찾기 하트 버튼 */}
           <Pressable
@@ -296,9 +406,9 @@ export default function VendorsScreen() {
                 </Text>
               </View>
             </View>
-            {item.category && (
+            {category && (
               <View style={s.catBadge}>
-                <Text style={s.catBadgeText}>{item.category}</Text>
+                <Text style={s.catBadgeText}>{category}</Text>
               </View>
             )}
           </View>
@@ -322,10 +432,38 @@ export default function VendorsScreen() {
             </View>
           )}
 
+          <View style={s.trustGrid}>
+            <View style={s.trustItem}>
+              <ShieldCheck size={15} color={item.is_verified ? colors.success : colors.textTertiary} />
+              <Text style={s.trustLabel}>검증</Text>
+              <Text style={s.trustValue}>{item.is_verified ? "완료" : "확인 전"}</Text>
+            </View>
+            <View style={s.trustDivider} />
+            <View style={s.trustItem}>
+              <WalletCards size={15} color={priceLabel !== "문의 필요" ? colors.rose[500] : colors.textTertiary} />
+              <Text style={s.trustLabel}>가격</Text>
+              <Text style={s.trustValue} numberOfLines={1}>{priceLabel}</Text>
+            </View>
+            <View style={s.trustDivider} />
+            <View style={s.trustItem}>
+              <CalendarCheck size={15} color={hasBookableProducts ? colors.gold.DEFAULT : colors.textTertiary} />
+              <Text style={s.trustLabel}>예약</Text>
+              <Text style={s.trustValue}>{hasBookableProducts ? `상품 ${item.product_count}개` : "문의 필요"}</Text>
+            </View>
+          </View>
+
           {/* 설명 */}
           {item.description && (
             <Text style={s.description} numberOfLines={1}>{item.description}</Text>
           )}
+
+          <View style={s.disclosureRow}>
+            <Info size={13} color={colors.textTertiary} />
+            <Text style={s.disclosureText} numberOfLines={2}>
+              추천순은 검증, 가격 공개, 상품 등록, 평점 신호 기준이며 광고비 기준 정렬이 아니에요.
+            </Text>
+            <StatusPill label={trustStatus.label} tone={trustStatus.tone} />
+          </View>
         </View>
       </Pressable>
     );
@@ -373,21 +511,21 @@ export default function VendorsScreen() {
         <FlatList
           horizontal
           data={CATEGORY_FILTERS}
-          keyExtractor={(item) => item}
+          keyExtractor={(item) => item.key}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20 }}
           renderItem={({ item: cat }) => (
             <Pressable
-              style={[s.filterChip, selectedCategory === cat && s.filterChipActive]}
-              onPress={() => setSelectedCategory(cat)}
+              style={[s.filterChip, selectedCategory === cat.key && s.filterChipActive]}
+              onPress={() => setSelectedCategory(cat.key)}
             >
               <Text
                 style={[
                   s.filterChipText,
-                  selectedCategory === cat && s.filterChipTextActive,
+                  selectedCategory === cat.key && s.filterChipTextActive,
                 ]}
               >
-                {cat}
+                {cat.label}
               </Text>
             </Pressable>
           )}
@@ -419,6 +557,38 @@ export default function VendorsScreen() {
           )}
         />
       </View>
+
+      {!loading && !error && (
+        <Surface style={s.trustPanel}>
+          <View style={s.trustPanelTop}>
+            <View style={s.trustPanelIcon}>
+              <ShieldCheck size={18} color={colors.rose[500]} />
+            </View>
+            <View style={s.trustPanelCopy}>
+              <Text style={s.trustPanelEyebrow}>TRUSTED DISCOVERY</Text>
+              <Text style={s.trustPanelTitle}>광고보다 검증 신호를 먼저 봐요</Text>
+              <Text style={s.trustPanelText}>
+                추천순은 검증, 가격 공개, 등록 상품, 평점 정보를 기준으로 정렬됩니다.
+              </Text>
+            </View>
+            <StatusPill label="광고비 정렬 아님" tone="neutral" />
+          </View>
+          <View style={s.trustStatsRow}>
+            <View style={s.trustStat}>
+              <Text style={s.trustStatValue}>{verifiedCount}</Text>
+              <Text style={s.trustStatLabel}>검증</Text>
+            </View>
+            <View style={s.trustStat}>
+              <Text style={s.trustStatValue}>{priceKnownCount}</Text>
+              <Text style={s.trustStatLabel}>가격 공개</Text>
+            </View>
+            <View style={s.trustStat}>
+              <Text style={s.trustStatValue}>{curatedCount}</Text>
+              <Text style={s.trustStatLabel}>큐레이션</Text>
+            </View>
+          </View>
+        </Surface>
+      )}
 
       {/* 업체 목록 */}
       {loading ? (
@@ -539,6 +709,70 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
 
+  trustPanel: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 16,
+  },
+  trustPanelTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  trustPanelIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.rose.glow,
+  },
+  trustPanelCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  trustPanelEyebrow: {
+    fontSize: 10,
+    letterSpacing: 0,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textTertiary,
+  },
+  trustPanelTitle: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  trustPanelText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  trustStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 14,
+  },
+  trustStat: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 2,
+  },
+  trustStatValue: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: colors.noir[800],
+  },
+  trustStatLabel: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+
   // 목록
   listContent: { padding: 20, paddingTop: 4, paddingBottom: 100 },
 
@@ -564,6 +798,29 @@ const s = StyleSheet.create({
   thumbnailPlaceholder: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  imageBadges: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    right: 54,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  imageBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  imageBadgeText: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
   },
 
   // 즐겨찾기 하트 버튼
@@ -641,11 +898,58 @@ const s = StyleSheet.create({
   },
   tagText: { fontSize: 11, color: colors.textSecondary, fontFamily: "NotoSansKR_400Regular" },
 
+  trustGrid: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  trustItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 4,
+  },
+  trustDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: 4,
+  },
+  trustLabel: {
+    fontSize: 10,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+  },
+  trustValue: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    textAlign: "center",
+  },
+
   description: {
     fontSize: 12,
     color: colors.textTertiary,
     lineHeight: 18,
     fontFamily: "NotoSansKR_400Regular",
+    marginBottom: 10,
+  },
+  disclosureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 10,
+  },
+  disclosureText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
   },
 
   // 빈 상태
