@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { normalizeEmailForRateLimit } from "../turnstile";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { normalizeEmailForRateLimit, verifyTurnstile } from "../turnstile";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("normalizeEmailForRateLimit — 이메일 폭탄 우회 방어", () => {
   it("기본: trim + lowercase", () => {
@@ -40,5 +44,29 @@ describe("normalizeEmailForRateLimit — 이메일 폭탄 우회 방어", () => 
 
   it("@ 없는 입력은 그대로 소문자화만", () => {
     expect(normalizeEmailForRateLimit("notanemail")).toBe("notanemail");
+  });
+});
+
+describe("verifyTurnstile — production guard", () => {
+  it("allows local no-op when the secret is missing", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "");
+
+    await expect(verifyTurnstile(undefined)).resolves.toEqual({
+      ok: true,
+      skipped: true,
+    });
+  });
+
+  it("fails closed in production when the secret is missing", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "");
+
+    await expect(verifyTurnstile(undefined)).resolves.toEqual({
+      ok: false,
+      skipped: false,
+    });
   });
 });

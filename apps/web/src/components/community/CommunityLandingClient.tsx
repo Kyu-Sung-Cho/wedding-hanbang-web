@@ -48,6 +48,7 @@ import type {
   TimePeriod,
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
+import { communityPostLinkProps, communityPostUrl, isCommunityCategory } from "@/lib/community/routes";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import {
   FLEX_COHORT_MONTH,
@@ -225,9 +226,7 @@ export default function CommunityLandingClient({
   const sortQuery = initialQuery.sort ?? "";
   const periodQuery = initialQuery.period ?? "";
   const feedQuery = initialQuery.feed ?? "";
-  const selectedCategory = categoryQuery in CATEGORY_MAP
-    ? (categoryQuery as CommunityCategory)
-    : null;
+  const selectedCategory = isCommunityCategory(categoryQuery) ? categoryQuery : null;
 
   const posts = useCommunityStore((s) => s.posts);
   const isLoading = useCommunityStore((s) => s.isLoading);
@@ -980,7 +979,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   async function handleShare(event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    const url = `${window.location.origin}${weddingPath(`/community/post/${post.id}`)}`;
+    const url = communityPostUrl(window.location.origin, post.id);
     if (navigator.share) {
       try {
         await navigator.share({ title: post.title, url });
@@ -999,7 +998,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
 
   return (
     <Link
-      {...weddingLinkProps(`/community/post/${post.id}`)}
+      {...communityPostLinkProps(post.id)}
       className={`relative grid gap-2.5 py-2 first:pt-0 last:pb-0 sm:gap-3 ${
         imageUrl
           ? "grid-cols-[minmax(0,1fr)_72px] sm:grid-cols-[minmax(0,1fr)_104px] xl:grid-cols-[minmax(0,1fr)_112px]"
@@ -1171,7 +1170,7 @@ function BestPostsPanel() {
           {posts.map((post, index) => (
             <li key={post.id}>
               <Link
-                {...weddingLinkProps(`/community/post/${post.id}`)}
+                {...communityPostLinkProps(post.id)}
                 className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
               >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">

@@ -119,11 +119,11 @@ export default function VendorsPage() {
   // 통계치 (현재 로드된 목록 기반)
   const totalCount = vendors.length;
   const favoritesCount = favoriteIds.size;
-  const newVendorsCount = useMemo(() => {
+  const curatedVendorsCount = useMemo(() => {
     return vendors.filter((v) => v.aiRecommend).length;
   }, [vendors]);
 
-  // AI 추천 로직: 유저 선호도 매칭 기반 TOP 3
+  // AI 맞춤 추천 로직: 유저 선호도와 공개 품질 지표 기반 TOP 3
   const { journey } = useAuthStore();
   const userPrefs = useMemo(() => {
     return ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
@@ -165,10 +165,7 @@ export default function VendorsPage() {
       if (v.rating >= 4.5) score += 2;
       else if (v.rating >= 4.0) score += 1;
 
-      // 3. ai_recommend flag (시드 기본 추천, +1)
-      if (v.aiRecommend) score += 1;
-
-      // 4. 예산 성향 매칭 (+2)
+      // 3. 예산 성향 매칭 (+2)
       // premium → 고가 업체, 절약 → 저가 업체
       // 가격은 상품 기준이라 간단히 패스
 
@@ -233,16 +230,16 @@ export default function VendorsPage() {
           <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:col-span-2 md:col-span-1 md:p-5">
             <TrendingUp className="absolute top-4 right-4 h-5 w-5 text-[#36534E]/25" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-              NEW THIS WEEK
+              HANBANG CURATED
             </p>
             <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              {newVendorsCount || "—"}
+              {curatedVendorsCount || "—"}
             </p>
-            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">이번 주 신규</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">검토된 후보</p>
           </div>
         </div>
 
-        {/* AI 추천 안내 배너 — 선호도 없으면 설정 유도 */}
+        {/* 맞춤 추천 안내 배너 — 선호도 없으면 설정 유도 */}
         {aiRecommendedIds.size === 0 && (
           <div className="mb-5 flex flex-col items-start justify-between gap-4 rounded-[18px] border border-[#eadfc9] bg-[#fffdf7]/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:flex-row sm:items-center sm:p-5">
             <div className="flex items-start sm:items-center gap-4 min-w-0">
@@ -254,7 +251,7 @@ export default function VendorsPage() {
                   AI 맞춤 추천을 받아보세요
                 </h3>
                 <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
-                  예산과 웨딩 스타일을 알려주시면 어울리는 업체에 ✨ AI 추천 뱃지가 표시돼요
+                  예산과 웨딩 스타일을 알려주시면 어울리는 업체에 맞춤 추천 뱃지가 표시돼요
                 </p>
               </div>
             </div>
@@ -348,7 +345,13 @@ export default function VendorsPage() {
                         {aiRecommendedIds.has(vendor.id) && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-lg">
                             <Sparkles className="w-3.5 h-3.5" />
-                            AI 추천
+                            맞춤 추천
+                          </span>
+                        )}
+                        {!aiRecommendedIds.has(vendor.id) && vendor.aiRecommend && (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/95 text-[#36534E] text-sm font-medium shadow-lg ring-1 ring-[#d9e4dc]">
+                            <Star className="w-3.5 h-3.5" />
+                            한방 큐레이션
                           </span>
                         )}
                         {hasSlots && (

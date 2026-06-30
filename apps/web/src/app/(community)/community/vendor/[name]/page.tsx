@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { VendorTagInfo, PostWithAuthor } from "@/types/community.types";
 
@@ -336,7 +337,7 @@ export default function VendorDetailPage() {
               return (
                 <Link
                   key={post.id}
-                  href={weddingPath(`/community/post/${post.id}`)}
+                  href={communityPostPath(post.id)}
                   className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[#36534E] transition"
                 >
                   <div className="flex items-center gap-2 text-sm text-[#B5ADA3] mb-2">

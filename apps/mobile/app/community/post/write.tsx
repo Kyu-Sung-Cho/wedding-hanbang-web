@@ -1,7 +1,7 @@
 // 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 이미지 첨부 + 미리보기
 import { useState } from "react";
 import {
-  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Keyboard, Image,
+  View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Image,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";

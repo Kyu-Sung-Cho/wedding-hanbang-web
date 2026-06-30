@@ -17,8 +17,7 @@
 //   - 예외 전부 내부 삼킴
 // =============================================
 
-import Anthropic from "@anthropic-ai/sdk";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 import type { StageTag } from "@/types/moat.types";
 
 const CLASSIFY_MODEL = "claude-haiku-4-5-20251001";
@@ -80,10 +79,10 @@ interface ClassifyResult {
 
 async function classifyWithHaiku(
   userText: string,
-  aiText: string
+  aiText: string,
+  audit: { userId?: string | null; coupleId: string; stageTag?: StageTag | null }
 ): Promise<ClassifyResult | null> {
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
     const truncatedUser =
       userText.length > MAX_USER_CHARS ? userText.slice(0, MAX_USER_CHARS) + "…" : userText;
     const truncatedAi =
@@ -91,11 +90,23 @@ async function classifyWithHaiku(
 
     const conversation = `사용자: ${truncatedUser}\n\n아모라: ${truncatedAi}`;
 
-    const response = await anthropic.messages.create({
-      model: CLASSIFY_MODEL,
-      max_tokens: 200,
-      system: CLASSIFY_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: conversation }],
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: CLASSIFY_MODEL,
+        max_tokens: 200,
+        system: CLASSIFY_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: conversation }],
+      },
+      audit: {
+        userId: audit.userId ?? null,
+        coupleId: audit.coupleId,
+        interactionType: "chat_turn",
+        userInput: null,
+        metadata: {
+          endpoint: "chat/classify-excavation",
+          stage_tag: audit.stageTag ?? null,
+        },
+      },
     });
 
     const firstBlock = response.content[0];
@@ -162,33 +173,12 @@ export async function maybeClassifyExcavation(
     // AI 응답이 너무 짧으면 기법 적용 가능성 낮음 (도구 카드 트리거, 단답 등)
     if (aiText.length < 30) return;
 
-    const startedAt = startLatencyClock();
-    const result = await classifyWithHaiku(userText, aiText);
-    if (!result) return;
-
-    void logAIInteraction({
+    const result = await classifyWithHaiku(userText, aiText, {
       userId: input.userId ?? null,
       coupleId: input.coupleId,
-      interactionType: "chat_turn",
-      userInput: null,
-      aiOutput: JSON.stringify({
-        technique: result.technique,
-        confidence: result.confidence,
-        evidence: result.evidence,
-      }),
-      latencyMs: elapsedMs(startedAt),
-      success: true,
-      model: CLASSIFY_MODEL,
-      tokensInput: result.usage?.input_tokens,
-      tokensOutput: result.usage?.output_tokens,
-      metadata: {
-        endpoint: "chat/classify-excavation",
-        excavation_technique: result.technique,
-        confidence: result.confidence,
-        evidence: result.evidence,
-        stage_tag: input.stageTag ?? null,
-      },
+      stageTag: input.stageTag ?? null,
     });
+    if (!result) return;
   } catch (err) {
     console.error("[classify-excavation] 예외 (무시):", err);
   }

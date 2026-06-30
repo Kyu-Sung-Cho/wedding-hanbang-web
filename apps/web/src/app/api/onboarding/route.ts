@@ -293,7 +293,6 @@ export async function POST(request: Request) {
       }
 
       const trimmedCode = partnerInviteCode.trim().toUpperCase();
-      console.log("[온보딩 조인] 코드 조회 시작:", trimmedCode);
 
       // 1. 초대 코드로 커플 찾기
       const { data: couple, error: findError } = await admin
@@ -311,14 +310,11 @@ export async function POST(request: Request) {
       }
 
       if (!couple) {
-        console.error("[온보딩 조인] 코드에 해당하는 커플 없음:", trimmedCode);
         return NextResponse.json(
           { error: "유효하지 않은 초대 코드입니다. 코드를 다시 확인해주세요." },
           { status: 404 }
         );
       }
-
-      console.log("[온보딩 조인] 커플 찾음:", couple.id, "bride:", couple.bride_id, "groom:", couple.groom_id);
 
       // 2. 자기 자신의 코드인지 확인
       if (couple.bride_id === user.id || couple.groom_id === user.id) {
@@ -435,7 +431,6 @@ export async function POST(request: Request) {
         }
       }
 
-      console.log("[온보딩 조인] 완료! coupleId:", coupleId);
       }
     }
 

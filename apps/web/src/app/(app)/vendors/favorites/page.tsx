@@ -143,9 +143,9 @@ export default function VendorFavoritesPage() {
                     </div>
                     <div className="absolute top-3 left-3 flex gap-2">
                       {vendor.aiRecommend && (
-                        <span className="flex items-center gap-1.5 rounded-full bg-[#36534E] px-3 py-1.5 text-[12px] font-semibold text-white">
+                        <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#36534E] shadow-sm ring-1 ring-[#d9e4dc]">
                           <Sparkles className="w-4 h-4" />
-                          AI 추천
+                          한방 큐레이션
                         </span>
                       )}
                       {hasSlots && (

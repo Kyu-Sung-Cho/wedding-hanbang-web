@@ -346,8 +346,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <span className="text-base text-[#B5ADA3] font-light">{vendor.category} 대표 사진</span>
               <div className="absolute top-3 left-3 flex gap-2">
                 {vendor.aiRecommend && (
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-sm">
-                    <Sparkles className="w-4 h-4" />AI 추천
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-[#36534E] text-sm font-medium shadow-sm ring-1 ring-[#d9e4dc]">
+                    <Sparkles className="w-4 h-4" />한방 큐레이션
                   </span>
                 )}
               </div>

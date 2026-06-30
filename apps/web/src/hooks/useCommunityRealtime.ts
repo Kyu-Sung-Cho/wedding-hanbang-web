@@ -21,7 +21,7 @@ export function useCommunityRealtime() {
         { event: "INSERT", schema: "public", table: "community_posts" },
         async (payload) => {
           const newPost = payload.new as Record<string, unknown>;
-          if (!newPost.id || newPost.visibility === "draft") return;
+          if (!newPost.id || newPost.visibility === "draft" || newPost.under_review === true) return;
 
           // author 프로필 조회
           const { data: profile } = await supabase
@@ -48,20 +48,22 @@ export function useCommunityRealtime() {
         (payload) => {
           const updated = payload.new as Record<string, unknown>;
           useCommunityStore.setState((s) => ({
-            posts: s.posts.map((p) =>
-              p.id === updated.id
-                ? {
-                    ...p,
-                    upvote_count: (updated.upvote_count as number) ?? p.upvote_count,
-                    downvote_count: (updated.downvote_count as number) ?? p.downvote_count,
-                    comment_count: (updated.comment_count as number) ?? p.comment_count,
-                    view_count: (updated.view_count as number) ?? p.view_count,
-                    title: (updated.title as string) ?? p.title,
-                    is_pinned: (updated.is_pinned as boolean) ?? p.is_pinned,
-                    is_weekly_best: (updated.is_weekly_best as boolean) ?? p.is_weekly_best,
-                  }
-                : p
-            ),
+            posts: updated.under_review === true || updated.visibility === "draft"
+              ? s.posts.filter((p) => p.id !== updated.id)
+              : s.posts.map((p) =>
+                  p.id === updated.id
+                    ? {
+                        ...p,
+                        upvote_count: (updated.upvote_count as number) ?? p.upvote_count,
+                        downvote_count: (updated.downvote_count as number) ?? p.downvote_count,
+                        comment_count: (updated.comment_count as number) ?? p.comment_count,
+                        view_count: (updated.view_count as number) ?? p.view_count,
+                        title: (updated.title as string) ?? p.title,
+                        is_pinned: (updated.is_pinned as boolean) ?? p.is_pinned,
+                        is_weekly_best: (updated.is_weekly_best as boolean) ?? p.is_weekly_best,
+                      }
+                    : p
+                ),
           }));
         }
       )

@@ -11,15 +11,23 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.taupe[400],
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 84,
-          paddingTop: 8,
+          borderTopWidth: 0,
+          height: 86,
+          paddingTop: 10,
           paddingBottom: 24,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -8 },
+          shadowOpacity: 0.06,
+          shadowRadius: 24,
+          elevation: 12,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: "500",
+          fontFamily: "NotoSansKR_500Medium",
+        },
+        tabBarItemStyle: {
+          borderRadius: 18,
+          marginHorizontal: 3,
         },
       }}
     >

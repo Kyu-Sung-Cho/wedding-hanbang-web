@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, Alert,
+  KeyboardAvoidingView, Platform, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Send, Sparkles, Heart } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 
 interface ChatMessage {
   id: string;
@@ -172,7 +173,7 @@ export default function ChatScreen() {
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
         <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 웨딩 플래너</Text></View></View>
-        {messages.length > 0 && <Text style={st.badge}>{messages.length}</Text>}
+        {messages.length > 0 && <StatusPill label={`${messages.length}`} tone="neutral" />}
       </View>
 
       <View style={st.targetRow}>
@@ -182,7 +183,16 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {messages.length === 0 && initialLoaded ? (
-          <View style={st.empty}><View style={st.emptyLogo}><Sparkles size={28} color={colors.gold.DEFAULT} /></View><Text style={st.emptyTitle}>안녕하세요, 아모라예요</Text><Text style={st.emptyDesc}>결혼 준비 뭐든 물어보세요.{"\n"}파트너에게도 메시지를 보낼 수 있어요.</Text>
+          <View style={st.empty}>
+            <EmptyState
+              icon={
+                <IconBadge tone="noir" size={64}>
+                  <Sparkles size={28} color={colors.gold.DEFAULT} />
+                </IconBadge>
+              }
+              title="안녕하세요, 아모라예요"
+              description={"결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."}
+            />
             <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { setTarget("ai"); setInput(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
           </View>
         ) : (
@@ -209,7 +219,6 @@ const st = StyleSheet.create({
   headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerSub: { fontSize: 11, color: colors.textTertiary },
-  badge: { fontSize: 12, color: colors.textTertiary, backgroundColor: colors.ivory[200], paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   targetBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
@@ -218,9 +227,6 @@ const st = StyleSheet.create({
   targetTextActive: { color: colors.noir[800], fontWeight: "600" },
   targetTextPartner: { color: colors.rose[500], fontWeight: "600" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-  emptyLogo: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  emptyTitle: { fontSize: 22, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800], marginBottom: 8 },
-  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 28 },
   suggestions: { width: "100%", gap: 8 },
   sugBtn: { paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   sugText: { fontSize: 14, color: colors.noir[800] },

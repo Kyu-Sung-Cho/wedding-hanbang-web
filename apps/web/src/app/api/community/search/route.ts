@@ -1,9 +1,10 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
+import { isCommunityCategory } from "@/lib/community/routes";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
-import type { CommunityCategory } from "@/types/community.types";
 
 type CommunityPostWithAuthorId = {
   id: string;
@@ -70,7 +71,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const q = searchParams.get("q");
-    const category = searchParams.get("category") as CommunityCategory | null;
+    const categoryParam = searchParams.get("category");
+    const category = isCommunityCategory(categoryParam) ? categoryParam : null;
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
@@ -109,7 +111,8 @@ export async function GET(req: NextRequest) {
         type: "plain",
         config: "simple",
       })
-      .eq("visibility", "public")
+      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -136,7 +139,8 @@ export async function GET(req: NextRequest) {
         .from("community_posts")
         .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
-        .eq("visibility", "public")
+        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 

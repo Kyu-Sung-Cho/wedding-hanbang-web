@@ -14,8 +14,7 @@
  *  ChatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { elapsedMs, logAIInteraction, startLatencyClock } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const FAST_MODEL = "claude-haiku-4-5-20251001";
 
@@ -351,8 +350,6 @@ async function verifyWithLLM(
     return { isConflict: false, reason: "ANTHROPIC_API_KEY 없음 — LLM 검증 스킵" };
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   // 최근 10개만 + 라벨링
   const formatted = coupleMessages
     .slice(-10)
@@ -380,34 +377,28 @@ ${formatted}
 응답은 정확히 한 줄 JSON만:
 {"conflict": true|false, "reason": "한국어 한 줄로 판단 이유 (30자 이내)"}`;
 
-  const startedAt = startLatencyClock();
   try {
-    const res = await client.messages.create({
-      model: FAST_MODEL,
-      max_tokens: 100,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
+    const res = await createAnthropicMessageWithAudit({
+      params: {
+        model: FAST_MODEL,
+        max_tokens: 100,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0,
+      },
+      audit: {
+        userId: audit?.userId ?? null,
+        coupleId: audit?.coupleId ?? null,
+        interactionType: "chat_turn",
+        userInput: formatted,
+        metadata: { source: "conflict_detector_verify" },
+      },
     });
 
     const text = res.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("")
       .trim();
-
-    void logAIInteraction({
-      userId: audit?.userId ?? null,
-      coupleId: audit?.coupleId ?? null,
-      interactionType: "chat_turn",
-      userInput: formatted,
-      aiOutput: text,
-      latencyMs: elapsedMs(startedAt),
-      success: true,
-      model: FAST_MODEL,
-      tokensInput: res.usage?.input_tokens ?? null,
-      tokensOutput: res.usage?.output_tokens ?? null,
-      metadata: { source: "conflict_detector_verify" },
-    });
 
     // JSON 추출 — 응답 앞뒤에 다른 텍스트 있을 수 있어 robust 파싱
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -420,18 +411,6 @@ ${formatted}
       reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 80) : "이유 없음",
     };
   } catch (err) {
-    void logAIInteraction({
-      userId: audit?.userId ?? null,
-      coupleId: audit?.coupleId ?? null,
-      interactionType: "chat_turn",
-      userInput: formatted,
-      aiOutput: null,
-      latencyMs: elapsedMs(startedAt),
-      success: false,
-      errorMessage: err instanceof Error ? err.message : String(err),
-      model: FAST_MODEL,
-      metadata: { source: "conflict_detector_verify" },
-    });
     return {
       isConflict: false,
       reason: `LLM 검증 에러: ${err instanceof Error ? err.message : String(err)}`,

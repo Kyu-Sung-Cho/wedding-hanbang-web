@@ -8,7 +8,7 @@ const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 export function initSentry() {
   if (!dsn) {
     if (__DEV__) {
-      console.log("[Sentry] DSN 없음 — Sentry 비활성화 (개발 중)");
+      console.warn("[Sentry] DSN 없음 — Sentry 비활성화 (개발 중)");
     }
     return;
   }

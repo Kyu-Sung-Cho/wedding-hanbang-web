@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated, Keyboard,
+  Animated,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";

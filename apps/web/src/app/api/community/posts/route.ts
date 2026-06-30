@@ -4,11 +4,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
 import {
+  getCommunityNicknameFallback,
+  getSafeDefaultCommunityNickname,
+  isCommunityNicknameUniqueViolation,
+} from "@/lib/community/nickname";
+import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
   validateCommunityMediaUrl,
 } from "@/lib/community/mediaUrls";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import {
+  PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
+  communityReadablePostOrFilter,
+} from "@/lib/community/publicPostRules";
+import { isCommunityCategory } from "@/lib/community/routes";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type {
@@ -59,7 +69,8 @@ export async function GET(req: NextRequest) {
     const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
 
-    const category = searchParams.get("category") as CommunityCategory | null;
+    const categoryParam = searchParams.get("category");
+    const category = isCommunityCategory(categoryParam) ? categoryParam : null;
     const sort = (searchParams.get("sort") ?? "hot") as PostSort;
     const period = (searchParams.get("period") ?? "week") as TimePeriod;
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
@@ -128,13 +139,13 @@ export async function GET(req: NextRequest) {
       query = query.in("id", bookmarkedIds);
     }
 
-    // visibility 필터: public은 항상, members는 인증 시, draft는 본인만
+    // 공개/멤버/작성자 전용 visibility와 under_review 규칙은 단일 Module에서 관리한다.
     if (user) {
-      query = query.or(
-        `visibility.eq.public,visibility.eq.members,and(visibility.eq.draft,author_id.eq.${user.id})`
-      );
+      query = query.or(communityReadablePostOrFilter(user.id));
     } else {
-      query = query.eq("visibility", "public");
+      query = query
+        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
     }
 
     // 정렬 + my_cohort / my_posts 필터
@@ -543,16 +554,30 @@ export async function POST(req: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const nickname = userProfile?.name ?? "익명";
-
-      await serviceClient.from("community_profiles").insert({
+      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
+      const fallbackNickname = getCommunityNicknameFallback(user.id);
+      const createProfilePayload = {
         user_id: user.id,
         nickname,
         badge: "member",
         post_count: 0,
         comment_count: 0,
         total_upvotes_received: 0,
-      });
+      };
+
+      const { error: profileInsertError } = await serviceClient
+        .from("community_profiles")
+        .insert(createProfilePayload);
+
+      if (
+        profileInsertError &&
+        isCommunityNicknameUniqueViolation(profileInsertError) &&
+        nickname !== fallbackNickname
+      ) {
+        await serviceClient
+          .from("community_profiles")
+          .insert({ ...createProfilePayload, nickname: fallbackNickname });
+      }
     }
 
     // 게시글 생성

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
@@ -65,17 +66,17 @@ export async function GET(
       );
     }
 
-    // visibility 체크
-    if (post.visibility === "draft" && post.author_id !== user?.id) {
+    const userIsAdmin = user ? await isAdmin(user.id) : false;
+    const canReadPost = canReadCommunityPost(post, {
+      userId: user?.id ?? null,
+      isAdmin: userIsAdmin,
+    });
+
+    if (!canReadPost) {
+      const requiresLogin = post.visibility === "members" && !user && post.under_review !== true;
       return NextResponse.json(
-        { error: "게시글을 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
-    if (post.visibility === "members" && !user) {
-      return NextResponse.json(
-        { error: "로그인이 필요합니다." },
-        { status: 401 }
+        { error: requiresLogin ? "로그인이 필요합니다." : "게시글을 찾을 수 없습니다." },
+        { status: requiresLogin ? 401 : 404 }
       );
     }
 

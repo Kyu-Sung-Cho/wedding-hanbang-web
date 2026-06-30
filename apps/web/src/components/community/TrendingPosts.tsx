@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { weddingPath } from "@/lib/weddingPaths";
+import { communityPostPath } from "@/lib/community/routes";
 import { withSessionCache } from "@/utils/sessionCache";
 
 interface TrendingPost {
@@ -78,7 +78,7 @@ export default function TrendingPosts() {
       <ul className="space-y-4">
         {posts.map((p, i) => (
           <li key={p.id} className="group cursor-pointer">
-            <Link href={weddingPath(`/community/post/${p.id}`)} className="flex items-start space-x-3">
+            <Link href={communityPostPath(p.id)} className="flex items-start space-x-3">
               <span
                 className={`text-[#36534E] font-serif-kr italic text-xl leading-none mt-0.5 ${
                   i === 0

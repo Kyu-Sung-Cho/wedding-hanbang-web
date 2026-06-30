@@ -8,10 +8,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
+import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { AppHeader, LoadingState } from "@/components/ui/AppUI";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -213,15 +214,21 @@ export default function BudgetScreen() {
     );
   }
 
-  if (loading) return <SafeAreaView style={s.container}><ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} /></SafeAreaView>;
+  if (loading) {
+    return (
+      <SafeAreaView style={s.container}>
+        <LoadingState label="예산 현황을 불러오고 있어요" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><ArrowLeft size={24} color={colors.noir[800]} /></Pressable>
-        <Text style={s.headerTitle}>예산 관리</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader
+        title="예산 관리"
+        subtitle="지출, 분담, 숨은 비용을 함께 봐요"
+        onBack={() => router.back()}
+      />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />}>
@@ -370,8 +377,6 @@ export default function BudgetScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerTitle: { fontSize: 18, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
   content: { padding: 20, paddingBottom: 40 },
   totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
   totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400], marginBottom: 8 },

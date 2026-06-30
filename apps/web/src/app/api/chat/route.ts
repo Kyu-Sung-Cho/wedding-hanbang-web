@@ -1,11 +1,13 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
 import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
+import { extractSuggestions } from "@/lib/ai/chatSuggestions";
+import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
@@ -17,7 +19,7 @@ import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -34,10 +36,7 @@ const MAX_EXTRACTED_TEXT_CHARS = 80_000;
 
 // Service role 클라이언트 (RLS 우회 — 자동 피드백 저장용)
 function getServiceClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 // AI 메시지를 chat_messages에 INSERT — client_request_id 기반 idempotency
@@ -133,56 +132,6 @@ async function insertAiMessageWithIdempotency(params: {
   }
 }
 
-// --- Part 2: 불만족 자동 감지 ---
-interface DissatisfactionResult {
-  detected: boolean;
-  signal: string;
-}
-
-function detectDissatisfaction(
-  userMessage: string,
-  previousAiMessage?: string
-): DissatisfactionResult | null {
-  const msg = userMessage.trim();
-
-  // 수정 시그널: "아니", "아닌데", "그게 아니라", "아 그게 아니고"
-  if (/^아니[요.]?$|아닌데|그게\s*아니라|아\s*그게\s*아니고|아니거든/.test(msg)) {
-    return { detected: true, signal: "correction" };
-  }
-
-  // 재시도 시그널: "다시", "다시 해줘", "다시 말해줘"
-  if (/다시\s*(해|말해|알려|설명|해줘|해봐|말해줘)/.test(msg) || /^다시$/.test(msg)) {
-    return { detected: true, signal: "retry" };
-  }
-
-  // 좌절 시그널: "이해를 못하네", "말을 못 알아듣네"
-  if (/이해를?\s*못\s*(하|알아듣)|말을?\s*못\s*알아듣|알아듣지?\s*못/.test(msg)) {
-    return { detected: true, signal: "frustration" };
-  }
-
-  // 부정 시그널: "쓸모없", "도움이 안", "별로"
-  if (/쓸모\s*없|도움이?\s*안\s*(되|됨|돼)|별로|소용\s*없/.test(msg)) {
-    return { detected: true, signal: "negative" };
-  }
-
-  // 혼란 시그널: 이전 AI 응답이 길었는데(100자+) 사용자가 "?"만 보낸 경우
-  if (msg === "?" && previousAiMessage && previousAiMessage.length > 100) {
-    return { detected: true, signal: "confusion" };
-  }
-
-  // 이탈 시그널: AI가 상세 답변(200자+) 했는데 매우 짧은 응답("ㅇㅇ", "ㅋ", "아" 등)
-  const shortDisengagePatterns = /^(ㅇㅇ|ㅋ+|ㅎ+|아|응|넵|네|음|흠|그래|ok|ㅇ|아하)$/i;
-  if (
-    shortDisengagePatterns.test(msg) &&
-    previousAiMessage &&
-    previousAiMessage.length > 200
-  ) {
-    return { detected: true, signal: "disengagement" };
-  }
-
-  return null;
-}
-
 // 자동 피드백 저장 (비동기, 에러 무시 — 채팅 흐름 방해 금지)
 async function autoSaveDissatisfaction(params: {
   userId: string;
@@ -205,36 +154,6 @@ async function autoSaveDissatisfaction(params: {
   } catch (err) {
     console.error("자동 불만족 피드백 저장 실패 (무시됨):", err);
   }
-}
-
-// Claude 응답에서 [suggestions] 블록 추출 (백틱 있든 없든 모두 처리)
-function extractSuggestions(text: string): { cleanText: string; suggestions: string[] } {
-  const patterns = [
-    /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/,
-    /\[suggestions\]\n([\s\S]*?)\[\/suggestions\]/,
-    /```\n?\[suggestion\]\n([\s\S]*?)\[\/suggestion\]\n?```/i,
-    /\[suggestion\]\n([\s\S]*?)\[\/suggestion\]/i,
-  ];
-
-  for (const regex of patterns) {
-    const match = text.match(regex);
-    if (match) {
-      const suggestions = match[1]
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const cleanText = stripSuggestionArtifacts(text.replace(regex, "")).trim();
-      return { cleanText, suggestions };
-    }
-  }
-
-  return { cleanText: stripSuggestionArtifacts(text).trim(), suggestions: [] };
-}
-
-function stripSuggestionArtifacts(text: string): string {
-  return text
-    .replace(/^\s*\[(?:suggestion|suggestions|추천(?:\s*질문|\s*대화)?)\]\s*$/gim, "")
-    .replace(/\[(?:\/suggestion|\/suggestions)\]/gi, "");
 }
 
 // DOCX에서 텍스트 추출 (동적 import)
@@ -458,7 +377,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
-  const limited = checkRateLimit(rateLimitKey("chat", request, user.id), {
+  const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
     maxRequests: 60,
     windowMs: 60 * 60 * 1000,
   });

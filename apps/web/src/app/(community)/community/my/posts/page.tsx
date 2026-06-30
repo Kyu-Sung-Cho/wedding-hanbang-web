@@ -8,6 +8,7 @@ import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import { timeAgo } from "@/utils/timeAgo";
 
@@ -271,7 +272,7 @@ export default function MyPostsPage() {
                         </span>
                       )}
                     </div>
-                    <Link href={weddingPath(`/community/post/${post.id}`)} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
+                    <Link href={communityPostPath(post.id)} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
                       {post.title}
                     </Link>
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-[#B5ADA3]">

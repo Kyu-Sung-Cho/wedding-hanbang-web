@@ -2,12 +2,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Platform, Animated, Easing, Keyboard,
+  Alert, ActivityIndicator, Platform, Animated, Easing,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ArrowRight, Heart, User, Calendar, CheckCircle2, Sparkles, Check } from "lucide-react-native";
+import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 

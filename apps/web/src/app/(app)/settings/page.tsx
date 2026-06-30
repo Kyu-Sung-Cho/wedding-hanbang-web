@@ -22,7 +22,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
+import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
   PriorityItem,
@@ -68,13 +70,18 @@ type WeddingPreferenceState = Partial<{
   guestCount: GuestCount | null;
 }>;
 
+type ProfileUpdateResponse = {
+  profile?: Profile;
+  error?: string;
+};
+
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
+  const { profile, partner, couple, journey, isDemo, signOut, updateJourney } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
@@ -87,6 +94,7 @@ export default function SettingsPage() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [editingVenue, setEditingVenue] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [nameError, setNameError] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [venueInput, setVenueInput] = useState("");
@@ -154,9 +162,31 @@ export default function SettingsPage() {
   const saveName = async () => {
     if (!nameInput.trim()) return;
     setSaving(true);
-    await updateProfile({ name: nameInput.trim() });
-    setSaving(false);
-    setEditingName(false);
+    setNameError("");
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameInput.trim(),
+          sync_community_nickname: true,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as ProfileUpdateResponse;
+      if (!res.ok) {
+        setNameError(data.error ?? "이름 저장에 실패했습니다.");
+        return;
+      }
+      if (data.profile) {
+        useAuthStore.setState({ profile: data.profile });
+        useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
+      }
+      setEditingName(false);
+    } catch {
+      setNameError("이름 저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 날짜 저장
@@ -334,21 +364,27 @@ export default function SettingsPage() {
           </div>
           <div className="flex-1">
             {editingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && saveName()}
-                  className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
-                  autoFocus
-                />
-                <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
-                  <Save className="w-5 h-5" />
-                </button>
-                <button onClick={() => setEditingName(false)} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
-                  <X className="w-5 h-5" />
-                </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => {
+                      setNameInput(e.target.value);
+                      setNameError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && saveName()}
+                    className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
+                    autoFocus
+                  />
+                  <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                    <Save className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                {nameError && <p className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -359,7 +395,7 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
-                  onClick={() => { setNameInput(userName); setEditingName(true); }}
+                  onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
@@ -721,7 +757,7 @@ export default function SettingsPage() {
           {[
             { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
             { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
-            { key: "ai" as const, label: "AI 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
+            { key: "ai" as const, label: "맞춤 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
             { key: "marketing" as const, label: "마케팅 알림", desc: "이벤트, 할인 정보" },
           ].map((item) => (
             <div

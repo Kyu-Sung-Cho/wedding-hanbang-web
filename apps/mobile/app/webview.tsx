@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, Pressable, ActivityIndicator,
-  Share, Linking, Platform, RefreshControl, ScrollView,
+  Share, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";

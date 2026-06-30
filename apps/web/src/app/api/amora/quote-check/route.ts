@@ -7,7 +7,7 @@ import {
 } from "@/lib/amora/quoteCheck";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 
 export const dynamic = "force-dynamic";
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const limited = checkRateLimit(rateLimitKey("amora:quote-check", req, user?.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("amora:quote-check", req, user?.id), {
       maxRequests: user ? 40 : 12,
       windowMs: 60 * 60 * 1000,
     });

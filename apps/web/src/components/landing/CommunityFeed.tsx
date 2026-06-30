@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import { ArrowUpRight, Sparkles, MessageCircle, ArrowUp } from "lucide-react";
 import SectionLabel from "./SectionLabel";
+import { communityPostPath } from "@/lib/community/routes";
+import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
+import { createPublicClient } from "@/lib/supabase/public";
 import { weddingPath } from "@/lib/weddingPaths";
 
 // 60초 ISR — 랜딩 페이지는 매 방문마다 fetch하지 않아도 됨
@@ -38,22 +40,15 @@ function stripHtml(input: string): string {
   return input.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
 
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
 async function fetchPosts(): Promise<{ posts: PostRow[]; profiles: Map<string, ProfileRow> }> {
   try {
-    const supabase = getServiceClient();
+    const supabase = createPublicClient();
 
     const { data: posts } = await supabase
       .from("community_posts")
       .select("id, title, content, category, author_id, upvote_count, comment_count, ai_comment, created_at")
-      .eq("visibility", "public")
+      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("upvote_count", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(6);
@@ -127,7 +122,7 @@ export default async function CommunityFeed() {
               return (
                 <Link
                   key={post.id}
-                  href={weddingPath(`/community/post/${post.id}`)}
+                  href={communityPostPath(post.id)}
                   className="group p-8 md:p-10 flex flex-col hover:bg-ivory-warm/50 transition-colors"
                 >
                   {/* 카테고리 + 아모라 답변 뱃지 */}

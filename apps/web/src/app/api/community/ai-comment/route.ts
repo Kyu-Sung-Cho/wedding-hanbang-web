@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import Anthropic from "@anthropic-ai/sdk";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -52,7 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("community:ai-comment", req, userId), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-comment", req, userId), {
       maxRequests: 30,
       windowMs: 60 * 60 * 1000,
     });
@@ -123,42 +118,31 @@ export async function POST(req: NextRequest) {
 
 위 게시글에 대한 아모라의 짧은 댓글을 작성해주세요. (2-3문장 + CTA)`;
 
-    // Claude API 호출
-    const startedAt = startLatencyClock();
     const model = "claude-haiku-4-5-20251001";
-    const message = await anthropic.messages.create({
-      model,
-      max_tokens: 300,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+    const message = await createAnthropicMessageWithAudit({
+      params: {
+        model,
+        max_tokens: 300,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userContent }],
+      },
+      audit: {
+        userId: post.author_id ?? null,
+        interactionType: "community_amora_comment",
+        specialistType: "general",
+        userInput: null,
+        metadata: {
+          endpoint: "ai-comment",
+          post_id: post.id,
+          post_author_id: post.author_id ?? null,
+          post_category: post.category,
+          comment_position: "top_level",
+        },
+      },
     });
 
     const firstBlock = message.content[0];
     const aiText = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
-
-    // D1: 호출 로깅 (fire-and-forget)
-    // userId = 글쓴이 ID (AI가 이 유저의 글에 반응). couple_id는 Sprint 2에서 profiles JOIN으로 추가.
-    // userInput은 null: 원문이 community_posts.content에 이미 존재. PII 중복 저장 방지
-    // (필요 시 metadata.post_id로 JOIN). aiOutput만으로 AI 기본법 5년 보관 의무 충족.
-    void logAIInteraction({
-      userId: post.author_id ?? null,
-      interactionType: "community_amora_comment",
-      specialistType: "general",
-      userInput: null,
-      aiOutput: aiText,
-      latencyMs: elapsedMs(startedAt),
-      success: aiText.length > 0,
-      model,
-      tokensInput: message.usage?.input_tokens,
-      tokensOutput: message.usage?.output_tokens,
-      metadata: {
-        endpoint: "ai-comment",
-        post_id: post.id,
-        post_author_id: post.author_id ?? null,
-        post_category: post.category,
-        comment_position: "top_level",
-      },
-    });
 
     if (!aiText) {
       return NextResponse.json({ error: "AI 응답 생성 실패" }, { status: 500 });
@@ -274,12 +258,6 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (err) {
     console.error("AI comment generation error:", err);
-    void logAIInteraction({
-      interactionType: "community_amora_comment",
-      success: false,
-      errorMessage: err instanceof Error ? err.message : String(err),
-      metadata: { endpoint: "ai-comment" },
-    });
     return NextResponse.json(
       { error: "AI 댓글 생성 중 오류가 발생했습니다." },
       { status: 500 }

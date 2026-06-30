@@ -21,7 +21,6 @@ import {
   MessageSquarePlus,
   Users,
   ChevronRight,
-  Clock,
   Bookmark,
   FileText,
   Zap,

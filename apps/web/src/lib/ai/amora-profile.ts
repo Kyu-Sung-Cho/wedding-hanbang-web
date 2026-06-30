@@ -6,9 +6,8 @@
 // is injected into future prompts, with shared/private visibility isolation.
 // =============================================
 
-import Anthropic from "@anthropic-ai/sdk";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { elapsedMs, logAIInteraction, startLatencyClock } from "@/lib/compliance/ai-log";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -381,21 +380,32 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       ? "shared: 두 사람이 함께 보는 아모라 대화에만 사용"
       : `${input.visibility}: 해당 사용자 개인 상담에만 사용`;
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-    const startedAt = startLatencyClock();
-    const response = await anthropic.messages.create({
-      model: PROFILE_MODEL,
-      max_tokens: 750,
-      system: PROFILE_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content:
-            `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
-            `[현재 프로필]\n${currentProfileJson}\n\n` +
-            `[최근 대화]\n${conversation}`,
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: PROFILE_MODEL,
+        max_tokens: 750,
+        system: PROFILE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content:
+              `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
+              `[현재 프로필]\n${currentProfileJson}\n\n` +
+              `[최근 대화]\n${conversation}`,
+          },
+        ],
+      },
+      audit: {
+        userId: input.userId ?? null,
+        coupleId: input.coupleId,
+        interactionType: "chat_turn",
+        userInput: null,
+        metadata: {
+          endpoint: "chat/amora-profile",
+          visibility: input.visibility,
+          stage_tag: input.stageTag,
         },
-      ],
+      },
     });
 
     const firstBlock = response.content[0];
@@ -456,24 +466,6 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       return;
     }
 
-    void logAIInteraction({
-      userId: input.userId ?? null,
-      coupleId: input.coupleId,
-      interactionType: "chat_turn",
-      userInput: null,
-      aiOutput: payload.persona_summary,
-      latencyMs: elapsedMs(startedAt),
-      success: true,
-      model: PROFILE_MODEL,
-      tokensInput: response.usage?.input_tokens,
-      tokensOutput: response.usage?.output_tokens,
-      metadata: {
-        endpoint: "chat/amora-profile",
-        visibility: input.visibility,
-        stage_tag: input.stageTag,
-        profile_version: payload.version,
-      },
-    });
   } catch (err) {
     console.warn("[amora-profile] update failed:", err);
   }
