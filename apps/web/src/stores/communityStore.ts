@@ -52,6 +52,7 @@ interface CommunityState {
   deleteComment: (commentId: string) => Promise<boolean>;
   incrementView: (postId: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
+  applyOwnNickname: (userId: string, nickname: string) => void;
   setCategory: (category: CommunityCategory | null) => void;
   setSort: (sort: PostSort) => void;
   setPeriod: (period: TimePeriod) => void;
@@ -480,6 +481,35 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = await res.json();
       set({ communityProfile: data });
     } catch { /* ignore */ }
+  },
+
+  applyOwnNickname: (userId, nickname) => {
+    const trimmedNickname = nickname.trim();
+    if (!userId || !trimmedNickname) return;
+
+    const updateAuthor = <T extends { author_id: string; author: CommunityProfile }>(item: T): T => {
+      if (item.author_id !== userId && item.author.user_id !== userId) return item;
+      return { ...item, author: { ...item.author, nickname: trimmedNickname } };
+    };
+
+    const updateComment = (comment: CommentWithAuthor): CommentWithAuthor => {
+      const nextComment = updateAuthor(comment);
+      return nextComment.replies
+        ? { ...nextComment, replies: nextComment.replies.map(updateComment) }
+        : nextComment;
+    };
+
+    invalidateFeedCache();
+    set((state) => ({
+      communityProfile:
+        state.communityProfile?.user_id === userId
+          ? { ...state.communityProfile, nickname: trimmedNickname }
+          : state.communityProfile,
+      posts: state.posts.map(updateAuthor),
+      currentPost: state.currentPost ? updateAuthor(state.currentPost) : state.currentPost,
+      comments: state.comments.map(updateComment),
+      lastSyncedAt: new Date().toISOString(),
+    }));
   },
 
   setCategory: (category) => {

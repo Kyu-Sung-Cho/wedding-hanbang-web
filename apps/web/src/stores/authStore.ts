@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createClient } from "@/lib/supabase/client";
+import { useCommunityStore } from "@/stores/communityStore";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
 
 // 데모 모드 샘플 데이터
@@ -308,7 +309,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { isDemo, profile } = get();
 
     if (isDemo) {
-      set({ profile: profile ? { ...profile, ...updates } : null });
+      const nextProfile = profile ? { ...profile, ...updates } : null;
+      set({ profile: nextProfile });
+      if (updates.sync_community_nickname && nextProfile?.name) {
+        useCommunityStore.getState().applyOwnNickname(nextProfile.id, nextProfile.name);
+      }
       return;
     }
 
@@ -318,11 +323,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        profile?: Profile;
+        error?: string;
+      };
       if (!res.ok) {
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
-      set({ profile: data.profile });
+      if (data.profile) {
+        set({ profile: data.profile });
+        if (updates.sync_community_nickname) {
+          useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
+        }
+      }
     } catch (err) {
       console.error("Profile 업데이트 에러:", err);
       throw err;

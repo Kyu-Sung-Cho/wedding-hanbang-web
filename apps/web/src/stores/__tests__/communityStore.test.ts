@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCommunityStore } from "../communityStore";
+import type { CommentWithAuthor, CommunityProfile, PostDetail, PostWithAuthor } from "@/types/community.types";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-function post(id: string, createdAt: string) {
+function post(id: string, createdAt: string): PostWithAuthor {
   return {
     id,
     author_id: "author-1",
@@ -19,6 +20,7 @@ function post(id: string, createdAt: string) {
     ai_comment: null,
     is_resolved: false,
     is_verified_review: false,
+    verification_doc_url: null,
     price_data: null,
     is_quick_review: false,
     rating: null,
@@ -36,17 +38,47 @@ function post(id: string, createdAt: string) {
     cost_data: null,
     created_at: createdAt,
     updated_at: createdAt,
-    author: {
-      user_id: "author-1",
-      nickname: "tester",
-      avatar_url: null,
-      rank: "sprout",
-      wedding_year: null,
-      wedding_month: null,
-    },
+    author: communityProfile("author-1", "tester"),
     user_vote: null,
     user_bookmarked: false,
     poll: null,
+  };
+}
+
+function communityProfile(userId: string, nickname: string): CommunityProfile {
+  return {
+    user_id: userId,
+    nickname,
+    avatar_url: null,
+    rank: "sprout",
+    wedding_year: null,
+    wedding_month: null,
+    wedding_completed: false,
+    progress_percent: 0,
+    region: null,
+    post_count: 0,
+    comment_count: 0,
+    total_upvotes_received: 0,
+    warning_count: 0,
+    is_suspended: false,
+    created_at: "2026-06-15T00:00:00.000Z",
+  };
+}
+
+function comment(id: string, author: CommunityProfile, replies: CommentWithAuthor[] = []): CommentWithAuthor {
+  return {
+    id,
+    post_id: "post-1",
+    parent_id: null,
+    author_id: author.user_id,
+    content: "comment",
+    upvote_count: 0,
+    is_deleted: false,
+    created_at: "2026-06-15T00:00:00.000Z",
+    updated_at: "2026-06-15T00:00:00.000Z",
+    author,
+    user_vote: null,
+    replies,
   };
 }
 
@@ -87,5 +119,43 @@ describe("useCommunityStore feed cache", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(useCommunityStore.getState().posts[0].id).toBe("cached-hot");
+  });
+
+  it("applies the current user's new nickname to cached community state", () => {
+    const oldAuthor = communityProfile("author-1", "old-name");
+    const otherAuthor = communityProfile("author-2", "other-name");
+    const ownPost = { ...post("own-post", "2026-06-15T00:00:00.000Z"), author: oldAuthor };
+    const otherPost = {
+      ...post("other-post", "2026-06-15T00:00:00.000Z"),
+      author_id: otherAuthor.user_id,
+      author: otherAuthor,
+    };
+    const currentPost = { ...ownPost, vendor_details: [] } as PostDetail;
+    const ownReply = comment("reply-1", oldAuthor);
+    const ownComment = comment("comment-1", oldAuthor, [ownReply]);
+    const otherComment = comment("comment-2", otherAuthor);
+
+    sessionStorage.setItem(
+      "community:feed:all:hot:_:_:_",
+      JSON.stringify({ posts: [ownPost], total: 1, hasMore: false, ts: Date.now() })
+    );
+    useCommunityStore.setState({
+      communityProfile: oldAuthor,
+      posts: [ownPost, otherPost],
+      currentPost,
+      comments: [ownComment, otherComment],
+    });
+
+    useCommunityStore.getState().applyOwnNickname("author-1", "new-name");
+
+    const state = useCommunityStore.getState();
+    expect(state.communityProfile?.nickname).toBe("new-name");
+    expect(state.posts[0].author.nickname).toBe("new-name");
+    expect(state.posts[1].author.nickname).toBe("other-name");
+    expect(state.currentPost?.author.nickname).toBe("new-name");
+    expect(state.comments[0].author.nickname).toBe("new-name");
+    expect(state.comments[0].replies?.[0].author.nickname).toBe("new-name");
+    expect(state.comments[1].author.nickname).toBe("other-name");
+    expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
   });
 });

@@ -22,7 +22,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
+import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
   PriorityItem,
@@ -67,6 +69,11 @@ type WeddingPreferenceState = Partial<{
   budgetTendency: BudgetTendency | null;
   guestCount: GuestCount | null;
 }>;
+
+type ProfileUpdateResponse = {
+  profile?: Profile;
+  error?: string;
+};
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -165,12 +172,15 @@ export default function SettingsPage() {
           sync_community_nickname: true,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as ProfileUpdateResponse;
       if (!res.ok) {
         setNameError(data.error ?? "이름 저장에 실패했습니다.");
         return;
       }
-      useAuthStore.setState({ profile: data.profile });
+      if (data.profile) {
+        useAuthStore.setState({ profile: data.profile });
+        useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
+      }
       setEditingName(false);
     } catch {
       setNameError("이름 저장 중 오류가 발생했습니다.");

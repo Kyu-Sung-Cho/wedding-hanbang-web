@@ -14,6 +14,7 @@ Object.defineProperty(window, "location", {
 });
 
 import { useAuthStore } from "../authStore";
+import { useCommunityStore } from "../communityStore";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -38,6 +39,7 @@ function resetStore() {
     isInitialized: false,
     isDemo: false,
   });
+  useCommunityStore.getState().reset();
 }
 
 describe("useAuthStore", () => {
@@ -211,6 +213,38 @@ describe("useAuthStore", () => {
 
       expect(mockFetch).toHaveBeenCalledWith("/api/profile", expect.objectContaining({ method: "PATCH" }));
       expect(useAuthStore.getState().profile?.name).toBe("이지은");
+    });
+
+    it("updates cached community nickname when profile sync is requested", async () => {
+      const updatedProfile = { id: "u1", name: "new-name", email: "test@example.com" };
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: updatedProfile }) });
+      useAuthStore.setState({ isDemo: false, profile: { id: "u1", name: "old-name" } as never });
+      useCommunityStore.setState({
+        communityProfile: {
+          user_id: "u1",
+          nickname: "old-name",
+          avatar_url: null,
+          rank: "sprout",
+          wedding_year: null,
+          wedding_month: null,
+          wedding_completed: false,
+          progress_percent: 0,
+          region: null,
+          post_count: 0,
+          comment_count: 0,
+          total_upvotes_received: 0,
+          warning_count: 0,
+          is_suspended: false,
+          created_at: "2026-06-15T00:00:00.000Z",
+        },
+      });
+
+      await useAuthStore.getState().updateProfile({
+        name: "new-name",
+        sync_community_nickname: true,
+      });
+
+      expect(useCommunityStore.getState().communityProfile?.nickname).toBe("new-name");
     });
   });
 
