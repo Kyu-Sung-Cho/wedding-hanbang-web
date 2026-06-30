@@ -6,6 +6,8 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,12 +19,14 @@ import {
   ChevronRight,
   Clock,
   FileCheck2,
+  Star,
   Store,
   WalletCards,
   X,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiJson } from "@/lib/api";
 import {
   AppHeader,
   AppText,
@@ -43,6 +47,8 @@ interface Booking {
   booking_time: string | null;
   status: BookingStatus;
   amount: number | null;
+  contracted_amount: number | null;
+  actual_amount: number | null;
   vendor: { name: string; category: string | null } | null;
   product: { name: string; price: number | null } | null;
 }
@@ -54,6 +60,21 @@ interface BookingAction {
   title: string;
   description: string;
   tone: PillTone;
+}
+
+interface BookingOutcomeResponse {
+  booking: {
+    id: string;
+    status: BookingStatus;
+    amount: number | string | null;
+    contracted_amount: number | string | null;
+    actual_amount: number | string | null;
+  };
+  outcome: {
+    extraAmount: number;
+    baselineAmount: number;
+  };
+  message: string;
 }
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -105,6 +126,27 @@ function formatWon(n: number): string {
   return "—";
 }
 
+function formatAmountInput(n: number | null | undefined): string {
+  return n && n > 0 ? String(Math.round(n)) : "";
+}
+
+function readAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : null;
+  }
+  return null;
+}
+
+function parseAmountInput(value: string): number | null {
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const amount = Number(digits);
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1_000_000_000) return null;
+  return amount;
+}
+
 function parseBookingDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split("-").map(Number);
   if (year && month && day) {
@@ -136,6 +178,19 @@ function formatDateLong(dateStr: string): string {
 function categoryLabel(category: string | null | undefined): string {
   if (!category) return "카테고리 미정";
   return CATEGORY_LABELS[category] ?? category;
+}
+
+function bookingAmountLabel(booking: Booking): string {
+  if (booking.actual_amount && booking.actual_amount > 0) {
+    return `실결제 ${formatWon(booking.actual_amount)}`;
+  }
+  if (booking.contracted_amount && booking.contracted_amount > 0) {
+    return `계약 ${formatWon(booking.contracted_amount)}`;
+  }
+  if (booking.amount && booking.amount > 0) {
+    return formatWon(booking.amount);
+  }
+  return "금액 확인 필요";
 }
 
 function isCompleted(booking: Booking, today = getTodayStart()): boolean {
@@ -175,11 +230,20 @@ function getBookingAction(booking: Booking): BookingAction {
   }
 
   if (isCompleted(booking)) {
+    if (booking.actual_amount && booking.actual_amount > 0) {
+      return {
+        label: "기록됨",
+        title: "실제 금액 기록 완료",
+        description: "추가금 데이터가 다음 업체 추천과 예산 판단에 반영돼요.",
+        tone: "success",
+      };
+    }
+
     return {
       label: "완료",
       title: "진행 완료",
       description: "실제 추가금과 만족도를 남기면 다음 추천 정확도가 좋아져요.",
-      tone: "neutral",
+      tone: "warning",
     };
   }
 
@@ -238,7 +302,7 @@ export default function BookingsScreen() {
 
       const { data, error } = await supabase
         .from("vendor_bookings")
-        .select("id, booking_date, booking_time, status, amount, vendor:vendors(name, category), product:vendor_products(name, price)")
+        .select("id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, vendor:vendors(name, category), product:vendor_products(name, price)")
         .eq("couple_id", profile.couple_id)
         .order("booking_date", { ascending: false });
 
@@ -250,7 +314,9 @@ export default function BookingsScreen() {
           booking_date: String(row.booking_date ?? ""),
           booking_time: row.booking_time ? String(row.booking_time) : null,
           status: normalizeStatus(row.status),
-          amount: typeof row.amount === "number" ? row.amount : null,
+          amount: readAmount(row.amount),
+          contracted_amount: readAmount(row.contracted_amount),
+          actual_amount: readAmount(row.actual_amount),
           vendor: row.vendor as Booking["vendor"],
           product: row.product as Booking["product"],
         }))
@@ -303,6 +369,33 @@ export default function BookingsScreen() {
   }, [bookings]);
 
   const nextAction = summary.nextBooking ? getBookingAction(summary.nextBooking) : null;
+
+  function handleOutcomeSaved(updated: BookingOutcomeResponse["booking"]) {
+    setBookings((current) =>
+      current.map((booking) =>
+        booking.id === updated.id
+          ? {
+              ...booking,
+              status: updated.status,
+              amount: readAmount(updated.amount),
+              contracted_amount: readAmount(updated.contracted_amount),
+              actual_amount: readAmount(updated.actual_amount),
+            }
+          : booking
+      )
+    );
+    setSelectedBooking((current) =>
+      current && current.id === updated.id
+        ? {
+            ...current,
+            status: updated.status,
+            amount: readAmount(updated.amount),
+            contracted_amount: readAmount(updated.contracted_amount),
+            actual_amount: readAmount(updated.actual_amount),
+          }
+        : current
+    );
+  }
 
   if (loading) {
     return (
@@ -384,7 +477,7 @@ export default function BookingsScreen() {
                   <View style={s.summaryMeta}>
                     <WalletCards size={15} color="#FFFFFF" />
                     <AppText variant="caption" style={s.summaryMetaText}>
-                      {summary.nextBooking.amount ? formatWon(summary.nextBooking.amount) : "금액 확인 필요"}
+                      {bookingAmountLabel(summary.nextBooking)}
                     </AppText>
                   </View>
                 </View>
@@ -493,7 +586,7 @@ export default function BookingsScreen() {
                       <View style={s.infoItem}>
                         <WalletCards size={15} color={colors.textTertiary} />
                         <AppText variant="caption">
-                          {booking.amount ? formatWon(booking.amount) : "금액 확인 필요"}
+                          {bookingAmountLabel(booking)}
                         </AppText>
                       </View>
                     </View>
@@ -516,6 +609,7 @@ export default function BookingsScreen() {
       <BookingDetailSheet
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
+        onSaved={handleOutcomeSaved}
       />
     </SafeAreaView>
   );
@@ -524,14 +618,81 @@ export default function BookingsScreen() {
 function BookingDetailSheet({
   booking,
   onClose,
+  onSaved,
 }: {
   booking: Booking | null;
   onClose: () => void;
+  onSaved: (booking: BookingOutcomeResponse["booking"]) => void;
 }) {
+  const [actualAmountText, setActualAmountText] = useState("");
+  const [contractedAmountText, setContractedAmountText] = useState("");
+  const [rating, setRating] = useState<number | null>(null);
+  const [reviewText, setReviewText] = useState("");
+  const [sharePublicReview, setSharePublicReview] = useState(false);
+  const [savingOutcome, setSavingOutcome] = useState(false);
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
+  const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!booking) return;
+    setActualAmountText(formatAmountInput(booking.actual_amount));
+    setContractedAmountText(formatAmountInput(booking.contracted_amount ?? booking.amount));
+    setRating(null);
+    setReviewText("");
+    setSharePublicReview(false);
+    setOutcomeError(null);
+    setOutcomeMessage(null);
+  }, [booking?.id]);
+
   if (!booking) return null;
 
   const action = getBookingAction(booking);
   const status = STATUS_MAP[booking.status];
+  const completed = isCompleted(booking);
+  const actualAmount = parseAmountInput(actualAmountText);
+  const contractedAmount = parseAmountInput(contractedAmountText);
+  const canSaveOutcome = completed && actualAmount !== null && rating !== null && !savingOutcome;
+
+  async function saveOutcome() {
+    if (!booking) return;
+    if (actualAmount === null) {
+      setOutcomeError("실제 결제금액을 입력해주세요.");
+      return;
+    }
+    if (rating === null) {
+      setOutcomeError("만족도를 선택해주세요.");
+      return;
+    }
+
+    setSavingOutcome(true);
+    setOutcomeError(null);
+    setOutcomeMessage(null);
+    try {
+      const result = await apiJson<BookingOutcomeResponse>(
+        `/api/bookings/${booking.id}/outcome`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            actualAmount,
+            contractedAmount,
+            rating,
+            review: reviewText,
+            sharePublicReview,
+          }),
+        }
+      );
+      onSaved(result.booking);
+      setOutcomeMessage(
+        result.outcome.extraAmount > 0
+          ? `추가금 ${formatWon(result.outcome.extraAmount)}까지 기록했어요.`
+          : "실제 결제금액을 기록했어요."
+      );
+    } catch (err) {
+      setOutcomeError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSavingOutcome(false);
+    }
+  }
 
   return (
     <Modal
@@ -543,65 +704,197 @@ function BookingDetailSheet({
       <Pressable style={s.modalBackdrop} onPress={onClose}>
         <Pressable style={s.modalSheet} onPress={(event) => event.stopPropagation()}>
           <SafeAreaView edges={["bottom"]}>
-            <View style={s.sheetHeader}>
-              <View>
-                <AppText variant="eyebrow">BOOKING DETAIL</AppText>
-                <AppText variant="subtitle">{booking.vendor?.name ?? "업체 미정"}</AppText>
+            <ScrollView
+              contentContainerStyle={s.sheetScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={s.sheetHeader}>
+                <View style={s.sheetTitleBlock}>
+                  <AppText variant="eyebrow">BOOKING DETAIL</AppText>
+                  <AppText variant="subtitle">{booking.vendor?.name ?? "업체 미정"}</AppText>
+                </View>
+                <Pressable
+                  style={s.closeButton}
+                  onPress={onClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="닫기"
+                >
+                  <X size={20} color={colors.noir[800]} />
+                </Pressable>
               </View>
-              <Pressable
-                style={s.closeButton}
-                onPress={onClose}
-                accessibilityRole="button"
-                accessibilityLabel="닫기"
-              >
-                <X size={20} color={colors.noir[800]} />
-              </Pressable>
-            </View>
 
-            <View style={s.sheetStatusRow}>
-              <StatusPill label={status.label} tone={status.tone} />
-              <StatusPill label={action.label} tone={action.tone} />
-            </View>
-
-            <View style={s.detailRows}>
-              <DetailRow
-                icon={<Store size={18} color={colors.noir[800]} />}
-                label="카테고리"
-                value={categoryLabel(booking.vendor?.category)}
-              />
-              <DetailRow
-                icon={<FileCheck2 size={18} color={colors.noir[800]} />}
-                label="상품"
-                value={booking.product?.name ?? "상품 미정"}
-              />
-              <DetailRow
-                icon={<CalendarDays size={18} color={colors.noir[800]} />}
-                label="날짜"
-                value={formatDateLong(booking.booking_date)}
-              />
-              <DetailRow
-                icon={<Clock size={18} color={colors.noir[800]} />}
-                label="시간"
-                value={booking.booking_time ?? "시간 확인 필요"}
-              />
-              <DetailRow
-                icon={<WalletCards size={18} color={colors.noir[800]} />}
-                label="금액"
-                value={booking.amount ? formatWon(booking.amount) : "금액 확인 필요"}
-              />
-            </View>
-
-            <View style={s.noticeBox}>
-              <AlertTriangle size={18} color="#8A6A28" />
-              <View style={s.noticeCopy}>
-                <AppText variant="bodyStrong">{action.title}</AppText>
-                <AppText variant="caption">{action.description}</AppText>
+              <View style={s.sheetStatusRow}>
+                <StatusPill label={status.label} tone={status.tone} />
+                <StatusPill label={action.label} tone={action.tone} />
               </View>
-            </View>
 
-            <PrimaryButton tone="noir" onPress={onClose}>
-              확인했어요
-            </PrimaryButton>
+              <View style={s.detailRows}>
+                <DetailRow
+                  icon={<Store size={18} color={colors.noir[800]} />}
+                  label="카테고리"
+                  value={categoryLabel(booking.vendor?.category)}
+                />
+                <DetailRow
+                  icon={<FileCheck2 size={18} color={colors.noir[800]} />}
+                  label="상품"
+                  value={booking.product?.name ?? "상품 미정"}
+                />
+                <DetailRow
+                  icon={<CalendarDays size={18} color={colors.noir[800]} />}
+                  label="날짜"
+                  value={formatDateLong(booking.booking_date)}
+                />
+                <DetailRow
+                  icon={<Clock size={18} color={colors.noir[800]} />}
+                  label="시간"
+                  value={booking.booking_time ?? "시간 확인 필요"}
+                />
+                <DetailRow
+                  icon={<WalletCards size={18} color={colors.noir[800]} />}
+                  label="금액"
+                  value={bookingAmountLabel(booking)}
+                />
+              </View>
+
+              <View style={s.noticeBox}>
+                <AlertTriangle size={18} color="#8A6A28" />
+                <View style={s.noticeCopy}>
+                  <AppText variant="bodyStrong">{action.title}</AppText>
+                  <AppText variant="caption">{action.description}</AppText>
+                </View>
+              </View>
+
+              {completed ? (
+                <View style={s.outcomeBox}>
+                  <View style={s.outcomeHeader}>
+                    <View style={s.outcomeTitleBlock}>
+                      <AppText variant="eyebrow">REAL COST MEMORY</AppText>
+                      <AppText variant="bodyStrong">실제 금액과 만족도 기록</AppText>
+                    </View>
+                    {booking.actual_amount ? (
+                      <StatusPill label="기록 있음" tone="success" />
+                    ) : null}
+                  </View>
+
+                  <View style={s.inputGroup}>
+                    <AppText variant="caption">계약/견적 금액</AppText>
+                    <TextInput
+                      value={contractedAmountText}
+                      onChangeText={setContractedAmountText}
+                      keyboardType="number-pad"
+                      placeholder="예: 2500000"
+                      placeholderTextColor={colors.textTertiary}
+                      style={s.textInput}
+                    />
+                  </View>
+
+                  <View style={s.inputGroup}>
+                    <AppText variant="caption">실제 결제금액</AppText>
+                    <TextInput
+                      value={actualAmountText}
+                      onChangeText={setActualAmountText}
+                      keyboardType="number-pad"
+                      placeholder="실제로 낸 총액을 입력해주세요"
+                      placeholderTextColor={colors.textTertiary}
+                      style={s.textInput}
+                    />
+                  </View>
+
+                  <View style={s.inputGroup}>
+                    <AppText variant="caption">만족도</AppText>
+                    <View style={s.ratingRow}>
+                      {[1, 2, 3, 4, 5].map((value) => {
+                        const selected = rating === value;
+                        return (
+                          <Pressable
+                            key={value}
+                            style={[s.ratingButton, selected && s.ratingButtonActive]}
+                            onPress={() => setRating(value)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected }}
+                          >
+                            <Star
+                              size={16}
+                              color={selected ? "#FFFFFF" : colors.textTertiary}
+                              fill={selected ? "#FFFFFF" : "transparent"}
+                            />
+                            <AppText
+                              variant="caption"
+                              style={selected ? s.ratingTextActive : s.ratingText}
+                            >
+                              {value}
+                            </AppText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={s.inputGroup}>
+                    <AppText variant="caption">후기 메모</AppText>
+                    <TextInput
+                      value={reviewText}
+                      onChangeText={(value) => setReviewText(value.slice(0, 1000))}
+                      placeholder="추가금, 상담 품질, 아쉬운 점을 남겨주세요"
+                      placeholderTextColor={colors.textTertiary}
+                      multiline
+                      textAlignVertical="top"
+                      style={[s.textInput, s.reviewInput]}
+                    />
+                    <AppText variant="caption" style={s.charCount}>
+                      {reviewText.length}/1000
+                    </AppText>
+                  </View>
+
+                  <View style={s.publicToggleRow}>
+                    <View style={s.publicToggleCopy}>
+                      <AppText variant="bodyStrong">공개 후기로 공유</AppText>
+                      <AppText variant="caption">
+                        끄면 추천 개선용으로만 저장되고 공개 목록에는 보이지 않아요.
+                      </AppText>
+                    </View>
+                    <Switch
+                      value={sharePublicReview}
+                      onValueChange={setSharePublicReview}
+                      trackColor={{ false: colors.ivory[200], true: colors.rose.glow }}
+                      thumbColor={sharePublicReview ? colors.rose[500] : "#FFFFFF"}
+                    />
+                  </View>
+
+                  {actualAmount !== null && contractedAmount !== null ? (
+                    <View style={s.outcomePreview}>
+                      <AppText variant="caption">
+                        추가금 {formatWon(Math.max(0, actualAmount - contractedAmount))}
+                      </AppText>
+                    </View>
+                  ) : null}
+
+                  {outcomeError ? (
+                    <AppText variant="caption" style={s.errorText}>
+                      {outcomeError}
+                    </AppText>
+                  ) : null}
+                  {outcomeMessage ? (
+                    <AppText variant="caption" style={s.successText}>
+                      {outcomeMessage}
+                    </AppText>
+                  ) : null}
+
+                  <PrimaryButton
+                    tone="noir"
+                    onPress={saveOutcome}
+                    disabled={!canSaveOutcome}
+                  >
+                    {savingOutcome ? "저장 중..." : "실제 결과 저장"}
+                  </PrimaryButton>
+                </View>
+              ) : null}
+
+              <PrimaryButton tone={completed ? "ghost" : "noir"} onPress={onClose}>
+                확인했어요
+              </PrimaryButton>
+            </ScrollView>
           </SafeAreaView>
         </Pressable>
       </Pressable>
@@ -774,11 +1067,15 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(13,13,15,0.42)",
   },
   modalSheet: {
+    maxHeight: "92%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     backgroundColor: colors.surface,
     padding: 20,
     gap: 18,
+  },
+  sheetScroll: {
+    paddingBottom: 4,
   },
   sheetHeader: {
     flexDirection: "row",
@@ -786,6 +1083,10 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
     marginBottom: 14,
+  },
+  sheetTitleBlock: {
+    flex: 1,
+    gap: 2,
   },
   closeButton: {
     width: 40,
@@ -839,5 +1140,94 @@ const s = StyleSheet.create({
   noticeCopy: {
     flex: 1,
     gap: 2,
+  },
+  outcomeBox: {
+    gap: 14,
+    borderRadius: 20,
+    backgroundColor: colors.ivory[100],
+    padding: 16,
+    marginBottom: 16,
+  },
+  outcomeHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  outcomeTitleBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  textInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.noir[800],
+  },
+  reviewInput: {
+    minHeight: 96,
+    lineHeight: 22,
+  },
+  charCount: {
+    alignSelf: "flex-end",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  ratingButton: {
+    minWidth: 46,
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  ratingButtonActive: {
+    borderColor: colors.noir[800],
+    backgroundColor: colors.noir[800],
+  },
+  ratingText: {
+    color: colors.textSecondary,
+  },
+  ratingTextActive: {
+    color: "#FFFFFF",
+  },
+  publicToggleRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  publicToggleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  outcomePreview: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: "rgba(201,169,110,0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  errorText: {
+    color: colors.danger,
+  },
+  successText: {
+    color: colors.success,
   },
 });
