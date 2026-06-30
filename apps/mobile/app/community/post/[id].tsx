@@ -10,6 +10,10 @@ import { ArrowLeft, ChevronUp, MessageCircle, Send, Bookmark, FileText } from "l
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch, apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import {
+  CommunityAvatar,
+  type CommunityAvatarRole,
+} from "@/components/community/CommunityAvatar";
 
 interface PostDetail {
   id: string;
@@ -22,14 +26,14 @@ interface PostDetail {
   comment_count: number;
   view_count: number;
   created_at: string;
-  author: { nickname: string; rank: string } | null;
+  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
 interface Comment {
   id: string;
   content: string;
   created_at: string;
-  author: { nickname: string; rank: string } | null;
+  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
 const AD_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -53,16 +57,6 @@ function timeAgo(dateStr: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}시간 전`;
   return `${Math.floor(hours / 24)}일 전`;
-}
-
-// 아바타 컴포넌트 — 닉네임 첫 글자
-function AvatarCircle({ name, size = 36 }: { name: string; size?: number }) {
-  const initial = name.charAt(0) || "?";
-  return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[styles.avatarText, { fontSize: size * 0.4 }]}>{initial}</Text>
-    </View>
-  );
 }
 
 export default function PostDetailScreen() {
@@ -290,7 +284,7 @@ export default function PostDetailScreen() {
 
           {/* 작성자 섹션 — 아바타 포함 */}
           <View style={styles.authorSection}>
-            <AvatarCircle name={authorName} size={40} />
+            <CommunityAvatar nickname={authorName} role={post.author?.role} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={styles.authorName}>{authorName}</Text>
               <View style={styles.meta}>
@@ -338,7 +332,7 @@ export default function PostDetailScreen() {
               return (
                 <View key={c.id} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
-                    <AvatarCircle name={cName} size={30} />
+                    <CommunityAvatar nickname={cName} role={c.author?.role} size={30} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.commentAuthor}>{cName}</Text>
                       <Text style={styles.commentTime}>{timeAgo(c.created_at)}</Text>
@@ -457,14 +451,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  avatar: {
-    backgroundColor: colors.ivory[200],
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  avatarText: { fontWeight: "700", color: colors.noir[800] },
   authorName: { fontSize: 15, fontWeight: "600", color: colors.noir[800] },
   meta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   dot: { fontSize: 12, color: colors.taupe[400] },
