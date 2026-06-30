@@ -167,7 +167,9 @@ interface AuthState {
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
   refreshJourney: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<Profile, "name">>) => Promise<void>;
+  updateProfile: (
+    updates: Partial<Pick<Profile, "name">> & { sync_community_nickname?: boolean }
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   reset: () => void;
 }
@@ -316,12 +318,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      if (res.ok) {
-        const data = await res.json();
-        set({ profile: data.profile });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
+      set({ profile: data.profile });
     } catch (err) {
       console.error("Profile 업데이트 에러:", err);
+      throw err;
     }
   },
 

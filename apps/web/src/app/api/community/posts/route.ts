@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
 import {
+  getCommunityNicknameFallback,
+  getSafeDefaultCommunityNickname,
+  isCommunityNicknameUniqueViolation,
+} from "@/lib/community/nickname";
+import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
   validateCommunityMediaUrl,
@@ -549,16 +554,30 @@ export async function POST(req: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const nickname = userProfile?.name ?? "익명";
-
-      await serviceClient.from("community_profiles").insert({
+      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
+      const fallbackNickname = getCommunityNicknameFallback(user.id);
+      const createProfilePayload = {
         user_id: user.id,
         nickname,
         badge: "member",
         post_count: 0,
         comment_count: 0,
         total_upvotes_received: 0,
-      });
+      };
+
+      const { error: profileInsertError } = await serviceClient
+        .from("community_profiles")
+        .insert(createProfilePayload);
+
+      if (
+        profileInsertError &&
+        isCommunityNicknameUniqueViolation(profileInsertError) &&
+        nickname !== fallbackNickname
+      ) {
+        await serviceClient
+          .from("community_profiles")
+          .insert({ ...createProfilePayload, nickname: fallbackNickname });
+      }
     }
 
     // 게시글 생성

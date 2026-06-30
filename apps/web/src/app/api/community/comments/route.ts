@@ -1,6 +1,11 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getCommunityNicknameFallback,
+  getSafeDefaultCommunityNickname,
+  isCommunityNicknameUniqueViolation,
+} from "@/lib/community/nickname";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -236,14 +241,30 @@ export async function POST(req: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      await serviceClient.from("community_profiles").insert({
+      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
+      const fallbackNickname = getCommunityNicknameFallback(user.id);
+      const createProfilePayload = {
         user_id: user.id,
-        nickname: userProfile?.name ?? "익명",
+        nickname,
         badge: "member",
         post_count: 0,
         comment_count: 0,
         total_upvotes_received: 0,
-      });
+      };
+
+      const { error: profileInsertError } = await serviceClient
+        .from("community_profiles")
+        .insert(createProfilePayload);
+
+      if (
+        profileInsertError &&
+        isCommunityNicknameUniqueViolation(profileInsertError) &&
+        nickname !== fallbackNickname
+      ) {
+        await serviceClient
+          .from("community_profiles")
+          .insert({ ...createProfilePayload, nickname: fallbackNickname });
+      }
     }
 
     // 댓글 생성

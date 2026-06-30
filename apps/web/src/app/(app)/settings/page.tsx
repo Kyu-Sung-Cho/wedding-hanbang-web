@@ -74,7 +74,7 @@ const fadeIn = {
 };
 
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
+  const { profile, partner, couple, journey, isDemo, signOut, updateJourney } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
@@ -87,6 +87,7 @@ export default function SettingsPage() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [editingVenue, setEditingVenue] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [nameError, setNameError] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [venueInput, setVenueInput] = useState("");
@@ -154,9 +155,28 @@ export default function SettingsPage() {
   const saveName = async () => {
     if (!nameInput.trim()) return;
     setSaving(true);
-    await updateProfile({ name: nameInput.trim() });
-    setSaving(false);
-    setEditingName(false);
+    setNameError("");
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameInput.trim(),
+          sync_community_nickname: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNameError(data.error ?? "이름 저장에 실패했습니다.");
+        return;
+      }
+      useAuthStore.setState({ profile: data.profile });
+      setEditingName(false);
+    } catch {
+      setNameError("이름 저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 날짜 저장
@@ -334,21 +354,27 @@ export default function SettingsPage() {
           </div>
           <div className="flex-1">
             {editingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && saveName()}
-                  className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
-                  autoFocus
-                />
-                <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
-                  <Save className="w-5 h-5" />
-                </button>
-                <button onClick={() => setEditingName(false)} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
-                  <X className="w-5 h-5" />
-                </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => {
+                      setNameInput(e.target.value);
+                      setNameError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && saveName()}
+                    className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
+                    autoFocus
+                  />
+                  <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                    <Save className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                {nameError && <p className="mt-2 text-sm text-[#9A3F3F]">{nameError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -359,7 +385,7 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
-                  onClick={() => { setNameInput(userName); setEditingName(true); }}
+                  onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
