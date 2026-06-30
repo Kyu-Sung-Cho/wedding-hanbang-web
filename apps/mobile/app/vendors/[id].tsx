@@ -7,12 +7,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import {
-  ArrowLeft, Share2, BadgeCheck, MapPin, Clock, ChevronDown,
+  Share2, BadgeCheck, MapPin, Clock, ChevronDown,
   ChevronUp, Sparkles, Check, X, CalendarDays, Timer,
+  ShieldCheck, WalletCards, Info, FileCheck2, AlertTriangle, Store, Star,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import {
+  AppHeader,
+  EmptyState,
+  IconBadge,
+  LoadingState,
+  StatusPill,
+  Surface,
+} from "@/components/ui/AppUI";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -36,6 +45,36 @@ function formatHour(h: number): string {
   return `${String(h).padStart(2, "0")}:00`;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  studio: "스튜디오",
+  dress: "드레스",
+  makeup: "메이크업",
+  venue: "예식장",
+  snap: "스냅",
+  hanbok: "한복",
+  jewelry: "예물",
+  ring: "예물",
+  honeymoon: "허니문",
+  package: "패키지",
+  dvd: "영상",
+  suit: "예복",
+  invitation: "청첩장",
+};
+
+function categoryLabel(category: string | null): string | null {
+  if (!category) return null;
+  return CATEGORY_LABELS[category] ?? category;
+}
+
+function formatPriceRange(vendor: Pick<Vendor, "price_range" | "price_min" | "price_max">): string {
+  if (vendor.price_range) return vendor.price_range;
+  if (vendor.price_min && vendor.price_max && vendor.price_max > vendor.price_min) {
+    return `${formatWon(vendor.price_min)}~${formatWon(vendor.price_max)}`;
+  }
+  if (vendor.price_min && vendor.price_min > 0) return `${formatWon(vendor.price_min)}부터`;
+  return "상품별 확인";
+}
+
 /* ───── types ───── */
 interface Vendor {
   id: string;
@@ -49,6 +88,13 @@ interface Vendor {
   website: string | null;
   thumbnail_url: string | null;
   is_verified: boolean;
+  ai_recommend: boolean;
+  rating: number | null;
+  review_count: number | null;
+  price_range: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  business_license_url: string | null;
 }
 
 interface Product {
@@ -107,7 +153,7 @@ export default function VendorDetailScreen() {
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified")
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max, business_license_url")
         .eq("id", id)
         .single();
 
@@ -129,6 +175,13 @@ export default function VendorDetailScreen() {
         website: v.website ? String(v.website) : null,
         thumbnail_url: v.thumbnail_url ? String(v.thumbnail_url) : null,
         is_verified: Boolean(v.is_verified),
+        ai_recommend: Boolean(v.ai_recommend),
+        rating: typeof v.rating === "number" ? v.rating : null,
+        review_count: typeof v.review_count === "number" ? v.review_count : null,
+        price_range: v.price_range ? String(v.price_range) : null,
+        price_min: typeof v.price_min === "number" && v.price_min > 0 ? v.price_min : null,
+        price_max: typeof v.price_max === "number" && v.price_max > 0 ? v.price_max : null,
+        business_license_url: v.business_license_url ? String(v.business_license_url) : null,
       });
     } catch (err) {
       console.error("업체 로드 오류:", err);
@@ -311,7 +364,7 @@ export default function VendorDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={st.container} edges={["top"]}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 80 }} />
+        <LoadingState label="업체 정보를 불러오고 있어요" />
       </SafeAreaView>
     );
   }
@@ -319,32 +372,46 @@ export default function VendorDetailScreen() {
   if (!vendor) {
     return (
       <SafeAreaView style={st.container} edges={["top"]}>
-        <View style={st.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={24} color={colors.noir[800]} />
-          </Pressable>
-          <Text style={st.headerTitle}>업체 상세</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={st.emptyContainer}>
-          <Text style={st.emptyText}>업체 정보를 찾을 수 없어요</Text>
-        </View>
+        <AppHeader title="업체 상세" onBack={() => router.back()} />
+        <EmptyState
+          icon={
+            <IconBadge tone="ivory" size={64}>
+              <Store size={32} color={colors.textTertiary} />
+            </IconBadge>
+          }
+          title="업체 정보를 찾을 수 없어요"
+          description="목록으로 돌아가 다른 업체를 확인해보세요"
+        />
       </SafeAreaView>
     );
   }
 
+  const category = categoryLabel(vendor.category);
+  const sortedProducts = [...products].sort((a, b) => a.price - b.price);
+  const lowestProduct = sortedProducts.find((product) => product.price > 0) ?? null;
+  const priceSummary =
+    vendor.price_range || vendor.price_min || vendor.price_max
+      ? formatPriceRange(vendor)
+      : lowestProduct
+        ? `${formatWon(lowestProduct.price)}부터`
+        : "상품별 확인";
+  const hasVisiblePrice = priceSummary !== "상품별 확인" || products.some((product) => product.price > 0);
+  const hasExclusions = products.some((product) => (product.excludes?.length ?? 0) > 0);
+  const productCount = products.length;
+  const popularProduct = products.find((product) => product.is_popular) ?? lowestProduct;
+  const trustTone = vendor.is_verified && hasVisiblePrice ? "success" as const : "warning" as const;
+
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={st.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={st.headerTitle} numberOfLines={1}>{vendor.name}</Text>
-        <Pressable onPress={handleShare} hitSlop={12}>
+      <AppHeader
+        title={vendor.name}
+        onBack={() => router.back()}
+        right={(
+          <Pressable onPress={handleShare} hitSlop={12}>
           <Share2 size={22} color={colors.noir[800]} />
-        </Pressable>
-      </View>
+          </Pressable>
+        )}
+      />
 
       <ScrollView contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 히어로 썸네일 */}
@@ -366,9 +433,9 @@ export default function VendorDetailScreen() {
           </View>
 
           <View style={st.heroBadges}>
-            {vendor.category && (
+            {category && (
               <View style={st.catBadge}>
-                <Text style={st.catBadgeText}>{vendor.category}</Text>
+                <Text style={st.catBadgeText}>{category}</Text>
               </View>
             )}
             {vendor.region && (
@@ -379,6 +446,90 @@ export default function VendorDetailScreen() {
             )}
           </View>
         </View>
+
+        <Surface style={st.trustCard}>
+          <View style={st.trustCardTop}>
+            <View style={st.trustTitleBlock}>
+              <Text style={st.trustEyebrow}>VENDOR TRUST</Text>
+              <Text style={st.trustTitle}>예약 전에 확인할 신뢰 신호</Text>
+            </View>
+            <StatusPill
+              label={vendor.is_verified && hasVisiblePrice ? "예약 검토 가능" : "추가 확인"}
+              tone={trustTone}
+            />
+          </View>
+
+          <View style={st.trustMetricGrid}>
+            <View style={st.trustMetric}>
+              <ShieldCheck
+                size={18}
+                color={vendor.is_verified ? colors.success : colors.textTertiary}
+              />
+              <Text style={st.trustMetricLabel}>검증</Text>
+              <Text style={st.trustMetricValue}>
+                {vendor.is_verified ? "완료" : vendor.business_license_url ? "서류 등록" : "확인 전"}
+              </Text>
+            </View>
+            <View style={st.trustMetricDivider} />
+            <View style={st.trustMetric}>
+              <WalletCards
+                size={18}
+                color={hasVisiblePrice ? colors.rose[500] : colors.textTertiary}
+              />
+              <Text style={st.trustMetricLabel}>가격</Text>
+              <Text style={st.trustMetricValue} numberOfLines={1}>{priceSummary}</Text>
+            </View>
+            <View style={st.trustMetricDivider} />
+            <View style={st.trustMetric}>
+              <Star
+                size={18}
+                color={vendor.rating ? colors.gold.DEFAULT : colors.textTertiary}
+                fill={vendor.rating ? colors.gold.DEFAULT : "transparent"}
+              />
+              <Text style={st.trustMetricLabel}>후기</Text>
+              <Text style={st.trustMetricValue}>
+                {vendor.rating ? `${vendor.rating.toFixed(1)}${vendor.review_count ? ` · ${vendor.review_count}개` : ""}` : "수집 전"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={st.disclosureBox}>
+            <Info size={15} color={colors.textTertiary} />
+            <Text style={st.disclosureText}>
+              {vendor.ai_recommend ? "한방 큐레이션 후보예요. " : ""}
+              노출과 추천 판단은 광고비가 아니라 검증, 가격 공개, 상품 정보 기준으로 분리해 표시합니다.
+            </Text>
+          </View>
+        </Surface>
+
+        <Surface tone="ivory" style={st.bookingGuardCard}>
+          <View style={st.guardHeader}>
+            <AlertTriangle size={17} color={colors.gold.DEFAULT} />
+            <Text style={st.guardTitle}>예약 전 확인</Text>
+          </View>
+          <View style={st.guardRow}>
+            <FileCheck2 size={15} color={colors.textSecondary} />
+            <Text style={st.guardText}>
+              {popularProduct
+                ? `등록 상품 ${productCount}개 중 대표: ${popularProduct.name} · ${formatWon(popularProduct.price)}`
+                : "등록된 상품이 없으면 상담 전 가격표를 먼저 요청하세요."}
+            </Text>
+          </View>
+          <View style={st.guardRow}>
+            <WalletCards size={15} color={colors.textSecondary} />
+            <Text style={st.guardText}>
+              {hasExclusions
+                ? "불포함 항목이 있는 상품은 추가금 가능성이 있어요."
+                : "포함/불포함 항목을 계약서 기준으로 다시 확인하세요."}
+            </Text>
+          </View>
+          <View style={st.guardRow}>
+            <CalendarDays size={15} color={colors.textSecondary} />
+            <Text style={st.guardText}>
+              예약 확정 전 환불, 일정 변경, 원장/담당자 지정 조건을 확인하세요.
+            </Text>
+          </View>
+        </Surface>
 
         {/* 설명 */}
         {vendor.description && (
@@ -482,6 +633,16 @@ export default function VendorDetailScreen() {
                 {product.description && (
                   <Text style={st.productDesc}>{product.description}</Text>
                 )}
+
+                <View style={st.productTrustRow}>
+                  <Info size={13} color={colors.textTertiary} />
+                  <Text style={st.productTrustText}>
+                    포함 {product.includes?.length ?? 0}개
+                    {" · "}
+                    불포함 {product.excludes?.length ?? 0}개
+                    {(product.excludes?.length ?? 0) > 0 ? " · 추가금 확인 필요" : ""}
+                  </Text>
+                </View>
 
                 {/* 포함 항목 */}
                 {product.includes && product.includes.length > 0 && (
@@ -702,6 +863,14 @@ export default function VendorDetailScreen() {
                       </View>
                     </View>
 
+                    <View style={st.confirmNotice}>
+                      <AlertTriangle size={16} color={colors.gold.DEFAULT} />
+                      <Text style={st.confirmNoticeText}>
+                        예약 확정 전 포함 {selectedProduct.includes?.length ?? 0}개,
+                        불포함 {selectedProduct.excludes?.length ?? 0}개 항목과 환불/변경 조건을 업체와 다시 확인하세요.
+                      </Text>
+                    </View>
+
                     {/* 메모 */}
                     <Text style={st.memoLabel}>메모 (선택)</Text>
                     <TextInput
@@ -820,6 +989,105 @@ const st = StyleSheet.create({
     gap: 4,
   },
   regionText: { fontSize: 13, color: colors.textSecondary, fontFamily: "NotoSansKR_400Regular" },
+
+  // 신뢰 신호
+  trustCard: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingVertical: 18,
+  },
+  trustCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
+  },
+  trustTitleBlock: { flex: 1, gap: 2 },
+  trustEyebrow: {
+    fontSize: 10,
+    letterSpacing: 0,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textTertiary,
+  },
+  trustTitle: {
+    fontSize: 17,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  trustMetricGrid: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 16,
+    backgroundColor: colors.ivory[100],
+    paddingVertical: 12,
+  },
+  trustMetric: {
+    flex: 1,
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 4,
+  },
+  trustMetricDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: 4,
+  },
+  trustMetricLabel: {
+    fontSize: 10,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+  },
+  trustMetricValue: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    textAlign: "center",
+  },
+  disclosureBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 14,
+    paddingTop: 12,
+  },
+  disclosureText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  bookingGuardCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingVertical: 16,
+    gap: 10,
+  },
+  guardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  guardTitle: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  guardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  guardText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
 
   // 섹션
   section: {
@@ -948,6 +1216,23 @@ const st = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 10,
+    fontFamily: "NotoSansKR_400Regular",
+  },
+  productTrustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[100],
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  productTrustText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
     fontFamily: "NotoSansKR_400Regular",
   },
   includesList: { marginBottom: 8 },
@@ -1132,6 +1417,22 @@ const st = StyleSheet.create({
   confirmLabel: { fontSize: 14, color: colors.textSecondary, fontFamily: "NotoSansKR_400Regular" },
   confirmValue: { fontSize: 14, fontWeight: "600", color: colors.noir[800], fontFamily: "NotoSansKR_400Regular" },
   confirmPrice: { fontSize: 18, fontWeight: "700", color: colors.noir[800], fontFamily: "CormorantGaramond_600SemiBold" },
+  confirmNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 16,
+    backgroundColor: "rgba(201, 169, 110, 0.14)",
+    padding: 12,
+    marginBottom: 18,
+  },
+  confirmNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#7A5A1E",
+    fontFamily: "NotoSansKR_400Regular",
+  },
 
   // 메모
   memoLabel: { fontSize: 14, fontWeight: "500", color: colors.textSecondary, marginBottom: 8, fontFamily: "NotoSansKR_400Regular" },
