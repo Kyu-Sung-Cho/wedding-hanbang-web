@@ -73,6 +73,16 @@ const mocks = vi.hoisted(() => {
   pollsQuery.select.mockReturnValue(pollsQuery);
   pollsQuery.in.mockResolvedValue({ data: [], error: null });
 
+  const profileRolesQuery = {
+    select: vi.fn(),
+    in: vi.fn(),
+  };
+  profileRolesQuery.select.mockReturnValue(profileRolesQuery);
+  profileRolesQuery.in.mockResolvedValue({
+    data: [{ id: "author-1", role: "bride" }],
+    error: null,
+  });
+
   const supabase = {
     from: vi.fn((table: string) => {
       if (table === "community_posts") return postsQuery;
@@ -82,17 +92,31 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
+  const adminSupabase = {
+    from: vi.fn((table: string) => {
+      if (table === "profiles") return profileRolesQuery;
+      throw new Error(`Unexpected admin table ${table}`);
+    }),
+  };
+
   return {
     createPublicClient: vi.fn(() => supabase),
+    createAdminClient: vi.fn(() => adminSupabase),
     postsQuery,
     profilesQuery,
     pollsQuery,
+    profileRolesQuery,
     supabase,
+    adminSupabase,
   };
 });
 
 vi.mock("@/lib/supabase/public", () => ({
   createPublicClient: mocks.createPublicClient,
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 
 describe("getInitialCommunityFeed", () => {
@@ -111,5 +135,6 @@ describe("getInitialCommunityFeed", () => {
     expect(feed.posts).toHaveLength(1);
     expect(feed.posts[0]?.id).toBe("listed-post");
     expect(feed.posts[0]?.category).toBe("is_normal");
+    expect(feed.posts[0]?.author.role).toBe("bride");
   });
 });

@@ -453,7 +453,7 @@ export async function POST(request: Request) {
     supabase.from("profiles").select("name, role").eq("couple_id", coupleId),
     // 3. 예약 내역 (취소 제외)
     supabase.from("vendor_bookings")
-      .select("id, vendor_id, booking_date, booking_time, status, amount, memo, vendors(name, category)")
+      .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo, vendors(name, category)")
       .eq("couple_id", coupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
@@ -503,6 +503,15 @@ export async function POST(request: Request) {
   const groomName = profiles.find((p) => p.role === "groom")?.name ?? null;
 
   // 예약 내역 정리
+  const toAmount = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : null;
+    }
+    return null;
+  };
+
   const bookings = (bookingsResult.data ?? []).map((b) => {
     const vendor = b.vendors as unknown as { name: string; category: string } | null;
     return {
@@ -511,7 +520,9 @@ export async function POST(request: Request) {
       date: b.booking_date as string,
       time: b.booking_time as string,
       status: b.status as string,
-      amount: b.amount as number,
+      amount: toAmount(b.amount),
+      contractedAmount: toAmount(b.contracted_amount),
+      actualAmount: toAmount(b.actual_amount),
     };
   });
 

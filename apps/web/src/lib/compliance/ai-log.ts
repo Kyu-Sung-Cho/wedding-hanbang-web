@@ -18,11 +18,40 @@ import type { InteractionType, SpecialistType } from "@/types/moat.types";
 // -------------------------------------------
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
-// 출처: Anthropic 공식 가격 (2026년 기준)
+// 출처: Anthropic 공식 가격 (확인일: 2026-06-17)
+// https://platform.claude.com/docs/en/about-claude/pricing
 // cache_write = 표준 input × 1.25 (캐시 생성 시 25% premium)
 // cache_read  = 표준 input × 0.10 (캐시 hit 시 90% 할인)
 const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number; cacheRead: number }> = {
+  "claude-fable-5": {
+    in: 10 / 1_000_000, out: 50 / 1_000_000,
+    cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
+  },
+  "claude-mythos-5": {
+    in: 10 / 1_000_000, out: 50 / 1_000_000,
+    cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
+  },
+  "claude-opus-4-8": {
+    in: 5 / 1_000_000, out: 25 / 1_000_000,
+    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+  },
   "claude-opus-4-7": {
+    in: 5 / 1_000_000, out: 25 / 1_000_000,
+    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+  },
+  "claude-opus-4-6": {
+    in: 5 / 1_000_000, out: 25 / 1_000_000,
+    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+  },
+  "claude-opus-4-5": {
+    in: 5 / 1_000_000, out: 25 / 1_000_000,
+    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+  },
+  "claude-opus-4-1": {
+    in: 15 / 1_000_000, out: 75 / 1_000_000,
+    cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000,
+  },
+  "claude-opus-4": {
     in: 15 / 1_000_000, out: 75 / 1_000_000,
     cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000,
   },
@@ -30,7 +59,19 @@ const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number;
     in: 3 / 1_000_000, out: 15 / 1_000_000,
     cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
   },
+  "claude-sonnet-4-5": {
+    in: 3 / 1_000_000, out: 15 / 1_000_000,
+    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
+  },
   "claude-haiku-4-5-20251001": {
+    in: 1 / 1_000_000, out: 5 / 1_000_000,
+    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.10 / 1_000_000,
+  },
+  "claude-haiku-4-5": {
+    in: 1 / 1_000_000, out: 5 / 1_000_000,
+    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.10 / 1_000_000,
+  },
+  "claude-haiku-3-5": {
     in: 0.8 / 1_000_000, out: 4 / 1_000_000,
     cacheWrite: 1.0 / 1_000_000, cacheRead: 0.08 / 1_000_000,
   },
@@ -41,7 +82,7 @@ const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number;
   },
 };
 
-function calcCostUsd(
+export function calcCostUsd(
   model: string | null | undefined,
   tokensIn: number | null | undefined,
   tokensOut: number | null | undefined,

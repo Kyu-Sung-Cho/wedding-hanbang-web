@@ -6,6 +6,7 @@ import {
   getSafeDefaultCommunityNickname,
   isCommunityNicknameUniqueViolation,
 } from "@/lib/community/nickname";
+import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -74,18 +75,7 @@ export async function GET(req: NextRequest) {
 
     // 작성자 프로필 별도 조회
     const commentAuthorIds = [...new Set((comments ?? []).map((c) => c.author_id))];
-    let commentAuthorMap: Record<string, { nickname: string; avatar_url: string | null; rank: string; wedding_year: number | null; wedding_month: number | null }> = {};
-    if (commentAuthorIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("community_profiles")
-        .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-        .in("user_id", commentAuthorIds);
-      if (profiles) {
-        commentAuthorMap = Object.fromEntries(
-          profiles.map((p) => [p.user_id, { nickname: p.nickname, avatar_url: p.avatar_url, rank: p.rank, wedding_year: p.wedding_year, wedding_month: p.wedding_month }])
-        );
-      }
-    }
+    const commentAuthorMap = await getCommunityAuthorMap(supabase, commentAuthorIds);
 
     // 인증 사용자의 투표 상태 조회
     let userVotesMap: Record<string, number> = {};
@@ -105,10 +95,9 @@ export async function GET(req: NextRequest) {
     }
 
     // 트리 구조로 변환
-    const defaultAuthor = { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null };
     const commentsWithVotes = (comments ?? []).map((c) => ({
       ...c,
-      author: commentAuthorMap[c.author_id] ?? defaultAuthor,
+      author: commentAuthorMap[c.author_id] ?? fallbackCommunityAuthor(c.author_id),
       user_vote: userVotesMap[c.id] ?? null,
     }));
 

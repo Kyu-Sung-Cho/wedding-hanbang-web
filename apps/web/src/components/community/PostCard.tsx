@@ -269,6 +269,7 @@ export default function PostCard({ post }: PostCardProps) {
                 <Avatar
                   nickname={author.nickname}
                   avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
+                  role={author.role ?? null}
                   size={34}
                 />
               </Link>

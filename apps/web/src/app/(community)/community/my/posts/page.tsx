@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
+import { useAuthStore } from "@/stores/authStore";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
@@ -24,6 +25,7 @@ const rankLabels: Record<CommunityRank, string> = {
 
 export default function MyPostsPage() {
   const router = useRouter();
+  const appProfile = useAuthStore((state) => state.profile);
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -135,7 +137,12 @@ export default function MyPostsPage() {
       {profile && (
         <section className="mb-6 rounded-2xl border border-[#e5d8ca] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
           <div className="flex items-start gap-4">
-            <Avatar nickname={nicknameInput || profile.nickname} avatarUrl={avatarInput} size={56} />
+            <Avatar
+              nickname={nicknameInput || profile.nickname}
+              avatarUrl={avatarInput}
+              role={profile.role ?? appProfile?.role ?? null}
+              size={56}
+            />
             <div className="min-w-0 flex-1">
               {editingProfile ? (
                 <div className="space-y-3">

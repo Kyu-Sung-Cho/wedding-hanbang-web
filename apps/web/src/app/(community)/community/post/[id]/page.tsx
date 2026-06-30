@@ -422,6 +422,7 @@ export default function PostDetailPage() {
                   <Avatar
                     nickname={author.nickname}
                     avatarUrl={author.avatar_url}
+                    role={author.role ?? null}
                     size={36}
                     className="ring-2 ring-white shadow-sm"
                   />

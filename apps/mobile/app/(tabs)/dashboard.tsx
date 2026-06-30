@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   Calendar,
+  CalendarCheck,
   CheckCircle2,
   ChevronRight,
   Sparkles,
@@ -47,6 +48,14 @@ interface PartnerActivity {
   recentCategories: string[]; // 최근 변경된 카테고리 라벨 목록
 }
 
+interface BookingOutcomeTask {
+  id: string;
+  vendorName: string;
+  categoryLabel: string;
+  bookingDate: string;
+  isPast: boolean;
+}
+
 interface DashboardData {
   name: string | null;
   weddingDate: string | null;
@@ -56,6 +65,7 @@ interface DashboardData {
   todayTasks: { title: string; categoryKey: string }[];
   dday: number | null;
   urgentTasks: UrgentTask[];
+  bookingOutcomeTasks: BookingOutcomeTask[];
   partnerActivity: PartnerActivity | null;
 }
 
@@ -69,6 +79,63 @@ const DAILY_QUOTES = [
   "두 사람의 이야기가 시작돼요",
   "소중한 순간을 함께 만들어요",
 ];
+
+const CATEGORY_LABEL_BY_KEY = Object.fromEntries(
+  CATEGORY_CHECKLISTS.map((category) => [category.key, category.label])
+) as Record<string, string>;
+
+function readAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : null;
+  }
+  return null;
+}
+
+function parseBookingDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (year && month && day) {
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+}
+
+function getTodayStart(): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function formatBookingOutcomeDate(dateStr: string): string {
+  const date = parseBookingDate(dateStr);
+  if (Number.isNaN(date.getTime())) return "날짜 확인 필요";
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function getCategoryLabel(category: unknown): string {
+  if (typeof category !== "string" || category.length === 0) {
+    return "업체";
+  }
+  return CATEGORY_LABEL_BY_KEY[category] ?? category;
+}
+
+function toSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function isOutcomeNeededBooking(row: Record<string, unknown>, today: Date): boolean {
+  const status = String(row.status ?? "");
+  if (status === "cancelled") return false;
+
+  const actualAmount = readAmount(row.actual_amount);
+  if (actualAmount !== null && actualAmount > 0) return false;
+
+  const bookingDate = parseBookingDate(String(row.booking_date ?? ""));
+  const isPast = !Number.isNaN(bookingDate.getTime()) && bookingDate < today;
+  return status === "completed" || isPast;
+}
 
 function getGreetingByTime(): string {
   const hour = new Date().getHours();
@@ -256,6 +323,7 @@ export default function DashboardScreen() {
           todayTasks: [],
           dday: null,
           urgentTasks: [],
+          bookingOutcomeTasks: [],
           partnerActivity: null,
         });
         return;
@@ -287,6 +355,50 @@ export default function DashboardScreen() {
 
       // 긴급 할 일 계산
       const urgentTasks = calcUrgentTasks(dday, progress);
+
+      const todayStart = getTodayStart();
+      const todayIso = todayStart.toISOString().slice(0, 10);
+      let bookingOutcomeTasks: BookingOutcomeTask[] = [];
+      try {
+        const { data: bookingRows, error: bookingError } = await supabase
+          .from("vendor_bookings")
+          .select("id, booking_date, status, actual_amount, vendor:vendors(name, category)")
+          .eq("couple_id", profile.couple_id)
+          .neq("status", "cancelled")
+          .or(`status.eq.completed,booking_date.lt.${todayIso}`)
+          .or("actual_amount.is.null,actual_amount.eq.0")
+          .order("booking_date", { ascending: false })
+          .limit(3);
+
+        if (bookingError) throw bookingError;
+
+        const rows = (bookingRows ?? []) as Array<Record<string, unknown>>;
+        bookingOutcomeTasks = rows
+          .filter((row) => isOutcomeNeededBooking(row, todayStart))
+          .map((row) => {
+            const vendor = toSingleRelation(
+              row.vendor as { name?: unknown; category?: unknown } | { name?: unknown; category?: unknown }[] | null
+            );
+            const bookingDate = String(row.booking_date ?? "");
+            const parsedDate = parseBookingDate(bookingDate);
+            const isPast = !Number.isNaN(parsedDate.getTime()) && parsedDate < todayStart;
+
+            return {
+              id: String(row.id ?? ""),
+              vendorName:
+                typeof vendor?.name === "string" && vendor.name.length > 0
+                  ? vendor.name
+                  : "업체 미정",
+              categoryLabel: getCategoryLabel(vendor?.category),
+              bookingDate,
+              isPast,
+            };
+          })
+          .filter((task) => task.id.length > 0)
+          .slice(0, 3);
+      } catch {
+        // 예약 결과 조회 실패는 홈 진입을 막지 않음
+      }
 
       // 파트너 활동 감지
       let partnerActivity: PartnerActivity | null = null;
@@ -346,6 +458,7 @@ export default function DashboardScreen() {
         todayTasks,
         dday,
         urgentTasks,
+        bookingOutcomeTasks,
         partnerActivity,
       });
 
@@ -371,11 +484,19 @@ export default function DashboardScreen() {
       if (!cid) return;
 
       // Realtime: 웹에서 변경 시 대시보드 자동 갱신
-      const channel = supabase.channel(`journey:${cid}`)
+      const channel = supabase.channel(`dashboard:${cid}`)
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
           table: 'wedding_journeys',
+          filter: `couple_id=eq.${cid}`,
+        }, () => {
+          loadData();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'vendor_bookings',
           filter: `couple_id=eq.${cid}`,
         }, () => {
           loadData();
@@ -549,6 +670,61 @@ export default function DashboardScreen() {
             />
           </View>
         </Surface>
+
+        {/* 예약 결과 기록 */}
+        {(data?.bookingOutcomeTasks?.length ?? 0) > 0 && (
+          <View style={styles.outcomeSection}>
+            <View style={styles.urgentHeader}>
+              <CalendarCheck size={18} color={colors.rose[500]} />
+              <Text style={styles.urgentTitle}>예약 결과 기록</Text>
+              <View style={styles.outcomeCountPill}>
+                <Text style={styles.outcomeCountText}>
+                  {data?.bookingOutcomeTasks.length ?? 0}건
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.outcomeIntro}>
+              실제 결제금액과 만족도를 남기면 추가금 기억과 다음 업체 추천이 더 정확해져요.
+            </Text>
+            {data?.bookingOutcomeTasks.map((task) => (
+              <Pressable
+                key={task.id}
+                style={({ pressed }) => [
+                  styles.outcomeRow,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/bookings",
+                    params: { bookingId: task.id },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${task.vendorName} 실제 결제금액 기록하기`}
+              >
+                <View style={styles.outcomeIcon}>
+                  <Wallet size={17} color={colors.rose[500]} />
+                </View>
+                <View style={styles.urgentContent}>
+                  <View style={styles.urgentTopRow}>
+                    <Text style={styles.urgentCategoryLabel} numberOfLines={1}>
+                      {task.vendorName}
+                    </Text>
+                    <View style={styles.outcomeBadge}>
+                      <Text style={styles.outcomeBadgeText}>
+                        {task.isPast ? "방문 후" : "완료"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.urgentDeadline}>
+                    {formatBookingOutcomeDate(task.bookingDate)} · {task.categoryLabel} · 실결제 입력 필요
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={colors.textTertiary} />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* 지금 해야 할 것 */}
         {(data?.urgentTasks?.length ?? 0) > 0 && (
@@ -1074,6 +1250,64 @@ const styles = StyleSheet.create({
   urgentDeadline: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+
+  // 예약 결과 기록
+  outcomeSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.rose.glow,
+    ...CARD_SHADOW,
+  },
+  outcomeIntro: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  outcomeCountPill: {
+    marginLeft: "auto",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.rose.glow,
+  },
+  outcomeCountText: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[600],
+  },
+  outcomeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 14,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  outcomeIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    backgroundColor: colors.rose.glow,
+  },
+  outcomeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: colors.ivory[200],
+  },
+  outcomeBadgeText: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
   },
 

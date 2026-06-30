@@ -9,13 +9,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, X, CalendarDays, Clock, Trash2,
+  Plus, X, CalendarDays, Clock, Trash2, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
-import { AppHeader, LoadingState } from "@/components/ui/AppUI";
+import {
+  ActionRow,
+  AppHeader,
+  AppText,
+  LoadingState,
+  StatusPill,
+  Surface,
+} from "@/components/ui/AppUI";
 
 /* ───── types ───── */
 interface ChecklistItem {
@@ -43,6 +50,18 @@ interface ScheduleEvent {
   updatedAt?: string;
 }
 
+type ActionUrgency = "overdue" | "urgent" | "soon" | "active";
+
+interface WeeklyAction {
+  categoryKey: string;
+  categoryLabel: string;
+  nextItemLabel: string;
+  urgency: ActionUrgency;
+  deadlineLabel: string;
+  daysUntilDeadline: number | null;
+  percent: number;
+}
+
 const CATEGORY_OPTIONS = [
   "예식장", "스드메", "스튜디오", "드레스", "메이크업", "예복",
   "한복", "예물", "혼수", "허니문", "청첩장", "부케",
@@ -64,6 +83,45 @@ function getUpcomingDays(n: number): string[] {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function calcDday(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const wedding = new Date(`${dateStr}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  wedding.setHours(0, 0, 0, 0);
+  return Math.ceil((wedding.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatDday(dday: number | null): string {
+  if (dday === null) return "D-—";
+  if (dday === 0) return "D-Day";
+  return dday > 0 ? `D-${dday}` : `D+${Math.abs(dday)}`;
+}
+
+function getPhaseLabel(dday: number | null): string {
+  if (dday === null) return "결혼 예정일 설정 필요";
+  if (dday < 0) return "본식 이후 정리";
+  if (dday <= 30) return "최종 점검";
+  if (dday <= 90) return "마무리 준비";
+  if (dday <= 180) return "세부 준비";
+  if (dday <= 300) return "핵심 계약";
+  return "초기 준비";
+}
+
+function getUrgencyLabel(urgency: ActionUrgency): string {
+  if (urgency === "overdue") return "마감 지남";
+  if (urgency === "urgent") return "이번 주";
+  if (urgency === "soon") return "곧 마감";
+  return "진행 권장";
+}
+
+function getUrgencyTone(urgency: ActionUrgency): "neutral" | "rose" | "warning" | "danger" {
+  if (urgency === "overdue") return "danger";
+  if (urgency === "urgent") return "warning";
+  if (urgency === "soon") return "rose";
+  return "neutral";
 }
 
 function getDayLabel(dateStr: string): string {
@@ -91,6 +149,7 @@ export default function ScheduleScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [weddingDate, setWeddingDate] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,10 +185,11 @@ export default function ScheduleScreen() {
 
       const { data: journey } = await supabase
         .from("wedding_journeys")
-        .select("progress")
+        .select("wedding_date, progress")
         .eq("couple_id", profile.couple_id)
         .single();
 
+      setWeddingDate(journey?.wedding_date ?? null);
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
 
       // 웹과 동일한 progress 구조:
@@ -297,6 +357,65 @@ export default function ScheduleScreen() {
     return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
   }
 
+  function getWeeklyActions(dday: number | null): WeeklyAction[] {
+    if (dday !== null && dday < 0) return [];
+
+    const actionCandidates = CATEGORY_CHECKLISTS.flatMap((template) => {
+      const stats = getCategoryStats(template.key);
+      if (stats.percent >= 100) return [];
+
+      if (dday !== null && dday > template.ddayStart) return [];
+
+      const category = categories.find((c) => c.key === template.key);
+      const nextItem = category?.items.find((item) => !item.done);
+      const daysUntilDeadline = dday === null ? null : dday - template.ddayDeadline;
+
+      let urgency: ActionUrgency = "active";
+      if (daysUntilDeadline !== null) {
+        if (daysUntilDeadline < 0) urgency = "overdue";
+        else if (daysUntilDeadline <= 7) urgency = "urgent";
+        else if (daysUntilDeadline <= 30) urgency = "soon";
+      }
+
+      const deadlineLabel =
+        daysUntilDeadline === null
+          ? "결혼 예정일을 넣으면 마감이 계산돼요"
+          : daysUntilDeadline < 0
+            ? `${Math.abs(daysUntilDeadline)}일 지났어요`
+            : daysUntilDeadline === 0
+              ? "오늘까지 권장"
+              : `${daysUntilDeadline}일 남음`;
+
+      return [{
+        categoryKey: template.key,
+        categoryLabel: template.label,
+        nextItemLabel: nextItem?.label ?? `${template.label} 체크리스트 점검`,
+        urgency,
+        deadlineLabel,
+        daysUntilDeadline,
+        percent: stats.percent,
+      }];
+    });
+
+    const urgencyRank: Record<ActionUrgency, number> = {
+      overdue: 0,
+      urgent: 1,
+      soon: 2,
+      active: 3,
+    };
+
+    return actionCandidates
+      .sort((a, b) => {
+        const urgencyDiff = urgencyRank[a.urgency] - urgencyRank[b.urgency];
+        if (urgencyDiff !== 0) return urgencyDiff;
+        if (a.daysUntilDeadline !== null && b.daysUntilDeadline !== null) {
+          return a.daysUntilDeadline - b.daysUntilDeadline;
+        }
+        return a.percent - b.percent;
+      })
+      .slice(0, 3);
+  }
+
   /* ── 이벤트 모달 ── */
   function openAddEventModal() {
     setEditingIdx(null);
@@ -438,6 +557,9 @@ export default function ScheduleScreen() {
           categories.length
       )
     : 0;
+  const dday = calcDday(weddingDate);
+  const weeklyActions = getWeeklyActions(dday);
+  const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
 
   // 진행바 width 보간
   const progressWidth = progressAnim.interpolate({
@@ -466,22 +588,6 @@ export default function ScheduleScreen() {
         }
       />
 
-      {/* 전체 진행률 — 프리미엄 카드 */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryTop}>
-          <Text style={styles.summaryLabel}>전체 진행률</Text>
-          <Text style={styles.summaryPercent}>{overallPercent}%</Text>
-        </View>
-        <View style={styles.summaryBar}>
-          <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
-        </View>
-        <Text style={styles.summaryHint}>
-          {overallPercent >= 100 ? "모든 준비가 완료되었어요!" :
-           overallPercent >= 50 ? "절반 이상 완료! 잘 하고 있어요" :
-           "차근차근 준비해봐요"}
-        </Text>
-      </View>
-
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.list}
@@ -493,6 +599,82 @@ export default function ScheduleScreen() {
           />
         }
       >
+        <Surface tone="noir" style={styles.opsCard}>
+          <View style={styles.opsTop}>
+            <View>
+              <AppText variant="caption" style={styles.opsLabel}>
+                이번 주 준비 모드
+              </AppText>
+              <Text style={styles.opsDday}>{formatDday(dday)}</Text>
+            </View>
+            <StatusPill
+              label={
+                overdueCount > 0
+                  ? `${overdueCount}개 지연`
+                  : dday === null
+                    ? "날짜 필요"
+                    : getPhaseLabel(dday)
+              }
+              tone={overdueCount > 0 ? "danger" : "rose"}
+            />
+          </View>
+          <AppText variant="body" style={styles.opsCopy}>
+            {weddingDate
+              ? `${getPhaseLabel(dday)} 단계예요. 이번 주에는 마감이 가까운 항목부터 정리하세요.`
+              : "결혼 예정일을 설정하면 D-day 기준으로 이번 주 할 일을 자동 정렬해요."}
+          </AppText>
+          <View style={styles.summaryTop}>
+            <Text style={styles.summaryLabel}>전체 진행률</Text>
+            <Text style={styles.summaryPercent}>{overallPercent}%</Text>
+          </View>
+          <View style={styles.summaryBar}>
+            <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
+          </View>
+        </Surface>
+
+        <Surface style={styles.weeklySection}>
+          <View style={styles.weeklyHeader}>
+            <View>
+              <AppText variant="eyebrow">WEEKLY ACTION</AppText>
+              <AppText variant="subtitle">이번 주 추천 행동</AppText>
+            </View>
+            <CalendarDays size={18} color={colors.rose[500]} />
+          </View>
+          {weeklyActions.length > 0 ? (
+            weeklyActions.map((action) => (
+              <ActionRow
+                key={action.categoryKey}
+                icon={
+                  action.urgency === "overdue" ? (
+                    <AlertTriangle size={18} color={colors.danger} />
+                  ) : (
+                    <Circle size={18} color={colors.rose[500]} />
+                  )
+                }
+                title={action.categoryLabel}
+                description={`${action.nextItemLabel} · ${action.deadlineLabel}`}
+                right={
+                  <StatusPill
+                    label={getUrgencyLabel(action.urgency)}
+                    tone={getUrgencyTone(action.urgency)}
+                  />
+                }
+                onPress={() => {
+                  setExpandedKey(action.categoryKey);
+                }}
+              />
+            ))
+          ) : (
+            <View style={styles.weeklyEmpty}>
+              <CheckCircle2 size={24} color={colors.rose[500]} />
+              <AppText variant="bodyStrong">이번 주에 급한 준비가 없어요</AppText>
+              <AppText variant="caption" style={styles.weeklyEmptyText}>
+                아래 체크리스트를 점검하거나 새 일정을 추가해두면 파트너와 함께 동기화돼요.
+              </AppText>
+            </View>
+          )}
+        </Surface>
+
         {/* 임박 알림 섹션 */}
         {upcomingEvents.length > 0 && (
           <View style={styles.upcomingSection}>
@@ -753,12 +935,46 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifKR_500Medium",
   },
 
-  summaryCard: {
-    margin: 20,
+  opsCard: {
+    padding: 22,
+  },
+  opsTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 10,
+  },
+  opsLabel: {
+    color: colors.taupe[400],
+    marginBottom: 2,
+  },
+  opsDday: {
+    fontSize: 46,
+    lineHeight: 52,
+    fontFamily: "CormorantGaramond_600SemiBold",
+    color: "#FFFFFF",
+  },
+  opsCopy: {
+    color: colors.taupe[400],
+    marginBottom: 18,
+  },
+  weeklySection: {
+    paddingVertical: 18,
+  },
+  weeklyHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     marginBottom: 8,
-    padding: 24,
-    backgroundColor: colors.noir[800],
-    borderRadius: 24,
+  },
+  weeklyEmpty: {
+    alignItems: "center",
+    paddingVertical: 18,
+    gap: 6,
+  },
+  weeklyEmptyText: {
+    textAlign: "center",
   },
   summaryTop: {
     flexDirection: "row",
@@ -780,7 +996,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.rose[500],
     borderRadius: 3,
   },
-  summaryHint: { fontSize: 12, color: colors.taupe[400] },
 
   list: { padding: 20, gap: 12, paddingBottom: 40 },
 
