@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS } from "./toolExecutor";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
