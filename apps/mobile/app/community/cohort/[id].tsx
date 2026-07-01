@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import {
-  ArrowLeft,
   Send,
   ChevronDown,
   ChevronUp,
@@ -30,6 +29,7 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
 
@@ -151,24 +151,11 @@ function MemberListSection({ members }: { members: CohortMember[] }) {
 
 function InfoBoardTab() {
   return (
-    <View style={styles.placeholderWrap}>
-      <View style={styles.placeholderIcon}>
-        <FileText size={40} color={colors.rose[500]} />
-      </View>
-      <Text style={styles.placeholderTitle}>정보판</Text>
-      <Text style={styles.placeholderText}>
-        계약 정보를 공유해보세요{"\n"}
-        동기들과 가격, 업체 정보를 비교할 수 있어요
-      </Text>
-      <Pressable
-        style={({ pressed }) => [
-          styles.placeholderBtn,
-          pressed && { backgroundColor: colors.rose[600] },
-        ]}
-      >
-        <Text style={styles.placeholderBtnText}>정보 공유하기</Text>
-      </Pressable>
-    </View>
+    <EmptyState
+      icon={<FileText size={40} color={colors.rose[500]} />}
+      title="정보판"
+      description={"계약 정보를 공유해보세요\n동기들과 가격, 업체 정보를 비교할 수 있어요"}
+    />
   );
 }
 
@@ -176,24 +163,11 @@ function InfoBoardTab() {
 
 function TimelineTab() {
   return (
-    <View style={styles.placeholderWrap}>
-      <View style={styles.placeholderIcon}>
-        <Clock size={40} color={colors.gold.DEFAULT} />
-      </View>
-      <Text style={styles.placeholderTitle}>타임라인</Text>
-      <Text style={styles.placeholderText}>
-        동기들의 진행 상황을 확인하세요{"\n"}
-        서로의 웨딩 준비 과정을 함께해요
-      </Text>
-      <Pressable
-        style={({ pressed }) => [
-          styles.placeholderBtn,
-          pressed && { backgroundColor: colors.rose[600] },
-        ]}
-      >
-        <Text style={styles.placeholderBtnText}>내 진행상황 공유</Text>
-      </Pressable>
-    </View>
+    <EmptyState
+      icon={<Clock size={40} color={colors.gold.DEFAULT} />}
+      title="타임라인"
+      description={"동기들의 진행 상황을 확인하세요\n서로의 웨딩 준비 과정을 함께해요"}
+    />
   );
 }
 
@@ -458,23 +432,19 @@ export default function CohortChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {roomInfo?.name ?? "동기방"}
-          </Text>
-        </View>
-        <View style={styles.memberBadge}>
-          <Users size={14} color={colors.textSecondary} />
-          <Text style={styles.memberCount}>
-            {roomInfo?.member_count ?? "..."}
-          </Text>
-        </View>
-      </View>
+      <AppHeader
+        title={roomInfo?.name ?? "동기방"}
+        onBack={() => router.back()}
+        sideWidth={72}
+        right={
+          <View style={styles.memberBadge}>
+            <Users size={14} color={colors.textSecondary} />
+            <Text style={styles.memberCount}>
+              {roomInfo?.member_count ?? "..."}
+            </Text>
+          </View>
+        }
+      />
 
       {/* 멤버 목록 (접이식) */}
       {members.length > 0 && <MemberListSection members={members} />}
@@ -550,9 +520,7 @@ export default function CohortChatScreen() {
 
           {/* 메시지 영역 */}
           {loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator color={colors.rose[500]} />
-            </View>
+            <LoadingState label="메시지를 불러오는 중이에요" />
           ) : (
             <FlatList
               ref={flatListRef}
@@ -573,11 +541,11 @@ export default function CohortChatScreen() {
                 />
               }
               ListEmptyComponent={
-                <View style={styles.emptyWrap}>
-                  <Text style={styles.emptyText}>
-                    아직 메시지가 없어요. 첫 대화를 시작해보세요!
-                  </Text>
-                </View>
+                <EmptyState
+                  icon={<MessageSquare size={36} color={colors.rose[500]} />}
+                  title="아직 메시지가 없어요"
+                  description="첫 대화를 시작해보세요"
+                />
               }
             />
           )}
@@ -664,23 +632,6 @@ export default function CohortChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  // 헤더
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  headerCenter: { flex: 1 },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-  },
   memberBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -789,9 +740,6 @@ const styles = StyleSheet.create({
   topicChipText: { fontSize: 13, color: colors.textSecondary },
   topicChipTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
-  // 로딩
-  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-
   // 메시지 리스트
   messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
 
@@ -855,57 +803,6 @@ const styles = StyleSheet.create({
   },
   bubbleText: { fontSize: 14, lineHeight: 22, color: colors.noir[800] },
   bubbleTextAi: { color: colors.noir[800] },
-
-  // 빈 상태
-  emptyWrap: { alignItems: "center", paddingTop: 60 },
-  emptyText: { fontSize: 14, color: colors.textTertiary, textAlign: "center" },
-
-  // 플레이스홀더 (정보판 / 타임라인)
-  placeholderWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-    gap: 12,
-  },
-  placeholderIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 28,
-    backgroundColor: colors.rose.glow,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  placeholderTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  placeholderBtn: {
-    backgroundColor: colors.rose[500],
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    marginTop: 8,
-    shadowColor: colors.rose[500],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  placeholderBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
 
   // 입력 바
   inputBar: {

@@ -89,16 +89,18 @@ export function AppHeader({
   subtitle,
   onBack,
   right,
+  sideWidth = 40,
 }: {
   title: string;
   subtitle?: string;
   onBack?: () => void;
   right?: ReactNode;
+  sideWidth?: number;
 }) {
   return (
     <View style={headerStyles.container}>
       <Pressable
-        style={headerStyles.sideButton}
+        style={[headerStyles.sideButton, { width: sideWidth }]}
         onPress={onBack}
         disabled={!onBack}
         hitSlop={12}
@@ -117,7 +119,7 @@ export function AppHeader({
           </AppText>
         ) : null}
       </View>
-      <View style={headerStyles.sideButton}>{right}</View>
+      <View style={[headerStyles.sideButton, { width: sideWidth }]}>{right}</View>
     </View>
   );
 }
@@ -367,7 +369,6 @@ const headerStyles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   sideButton: {
-    width: 40,
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
