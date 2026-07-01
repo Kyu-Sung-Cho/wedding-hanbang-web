@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { ArrowLeft, ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
+import { ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch, apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,7 @@ import {
   CommunityAvatar,
   type CommunityAvatarRole,
 } from "@/components/community/CommunityAvatar";
+import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 interface PostDetail {
   id: string;
@@ -506,7 +507,7 @@ export default function PostDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <LoadingState label="게시글을 불러오고 있어요" />
       </SafeAreaView>
     );
   }
@@ -514,15 +515,12 @@ export default function PostDetailScreen() {
   if (!post) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()}><ArrowLeft size={24} color={colors.noir[800]} /></Pressable>
-          <Text style={styles.headerTitle}>게시글</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.notFoundWrap}>
-          <FileText size={48} color={colors.textTertiary} />
-          <Text style={styles.notFoundText}>게시글을 찾을 수 없어요</Text>
-        </View>
+        <AppHeader title="게시글" onBack={() => router.back()} />
+        <EmptyState
+          icon={<FileText size={48} color={colors.textTertiary} />}
+          title="게시글을 찾을 수 없어요"
+          description="삭제됐거나 접근 권한이 없는 글일 수 있어요."
+        />
       </SafeAreaView>
     );
   }
@@ -534,27 +532,28 @@ export default function PostDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>게시글</Text>
-        <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-          <Pressable
-            onPress={handleBookmark}
-            hitSlop={12}
-            disabled={bookmarkSyncing}
-            style={bookmarkSyncing && styles.actionDisabled}
-          >
-            <Bookmark
-              size={22}
-              color={bookmarked ? colors.rose[500] : colors.taupe[400]}
-              fill={bookmarked ? colors.rose[500] : "none"}
-            />
-          </Pressable>
-        </Animated.View>
-      </View>
+      <AppHeader
+        title="게시글"
+        onBack={() => router.back()}
+        right={
+          <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+            <Pressable
+              onPress={handleBookmark}
+              hitSlop={12}
+              disabled={bookmarkSyncing}
+              style={bookmarkSyncing && styles.actionDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={bookmarked ? "북마크 해제" : "북마크"}
+            >
+              <Bookmark
+                size={22}
+                color={bookmarked ? colors.rose[500] : colors.taupe[400]}
+                fill={bookmarked ? colors.rose[500] : "none"}
+              />
+            </Pressable>
+          </Animated.View>
+        }
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -701,25 +700,7 @@ export default function PostDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
   content: { padding: 20, paddingBottom: 40 },
-
-  notFoundWrap: { alignItems: "center", paddingTop: 80, gap: 12 },
-  notFoundText: { fontSize: 15, color: colors.textTertiary },
 
   adBadge: {
     flexDirection: "row",
