@@ -68,6 +68,31 @@ const CATEGORY_OPTIONS = [
   "답례품", "스냅", "영상", "축가", "사회자", "기타",
 ];
 
+function applyChecklistState(
+  categories: Category[],
+  progress: Record<string, Record<string, boolean>>,
+  categoryKey: string,
+  itemId: string,
+  done: boolean,
+) {
+  return {
+    categories: categories.map((category) =>
+      category.key === categoryKey
+        ? {
+            ...category,
+            items: category.items.map((item) =>
+              item.id === itemId ? { ...item, done } : item
+            ),
+          }
+        : category
+    ),
+    progress: {
+      ...progress,
+      [categoryKey]: { ...progress[categoryKey], [itemId]: done },
+    },
+  };
+}
+
 /* ───── helpers ───── */
 function getUpcomingDays(n: number): string[] {
   const days: string[] = [];
@@ -297,25 +322,40 @@ export default function ScheduleScreen() {
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {
     if (!coupleId) return;
 
+    const nextDone = !currentDone;
+    const previousCategories = categories;
+    const previousProgress = progress;
+
     // 레이아웃 애니메이션
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-    setProgress((prev) => ({
-      ...prev,
-      [categoryKey]: { ...prev[categoryKey], [itemId]: !currentDone },
-    }));
+    const optimistic = applyChecklistState(
+      previousCategories,
+      previousProgress,
+      categoryKey,
+      itemId,
+      nextDone,
+    );
+    setCategories(optimistic.categories);
+    setProgress(optimistic.progress);
 
     // 웹과 동일한 구조로 DB 업데이트
-    const { data: journey } = await supabase
-      .from("wedding_journeys")
-      .select("progress")
-      .eq("couple_id", coupleId)
-      .single();
+    try {
+      const { data: journey } = await supabase
+        .from("wedding_journeys")
+        .select("progress")
+        .eq("couple_id", coupleId)
+        .single();
 
-    if (journey) {
+      if (!journey) {
+        throw new Error("journey not found");
+      }
+
       const currentProgress = { ...(journey.progress as Record<string, unknown>) };
       const catTemplate = CATEGORY_CHECKLISTS.find((c) => c.key === categoryKey);
-      if (!catTemplate) return;
+      if (!catTemplate) {
+        throw new Error("category template not found");
+      }
 
       // 기존 DB의 카테고리 데이터
       const existing = currentProgress[categoryKey] as Record<string, unknown> | undefined;
@@ -324,7 +364,7 @@ export default function ScheduleScreen() {
       // 체크리스트 배열 업데이트 (없으면 상수에서 생성)
       const updatedChecklist = catTemplate.items.map((item) => {
         const dbItem = existingChecklist.find((c) => c.id === item.id);
-        const done = item.id === itemId ? !currentDone : (dbItem?.done ?? false);
+        const done = item.id === itemId ? nextDone : (dbItem?.done ?? false);
         return { id: item.id, label: item.label, done };
       });
 
@@ -340,14 +380,19 @@ export default function ScheduleScreen() {
         checklist: updatedChecklist,
       };
 
-      await apiFetch("/api/journey", {
+      const res = await apiFetch("/api/journey", {
         method: "PATCH",
         body: JSON.stringify({ progress_patch: { [categoryKey]: currentProgress[categoryKey] } }),
       });
-    }
 
-    // 진행률 재계산
-    loadData();
+      if (!res.ok) {
+        throw new Error("checklist save failed");
+      }
+    } catch {
+      setCategories(previousCategories);
+      setProgress(previousProgress);
+      Alert.alert("오류", "체크 상태를 저장하지 못했어요. 다시 시도해주세요.");
+    }
   }
 
   function getCategoryStats(key: string) {
@@ -1081,7 +1126,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 2,
   },
-  catHeader: { flexDirection: "row", alignItems: "center" },
+  catHeader: { flexDirection: "row", alignItems: "center", minHeight: 44 },
   catLabel: {
     fontSize: 16,
     fontWeight: "700",
@@ -1106,7 +1151,13 @@ const styles = StyleSheet.create({
   catBarFill: { height: "100%", backgroundColor: colors.rose[500], borderRadius: 999 },
 
   itemList: { marginTop: 16, gap: 14 },
-  itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 44,
+    paddingVertical: 4,
+  },
   itemLabel: { fontSize: 14, color: colors.noir[800], flex: 1 },
   itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
 

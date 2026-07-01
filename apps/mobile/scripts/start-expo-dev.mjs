@@ -1,17 +1,18 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import process from "node:process";
 
-const expoCommand = process.platform === "win32" ? "expo.cmd" : "expo";
+const require = createRequire(import.meta.url);
+const expoCliPath = require.resolve("@expo/cli/build/bin/cli");
 const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const args = ["start", ...forwardedArgs];
 
-const child = spawn(expoCommand, args, {
+const child = spawn(process.execPath, [expoCliPath, ...args], {
   env: {
     ...process.env,
     EXPO_NO_DEPENDENCY_VALIDATION: "1",
     EXPO_NO_TELEMETRY: "1",
   },
-  shell: process.platform === "win32",
   stdio: "inherit",
 });
 

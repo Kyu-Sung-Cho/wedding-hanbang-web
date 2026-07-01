@@ -29,6 +29,10 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import {
+  putCachedCommunityPost,
+  putCachedCommunityPosts,
+} from "@/lib/communityPostCache";
 import ErrorRetry from "@/components/ErrorRetry";
 import {
   CommunityAvatar,
@@ -66,6 +70,32 @@ interface MyCohort {
   room: CohortRoom;
 }
 
+type CohortCache = {
+  myCohort: MyCohort | null;
+  cohortRooms: CohortRoom[];
+  cachedAt: number;
+};
+
+type CommunityPostRow = {
+  id: string;
+  author_id: string | null;
+  category: string;
+  title: string;
+  content: string;
+  images: string[] | null;
+  upvote_count: number | null;
+  downvote_count: number | null;
+  comment_count: number | null;
+  view_count: number | null;
+  created_at: string;
+};
+
+type CommunityAuthorRow = {
+  user_id: string;
+  nickname: string | null;
+  rank: string | null;
+};
+
 /* ───── 상수 ───── */
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -77,6 +107,96 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORIES = ["all", "is_normal", "tour_review", "tips_v2", "ama", "free"];
+const POSTS_INITIAL_LIMIT = 12;
+const COHORT_CACHE_TTL_MS = 60_000;
+const MOBILE_COMMUNITY_POST_SELECT =
+  "id, author_id, category, title, content, images, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
+
+const postFeedCache = new Map<string, PostItem[]>();
+let cohortCache: CohortCache | null = null;
+
+function communityReadablePostOrFilter(viewerId: string): string {
+  return [
+    "and(visibility.eq.public,under_review.eq.false)",
+    "and(visibility.eq.members,under_review.eq.false)",
+    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
+    `and(under_review.eq.true,author_id.eq.${viewerId})`,
+  ].join(",");
+}
+
+function fallbackAuthor(): PostItem["author"] {
+  return { nickname: "익명", rank: "sprout", role: null };
+}
+
+async function fetchPostsFromApi(cat: string): Promise<PostItem[]> {
+  const params = cat === "all" ? "" : `&category=${cat}`;
+  const data = await apiJson<{ posts: PostItem[] }>(
+    `/api/community/posts?sort=new&limit=${POSTS_INITIAL_LIMIT}${params}`
+  );
+  return data.posts ?? [];
+}
+
+async function fetchPostsFromSupabase(cat: string): Promise<PostItem[]> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+
+  let query = supabase
+    .from("community_posts")
+    .select(MOBILE_COMMUNITY_POST_SELECT)
+    .order("created_at", { ascending: false })
+    .limit(POSTS_INITIAL_LIMIT);
+
+  if (cat !== "all") {
+    query = query.eq("category", cat);
+  }
+
+  query = userId
+    ? query.or(communityReadablePostOrFilter(userId))
+    : query.eq("visibility", "public").eq("under_review", false);
+
+  const { data: postRows, error: postError } = await query;
+  if (postError) throw postError;
+
+  const posts = (postRows ?? []) as CommunityPostRow[];
+  const authorIds = [
+    ...new Set(posts.map((post) => post.author_id).filter((id): id is string => Boolean(id))),
+  ];
+
+  let authorMap: Record<string, PostItem["author"]> = {};
+  if (authorIds.length > 0) {
+    const { data: authorRows, error: authorError } = await supabase
+      .from("community_profiles")
+      .select("user_id, nickname, rank")
+      .in("user_id", authorIds);
+
+    if (!authorError) {
+      authorMap = Object.fromEntries(
+        ((authorRows ?? []) as CommunityAuthorRow[]).map((author) => [
+          author.user_id,
+          {
+            nickname: author.nickname ?? "익명",
+            rank: author.rank ?? "sprout",
+            role: null,
+          },
+        ])
+      );
+    }
+  }
+
+  return posts.map((post) => ({
+    id: post.id,
+    title: post.title,
+    content: post.content,
+    category: post.category,
+    upvote_count: post.upvote_count ?? 0,
+    downvote_count: post.downvote_count ?? 0,
+    comment_count: post.comment_count ?? 0,
+    view_count: post.view_count ?? 0,
+    image_urls: post.images ?? [],
+    created_at: post.created_at,
+    author: post.author_id ? (authorMap[post.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
+  }));
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -300,28 +420,34 @@ function QuickActionsBar() {
 /* ───── 메인 화면 ───── */
 
 export default function CommunityScreen() {
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<PostItem[]>(() => postFeedCache.get("all") ?? []);
+  const [loading, setLoading] = useState(() => !postFeedCache.has("all"));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [category, setCategory] = useState("all");
-  const [myCohort, setMyCohort] = useState<MyCohort | null>(null);
-  const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>([]);
-  const [cohortLoading, setCohortLoading] = useState(true);
+  const [myCohort, setMyCohort] = useState<MyCohort | null>(() => cohortCache?.myCohort ?? null);
+  const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>(() => cohortCache?.cohortRooms ?? []);
+  const [cohortLoading, setCohortLoading] = useState(() => !cohortCache);
   const fabScale = useRef(new Animated.Value(1)).current;
 
   // 게시글 로드
-  const loadPosts = useCallback(async (cat: string) => {
+  const loadPosts = useCallback(async (cat: string, options?: { silent?: boolean }) => {
     try {
       setError(false);
-      const params = cat === "all" ? "" : `&category=${cat}`;
-      const data = await apiJson<{ posts: PostItem[] }>(
-        `/api/community/posts?sort=new&limit=30${params}`
-      );
-      setPosts(data.posts ?? []);
+      let nextPosts: PostItem[];
+
+      try {
+        nextPosts = await fetchPostsFromSupabase(cat);
+      } catch {
+        nextPosts = await fetchPostsFromApi(cat);
+      }
+
+      postFeedCache.set(cat, nextPosts);
+      putCachedCommunityPosts(nextPosts);
+      setPosts(nextPosts);
     } catch {
-      setPosts([]);
-      setError(true);
+      if (!options?.silent) setPosts([]);
+      if (!options?.silent) setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -329,30 +455,33 @@ export default function CommunityScreen() {
   }, []);
 
   // 동기방 로드
-  const loadCohortData = useCallback(async () => {
+  const loadCohortData = useCallback(async (options?: { silent?: boolean }) => {
+    if (
+      cohortCache &&
+      Date.now() - cohortCache.cachedAt < COHORT_CACHE_TTL_MS &&
+      !options?.silent
+    ) {
+      setMyCohort(cohortCache.myCohort);
+      setCohortRooms(cohortCache.cohortRooms);
+      setCohortLoading(false);
+      return;
+    }
+
     try {
       // 내 동기방
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user?.id;
 
-      if (userId) {
-        const { data: membership } = await supabase
-          .from("cohort_members")
-          .select("room_id, room:cohort_rooms(*)")
-          .eq("user_id", userId)
-          .limit(1)
-          .maybeSingle();
+      const membershipPromise = userId
+        ? supabase
+            .from("cohort_members")
+            .select("room_id, room:cohort_rooms(*)")
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null });
 
-        if (membership?.room) {
-          setMyCohort({
-            room_id: membership.room_id,
-            room: membership.room as unknown as CohortRoom,
-          });
-        }
-      }
-
-      // 동기방 목록
-      const { data: rooms } = await supabase
+      const roomsPromise = supabase
         .from("cohort_rooms")
         .select("*")
         .eq("is_active", true)
@@ -360,7 +489,27 @@ export default function CommunityScreen() {
         .order("month")
         .limit(10);
 
-      setCohortRooms((rooms as CohortRoom[]) ?? []);
+      const [{ data: membership }, { data: rooms }] = await Promise.all([
+        membershipPromise,
+        roomsPromise,
+      ]);
+
+      const nextMyCohort = membership?.room
+        ? {
+            room_id: membership.room_id,
+            room: membership.room as unknown as CohortRoom,
+          }
+        : null;
+      const nextRooms = (rooms as CohortRoom[]) ?? [];
+
+      cohortCache = {
+        myCohort: nextMyCohort,
+        cohortRooms: nextRooms,
+        cachedAt: Date.now(),
+      };
+
+      setMyCohort(nextMyCohort);
+      setCohortRooms(nextRooms);
     } catch {
       // 동기방 로드 실패 시 무시
     } finally {
@@ -369,6 +518,15 @@ export default function CommunityScreen() {
   }, []);
 
   useEffect(() => {
+    const cachedPosts = postFeedCache.get(category);
+    if (cachedPosts) {
+      setPosts(cachedPosts);
+      setLoading(false);
+      setError(false);
+      loadPosts(category, { silent: true });
+      return;
+    }
+
     setLoading(true);
     loadPosts(category);
   }, [category, loadPosts]);
@@ -388,7 +546,7 @@ export default function CommunityScreen() {
   function handleRefresh() {
     setRefreshing(true);
     loadPosts(category);
-    loadCohortData();
+    loadCohortData({ silent: true });
   }
 
   /* ── PostCard 렌더 ── */
@@ -407,9 +565,10 @@ export default function CommunityScreen() {
           styles.postCardShadow,
           pressed && { transform: [{ scale: 0.98 }] },
         ]}
-        onPress={() =>
-          router.push({ pathname: "/community/post/[id]", params: { id: item.id } })
-        }
+        onPress={() => {
+          putCachedCommunityPost(item);
+          router.push({ pathname: "/community/post/[id]", params: { id: item.id } });
+        }}
       >
         <View style={styles.postBody}>
           <View style={styles.postBodyLeft}>
@@ -420,9 +579,9 @@ export default function CommunityScreen() {
                 <Text style={styles.postCat}>{catLabel}</Text>
               </View>
               <Text style={styles.postDot}>·</Text>
-              <Text style={styles.postAuthor}>{nickname}</Text>
+              <Text style={styles.postAuthor} numberOfLines={1}>{nickname}</Text>
               <Text style={styles.postDot}>·</Text>
-              <Text style={styles.postTime}>{timeAgo(item.created_at)}</Text>
+              <Text style={styles.postTime} numberOfLines={1}>{timeAgo(item.created_at)}</Text>
             </View>
 
             {/* 제목 */}
@@ -834,7 +993,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: 10,
-    flexWrap: "wrap",
   },
   postCatBadge: {
     backgroundColor: colors.rose.glow,
@@ -844,8 +1002,14 @@ const styles = StyleSheet.create({
   },
   postCat: { fontSize: 12, fontWeight: "700", color: colors.rose[500] },
   postDot: { fontSize: 12, color: colors.taupe[400] },
-  postAuthor: { fontSize: 12, fontWeight: "500", color: colors.noir[800] },
-  postTime: { fontSize: 12, color: colors.taupe[400] },
+  postAuthor: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.noir[800],
+    flexShrink: 1,
+    maxWidth: 110,
+  },
+  postTime: { fontSize: 12, color: colors.taupe[400], flexShrink: 0 },
 
   postTitle: {
     fontSize: 17,
