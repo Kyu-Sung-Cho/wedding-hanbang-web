@@ -12,7 +12,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   MessageCircle,
   ChevronUp,
@@ -30,7 +30,9 @@ import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
+  getCachedCommunityFeed,
   putCachedCommunityPost,
+  putCachedCommunityFeed,
   putCachedCommunityPosts,
 } from "@/lib/communityPostCache";
 import ErrorRetry from "@/components/ErrorRetry";
@@ -112,7 +114,6 @@ const COHORT_CACHE_TTL_MS = 60_000;
 const MOBILE_COMMUNITY_POST_SELECT =
   "id, author_id, category, title, content, images, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
 
-const postFeedCache = new Map<string, PostItem[]>();
 let cohortCache: CohortCache | null = null;
 
 function communityReadablePostOrFilter(viewerId: string): string {
@@ -420,8 +421,8 @@ function QuickActionsBar() {
 /* ───── 메인 화면 ───── */
 
 export default function CommunityScreen() {
-  const [posts, setPosts] = useState<PostItem[]>(() => postFeedCache.get("all") ?? []);
-  const [loading, setLoading] = useState(() => !postFeedCache.has("all"));
+  const [posts, setPosts] = useState<PostItem[]>(() => getCachedCommunityFeed<PostItem>("all") ?? []);
+  const [loading, setLoading] = useState(() => !getCachedCommunityFeed<PostItem>("all"));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [category, setCategory] = useState("all");
@@ -429,6 +430,7 @@ export default function CommunityScreen() {
   const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>(() => cohortCache?.cohortRooms ?? []);
   const [cohortLoading, setCohortLoading] = useState(() => !cohortCache);
   const fabScale = useRef(new Animated.Value(1)).current;
+  const hasFocusedRef = useRef(false);
 
   // 게시글 로드
   const loadPosts = useCallback(async (cat: string, options?: { silent?: boolean }) => {
@@ -442,7 +444,7 @@ export default function CommunityScreen() {
         nextPosts = await fetchPostsFromApi(cat);
       }
 
-      postFeedCache.set(cat, nextPosts);
+      putCachedCommunityFeed(cat, nextPosts);
       putCachedCommunityPosts(nextPosts);
       setPosts(nextPosts);
     } catch {
@@ -518,7 +520,7 @@ export default function CommunityScreen() {
   }, []);
 
   useEffect(() => {
-    const cachedPosts = postFeedCache.get(category);
+    const cachedPosts = getCachedCommunityFeed<PostItem>(category);
     if (cachedPosts) {
       setPosts(cachedPosts);
       setLoading(false);
@@ -530,6 +532,18 @@ export default function CommunityScreen() {
     setLoading(true);
     loadPosts(category);
   }, [category, loadPosts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedRef.current) {
+        hasFocusedRef.current = true;
+        return;
+      }
+
+      loadPosts(category, { silent: true });
+      loadCohortData({ silent: true });
+    }, [category, loadCohortData, loadPosts])
+  );
 
   useEffect(() => {
     loadCohortData();
