@@ -20,12 +20,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // 인증 토큰은 AsyncStorage로 fallback하지 않는다.
 const SECURE_CHUNK_SIZE = 1800;
 
+function secureStoreKey(key: string) {
+  const sanitized = key.replace(/[^A-Za-z0-9._-]/g, "_");
+  return sanitized.length > 0 ? sanitized : "supabase_auth_token";
+}
+
 function chunkMetaKey(key: string) {
-  return `${key}:chunks`;
+  return `${secureStoreKey(key)}.chunks`;
 }
 
 function chunkKey(key: string, index: number) {
-  return `${key}:chunk:${index}`;
+  return `${secureStoreKey(key)}.chunk.${index}`;
 }
 
 const LargeSecureStore = {
@@ -47,7 +52,7 @@ const LargeSecureStore = {
       return null;
     }
 
-    return SecureStore.getItemAsync(key);
+    return SecureStore.getItemAsync(secureStoreKey(key));
   },
   async setItem(key: string, value: string): Promise<void> {
     if (Platform.OS === "web") return;
@@ -55,7 +60,7 @@ const LargeSecureStore = {
     await this.removeItem(key);
 
     if (value.length <= SECURE_CHUNK_SIZE) {
-      await SecureStore.setItemAsync(key, value);
+      await SecureStore.setItemAsync(secureStoreKey(key), value);
       return;
     }
 
@@ -71,7 +76,7 @@ const LargeSecureStore = {
     if (Platform.OS === "web") return;
     const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key)).catch(() => null);
     const chunkCount = Number(chunkCountValue);
-    await SecureStore.deleteItemAsync(key).catch(() => {});
+    await SecureStore.deleteItemAsync(secureStoreKey(key)).catch(() => {});
     if (Number.isInteger(chunkCount) && chunkCount > 0) {
       await Promise.all(
         Array.from({ length: chunkCount }, (_, index) =>
