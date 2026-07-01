@@ -265,3 +265,36 @@ Result:
 Recommended next check:
 
 - Run the Expo Go real-device QA list above and specifically test failed/slow network behavior on vote, bookmark, and comment submit.
+
+## Continuation - 2026-07-01 Expo SDK 54 Health
+
+After production smoke QA, `expo-doctor` was run for the mobile app and found three native-build risks:
+
+- Expo SDK 54 package mismatches, including `expo-apple-authentication`, `expo-device`, and `expo-notifications` installed at incompatible major versions.
+- Duplicate native module dependencies caused by those mismatches.
+- Metro config overriding Expo's default `watchFolders` and forcing `resolver.unstable_enableSymlinks = false`.
+
+What changed:
+
+- `apps/mobile/package.json` and `pnpm-lock.yaml` now pin Expo/RN native packages to the SDK 54 expected versions.
+- `apps/mobile/metro.config.js` now preserves Expo's default monorepo watch folders and resolver paths, then adds the workspace root/cache store.
+
+Verification:
+
+```bash
+corepack pnpm dlx expo-doctor
+corepack pnpm qa:local
+corepack pnpm qa:live
+corepack pnpm supabase:security:probe
+```
+
+Result:
+
+- `expo-doctor` passed: 18/18 checks.
+- `qa:local` passed, including web tests: 31 files / 265 tests, web production build, mobile typecheck/lint, shared typecheck, design-token typecheck.
+- `qa:live` passed: 5/5 production smoke checks on `https://hanbang.ai`.
+- Supabase anonymous sensitive-table probe passed.
+
+Remaining operational item:
+
+- Supabase migration application still requires the production DB password in the active PowerShell session, then `corepack pnpm supabase:ship:safe`.
