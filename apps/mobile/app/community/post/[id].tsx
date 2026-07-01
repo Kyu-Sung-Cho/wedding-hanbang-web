@@ -296,6 +296,9 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [commentFocused, setCommentFocused] = useState(false);
+  const [voteSyncing, setVoteSyncing] = useState(false);
+  const [bookmarkSyncing, setBookmarkSyncing] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   // 투표 상태: 1 = upvote, -1 = downvote, 0 = none
   const [userVote, setUserVote] = useState<number>(0);
@@ -305,6 +308,24 @@ export default function PostDetailScreen() {
   // 애니메이션
   const upScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
+  const actionNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (actionNoticeTimerRef.current) {
+      clearTimeout(actionNoticeTimerRef.current);
+    }
+  }, []);
+
+  function showActionNotice(message: string) {
+    setActionNotice(message);
+    if (actionNoticeTimerRef.current) {
+      clearTimeout(actionNoticeTimerRef.current);
+    }
+    actionNoticeTimerRef.current = setTimeout(() => {
+      setActionNotice(null);
+      actionNoticeTimerRef.current = null;
+    }, 3500);
+  }
 
   const loadComments = useCallback(async (options?: { silent?: boolean }) => {
     if (!postId) return;
@@ -379,7 +400,7 @@ export default function PostDetailScreen() {
 
   // 투표 처리
   async function handleVote() {
-    if (!post) return;
+    if (!post || voteSyncing) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("로그인 필요", "투표하려면 로그인이 필요합니다.");
@@ -390,8 +411,10 @@ export default function PostDetailScreen() {
 
     const newVote = userVote === 1 ? 0 : 1;
     const prevVote = userVote;
+    const prevPost = post;
 
     // 낙관적 업데이트
+    setVoteSyncing(true);
     setUserVote(newVote);
     setPost((prev) => {
       if (!prev) return prev;
@@ -409,12 +432,17 @@ export default function PostDetailScreen() {
       });
     } catch {
       setUserVote(prevVote);
+      setPost(prevPost);
+      showActionNotice("좋아요를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");
       loadPost();
+    } finally {
+      setVoteSyncing(false);
     }
   }
 
   // 북마크 처리
   async function handleBookmark() {
+    if (bookmarkSyncing) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("로그인 필요", "북마크하려면 로그인이 필요합니다.");
@@ -424,6 +452,7 @@ export default function PostDetailScreen() {
     animatePress(bookmarkScale);
 
     const wasBookmarked = bookmarked;
+    setBookmarkSyncing(true);
     setBookmarked(!wasBookmarked);
 
     try {
@@ -440,6 +469,9 @@ export default function PostDetailScreen() {
       }
     } catch {
       setBookmarked(wasBookmarked);
+      showActionNotice("북마크를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");
+    } finally {
+      setBookmarkSyncing(false);
     }
   }
 
@@ -447,17 +479,21 @@ export default function PostDetailScreen() {
     if (!commentText.trim() || submitting) return;
     setSubmitting(true);
     try {
-      await apiFetch("/api/community/comments", {
+      const res = await apiFetch("/api/community/comments", {
         method: "POST",
         body: JSON.stringify({ post_id: postId, content: commentText.trim() }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "댓글 작성에 실패했어요.");
+      }
       setCommentText("");
       setPost((prev) =>
         prev ? { ...prev, comment_count: prev.comment_count + 1 } : prev
       );
       loadComments();
     } catch {
-      Alert.alert("오류", "댓글 작성에 실패했어요. 잠시 후 다시 시도해주세요.");
+      showActionNotice("댓글 작성에 실패했어요. 입력한 내용은 유지했으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -501,7 +537,12 @@ export default function PostDetailScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>게시글</Text>
         <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-          <Pressable onPress={handleBookmark} hitSlop={12}>
+          <Pressable
+            onPress={handleBookmark}
+            hitSlop={12}
+            disabled={bookmarkSyncing}
+            style={bookmarkSyncing && styles.actionDisabled}
+          >
             <Bookmark
               size={22}
               color={bookmarked ? colors.rose[500] : colors.taupe[400]}
@@ -555,7 +596,12 @@ export default function PostDetailScreen() {
                 <Pressable
                   onPress={handleVote}
                   hitSlop={8}
-                  style={[styles.voteBtn, userVote === 1 && styles.voteBtnActive]}
+                  disabled={voteSyncing}
+                  style={[
+                    styles.voteBtn,
+                    userVote === 1 && styles.voteBtnActive,
+                    voteSyncing && styles.actionDisabled,
+                  ]}
                 >
                   <ChevronUp
                     size={20}
@@ -575,6 +621,12 @@ export default function PostDetailScreen() {
           </View>
 
           {/* 댓글 목록 */}
+          {actionNotice ? (
+            <View style={styles.actionNotice}>
+              <Text style={styles.actionNoticeText}>{actionNotice}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.commentsSection}>
             <Text style={styles.commentsTitle}>댓글 {comments.length}개</Text>
             {commentsLoading && comments.length === 0 && (
@@ -744,6 +796,21 @@ const styles = StyleSheet.create({
     fontFamily: "CormorantGaramond_600SemiBold",
   },
   actionLabel: { fontSize: 13, color: colors.taupe[400] },
+  actionDisabled: { opacity: 0.55 },
+  actionNotice: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.rose.glow,
+    backgroundColor: colors.ivory[100],
+  },
+  actionNoticeText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.noir[800],
+  },
 
   commentsSection: { marginTop: 24 },
   commentsTitle: {

@@ -230,3 +230,38 @@ corepack pnpm --filter @hanbang/mobile typecheck
 corepack pnpm --filter @hanbang/mobile lint
 corepack pnpm --filter @hanbang/mobile dev
 ```
+
+## Continuation - 2026-07-01 Community Detail Action UX
+
+After restoring this branch on another machine, one extra mobile community detail polish was added.
+
+File:
+
+- `apps/mobile/app/community/post/[id].tsx`
+
+What changed:
+
+- Vote and bookmark taps now ignore repeat taps while the previous write is still syncing.
+- Vote failure rolls back the optimistic count/state and shows an inline notice instead of silently reloading.
+- Bookmark failure rolls back the optimistic state and shows an inline notice.
+- Comment creation now checks `res.ok`; previously a non-2xx API response could be treated as success.
+- Comment failure preserves the typed text and shows an inline notice, so the user can retry without losing context.
+
+Verification after this continuation:
+
+```bash
+corepack pnpm --filter @hanbang/mobile typecheck
+corepack pnpm --filter @hanbang/mobile lint
+corepack pnpm qa:local
+```
+
+Result:
+
+- Mobile typecheck passed.
+- Mobile lint passed.
+- `qa:local` passed.
+- Web tests still pass: 31 files / 265 tests.
+
+Recommended next check:
+
+- Run the Expo Go real-device QA list above and specifically test failed/slow network behavior on vote, bookmark, and comment submit.
