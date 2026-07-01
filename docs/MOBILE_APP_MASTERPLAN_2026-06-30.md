@@ -285,7 +285,7 @@ Before TestFlight:
 
 ## 10. Current Implementation Notes
 
-As of 2026-07-02 (`main` at `b9e09222`):
+As of 2026-07-02 (`main` at `d535df5d`, latest product/code commit `b9e09222`):
 
 - `DESIGN.md` exists and remains the visual source of truth.
 - `AppUI.tsx` exists and is the shared mobile UI kit.

@@ -6,10 +6,11 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - Continue from branch: `main`
-- Latest shipped commit: `b9e09222` (`refactor: use shared mobile community library UI (#26)`)
+- Latest shipped commit: `d535df5d` (`docs: update July 2 session handoff (#27)`)
+- Latest product/code commit: `b9e09222` (`refactor: use shared mobile community library UI (#26)`)
 - Open PRs at handoff time: none
-- Latest main GitHub Actions run: success, run `28531594653`
-- Last verified production smoke report: `.gstack/qa-reports/live-smoke/2026-07-01T16-18-47-718Z/report.md`
+- Latest main GitHub Actions run: success, run `28532477954`
+- Last verified production smoke report: `.gstack/qa-reports/live-smoke/2026-07-01T16-34-16-796Z/report.md`
 
 ## Resume Commands
 
@@ -74,6 +75,14 @@ corepack pnpm --filter @hanbang/mobile dev
   - `apps/mobile/app/community/my-posts.tsx`
   - `apps/mobile/app/community/my-bookmarks.tsx`
 
+### PR #27 - Update Cross-Computer Handoff Documentation
+
+- Added this July 2 handoff so another computer can resume from `main` with the current shipped work, validation status, blockers, and next priorities.
+- Updated the mobile masterplan current implementation notes to match the latest shipped mobile state.
+- Key files:
+  - `docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md`
+  - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -85,7 +94,7 @@ corepack pnpm --filter @hanbang/mobile dev
   - design token validation
 - `corepack pnpm dlx expo-doctor` passed 18/18 after Expo dependency alignment.
 - `corepack pnpm audit --prod` passed with no known production vulnerabilities after overrides.
-- Main GitHub Actions passed through `b9e09222`.
+- Main GitHub Actions passed through `d535df5d`.
 - Vercel production deployment and live smoke were verified after the latest shipped mobile UI changes.
 
 ## Product And Code Decisions To Preserve
