@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint · Typecheck · Build
+    name: Quality Gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -34,13 +34,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Build (web)
-        run: pnpm build:web
+      - name: Local quality gate
+        run: pnpm qa:local
         env:
-          # CI 빌드는 플레이스홀더 env로 타입/빌드만 검증
+          # Placeholder values keep CI focused on static verification and build integrity.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
