@@ -298,3 +298,43 @@ Result:
 Remaining operational item:
 
 - Supabase migration application still requires the production DB password in the active PowerShell session, then `corepack pnpm supabase:ship:safe`.
+
+## Continuation - 2026-07-02 Production Dependency Audit
+
+After the Expo SDK 54 health fix landed, a production dependency audit was run:
+
+```bash
+corepack pnpm audit --prod
+```
+
+It found transitive advisories from Expo/PostHog dependency paths:
+
+- `ws <8.21.0`
+- `undici <6.27.0`
+- `tar <=7.5.15`
+- `dompurify <=3.4.10`
+- vulnerable `js-yaml` 3.x/4.x ranges
+- `@babel/core <=7.29.0`
+
+What changed:
+
+- Root `pnpm.overrides` now pins those transitive dependencies to patched versions without changing app code.
+- `pnpm-lock.yaml` was refreshed.
+
+Verification after the override refresh:
+
+```bash
+corepack pnpm audit --prod
+corepack pnpm qa:local
+corepack pnpm dlx expo-doctor
+corepack pnpm qa:live
+corepack pnpm supabase:security:probe
+```
+
+Result:
+
+- Production audit passed: no known vulnerabilities.
+- `qa:local` passed.
+- `expo-doctor` passed: 18/18 checks.
+- `qa:live` passed: 5/5 production smoke checks on `https://hanbang.ai`.
+- Supabase anonymous sensitive-table probe passed.
