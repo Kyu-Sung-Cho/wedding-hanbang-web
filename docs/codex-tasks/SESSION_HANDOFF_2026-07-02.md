@@ -5,8 +5,8 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 ## Current Git State
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
-- Continue from branch: `main` after PR #28 is merged.
-- Latest product/code commit: `b9e09222` (`refactor: use shared mobile community library UI (#26)`)
+- Continue from branch: `main`.
+- Latest shipped product/code baseline before the settings polish branch: `2818ce90` (`refactor: standardize mobile secondary UI (#29)`).
 - Handoff documentation PRs: #27 and #28.
 - Open product/code PRs at handoff time: none.
 - Latest confirmed main GitHub Actions run before the final metadata patch: success, run `28532477954`.
@@ -104,6 +104,17 @@ corepack pnpm --filter @hanbang/mobile dev
   - `apps/mobile/app/community/guestbook/[slug].tsx`
   - `apps/mobile/app/settings/index.tsx`
 
+### Mobile Settings Polish And Real-Device QA Checklist
+
+- Moved Settings cards onto shared `Surface` while preserving existing save, notification, partner, password, logout, and account deletion behavior.
+- Converted Settings account/app-info rows to shared `ActionRow`.
+- Converted Settings save and password-change CTAs to shared `PrimaryButton`.
+- Expanded `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md` with real-device coverage for settings identity, community nickname freshness, secondary screen UI consistency, and screenshot capture.
+- Key files:
+  - `apps/mobile/app/settings/index.tsx`
+  - `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md`
+  - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -122,6 +133,13 @@ corepack pnpm --filter @hanbang/mobile dev
   - `corepack pnpm --filter @hanbang/mobile typecheck`
   - `corepack pnpm --filter @hanbang/mobile lint`
   - `corepack pnpm qa:local`
+- For the settings polish and real-device QA checklist continuation, these local checks passed:
+  - `git diff --check`
+  - `corepack pnpm --filter @hanbang/mobile typecheck`
+  - `corepack pnpm --filter @hanbang/mobile lint`
+  - `corepack pnpm qa:local`
+  - `corepack pnpm dlx expo-doctor`
+  - `corepack pnpm audit --prod`
 
 ## Product And Code Decisions To Preserve
 
@@ -158,10 +176,12 @@ corepack pnpm supabase:security:probe
    - chat scroll
    - booking and budget refresh paths
 
-3. Continue deeper mobile UI kit adoption where it improves real workflows:
-   - Convert settings account rows to `ActionRow` where labels and descriptions remain clear.
-   - Review community compose/review forms for `Surface` and field rhythm consistency.
-   - Add visual device QA screenshots for the newly standardized secondary screens.
+3. Run visual real-device QA and attach screenshots using `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md`:
+   - settings identity save
+   - community nickname freshness
+   - community compose/review forms
+   - cohort discovery/chat
+   - guestbook found/not-found states
 
 4. Continue launch readiness:
    - EAS build audit

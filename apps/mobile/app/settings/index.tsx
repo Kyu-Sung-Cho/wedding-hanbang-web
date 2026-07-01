@@ -29,7 +29,6 @@ import {
   Lock,
   LogOut,
   Trash2,
-  ChevronRight,
   FileText,
   X,
   Eye,
@@ -43,7 +42,7 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppHeader, LoadingState } from "@/components/ui/AppUI";
+import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 
 // AsyncStorage 키
 const NOTIF_PUSH_KEY = "@hanbang/notif_push";
@@ -491,7 +490,7 @@ export default function SettingsScreen() {
           <User size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>프로필</Text>
         </View>
-        <View style={styles.card}>
+        <Surface style={styles.card}>
           <View style={styles.field}>
             <Text style={styles.label}>이름 (실명)</Text>
             <TextInput
@@ -538,14 +537,14 @@ export default function SettingsScreen() {
               <Text style={styles.readOnlyText}>{roleLabel}</Text>
             </View>
           </View>
-        </View>
+        </Surface>
 
         {/* 섹션 2: 결혼 정보 */}
         <View style={styles.sectionHeader}>
           <Heart size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>결혼 정보</Text>
         </View>
-        <View style={styles.card}>
+        <Surface style={styles.card}>
           <View style={styles.field}>
             <Text style={styles.label}>결혼 예정일</Text>
             <TextInput
@@ -602,39 +601,35 @@ export default function SettingsScreen() {
               onBlur={() => setFocusedField(null)}
             />
           </View>
-        </View>
+        </Surface>
 
         {/* 저장 버튼 */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.saveBtn,
-            !hasChanges && !saved && styles.saveBtnDisabled,
-            pressed && hasChanges && { transform: [{ scale: 0.98 }] },
-          ]}
+        <PrimaryButton
+          tone="rose"
+          style={styles.saveButton}
           onPress={handleSave}
-          disabled={saving || !hasChanges}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : saved ? (
-            <Animated.View style={[styles.saveBtnContent, { transform: [{ scale: checkScale }] }]}>
-              <Check size={18} color="#FFFFFF" />
-              <Text style={styles.saveBtnText}>저장 완료</Text>
-            </Animated.View>
-          ) : (
-            <View style={styles.saveBtnContent}>
+          disabled={saving || (!hasChanges && !saved)}
+          icon={
+            saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : saved ? (
+              <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+                <Check size={18} color="#FFFFFF" />
+              </Animated.View>
+            ) : (
               <Save size={18} color="#FFFFFF" />
-              <Text style={styles.saveBtnText}>저장하기</Text>
-            </View>
-          )}
-        </Pressable>
+            )
+          }
+        >
+          {saving ? "저장 중" : saved ? "저장 완료" : "저장하기"}
+        </PrimaryButton>
 
         {/* 섹션 3: 알림 설정 */}
         <View style={styles.sectionHeader}>
           <Bell size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>알림 설정</Text>
         </View>
-        <View style={styles.card}>
+        <Surface style={styles.card}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>푸시 알림</Text>
@@ -677,7 +672,7 @@ export default function SettingsScreen() {
               thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
           </View>
-        </View>
+        </Surface>
 
         {/* 섹션 4: 파트너 관리 */}
         {data?.coupleId && (
@@ -686,7 +681,7 @@ export default function SettingsScreen() {
               <Users size={16} color={colors.rose[500]} />
               <Text style={styles.sectionTitle}>파트너 관리</Text>
             </View>
-            <View style={styles.card}>
+            <Surface style={styles.card}>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>파트너</Text>
                 <Text style={styles.infoValue}>
@@ -725,7 +720,7 @@ export default function SettingsScreen() {
                     : "이 코드를 파트너에게 공유해주세요"}
                 </Text>
               </View>
-            </View>
+            </Surface>
           </>
         )}
 
@@ -734,9 +729,10 @@ export default function SettingsScreen() {
           <Shield size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>계정 관리</Text>
         </View>
-        <View style={styles.card}>
-          <Pressable
-            style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
+        <Surface style={styles.card}>
+          <ActionRow
+            icon={<Lock size={18} color={colors.noir[800]} />}
+            title="비밀번호 변경"
             onPress={() => {
               setNewPassword("");
               setConfirmPassword("");
@@ -744,34 +740,23 @@ export default function SettingsScreen() {
               setShowConfirmPassword(false);
               setPasswordModalVisible(true);
             }}
-          >
-            <View style={styles.actionRowLeft}>
-              <Lock size={18} color={colors.noir[800]} />
-              <Text style={styles.actionRowText}>비밀번호 변경</Text>
-            </View>
-            <ChevronRight size={18} color={colors.taupe[400]} />
-          </Pressable>
+          />
 
           <View style={styles.divider} />
 
-          <Pressable
-            style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
+          <ActionRow
+            icon={<LogOut size={18} color={colors.noir[800]} />}
+            title="로그아웃"
             onPress={handleLogout}
-          >
-            <View style={styles.actionRowLeft}>
-              <LogOut size={18} color={colors.noir[800]} />
-              <Text style={styles.actionRowText}>로그아웃</Text>
-            </View>
-            <ChevronRight size={18} color={colors.taupe[400]} />
-          </Pressable>
-        </View>
+          />
+        </Surface>
 
         {/* 섹션 6: 앱 정보 */}
         <View style={styles.sectionHeader}>
           <Smartphone size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>앱 정보</Text>
         </View>
-        <View style={styles.card}>
+        <Surface style={styles.card}>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>버전</Text>
             <Text style={styles.infoValue}>1.0.0</Text>
@@ -779,37 +764,29 @@ export default function SettingsScreen() {
 
           <View style={styles.divider} />
 
-          <Pressable
-            style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+          <ActionRow
+            title="이용약관"
             onPress={() => Linking.openURL("https://hanbang.ai/terms")}
-          >
-            <Text style={styles.linkText}>이용약관</Text>
-            <ExternalLink size={16} color={colors.taupe[400]} />
-          </Pressable>
+            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+          />
 
           <View style={styles.divider} />
 
-          <Pressable
-            style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+          <ActionRow
+            title="개인정보처리방침"
             onPress={() => Linking.openURL("https://hanbang.ai/privacy")}
-          >
-            <Text style={styles.linkText}>개인정보처리방침</Text>
-            <ExternalLink size={16} color={colors.taupe[400]} />
-          </Pressable>
+            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+          />
 
           <View style={styles.divider} />
 
-          <Pressable
-            style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+          <ActionRow
+            icon={<FileText size={16} color={colors.noir[800]} />}
+            title="오픈소스 라이선스"
             onPress={() => Linking.openURL("https://hanbang.ai/licenses")}
-          >
-            <View style={styles.actionRowLeft}>
-              <FileText size={16} color={colors.noir[800]} />
-              <Text style={styles.linkText}>오픈소스 라이선스</Text>
-            </View>
-            <ExternalLink size={16} color={colors.taupe[400]} />
-          </Pressable>
-        </View>
+            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+          />
+        </Surface>
 
         {/* 회원 탈퇴 (위험 영역) */}
         <View style={styles.dangerZone}>
@@ -912,13 +889,9 @@ export default function SettingsScreen() {
             </View>
 
             {/* 변경 버튼 */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.modalSaveBtn,
-                (!newPassword.trim() || newPassword.length < 6 || newPassword !== confirmPassword) &&
-                  styles.saveBtnDisabled,
-                pressed && { transform: [{ scale: 0.98 }] },
-              ]}
+            <PrimaryButton
+              tone="rose"
+              style={styles.modalSaveButton}
               onPress={handleChangePassword}
               disabled={
                 passwordSaving ||
@@ -926,13 +899,10 @@ export default function SettingsScreen() {
                 newPassword.length < 6 ||
                 newPassword !== confirmPassword
               }
+              icon={passwordSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
             >
-              {passwordSaving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>변경하기</Text>
-              )}
-            </Pressable>
+              {passwordSaving ? "변경 중" : "변경하기"}
+            </PrimaryButton>
           </Pressable>
         </Pressable>
       </Modal>
@@ -962,16 +932,11 @@ const styles = StyleSheet.create({
 
   // 카드
   card: {
-    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 20,
     padding: 16,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 12,
     elevation: 2,
   },
 
@@ -1006,27 +971,9 @@ const styles = StyleSheet.create({
     marginVertical: 14,
   },
 
-  // 저장 버튼
-  saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: colors.rose[500],
+  saveButton: {
     marginBottom: 24,
   },
-  saveBtnDisabled: {
-    backgroundColor: colors.taupe[400],
-    opacity: 0.5,
-  },
-  saveBtnContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  saveBtnText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
 
   // 알림 토글 행
   toggleRow: {
@@ -1079,24 +1026,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // 계정 관리 행
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  actionRowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  actionRowText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.noir[800],
-  },
-
   // 정보 행
   infoRow: {
     flexDirection: "row",
@@ -1110,15 +1039,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: "CormorantGaramond_400Regular",
   },
-
-  // 링크 행
-  linkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 4,
-  },
-  linkText: { fontSize: 15, color: colors.noir[800] },
 
   // 위험 영역 (회원 탈퇴)
   dangerZone: {
@@ -1197,12 +1117,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 2,
   },
-  modalSaveBtn: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: colors.rose[500],
+  modalSaveButton: {
     marginTop: 8,
   },
 });

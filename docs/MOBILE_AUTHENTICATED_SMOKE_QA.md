@@ -1,14 +1,17 @@
 # Mobile Authenticated Smoke QA
 
-> Purpose: verify the trust loop that cannot be proven by static tests alone: booking state, budget memory, Amora context, and mobile freshness for a real signed-in user.
+> Purpose: verify the trust loop that cannot be proven by static tests alone: booking state, budget memory, Amora context, community identity, and mobile freshness for a real signed-in user.
 
 ## Scope
 
 Run this before App Store/TestFlight work and after any change touching:
 
 - mobile Home, Bookings, Budget, Schedule, or Amora
+- mobile Settings, Community, cohort rooms, guestbook, or community write/review flows
 - `vendor_bookings`
 - `wedding_journeys.progress`
+- `profiles.name`
+- `community_profiles.nickname`
 - booking outcome/cancel routes
 - Supabase Realtime publication or RLS around shared couple data
 
@@ -55,6 +58,16 @@ Minimum:
 | Android | physical device or emulator | Expo dev/client |  |
 
 For App Store readiness, repeat on TestFlight/internal build after EAS is configured.
+
+For visual QA, capture screenshots for:
+
+- Settings default state
+- Settings save success state
+- Community post write
+- Quick review
+- Cohort discovery
+- Cohort chat empty/loading state
+- Guestbook found and not-found states
 
 ## Scenario 1: Login And Home Context
 
@@ -138,6 +151,47 @@ Pass:
 - category filters do not contradict all-feed visibility
 - Lounge auth behavior is deterministic
 
+## Scenario 6: Settings Name And Community Identity
+
+1. Sign in as User A.
+2. Open Settings.
+3. Change only the profile name.
+4. Save and confirm the success state appears without dimming or layout shift.
+5. Open Community feed and a post/comment written by User A.
+6. Confirm the displayed community name updates after focus refresh.
+7. Return to Settings.
+8. Change only the community nickname.
+9. Save and confirm the nickname is rejected if it duplicates or violates nickname policy.
+10. Post or comment with an allowed nickname.
+11. Confirm old and new posts/comments display the current nickname consistently.
+
+Pass:
+
+- settings save does not silently drop either profile name or community nickname
+- old community content refreshes to the latest display nickname
+- duplicate or inappropriate nickname attempts show a user-readable error
+- no stale author name remains after navigating feed -> detail -> comments
+
+## Scenario 7: Secondary Screen UI Consistency
+
+1. Open Community post write.
+2. Confirm the header title stays centered and the publish action fits on iOS and Android widths.
+3. Toggle write/preview and confirm no vertical jump or clipped text.
+4. Open Quick Review and confirm the submit button, chips, and star row fit without overlap.
+5. Open Cohort Discovery and switch monthly/region/budget tabs.
+6. Confirm loading/empty/coming-soon states use the same spacing, icon scale, and typography.
+7. Open Cohort Chat.
+8. Confirm the member-count badge fits in the header and empty chat state is readable.
+9. Open Guestbook with a valid slug and an invalid slug.
+10. Confirm found, loading, empty, and not-found states are polished and not visually divergent.
+
+Pass:
+
+- secondary screens use the shared `AppHeader`, `LoadingState`, `EmptyState`, and primary CTA rhythm
+- no header button text clips on 360px wide Android
+- no nested-card visual clutter appears in Settings
+- no controls overlap with keyboard-visible forms
+
 ## Failure Triggers
 
 Stop and fix before App Store/TestFlight work if any occur:
@@ -149,6 +203,9 @@ Stop and fix before App Store/TestFlight work if any occur:
 - public community feed opens to not-found detail
 - Amora references an amount that no longer matches booking/budget state
 - account deletion, auth callback, or logout loops
+- settings name save leaves community content on the old nickname
+- duplicate or inappropriate community nickname is accepted
+- secondary screens have clipped header actions, blank loading states, or unreadable empty states
 
 ## Report Template
 
@@ -173,6 +230,8 @@ Stop and fix before App Store/TestFlight work if any occur:
 - Booking cancellation:
 - Partner freshness:
 - Community/Lounge:
+- Settings identity:
+- Secondary UI consistency:
 
 ### Bugs found
 1.
