@@ -1,14 +1,15 @@
 // 내가 쓴 글 목록
 import { useEffect, useState, useCallback } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, Pressable,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, FileText, ThumbsUp, MessageCircle } from "lucide-react-native";
+import { FileText, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 const CATEGORY_LABELS: Record<string, string> = {
   is_normal: "이거 정상이야?",
@@ -66,21 +67,14 @@ export default function MyPostsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.container} edges={["top"]}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <LoadingState label="내가 쓴 글을 불러오고 있어요" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={s.headerTitle}>내가 쓴 글</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="내가 쓴 글" onBack={() => router.back()} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -94,10 +88,11 @@ export default function MyPostsScreen() {
         }
       >
         {posts.length === 0 ? (
-          <View style={s.empty}>
-            <FileText size={48} color={colors.taupe[400]} />
-            <Text style={s.emptyText}>아직 작성한 글이 없어요</Text>
-          </View>
+          <EmptyState
+            icon={<FileText size={48} color={colors.taupe[400]} />}
+            title="아직 작성한 글이 없어요"
+            description="커뮤니티에 첫 후기를 남기면 여기에서 다시 볼 수 있어요."
+          />
         ) : (
           posts.map((p) => (
             <Pressable
@@ -138,20 +133,6 @@ const CARD_SHADOW = {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-  },
   content: { padding: 20, paddingBottom: 40 },
 
   // 카드
@@ -206,16 +187,4 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
 
-  // 빈 상태
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    gap: 16,
-  },
-  emptyText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
-  },
 });
