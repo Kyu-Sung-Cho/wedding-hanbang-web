@@ -6,9 +6,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Star } from "lucide-react-native";
+import { Star } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
+import { AppHeader, PrimaryButton } from "@/components/ui/AppUI";
 
 const CATEGORIES = [
   { key: "venue", label: "예식장" },
@@ -78,14 +79,7 @@ export default function QuickReviewScreen() {
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={s.headerTitle}>15초 후기</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="15초 후기" onBack={() => router.back()} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -169,21 +163,14 @@ export default function QuickReviewScreen() {
           })}
         </View>
 
-        {/* 제출 */}
-        <Pressable
-          style={({ pressed }) => [
-            s.submitBtn,
-            submitting && { opacity: 0.5 },
-            pressed && { transform: [{ scale: 0.98 }] },
-          ]}
+        <PrimaryButton
+          style={s.submitButton}
           onPress={handleSubmit}
           disabled={submitting}
+          icon={submitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
         >
-          {submitting
-            ? <ActivityIndicator color="#FFF" />
-            : <Text style={s.submitText}>후기 등록하기</Text>
-          }
-        </Pressable>
+          {submitting ? "등록 중" : "후기 등록하기"}
+        </PrimaryButton>
       </ScrollView>
     </SafeAreaView>
   );
@@ -191,20 +178,6 @@ export default function QuickReviewScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-  },
   content: { padding: 20, paddingBottom: 40 },
 
   label: {
@@ -314,17 +287,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.rose[500],
   },
 
-  // 제출
-  submitBtn: {
-    backgroundColor: colors.noir[800],
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
+  submitButton: {
     marginTop: 32,
-  },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: "#FFFFFF",
   },
 });

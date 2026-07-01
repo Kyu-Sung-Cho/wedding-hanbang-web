@@ -294,6 +294,8 @@ As of 2026-07-02 (`main` after PR #28, latest product/code commit `b9e09222`):
 - Profile rows use shared UI.
 - Budget, schedule, vendors, and booking flows use shared app headers/loading patterns.
 - Community post detail, My Posts, and Bookmarks now use shared `AppHeader`, `LoadingState`, and `EmptyState`.
+- Community write, quick review, cohort discovery/chat, guestbook, and settings loading/header states now use shared mobile UI primitives.
+- `AppHeader` supports wider balanced side slots for screens with publish actions or member-count badges.
 - Mobile community nickname changes clear feed/detail/comment caches and refresh on focus so old posts and comments show the updated nickname after save.
 - Expo SDK 54 dependency alignment passes `expo-doctor` 18/18.
 - Production dependency audit passes through root `pnpm.overrides`.

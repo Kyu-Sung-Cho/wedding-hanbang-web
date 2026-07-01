@@ -6,11 +6,12 @@ import {
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, ChevronDown, Eye, Edit3, Check, ImagePlus, X } from "lucide-react-native";
+import { ChevronDown, Eye, Edit3, Check, ImagePlus, X } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
+import { AppHeader } from "@/components/ui/AppUI";
 
 const CATEGORIES = [
   { key: "is_normal", label: "이거 정상이야?" },
@@ -183,27 +184,30 @@ export default function WritePostScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>글쓰기</Text>
-        <Pressable
-          onPress={handleSubmit}
-          disabled={submitting}
-          style={({ pressed }) => [
-            styles.submitBtn,
-            submitting && { opacity: 0.5 },
-            pressed && { transform: [{ scale: 0.96 }] },
-          ]}
-        >
-          {submitting
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Text style={styles.submitText}>발행</Text>
-          }
-        </Pressable>
-      </View>
+      <AppHeader
+        title="글쓰기"
+        onBack={() => router.back()}
+        sideWidth={72}
+        right={
+          <Pressable
+            onPress={handleSubmit}
+            disabled={submitting}
+            accessibilityRole="button"
+            accessibilityLabel="게시글 발행"
+            style={({ pressed }) => [
+              styles.publishButton,
+              submitting && styles.publishButtonDisabled,
+              pressed && !submitting && { transform: [{ scale: 0.96 }] },
+            ]}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.publishButtonText}>발행</Text>
+            )}
+          </Pressable>
+        }
+      />
 
       {/* 탭: 작성/미리보기 */}
       <View style={styles.tabRow}>
@@ -412,28 +416,18 @@ export default function WritePostScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
-  submitBtn: {
+  publishButton: {
     backgroundColor: colors.noir[800],
-    paddingHorizontal: 18,
-    paddingVertical: 9,
+    minWidth: 56,
+    minHeight: 36,
     borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  submitText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  publishButtonDisabled: {
+    opacity: 0.5,
+  },
+  publishButtonText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 
   // 탭
   tabRow: {

@@ -1,13 +1,14 @@
 // 방명록 뷰어 — 웹에서 만든 방명록을 앱에서 보기
 import { useEffect, useState } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl,
+  View, Text, ScrollView, StyleSheet, RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { ArrowLeft, Heart, MessageSquare, Eye } from "lucide-react-native";
+import { Heart, MessageSquare, Eye } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 interface Guestbook {
   id: string;
@@ -72,34 +73,29 @@ export default function GuestbookViewerScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.container}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+      <SafeAreaView style={s.container} edges={["top"]}>
+        <AppHeader title="방명록" onBack={() => router.back()} />
+        <LoadingState label="방명록을 불러오는 중이에요" />
       </SafeAreaView>
     );
   }
 
   if (!guestbook) {
     return (
-      <SafeAreaView style={s.container}>
-        <View style={s.header}>
-          <Pressable onPress={() => router.back()}><ArrowLeft size={24} color={colors.noir[800]} /></Pressable>
-        </View>
-        <View style={{ alignItems: "center", marginTop: 60 }}>
-          <Text style={{ color: colors.textTertiary }}>방명록을 찾을 수 없어요</Text>
-        </View>
+      <SafeAreaView style={s.container} edges={["top"]}>
+        <AppHeader title="방명록" onBack={() => router.back()} />
+        <EmptyState
+          icon={<MessageSquare size={36} color={colors.rose[500]} />}
+          title="방명록을 찾을 수 없어요"
+          description="주소를 다시 확인해주세요"
+        />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={s.headerTitle}>방명록</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="방명록" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.rose[500]} />}>
@@ -135,7 +131,11 @@ export default function GuestbookViewerScreen() {
         {/* 메시지 목록 */}
         <Text style={s.sectionTitle}>축하 메시지 {messages.length}개</Text>
         {messages.length === 0 ? (
-          <Text style={s.emptyText}>아직 메시지가 없어요</Text>
+          <EmptyState
+            icon={<MessageSquare size={36} color={colors.rose[500]} />}
+            title="아직 메시지가 없어요"
+            description="첫 축하 메시지를 기다리고 있어요"
+          />
         ) : (
           messages.map((msg) => (
             <View key={msg.id} style={s.msgCard}>
@@ -161,11 +161,6 @@ export default function GuestbookViewerScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  headerTitle: { fontSize: 18, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
   content: { padding: 20, paddingBottom: 40 },
 
   coupleCard: {
@@ -187,7 +182,6 @@ const s = StyleSheet.create({
   storyText: { fontSize: 14, color: colors.textSecondary, lineHeight: 22 },
 
   sectionTitle: { fontSize: 16, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800], marginBottom: 12 },
-  emptyText: { fontSize: 14, color: colors.textTertiary, textAlign: "center", paddingVertical: 20 },
 
   msgCard: {
     backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 10,

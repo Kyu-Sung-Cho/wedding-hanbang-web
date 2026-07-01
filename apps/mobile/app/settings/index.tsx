@@ -18,7 +18,6 @@ import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  ArrowLeft,
   Save,
   ExternalLink,
   Check,
@@ -44,6 +43,7 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppHeader, LoadingState } from "@/components/ui/AppUI";
 
 // AsyncStorage 키
 const NOTIF_PUSH_KEY = "@hanbang/notif_push";
@@ -474,31 +474,15 @@ export default function SettingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={24} color={colors.noir[800]} />
-          </Pressable>
-          <Text style={styles.headerTitle}>설정</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <ActivityIndicator
-          color={colors.rose[500]}
-          style={{ marginTop: 40 }}
-        />
+        <AppHeader title="설정" onBack={() => router.back()} />
+        <LoadingState label="설정을 불러오는 중이에요" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>설정</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="설정" onBack={() => router.back()} />
 
       <DismissKeyboard>
       <ScrollView contentContainerStyle={styles.content}>
@@ -958,24 +942,6 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-
-  // 헤더
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
 
   content: { padding: 20, paddingBottom: 40 },
 

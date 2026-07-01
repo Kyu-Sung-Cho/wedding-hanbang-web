@@ -89,6 +89,21 @@ corepack pnpm --filter @hanbang/mobile dev
 - Avoided treating each docs-only merge commit as the product baseline.
 - Kept the latest known main CI and live smoke references in this document.
 
+### Mobile UI Kit Continuation - Remaining Community And Settings Screens
+
+- Extended shared mobile UI adoption to the remaining high-value community/settings routes.
+- Added `sideWidth` support to `AppHeader` so secondary screens can keep centered titles while using wider right-side actions.
+- Replaced local header/loading/empty-state patterns with shared `AppHeader`, `LoadingState`, and `EmptyState`.
+- Replaced primary local CTAs with `PrimaryButton` where it was safe to do so.
+- Key files:
+  - `apps/mobile/src/components/ui/AppUI.tsx`
+  - `apps/mobile/app/community/post/write.tsx`
+  - `apps/mobile/app/community/quick-review.tsx`
+  - `apps/mobile/app/community/cohort-discovery.tsx`
+  - `apps/mobile/app/community/cohort/[id].tsx`
+  - `apps/mobile/app/community/guestbook/[slug].tsx`
+  - `apps/mobile/app/settings/index.tsx`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -103,6 +118,10 @@ corepack pnpm --filter @hanbang/mobile dev
 - Main GitHub Actions passed through the latest product work and the first handoff documentation merge.
 - PR #28 Quality Gate and Vercel Preview also passed before the final handoff merge.
 - Vercel production deployment and live smoke were verified after the latest shipped mobile UI changes.
+- For the mobile UI kit continuation, these local checks passed:
+  - `corepack pnpm --filter @hanbang/mobile typecheck`
+  - `corepack pnpm --filter @hanbang/mobile lint`
+  - `corepack pnpm qa:local`
 
 ## Product And Code Decisions To Preserve
 
@@ -139,12 +158,10 @@ corepack pnpm supabase:security:probe
    - chat scroll
    - booking and budget refresh paths
 
-3. Continue mobile UI kit adoption on remaining community/settings routes:
-   - `apps/mobile/app/community/post/write.tsx`
-   - `apps/mobile/app/community/quick-review.tsx`
-   - `apps/mobile/app/community/cohort-discovery.tsx`
-   - `apps/mobile/app/community/cohort/[id].tsx`
-   - `apps/mobile/app/settings/index.tsx`
+3. Continue deeper mobile UI kit adoption where it improves real workflows:
+   - Convert settings account rows to `ActionRow` where labels and descriptions remain clear.
+   - Review community compose/review forms for `Surface` and field rhythm consistency.
+   - Add visual device QA screenshots for the newly standardized secondary screens.
 
 4. Continue launch readiness:
    - EAS build audit

@@ -13,7 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  ArrowLeft,
   Users,
   MessageCircle,
   MapPin,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { AppHeader, EmptyState, LoadingState, PrimaryButton } from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
 
@@ -91,24 +91,17 @@ function RoomCard({
         </View>
       </View>
 
-      <Pressable
-        style={({ pressed }) => [
-          styles.joinBtn,
-          pressed && { backgroundColor: colors.noir.soft },
-          isJoining && { backgroundColor: colors.taupe[400] },
-        ]}
+      <PrimaryButton
+        style={styles.joinButton}
         onPress={(e) => {
           e.stopPropagation?.();
           onJoin(room.id);
         }}
         disabled={isJoining}
+        icon={isJoining ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
       >
-        {isJoining ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={styles.joinBtnText}>입장하기</Text>
-        )}
-      </Pressable>
+        {isJoining ? "입장 중" : "입장하기"}
+      </PrimaryButton>
     </Pressable>
   );
 }
@@ -143,11 +136,11 @@ function MonthlySection({
 
   if (sections.length === 0) {
     return (
-      <View style={styles.emptyState}>
-        <Calendar size={40} color={colors.taupe[400]} />
-        <Text style={styles.emptyTitle}>활성화된 동기방이 없어요</Text>
-        <Text style={styles.emptyText}>곧 새로운 동기방이 열릴 예정이에요</Text>
-      </View>
+      <EmptyState
+        icon={<Calendar size={40} color={colors.taupe[400]} />}
+        title="활성화된 동기방이 없어요"
+        description="곧 새로운 동기방이 열릴 예정이에요"
+      />
     );
   }
 
@@ -180,15 +173,11 @@ function ComingSoonSection({
   message: string;
 }) {
   return (
-    <View style={styles.comingSoonWrap}>
-      <View style={styles.comingSoonIcon}>
-        <Icon size={32} color={colors.rose[500]} />
-      </View>
-      <Text style={styles.comingSoonTitle}>{message}</Text>
-      <Text style={styles.comingSoonSub}>
-        더 나은 매칭을 위해 열심히 준비하고 있어요
-      </Text>
-    </View>
+    <EmptyState
+      icon={<Icon size={36} color={colors.rose[500]} />}
+      title={message}
+      description="더 나은 매칭을 위해 열심히 준비하고 있어요"
+    />
   );
 }
 
@@ -279,14 +268,7 @@ export default function CohortDiscoveryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>동기방 찾기</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="동기방 찾기" onBack={() => router.back()} />
 
       {/* 필터 탭 */}
       <View style={styles.tabRow}>
@@ -313,10 +295,7 @@ export default function CohortDiscoveryScreen() {
 
       {/* 컨텐츠 */}
       {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator color={colors.rose[500]} size="large" />
-          <Text style={styles.loadingText}>동기방을 불러오는 중...</Text>
-        </View>
+        <LoadingState label="동기방을 불러오는 중이에요" />
       ) : (
         <ScrollView
           style={{ flex: 1 }}
@@ -361,15 +340,13 @@ export default function CohortDiscoveryScreen() {
               나만의 동기방이 없다면?{"\n"}
               결혼 예정일을 설정하면 같은 분기 동기방에 자동 배정돼요
             </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.bottomCtaBtn,
-                pressed && { backgroundColor: colors.rose[600] },
-              ]}
+            <PrimaryButton
+              tone="rose"
+              style={styles.bottomCtaButton}
               onPress={() => router.push("/(tabs)/profile")}
             >
-              <Text style={styles.bottomCtaBtnText}>결혼 예정일 설정하기</Text>
-            </Pressable>
+              결혼 예정일 설정하기
+            </PrimaryButton>
           </View>
         </ScrollView>
       )}
@@ -381,24 +358,6 @@ export default function CohortDiscoveryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-
-  // 헤더
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
 
   // 필터 탭
   tabRow: {
@@ -433,15 +392,6 @@ const styles = StyleSheet.create({
   },
   tabText: { fontSize: 14, color: colors.taupe[400] },
   tabTextActive: { color: colors.noir[800], fontWeight: "600" },
-
-  // 로딩
-  loadingWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: { fontSize: 14, color: colors.textSecondary },
 
   // 스크롤 컨텐츠
   scrollContent: { paddingBottom: 40 },
@@ -509,56 +459,9 @@ const styles = StyleSheet.create({
     fontFamily: "CormorantGaramond_400Regular",
   },
 
-  joinBtn: {
-    backgroundColor: colors.noir[800],
+  joinButton: {
+    minHeight: 44,
     borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  joinBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
-
-  // 빈 상태
-  emptyState: {
-    alignItems: "center",
-    paddingTop: 80,
-    gap: 10,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.noir[800],
-    marginTop: 8,
-  },
-  emptyText: { fontSize: 14, color: colors.textTertiary },
-
-  // Coming Soon
-  comingSoonWrap: {
-    alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 40,
-    gap: 12,
-  },
-  comingSoonIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    backgroundColor: colors.rose.glow,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  comingSoonTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.noir[800],
-    textAlign: "center",
-    fontFamily: "NotoSerifKR_500Medium",
-  },
-  comingSoonSub: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
   },
 
   // 하단 CTA
@@ -581,20 +484,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  bottomCtaBtn: {
-    backgroundColor: colors.rose[500],
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
+  bottomCtaButton: {
+    alignSelf: "stretch",
     shadowColor: colors.rose[500],
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 4,
-  },
-  bottomCtaBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
   },
 });
