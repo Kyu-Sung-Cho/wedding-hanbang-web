@@ -5,12 +5,12 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 ## Current Git State
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
-- Continue from branch: `main`
-- Latest shipped commit: `d535df5d` (`docs: update July 2 session handoff (#27)`)
+- Continue from branch: `main` after PR #28 is merged.
 - Latest product/code commit: `b9e09222` (`refactor: use shared mobile community library UI (#26)`)
-- Open PRs at handoff time: none
-- Latest main GitHub Actions run: success, run `28532477954`
-- Last verified production smoke report: `.gstack/qa-reports/live-smoke/2026-07-01T16-34-16-796Z/report.md`
+- Handoff documentation PRs: #27 and #28.
+- Open product/code PRs at handoff time: none.
+- Latest confirmed main GitHub Actions run before the final metadata patch: success, run `28532477954`.
+- Latest confirmed production smoke report before the final metadata patch: `.gstack/qa-reports/live-smoke/2026-07-01T16-34-16-796Z/report.md`.
 
 ## Resume Commands
 
@@ -83,6 +83,12 @@ corepack pnpm --filter @hanbang/mobile dev
   - `docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md`
   - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 
+### PR #28 - Finalize Handoff Status Metadata
+
+- Clarified that `b9e09222` is the latest product/code commit and the handoff docs are finalized through PR #28.
+- Avoided treating each docs-only merge commit as the product baseline.
+- Kept the latest known main CI and live smoke references in this document.
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -94,7 +100,8 @@ corepack pnpm --filter @hanbang/mobile dev
   - design token validation
 - `corepack pnpm dlx expo-doctor` passed 18/18 after Expo dependency alignment.
 - `corepack pnpm audit --prod` passed with no known production vulnerabilities after overrides.
-- Main GitHub Actions passed through `d535df5d`.
+- Main GitHub Actions passed through the latest product work and the first handoff documentation merge.
+- PR #28 Quality Gate and Vercel Preview also passed before the final handoff merge.
 - Vercel production deployment and live smoke were verified after the latest shipped mobile UI changes.
 
 ## Product And Code Decisions To Preserve
