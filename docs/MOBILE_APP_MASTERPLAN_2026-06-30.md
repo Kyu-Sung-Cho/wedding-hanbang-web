@@ -285,12 +285,17 @@ Before TestFlight:
 
 ## 10. Current Implementation Notes
 
-As of this plan:
+As of 2026-07-02 (`main` at `b9e09222`):
 
-- `DESIGN.md` exists.
-- `AppUI.tsx` exists.
+- `DESIGN.md` exists and remains the visual source of truth.
+- `AppUI.tsx` exists and is the shared mobile UI kit.
 - Dashboard uses a command-card first impression.
 - Chat empty state uses shared UI.
 - Profile rows use shared UI.
-- Budget, schedule, and vendors use shared app headers/loading.
-- Mobile lint and typecheck pass.
+- Budget, schedule, vendors, and booking flows use shared app headers/loading patterns.
+- Community post detail, My Posts, and Bookmarks now use shared `AppHeader`, `LoadingState`, and `EmptyState`.
+- Mobile community nickname changes clear feed/detail/comment caches and refresh on focus so old posts and comments show the updated nickname after save.
+- Expo SDK 54 dependency alignment passes `expo-doctor` 18/18.
+- Production dependency audit passes through root `pnpm.overrides`.
+- `qa:local`, main GitHub Actions, Vercel production deploy, and live smoke were green after the latest mobile UI updates.
+- Latest cross-computer handoff: `docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md`.
