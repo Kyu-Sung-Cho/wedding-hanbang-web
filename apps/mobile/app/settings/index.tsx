@@ -42,6 +42,7 @@ import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { clearCommunityCaches } from "@/lib/communityPostCache";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // AsyncStorage 키
@@ -315,6 +316,9 @@ export default function SettingsScreen() {
 
       setData(nextData);
       setInitialData(nextData);
+      if (nameChanged || communityNicknameChanged) {
+        clearCommunityCaches();
+      }
       setSaved(true);
 
       // 체크마크 애니메이션

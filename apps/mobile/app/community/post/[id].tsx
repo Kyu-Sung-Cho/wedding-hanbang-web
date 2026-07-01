@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { ArrowLeft, ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch, apiJson } from "@/lib/api";
@@ -389,7 +389,11 @@ export default function PostDetailScreen() {
     }
   }, [loadComments, postId]);
 
-  useEffect(() => { loadPost(); }, [loadPost]);
+  useFocusEffect(
+    useCallback(() => {
+      loadPost();
+    }, [loadPost])
+  );
 
   function animatePress(scaleRef: Animated.Value) {
     Animated.sequence([

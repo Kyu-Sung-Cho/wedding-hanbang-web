@@ -33,6 +33,28 @@ const COMMENT_TTL_MS = 30_000;
 
 const postCache = new Map<string, { post: CachedCommunityPost; cachedAt: number }>();
 const commentCache = new Map<string, { comments: CachedCommunityComment[]; cachedAt: number }>();
+const feedCache = new Map<string, { posts: CachedCommunityPost[]; cachedAt: number }>();
+
+export function getCachedCommunityFeed<T extends CachedCommunityPost>(
+  category: string | null | undefined,
+) {
+  if (!category) return null;
+
+  return (feedCache.get(category)?.posts as T[] | undefined) ?? null;
+}
+
+export function putCachedCommunityFeed<T extends CachedCommunityPost>(
+  category: string,
+  posts: T[],
+) {
+  feedCache.set(category, { posts, cachedAt: Date.now() });
+}
+
+export function clearCommunityCaches() {
+  postCache.clear();
+  commentCache.clear();
+  feedCache.clear();
+}
 
 export function getCachedCommunityPost(id: string | null | undefined) {
   if (!id) return null;
