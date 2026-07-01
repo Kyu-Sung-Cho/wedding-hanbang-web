@@ -1,14 +1,15 @@
 // 내 북마크 목록
 import { useEffect, useState, useCallback } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, Pressable,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Bookmark, ThumbsUp, MessageCircle } from "lucide-react-native";
+import { Bookmark, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 const CATEGORY_LABELS: Record<string, string> = {
   is_normal: "이거 정상이야?",
@@ -69,21 +70,14 @@ export default function MyBookmarksScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.container} edges={["top"]}>
-        <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 40 }} />
+        <LoadingState label="북마크를 불러오고 있어요" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.noir[800]} />
-        </Pressable>
-        <Text style={s.headerTitle}>북마크</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <AppHeader title="북마크" onBack={() => router.back()} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -97,10 +91,11 @@ export default function MyBookmarksScreen() {
         }
       >
         {bookmarks.length === 0 ? (
-          <View style={s.empty}>
-            <Bookmark size={48} color={colors.taupe[400]} />
-            <Text style={s.emptyText}>북마크한 글이 없어요</Text>
-          </View>
+          <EmptyState
+            icon={<Bookmark size={48} color={colors.taupe[400]} />}
+            title="북마크한 글이 없어요"
+            description="다시 보고 싶은 후기와 견적 글을 저장하면 여기에서 모아볼 수 있어요."
+          />
         ) : (
           bookmarks.map((bm) => {
             const p = bm.post;
@@ -145,20 +140,6 @@ const CARD_SHADOW = {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "NotoSerifKR_500Medium",
-    color: colors.noir[800],
-  },
   content: { padding: 20, paddingBottom: 40 },
 
   // 카드
@@ -213,16 +194,4 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
 
-  // 빈 상태
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    gap: 16,
-  },
-  emptyText: {
-    fontSize: 15,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
-  },
 });
