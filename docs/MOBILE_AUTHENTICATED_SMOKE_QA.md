@@ -1,0 +1,182 @@
+# Mobile Authenticated Smoke QA
+
+> Purpose: verify the trust loop that cannot be proven by static tests alone: booking state, budget memory, Amora context, and mobile freshness for a real signed-in user.
+
+## Scope
+
+Run this before App Store/TestFlight work and after any change touching:
+
+- mobile Home, Bookings, Budget, Schedule, or Amora
+- `vendor_bookings`
+- `wedding_journeys.progress`
+- booking outcome/cancel routes
+- Supabase Realtime publication or RLS around shared couple data
+
+## Preflight
+
+From the repo root:
+
+```bash
+git fetch origin
+git status -sb
+corepack pnpm qa:local
+corepack pnpm qa:live -- --base-url=https://hanbang.ai
+```
+
+Confirm Supabase Realtime publication includes both shared planning tables:
+
+```bash
+corepack pnpm exec supabase db query --linked "select schemaname, tablename from pg_publication_tables where pubname = 'supabase_realtime' and tablename in ('vendor_bookings','wedding_journeys') order by tablename;"
+```
+
+Expected rows:
+
+- `public.vendor_bookings`
+- `public.wedding_journeys`
+
+## Test Accounts
+
+Use two internal QA accounts in the same couple:
+
+| Role | Account | Notes |
+| --- | --- | --- |
+| User A |  | creates/updates booking |
+| User B |  | observes partner freshness |
+
+Do not use fake public community content to simulate real users. These accounts are for private QA only.
+
+## Device Matrix
+
+Minimum:
+
+| Platform | Device | Build | Result |
+| --- | --- | --- | --- |
+| iOS | physical device or simulator | Expo dev/client |  |
+| Android | physical device or emulator | Expo dev/client |  |
+
+For App Store readiness, repeat on TestFlight/internal build after EAS is configured.
+
+## Scenario 1: Login And Home Context
+
+1. Sign in as User A.
+2. Complete onboarding if needed.
+3. Open Home.
+4. Confirm D-day/progress card renders.
+5. Confirm booking outcome nudges appear only when relevant.
+6. Sign in as User B on another device/session.
+7. Confirm User B sees the same couple context.
+
+Pass:
+
+- no auth loop
+- no blank Home
+- no stale or contradictory couple context
+
+## Scenario 2: Booking Outcome Updates Budget
+
+1. As User A, open Bookings.
+2. Create or locate a past/completed booking with a vendor category.
+3. Open the booking outcome sheet.
+4. Save actual amount and rating.
+5. Open Budget.
+6. Confirm the matching category `spent` includes the actual amount.
+7. Return to Home.
+8. Confirm completed booking no longer asks for missing actual cost.
+9. Ask Amora a budget/vendor question.
+10. Confirm Amora can reference actual/contracted booking cost context when relevant.
+
+Pass:
+
+- booking status becomes `completed`
+- actual amount persists after refresh
+- budget category spent changes once, not double-counted
+- Amora context is consistent with the saved amount
+
+## Scenario 3: Booking Cancellation Reverts Planning Memory
+
+1. As User A, cancel a booking that has contributed to schedule/budget progress.
+2. Open Budget.
+3. Confirm the stored actual contribution is subtracted.
+4. Open Schedule/Home if applicable.
+5. Confirm cancelled booking does not remain as an active task.
+6. Refresh the app and repeat the check.
+
+Pass:
+
+- cancelled booking does not remain in active upcoming tasks
+- category spend is not negative
+- legacy short booking event keys do not leave duplicate schedule memory
+
+## Scenario 4: Partner Freshness
+
+1. Keep User B on Budget.
+2. As User A, save a booking outcome.
+3. Confirm User B Budget updates through Realtime or focus refresh.
+4. Keep User B on Bookings with a detail sheet open.
+5. As User A, update/cancel the booking.
+6. Confirm User B list and open detail sheet refresh or close safely if the row disappears.
+
+Pass:
+
+- no manual pull-to-refresh required after returning to the screen
+- open detail sheet does not display stale amounts/status
+- no crash when a partner cancels the open booking
+
+## Scenario 5: Community And Lounge Sanity
+
+1. Open Community feed.
+2. Open a listed public post.
+3. Confirm detail page does not show not-found.
+4. Filter by a visible category.
+5. Confirm count/list/category are consistent.
+6. Open Lounge.
+7. Confirm unauthenticated users are redirected and authenticated users can enter their cohort/lounge state.
+
+Pass:
+
+- public feed links open readable detail pages
+- category filters do not contradict all-feed visibility
+- Lounge auth behavior is deterministic
+
+## Failure Triggers
+
+Stop and fix before App Store/TestFlight work if any occur:
+
+- booking actual amount is double-counted
+- cancellation leaves stale active schedule/budget memory
+- partner screen stays stale after focus refresh
+- Realtime publication is missing `vendor_bookings` or `wedding_journeys`
+- public community feed opens to not-found detail
+- Amora references an amount that no longer matches booking/budget state
+- account deletion, auth callback, or logout loops
+
+## Report Template
+
+```md
+## Mobile Authenticated Smoke QA
+
+- Date:
+- Branch/commit:
+- Web URL:
+- Mobile build:
+- Tester:
+- Accounts:
+
+### Automated preflight
+- qa:local:
+- qa:live:
+- Realtime publication:
+
+### Scenarios
+- Login/Home:
+- Booking outcome -> Budget:
+- Booking cancellation:
+- Partner freshness:
+- Community/Lounge:
+
+### Bugs found
+1.
+
+### Verdict
+Pass / Pass with fixes / Fail
+```

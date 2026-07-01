@@ -4,9 +4,9 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start --clear",
-    "dev:ios": "expo start --ios --clear",
-    "dev:android": "expo start --android --clear",
+    "dev": "node ./scripts/start-expo-dev.mjs --clear",
+    "dev:ios": "node ./scripts/start-expo-dev.mjs --ios --clear",
+    "dev:android": "node ./scripts/start-expo-dev.mjs --android --clear",
     "build": "echo 'Use EAS Build: eas build --platform all'",
     "eas:init": "pnpm dlx eas-cli init",
     "eas:build:ios": "pnpm dlx eas-cli build --platform ios --profile production",
@@ -66,6 +66,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.0",
+    "async-limiter": "1.0.1",
     "typescript": "~5.9.2"
   }
 }

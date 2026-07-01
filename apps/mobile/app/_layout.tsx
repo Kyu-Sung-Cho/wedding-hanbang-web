@@ -7,7 +7,7 @@ import { useFonts } from "expo-font";
 import { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { initSentry } from "@/lib/sentry";
-import { initAuthListener } from "@/lib/authListener";
+import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
@@ -64,6 +64,7 @@ export default function RootLayout() {
   // 세션 만료 감지 리스너
   useEffect(() => {
     initAuthListener();
+    return disposeAuthListener;
   }, []);
 
   // 푸시 알림 등록 (EAS Build에서만 작동, Expo Go에서는 스킵)

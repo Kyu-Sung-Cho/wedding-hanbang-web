@@ -19,35 +19,58 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // SecureStore는 값 크기 제한이 있으므로 큰 세션은 여러 조각으로 나눠 저장한다.
 // 인증 토큰은 AsyncStorage로 fallback하지 않는다.
 const SECURE_CHUNK_SIZE = 1800;
+const memorySessionCache = new Map<string, string>();
+
+function isTransientSecureStoreError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /User interaction is not allowed|getValueWithKeyAsync/i.test(error.message);
+}
+
+function secureStoreKey(key: string) {
+  const sanitized = key.replace(/[^A-Za-z0-9._-]/g, "_");
+  return sanitized.length > 0 ? sanitized : "supabase_auth_token";
+}
 
 function chunkMetaKey(key: string) {
-  return `${key}:chunks`;
+  return `${secureStoreKey(key)}.chunks`;
 }
 
 function chunkKey(key: string, index: number) {
-  return `${key}:chunk:${index}`;
+  return `${secureStoreKey(key)}.chunk.${index}`;
 }
 
 const LargeSecureStore = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") return null;
 
-    const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key));
-    const chunkCount = Number(chunkCountValue);
-    if (Number.isInteger(chunkCount) && chunkCount > 0) {
-      const chunks = await Promise.all(
-        Array.from({ length: chunkCount }, (_, index) =>
-          SecureStore.getItemAsync(chunkKey(key, index))
-        )
-      );
-      if (chunks.every((chunk): chunk is string => typeof chunk === "string")) {
-        return chunks.join("");
+    try {
+      const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key));
+      const chunkCount = Number(chunkCountValue);
+      if (Number.isInteger(chunkCount) && chunkCount > 0) {
+        const chunks = await Promise.all(
+          Array.from({ length: chunkCount }, (_, index) =>
+            SecureStore.getItemAsync(chunkKey(key, index))
+          )
+        );
+        if (chunks.every((chunk): chunk is string => typeof chunk === "string")) {
+          const value = chunks.join("");
+          memorySessionCache.set(key, value);
+          return value;
+        }
+        await this.removeItem(key);
+        return null;
       }
-      await this.removeItem(key);
-      return null;
-    }
 
-    return SecureStore.getItemAsync(key);
+      const value = await SecureStore.getItemAsync(secureStoreKey(key));
+      if (value) memorySessionCache.set(key, value);
+      return value;
+    } catch (error) {
+      if (isTransientSecureStoreError(error)) {
+        return memorySessionCache.get(key) ?? null;
+      }
+
+      throw error;
+    }
   },
   async setItem(key: string, value: string): Promise<void> {
     if (Platform.OS === "web") return;
@@ -55,7 +78,8 @@ const LargeSecureStore = {
     await this.removeItem(key);
 
     if (value.length <= SECURE_CHUNK_SIZE) {
-      await SecureStore.setItemAsync(key, value);
+      await SecureStore.setItemAsync(secureStoreKey(key), value);
+      memorySessionCache.set(key, value);
       return;
     }
 
@@ -66,12 +90,13 @@ const LargeSecureStore = {
       )
     );
     await SecureStore.setItemAsync(chunkMetaKey(key), String(chunks.length));
+    memorySessionCache.set(key, value);
   },
   async removeItem(key: string): Promise<void> {
     if (Platform.OS === "web") return;
     const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key)).catch(() => null);
     const chunkCount = Number(chunkCountValue);
-    await SecureStore.deleteItemAsync(key).catch(() => {});
+    await SecureStore.deleteItemAsync(secureStoreKey(key)).catch(() => {});
     if (Number.isInteger(chunkCount) && chunkCount > 0) {
       await Promise.all(
         Array.from({ length: chunkCount }, (_, index) =>
@@ -80,6 +105,7 @@ const LargeSecureStore = {
       );
     }
     await SecureStore.deleteItemAsync(chunkMetaKey(key)).catch(() => {});
+    memorySessionCache.delete(key);
   },
 };
 
@@ -89,6 +115,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
-    flowType: "implicit", // 모바일: PKCE 대신 implicit — 토큰이 URL fragment로 직접 돌아옴
+    flowType: "implicit", // 모바일 PKCE 대신 implicit — 토큰을 URL fragment로 직접 받아옴
   },
 });

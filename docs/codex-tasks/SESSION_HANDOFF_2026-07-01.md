@@ -23,6 +23,23 @@ corepack pnpm install
 Recommended verification after pulling:
 
 ```bash
+corepack pnpm qa:local
+```
+
+This runs the local web/mobile/shared/design-token quality gate in one pass:
+
+- web typecheck
+- web lint
+- web tests
+- web production build
+- mobile typecheck
+- mobile lint
+- shared typecheck
+- design-tokens typecheck
+
+Individual fallback commands:
+
+```bash
 corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm test
@@ -271,10 +288,7 @@ git fetch origin
 git checkout main
 git pull --ff-only origin main
 corepack pnpm install
-corepack pnpm typecheck
-corepack pnpm lint
-corepack pnpm test
-corepack pnpm build
+corepack pnpm qa:local
 ```
 
 If starting a new feature branch:
