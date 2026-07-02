@@ -92,6 +92,12 @@
         "projectId": "3a978bf3-21b8-4731-abc2-956dc8a27859"
       }
     },
-    "owner": "hanbang"
+    "owner": "hanbang",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3a978bf3-21b8-4731-abc2-956dc8a27859"
+    }
   }
 }
