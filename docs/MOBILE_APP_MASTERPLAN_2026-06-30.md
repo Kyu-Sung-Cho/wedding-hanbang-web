@@ -306,6 +306,7 @@ As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 - Settings cards now use shared `Surface`; account/app-info rows use `ActionRow`; settings save and password CTAs use `PrimaryButton`.
 - `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md` includes real-device checks for settings identity, nickname freshness, and secondary screen UI consistency.
 - Mobile community nickname changes clear feed/detail/comment caches and refresh on focus so old posts and comments show the updated nickname after save.
+- Mobile home, schedule/checklist, cohort chat, and community feed received a real-phone readability polish based on July 2 iPhone screenshots: tighter D-day cards, higher-contrast secondary copy, safer bottom-tab spacing, weekly action rows that do not squeeze task text, chat starter prompts, and less obstructive community feed/FAB spacing.
 - Expo SDK 54 dependency alignment passes `expo-doctor` 18/18.
 - Production dependency audit passes through root `pnpm.overrides`.
 - `scripts/mobile-release-readiness.mjs` validates app-store release configuration, deep-link/OAuth bridge wiring, EAS profiles, Expo plugins, env docs, and legacy brand-color drift.

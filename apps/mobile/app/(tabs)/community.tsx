@@ -351,7 +351,7 @@ function CohortExploreSection({ rooms }: { rooms: CohortRoom[] }) {
             <Text style={styles.exploreMonth}>
               {room.year}년 {Math.ceil(room.month / 3)}분기
             </Text>
-            <Text style={styles.exploreRoomName} numberOfLines={1}>
+            <Text style={styles.exploreRoomName} numberOfLines={2}>
               {room.name}
             </Text>
             <View style={styles.exploreStats}>
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
   cohortCtaSub: { fontSize: 12, color: colors.textSecondary },
 
   // 동기방 탐색 섹션
-  exploreSection: { paddingTop: 20 },
+  exploreSection: { paddingTop: 16 },
   exploreTitleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -885,10 +885,10 @@ const styles = StyleSheet.create({
   },
   exploreScroll: { paddingHorizontal: 20, gap: 12 },
   exploreCard: {
-    width: 160,
+    width: 174,
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: "#000",
@@ -904,17 +904,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   exploreRoomName: {
-    fontSize: 14,
+    minHeight: 42,
+    fontSize: 15,
+    lineHeight: 21,
     fontWeight: "600",
     color: colors.noir[800],
-    marginBottom: 10,
+    marginBottom: 8,
   },
   exploreStats: { flexDirection: "row", gap: 12, marginBottom: 12 },
   exploreStat: { flexDirection: "row", alignItems: "center", gap: 4 },
   exploreStatText: {
     fontSize: 12,
-    color: colors.taupe[400],
-    fontFamily: "CormorantGaramond_400Regular",
+    color: colors.textSecondary,
+    fontFamily: "NotoSansKR_500Medium",
   },
   exploreEnterBtn: {
     backgroundColor: colors.noir[800],
@@ -929,7 +931,7 @@ const styles = StyleSheet.create({
   },
 
   // 퀵 액션 바
-  quickActionsScroll: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
+  quickActionsScroll: { paddingHorizontal: 20, paddingTop: 14, gap: 10 },
   quickActionPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -948,7 +950,7 @@ const styles = StyleSheet.create({
   },
 
   // 카테고리 칩
-  chipRow: { paddingVertical: 12 },
+  chipRow: { paddingVertical: 10 },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -975,23 +977,23 @@ const styles = StyleSheet.create({
   // 피드 제목
   feedTitleRow: { paddingHorizontal: 20, paddingBottom: 4 },
   feedTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
   },
 
   // 피드 리스트
-  feedList: { paddingBottom: 100 },
+  feedList: { paddingBottom: 144 },
 
   // PostCard
   postCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 12,
+    borderRadius: 18,
+    padding: 15,
+    marginHorizontal: 18,
+    marginTop: 10,
   },
   postCardShadow: {
     shadowColor: "#000",
@@ -1026,15 +1028,15 @@ const styles = StyleSheet.create({
   postTime: { fontSize: 12, color: colors.taupe[400], flexShrink: 0 },
 
   postTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     color: colors.noir[800],
-    lineHeight: 24,
+    lineHeight: 23,
   },
   postPreview: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    lineHeight: 20,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 22,
     marginTop: 6,
   },
 
@@ -1053,16 +1055,16 @@ const styles = StyleSheet.create({
   postActions: {
     flexDirection: "row",
     gap: 16,
-    marginTop: 14,
-    paddingTop: 12,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   actionGroup: { flexDirection: "row", alignItems: "center", gap: 4 },
   actionText: {
     fontSize: 12,
-    color: colors.taupe[400],
-    fontFamily: "CormorantGaramond_400Regular",
+    color: colors.textSecondary,
+    fontFamily: "NotoSansKR_500Medium",
   },
 
   // 빈 상태
@@ -1087,8 +1089,8 @@ const styles = StyleSheet.create({
   // FAB
   fab: {
     position: "absolute",
-    right: 20,
-    bottom: 100,
+    right: 18,
+    bottom: 112,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
@@ -1096,9 +1098,9 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.noir[800],
     alignItems: "center",
     justifyContent: "center",

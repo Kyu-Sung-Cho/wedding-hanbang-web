@@ -71,6 +71,24 @@ const TOPICS = [
 
 type TopicKey = (typeof TOPICS)[number]["key"];
 
+const STARTER_PROMPTS: { label: string; topic: Exclude<TopicKey, "all">; text: string }[] = [
+  {
+    label: "예식장 가격 묻기",
+    topic: "price",
+    text: "예식장 견적, 어느 정도가 적당할까요?",
+  },
+  {
+    label: "투어 후기 공유",
+    topic: "review",
+    text: "최근 투어 다녀온 곳 후기 공유해요.",
+  },
+  {
+    label: "준비 고민 남기기",
+    topic: "concern",
+    text: "준비하면서 제일 헷갈리는 부분이 있어요.",
+  },
+];
+
 // 닉네임 기반 아바타 색상
 const AVATAR_COLORS = [
   colors.rose[500], colors.gold.DEFAULT, colors.rose[600], colors.taupe[500], colors.taupe[400],
@@ -358,6 +376,37 @@ export default function CohortChatScreen() {
     return nickname.charAt(0);
   }
 
+  function renderChatEmpty() {
+    return (
+      <View style={styles.chatEmpty}>
+        <View style={styles.chatEmptyIcon}>
+          <MessageSquare size={30} color={colors.rose[500]} />
+        </View>
+        <Text style={styles.chatEmptyTitle}>아직 메시지가 없어요</Text>
+        <Text style={styles.chatEmptyText}>
+          같은 시기에 준비하는 사람들에게 바로 물어볼 수 있어요.
+        </Text>
+        <View style={styles.starterPromptList}>
+          {STARTER_PROMPTS.map((prompt) => (
+            <Pressable
+              key={prompt.topic}
+              style={({ pressed }) => [
+                styles.starterPrompt,
+                pressed && styles.rowPressed,
+              ]}
+              onPress={() => {
+                setSelectedTopic(prompt.topic);
+                setInput(prompt.text);
+              }}
+            >
+              <Text style={styles.starterPromptText}>{prompt.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
   function renderMessage({ item }: { item: CohortMessage }) {
     const isAi = item.author_id === null;
     const isMe = item.author_id === currentUserId;
@@ -527,7 +576,10 @@ export default function CohortChatScreen() {
               data={filteredMessages}
               keyExtractor={(m) => m.id}
               renderItem={renderMessage}
-              contentContainerStyle={styles.messageList}
+              contentContainerStyle={[
+                styles.messageList,
+                filteredMessages.length === 0 && styles.messageListEmpty,
+              ]}
               onContentSizeChange={scrollToEnd}
               refreshControl={
                 <RefreshControl
@@ -540,13 +592,7 @@ export default function CohortChatScreen() {
                   tintColor={colors.rose[500]}
                 />
               }
-              ListEmptyComponent={
-                <EmptyState
-                  icon={<MessageSquare size={36} color={colors.rose[500]} />}
-                  title="아직 메시지가 없어요"
-                  description="첫 대화를 시작해보세요"
-                />
-              }
+              ListEmptyComponent={renderChatEmpty}
             />
           )}
 
@@ -597,7 +643,7 @@ export default function CohortChatScreen() {
                 value={input}
                 onChangeText={setInput}
                 placeholder="메시지를 입력하세요..."
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.textTertiary}
                 multiline
                 maxLength={2000}
                 editable={!sending}
@@ -742,6 +788,64 @@ const styles = StyleSheet.create({
 
   // 메시지 리스트
   messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
+  messageListEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingBottom: 80,
+  },
+  chatEmpty: {
+    alignItems: "center",
+    paddingHorizontal: 18,
+    gap: 8,
+  },
+  chatEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 24,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  chatEmptyTitle: {
+    fontSize: 19,
+    lineHeight: 26,
+    fontFamily: "NotoSansKR_700Bold",
+    color: colors.noir[800],
+  },
+  chatEmptyText: {
+    maxWidth: 260,
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  starterPromptList: {
+    width: "100%",
+    gap: 8,
+    marginTop: 12,
+  },
+  starterPrompt: {
+    alignSelf: "center",
+    minWidth: 190,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+  },
+  starterPromptText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  rowPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
 
   // 메시지 행
   msgRow: { flexDirection: "row", gap: 10 },
@@ -877,7 +981,9 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 21,
+    fontFamily: "NotoSansKR_400Regular",
     color: colors.noir[800],
     backgroundColor: colors.bg,
     borderRadius: 16,
@@ -892,5 +998,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sendBtnDisabled: { backgroundColor: colors.taupe[400] },
+  sendBtnDisabled: { backgroundColor: colors.gold.light },
 });

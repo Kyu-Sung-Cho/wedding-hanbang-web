@@ -16,7 +16,6 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
-  ActionRow,
   AppHeader,
   AppText,
   LoadingState,
@@ -687,27 +686,43 @@ export default function ScheduleScreen() {
           </View>
           {weeklyActions.length > 0 ? (
             weeklyActions.map((action) => (
-              <ActionRow
+              <Pressable
                 key={action.categoryKey}
-                icon={
-                  action.urgency === "overdue" ? (
-                    <AlertTriangle size={18} color={colors.danger} />
-                  ) : (
-                    <Circle size={18} color={colors.rose[500]} />
-                  )
-                }
-                title={action.categoryLabel}
-                description={`${action.nextItemLabel} · ${action.deadlineLabel}`}
-                right={
-                  <StatusPill
-                    label={getUrgencyLabel(action.urgency)}
-                    tone={getUrgencyTone(action.urgency)}
-                  />
-                }
+                style={({ pressed }) => [
+                  styles.weeklyActionRow,
+                  pressed && styles.rowPressed,
+                ]}
                 onPress={() => {
                   setExpandedKey(action.categoryKey);
                 }}
-              />
+              >
+                <View
+                  style={[
+                    styles.weeklyActionIcon,
+                    action.urgency === "overdue" && styles.weeklyActionIconDanger,
+                  ]}
+                >
+                  {action.urgency === "overdue" ? (
+                    <AlertTriangle size={17} color={colors.danger} />
+                  ) : (
+                    <Circle size={17} color={colors.rose[500]} />
+                  )}
+                </View>
+                <View style={styles.weeklyActionBody}>
+                  <View style={styles.weeklyActionTitleRow}>
+                    <Text style={styles.weeklyActionTitle} numberOfLines={1}>
+                      {action.categoryLabel}
+                    </Text>
+                    <StatusPill
+                      label={getUrgencyLabel(action.urgency)}
+                      tone={getUrgencyTone(action.urgency)}
+                    />
+                  </View>
+                  <Text style={styles.weeklyActionDesc} numberOfLines={2}>
+                    {action.nextItemLabel} · {action.deadlineLabel}
+                  </Text>
+                </View>
+              </Pressable>
             ))
           ) : (
             <View style={styles.weeklyEmpty}>
@@ -981,7 +996,7 @@ const styles = StyleSheet.create({
   },
 
   opsCard: {
-    padding: 22,
+    padding: 18,
   },
   opsTop: {
     flexDirection: "row",
@@ -991,21 +1006,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   opsLabel: {
-    color: colors.taupe[400],
+    color: colors.gold.light,
     marginBottom: 2,
   },
   opsDday: {
-    fontSize: 46,
-    lineHeight: 52,
-    fontFamily: "CormorantGaramond_600SemiBold",
+    fontSize: 42,
+    lineHeight: 48,
+    fontFamily: "NotoSansKR_700Bold",
     color: "#FFFFFF",
   },
   opsCopy: {
-    color: colors.taupe[400],
-    marginBottom: 18,
+    color: colors.gold.light,
+    lineHeight: 22,
+    marginBottom: 16,
   },
   weeklySection: {
-    paddingVertical: 18,
+    paddingVertical: 16,
   },
   weeklyHeader: {
     flexDirection: "row",
@@ -1021,14 +1037,61 @@ const styles = StyleSheet.create({
   weeklyEmptyText: {
     textAlign: "center",
   },
+  weeklyActionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  weeklyActionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 12,
+    backgroundColor: colors.rose.glow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  weeklyActionIconDanger: {
+    backgroundColor: "rgba(217,95,95,0.12)",
+  },
+  weeklyActionBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  weeklyActionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  weeklyActionTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 16,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  weeklyActionDesc: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  rowPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
   summaryTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  summaryLabel: { fontSize: 14, color: colors.taupe[400] },
-  summaryPercent: { fontSize: 36, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
+  summaryLabel: { fontSize: 14, color: colors.gold.light },
+  summaryPercent: { fontSize: 32, fontFamily: "NotoSansKR_700Bold", color: "#FFFFFF" },
   summaryBar: {
     height: 6,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -1042,7 +1105,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
 
-  list: { padding: 20, gap: 12, paddingBottom: 40 },
+  list: { padding: 20, gap: 14, paddingBottom: 128 },
 
   // 임박 일정
   upcomingSection: {

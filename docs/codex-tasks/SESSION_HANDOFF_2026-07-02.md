@@ -6,7 +6,7 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - Continue from branch: `main`.
-- Latest shipped product/code baseline before PR #36: `1e26dc85` (`chore: enforce mobile release check in local qa (#35)`).
+- Latest shipped product/code baseline before the mobile readability polish: `696d268b` (`style(mobile): enforce Paperlogy letter spacing`).
 - Handoff documentation PRs: #27, #28, and #32.
 - Latest shipped product/code PRs: #29, #30, #31, #33, #34, and #35.
 - Open product/code PRs at handoff time before PR #36: none.
@@ -177,6 +177,31 @@ corepack pnpm --filter @hanbang/mobile dev
   - Build profile: `preview`
   - Expiration: `2026-07-16`
 
+### Mobile Core Readability Polish
+
+- Polished the real-phone readability issues visible in the July 2 iPhone screenshots.
+- Home dashboard:
+  - Reduced the D-day command card scale so the screen feels less oversized.
+  - Increased secondary text contrast on the dark eucalyptus command card.
+  - Added bottom padding so shortcut content is not hidden by the tab bar.
+  - Kept large numbers on the Paperlogy-mapped mobile font family.
+- Schedule/checklist:
+  - Rebuilt the weekly action rows so status pills no longer squeeze task copy into awkward wraps.
+  - Tightened the D-day card and improved contrast on progress copy.
+  - Added bottom padding for safer scrolling above the bottom navigation.
+- Cohort chat:
+  - Replaced the blank empty chat state with starter prompts for price, review, and concern topics.
+  - Improved input placeholder contrast and disabled send-button tone.
+- Community feed:
+  - Let cohort room names wrap to two lines.
+  - Improved feed title/post preview contrast.
+  - Tightened post cards and moved the floating write button away from list content.
+- Key files:
+  - `apps/mobile/app/(tabs)/dashboard.tsx`
+  - `apps/mobile/app/schedule/index.tsx`
+  - `apps/mobile/app/community/cohort/[id].tsx`
+  - `apps/mobile/app/(tabs)/community.tsx`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -231,6 +256,12 @@ corepack pnpm --filter @hanbang/mobile dev
   - `corepack pnpm dlx expo-doctor` from `apps/mobile` passed 18/18
   - EAS Android preview build finished successfully
   - `corepack pnpm qa:live` passed 5/5, report `.gstack/qa-reports/live-smoke/2026-07-02T02-03-10-277Z/report.md`
+- For the mobile core readability polish:
+  - `git diff --check`
+  - `corepack pnpm --filter @hanbang/mobile typecheck`
+  - `corepack pnpm --filter @hanbang/mobile lint`
+  - `corepack pnpm mobile:release-check` passed with 55 checks, 0 warnings, and 0 failures
+  - `corepack pnpm qa:local` passed, including web tests/build and mobile/shared/design-token checks
 
 ## Product And Code Decisions To Preserve
 
@@ -260,8 +291,12 @@ corepack pnpm supabase:ship:safe
 corepack pnpm supabase:security:probe
 ```
 
-2. Run real device Expo QA:
+2. Run real device Expo QA after pulling the latest mobile readability polish:
    - login
+   - Home D-day card and urgent/today sections
+   - schedule checklist weekly action rows
+   - cohort chat empty state starter prompts
+   - community feed cards and floating write button
    - settings name/nickname save
    - community feed/detail/comment refresh
    - My Posts and Bookmarks

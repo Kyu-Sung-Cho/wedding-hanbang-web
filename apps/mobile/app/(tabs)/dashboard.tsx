@@ -955,18 +955,20 @@ const CARD_SHADOW = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 128 },
 
   intro: {
-    marginBottom: 16,
+    marginBottom: 14,
     gap: 4,
   },
   introTitle: {
-    maxWidth: 300,
+    maxWidth: 330,
+    fontSize: 27,
+    lineHeight: 35,
   },
   commandCard: {
-    marginBottom: 16,
-    padding: 22,
+    marginBottom: 14,
+    padding: 18,
   },
   commandTop: {
     flexDirection: "row",
@@ -975,19 +977,19 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   commandEyebrow: {
-    color: colors.taupe[400],
+    color: colors.gold.light,
     marginBottom: 4,
   },
   commandDday: {
-    fontSize: 58,
-    lineHeight: 64,
-    fontFamily: "CormorantGaramond_600SemiBold",
+    fontSize: 50,
+    lineHeight: 56,
+    fontFamily: "NotoSansKR_700Bold",
     color: "#FFFFFF",
   },
   commandDate: {
-    color: colors.taupe[400],
+    color: colors.gold.light,
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   commandProgressRow: {
     flexDirection: "row",
@@ -996,12 +998,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   commandProgressLabel: {
-    color: colors.taupe[400],
+    color: colors.gold.light,
   },
   commandProgressValue: {
-    fontSize: 28,
-    fontFamily: "CormorantGaramond_600SemiBold",
-    color: colors.rose.light,
+    fontSize: 24,
+    fontFamily: "NotoSansKR_700Bold",
+    color: colors.gold.light,
   },
   commandProgressTrack: {
     height: 8,
@@ -1093,8 +1095,8 @@ const styles = StyleSheet.create({
   // 카드 공통
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 16,
     ...CARD_SHADOW,
   },
@@ -1115,9 +1117,10 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
   },
   cardEmpty: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textTertiary,
+    color: colors.textSecondary,
   },
 
   // 진행률
@@ -1156,9 +1159,9 @@ const styles = StyleSheet.create({
 
   // 바로가기
   sectionLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textSecondary,
+    color: colors.noir[800],
     marginBottom: 12,
     marginTop: 8,
   },
@@ -1195,8 +1198,8 @@ const styles = StyleSheet.create({
   // 지금 해야 할 것
   urgentSection: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 16,
     ...CARD_SHADOW,
   },
@@ -1248,7 +1251,8 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
   },
   urgentDeadline: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 19,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
   },
