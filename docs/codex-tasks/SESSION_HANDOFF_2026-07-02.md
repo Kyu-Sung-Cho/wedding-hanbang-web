@@ -5,12 +5,14 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 ## Current Git State
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
-- Continue from branch: `main`.
-- Latest shipped product/code baseline before the settings polish branch: `2818ce90` (`refactor: standardize mobile secondary UI (#29)`).
+- Continue from branch: `main` after the current mobile/web design-parity PR lands.
+- If reviewing before merge, continue from working branch: `codex/mobile-web-design-parity`.
+- Latest shipped product/code baseline before this design-parity branch: `af65f62b` (`refactor: polish mobile settings QA flow (#30)`).
 - Handoff documentation PRs: #27 and #28.
-- Open product/code PRs at handoff time: none.
-- Latest confirmed main GitHub Actions run before the final metadata patch: success, run `28532477954`.
-- Latest confirmed production smoke report before the final metadata patch: `.gstack/qa-reports/live-smoke/2026-07-01T16-34-16-796Z/report.md`.
+- Latest shipped product/code PRs: #29 and #30.
+- Current product/code PR at handoff time: mobile/web design parity.
+- Latest confirmed main GitHub Actions run before this branch: success, run `28555254381`.
+- Latest confirmed production smoke report before this branch: `.gstack/qa-reports/live-smoke/2026-07-01T23-49-31-582Z/report.md`.
 
 ## Resume Commands
 
@@ -115,6 +117,24 @@ corepack pnpm --filter @hanbang/mobile dev
   - `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md`
   - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 
+### Mobile/Web Design Parity Pass
+
+- Aligned shared `@hanbang/design-tokens` with the live web app's Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage, and Champagne Taupe palette.
+- Kept legacy token keys such as `noir` and `rose` for code compatibility, but changed their values to the current web brand palette.
+- Exposed `sage`, `stone`, and `surfaceLow` to mobile NativeWind for future app screens.
+- Updated `AppUI` surfaces with web-like eucalyptus shadows and ivory borders.
+- Updated mobile splash/adaptive icon/notification colors so system-level surfaces no longer use the legacy black/ivory palette.
+- Recolored community character avatars and cohort member colors to stay inside the new brand palette while preserving bride/groom/neutral variations.
+- Updated `DESIGN.md`, `docs/DEVELOPMENT_PLAN.md`, `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`, and `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md` so future mobile work follows the web-aligned palette.
+- Key files:
+  - `packages/design-tokens/src/colors.ts`
+  - `apps/mobile/src/components/ui/AppUI.tsx`
+  - `apps/mobile/tailwind.config.js`
+  - `apps/mobile/src/components/community/CommunityAvatar.tsx`
+  - `apps/mobile/app/community/cohort/[id].tsx`
+  - `apps/mobile/app.json`
+  - `DESIGN.md`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -140,6 +160,17 @@ corepack pnpm --filter @hanbang/mobile dev
   - `corepack pnpm qa:local`
   - `corepack pnpm dlx expo-doctor`
   - `corepack pnpm audit --prod`
+- For the mobile/web design-parity pass, these local checks passed:
+  - legacy palette scan for mobile/docs/design-token files returned no matches
+  - `git diff --check`
+  - `corepack pnpm --filter @hanbang/design-tokens typecheck`
+  - `corepack pnpm --filter @hanbang/mobile typecheck`
+  - `corepack pnpm --filter @hanbang/mobile lint`
+  - `corepack pnpm lint`
+  - `corepack pnpm typecheck`
+  - `corepack pnpm qa:local`
+  - `corepack pnpm dlx expo-doctor` from `apps/mobile` passed 18/18
+  - `corepack pnpm audit --prod`
 
 ## Product And Code Decisions To Preserve
 
@@ -153,6 +184,8 @@ corepack pnpm --filter @hanbang/mobile dev
   - `ActionRow`
   - `StatusPill`
   - `PrimaryButton`
+- Mobile and web must share the same brand palette through `DESIGN.md`, web `globals.css`, and `@hanbang/design-tokens`.
+- Keep `noir` and `rose` token names until a separate compatibility migration is planned; their values now represent Eucalyptus Ink and Dusty Mauve.
 - Server data stays in Supabase. Mobile cache is only for perceived speed, not source of truth.
 - Vendor and AI features must keep the trust principles from `PRINCIPLES.md`: no hidden paid recommendation behavior, and all AI interactions/decision nodes must remain auditable.
 

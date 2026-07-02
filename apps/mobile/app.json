@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAFAF8"
+      "backgroundColor": "#FBF8F2"
     },
     "ios": {
       "bundleIdentifier": "ai.hanbang.wedding",
@@ -31,7 +31,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FAFAF8"
+        "backgroundColor": "#FBF8F2"
       },
       "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
       "intentFilters": [
@@ -55,7 +55,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FAFAF8",
+          "backgroundColor": "#FBF8F2",
           "image": "./assets/splash.png",
           "resizeMode": "contain"
         }
@@ -64,7 +64,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#1A1A1F"
+          "color": "#36534E"
         }
       ]
     ],

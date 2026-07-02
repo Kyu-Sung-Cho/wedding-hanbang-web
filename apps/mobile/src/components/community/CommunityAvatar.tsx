@@ -38,20 +38,20 @@ type AvatarCharacter = {
 const SKIN_TONES = ["#F2C9B3", "#E7B99E", "#D8A084", "#C78F72"];
 
 const BRIDE_PALETTES = [
-  { bgTop: "#FDFCFA", bgBottom: "#EADFD4", hair: "#1A1A1F", outfit: "#FFF8F2", accent: "#C4967E", blush: "#E8A8A0" },
-  { bgTop: "#FAF8F5", bgBottom: "#DEE6C4", hair: "#2B241F", outfit: "#FFFFFF", accent: "#9A6B62", blush: "#D99A8D" },
-  { bgTop: "#F5F2ED", bgBottom: "#E5D8CA", hair: "#41352D", outfit: "#FFFDF7", accent: "#C9A96E", blush: "#EAB4A5" },
+  { bgTop: colors.ivory[50], bgBottom: colors.rose.pale, hair: colors.stone[900], outfit: colors.ivory[50], accent: colors.rose[500], blush: "#E3A59B" },
+  { bgTop: colors.ivory[100], bgBottom: colors.sage.pale, hair: "#2B241F", outfit: colors.surface, accent: colors.rose[600], blush: "#D99A8D" },
+  { bgTop: colors.ivory[200], bgBottom: colors.gold.light, hair: "#41352D", outfit: colors.ivory[50], accent: colors.gold.DEFAULT, blush: "#EAB4A5" },
 ];
 
 const GROOM_PALETTES = [
-  { bgTop: "#FDFCFA", bgBottom: "#DCE6E1", hair: "#191816", outfit: "#36534E", accent: "#C9A96E", blush: "#D9A58F" },
-  { bgTop: "#FAF8F5", bgBottom: "#E5D8CA", hair: "#2B241F", outfit: "#1A1A1F", accent: "#C4967E", blush: "#D9A58F" },
-  { bgTop: "#F5F2ED", bgBottom: "#D8CEC4", hair: "#3A2E28", outfit: "#635B51", accent: "#9A6B62", blush: "#D9A58F" },
+  { bgTop: colors.ivory[50], bgBottom: colors.sage.pale, hair: colors.stone[900], outfit: colors.noir[800], accent: colors.gold.DEFAULT, blush: "#D9A58F" },
+  { bgTop: colors.ivory[100], bgBottom: colors.gold.light, hair: "#2B241F", outfit: colors.noir[900], accent: colors.rose[500], blush: "#D9A58F" },
+  { bgTop: colors.ivory[200], bgBottom: colors.surfaceLow, hair: "#3A2E28", outfit: colors.taupe[500], accent: colors.rose[600], blush: "#D9A58F" },
 ];
 
 const NEUTRAL_PALETTES = [
-  { bgTop: "#FDFCFA", bgBottom: "#E5D8CA", hair: "#1A1A1F", outfit: "#36534E", accent: "#C4967E", blush: "#E5B2A4" },
-  { bgTop: "#FAF8F5", bgBottom: "#DEE6C4", hair: "#2B241F", outfit: "#635B51", accent: "#C9A96E", blush: "#E7B9A8" },
+  { bgTop: colors.ivory[50], bgBottom: colors.gold.light, hair: colors.stone[900], outfit: colors.noir[800], accent: colors.rose[500], blush: "#E5B2A4" },
+  { bgTop: colors.ivory[100], bgBottom: colors.sage.pale, hair: "#2B241F", outfit: colors.taupe[500], accent: colors.gold.DEFAULT, blush: "#E7B9A8" },
 ];
 
 export function CommunityAvatar({
@@ -135,11 +135,11 @@ function Eyes({ character }: { character: AvatarCharacter }) {
       <Circle cx="25" cy="34" r="2" fill={character.blush} opacity="0.55" />
       <Circle cx="39" cy="34" r="2" fill={character.blush} opacity="0.55" />
       {character.expressionVariant === 0 ? (
-        <Path d="M28.5 38c2.1 1.6 4.9 1.6 7 0" fill="none" stroke="#7A4F45" strokeWidth="1.6" strokeLinecap="round" />
+        <Path d="M28.5 38c2.1 1.6 4.9 1.6 7 0" fill="none" stroke={colors.rose[600]} strokeWidth="1.6" strokeLinecap="round" />
       ) : character.expressionVariant === 1 ? (
-        <Path d="M29 37.5c1.8 1 4.2 1 6 0" fill="none" stroke="#7A4F45" strokeWidth="1.5" strokeLinecap="round" />
+        <Path d="M29 37.5c1.8 1 4.2 1 6 0" fill="none" stroke={colors.rose[600]} strokeWidth="1.5" strokeLinecap="round" />
       ) : (
-        <Circle cx="32" cy="38" r="1.35" fill="#7A4F45" opacity="0.8" />
+        <Circle cx="32" cy="38" r="1.35" fill={colors.rose[600]} opacity="0.8" />
       )}
     </G>
   );
@@ -169,7 +169,7 @@ function BrideAvatar({ character }: { character: AvatarCharacter }) {
       {character.accessoryVariant === 0 ? (
         <G>
           <Circle cx="43" cy="22" r="2.2" fill={character.accent} />
-          <Circle cx="47" cy="22" r="1.4" fill="#FFF8F2" />
+          <Circle cx="47" cy="22" r="1.4" fill={colors.ivory[50]} />
         </G>
       ) : character.accessoryVariant === 1 ? (
         <Path d="M22 21c4-4 11-6 18-3" fill="none" stroke={character.accent} strokeWidth="1.8" strokeLinecap="round" />
@@ -188,7 +188,7 @@ function GroomAvatar({ character }: { character: AvatarCharacter }) {
   return (
     <G>
       <Path d="M18 55c2.5-8.5 7-12.8 14-12.8S43.5 46.5 46 55H18z" fill={character.outfit} />
-      <Path d="M27 44l5 5 5-5 2 11H25l2-11z" fill="#FFFDF7" opacity="0.95" />
+      <Path d="M27 44l5 5 5-5 2 11H25l2-11z" fill={colors.ivory[50]} opacity="0.95" />
       <Path d="M31 48h2l2 7h-6l2-7z" fill={character.accent} />
       <Circle cx="32" cy="29" r="13" fill={character.skin} />
       <Path

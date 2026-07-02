@@ -73,8 +73,8 @@ type TopicKey = (typeof TOPICS)[number]["key"];
 
 // 닉네임 기반 아바타 색상
 const AVATAR_COLORS = [
-  "#C4967E", "#C9A96E", "#9A6B62", "#928980", "#B5ADA3",
-  "#D4AFA0", "#DCC9A0", "#4A4A52", "#1A1A1F", "#E8D5CD",
+  colors.rose[500], colors.gold.DEFAULT, colors.rose[600], colors.taupe[500], colors.taupe[400],
+  colors.rose.light, colors.gold.light, colors.noir.soft, colors.noir[800], colors.rose.pale,
 ];
 
 function getAvatarColor(name: string): string {

@@ -158,9 +158,10 @@ Source of truth: `DESIGN.md`.
 
 Mobile must use:
 
-- Warm ivory background.
-- White or noir surfaces.
-- Rose only for attention and selected state.
+- Pearl ivory background.
+- White, ivory, or eucalyptus ink surfaces.
+- Dusty mauve only for attention and selected state.
+- Sage for calm success, verified, and operational states.
 - Noto Sans KR for app UI.
 - Noto Serif KR only for emotional or editorial moments.
 - Cormorant Garamond only for large numbers.
@@ -285,10 +286,13 @@ Before TestFlight:
 
 ## 10. Current Implementation Notes
 
-As of 2026-07-02 (`main` after PR #28, latest product/code commit `b9e09222`):
+As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 
 - `DESIGN.md` exists and remains the visual source of truth.
+- `DESIGN.md`, web `globals.css`, and `@hanbang/design-tokens` now share the same Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage, and Champagne Taupe palette.
 - `AppUI.tsx` exists and is the shared mobile UI kit.
+- `AppUI.tsx` surfaces now carry the same quiet eucalyptus shadow and ivory border language used by the web app.
+- Mobile NativeWind exposes shared `sage`, `stone`, `surfaceLow`, and semantic colors from `@hanbang/design-tokens`.
 - Dashboard uses a command-card first impression.
 - Chat empty state uses shared UI.
 - Profile rows use shared UI.

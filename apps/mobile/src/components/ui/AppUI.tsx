@@ -14,10 +14,10 @@ import { ArrowLeft, ChevronRight } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 
 export const appShadow = {
-  shadowColor: "#000" as const,
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.05,
-  shadowRadius: 24,
+  shadowColor: colors.stone[900],
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.08,
+  shadowRadius: 22,
   elevation: 3,
 };
 
@@ -323,6 +323,8 @@ const surfaceStyles = StyleSheet.create({
   base: {
     borderRadius: radius["2xl"],
     padding: spacing[5],
+    borderWidth: 1,
+    borderColor: colors.border,
     ...appShadow,
   },
   default: {
@@ -330,14 +332,17 @@ const surfaceStyles = StyleSheet.create({
   },
   noir: {
     backgroundColor: colors.noir[800],
+    borderColor: colors.noir.soft,
   },
   ivory: {
     backgroundColor: colors.ivory[100],
+    borderColor: colors.border,
     shadowOpacity: 0,
     elevation: 0,
   },
   rose: {
     backgroundColor: colors.rose.glow,
+    borderColor: colors.rose.pale,
     shadowOpacity: 0,
     elevation: 0,
   },
