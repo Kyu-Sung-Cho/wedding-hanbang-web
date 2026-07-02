@@ -36,12 +36,15 @@ Current result:
 Before every mobile release candidate, also run:
 
 ```bash
+pnpm qa:local
 pnpm mobile:release-check
 pnpm --filter @hanbang/mobile lint
 pnpm --filter @hanbang/mobile typecheck
 pnpm typecheck
 pnpm lint
 ```
+
+`pnpm qa:local` includes the mobile release readiness check, web tests, web production build, mobile lint/typecheck, shared package typechecks, and design-token typechecks. Keep the standalone `pnpm mobile:release-check` command available when you want a fast app-store configuration check without the full local gate.
 
 ## 3. EAS Build Profiles
 
@@ -74,6 +77,8 @@ pnpm mobile:release-check
 ```
 
 This check validates the static mobile release configuration: app identifiers, URL schemes, EAS profiles, Expo plugins, OAuth callback bridge, mobile env example, and legacy brand-color drift. Account-dependent setup such as `extra.eas.projectId` is reported as a warning until `eas:init` is completed.
+
+The same check also runs inside `pnpm qa:local`, so GitHub Actions blocks release configuration regressions through the existing Quality Gate.
 
 ## 4. Account-Dependent Setup
 

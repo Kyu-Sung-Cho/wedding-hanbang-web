@@ -6,13 +6,13 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - Continue from branch: `main`.
-- Latest shipped product/code baseline: `b8ad0f88` (`refactor: align mobile brand palette with web (#31)`).
-- Handoff documentation PRs: #27 and #28.
-- Latest shipped product/code PRs: #29, #30, and #31.
-- Open product/code PRs at handoff time: none.
-- Latest confirmed main GitHub Actions run: success, run `28556216594`.
-- Latest confirmed Vercel production deployment: success for commit `b8ad0f88`, target `https://vercel.com/hanbang/wedding-hanbang-web/4UiQhvGfKS6sz15fYPxHtiEDKTLc`.
-- Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T00-13-55-974Z/report.md`.
+- Latest shipped product/code baseline before this continuation: `0c228c65` (`chore: add mobile release readiness check (#34)`).
+- Handoff documentation PRs: #27, #28, and #32.
+- Latest shipped product/code PRs: #29, #30, #31, #33, and #34.
+- Open product/code PRs at handoff time before this continuation: none.
+- Latest confirmed main GitHub Actions run: success, run `28557844008`.
+- Latest confirmed Vercel production deployment: success for commit `0c228c65`, target `https://vercel.com/hanbang/wedding-hanbang-web/31UQdmfLGMeBHeWjnWfaRBQLmrcm`.
+- Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T00-59-29-241Z/report.md`.
 
 ## Resume Commands
 
@@ -23,6 +23,7 @@ git fetch origin
 git checkout main
 git pull --ff-only origin main
 corepack pnpm install
+corepack pnpm mobile:release-check
 corepack pnpm qa:local
 ```
 
@@ -135,6 +136,26 @@ corepack pnpm --filter @hanbang/mobile dev
   - `apps/mobile/app.json`
   - `DESIGN.md`
 
+### PR #33 - Mobile Callback Branding
+
+- Aligned the mobile OAuth callback page with the web/mobile eucalyptus brand palette.
+- Kept the `hanbang://auth/callback` bridge intact while removing legacy black/rose/ivory colors from the callback UI.
+- Verified with local quality gates, Vercel deployment, and live smoke.
+
+### PR #34 - Mobile Release Readiness Check
+
+- Added `scripts/mobile-release-readiness.mjs` to validate mobile app-store configuration before EAS/TestFlight work.
+- The check covers Expo app identity, bundle/package IDs, URL scheme, universal links, EAS profiles, Expo plugins, OAuth callback bridge, mobile env docs, and legacy brand-color drift.
+- Added `pnpm mobile:release-check` at the repo root and `pnpm release:check` inside `@hanbang/mobile`.
+- Updated `docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md` so release candidates run this check before EAS builds.
+- The only expected warning is `extra.eas.projectId` until `eas:init` is run while logged into the hanbang Expo account.
+
+### Mobile Release Check Quality-Gate Continuation
+
+- `scripts/verify-local.mjs` now runs `pnpm mobile:release-check` as part of `pnpm qa:local`.
+- Because GitHub Actions already runs `pnpm qa:local`, the CI Quality Gate now blocks mobile release configuration regressions without a separate workflow change.
+- `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md` and the mobile store checklist now document the release check as part of milestone validation.
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -175,6 +196,14 @@ corepack pnpm --filter @hanbang/mobile dev
   - main GitHub Actions run `28556216594` passed
   - Vercel production deployment completed successfully
   - `corepack pnpm qa:live` passed 5/5, report `.gstack/qa-reports/live-smoke/2026-07-02T00-13-55-974Z/report.md`
+- After PR #34 merged:
+  - main GitHub Actions run `28557844008` passed
+  - Vercel production deployment completed successfully
+  - `corepack pnpm mobile:release-check` passed with 50 checks, 1 expected EAS project warning, and 0 failures
+  - `corepack pnpm qa:live` passed 5/5, report `.gstack/qa-reports/live-smoke/2026-07-02T00-59-29-241Z/report.md`
+- For the mobile release check quality-gate continuation:
+  - `corepack pnpm mobile:release-check` passed with 50 checks, 1 expected EAS project warning, and 0 failures
+  - `corepack pnpm qa:local` passed and confirmed the release check runs inside the local quality gate
 
 ## Product And Code Decisions To Preserve
 
