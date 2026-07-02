@@ -5,14 +5,14 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 ## Current Git State
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
-- Continue from branch: `main` after the current mobile/web design-parity PR lands.
-- If reviewing before merge, continue from working branch: `codex/mobile-web-design-parity`.
-- Latest shipped product/code baseline before this design-parity branch: `af65f62b` (`refactor: polish mobile settings QA flow (#30)`).
+- Continue from branch: `main`.
+- Latest shipped product/code baseline: `b8ad0f88` (`refactor: align mobile brand palette with web (#31)`).
 - Handoff documentation PRs: #27 and #28.
-- Latest shipped product/code PRs: #29 and #30.
-- Current product/code PR at handoff time: mobile/web design parity.
-- Latest confirmed main GitHub Actions run before this branch: success, run `28555254381`.
-- Latest confirmed production smoke report before this branch: `.gstack/qa-reports/live-smoke/2026-07-01T23-49-31-582Z/report.md`.
+- Latest shipped product/code PRs: #29, #30, and #31.
+- Open product/code PRs at handoff time: none.
+- Latest confirmed main GitHub Actions run: success, run `28556216594`.
+- Latest confirmed Vercel production deployment: success for commit `b8ad0f88`, target `https://vercel.com/hanbang/wedding-hanbang-web/4UiQhvGfKS6sz15fYPxHtiEDKTLc`.
+- Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T00-13-55-974Z/report.md`.
 
 ## Resume Commands
 
@@ -117,7 +117,7 @@ corepack pnpm --filter @hanbang/mobile dev
   - `docs/MOBILE_AUTHENTICATED_SMOKE_QA.md`
   - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 
-### Mobile/Web Design Parity Pass
+### PR #31 - Mobile/Web Design Parity Pass
 
 - Aligned shared `@hanbang/design-tokens` with the live web app's Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage, and Champagne Taupe palette.
 - Kept legacy token keys such as `noir` and `rose` for code compatibility, but changed their values to the current web brand palette.
@@ -171,6 +171,10 @@ corepack pnpm --filter @hanbang/mobile dev
   - `corepack pnpm qa:local`
   - `corepack pnpm dlx expo-doctor` from `apps/mobile` passed 18/18
   - `corepack pnpm audit --prod`
+- After PR #31 merged:
+  - main GitHub Actions run `28556216594` passed
+  - Vercel production deployment completed successfully
+  - `corepack pnpm qa:live` passed 5/5, report `.gstack/qa-reports/live-smoke/2026-07-02T00-13-55-974Z/report.md`
 
 ## Product And Code Decisions To Preserve
 
