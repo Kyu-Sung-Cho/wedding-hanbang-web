@@ -253,6 +253,11 @@ export interface CohortMember {
   profile?: CommunityProfile;
 }
 
+export type CohortProfileSummary = Pick<
+  CommunityProfile,
+  "user_id" | "nickname" | "avatar_url" | "rank"
+>;
+
 export interface CohortMessage {
   id: string;
   room_id: string;
@@ -263,7 +268,7 @@ export interface CohortMessage {
   reply_to: string | null;
   is_deleted: boolean;
   created_at: string;
-  author?: CommunityProfile;
+  author?: CohortProfileSummary;
 }
 
 export interface CohortContract {
@@ -286,7 +291,7 @@ export interface CohortTimelineEvent {
   description: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
-  user?: CommunityProfile;
+  user?: CohortProfileSummary;
 }
 
 export interface CohortStat {

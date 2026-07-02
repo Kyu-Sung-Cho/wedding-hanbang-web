@@ -36,6 +36,7 @@ import {
 import type {
   CohortRoom,
   CohortMessage,
+  CohortProfileSummary,
   CohortContract,
   CohortStat,
   CohortTimelineEvent,
@@ -674,13 +675,12 @@ function ChatTab({
             .from("community_profiles")
             .select("user_id, nickname, avatar_url, rank")
             .eq("user_id", newMsg.author_id)
-            .maybeSingle();
+            .maybeSingle<CohortProfileSummary>();
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             const hydratedMessage = {
               ...newMsg,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              author: (authorData as any) ?? undefined,
+              author: authorData ?? undefined,
             };
             const tempIndex = prev.findIndex((message) => (
               message.id.startsWith("temp-") &&
