@@ -13,21 +13,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Noir (primary)
+        // Eucalyptus Ink (primary)
         noir: {
           900: colors.noir[900],
           800: colors.noir[800],
           soft: colors.noir.soft,
           charcoal: colors.noir.charcoal,
         },
-        // Rose Champagne (accent)
+        // Dusty Mauve (accent)
         rose: {
           500: colors.rose[500],
           600: colors.rose[600],
           light: colors.rose.light,
           pale: colors.rose.pale,
         },
-        // Warm Ivory (bg)
+        // Pearl Ivory (bg)
         ivory: {
           50: colors.ivory[50],
           100: colors.ivory[100],
@@ -40,12 +40,21 @@ module.exports = {
           400: colors.taupe[400],
           500: colors.taupe[500],
         },
-        // Gold
+        // Sage
+        sage: {
+          500: colors.sage[500],
+          pale: colors.sage.pale,
+        },
+        // Champagne Taupe
         gold: {
           DEFAULT: colors.gold.DEFAULT,
           light: colors.gold.light,
         },
         platinum: colors.platinum,
+        surfaceLow: colors.surfaceLow,
+        stone: {
+          900: colors.stone[900],
+        },
 
         // Semantic
         bg: colors.bg,

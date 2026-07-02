@@ -26,13 +26,14 @@
 
 ## Color
 
-- **Approach:** Restrained warm luxury.
-- **Primary noir:** `#1A1A1F` for high-trust surfaces, main text, AI identity, and premium contrast.
-- **Rose champagne:** `#C4967E` and `#9A6B62` for key actions, selected states, and human warmth.
-- **Ivory surfaces:** `#FDFCFA`, `#FAF8F5`, `#F5F2ED` for backgrounds and layered panels.
-- **Gold:** `#C9A96E` for rare highlights, not primary buttons everywhere.
-- **Semantic:** success `#22C55E`, warning `#C9A96E`, danger `#EF4444`, info `#1A1A1F`.
-- **Rule:** Do not turn the app into a pink app. Rose should guide attention, not paint every object.
+- **Approach:** Restrained warm luxury with a quieter web/app brand match.
+- **Primary eucalyptus ink:** `#36534E` and `#243832` for high-trust surfaces, main text, AI identity, and premium contrast.
+- **Dusty mauve:** `#A77B74` and `#8F6662` for key actions, selected states, and human warmth.
+- **Pearl ivory surfaces:** `#FBF8F2`, `#F7F1E8`, `#EFE4D7`, and `#F6EFE5` for backgrounds and layered panels.
+- **Sage:** `#6D806E` and `#C7D1C2` for calm success, verified, and operational states.
+- **Champagne taupe:** `#B89785` and `#E2D3C8` for rare highlights, not primary buttons everywhere.
+- **Semantic:** success `#6D806E`, warning `#B89785`, danger `#D95F5F`, info `#36534E`.
+- **Rule:** Do not turn the app into a pink app. Dusty mauve should guide attention, not paint every object.
 
 ## Spacing
 
@@ -72,9 +73,9 @@
 
 ## Safe Choices
 
-- Warm ivory background with white surfaces.
-- Noir high-contrast hero moments for trust.
-- Rose accent for selection and primary action.
+- Pearl ivory background with white surfaces.
+- Eucalyptus ink high-contrast hero moments for trust.
+- Dusty mauve accent for selection and primary action.
 - Bottom tabs for mobile navigation.
 - Noto Sans KR for app readability.
 
@@ -89,3 +90,4 @@
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-06-30 | Initial design system created | Consolidated existing Wedding Hanbang documents, design tokens, and mobile app direction into one source of truth. |
+| 2026-07-02 | Aligned mobile tokens with the web eucalyptus palette | The web app had moved to Eucalyptus Ink, Dusty Mauve, and Pearl Ivory; shared mobile tokens now match that production visual direction. |

@@ -170,7 +170,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 | 항목 | 설명 |
 |------|------|
 | **앱 아이콘** | 1024×1024 (App Store), adaptive icon (Android) |
-| **스플래시 스크린** | 브랜드 로고 + #FAFAF8 배경 |
+| **스플래시 스크린** | 브랜드 로고 + #FBF8F2 배경 |
 | **앱스토어 스크린샷** | iPhone 6.7" (필수) + 6.1" + iPad (선택) |
 | **앱 설명문** | 한국어, 키워드 최적화 |
 | **개인정보처리방침** | hanbang.ai/privacy 페이지 |
@@ -233,16 +233,17 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 ### 브랜드 팔레트 (웹/앱 공유)
 
 ```
-Noir (Primary):     #1A1A1F (800), #0D0D0F (900)
-Rose Champagne:     #C4967E (500), #9A6B62 (600)
-Warm Ivory (BG):    #FAFAF8 (bg), #FAF8F5 (100), #F5F2ED (200)
-Taupe:              #B5ADA3 (400), #928980 (500)
-Gold:               #C9A96E
-Border:             #F0EFED
+Eucalyptus Ink:     #36534E (800), #243832 (900)
+Dusty Mauve:        #A77B74 (500), #8F6662 (600)
+Pearl Ivory (BG):   #FBF8F2 (bg), #F7F1E8 (100), #EFE4D7 (200)
+Taupe:              #B7AA9A (400), #635B51 (500)
+Sage:               #6D806E
+Champagne Taupe:    #B89785
+Border:             #E5D8CA
 Surface:            #FFFFFF
-Text Primary:       #1A1A1F
-Text Secondary:     #878680
-Text Tertiary:      #B5ADA3
+Text Primary:       #263832
+Text Secondary:     #5F5B52
+Text Tertiary:      #7D7166
 ```
 
 ### 폰트
@@ -267,7 +268,7 @@ Text Tertiary:      #B5ADA3
 
 // 버튼 (Primary)
 {
-  backgroundColor: colors.noir[800],  // #1A1A1F
+  backgroundColor: colors.noir[800],  // #36534E
   borderRadius: 16,
   height: 56,
 }

@@ -69,6 +69,12 @@ For visual QA, capture screenshots for:
 - Cohort chat empty/loading state
 - Guestbook found and not-found states
 
+Compare those screenshots against the live web app's service/community pages and confirm:
+
+- Eucalyptus ink is the dominant high-trust color, not legacy black/navy.
+- Dusty mauve appears only as an attention or selected-state accent.
+- Pearl ivory backgrounds, ivory borders, and quiet eucalyptus shadows match the web app's production tone.
+
 ## Scenario 1: Login And Home Context
 
 1. Sign in as User A.
@@ -188,6 +194,7 @@ Pass:
 Pass:
 
 - secondary screens use the shared `AppHeader`, `LoadingState`, `EmptyState`, and primary CTA rhythm
+- shared UI surfaces use the web-aligned Eucalyptus Ink / Dusty Mauve / Pearl Ivory palette from `@hanbang/design-tokens`
 - no header button text clips on 360px wide Android
 - no nested-card visual clutter appears in Settings
 - no controls overlap with keyboard-visible forms
@@ -206,6 +213,7 @@ Stop and fix before App Store/TestFlight work if any occur:
 - settings name save leaves community content on the old nickname
 - duplicate or inappropriate community nickname is accepted
 - secondary screens have clipped header actions, blank loading states, or unreadable empty states
+- mobile screenshots drift back to the legacy black/rose palette instead of matching the web eucalyptus palette
 
 ## Report Template
 
