@@ -11,6 +11,14 @@
 
 import { useEffect, useState } from "react";
 
+const palette = {
+  bg: "#FBF8F2",
+  ink: "#36534E",
+  text: "#263832",
+  muted: "#5F5B52",
+  champagne: "#E2D3C8",
+};
+
 export default function MobileCallbackPage() {
   const [status, setStatus] = useState("앱으로 돌아가는 중...");
 
@@ -69,7 +77,7 @@ export default function MobileCallbackPage() {
       alignItems: "center",
       justifyContent: "center",
       minHeight: "100vh",
-      background: "#FAFAF8",
+      background: palette.bg,
       fontFamily: "'Noto Sans KR', sans-serif",
       padding: "20px",
     }}>
@@ -77,20 +85,20 @@ export default function MobileCallbackPage() {
         width: 64,
         height: 64,
         borderRadius: 20,
-        background: "#1A1A1F",
+        background: palette.ink,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 24,
-        color: "#C9A96E",
+        color: palette.champagne,
         fontSize: 28,
       }}>
         ✦
       </div>
-      <p style={{ color: "#1A1A1F", fontSize: 16, fontWeight: 500, marginBottom: 8 }}>
+      <p style={{ color: palette.text, fontSize: 16, fontWeight: 500, marginBottom: 8 }}>
         웨딩한방
       </p>
-      <p style={{ color: "#878680", fontSize: 14 }}>
+      <p style={{ color: palette.muted, fontSize: 14 }}>
         {status}
       </p>
     </div>
