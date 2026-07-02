@@ -146,6 +146,7 @@ corepack pnpm --filter @hanbang/mobile dev
 
 - Added `scripts/mobile-release-readiness.mjs` to validate mobile app-store configuration before EAS/TestFlight work.
 - The check covers Expo app identity, bundle/package IDs, URL scheme, universal links, EAS profiles, Expo plugins, OAuth callback bridge, mobile env docs, and legacy brand-color drift.
+- The check also blocks non-zero mobile `letterSpacing`, so Paperlogy typography stays consistent across app screens.
 - Added `pnpm mobile:release-check` at the repo root and `pnpm release:check` inside `@hanbang/mobile`.
 - Updated `docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md` so release candidates run this check before EAS builds.
 - The only expected warning is `extra.eas.projectId` until `eas:init` is run while logged into the hanbang Expo account.

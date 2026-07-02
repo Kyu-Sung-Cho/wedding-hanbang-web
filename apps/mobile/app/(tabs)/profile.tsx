@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textTertiary,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0,
     marginBottom: 8,
     marginLeft: 4,
   },

@@ -292,6 +292,7 @@ As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 - `DESIGN.md` exists and remains the visual source of truth.
 - `DESIGN.md`, web `globals.css`, and `@hanbang/design-tokens` now share the same Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage, and Champagne Taupe palette.
 - Web and mobile typography now share self-hosted Paperlogy assets selected from Noonnu, with legacy mobile font aliases mapped to Paperlogy for existing screens.
+- `pnpm mobile:release-check` fails if mobile source code reintroduces non-zero `letterSpacing`, keeping Paperlogy typography consistent across app screens.
 - `AppUI.tsx` exists and is the shared mobile UI kit.
 - `AppUI.tsx` surfaces now carry the same quiet eucalyptus shadow and ivory border language used by the web app.
 - Mobile NativeWind exposes shared `sage`, `stone`, `surfaceLow`, and semantic colors from `@hanbang/design-tokens`.

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,20 @@ function readText(relativePath) {
 
 function readJson(relativePath) {
   return JSON.parse(readText(relativePath));
+}
+
+function listFiles(relativePath, extensions) {
+  const absolutePath = path.join(root, relativePath);
+  const entries = readdirSync(absolutePath);
+  return entries.flatMap((entry) => {
+    const entryAbsolutePath = path.join(absolutePath, entry);
+    const entryRelativePath = path.join(relativePath, entry);
+    const stats = statSync(entryAbsolutePath);
+    if (stats.isDirectory()) return listFiles(entryRelativePath, extensions);
+    return extensions.some((extension) => entry.endsWith(extension))
+      ? [entryRelativePath]
+      : [];
+  });
 }
 
 const results = [];
@@ -172,6 +186,28 @@ for (const legacyColor of legacyPalette) {
     `Mobile callback does not use legacy color ${legacyColor}`
   );
 }
+
+const mobileSourceFiles = [
+  ...listFiles("apps/mobile/app", [".ts", ".tsx"]),
+  ...listFiles("apps/mobile/src", [".ts", ".tsx"]),
+];
+const nonZeroLetterSpacing = [];
+for (const sourceFile of mobileSourceFiles) {
+  const source = readText(sourceFile);
+  const matches = source.matchAll(/letterSpacing:\s*([^,\n}]+)/g);
+  for (const match of matches) {
+    const value = match[1]?.trim();
+    if (value !== "0") {
+      nonZeroLetterSpacing.push(`${sourceFile} -> ${value}`);
+    }
+  }
+}
+expect(
+  nonZeroLetterSpacing.length === 0,
+  nonZeroLetterSpacing.length === 0
+    ? "Mobile source keeps Paperlogy letter spacing at 0"
+    : `Mobile source has non-zero letterSpacing: ${nonZeroLetterSpacing.join("; ")}`
+);
 
 const counts = results.reduce(
   (acc, result) => {

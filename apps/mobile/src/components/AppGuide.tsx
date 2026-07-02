@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     textAlign: "center",
-    letterSpacing: -1,
+    letterSpacing: 0,
     marginBottom: spacing[2],
   },
   welcomeSubtitle: {
@@ -642,13 +642,13 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.rose.light,
     marginBottom: spacing[1],
-    letterSpacing: 1,
+    letterSpacing: 0,
   },
   homeDdayNumber: {
     fontSize: fontSize["5xl"],
     fontFamily: "CormorantGaramond_600SemiBold",
     color: "#FFFFFF",
-    letterSpacing: -2,
+    letterSpacing: 0,
     lineHeight: 56,
   },
   homeDdayDate: {
@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
     fontFamily: "CormorantGaramond_400Regular",
     color: colors.taupe[400],
     marginTop: spacing[1],
-    letterSpacing: 1,
+    letterSpacing: 0,
   },
   homeProgressContainer: {
     width: "100%",
@@ -1127,7 +1127,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     textAlign: "center",
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     marginBottom: spacing[2],
   },
   startSubtitle: {

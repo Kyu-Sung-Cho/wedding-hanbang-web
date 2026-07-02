@@ -1034,7 +1034,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifKR_500Medium",
     color: colors.noir[800],
     marginBottom: 24,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
 
   // D-day 기본
@@ -1349,6 +1349,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
 });

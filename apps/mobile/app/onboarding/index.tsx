@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "CormorantGaramond_600SemiBold",
     color: colors.noir[800],
-    letterSpacing: 2,
+    letterSpacing: 0,
     textAlign: "center",
     marginTop: 4,
   },
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: "CormorantGaramond_600SemiBold",
     color: "#FFFFFF",
-    letterSpacing: 2,
+    letterSpacing: 0,
     marginBottom: 8,
   },
   codeHint: {

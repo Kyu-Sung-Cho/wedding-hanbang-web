@@ -74,6 +74,7 @@ Compare those screenshots against the live web app's service/community pages and
 - Eucalyptus ink is the dominant high-trust color, not legacy black/navy.
 - Dusty mauve appears only as an attention or selected-state accent.
 - Pearl ivory backgrounds, ivory borders, and quiet eucalyptus shadows match the web app's production tone.
+- Paperlogy typography stays neutral and readable; no screen reintroduces non-zero tracking/letter spacing.
 
 ## Scenario 1: Login And Home Context
 

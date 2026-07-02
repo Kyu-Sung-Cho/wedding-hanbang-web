@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.noir[800],
     fontFamily: "CormorantGaramond_400Regular",
-    letterSpacing: 2,
+    letterSpacing: 0,
   },
   copyBtn: {
     width: 40,
