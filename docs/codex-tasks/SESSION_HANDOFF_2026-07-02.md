@@ -201,6 +201,13 @@ corepack pnpm --filter @hanbang/mobile dev
   - `apps/mobile/app/schedule/index.tsx`
   - `apps/mobile/app/community/cohort/[id].tsx`
   - `apps/mobile/app/(tabs)/community.tsx`
+- Shipped to Expo preview updates:
+  - EAS update group: `49bb07fc-137d-48bb-aff3-c05f7dd21263`
+  - Branch: `preview`
+  - Runtime version: `1.0.0`
+  - Android update: `019f2228-471b-7786-b433-b74ef94c36ca`
+  - iOS update: `019f2228-471b-7dcd-9096-131123b89dd3`
+  - Dashboard: `https://expo.dev/accounts/hanbang/projects/wedding-hanbang/updates/49bb07fc-137d-48bb-aff3-c05f7dd21263`
 
 ## Verified Gates
 
@@ -262,6 +269,8 @@ corepack pnpm --filter @hanbang/mobile dev
   - `corepack pnpm --filter @hanbang/mobile lint`
   - `corepack pnpm mobile:release-check` passed with 55 checks, 0 warnings, and 0 failures
   - `corepack pnpm qa:local` passed, including web tests/build and mobile/shared/design-token checks
+  - main GitHub Actions run `28579704827` passed
+  - `corepack pnpm dlx eas-cli update --branch preview --message "Core screen readability polish" --platform all --non-interactive` published iOS/Android preview update group `49bb07fc-137d-48bb-aff3-c05f7dd21263`
 
 ## Product And Code Decisions To Preserve
 
