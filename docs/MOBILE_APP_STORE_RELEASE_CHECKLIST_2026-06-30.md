@@ -36,6 +36,7 @@ Current result:
 Before every mobile release candidate, also run:
 
 ```bash
+pnpm mobile:release-check
 pnpm --filter @hanbang/mobile lint
 pnpm --filter @hanbang/mobile typecheck
 pnpm typecheck
@@ -65,6 +66,14 @@ pnpm eas:submit:android
 ```
 
 Do not use the generic `pnpm build` script for store release. It intentionally stays non-destructive so monorepo builds do not trigger cloud app-store builds by accident.
+
+Before starting an EAS build, run:
+
+```bash
+pnpm mobile:release-check
+```
+
+This check validates the static mobile release configuration: app identifiers, URL schemes, EAS profiles, Expo plugins, OAuth callback bridge, mobile env example, and legacy brand-color drift. Account-dependent setup such as `extra.eas.projectId` is reported as a warning until `eas:init` is completed.
 
 ## 4. Account-Dependent Setup
 

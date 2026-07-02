@@ -30,6 +30,7 @@
     "qa:local": "node ./scripts/verify-local.mjs",
     "qa:live": "node ./scripts/live-smoke-test.mjs",
     "qa:live:local": "node ./scripts/live-smoke-test.mjs --base-url=http://localhost:3000",
+    "mobile:release-check": "node ./scripts/mobile-release-readiness.mjs",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
