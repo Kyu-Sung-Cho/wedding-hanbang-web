@@ -6,13 +6,13 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - Continue from branch: `main`.
-- Latest shipped product/code baseline before PR #35: `0c228c65` (`chore: add mobile release readiness check (#34)`).
+- Latest shipped product/code baseline before PR #36: `1e26dc85` (`chore: enforce mobile release check in local qa (#35)`).
 - Handoff documentation PRs: #27, #28, and #32.
-- Latest shipped product/code PRs: #29, #30, #31, #33, and #34.
-- Open product/code PRs at handoff time before PR #35: none.
-- Latest confirmed main GitHub Actions run: success, run `28557844008`.
-- Latest confirmed Vercel production deployment: success for commit `0c228c65`, target `https://vercel.com/hanbang/wedding-hanbang-web/31UQdmfLGMeBHeWjnWfaRBQLmrcm`.
-- Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T00-59-29-241Z/report.md`.
+- Latest shipped product/code PRs: #29, #30, #31, #33, #34, and #35.
+- Open product/code PRs at handoff time before PR #36: none.
+- Latest confirmed main GitHub Actions run: success, run `28558404116`.
+- Latest confirmed Vercel production deployment: success for commit `1e26dc85`, target `https://vercel.com/hanbang/wedding-hanbang-web/J2JTqrVpqjfjpJ8YduVForyzpbzD`.
+- Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T01-15-59-082Z/report.md`.
 
 ## Resume Commands
 
@@ -156,6 +156,26 @@ corepack pnpm --filter @hanbang/mobile dev
 - Because GitHub Actions already runs `pnpm qa:local`, the CI Quality Gate now blocks mobile release configuration regressions without a separate workflow change.
 - `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md` and the mobile store checklist now document the release check as part of milestone validation.
 
+### PR #36 - EAS Project Link And Android Preview Build
+
+- Linked the mobile app to EAS project `@hanbang/wedding-hanbang`.
+- Populated `apps/mobile/app.json` with EAS project ID `3a978bf3-21b8-4731-abc2-956dc8a27859`.
+- Bound EAS build profiles to matching EAS environments:
+  - `development` -> `development`
+  - `preview` -> `preview`
+  - `production` -> `production`
+- Added release-check assertions for those EAS environment bindings.
+- Created EAS preview environment variables for mobile runtime:
+  - `EXPO_PUBLIC_SUPABASE_URL`
+  - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+  - `EXPO_PUBLIC_SITE_URL`
+- Created Android preview build:
+  - Build page: `https://expo.dev/accounts/hanbang/projects/wedding-hanbang/builds/fc5acd3e-d68f-4c83-8e47-9cc14163cb2e`
+  - APK artifact: `https://expo.dev/artifacts/eas/JRh16B31w4fEsYrshizsprvUK3fIbQCzOpWj7FikHQI.apk`
+  - Build status: `FINISHED`
+  - Build profile: `preview`
+  - Expiration: `2026-07-16`
+
 ## Verified Gates
 
 - `corepack pnpm qa:local` passed after the latest mobile work:
@@ -204,6 +224,12 @@ corepack pnpm --filter @hanbang/mobile dev
 - For the mobile release check quality-gate continuation:
   - `corepack pnpm mobile:release-check` passed with 50 checks, 1 expected EAS project warning, and 0 failures
   - `corepack pnpm qa:local` passed and confirmed the release check runs inside the local quality gate
+- For the EAS preview build continuation:
+  - `corepack pnpm mobile:release-check` passed with 54 checks, 0 warnings, and 0 failures
+  - `corepack pnpm qa:local` passed and confirmed the release check runs inside the local quality gate
+  - `corepack pnpm dlx expo-doctor` from `apps/mobile` passed 18/18
+  - EAS Android preview build finished successfully
+  - `corepack pnpm qa:live` passed 5/5, report `.gstack/qa-reports/live-smoke/2026-07-02T02-03-10-277Z/report.md`
 
 ## Product And Code Decisions To Preserve
 

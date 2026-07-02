@@ -24,7 +24,9 @@
         "NSMicrophoneUsageDescription": "영상 촬영 시 마이크가 필요해요."
       },
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:hanbang.ai"]
+      "associatedDomains": [
+        "applinks:hanbang.ai"
+      ]
     },
     "android": {
       "package": "ai.hanbang.wedding",
@@ -33,13 +35,26 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FBF8F2"
       },
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "hanbang.ai", "pathPrefix": "/app" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "https",
+              "host": "hanbang.ai",
+              "pathPrefix": "/app"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -74,7 +89,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": ""
+        "projectId": "3a978bf3-21b8-4731-abc2-956dc8a27859"
       }
     },
     "owner": "hanbang"
