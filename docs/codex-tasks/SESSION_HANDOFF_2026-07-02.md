@@ -336,6 +336,7 @@ corepack pnpm supabase:security:probe
 ## Quick Links
 
 - Main branch: `main`
+- July 2 daily summary: `docs/codex-tasks/DAILY_SUMMARY_2026-07-02.md`
 - Mobile masterplan: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 - Design source of truth: `DESIGN.md`
 - Previous mobile QA handoff: `docs/codex-tasks/SESSION_HANDOFF_2026-07-01_MOBILE_EXPO_QA.md`
