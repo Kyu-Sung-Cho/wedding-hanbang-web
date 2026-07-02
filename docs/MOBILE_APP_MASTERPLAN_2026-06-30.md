@@ -309,5 +309,7 @@ As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 - Production dependency audit passes through root `pnpm.overrides`.
 - `scripts/mobile-release-readiness.mjs` validates app-store release configuration, deep-link/OAuth bridge wiring, EAS profiles, Expo plugins, env docs, and legacy brand-color drift.
 - `pnpm qa:local` now includes `pnpm mobile:release-check`, so the existing GitHub Actions Quality Gate also blocks mobile release configuration regressions.
+- EAS project `@hanbang/wedding-hanbang` is linked in `apps/mobile/app.json`.
+- EAS build profiles explicitly bind to matching EAS environments so preview builds consume preview runtime variables.
 - `qa:local`, main GitHub Actions, Vercel production deploy, and live smoke were green after the latest mobile UI updates.
 - Latest cross-computer handoff: `docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md`.

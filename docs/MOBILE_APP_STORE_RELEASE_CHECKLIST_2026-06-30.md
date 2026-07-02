@@ -15,6 +15,9 @@
 - Apple Sign In plugin is enabled.
 - Universal link domain is declared: `applinks:hanbang.ai`.
 - EAS build profiles now exist at `apps/mobile/eas.json`.
+- EAS project is linked: `@hanbang/wedding-hanbang`.
+- EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
+- EAS preview environment has the required public mobile runtime variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
 - Store-build helper scripts now exist in `apps/mobile/package.json`.
 
 ## 2. Validation Already Passing Locally
@@ -87,7 +90,7 @@ These cannot be completed by code alone:
 1. Expo account access for owner `hanbang`.
 2. `eas login`.
 3. `pnpm --filter @hanbang/mobile eas:init`.
-4. Confirm `extra.eas.projectId` is populated in `apps/mobile/app.json` after EAS init.
+4. Confirm `extra.eas.projectId` is populated in `apps/mobile/app.json` after EAS init. Completed for `@hanbang/wedding-hanbang`.
 5. Apple Developer Program membership.
 6. App Store Connect app record for bundle ID `ai.hanbang.wedding`.
 7. App Store Connect API key or interactive Apple credentials for EAS Submit.
