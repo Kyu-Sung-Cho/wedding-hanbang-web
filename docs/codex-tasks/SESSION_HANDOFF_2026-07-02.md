@@ -6,10 +6,10 @@ This handoff is for continuing Wedding Hanbang work from another computer withou
 
 - Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - Continue from branch: `main`.
-- Latest shipped product/code baseline before this continuation: `0c228c65` (`chore: add mobile release readiness check (#34)`).
+- Latest shipped product/code baseline before PR #35: `0c228c65` (`chore: add mobile release readiness check (#34)`).
 - Handoff documentation PRs: #27, #28, and #32.
 - Latest shipped product/code PRs: #29, #30, #31, #33, and #34.
-- Open product/code PRs at handoff time before this continuation: none.
+- Open product/code PRs at handoff time before PR #35: none.
 - Latest confirmed main GitHub Actions run: success, run `28557844008`.
 - Latest confirmed Vercel production deployment: success for commit `0c228c65`, target `https://vercel.com/hanbang/wedding-hanbang-web/31UQdmfLGMeBHeWjnWfaRBQLmrcm`.
 - Latest confirmed production smoke report: `.gstack/qa-reports/live-smoke/2026-07-02T00-59-29-241Z/report.md`.
@@ -150,7 +150,7 @@ corepack pnpm --filter @hanbang/mobile dev
 - Updated `docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md` so release candidates run this check before EAS builds.
 - The only expected warning is `extra.eas.projectId` until `eas:init` is run while logged into the hanbang Expo account.
 
-### Mobile Release Check Quality-Gate Continuation
+### PR #35 - Mobile Release Check Quality-Gate Continuation
 
 - `scripts/verify-local.mjs` now runs `pnpm mobile:release-check` as part of `pnpm qa:local`.
 - Because GitHub Actions already runs `pnpm qa:local`, the CI Quality Gate now blocks mobile release configuration regressions without a separate workflow change.
