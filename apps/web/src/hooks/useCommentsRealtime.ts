@@ -43,11 +43,13 @@ export function useCommentsRealtime(postId: string | null) {
           };
 
           useCommunityStore.setState((s) => {
+            if (s.commentsPostId && s.commentsPostId !== postId) return s;
             if (s.comments.some((c) => c.id === newComment.id)) return s;
 
             // 대댓글이면 부모에 추가
             if (newComment.parent_id) {
               return {
+                commentsPostId: postId,
                 comments: s.comments.map((c) =>
                   c.id === newComment.parent_id
                     ? { ...c, replies: [...(c.replies ?? []), commentWithAuthor as never] }
@@ -56,7 +58,7 @@ export function useCommentsRealtime(postId: string | null) {
               };
             }
 
-            return { comments: [...s.comments, commentWithAuthor as never] };
+            return { commentsPostId: postId, comments: [...s.comments, commentWithAuthor as never] };
           });
         }
       )
@@ -70,6 +72,7 @@ export function useCommentsRealtime(postId: string | null) {
         },
         (payload) => {
           const updated = payload.new as Record<string, unknown>;
+          if (useCommunityStore.getState().commentsPostId !== postId) return;
           useCommunityStore.setState((s) => ({
             comments: s.comments.map((c) => {
               if (c.id === updated.id) {

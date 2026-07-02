@@ -15,6 +15,7 @@ interface CommentSectionProps {
 export default function CommentSection({ postId }: CommentSectionProps) {
   const {
     comments,
+    commentsPostId,
     commentsLoading,
     fetchComments,
     createComment,
@@ -68,11 +69,17 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   }
 
   // 댓글 트리 빌드 (1-depth only)
+  const visibleComments = useMemo(
+    () => (commentsPostId === postId ? comments : []),
+    [comments, commentsPostId, postId]
+  );
+  const isLoadingCurrentComments = commentsPostId === postId && commentsLoading;
+
   const treeComments = useMemo(() => {
     const topLevel: CommentWithAuthor[] = [];
     const repliesMap: Record<string, CommentWithAuthor[]> = {};
 
-    comments.forEach((c) => {
+    visibleComments.forEach((c) => {
       if (!c.parent_id) {
         topLevel.push(c);
       } else {
@@ -85,9 +92,11 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       ...c,
       replies: repliesMap[c.id] ?? [],
     }));
-  }, [comments]);
+  }, [visibleComments]);
 
-  const commentCount = currentPost?.comment_count ?? comments.length;
+  const commentCount = currentPost?.id === postId
+    ? currentPost.comment_count
+    : visibleComments.length;
 
   return (
     <div>
@@ -145,7 +154,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       )}
 
       {/* 댓글 목록 */}
-      {commentsLoading ? (
+      {isLoadingCurrentComments ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="animate-pulse flex gap-2">

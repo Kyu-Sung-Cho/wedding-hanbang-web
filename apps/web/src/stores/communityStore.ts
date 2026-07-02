@@ -30,6 +30,7 @@ interface CommunityState {
   // 글 상세
   currentPost: PostDetail | null;
   comments: CommentWithAuthor[];
+  commentsPostId: string | null;
   postLoading: boolean;
   commentsLoading: boolean;
 
@@ -148,6 +149,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   total: 0,
   currentPost: null,
   comments: [],
+  commentsPostId: null,
   postLoading: false,
   commentsLoading: false,
   communityProfile: null,
@@ -251,7 +253,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPostDetail: async (id) => {
-    set({ postLoading: true, currentPost: null });
+    set((state) => ({
+      postLoading: true,
+      currentPost: null,
+      ...(state.commentsPostId !== id
+        ? { comments: [], commentsPostId: null, commentsLoading: false }
+        : {}),
+    }));
     try {
       const res = await fetch(`/api/community/posts/${id}`);
       if (!res.ok) throw new Error();
@@ -263,13 +271,24 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchComments: async (postId) => {
-    set({ commentsLoading: true });
+    set((state) => ({
+      commentsLoading: true,
+      errorMessage: null,
+      ...(state.commentsPostId !== postId
+        ? { comments: [], commentsPostId: postId }
+        : {}),
+    }));
     try {
       const res = await fetch(`/api/community/comments?postId=${postId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      set({ comments: data.comments ?? data, commentsLoading: false });
+      set((state) =>
+        state.commentsPostId === postId
+          ? { comments: data.comments ?? data, commentsLoading: false }
+          : state
+      );
     } catch {
+      if (get().commentsPostId !== postId) return;
       set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
     }
   },
@@ -443,7 +462,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       await get().fetchComments(input.post_id);
       // 글 댓글 수 업데이트
       set((s) => ({
-        currentPost: s.currentPost ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 } : null,
+        currentPost: s.currentPost?.id === input.post_id
+          ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 }
+          : s.currentPost,
       }));
       return true;
     } catch {
@@ -542,7 +563,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       errorMessage: null, lastSyncedAt: null,
-      currentPost: null, comments: [], postLoading: false, commentsLoading: false,
+      currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
       communityProfile: null,
     });
   },

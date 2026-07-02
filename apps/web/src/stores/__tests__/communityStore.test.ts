@@ -65,10 +65,10 @@ function communityProfile(userId: string, nickname: string): CommunityProfile {
   };
 }
 
-function comment(id: string, author: CommunityProfile, replies: CommentWithAuthor[] = []): CommentWithAuthor {
+function comment(id: string, author: CommunityProfile, replies: CommentWithAuthor[] = [], postId = "post-1"): CommentWithAuthor {
   return {
     id,
-    post_id: "post-1",
+    post_id: postId,
     parent_id: null,
     author_id: author.user_id,
     content: "comment",
@@ -157,5 +157,63 @@ describe("useCommunityStore feed cache", () => {
     expect(state.comments[0].replies?.[0].author.nickname).toBe("new-name");
     expect(state.comments[1].author.nickname).toBe("other-name");
     expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
+  });
+
+  it("clears stale comments immediately when loading a different post", async () => {
+    const author = communityProfile("author-1", "tester");
+    const staleComment = comment("comment-old", author, [], "post-1");
+    const freshComment = comment("comment-new", author, [], "post-2");
+    useCommunityStore.setState({
+      comments: [staleComment],
+      commentsPostId: "post-1",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ comments: [freshComment] }),
+    });
+
+    const promise = useCommunityStore.getState().fetchComments("post-2");
+
+    expect(useCommunityStore.getState().comments).toEqual([]);
+    expect(useCommunityStore.getState().commentsPostId).toBe("post-2");
+
+    await promise;
+
+    expect(useCommunityStore.getState().comments.map((c) => c.id)).toEqual(["comment-new"]);
+  });
+
+  it("ignores a late comments response for a post that is no longer active", async () => {
+    const author = communityProfile("author-1", "tester");
+    const oldComment = comment("comment-old", author, [], "post-1");
+    const newComment = comment("comment-new", author, [], "post-2");
+    let resolveOldFetch: (value: unknown) => void = () => {
+      throw new Error("old comments fetch was not started");
+    };
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("postId=post-1")) {
+        return new Promise((resolve) => {
+          resolveOldFetch = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ comments: [newComment] }),
+      });
+    });
+
+    const oldPromise = useCommunityStore.getState().fetchComments("post-1");
+    const newPromise = useCommunityStore.getState().fetchComments("post-2");
+
+    await newPromise;
+    resolveOldFetch({
+      ok: true,
+      json: async () => ({ comments: [oldComment] }),
+    });
+    await oldPromise;
+
+    const state = useCommunityStore.getState();
+    expect(state.commentsPostId).toBe("post-2");
+    expect(state.comments.map((c) => c.id)).toEqual(["comment-new"]);
   });
 });
