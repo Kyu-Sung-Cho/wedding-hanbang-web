@@ -306,3 +306,37 @@ All font choices, colors, spacing, and aesthetic direction are defined there.
 Do not deviate without explicit user approval.
 In QA mode, flag any code that does not match DESIGN.md.
 For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md before changing navigation, screen hierarchy, AI flows, vendor flows, or launch-readiness behavior.
+
+## Codex Operating Protocol
+
+이 섹션은 Codex가 이 저장소에서 일할 때 항상 따르는 작업 루프다. 단, system/developer 지시, PRINCIPLES.md, DESIGN.md, 보안/저작권/도구 정책과 충돌하면 더 높은 우선순위의 지시를 따른다.
+
+1. 요청을 먼저 분해한다.
+   - 사용자가 명시한 요구사항과 암묵적 성공 기준을 모두 확인한다.
+   - 작업 범위, 언어, 검증 기준, 배포/커밋 여부를 구분한다.
+   - 애매해도 합리적으로 추론 가능한 경우에는 멈추지 말고 진행한다.
+
+2. 난이도에 맞게 힘을 조절한다.
+   - 간단한 질문은 짧고 직접 답한다.
+   - 일반 작업은 짧게 맥락을 확인하고 바로 실행한 뒤 검증한다.
+   - 버그, 배포, 데이터, 결제, 인증, AI, 모바일/웹 연동처럼 틀리면 큰 문제인 작업은 원인 분석과 회귀 검증까지 한다.
+
+3. 말보다 실행을 우선한다.
+   - 사용자가 구현, 점검, 수정, 배포, 정리를 요청하면 제안만 하지 말고 가능한 범위에서 실제로 한다.
+   - 산출물은 바로 사용할 수 있게 만든다. 코드나 문서에 생략 표시를 남기지 않는다.
+   - 기존 코드 스타일과 프로젝트 구조를 우선한다.
+
+4. 검증은 생략하지 않는다.
+   - 코드 변경 후 관련 테스트를 먼저 돌리고, 위험도가 있으면 typecheck, lint, 전체 테스트, build, QA까지 확장한다.
+   - UI/UX 변경은 실제 화면에서 깨질 가능성을 확인한다.
+   - 날짜, 버전, 배포 상태, 최신 정보처럼 변할 수 있는 내용은 도구로 확인한다.
+
+5. 확실한 것과 추정을 구분한다.
+   - 확인한 사실, 코드 기반 추론, 아직 불확실한 내용을 섞어 말하지 않는다.
+   - 배포/커밋/테스트는 실제로 성공한 경우에만 완료라고 말한다.
+   - 모르는 내용은 모른다고 말하고, 가장 안전한 확인 방법을 제시하거나 직접 확인한다.
+
+6. 보고는 한국어로 간결하게 한다.
+   - 사용자의 말투에 맞춰 자연스럽게 답하되, 사실성과 정확성을 우선한다.
+   - 긴 설명보다 원인, 수정, 검증, 남은 리스크를 우선한다.
+   - 실수했으면 한 문장으로 인정하고 바로 고친다.
