@@ -5,31 +5,55 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { useEffect } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { initSentry } from "@/lib/sentry";
 import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
 
+const paperlogyFonts = {
+  Paperlogy_100Thin: require("../assets/fonts/paperlogy/Paperlogy-1Thin.ttf"),
+  Paperlogy_200ExtraLight: require("../assets/fonts/paperlogy/Paperlogy-2ExtraLight.ttf"),
+  Paperlogy_300Light: require("../assets/fonts/paperlogy/Paperlogy-3Light.ttf"),
+  Paperlogy_400Regular: require("../assets/fonts/paperlogy/Paperlogy-4Regular.ttf"),
+  Paperlogy_500Medium: require("../assets/fonts/paperlogy/Paperlogy-5Medium.ttf"),
+  Paperlogy_600SemiBold: require("../assets/fonts/paperlogy/Paperlogy-6SemiBold.ttf"),
+  Paperlogy_700Bold: require("../assets/fonts/paperlogy/Paperlogy-7Bold.ttf"),
+  Paperlogy_800ExtraBold: require("../assets/fonts/paperlogy/Paperlogy-8ExtraBold.ttf"),
+  Paperlogy_900Black: require("../assets/fonts/paperlogy/Paperlogy-9Black.ttf"),
+};
+
+const NotoSerifKR_300Light = paperlogyFonts.Paperlogy_300Light;
+const NotoSerifKR_400Regular = paperlogyFonts.Paperlogy_400Regular;
+const NotoSerifKR_500Medium = paperlogyFonts.Paperlogy_500Medium;
+const NotoSansKR_300Light = paperlogyFonts.Paperlogy_300Light;
+const NotoSansKR_400Regular = paperlogyFonts.Paperlogy_400Regular;
+const NotoSansKR_500Medium = paperlogyFonts.Paperlogy_500Medium;
+const NotoSansKR_600SemiBold = paperlogyFonts.Paperlogy_600SemiBold;
+const NotoSansKR_700Bold = paperlogyFonts.Paperlogy_700Bold;
+const CormorantGaramond_300Light = paperlogyFonts.Paperlogy_300Light;
+const CormorantGaramond_400Regular = paperlogyFonts.Paperlogy_400Regular;
+const CormorantGaramond_600SemiBold = paperlogyFonts.Paperlogy_600SemiBold;
+
+type ComponentWithDefaultStyle = {
+  defaultProps?: {
+    style?: unknown;
+  };
+};
+
+function installDefaultFont(component: ComponentWithDefaultStyle) {
+  component.defaultProps = component.defaultProps ?? {};
+  component.defaultProps.style = [
+    component.defaultProps.style,
+    { fontFamily: "NotoSansKR_400Regular" },
+  ];
+}
+
+installDefaultFont(Text as ComponentWithDefaultStyle);
+installDefaultFont(TextInput as ComponentWithDefaultStyle);
+
 // 폰트 import
-import {
-  NotoSerifKR_300Light,
-  NotoSerifKR_400Regular,
-  NotoSerifKR_500Medium,
-} from "@expo-google-fonts/noto-serif-kr";
-import {
-  NotoSansKR_300Light,
-  NotoSansKR_400Regular,
-  NotoSansKR_500Medium,
-  NotoSansKR_600SemiBold,
-  NotoSansKR_700Bold,
-} from "@expo-google-fonts/noto-sans-kr";
-import {
-  CormorantGaramond_300Light,
-  CormorantGaramond_400Regular,
-  CormorantGaramond_600SemiBold,
-} from "@expo-google-fonts/cormorant-garamond";
 
 // Sentry 초기화
 initSentry();
@@ -39,17 +63,17 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // Noto Serif KR — 한글 제목용
+    // Paperlogy mapped through legacy aliases for existing screens.
     NotoSerifKR_300Light,
     NotoSerifKR_400Regular,
     NotoSerifKR_500Medium,
-    // Noto Sans KR — 한글 본문용
+    // Body/UI aliases.
     NotoSansKR_300Light,
     NotoSansKR_400Regular,
     NotoSansKR_500Medium,
     NotoSansKR_600SemiBold,
     NotoSansKR_700Bold,
-    // Cormorant Garamond — 영문/숫자 디스플레이
+    // Numeric/display aliases.
     CormorantGaramond_300Light,
     CormorantGaramond_400Regular,
     CormorantGaramond_600SemiBold,

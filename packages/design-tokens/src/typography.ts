@@ -2,11 +2,11 @@
 
 export const fontFamily = {
   // 한글 제목
-  serifKr: ['"Noto Serif KR"', "serif"],
+  serifKr: ['"Paperlogy"', "sans-serif"],
   // 한글 본문
-  sansKr: ['"Noto Sans KR"', "sans-serif"],
+  sansKr: ['"Paperlogy"', "sans-serif"],
   // 영문/숫자 (브랜드 디스플레이)
-  display: ['"Cormorant Garamond"', "serif"],
+  display: ['"Paperlogy"', "sans-serif"],
 } as const;
 
 export const fontSize = {
@@ -38,7 +38,7 @@ export const lineHeight = {
 } as const;
 
 export const letterSpacing = {
-  tight: -0.02,
-  normal: -0.01,
-  wide: 0.02,
+  tight: 0,
+  normal: 0,
+  wide: 0,
 } as const;

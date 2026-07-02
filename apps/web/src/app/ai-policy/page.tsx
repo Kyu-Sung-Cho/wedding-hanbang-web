@@ -19,7 +19,7 @@ export default function AIPolicyPage() {
           >
             ← 홈으로
           </Link>
-          <h1 className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-3xl max-md:text-2xl text-[#1b1c1c] mb-3 leading-tight">
+          <h1 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-3xl max-md:text-2xl text-[#1b1c1c] mb-3 leading-tight">
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[#504444]">
@@ -29,7 +29,7 @@ export default function AIPolicyPage() {
 
         {/* Section 1 — 원칙 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
             우리의 AI 원칙
           </h2>
           <p className="text-sm text-[#504444] mb-6 leading-relaxed">
@@ -76,7 +76,7 @@ export default function AIPolicyPage() {
 
         {/* Section 2 — 관리·감독 책임자 */}
         <section className="mb-10 p-6 max-md:p-5 bg-white rounded-2xl border border-[#e5dcdc]">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
             관리·감독 책임자
           </h2>
           <ul className="text-sm text-[#504444] space-y-2 leading-relaxed">
@@ -97,7 +97,7 @@ export default function AIPolicyPage() {
 
         {/* Section 3 — AI의 한계 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
             AI의 한계
           </h2>
           <p className="text-sm text-[#504444] mb-4 leading-relaxed">
@@ -112,7 +112,7 @@ export default function AIPolicyPage() {
 
         {/* Section 4 — 문제 신고 */}
         <section className="mb-6">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Noto_Serif_KR',_serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
             문제 신고
           </h2>
           <p className="text-sm text-[#504444] leading-relaxed">

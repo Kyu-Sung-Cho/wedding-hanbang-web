@@ -78,7 +78,7 @@ export default function MobileCallbackPage() {
       justifyContent: "center",
       minHeight: "100vh",
       background: palette.bg,
-      fontFamily: "'Noto Sans KR', sans-serif",
+      fontFamily: "'Paperlogy', sans-serif",
       padding: "20px",
     }}>
       <div style={{

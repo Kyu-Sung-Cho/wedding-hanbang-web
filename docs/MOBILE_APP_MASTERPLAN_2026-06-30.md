@@ -162,9 +162,8 @@ Mobile must use:
 - White, ivory, or eucalyptus ink surfaces.
 - Dusty mauve only for attention and selected state.
 - Sage for calm success, verified, and operational states.
-- Noto Sans KR for app UI.
-- Noto Serif KR only for emotional or editorial moments.
-- Cormorant Garamond only for large numbers.
+- Paperlogy for app UI, editorial moments, and large numbers.
+- Use Paperlogy weight, size, and color for hierarchy instead of switching font families.
 
 Implementation source:
 
@@ -292,6 +291,7 @@ As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 
 - `DESIGN.md` exists and remains the visual source of truth.
 - `DESIGN.md`, web `globals.css`, and `@hanbang/design-tokens` now share the same Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage, and Champagne Taupe palette.
+- Web and mobile typography now share self-hosted Paperlogy assets selected from Noonnu, with legacy mobile font aliases mapped to Paperlogy for existing screens.
 - `AppUI.tsx` exists and is the shared mobile UI kit.
 - `AppUI.tsx` surfaces now carry the same quiet eucalyptus shadow and ivory border language used by the web app.
 - Mobile NativeWind exposes shared `sage`, `stone`, `surfaceLow`, and semantic colors from `@hanbang/design-tokens`.

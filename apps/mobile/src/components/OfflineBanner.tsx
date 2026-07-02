@@ -1,31 +1,39 @@
 // 오프라인 상태 감지 배너 — 인터넷 연결 끊기면 상단에 표시
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Animated, AppState } from "react-native";
+import { View, Text, StyleSheet, Animated, AppState, Platform } from "react-native";
 import { WifiOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 
 const CONNECTIVITY_CHECK_URL = "https://www.google.com/generate_204";
 const CHECK_TIMEOUT_MS = 5000;
+const HIDDEN_OFFSET_Y = -120;
 
 async function checkConnectivity(): Promise<boolean> {
+  if (Platform.OS === "web") {
+    return typeof navigator === "undefined" ? true : navigator.onLine !== false;
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
+    timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
     const res = await fetch(CONNECTIVITY_CHECK_URL, {
       method: "HEAD",
       cache: "no-store",
       signal: controller.signal,
     });
-    clearTimeout(timeout);
     return res.ok || res.status === 204;
   } catch {
     return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
 export default function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-60)).current;
+  const slideAnim = useRef(new Animated.Value(HIDDEN_OFFSET_Y)).current;
 
   // 연결 상태 확인
   useEffect(() => {
@@ -57,7 +65,7 @@ export default function OfflineBanner() {
   // 슬라이드 애니메이션
   useEffect(() => {
     Animated.timing(slideAnim, {
-      toValue: isOffline ? 0 : -60,
+      toValue: isOffline ? 0 : HIDDEN_OFFSET_Y,
       duration: 300,
       useNativeDriver: true,
     }).start();

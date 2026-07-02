@@ -101,7 +101,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 | - 진행률 | 체크리스트 완료율 계산 |
 | - 오늘의 할 일 | 미완료 체크리스트 중 오늘 기한인 것 |
 | - 프로필 정보 | profiles 테이블에서 이름/이미지 |
-| **Noto 폰트 로드** | @expo-google-fonts 사용 |
+| **Paperlogy 폰트 로드** | 자체 호스팅 WOFF2/TTF 자산 사용 |
 | **TanStack Query 도입** | 서버 상태 캐싱/동기화 |
 
 ---
@@ -250,9 +250,9 @@ Text Tertiary:      #7D7166
 
 | 용도 | 웹 (CSS) | 앱 (RN) |
 |------|----------|---------|
-| 한글 제목 | Noto Serif KR | NotoSerifKR_500Medium |
-| 한글 본문 | Noto Sans KR | NotoSansKR_400Regular |
-| 영문/숫자 | Cormorant Garamond | CormorantGaramond_400Regular |
+| 제목 | Paperlogy | NotoSerifKR_500Medium alias -> Paperlogy |
+| 본문/UI | Paperlogy | NotoSansKR_400Regular alias -> Paperlogy |
+| 숫자/강조 | Paperlogy | CormorantGaramond_400Regular alias -> Paperlogy |
 
 ### 컴포넌트 스타일 규칙 (앱)
 

@@ -37,7 +37,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
         <Sparkles size={16} className="text-[#36534E]" />
         <span
           className="text-sm font-medium text-[#1A1A1F]"
-          style={{ fontFamily: "'Noto Serif KR', serif" }}
+          style={{ fontFamily: "'Paperlogy', sans-serif" }}
         >
           아모라 AI 코멘트
         </span>

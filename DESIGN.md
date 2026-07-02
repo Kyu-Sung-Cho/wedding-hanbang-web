@@ -17,12 +17,12 @@
 
 ## Typography
 
-- **Korean display:** Noto Serif KR. Use for brand moments, D-day, calm hero titles, and emotional emphasis.
-- **Korean body/UI:** Noto Sans KR. Use for all controls, labels, lists, forms, and dense app surfaces.
-- **Numbers/display:** Cormorant Garamond. Use for D-day, money totals, and large numeric moments only.
-- **Data/tables:** Noto Sans KR with tabular number styling where available.
+- **Brand font:** Paperlogy. Use across web and mobile for display, body, UI, and numeric moments.
+- **Hierarchy:** Use Paperlogy weight, size, color, and spacing for emphasis instead of mixing serif/sans/display families.
+- **Numbers/display:** Paperlogy with tabular number styling where available. D-day and money totals may use larger size and heavier weight, not a separate font family.
+- **Data/tables:** Paperlogy with tabular number styling where available.
 - **Scale:** xs 12, sm 14, base 16, lg 18, xl 20, 2xl 24, 3xl 30, 4xl 36, 5xl 48.
-- **Rule:** Text inside compact mobile UI must be scan-first. Serif is seasoning, not the meal.
+- **Rule:** Text inside compact mobile UI must be scan-first. Keep the font family consistent and vary only weight/size for hierarchy.
 
 ## Color
 
@@ -77,7 +77,7 @@
 - Eucalyptus ink high-contrast hero moments for trust.
 - Dusty mauve accent for selection and primary action.
 - Bottom tabs for mobile navigation.
-- Noto Sans KR for app readability.
+- Paperlogy for app readability and web/mobile brand consistency.
 
 ## Product Risks Worth Taking
 
@@ -91,3 +91,4 @@
 |------|----------|-----------|
 | 2026-06-30 | Initial design system created | Consolidated existing Wedding Hanbang documents, design tokens, and mobile app direction into one source of truth. |
 | 2026-07-02 | Aligned mobile tokens with the web eucalyptus palette | The web app had moved to Eucalyptus Ink, Dusty Mauve, and Pearl Ivory; shared mobile tokens now match that production visual direction. |
+| 2026-07-02 | Standardized web and mobile typography on Paperlogy | User selected Paperlogy from Noonnu; self-hosted web WOFF2 and mobile TTF assets now provide one consistent brand font. |

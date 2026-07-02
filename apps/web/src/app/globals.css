@@ -1,6 +1,84 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-1Thin.woff2") format("woff2");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-2ExtraLight.woff2") format("woff2");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-3Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-4Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-5Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-6SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-7Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-8ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy/Paperlogy-9Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
+  --font-paperlogy: "Paperlogy", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-noto-sans-kr: var(--font-paperlogy);
+  --font-noto-serif-kr: var(--font-paperlogy);
+  --font-cormorant-garamond: var(--font-paperlogy);
+  --font-plus-jakarta-sans: var(--font-paperlogy);
+
   /* Primary - Eucalyptus Ink */
   --noir-800: #36534E;
   --noir-900: #243832;
@@ -85,7 +163,7 @@
   letter-spacing: 0;
 }
 
-/* PRD: 영문/숫자 본문 — Plus Jakarta Sans (한글은 Noto Sans KR fallback) */
+/* PRD: 영문/숫자 본문 — Paperlogy single-family fallback */
 .font-jakarta {
   font-family: var(--font-plus-jakarta-sans), var(--font-noto-sans-kr), sans-serif;
 }
@@ -133,7 +211,7 @@
   line-height: 1.35;
 }
 
-/* 본문 텍스트 — Noto Sans KR (body inherit) */
+/* 본문 텍스트 — Paperlogy (body inherit) */
 .body-text {
   font-size: 0.875rem;
   color: #5f5b52;

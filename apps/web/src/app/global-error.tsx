@@ -11,7 +11,7 @@ export default function GlobalError({
     <html lang="ko">
       <body
         style={{
-          fontFamily: "'Noto Sans KR', sans-serif",
+          fontFamily: "'Paperlogy', sans-serif",
           background: "#FDFCFA",
           color: "#1A1A1F",
           display: "flex",

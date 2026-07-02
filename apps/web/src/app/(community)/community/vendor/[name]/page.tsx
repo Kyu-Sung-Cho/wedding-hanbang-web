@@ -233,7 +233,7 @@ export default function VendorDetailPage() {
           <div className="flex-1 min-w-0">
             <h1
               className="font-serif text-2xl sm:text-3xl font-medium text-[#1A1A1F] mb-2 leading-tight"
-              style={{ fontFamily: "'Noto Serif KR', serif" }}
+              style={{ fontFamily: "'Paperlogy', sans-serif" }}
             >
               {decodedName}
             </h1>
@@ -435,7 +435,7 @@ function BookingSection({
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[#1A1A1F]">
           <Calendar className="w-4 h-4 text-[#36534E]" />
-          <h2 className="font-serif text-lg font-medium" style={{ fontFamily: "'Noto Serif KR', serif" }}>
+          <h2 className="font-serif text-lg font-medium" style={{ fontFamily: "'Paperlogy', sans-serif" }}>
             예약 가능 시간
           </h2>
         </div>
@@ -670,7 +670,7 @@ function NoBookingFallback({ name }: { name: string }) {
           <Calendar className="w-4 h-4 text-[#36534E]" />
           <h2
             className="font-serif text-lg font-medium"
-            style={{ fontFamily: "'Noto Serif KR', serif" }}
+            style={{ fontFamily: "'Paperlogy', sans-serif" }}
           >
             예약 가능 시간
           </h2>

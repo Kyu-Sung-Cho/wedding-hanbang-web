@@ -20,9 +20,6 @@
     "clean": "rm -rf node_modules .expo"
   },
   "dependencies": {
-    "@expo-google-fonts/cormorant-garamond": "^0.4.1",
-    "@expo-google-fonts/noto-sans-kr": "^0.4.3",
-    "@expo-google-fonts/noto-serif-kr": "^0.4.3",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.2",
     "@hanbang/design-tokens": "workspace:*",

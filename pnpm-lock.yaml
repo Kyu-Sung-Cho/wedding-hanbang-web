@@ -41,15 +41,6 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@expo-google-fonts/cormorant-garamond':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@expo-google-fonts/noto-sans-kr':
-        specifier: ^0.4.3
-        version: 0.4.3
-      '@expo-google-fonts/noto-serif-kr':
-        specifier: ^0.4.3
-        version: 0.4.3
       '@expo/metro-runtime':
         specifier: ~6.1.2
         version: 6.1.2(expo@54.0.35)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@react-native/metro-config@0.85.0(@babel/core@7.29.7))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -986,15 +977,6 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
-
-  '@expo-google-fonts/cormorant-garamond@0.4.1':
-    resolution: {integrity: sha512-e8J4Cn13K1txygamg50n3odLUsYP7Ck28XOGobMi7uDsWvFmp/jgK0qcALqJTlmi9NczSWUNdERxcLauHCBa/Q==}
-
-  '@expo-google-fonts/noto-sans-kr@0.4.3':
-    resolution: {integrity: sha512-EVS/uJPcf1TgJtjmQmrFr0oGdcl7ml09CSu0E/AyGzR0UfzdR2pBbzWWPsnuzZiGUl643ODYwYiXK5+B+fLjhQ==}
-
-  '@expo-google-fonts/noto-serif-kr@0.4.3':
-    resolution: {integrity: sha512-thoZx9Dcr4CrjFdhOAVJXuv31rkirogUHkY0XUBybyC97NBO18Q2/achY+KfvLVabEZvmEEAH829Y9YUALZbIQ==}
 
   '@expo/cli@54.0.25':
     resolution: {integrity: sha512-WnUqIb8oMBhtwSfIqdCHCzcaDIpLNXItRVd5miuvWi4GO0SGo89PSsAkbVJ+LJgcaY+v5rbgMELJS9I/CqOulA==}
@@ -7761,12 +7743,6 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@expo-google-fonts/cormorant-garamond@0.4.1': {}
-
-  '@expo-google-fonts/noto-sans-kr@0.4.3': {}
-
-  '@expo-google-fonts/noto-serif-kr@0.4.3': {}
-
   '@expo/cli@54.0.25(expo-router@6.0.24)(expo@54.0.35)(react-native@0.81.5(@babel/core@7.29.7)(@react-native/metro-config@0.85.0(@babel/core@7.29.7))(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)':
     dependencies:
       '@0no-co/graphql.web': 1.2.0
@@ -8850,7 +8826,7 @@ snapshots:
 
   '@react-native/babel-plugin-codegen@0.85.0(@babel/core@7.29.7)':
     dependencies:
-      '@babel/traverse': 7.29.0
+      '@babel/traverse': 7.29.7
       '@react-native/codegen': 0.85.0(@babel/core@7.29.7)
     transitivePeerDependencies:
       - '@babel/core'
@@ -8957,7 +8933,7 @@ snapshots:
   '@react-native/codegen@0.85.0(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.7
       hermes-parser: 0.33.3
       invariant: 2.2.4
       nullthrows: 1.1.1
@@ -12609,7 +12585,7 @@ snapshots:
   metro-source-map@0.83.3:
     dependencies:
       '@babel/traverse': 7.29.0
-      '@babel/traverse--for-generate-function-map': '@babel/traverse@7.29.0'
+      '@babel/traverse--for-generate-function-map': '@babel/traverse@7.29.7'
       '@babel/types': 7.29.0
       flow-enums-runtime: 0.0.6
       invariant: 2.2.4
@@ -12637,8 +12613,8 @@ snapshots:
 
   metro-source-map@0.84.2:
     dependencies:
-      '@babel/traverse': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/traverse': 7.29.7
+      '@babel/types': 7.29.7
       flow-enums-runtime: 0.0.6
       invariant: 2.2.4
       metro-symbolicate: 0.84.2
@@ -12707,9 +12683,9 @@ snapshots:
   metro-transform-plugins@0.84.2:
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.1
-      '@babel/template': 7.28.6
-      '@babel/traverse': 7.29.0
+      '@babel/generator': 7.29.7
+      '@babel/template': 7.29.7
+      '@babel/traverse': 7.29.7
       flow-enums-runtime: 0.0.6
       nullthrows: 1.1.1
     transitivePeerDependencies:
@@ -12758,9 +12734,9 @@ snapshots:
   metro-transform-worker@0.84.2:
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.1
-      '@babel/parser': 7.29.2
-      '@babel/types': 7.29.0
+      '@babel/generator': 7.29.7
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
       flow-enums-runtime: 0.0.6
       metro: 0.84.2
       metro-babel-transformer: 0.84.2
@@ -12871,13 +12847,13 @@ snapshots:
 
   metro@0.84.2:
     dependencies:
-      '@babel/code-frame': 7.29.0
+      '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.1
-      '@babel/parser': 7.29.2
-      '@babel/template': 7.28.6
-      '@babel/traverse': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/generator': 7.29.7
+      '@babel/parser': 7.29.7
+      '@babel/template': 7.29.7
+      '@babel/traverse': 7.29.7
+      '@babel/types': 7.29.7
       accepts: 2.0.0
       chalk: 4.1.2
       ci-info: 2.0.0

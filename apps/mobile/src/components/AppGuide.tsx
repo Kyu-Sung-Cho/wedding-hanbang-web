@@ -7,7 +7,8 @@ import {
   StyleSheet,
   Pressable,
   FlatList,
-  Dimensions,
+  Platform,
+  useWindowDimensions,
   type ViewToken,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,9 +29,12 @@ import {
 } from "lucide-react-native";
 import { colors, spacing, radius, fontSize } from "@hanbang/design-tokens";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const MOCK_WIDTH = SCREEN_WIDTH - spacing[16]; // 좌우 여백 제외한 목업 너비
+const MAX_GUIDE_WIDTH = 430;
 const ASYNC_KEY = "@hanbang/app_guide_seen";
+
+interface MockSlideProps {
+  mockWidth: number;
+}
 
 // ─────────────────────────────────────────────
 // Slide 1: Welcome
@@ -63,11 +67,11 @@ function WelcomeSlide() {
 // ─────────────────────────────────────────────
 // Slide 2: 홈 화면 Mock
 // ─────────────────────────────────────────────
-function HomeSlide() {
+function HomeSlide({ mockWidth }: MockSlideProps) {
   return (
     <View style={styles.slideInner}>
       {/* 목업 컨테이너 */}
-      <View style={styles.mockContainer}>
+      <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* D-day 카드 */}
         <View style={styles.homeDdayCard}>
           <Text style={styles.homeDdayLabel}>우리의 결혼식</Text>
@@ -118,10 +122,10 @@ function HomeSlide() {
 // ─────────────────────────────────────────────
 // Slide 3: AI 아모라 Mock
 // ─────────────────────────────────────────────
-function ChatSlide() {
+function ChatSlide({ mockWidth }: MockSlideProps) {
   return (
     <View style={styles.slideInner}>
-      <View style={styles.mockContainer}>
+      <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* 채팅 헤더 */}
         <View style={styles.chatHeader}>
           <View style={styles.chatAvatarSmall}>
@@ -176,10 +180,10 @@ function ChatSlide() {
 // ─────────────────────────────────────────────
 // Slide 4: 커뮤니티 Mock
 // ─────────────────────────────────────────────
-function CommunitySlide() {
+function CommunitySlide({ mockWidth }: MockSlideProps) {
   return (
     <View style={styles.slideInner}>
-      <View style={styles.mockContainer}>
+      <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* 게시글 카드 */}
         <View style={styles.communityPostCard}>
           {/* 작성자 */}
@@ -245,10 +249,10 @@ function CommunitySlide() {
 // ─────────────────────────────────────────────
 // Slide 5: 예산 & 일정 Mock
 // ─────────────────────────────────────────────
-function BudgetScheduleSlide() {
+function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
   return (
     <View style={styles.slideInner}>
-      <View style={styles.mockContainer}>
+      <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* 예산 미니 */}
         <View style={styles.budgetCard}>
           <Text style={styles.budgetLabel}>총 예산</Text>
@@ -377,6 +381,9 @@ interface AppGuideProps {
 export default function AppGuide({ onClose }: AppGuideProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const { width } = useWindowDimensions();
+  const guideWidth = Platform.OS === "web" ? Math.min(width, MAX_GUIDE_WIDTH) : width;
+  const mockWidth = Math.max(0, guideWidth - spacing[16]);
 
   const isLastSlide = currentIndex === SLIDE_COUNT - 1;
 
@@ -417,22 +424,23 @@ export default function AppGuide({ onClose }: AppGuideProps) {
 
   const renderSlide = useCallback(
     ({ index }: { item: string; index: number }) => (
-      <View style={styles.slide}>
+      <View style={[styles.slide, { width: guideWidth }]}>
         {index === 0 && <WelcomeSlide />}
-        {index === 1 && <HomeSlide />}
-        {index === 2 && <ChatSlide />}
-        {index === 3 && <CommunitySlide />}
-        {index === 4 && <BudgetScheduleSlide />}
+        {index === 1 && <HomeSlide mockWidth={mockWidth} />}
+        {index === 2 && <ChatSlide mockWidth={mockWidth} />}
+        {index === 3 && <CommunitySlide mockWidth={mockWidth} />}
+        {index === 4 && <BudgetScheduleSlide mockWidth={mockWidth} />}
         {index === 5 && (
           <StartSlide onStart={onClose} onNeverShow={handleNeverShow} />
         )}
       </View>
     ),
-    [onClose, handleNeverShow]
+    [guideWidth, mockWidth, onClose, handleNeverShow]
   );
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <View style={[styles.guideFrame, { width: guideWidth }]}>
       {/* 건너뛰기 (마지막 슬라이드에선 숨김) */}
       {!isLastSlide && (
         <Pressable style={styles.skipButton} onPress={onClose} hitSlop={12}>
@@ -452,9 +460,11 @@ export default function AppGuide({ onClose }: AppGuideProps) {
         bounces={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewConfigRef}
+        extraData={guideWidth}
+        style={{ width: guideWidth }}
         getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
+          length: guideWidth,
+          offset: guideWidth * index,
           index,
         })}
       />
@@ -487,6 +497,7 @@ export default function AppGuide({ onClose }: AppGuideProps) {
           </Pressable>
         )}
       </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -514,6 +525,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
+    alignItems: "center",
+  },
+  guideFrame: {
+    flex: 1,
+    position: "relative",
   },
 
   // ── 건너뛰기 ──
@@ -533,11 +549,12 @@ const styles = StyleSheet.create({
 
   // ── 슬라이드 공통 ──
   slide: {
-    width: SCREEN_WIDTH,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing[8],
+    paddingTop: 96,
+    paddingBottom: 156,
   },
   slideInner: {
     alignItems: "center",
@@ -547,7 +564,6 @@ const styles = StyleSheet.create({
 
   // ── 목업 컨테이너 (공통 wrapper) ──
   mockContainer: {
-    width: MOCK_WIDTH,
     backgroundColor: colors.ivory[100],
     borderRadius: radius["2xl"],
     padding: spacing[4],

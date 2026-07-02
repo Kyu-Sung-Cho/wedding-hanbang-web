@@ -85,7 +85,7 @@ export default function QuickReviewPage() {
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10">
       <h1
         className="font-serif text-3xl font-medium text-[#1A1A1F] mb-2"
-        style={{ fontFamily: "'Noto Serif KR', serif" }}
+        style={{ fontFamily: "'Paperlogy', sans-serif" }}
       >
         15초 후기
       </h1>

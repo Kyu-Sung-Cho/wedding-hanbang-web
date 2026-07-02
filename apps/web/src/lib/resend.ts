@@ -12,7 +12,7 @@ export async function sendPreregistrationEmail(email: string) {
       to: email,
       subject: "웨딩한방 사전등록이 완료되었습니다!",
       html: `
-        <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
             <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
@@ -46,7 +46,7 @@ export async function sendVendorApprovalEmail(email: string, vendorName: string)
       to: email,
       subject: `[웨딩한방] ${vendorName} 업체 등록이 승인되었습니다!`,
       html: `
-        <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
             <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
@@ -84,7 +84,7 @@ export async function sendVendorRejectionEmail(email: string, vendorName: string
       to: email,
       subject: `[웨딩한방] ${vendorName} 업체 등록 심사 결과 안내`,
       html: `
-        <div style="font-family: 'Noto Sans KR', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
             <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
           </div>
