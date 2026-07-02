@@ -65,13 +65,19 @@ function communityProfile(userId: string, nickname: string): CommunityProfile {
   };
 }
 
-function comment(id: string, author: CommunityProfile, replies: CommentWithAuthor[] = [], postId = "post-1"): CommentWithAuthor {
+function comment(
+  id: string,
+  author: CommunityProfile,
+  replies: CommentWithAuthor[] = [],
+  postId = "post-1",
+  content = "comment"
+): CommentWithAuthor {
   return {
     id,
     post_id: postId,
     parent_id: null,
     author_id: author.user_id,
-    content: "comment",
+    content,
     upvote_count: 0,
     is_deleted: false,
     created_at: "2026-06-15T00:00:00.000Z",
@@ -215,5 +221,49 @@ describe("useCommunityStore feed cache", () => {
     const state = useCommunityStore.getState();
     expect(state.commentsPostId).toBe("post-2");
     expect(state.comments.map((c) => c.id)).toEqual(["comment-new"]);
+  });
+
+  it("updates edited comments inside the current comment tree", async () => {
+    const author = communityProfile("author-1", "tester");
+    const reply = {
+      ...comment("reply-1", author, [], "post-1", "old reply"),
+      parent_id: "comment-1",
+    };
+    const topLevel = comment("comment-1", author, [reply], "post-1", "old comment");
+    useCommunityStore.setState({
+      comments: [topLevel],
+      commentsPostId: "post-1",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        comment: {
+          id: "reply-1",
+          content: "나을듯욯ㅎ",
+          updated_at: "2026-06-15T01:00:00.000Z",
+        },
+      }),
+    });
+
+    const ok = await useCommunityStore.getState().updateComment("reply-1", "  나을듯욯ㅎ  ");
+
+    expect(ok).toBe(true);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/comments/reply-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ content: "나을듯욯ㅎ" }),
+      })
+    );
+    const editedReply = useCommunityStore.getState().comments[0].replies?.[0];
+    expect(editedReply?.content).toBe("나을듯욯ㅎ");
+    expect(editedReply?.updated_at).toBe("2026-06-15T01:00:00.000Z");
+  });
+
+  it("does not submit empty comment edits", async () => {
+    const ok = await useCommunityStore.getState().updateComment("comment-1", "   ");
+
+    expect(ok).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

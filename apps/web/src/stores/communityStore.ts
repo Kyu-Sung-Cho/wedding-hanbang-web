@@ -50,6 +50,7 @@ interface CommunityState {
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   toggleBookmark: (postId: string) => Promise<void>;
   createComment: (input: CreateCommentInput) => Promise<boolean>;
+  updateComment: (commentId: string, content: string) => Promise<boolean>;
   deleteComment: (commentId: string) => Promise<boolean>;
   incrementView: (postId: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
@@ -466,6 +467,39 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 }
           : s.currentPost,
       }));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  updateComment: async (commentId, content) => {
+    const trimmed = content.trim();
+    if (!trimmed) return false;
+
+    try {
+      const res = await fetch(`/api/community/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: trimmed }),
+      });
+      if (!res.ok) return false;
+
+      const data = (await res.json().catch(() => null)) as {
+        comment?: Partial<CommentWithAuthor>;
+      } | null;
+      const nextContent = data?.comment?.content ?? trimmed;
+      const nextUpdatedAt = data?.comment?.updated_at ?? new Date().toISOString();
+
+      const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
+        if (c.id === commentId) {
+          return { ...c, content: nextContent, updated_at: nextUpdatedAt };
+        }
+        if (c.replies) return { ...c, replies: c.replies.map(updateComment) };
+        return c;
+      };
+
+      set((s) => ({ comments: s.comments.map(updateComment) }));
       return true;
     } catch {
       return false;

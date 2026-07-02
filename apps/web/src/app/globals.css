@@ -218,6 +218,13 @@
   line-height: 1.6;
 }
 
+/* User-generated Korean text: Paperlogy includes blank contours for some rare
+ * precomposed Hangul syllables, so UGC uses a system Korean font first. */
+.ugc-text,
+.ugc-text :where(p, span, strong, em, li, blockquote, textarea, input) {
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", "Noto Sans KR", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+}
+
 /* 캡션 — 보조 정보, 메타 */
 .caption {
   font-size: 0.8125rem;        /* text-[13px] */

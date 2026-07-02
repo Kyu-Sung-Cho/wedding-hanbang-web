@@ -216,7 +216,7 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="text-[#635b51] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
+              <p className="ugc-text text-[#635b51] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Heart, Reply, Trash2, X, Sparkles } from "lucide-react";
+import { Check, Heart, Pencil, Reply, Trash2, X, Sparkles } from "lucide-react";
 import { timeAgo } from "@/utils/timeAgo";
 import type { CommentWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
@@ -17,6 +17,7 @@ interface CommentItemProps {
   currentUserId: string | null;
   isReply?: boolean;
   onDelete: (commentId: string) => Promise<boolean>;
+  onEdit: (commentId: string, content: string) => Promise<boolean>;
   onVote: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   onReply: (parentId: string, content: string) => Promise<void>;
 }
@@ -27,6 +28,7 @@ export default function CommentItem({
   currentUserId,
   isReply = false,
   onDelete,
+  onEdit,
   onVote,
   onReply,
 }: CommentItemProps) {
@@ -34,6 +36,9 @@ export default function CommentItem({
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
 
   const isAuthor = currentUserId === comment.author_id;
   const isLoggedIn = !!currentUserId;
@@ -42,6 +47,22 @@ export default function CommentItem({
   const nickname = comment.author?.nickname ?? "익명";
   const isAmoraAI = comment.author_id === AMORA_USER_ID || nickname === "아모라 AI";
   const avatarUrl = comment.author?.avatar_url;
+
+  function startEdit() {
+    setEditContent(comment.content);
+    setShowReplyInput(false);
+    setIsEditing(true);
+  }
+
+  async function handleEditSubmit() {
+    const trimmed = editContent.trim();
+    if (!trimmed || submittingEdit) return;
+
+    setSubmittingEdit(true);
+    const ok = await onEdit(comment.id, trimmed);
+    setSubmittingEdit(false);
+    if (ok) setIsEditing(false);
+  }
 
   async function handleReplySubmit() {
     if (!replyContent.trim() || submittingReply) return;
@@ -78,6 +99,7 @@ export default function CommentItem({
                 currentUserId={currentUserId}
                 isReply
                 onDelete={onDelete}
+                onEdit={onEdit}
                 onVote={onVote}
                 onReply={onReply}
               />
@@ -94,7 +116,7 @@ export default function CommentItem({
     const ctaIndex = content.indexOf(ctaMarker);
     if (ctaIndex === -1) {
       return (
-        <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+        <p className="ugc-text mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
           {content}
         </p>
       );
@@ -121,7 +143,7 @@ export default function CommentItem({
 
     return (
       <>
-        <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+        <p className="ugc-text mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
           {bodyText}
         </p>
         <Link
@@ -187,16 +209,54 @@ export default function CommentItem({
             </div>
 
             {/* 댓글 본문: 아모라 AI는 CTA 파싱 포함 */}
-            {isAmoraAI ? (
+            {isEditing ? (
+              <div className="mt-2">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+                />
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-xs text-[#B5ADA3]">
+                    {editContent.length}/2000
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditContent(comment.content);
+                        setIsEditing(false);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[#1A1A1F] rounded-lg hover:bg-[#FAFAF8] transition-all duration-200"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditSubmit}
+                      disabled={!editContent.trim() || submittingEdit}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      {submittingEdit ? "저장 중..." : "저장"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : isAmoraAI ? (
               renderAmoraContent(comment.content)
             ) : (
-              <p className="mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
+              <p className="ugc-text mt-1 text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap break-words">
                 {comment.content}
               </p>
             )}
 
             {/* 액션 행: 좋아요, 답글, 삭제 */}
-            <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
+            {!isEditing && (
+              <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
               <button
                 type="button"
                 onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
@@ -239,6 +299,15 @@ export default function CommentItem({
 
               {/* 삭제 버튼 (작성자만) */}
               {isAuthor && (
+                <>
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] hover:text-[#36534E] transition-all duration-200"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  수정
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
@@ -247,8 +316,10 @@ export default function CommentItem({
                   <Trash2 className="w-3.5 h-3.5" />
                   삭제
                 </button>
+                </>
               )}
-            </div>
+              </div>
+            )}
 
             {/* 답글 입력 */}
             {showReplyInput && (
@@ -259,7 +330,7 @@ export default function CommentItem({
                   placeholder="답글을 작성해 주세요..."
                   rows={2}
                   maxLength={2000}
-                  className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+                  className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
                 />
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-[#B5ADA3]">
@@ -345,6 +416,7 @@ export default function CommentItem({
               currentUserId={currentUserId}
               isReply
               onDelete={onDelete}
+              onEdit={onEdit}
               onVote={onVote}
               onReply={onReply}
             />

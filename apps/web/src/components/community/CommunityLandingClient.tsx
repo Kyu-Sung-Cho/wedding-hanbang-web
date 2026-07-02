@@ -1077,7 +1077,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           {post.title}
         </h3>
         {contentPreview && (
-          <p className="mt-0.5 line-clamp-1 break-words text-[11px] font-medium leading-[1.5] text-[#5d6879] [overflow-wrap:anywhere]">
+          <p className="ugc-text mt-0.5 line-clamp-1 break-words text-[11px] font-medium leading-[1.5] text-[#5d6879] [overflow-wrap:anywhere]">
             {contentPreview}
           </p>
         )}

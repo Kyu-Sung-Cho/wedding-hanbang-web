@@ -528,7 +528,7 @@ export default function PostDetailPage() {
                   <>
                     {/* 블러 처리된 미리보기 */}
                     <div
-                      className="text-base text-[#1A1A1F] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
+                      className="ugc-text text-base text-[#1A1A1F] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
                       dangerouslySetInnerHTML={{
                         __html: sanitizeHtml(post.content.slice(0, 300)),
                       }}
@@ -552,7 +552,7 @@ export default function PostDetailPage() {
                   </>
                 ) : (
                   <div
-                    className="community-post-content text-[15px] text-[#1A1A1F] leading-[1.75] whitespace-pre-wrap break-words"
+                    className="community-post-content ugc-text text-[15px] text-[#1A1A1F] leading-[1.75] whitespace-pre-wrap break-words"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtml(post.content),
                     }}

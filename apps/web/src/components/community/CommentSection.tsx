@@ -19,6 +19,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     commentsLoading,
     fetchComments,
     createComment,
+    updateComment,
     deleteComment,
     voteComment,
     currentPost,
@@ -120,7 +121,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             placeholder="댓글을 작성해 주세요..."
             rows={3}
             maxLength={2000}
-            className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+            className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
           />
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-[#B5ADA3]">
@@ -182,6 +183,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               postId={postId}
               currentUserId={user?.id ?? null}
               onDelete={deleteComment}
+              onEdit={updateComment}
               onVote={voteComment}
               onReply={async (parentId, content) => {
                 await createComment({
