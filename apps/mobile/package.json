@@ -14,6 +14,7 @@
     "eas:build:all": "pnpm dlx eas-cli build --platform all --profile production",
     "eas:submit:ios": "pnpm dlx eas-cli submit --platform ios --profile production",
     "eas:submit:android": "pnpm dlx eas-cli submit --platform android --profile production",
+    "release:check": "node ../../scripts/mobile-release-readiness.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf node_modules .expo"
