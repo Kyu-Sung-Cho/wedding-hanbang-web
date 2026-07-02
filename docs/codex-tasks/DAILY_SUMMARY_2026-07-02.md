@@ -102,6 +102,12 @@ GitHub Actions:
 - `28574158493` passed for `696d268b`
 - `28579704827` passed for `12a1a0bf`
 - `28579989678` passed for `90c32921`
+- `28592570245` passed for `e9b86268`
+
+Final live smoke after pushing the daily summary:
+
+- `corepack pnpm qa:live` passed 5/5
+- Report: `.gstack/qa-reports/live-smoke/2026-07-02T13-13-47-440Z/report.md`
 
 ## Deployment Status
 
@@ -114,7 +120,7 @@ Web:
 
 - Main branch pushes continue to run GitHub Actions successfully.
 - Vercel production deployment is expected through the existing main-branch deployment pipeline.
-- Previous live smoke checks on `https://hanbang.ai` passed after the mobile/web design work.
+- Latest live smoke on `https://hanbang.ai` passed 5/5 after the final July 2 documentation push.
 
 ## How To Resume On Another Computer
 
@@ -159,4 +165,3 @@ $env:SUPABASE_DB_PASSWORD = "<db-password>"
 corepack pnpm supabase:ship:safe
 corepack pnpm supabase:security:probe
 ```
-
