@@ -259,6 +259,8 @@ Status: in progress.
 
 Before each app milestone:
 
+- `pnpm qa:local`
+- `pnpm mobile:release-check`
 - `pnpm --filter @hanbang/mobile lint`
 - `pnpm --filter @hanbang/mobile typecheck`
 - `pnpm lint`
@@ -305,5 +307,7 @@ As of 2026-07-02 (through PR #30 plus the mobile/web design-parity pass):
 - Mobile community nickname changes clear feed/detail/comment caches and refresh on focus so old posts and comments show the updated nickname after save.
 - Expo SDK 54 dependency alignment passes `expo-doctor` 18/18.
 - Production dependency audit passes through root `pnpm.overrides`.
+- `scripts/mobile-release-readiness.mjs` validates app-store release configuration, deep-link/OAuth bridge wiring, EAS profiles, Expo plugins, env docs, and legacy brand-color drift.
+- `pnpm qa:local` now includes `pnpm mobile:release-check`, so the existing GitHub Actions Quality Gate also blocks mobile release configuration regressions.
 - `qa:local`, main GitHub Actions, Vercel production deploy, and live smoke were green after the latest mobile UI updates.
 - Latest cross-computer handoff: `docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md`.

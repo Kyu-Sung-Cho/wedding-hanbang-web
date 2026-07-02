@@ -29,6 +29,10 @@ const checks = [
     args: ["pnpm", "--filter", "@hanbang/web", "exec", "next", "build"],
   },
   {
+    name: "mobile release readiness",
+    args: ["pnpm", "mobile:release-check"],
+  },
+  {
     name: "mobile typecheck",
     args: ["pnpm", "--filter", "@hanbang/mobile", "typecheck"],
   },
