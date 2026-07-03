@@ -6,6 +6,7 @@ import CommunityAuthInitializer from "@/components/community/CommunityAuthInitia
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
+import { CONTACT } from "@/lib/constants/contact";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 export default function CommunityLayout({
@@ -95,10 +96,9 @@ function CommunityFooter() {
         <div>
           <h3 className="mb-3 text-[14px] font-semibold text-white">연락</h3>
           <div className="space-y-1 text-[13px] font-medium text-white/70">
-            <p>contact@wedding-hanbang.kr</p>
-            <p>02-1234-5678</p>
-            <p>평일 10:00 - 18:00</p>
-            <p>(점심 12:00 - 13:00)</p>
+            <p>{CONTACT.email}</p>
+            <p>{CONTACT.hours}</p>
+            <p>({CONTACT.lunch})</p>
           </div>
         </div>
 

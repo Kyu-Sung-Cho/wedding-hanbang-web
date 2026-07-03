@@ -21,6 +21,7 @@ import {
 } from "@/constants/marketPrices";
 import TrendChart from "@/components/app/market-prices/TrendChart";
 import RegionalCostTable from "@/components/app/market-prices/RegionalCostTable";
+import { CONTACT } from "@/lib/constants/contact";
 
 const TABS = [
   { id: "overview", label: "종합 요약", icon: BarChart3 },
@@ -243,7 +244,7 @@ export default function MarketPricesClient() {
             </p>
           </div>
           <a
-            href="mailto:ceo@hanbang.ai?subject=%EC%8B%A4%EA%B1%B0%EB%9E%98%EA%B0%80%20%EA%B3%B5%EC%9C%A0%20%EC%8B%A0%EC%B2%AD"
+            href={`mailto:${CONTACT.email}?subject=%EC%8B%A4%EA%B1%B0%EB%9E%98%EA%B0%80%20%EA%B3%B5%EC%9C%A0%20%EC%8B%A0%EC%B2%AD`}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             실거래가 공유 신청

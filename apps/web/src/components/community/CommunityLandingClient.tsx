@@ -1200,7 +1200,7 @@ function AmoraSidebarPanel() {
         아모라에게 이 글 물어보기
       </h2>
       <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-        커뮤니티 글이 자동으로 내 견적에 반영되는 기능은 아니에요. 아모라 상담으로 이동해 상황을 설명하고 질문을 이어가는 카드입니다.
+        이 글에서 궁금한 점을 아모라에게 이어서 물어보세요.
       </p>
       <Link
         {...weddingLinkProps("/chat")}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
+import { CONTACT } from "@/lib/constants/contact";
 import { weddingPath } from "@/lib/weddingPaths";
 
 const SERVICE_LINKS = [
@@ -20,9 +21,8 @@ const POLICY_LINKS = [
 ];
 
 const CONTACT_LINKS = [
-  { label: "ceo@hanbang.ai", href: "mailto:ceo@hanbang.ai", external: true },
-  { label: "010-5067-6279", href: "tel:01050676279", external: true },
-  { label: "Instagram @wedding_hanbang", href: "https://instagram.com/wedding_hanbang", external: true },
+  { label: CONTACT.email, href: `mailto:${CONTACT.email}`, external: true },
+  { label: CONTACT.instagramLabel, href: CONTACT.instagramHref, external: true },
 ];
 
 export default function Footer() {
@@ -114,8 +114,7 @@ export default function Footer() {
             상호 주식회사 웨딩한방 · 대표 조규성 · 사업자등록번호 사업 개시 후 등록 예정 ·
             통신판매업 신고 사업 개시 후 신고 예정 ·
             주소 사업장 등록 후 게시 ·
-            대표 이메일 <a href="mailto:ceo@hanbang.ai" className="underline hover:text-white">ceo@hanbang.ai</a> ·
-            대표 전화 <a href="tel:01050676279" className="underline hover:text-white">010-5067-6279</a>
+            대표 이메일 <a href={`mailto:${CONTACT.email}`} className="underline hover:text-white">{CONTACT.email}</a>
           </p>
           <p className="text-ivory-50/50 text-xs leading-relaxed">
             웨딩한방은 「전자상거래 등에서의 소비자보호에 관한 법률」 제20조에 따른 <strong className="text-ivory-50/70">통신판매중개자</strong>로서, 회원과 파트너 업체 간 거래의 당사자가 아닙니다.

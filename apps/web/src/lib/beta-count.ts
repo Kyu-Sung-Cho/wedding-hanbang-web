@@ -10,7 +10,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-export const BETA_TOTAL = 50;
+export { BETA_COUNTER_MIN, BETA_TOTAL, shouldShowBetaCounter } from "@/constants/beta";
 
 export async function getBetaCount(): Promise<number> {
   try {

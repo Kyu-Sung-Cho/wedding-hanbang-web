@@ -376,7 +376,7 @@ export const mockVendors: Vendor[] = [
     category: "스튜디오",
     location: "서울 강남구",
     address: "서울시 강남구 논현로 512, 3층",
-    phone: "02-1234-5678",
+    phone: "",
     ownerName: "김영희",
     description: "자연광 전문 웨딩 스튜디오입니다. 10년 이상의 경험으로 자연스럽고 아름다운 웨딩 사진을 촬영합니다. 모든 촬영은 1:1 맞춤으로 진행됩니다.",
     priceRange: "250~350만원",

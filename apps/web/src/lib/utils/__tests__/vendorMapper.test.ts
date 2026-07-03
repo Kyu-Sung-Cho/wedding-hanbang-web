@@ -22,7 +22,7 @@ const baseVendorRow: VendorRow = {
   location: "강남구",
   region: "서울",
   address: "강남대로 123",
-  phone: "02-1234-5678",
+  phone: "",
   owner_name: "김원장",
   email: "owner@studio.com",
   description: "고급 웨딩 스튜디오",

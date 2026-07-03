@@ -6,6 +6,7 @@ import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 import DatePickerPopover from "./DatePickerPopover";
 import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { shouldShowBetaCounter } from "@/constants/beta";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -18,6 +19,7 @@ interface BetaFormProps {
 type Role = "bride" | "groom" | "";
 
 export default function BetaForm({ current, total, progress }: BetaFormProps) {
+  const showCounter = shouldShowBetaCounter(current);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [weddingDate, setWeddingDate] = useState("");
@@ -111,23 +113,31 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         베타 50쌍 한정
       </p>
 
-      {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
-      <div className="flex items-baseline gap-3 mb-3">
-        <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
-          {current}
-        </span>
-        <span className="text-white/40 text-lg font-light tabular-nums">/ {total}</span>
-      </div>
-      <p className="text-[11px] tracking-[0.22em] text-white/50 mb-6 font-medium">
-        현재 신청 · 명
-      </p>
-      <div className="h-px bg-white/10 w-full relative overflow-hidden mb-10">
-        <div
-          className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-          style={{ width: `${Math.max(progress, 3)}%` }}
-          aria-hidden
-        />
-      </div>
+      {showCounter ? (
+        <>
+          {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
+          <div className="flex items-baseline gap-3 mb-3">
+            <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
+              {current}
+            </span>
+            <span className="text-white/40 text-lg font-light tabular-nums">/ {total}쌍</span>
+          </div>
+          <p className="text-[11px] tracking-[0.22em] text-white/50 mb-6 font-medium">
+            현재 신청
+          </p>
+          <div className="h-px bg-white/10 w-full relative overflow-hidden mb-10">
+            <div
+              className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
+              style={{ width: `${Math.max(progress, 3)}%` }}
+              aria-hidden
+            />
+          </div>
+        </>
+      ) : (
+        <p className="mb-10 text-[13px] font-medium tracking-[0.16em] text-white/55">
+          베타 신청 접수 중
+        </p>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-5">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import { shouldShowBetaCounter } from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
 
 const BENEFITS = [
@@ -28,6 +29,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
   const BETA_CURRENT = current;
   const BETA_TOTAL = total;
   const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
+  const showCounter = shouldShowBetaCounter(BETA_CURRENT);
 
   return (
     <section
@@ -120,27 +122,35 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 베타 50쌍 한정
               </p>
 
-              {/* 진척 수치 — sans-serif + tabular-nums (Cormorant "1" Roman numeral 혼동 방지) */}
-              <div className="flex items-baseline gap-3 mb-3">
-                <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
-                  {BETA_CURRENT}
-                </span>
-                <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
-                  / {BETA_TOTAL}
-                </span>
-              </div>
-              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-8 font-medium">
-                현재 신청 · 명
-              </p>
+              {showCounter ? (
+                <>
+                  {/* 진척 수치 — sans-serif + tabular-nums (Cormorant "1" Roman numeral 혼동 방지) */}
+                  <div className="flex items-baseline gap-3 mb-3">
+                    <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
+                      {BETA_CURRENT}
+                    </span>
+                    <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
+                      / {BETA_TOTAL}쌍
+                    </span>
+                  </div>
+                  <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-8 font-medium">
+                    현재 신청
+                  </p>
 
-              {/* Progress bar */}
-              <div className="h-px bg-white/10 w-full relative overflow-hidden mb-12">
-                <div
-                  className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-                  style={{ width: `${Math.max(progress, 3)}%` }}
-                  aria-hidden
-                />
-              </div>
+                  {/* Progress bar */}
+                  <div className="h-px bg-white/10 w-full relative overflow-hidden mb-12">
+                    <div
+                      className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
+                      style={{ width: `${Math.max(progress, 3)}%` }}
+                      aria-hidden
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="mb-12 text-[13px] font-medium tracking-[0.16em] text-white/55">
+                  베타 신청 접수 중
+                </p>
+              )}
 
               {/* CTA */}
               <Link

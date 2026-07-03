@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import { shouldShowBetaCounter } from "@/constants/beta";
 
 interface BetaCTAProps {
   /** 실시간 신청자 수 (server fetch). 미전달 시 0. */
@@ -14,6 +15,7 @@ export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
   const BETA_CURRENT = current;
   const BETA_TOTAL = total;
   const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
+  const showCounter = shouldShowBetaCounter(BETA_CURRENT);
 
   return (
     <section
@@ -53,26 +55,34 @@ export default function BetaCTA({ current = 0, total = 50 }: BetaCTAProps) {
 
           {/* 우측: 진척 + CTA */}
           <div>
-            <div className="flex items-baseline gap-3 mb-3">
-              <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,64px)] font-light leading-none tracking-[-0.02em]">
-                {BETA_CURRENT}
-              </span>
-              <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
-                / {BETA_TOTAL}
-              </span>
-            </div>
-            <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-6 font-medium">
-              현재 신청 · 명
-            </p>
+            {showCounter ? (
+              <>
+                <div className="flex items-baseline gap-3 mb-3">
+                  <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,64px)] font-light leading-none tracking-[-0.02em]">
+                    {BETA_CURRENT}
+                  </span>
+                  <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
+                    / {BETA_TOTAL}쌍
+                  </span>
+                </div>
+                <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-6 font-medium">
+                  현재 신청
+                </p>
 
-            {/* Progress bar */}
-            <div className="h-px bg-white/15 w-full relative overflow-hidden mb-10 max-w-md">
-              <div
-                className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-                style={{ width: `${Math.max(progress, 3)}%` }}
-                aria-hidden
-              />
-            </div>
+                {/* Progress bar */}
+                <div className="h-px bg-white/15 w-full relative overflow-hidden mb-10 max-w-md">
+                  <div
+                    className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
+                    style={{ width: `${Math.max(progress, 3)}%` }}
+                    aria-hidden
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="mb-10 text-[13px] font-medium tracking-[0.16em] text-white/55">
+                베타 신청 접수 중
+              </p>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
               <Link

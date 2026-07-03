@@ -20,6 +20,8 @@ import {
   Target,
 } from "lucide-react";
 import { BETA_TOTAL, getBetaCount } from "@/lib/beta-count";
+import { CONTACT } from "@/lib/constants/contact";
+import { shouldShowBetaCounter } from "@/constants/beta";
 import { weddingPath } from "@/lib/weddingPaths";
 
 export const revalidate = 60;
@@ -68,8 +70,7 @@ const flowSteps: Array<{ icon: LucideIcon; title: string; desc: string }> = [
 ];
 
 export default async function LandingPage() {
-  const count = await getBetaCount();
-  const betaCount = count > 0 ? count : 3;
+  const betaCount = await getBetaCount();
   const betaPct = getBetaProgressClass(betaCount);
 
   return (
@@ -498,6 +499,8 @@ function ConnectedSection() {
 }
 
 function BetaBanner({ betaCount, betaPct }: { betaCount: number; betaPct: string }) {
+  const showCounter = shouldShowBetaCounter(betaCount);
+
   return (
     <section className={`${shell} mt-[38px] grid min-h-[206px] grid-cols-1 items-center gap-7 rounded-[18px] bg-[radial-gradient(circle_at_91%_8%,rgba(236,215,164,0.22),transparent_18rem),linear-gradient(135deg,#07192f_0%,#0b2444_62%,#06172c_100%)] px-9 py-[30px] text-white shadow-[0_22px_52px_rgba(6,26,52,0.24)] lg:grid-cols-[1.18fr_1.1fr_1.1fr]`}>
       <div>
@@ -531,14 +534,22 @@ function BetaBanner({ betaCount, betaPct }: { betaCount: number; betaPct: string
       </div>
 
       <div className="relative min-h-[140px]">
-        <span className="text-[13px] font-black text-[#d3af67]">현재 신청 현황</span>
-        <strong className="my-3 block text-[44px] font-bold leading-none">
-          {betaCount}
-          <em className="text-[20px] font-bold not-italic text-white/85"> / {BETA_TOTAL}쌍</em>
-        </strong>
-        <div className="mb-[10px] h-2 w-[170px] overflow-hidden rounded-full bg-white/15">
-          <span className={`block h-full rounded-full bg-[linear-gradient(90deg,#ffffff,#b68a3a)] ${betaPct}`} />
-        </div>
+        {showCounter ? (
+          <>
+            <span className="text-[13px] font-black text-[#d3af67]">현재 신청 현황</span>
+            <strong className="my-3 block text-[44px] font-bold leading-none">
+              {betaCount}
+              <em className="text-[20px] font-bold not-italic text-white/85"> / {BETA_TOTAL}쌍</em>
+            </strong>
+            <div className="mb-[10px] h-2 w-[170px] overflow-hidden rounded-full bg-white/15">
+              <span className={`block h-full rounded-full bg-[linear-gradient(90deg,#ffffff,#b68a3a)] ${betaPct}`} />
+            </div>
+          </>
+        ) : (
+          <span className="block text-[13px] font-black leading-relaxed text-[#d3af67]">
+            베타 신청 접수 중
+          </span>
+        )}
         <p className="text-[12px] font-semibold text-white/70">베타 기간 | 6.25 - 8.07</p>
 
         <div className="absolute bottom-1 right-2 h-24 w-[152px] rotate-[-10deg] rounded-[10px] border border-[#ecd7a4]/60 bg-[linear-gradient(145deg,#fffdf5,#eee2c9)] shadow-[0_18px_38px_rgba(0,0,0,0.26)] before:absolute before:inset-0 before:rounded-[inherit] before:bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(222,202,165,0.55))] before:[clip-path:polygon(0_0,50%_55%,100%_0)] after:absolute after:left-[62px] after:top-[38px] after:h-[27px] after:w-[27px] after:rounded-full after:bg-[linear-gradient(135deg,#d3af67,#b68a3a)] max-sm:relative max-sm:bottom-auto max-sm:right-auto max-sm:mt-5" />
@@ -605,9 +616,8 @@ function SiteFooter() {
       <FooterCol title="정책" items={["이용약관", "개인정보처리방침", "위치기반서비스 이용약관", "환불 규정 안내"]} />
       <div className="flex flex-col gap-2">
         <h3 className="mb-2 text-[14px] font-black text-[#071629]">연락</h3>
-        <span className="text-[13px] font-semibold text-[#5b6676]">hello@weddinghanbang.ai</span>
-        <span className="text-[13px] font-semibold text-[#5b6676]">02-1234-5678</span>
-        <span className="text-[13px] font-semibold text-[#5b6676]">평일 10:00 - 18:00</span>
+        <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.email}</span>
+        <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.hours}</span>
       </div>
 
       <div className="rounded-[15px] border border-[#f2eadc] bg-[#fffdf7] px-5 py-[18px] md:col-span-2 xl:col-span-1">

@@ -68,7 +68,7 @@ export default function AIPolicyPage() {
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">4. 법적 준수</h3>
               <p className="text-sm text-[#504444] leading-relaxed">
                 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」(2026.1.22 시행) 및
-                「개인정보보호법」을 준수합니다. 모든 AI 호출은 5년간 기록됩니다.
+                「개인정보보호법」을 준수합니다. 대화 기록은 설정에서 언제든 삭제할 수 있습니다. 다만 AI 기본법 등 법령상 보관이 의무화된 로그는 해당 기간 보관 후 파기됩니다.
               </p>
             </div>
           </div>
@@ -90,7 +90,7 @@ export default function AIPolicyPage() {
               </a>
             </li>
             <li>
-              <strong className="text-[#1b1c1c]">연락처</strong>: 010-5067-6279
+              <strong className="text-[#1b1c1c]">연락처</strong>: 이메일 문의
             </li>
           </ul>
         </section>
@@ -101,11 +101,11 @@ export default function AIPolicyPage() {
             AI의 한계
           </h2>
           <p className="text-sm text-[#504444] mb-4 leading-relaxed">
-            아모라는 한국 결혼 시장 데이터로 훈련된 AI입니다. 다음 사항을 인지하시기 바랍니다:
+            아모라는 Anthropic Claude를 기반으로 하며, 한국 결혼 시장 데이터를 결합해 답변하는 AI입니다. 다음 사항을 인지하시기 바랍니다:
           </p>
           <ul className="list-disc pl-5 text-sm text-[#504444] space-y-2 leading-relaxed">
             <li>법률 자문을 대체하지 않습니다. 계약 관련 중요 결정은 변호사와 상의하세요.</li>
-            <li>실시간 가격은 변동 가능합니다. 최종 가격은 vendor와 직접 확인하세요.</li>
+            <li>실시간 가격은 변동 가능합니다. 최종 가격은 업체와 직접 확인하세요.</li>
             <li>감정적 지원은 제공하지만 전문 상담을 대체하지 않습니다.</li>
           </ul>
         </section>
@@ -124,6 +124,7 @@ export default function AIPolicyPage() {
           </p>
         </section>
 
+        {/* TODO(HUMAN): Confirm exact AI Basic Act article numbers before quoting specific clause numbers. */}
         {/* 하단 */}
         <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[#504444]/70">
           <p>
