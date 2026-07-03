@@ -1,8 +1,55 @@
+import { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { Home, MessageCircle, Users, User } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { apiJson } from "@/lib/api";
+import {
+  getCachedCommunityFeed,
+  putCachedCommunityFeed,
+  putCachedCommunityPosts,
+  type CachedCommunityPost,
+} from "@/lib/communityPostCache";
+
+const COMMUNITY_WARM_LIMIT = 12;
+
+type WarmedCommunityPost = CachedCommunityPost & {
+  images?: string[] | null;
+};
+
+function normalizeWarmPost(post: WarmedCommunityPost): CachedCommunityPost {
+  return {
+    ...post,
+    image_urls: post.image_urls ?? post.images ?? [],
+  };
+}
 
 export default function TabsLayout() {
+  useEffect(() => {
+    let cancelled = false;
+
+    async function warmCommunityFeed() {
+      if (getCachedCommunityFeed("all")) return;
+
+      try {
+        const data = await apiJson<{ posts: WarmedCommunityPost[] }>(
+          `/api/community/posts?sort=new&limit=${COMMUNITY_WARM_LIMIT}`
+        );
+        if (cancelled) return;
+
+        const posts = (data.posts ?? []).map(normalizeWarmPost);
+        putCachedCommunityFeed("all", posts);
+        putCachedCommunityPosts(posts);
+      } catch {
+        // Best-effort warmup. The community screen still performs its own load.
+      }
+    }
+
+    warmCommunityFeed();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <Tabs
       screenOptions={{

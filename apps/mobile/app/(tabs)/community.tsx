@@ -98,6 +98,10 @@ type CommunityAuthorRow = {
   rank: string | null;
 };
 
+type ApiPostItem = PostItem & {
+  images?: string[] | null;
+};
+
 /* ───── 상수 ───── */
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -134,7 +138,10 @@ async function fetchPostsFromApi(cat: string): Promise<PostItem[]> {
   const data = await apiJson<{ posts: PostItem[] }>(
     `/api/community/posts?sort=new&limit=${POSTS_INITIAL_LIMIT}${params}`
   );
-  return data.posts ?? [];
+  return ((data.posts ?? []) as ApiPostItem[]).map((post) => ({
+    ...post,
+    image_urls: post.image_urls ?? post.images ?? [],
+  }));
 }
 
 async function fetchPostsFromSupabase(cat: string): Promise<PostItem[]> {
@@ -439,9 +446,9 @@ export default function CommunityScreen() {
       let nextPosts: PostItem[];
 
       try {
-        nextPosts = await fetchPostsFromSupabase(cat);
-      } catch {
         nextPosts = await fetchPostsFromApi(cat);
+      } catch {
+        nextPosts = await fetchPostsFromSupabase(cat);
       }
 
       putCachedCommunityFeed(cat, nextPosts);

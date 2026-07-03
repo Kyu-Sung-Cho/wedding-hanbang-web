@@ -1,6 +1,6 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
 // 신부=분홍(#F5E6DF), 신랑=파랑(#E8EDF5), AI=noir
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
@@ -53,26 +53,17 @@ export default function ChatScreen() {
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [target, setTarget] = useState<MessageTarget>("ai");
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const initialAutoScrollCompleteRef = useRef(false);
   const previousMessageCountRef = useRef(0);
+  const visibleMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-  const scrollToEnd = useCallback((animated = true, delay = 80) => {
+  const scrollToLatest = useCallback((animated = true, delay = 40) => {
     setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated });
+      flatListRef.current?.scrollToOffset({ offset: 0, animated });
     }, delay);
   }, []);
-
-  const handleContentSizeChange = useCallback(() => {
-    if (!initialLoaded || messages.length === 0 || initialAutoScrollCompleteRef.current) {
-      return;
-    }
-
-    scrollToEnd(false, 0);
-    initialAutoScrollCompleteRef.current = true;
-  }, [initialLoaded, messages.length, scrollToEnd]);
 
   useEffect(() => {
     (async () => {
@@ -110,13 +101,12 @@ export default function ChatScreen() {
               content: n.content as string, metadata: n.metadata as ChatMessage["metadata"], created_at: n.created_at as string,
             }];
           });
-          scrollToEnd(true);
         }).subscribe();
       channelRef.current = ch;
       setInitialLoaded(true);
     })();
     return () => { if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; } };
-  }, [scrollToEnd]);
+  }, []);
 
   useEffect(() => {
     if (!initialLoaded || messages.length === 0) return;
@@ -125,13 +115,12 @@ export default function ChatScreen() {
     previousMessageCountRef.current = messages.length;
 
     if (previousCount === 0) {
-      initialAutoScrollCompleteRef.current = false;
-      scrollToEnd(false, 0);
+      scrollToLatest(false, 0);
       return;
     }
 
-    scrollToEnd(true);
-  }, [initialLoaded, messages.length, scrollToEnd]);
+    scrollToLatest(true);
+  }, [initialLoaded, messages.length, scrollToLatest]);
 
   function pressIn() { Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start(); }
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
@@ -142,7 +131,7 @@ export default function ChatScreen() {
 
     if (target === "partner") {
       await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: userId, sender_type: userRole, role: "user", content: text, metadata: { target: "partner" } });
-      setInput(""); scrollToEnd(true); return;
+      setInput(""); return;
     }
 
     // AI
@@ -150,7 +139,7 @@ export default function ChatScreen() {
     const userMsg: ChatMessage = ui ? { ...ui, role: "user", sender_type: userRole } : { id: Date.now().toString(), role: "user", sender_type: userRole, content: text };
     const tempId = `temp_${Date.now()}`;
     setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "" }]);
-    setInput(""); setStreaming(true); scrollToEnd(true);
+    setInput(""); setStreaming(true); scrollToLatest(true);
 
     try {
       const res = await apiFetch("/api/chat", { method: "POST", body: JSON.stringify({ messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })), coupleId, senderName: userName }) });
@@ -161,7 +150,7 @@ export default function ChatScreen() {
       if (!full && raw) { try { const json = JSON.parse(raw); full = json.text || json.content || raw; } catch { full = raw; } }
       const clean = full.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim() || full || "응답을 받지 못했어요.";
       setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: clean } : m));
-      scrollToEnd(true);
+      scrollToLatest(true);
     } catch (err) {
       setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: `오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}` } : m));
     } finally { setStreaming(false); }
@@ -227,7 +216,7 @@ export default function ChatScreen() {
             <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { setTarget("ai"); setInput(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
           </View>
         ) : (
-          <FlatList ref={flatListRef} data={messages} keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} onContentSizeChange={handleContentSizeChange} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews maxToRenderPerBatch={10} windowSize={5} initialNumToRender={10} />
+          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>

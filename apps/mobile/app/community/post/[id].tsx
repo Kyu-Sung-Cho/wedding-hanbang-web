@@ -349,6 +349,19 @@ export default function PostDetailScreen() {
     }
   }, [postId]);
 
+  const refreshAuxiliaryState = useCallback((options?: { silentComments?: boolean }) => {
+    if (!postId) return;
+
+    loadComments({ silent: options?.silentComments });
+    fetchSocialState(postId)
+      .then((state) => {
+        setUserVote(state.userVote);
+        setBookmarked(state.bookmarked);
+      })
+      .catch(() => {});
+    apiFetch(`/api/community/posts/${postId}/view`, { method: "POST" }).catch(() => {});
+  }, [loadComments, postId]);
+
   const loadPost = useCallback(async () => {
     if (!postId) {
       setLoading(false);
@@ -356,9 +369,11 @@ export default function PostDetailScreen() {
     }
 
     const cachedPost = getCachedCommunityPost(postId);
+    const hadCachedPost = Boolean(cachedPost);
     if (cachedPost) {
       setPost(fromCachedPost(cachedPost));
       setLoading(false);
+      refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
     } else {
       setLoading(true);
     }
@@ -375,20 +390,15 @@ export default function PostDetailScreen() {
       putCachedCommunityPost(toCachedPost(nextPost));
       setLoading(false);
 
-      apiFetch(`/api/community/posts/${postId}/view`, { method: "POST" }).catch(() => {});
-      loadComments({ silent: Boolean(initialCommentsRef.current) });
-      fetchSocialState(postId)
-        .then((state) => {
-          setUserVote(state.userVote);
-          setBookmarked(state.bookmarked);
-        })
-        .catch(() => {});
+      if (!hadCachedPost) {
+        refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
+      }
     } catch {
       if (!cachedPost) setPost(null);
     } finally {
       setLoading(false);
     }
-  }, [loadComments, postId]);
+  }, [postId, refreshAuxiliaryState]);
 
   useFocusEffect(
     useCallback(() => {
