@@ -148,13 +148,20 @@
 
 ## Phase 5 — 데이터·운영·공유 코드
 
-- [ ] **5.1 Supabase 스키마-코드 정합성** — 마이그레이션 SQL vs 코드에서 실제 참조하는 테이블/컬럼 대조.
-- [ ] **5.2 프로덕션 라이브 스모크** — hanbang.ai 실제 접속, 주요 페이지 응답, 콘솔 에러.
-- [ ] **5.3 packages/shared + design-tokens 실효성** — 실제로 양쪽 앱이 import하는지, 아니면 유령 패키지인지.
+- [x] **5.1 Supabase 스키마-코드 정합성** — 완료 (2026-07-04, 인라인 Fable). **등급: ⚠️ 취약 (모바일 동기방 입장 깨짐 확정 1건 + 재현성 갭).**
+  **대조 결과:** 코드 참조 테이블 전수 vs 마이그레이션 DDL — DROP된 테이블(7/4 정리 8종) 참조 **0건**(정리 검증). 코드 호출 RPC 14종 중 13종 마이그레이션 정의 확인. cohort_stats는 뷰(security_invoker, 6/10 수정)로 정상.
+  **F1(기능 깨짐, 모바일 — 4.3 등급 정정 사유):** `apps/mobile/app/community/cohort-discovery.tsx:247` 동기방 입장이 `cohort_members` **클라 직접 INSERT** — 6/15 하드닝(`20260615090000`: authenticated INSERT REVOKE + 서버전용 트리거 42501)과 충돌해 **입장이 무반응 실패**(console.error만, 사용자 안내 없음). +258행 `increment_cohort_member_count` RPC는 **어떤 마이그레이션에도 정의 없음**(유령 호출, 결과 미확인이라 조용히 무시됨). 웹은 auto-assign API(service-role) 경유라 정상 — 모바일만 하드닝 이전 패턴 잔존. 수정 방향: 모바일 입장을 웹 API 경유로 전환+유령 RPC 제거. **모바일 출시 전 필수.**
+  **F2(재현성, 운영):** 마이그레이션 디렉토리가 완전한 스키마 소스가 아님 — 초기 코어 테이블(profiles·vendors·vendor_products·vendor_bookings·vendor_favorites·favorites 등)은 대시보드 시대 유산으로 CREATE 없이 ALTER/RLS만 존재(`20260220` 헤더가 "기존 테이블"로 자인, DIAGNOSE_EXISTING_TABLES.sql 존재). 프로덕션 정합성은 라이브 검증들로 확인되나 새 환경 재구성 불가 — baseline 마이그레이션 생성 권고(비긴급).
+- [x] **5.2 프로덕션 라이브 스모크** — 완료 (2026-07-04, 인라인 Fable, 읽기전용 GET). **등급: ✅ 견고.**
+  12개 표면 전부 정상: `/`→307→`/wedding`(200, SSR 294KB+타이틀 렌더), `/beta`·`/login`·`/about` 200, SEO 입구 3페이지(시세·예절·quote-check) 200+**개별 타이틀 SSR 확인**("한국소비자원 참가격 기준" 등), robots.txt·sitemap.xml 200, 보호 경로 `/wedding/lounge`→307 login·`/admin`→307 admin/login(미들웨어 정상). 콘솔 에러는 브라우저 부재로 이 회차 미확인 — 단 Sentry 라이브 연결(6/11)로 런타임 에러 관측 체계 존재. info: `/wedding` 첫 응답 3.4s(콜드 샘플 1회, 이후 표면 0.4~0.7s — 관측만).
+- [x] **5.3 packages/shared + design-tokens 실효성** — 완료 (2026-07-04, 인라인 Fable). **등급: shared 🚫 유령 / design-tokens ✅ 실사용.**
+  `@hanbang/design-tokens`: 모바일 34개 파일 실사용(웹은 globals.css 체계 — 설계상 분리). `packages/shared`(constants/types/utils): **워크스페이스 전체 임포트 0 — 유령 확정**(7/4 훑기 재확인). 모바일이 웹 상수를 복붙 중이라 4.3 M2(시세 하드코딩 드리프트)의 근원 — "배선 or 삭제" 결정 필요, 배선 시 시세 데이터 공유가 첫 후보.
 
 ## Phase 6 — 종합
 
-- [ ] **6.1 종합 성적표** — 기능별 등급표 + 리스크 랭킹 (치명/높음/중간/낮음) + "지금 당장 고쳐야 할 것 Top 5" + "죽은 코드 정리 목록".
+- [x] **6.1 종합 성적표** — 완료 (2026-07-04, 인라인 Fable). **상세: `docs/EVALUATION_FINAL_REPORT_2026-07-04.md`.**
+  요약: **치명 0 · 높음 0 · 중간 5**(M-W1 웹 progress 덮어쓰기 / F-M3 모바일 동기방 깨짐 / M-M1 모바일 인증 우회 / M-M2 모바일 시세 하드코딩 / C1~C3 관리자 시드). 웹=출시 유지 가능, 모바일=출시 전 3건 필수 수리(전부 "웹은 고쳤는데 모바일이 이전 패턴" 동기화 부채). Top5와 죽은 코드 목록은 리포트 참조.
+  **★ 전체 26개 작업 완료 — 평가 종결 (2026-07-04).**
 
 ---
 
@@ -194,3 +201,7 @@
 | 2026-07-04 | 3.9 관리자 | ✅ 견고 — 서버 경계(verifyAdmin 16/16) 위 배선 정상, 사전등록 현황 정확. info 2(UTC 일별 버킷, 무페이지네이션) |
 | 2026-07-04 | 3.10 정적+SEO | ✅ 견고 — 7페이지 전부 존재, robots/sitemap 비공개 격리 정상. info 3(privacy/terms 개별 메타 부재 등). **★Phase 3 종료 — 유일 ⚠️는 3.4 M1** |
 | 2026-07-04 | 4.1~4.4 모바일 전체 | 4.1✅(expo export android 번들 성공, 에러 0) 4.2⚠️(signup+forgot 직접 SDK — 웹 하드닝 우회 medium, OAuth 브릿지·apiFetch는 견고) 4.3⚠️(껍데기 0·전 화면 실구현, 모바일 budget은 원자 patch로 웹보다 우수. **M2: 시세 화면 하드코딩+출처 라벨 부정확** — 참가격 데이터와 불일치) 4.4✅(웹뷰 1곳뿐, https+hanbang.ai 허용목록). **★Phase 4 종료** |
+| 2026-07-04 | 5.1 스키마-코드 정합성 | ⚠️ — DROP 테이블 참조 0(정리 검증)·RPC 13/14 정의 확인. **F1: 모바일 동기방 입장 깨짐 확정**(클라 INSERT vs 6/15 하드닝 충돌+유령 RPC increment_cohort_member_count). F2: 초기 코어 테이블 CREATE 부재(재현성 갭, baseline 권고) |
+| 2026-07-04 | 5.2 라이브 스모크 | ✅ — 12개 표면 정상(SSR 타이틀 렌더·보호경로 307·robots/sitemap). /wedding 콜드 3.4s 관측만 |
+| 2026-07-04 | 5.3 공유 패키지 | shared 🚫 유령(임포트 0, 시세 드리프트의 근원) / design-tokens ✅ 모바일 34파일 실사용 |
+| 2026-07-04 | 6.1 종합 성적표 | **★ 전체 26개 작업 완료.** 치명 0·높음 0·중간 5. 웹=출시 유지 가능, 모바일=출시 전 3건 필수 수리. 상세: EVALUATION_FINAL_REPORT_2026-07-04.md |
