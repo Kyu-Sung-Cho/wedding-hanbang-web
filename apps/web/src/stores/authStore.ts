@@ -290,11 +290,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
+    // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
+    // 통째로 롤백시킨다(커플 동시수정 유실). 서버 apply_journey_progress_patch가
+    // DB row lock으로 병합하므로 서로 다른 키의 동시 수정은 안전하다.
+    const body: Record<string, unknown> = { ...updates };
+    if (updates.progress !== undefined) {
+      const prev = (journey?.progress ?? {}) as Record<string, unknown>;
+      const next = updates.progress as unknown as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      const removeKeys: string[] = [];
+      for (const key of Object.keys(next)) {
+        if (JSON.stringify(next[key]) !== JSON.stringify(prev[key])) {
+          patch[key] = next[key];
+        }
+      }
+      for (const key of Object.keys(prev)) {
+        if (!(key in next)) removeKeys.push(key);
+      }
+      delete body.progress;
+      const otherFieldCount = Object.keys(body).length;
+      if (Object.keys(patch).length === 0 && removeKeys.length === 0) {
+        // progress 변경이 실제로 없으면 progress 파트는 생략 (no-op 방지)
+        if (otherFieldCount === 0) return;
+      } else {
+        body.progress_patch = patch;
+        body.progress_remove_keys = removeKeys;
+      }
+    }
+
     try {
       const res = await fetch("/api/journey", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         const data = await res.json();

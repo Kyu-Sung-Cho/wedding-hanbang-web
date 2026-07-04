@@ -169,6 +169,83 @@ describe("useAuthStore", () => {
       await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
       expect(useAuthStore.getState().journey).toBeNull();
     });
+
+    // ─── progress diff→patch (커플 동시수정 유실 방지 회귀) ───
+
+    function setJourneyWithProgress(progress: Record<string, unknown>) {
+      useAuthStore.setState({
+        isDemo: false,
+        journey: {
+          id: "j1", couple_id: "c1", wedding_date: null, total_budget: 0,
+          venue: null, progress, created_at: "", updated_at: "",
+        } as never,
+      });
+    }
+
+    function lastFetchBody(): Record<string, unknown> {
+      const [, init] = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+      return JSON.parse((init as { body: string }).body);
+    }
+
+    it("progress 전체가 아니라 변경된 키만 progress_patch로 보낸다", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      setJourneyWithProgress({
+        venue: { category: "venue", status: "in_progress", budget: 100 },
+        studio: { category: "studio", status: "not_started" },
+      });
+
+      const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
+      await useAuthStore.getState().updateJourney({
+        progress: { ...prev, venue: { category: "venue", status: "in_progress", budget: 200 } } as never,
+      });
+
+      const body = lastFetchBody();
+      expect(body.progress).toBeUndefined();
+      expect(body.progress_patch).toEqual({ venue: { category: "venue", status: "in_progress", budget: 200 } });
+      expect(body.progress_remove_keys).toEqual([]);
+      // 변경 안 된 studio는 patch에 포함되지 않는다 (스테일 롤백 방지의 핵심)
+      expect((body.progress_patch as Record<string, unknown>).studio).toBeUndefined();
+    });
+
+    it("스냅샷에서 삭제된 키는 progress_remove_keys로 보낸다", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      setJourneyWithProgress({
+        venue: { category: "venue", status: "in_progress" },
+        custom_123: { category: "custom_123", label: "웨딩카" },
+      });
+
+      const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
+      const next = { ...prev } as Record<string, unknown>;
+      delete next.custom_123;
+      await useAuthStore.getState().updateJourney({ progress: next as never });
+
+      const body = lastFetchBody();
+      expect(body.progress_patch).toEqual({});
+      expect(body.progress_remove_keys).toEqual(["custom_123"]);
+    });
+
+    it("progress 변경이 전혀 없고 다른 필드도 없으면 네트워크 호출을 생략한다", async () => {
+      setJourneyWithProgress({ venue: { category: "venue", status: "in_progress" } });
+      const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
+
+      await useAuthStore.getState().updateJourney({ progress: { ...prev } as never });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("progress와 total_budget을 함께 보내면 patch와 다른 필드가 공존한다", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      setJourneyWithProgress({});
+
+      await useAuthStore.getState().updateJourney({
+        total_budget: 50_000_000,
+        progress: { ring: { category: "ring", status: "completed" } } as never,
+      });
+
+      const body = lastFetchBody();
+      expect(body.total_budget).toBe(50_000_000);
+      expect(body.progress_patch).toEqual({ ring: { category: "ring", status: "completed" } });
+      expect(body.progress).toBeUndefined();
+    });
   });
 
   // ─── updateJourneyLocal() ───
