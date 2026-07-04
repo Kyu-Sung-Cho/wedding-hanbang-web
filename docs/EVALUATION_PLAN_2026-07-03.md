@@ -117,8 +117,15 @@
   **판정 금지 컴플라이언스(핵심 확인):** ①quoteCheck 엔진 — 사실만 출력(확인/미확인 항목·출처 있는 평균가·라벨 명시된 지역 중위가·계약 전 질문), 원칙이 파일 상단 주석에 명문화. ②**회귀 테스트가 금지 필드 11종(score/grade/verdict/priceTier/redFlags/추정액 4종 등) 부활과 평가 단어 5종(위험/안전/바가지/등급/점수)을 명시 차단** — 6/12 결정이 테스트로 잠김. ③지역별 중위가 회귀(서울vs경기/인천 왜곡 방지·5대광역시·기타지역 매핑) 테스트 통과. ④UI(quote-check 페이지)가 "좋다·나쁘다 판단이 아니라 빠진 것 확인" 명시, AI analyze_quote도 동일 엔진 공유(이중 구현 없음). ⑤Contract Shield — 내부 score는 사실 라벨 3종("주요 항목 문서 확인됨/확인 필요 항목 있음/필수 항목 미확인") 분류에만 사용·**출력에 score 미노출**, 제목에 업체명 불포함(업무방해 시비 방지 주석), 법률자문 아님 고지 포함 — 6/12 수정 유지. ⑥보증인원 시뮬레이터 산술 정확(payable=max(참석예상,보증), 손실=빈자리×식대, 시나리오 ±15%/+5%), 권고는 절차형("물어보세요").
   **업체 탐색(견고):** approved만 노출, ai_recommend 유료 순위 제거 유지(캐논 v2 주석), vendorToPublicVendor가 owner PII 스트립, 검색어 escape(cleanPostgrestSearchTerm+like escape), 페이지네이션 클램프(1~1000p/1~100), 카테고리 alias 매핑. 찜은 낙관적 업데이트+실패 롤백.
   **quote-check 라우트:** 2.2 M1/M2 수리 반영 실코드 확인(유저당 첫 언급 멱등·fail-closed·score 0·persistent rate limit 익명 12/h·로그인 40/h), 입력 검증 견고(카테고리/지역 화이트리스트·금액 1~10000만원·sanitize+길이 캡), 익명은 분석만(저장 0). **info 2(기록만):** quote-check catch가 err.message 원문 400 반환(req.json() 파싱 에러 시 라이브러리 힌트 수준 노출 — 3.2 L2와 동류) / contractShield 내부 변수명 score·출력 필드명 riskLevel 잔존(노출 문구는 사실 기반이라 준수, 명칭만 6/12 어휘와 혼동 여지).
-- [ ] **3.7 커뮤니티** — 동기방, 글/댓글 CRUD, 최근 커밋(댓글 수정, 모바일 반응형)이 실제 동작하는지.
-- [ ] **3.8 예약 (bookings)** — TEAM_HANDOFF 문서에 보안 이슈 언급 있음. 특히 엄격하게.
+- [x] **3.7 커뮤니티** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고 (최근 커밋 실동작 코드+테스트로 확인, 신규 medium 0).**
+  **최근 커밋 검증:** ①댓글 수정(c99b0a1d) — CommentItem 편집 UI → store.updateComment → PATCH `/api/community/comments/[id]`(작성자/관리자 403·소프트삭제 수정 차단·sanitizeHtml+5000자 캡) → 재귀 트리 반영+서버 응답 우선, store 테스트 동반. ②댓글 post 격리(2510a2c2) — commentsPostId 가드+realtime filter(post_id=eq)+구독 해제, 테스트 동반. ③동기방 — 낙관적 temp 메시지를 realtime INSERT와 30초 창 매칭으로 치환(중복 방지), 스크롤 컨테이너 격리(과거 사고 주석 문서화), RLS는 2라운드 하드닝 기존 확인.
+  **store 로직(견고):** 재귀 댓글 트리 업데이트(수정/삭제/투표), 소프트삭제 반영, 투표/북마크는 서버 카운트 기준 조정, 피드 SWR 캐시(30s fresh/5분 만료)+닉네임 변경 시 무효화. 커뮤니티 로직 테스트 6종 기존 통과. 쓰기 경로 인증은 2.4에서 전수 확인(작성자 403).
+  **info 2(기록만):** I1 댓글 삭제 시 comment_count 감소가 read-then-write(비원자, 동시 삭제 시 카운터 ±1 드리프트 — 표시용). I2 realtime INSERT 중복 방지가 최상위 댓글만 검사 — 대댓글은 본인 작성 직후 refetch와 경합 시 일시 중복 렌더 가능(새로고침 해소, 저빈도).
+- [x] **3.8 예약 (bookings)** — 완료 (2026-07-04, 인라인 Fable, 엄격 기준). **등급: ✅ 견고 (핸드오프 이슈 전부 해소 확인, 이중 계상 방지 설계 모범적).**
+  **TEAM_HANDOFF(6/15) 추적:** 문서의 요구사항(마이그레이션 6종 적용·부킹 이벤트 full UUID 전환·chat 이미지 서명 URL·community 미디어 하드닝)은 이후 커밋·2.2/2.5 감사에서 전부 반영 확인. 잔여 follow-up(린트 정리·Link sweep)은 이미 별도 처리됨(1.1 lint 0).
+  **이중 계상 방지(핵심 검증):** ①생성 — 이벤트 id=`evt_booking_<fullUUID>`+sourceKey `booking:<id>`로 멱등(재시도 시 update, spent 가산은 `!existingEvent`일 때만) ②결과(outcome) — `__booking_costs` 원장(부킹별 기여액)으로 delta=실지출−이전기여만 반영(재수정 안전) ③취소 — 원장 기여액 기준 spent 복원+이벤트 제거(레거시 8자 id도 매칭), max(0,) 가드 ④전부 `apply_journey_progress_patch` 원자 patch+RPC 미배포 폴백. bookingTools/outcome 라우트 테스트가 생성·초과·취소·outcome 델타 시나리오 커버.
+  **경계 재확인:** create_booking_atomic RPC service-role 전용(2.2), outcome couple 스코프, bookings/mine 죽은 조인 제거 완료(7/4).
+  **L1(low, 데이터 의존):** 부킹→예산 동기화의 progress 키가 `vendors.category` 원문 — DB에 슬러그·한글·변형 혼재(vendors API의 CATEGORY_ALIASES 주석이 자인)라 비표준 카테고리 업체 예약 시 spent가 고정 카테고리("studio")가 아닌 커스텀 행("스튜디오"/"wedding_studio")으로 분리 계상될 수 있음. 테스트는 슬러그만 커버. 동기화 시 alias 정규화 권고. **I1(info):** progressSync의 RPC 실패 폴백이 whole-blob 덮어쓰기(폴백 발동 시에만 3.4 M1과 동일 표면 — RPC 배포 완료 상태라 실발동 0 예상).
 - [ ] **3.9 관리자 페이지** — (admin) 그룹, 접근 제어, 사전등록 현황.
 - [ ] **3.10 정적 페이지 + SEO** — about/privacy/terms/ai-policy/beta/demo/customersurvey, robots.ts, sitemap.ts, OG 이미지.
 
