@@ -126,8 +126,14 @@
   **이중 계상 방지(핵심 검증):** ①생성 — 이벤트 id=`evt_booking_<fullUUID>`+sourceKey `booking:<id>`로 멱등(재시도 시 update, spent 가산은 `!existingEvent`일 때만) ②결과(outcome) — `__booking_costs` 원장(부킹별 기여액)으로 delta=실지출−이전기여만 반영(재수정 안전) ③취소 — 원장 기여액 기준 spent 복원+이벤트 제거(레거시 8자 id도 매칭), max(0,) 가드 ④전부 `apply_journey_progress_patch` 원자 patch+RPC 미배포 폴백. bookingTools/outcome 라우트 테스트가 생성·초과·취소·outcome 델타 시나리오 커버.
   **경계 재확인:** create_booking_atomic RPC service-role 전용(2.2), outcome couple 스코프, bookings/mine 죽은 조인 제거 완료(7/4).
   **L1(low, 데이터 의존):** 부킹→예산 동기화의 progress 키가 `vendors.category` 원문 — DB에 슬러그·한글·변형 혼재(vendors API의 CATEGORY_ALIASES 주석이 자인)라 비표준 카테고리 업체 예약 시 spent가 고정 카테고리("studio")가 아닌 커스텀 행("스튜디오"/"wedding_studio")으로 분리 계상될 수 있음. 테스트는 슬러그만 커버. 동기화 시 alias 정규화 권고. **I1(info):** progressSync의 RPC 실패 폴백이 whole-blob 덮어쓰기(폴백 발동 시에만 3.4 M1과 동일 표면 — RPC 배포 완료 상태라 실발동 0 예상).
-- [ ] **3.9 관리자 페이지** — (admin) 그룹, 접근 제어, 사전등록 현황.
-- [ ] **3.10 정적 페이지 + SEO** — about/privacy/terms/ai-policy/beta/demo/customersurvey, robots.ts, sitemap.ts, OG 이미지.
+- [x] **3.9 관리자 페이지** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고 (접근 제어는 2.1·3.2에서 이미 이중 검증 — 신규 결함 0).**
+  **접근 제어(재확인):** 대시보드는 클라 게이트(`/api/admin/auth` GET → 401 시 /admin/login)+데이터는 전부 `/api/admin/*`(verifyAdmin 16/16, service_role is_admin DB 조회 — 2.1 전수, 3.2 라이브 위조쿠키 차단 확인). 관리자 생성은 ADMIN_PASSWORD(timingSafeEqual)+기존 admin 필수. 실보안 경계는 서버 — 클라 게이트는 UX용이라 우회해도 데이터 0.
+  **사전등록 현황(기능):** /api/admin/registrations — verifyAdmin+service client, total·일별 카운트 산출 정확(전수 조회 기반). 대시보드 탭(신고 처리·업체 승인·고객·예약·인사이트·관리자 관리) 전부 admin API로 배선.
+  **잔여(기존 기록 재확인):** 2.1 medium 3건(시드 환경게이트·seed PUT·onboarding 고아화)은 리메디에이션 백로그 유지, ADMIN_PASSWORD 회전은 사용자 작업(1.5). **info 2:** 일별 카운트가 UTC 날짜 버킷(KST 09시 경계 드리프트, 통계 표시용) / registrations 무페이지네이션 select(*) — 베타 규모 무해, select(*) 백로그와 병합.
+- [x] **3.10 정적 페이지 + SEO** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고 (전 페이지 존재·빌드 포함, SEO 폴리시 항목만 info).**
+  **확인:** 7페이지 전부 존재+빌드 통과(1.2 정적 99페이지에 포함). about/ai-policy/beta/demo는 개별 metadata 보유. 루트 layout에 metadataBase+기본 OG 설정 → 개별 메타 없는 페이지도 폴백. robots.ts — 비공개 표면(admin/lounge/chat/budget/schedule/settings/bookings/vendors/favorites/demo + /wedding 변형) disallow, sitemap 명시. sitemap.ts — 정적 5페이지+공개 커뮤니티 글만(visibility 필터+under_review 제외 — 비공개 글 유출 없음), 5000개 캡, 쿼리 실패에도 sitemap 생존(try/catch). SEO 입구 3페이지(시세·예절·quote-check) 개별 메타+SSR은 6/12 완료분 유지 확인.
+  **info 3(폴리시, 비차단):** privacy/terms("use client", 메타 없음)·customersurvey는 페이지별 title/OG 부재 → 루트 폴백(제네릭 제목으로 색인) / sitemap에 about·privacy·terms·ai-policy·beta 미포함 / robots disallow에 /money 계열 누락(미들웨어 307이 실차단이라 무해).
+  **★ Phase 3(웹 기능) 종료: 3.1✅ 3.2✅ 3.3✅ 3.4⚠️ 3.5✅ 3.6✅ 3.7✅ 3.8✅ 3.9✅ 3.10✅ — 유일한 ⚠️는 3.4 M1(클라 progress 전체 덮어쓰기), 리메디에이션 1순위.**
 
 ## Phase 4 — 모바일 앱
 
@@ -179,3 +185,7 @@
 | 2026-07-04 | 3.4 예산/축의금 | ⚠️ 취약 — 인라인 Fable. 계산 전부 정확(단위 일관·합계 검증), 축의금 CRUD 견고 재확인. **M1: 클라 13곳 progress 전체 덮어쓰기 잔존(6/11 크리티컬의 클라측 절반 미수리)** — /api/journey patch 경로는 준비됐으나 클라 미배선, Realtime 미구독이라 커플 동시편집 시 상대/AI 변경 롤백 가능. low 2(moneyStore 조용한 localMode 전환·저장실패 무통보), info 5. 수리 방향: updateJourney diff→patch 전환(국소적) |
 | 2026-07-04 | 3.5 일정 관리 | ✅ 견고 — 인라인 Fable. 이벤트 upsert 중복방지(sourceKey)·모멘트 멱등·체크리스트 유틸 공유(웹=AI)·AI 도구 원자 patch+삭제 확인 필수·임박 계산 정확. 신규 medium 0(덮어쓰기는 3.4 M1에 통합, __events 통배열이라 일정 표면이 특히 넓음). low 1: D-day 스탯·upcoming 필터만 UTC 파싱(KST 00~09시 표시 드리프트, 데이터 영향 0) |
 | 2026-07-04 | 3.6 업체+견적/위약금 진단 | ✅ 견고 — 인라인 Fable, 엄격 기준. **판정 금지가 회귀 테스트로 잠김**(금지 필드 11종+평가 단어 5종 명시 차단, 지역 중위가 왜곡 회귀 포함). UI·AI 단일 엔진 공유. Contract Shield 내부 score 미노출·사실 라벨만·업체명 제목 제외. 업체는 approved만+유료순위 제거 유지+PII 스트립. quote-check M1/M2 수리 실코드 확인. 신규 결함 0, info 2 |
+| 2026-07-04 | 3.7 커뮤니티 | ✅ 견고 — 최근 커밋(댓글 수정·post 격리) 실동작 코드+테스트 확인, 동기방 낙관적 메시지+realtime 조정 견고. info 2(댓글 카운터 비원자, 대댓글 realtime 일시 중복 가능) |
+| 2026-07-04 | 3.8 예약 | ✅ 견고 — 이중 계상 방지 모범적(__booking_costs 원장+멱등 이벤트+원자 patch), 핸드오프 이슈 전부 해소. low 1(vendor category 원문 키 → 비표준 카테고리 분리 계상 가능) |
+| 2026-07-04 | 3.9 관리자 | ✅ 견고 — 서버 경계(verifyAdmin 16/16) 위 배선 정상, 사전등록 현황 정확. info 2(UTC 일별 버킷, 무페이지네이션) |
+| 2026-07-04 | 3.10 정적+SEO | ✅ 견고 — 7페이지 전부 존재, robots/sitemap 비공개 격리 정상. info 3(privacy/terms 개별 메타 부재 등). **★Phase 3 종료 — 유일 ⚠️는 3.4 M1** |
