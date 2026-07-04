@@ -10,19 +10,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
+import { publicApiFetch } from "@/lib/api";
 
 // 이메일 유효성 검사
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-// 에러 한국어 변환
-function translateError(message: string): string {
-  if (message.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
-  if (message.includes("not found")) return "등록되지 않은 이메일입니다.";
-  if (message.includes("Network")) return "네트워크 연결을 확인해주세요.";
-  return "발송에 실패했어요. 다시 시도해주세요.";
 }
 
 // 체크마크 애니메이션 컴포넌트
@@ -121,12 +113,16 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://hanbang.ai/reset-password",
+      // 웹 하드닝 라우트 경유 — rate limit + enumeration 마스킹을 서버가 처리한다.
+      // 라우트는 존재 여부와 무관하게 항상 success를 반환하므로(계정 열거 방지),
+      // 클라도 항상 "발송됨" 화면을 보여준다.
+      const res = await publicApiFetch("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
       });
 
-      if (error) {
-        Alert.alert("오류", translateError(error.message));
+      if (!res.ok) {
+        Alert.alert("오류", "발송에 실패했어요. 다시 시도해주세요.");
         return;
       }
 

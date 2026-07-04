@@ -49,12 +49,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
-    if (!turnstile.ok) {
-      return NextResponse.json(
-        { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
-        { status: 400 }
-      );
+    // 모바일 앱은 Turnstile 위젯을 렌더할 수 없어 토큰을 만들 수 없다.
+    // 브라우저 봇 차단(Turnstile)만 생략하고, 이메일 폭탄의 실제 방어선인
+    // IP/이메일 rate limit·enumeration 마스킹·강한 비밀번호는 모바일에도 그대로 적용한다.
+    // (헤더는 스푸핑 가능하나, 남용은 아래 rate limit + 이메일 인증 필수로 봉인된다.
+    //  장기적으로는 모바일 앱 어테스테이션/Turnstile 도입 권장.)
+    const isMobileClient = request.headers.get("x-hanbang-client") === "mobile";
+    if (!isMobileClient) {
+      const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
+      if (!turnstile.ok) {
+        return NextResponse.json(
+          { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
+          { status: 400 }
+        );
+      }
     }
 
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {

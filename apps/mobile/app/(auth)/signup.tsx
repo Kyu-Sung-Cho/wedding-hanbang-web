@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
+import { publicApiFetch } from "@/lib/api";
 
 // Android LayoutAnimation 활성화
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -45,13 +45,16 @@ const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string;
   strong: { label: "강함", color: colors.success, width: "100%" },
 };
 
-// Supabase 에러 한국어 변환
-function translateError(message: string): string {
-  if (message.includes("already registered")) return "이미 가입된 이메일입니다. 로그인해주세요.";
-  if (message.includes("valid email")) return "올바른 이메일 형식을 입력해주세요.";
-  if (message.includes("at least 6")) return "비밀번호는 6자 이상이어야 합니다.";
-  if (message.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
-  return "회원가입에 실패했어요. 다시 시도해주세요.";
+// 서버(/api/auth/signup)와 동일한 강한 비밀번호 정책 —
+// 8자 이상 + 대/소문자 + 숫자 + 특수문자. 클라에서 먼저 막아 400 왕복을 줄인다.
+function isStrongPassword(pw: string): boolean {
+  return (
+    pw.length >= 8 &&
+    /[A-Z]/.test(pw) &&
+    /[a-z]/.test(pw) &&
+    /\d/.test(pw) &&
+    /[^A-Za-z0-9]/.test(pw)
+  );
 }
 
 export default function SignupScreen() {
@@ -93,14 +96,14 @@ export default function SignupScreen() {
     setShowAgreements((v) => !v);
   }, []);
 
-  const canSubmit = name.trim() && email.trim() && isValidEmail(email) && password.length >= 6 &&
+  const canSubmit = name.trim() && email.trim() && isValidEmail(email) && isStrongPassword(password) &&
     password === confirmPassword && agreeTerms && agreePrivacy;
 
   async function handleSignup() {
     if (!canSubmit) return;
 
-    if (password.length < 6) {
-      Alert.alert("알림", "비밀번호는 6자 이상이어야 합니다.");
+    if (!isStrongPassword(password)) {
+      Alert.alert("알림", "비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 해요.");
       return;
     }
     if (password !== confirmPassword) {
@@ -114,33 +117,30 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            name: name.trim(),
-            marketing_agreed: agreeMarketing,
-          },
-        },
+      // 웹과 동일한 하드닝 라우트 경유 — Turnstile(모바일 생략)·IP/이메일 rate limit·
+      // enumeration 마스킹·강한 비밀번호·브랜드 인증메일을 서버가 처리한다.
+      // 클라 SDK 직접 호출(우회)을 제거. 라우트는 세션을 만들지 않고 인증 메일만 보낸다.
+      const res = await publicApiFetch("/api/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+        }),
       });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
 
-      if (error) {
-        Alert.alert("알림", translateError(error.message));
+      if (!res.ok || !data.success) {
+        Alert.alert("알림", data.error ?? "회원가입에 실패했어요. 다시 시도해주세요.");
         return;
       }
 
-      if (data.session) {
-        // 바로 로그인됨 → 대시보드로
-        router.replace("/(tabs)/dashboard");
-      } else {
-        // 이메일 확인 필요
-        Alert.alert(
-          "이메일 확인",
-          "가입 확인 이메일을 보냈어요. 이메일을 확인한 후 로그인해주세요.",
-          [{ text: "확인", onPress: () => router.back() }]
-        );
-      }
+      // 항상 인증 메일 확인 안내 (enumeration 방지 — 서버가 존재 여부를 노출하지 않음)
+      Alert.alert(
+        "이메일 확인",
+        "가입 확인 이메일을 보냈어요. 이메일을 확인한 후 로그인해주세요.",
+        [{ text: "확인", onPress: () => router.back() }]
+      );
     } catch {
       Alert.alert("오류", "회원가입에 실패했어요. 다시 시도해주세요.");
     } finally {

@@ -21,9 +21,14 @@ export async function POST(request: Request) {
 
     // signup과 동일한 발송 표면 — Turnstile + rate limit으로 이메일 폭탄을 막는다.
     // enumeration 방지를 위해 차단 시에도 동일하게 success를 반환(무발송)한다.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
-    if (!turnstile.ok) {
-      return NextResponse.json({ success: true });
+    // 모바일 앱은 Turnstile 토큰을 만들 수 없어 브라우저 봇 차단만 생략한다 —
+    // rate limit·enumeration 마스킹은 모바일에도 적용된다. (signup 라우트와 동일 정책)
+    const isMobileClient = request.headers.get("x-hanbang-client") === "mobile";
+    if (!isMobileClient) {
+      const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
+      if (!turnstile.ok) {
+        return NextResponse.json({ success: true });
+      }
     }
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("forgot", request), {
       maxRequests: 5,
