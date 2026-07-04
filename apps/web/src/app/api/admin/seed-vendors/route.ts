@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { verifyAdmin, getServiceClient, seedGate } from "@/lib/utils/adminAuth";
 
 const supabaseAdmin = getServiceClient();
 
@@ -241,6 +241,8 @@ export async function POST(req: Request) {
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const gate = seedGate();
+  if (gate) return gate;
 
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };
 
@@ -322,6 +324,8 @@ export async function PUT(req: Request) {
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const gate = seedGate();
+  if (gate) return gate;
 
   // 1. 모든 approved 드레스샵 조회
   const { data: vendors, error: vendorError } = await supabaseAdmin

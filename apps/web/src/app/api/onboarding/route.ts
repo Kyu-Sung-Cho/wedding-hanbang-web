@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     // 프로필 존재 확인 (admin으로 통일)
     const { data: existingProfile } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, couple_id")
       .eq("id", user.id)
       .single();
 
@@ -125,6 +125,16 @@ export async function POST(request: Request) {
 
     let coupleId: string;
     let inviteCode: string | null = null;
+
+    // 이미 커플에 소속된 사용자의 create/join 재실행을 차단한다(join RPC와 대칭).
+    // 가드가 없으면 create가 새 커플을 만들고 기존 커플의 슬롯을 고아로 남겨
+    // 파트너가 대체 불가능해지고 wedding_journeys가 중복된다(온보딩 재실행 UX로 우발 가능).
+    if (existingProfile?.couple_id) {
+      return NextResponse.json(
+        { error: "이미 커플에 연결되어 있습니다.", coupleId: existingProfile.couple_id },
+        { status: 409 }
+      );
+    }
 
     if (coupleAction === "create") {
       // 초대 코드 생성 (DB 함수) — admin으로 호출

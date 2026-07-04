@@ -1,11 +1,28 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
 export function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+}
+
+// 시드 라우트 환경 게이트 — 시드는 가짜 업체/상품/타임슬롯을 대량 생성하므로
+// verifyAdmin만으로는 부족하다(세션 탈취 1회·운영자 실수 재호출 1번 → 프로덕션 오염).
+// 프로덕션에서는 ALLOW_SEED=true가 명시된 경우에만 허용한다.
+// 차단 시 403 응답을 반환, 통과 시 null. (호출부: `const gate = seedGate(); if (gate) return gate;`)
+export function seedGate(): NextResponse | null {
+  const isProd =
+    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+  if (isProd && process.env.ALLOW_SEED !== "true") {
+    return NextResponse.json(
+      { error: "시드는 프로덕션에서 비활성화되어 있습니다." },
+      { status: 403 }
+    );
+  }
+  return null;
 }
 
 // 관리자 인증: Supabase Auth + is_admin 플래그만 허용
