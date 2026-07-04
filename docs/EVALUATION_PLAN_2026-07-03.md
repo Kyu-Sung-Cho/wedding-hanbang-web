@@ -137,10 +137,14 @@
 
 ## Phase 4 — 모바일 앱
 
-- [ ] **4.1 모바일 실행 가능 여부** — Expo 시작, 번들 에러 유무.
-- [ ] **4.2 인증 브릿지** — 웹 콜백 브릿지 패턴 (카카오/구글/Apple) 코드 점검.
-- [ ] **4.3 탭별 기능** — (tabs), bookings, budget, community, etiquette, market-prices, schedule, settings, vendors 중 실제 구현 vs 껍데기 구분.
-- [ ] **4.4 웹뷰 의존도** — webview.tsx가 어디에 쓰이는지, 네이티브 구현 vs 웹뷰 래핑 비율.
+- [x] **4.1 모바일 실행 가능 여부** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고.** tsc strict 0(1.4)+eslint 0에 더해 `npx expo export --platform android` **exit 0 — Metro 번들 성공(Hermes 8.64MB), 번들 에러 0**. 모듈 해석·임포트 전부 유효 확인. (실기기/에뮬레이터 스모크는 이 머신 환경 부재로 미수행 — 정적 최강 프록시인 export로 대체.)
+- [x] **4.2 인증 브릿지** — 완료 (2026-07-04, 인라인 Fable). **등급: ⚠️ 취약 (3.1에서 이관된 medium 1 확정 + 동류 1 신규).**
+  **M1(medium, 3.1 이관 확정+확장):** `app/(auth)/signup.tsx:117` `supabase.auth.signUp()` 직접 호출 — 웹 `/api/auth/signup`의 Turnstile·IP/이메일 rate limit·enumeration 마스킹 전부 우회. **신규: `forgot-password.tsx:124`도 `resetPasswordForEmail` 직접 호출**(동일 우회 — 단 Supabase 내장 이메일 rate limit이 일부 완화, enumeration은 Supabase가 자체 무해화). 수정 방향: 모바일 가입/비번찾기를 웹 하드닝 라우트 경유로 전환(비로그인이라 Bearer 불가 → 라우트가 anon 허용+Turnstile 모바일 site key 배선 필요).
+  **견고:** OAuth 브릿지 = Supabase 공식 Expo 패턴 — 웹 `auth/mobile-callback`이 해시 fragment 토큰(서버 미전송)을 `hanbang://` 딥링크로 전달, 앱이 setSession. kakao scope 필터(account_email 제거) 이중 방어. `apiFetch` = Bearer 토큰+내부 경로만 허용(`//` 차단)+401 시 강제 재로그인 — 인증 후 호출은 전부 웹 하드닝 API 경유. **I1(info):** 딥링크 커스텀 스킴 기반 토큰 전달은 플랫폼 고유 표면(스킴 선점 앱) — Android App Links/iOS Universal Links 검증 도입으로 완화 가능(출시 전 권장, 현 단계 비차단).
+- [x] **4.3 탭별 기능** — 완료 (2026-07-04, 인라인 Fable). **등급: ⚠️ 취약 (실구현 충실, 시세 데이터 드리프트 medium 1).**
+  **실구현 vs 껍데기:** 껍데기 0 — 전 화면 실구현(총 17k 줄 네이티브). dashboard(1358)·schedule(1352)·bookings(1287)·community(1124)·settings(1123)·vendors(1018)·cohort(1002)·onboarding(965, 웹 /api/onboarding 경유)·budget(653)·chat(272, 웹 chat API+realtime) 전부 웹 API(Bearer) 또는 RLS 스코프 supabase 직접 조회로 배선. **모바일 budget 저장은 `progress_patch` 원자 경로 사용 — 웹(3.4 M1)보다 우수, 웹 수리의 실증 사례.**
+  **M2(medium, 신규):** `market-prices` 화면이 하드코딩 가격표+출처 라벨 "2024 기재부 기준" — 웹의 참가격(한국소비자원) 자동생성 데이터와 별개·불일치·격월 갱신 파이프라인 밖. "출처 있는 평균가만 노출" 제품 원칙(6/12)과 어긋나는 미검증 범위 표기. 수정 방향: 웹 데이터 소스 공유(packages/shared 결정과 병합) 또는 웹뷰 전환(예절과 동일 패턴), 최소한 출처 라벨 정정.
+- [x] **4.4 웹뷰 의존도** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고.** 웹뷰 사용 1곳뿐(etiquette → `/webview?url=https://hanbang.ai/etiquette` 리다이렉트) — 나머지 전부 네이티브. webview.tsx는 https+hanbang.ai(서브도메인 포함) 허용목록·자격증명 제거·2048자 캡·외부 열기는 https/mailto/tel만 — 오픈 웹뷰 표면 없음.
 
 ## Phase 5 — 데이터·운영·공유 코드
 
@@ -189,3 +193,4 @@
 | 2026-07-04 | 3.8 예약 | ✅ 견고 — 이중 계상 방지 모범적(__booking_costs 원장+멱등 이벤트+원자 patch), 핸드오프 이슈 전부 해소. low 1(vendor category 원문 키 → 비표준 카테고리 분리 계상 가능) |
 | 2026-07-04 | 3.9 관리자 | ✅ 견고 — 서버 경계(verifyAdmin 16/16) 위 배선 정상, 사전등록 현황 정확. info 2(UTC 일별 버킷, 무페이지네이션) |
 | 2026-07-04 | 3.10 정적+SEO | ✅ 견고 — 7페이지 전부 존재, robots/sitemap 비공개 격리 정상. info 3(privacy/terms 개별 메타 부재 등). **★Phase 3 종료 — 유일 ⚠️는 3.4 M1** |
+| 2026-07-04 | 4.1~4.4 모바일 전체 | 4.1✅(expo export android 번들 성공, 에러 0) 4.2⚠️(signup+forgot 직접 SDK — 웹 하드닝 우회 medium, OAuth 브릿지·apiFetch는 견고) 4.3⚠️(껍데기 0·전 화면 실구현, 모바일 budget은 원자 patch로 웹보다 우수. **M2: 시세 화면 하드코딩+출처 라벨 부정확** — 참가격 데이터와 불일치) 4.4✅(웹뷰 1곳뿐, https+hanbang.ai 허용목록). **★Phase 4 종료** |
