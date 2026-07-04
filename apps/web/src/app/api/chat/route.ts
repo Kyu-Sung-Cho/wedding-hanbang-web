@@ -15,7 +15,7 @@ import { maybeExtractDecision } from "@/lib/ai/extract-decision";
 import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
-import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
+import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { NextResponse } from "next/server";
 import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -420,8 +420,9 @@ export async function POST(request: Request) {
   }
 
   // 비용 가드레일 — 커플 누적/전역 일일 상한 (유통 테스트 전 지갑 보호).
+  // 원자적 체크+예약이라 동시 요청도 상한을 초과할 수 없다 (감사 2.3 H1).
   // 면제는 DB로 검증된 is_admin만 — body의 isDemo는 클라이언트 조작 가능이라 신뢰 금지.
-  const costGuard = await checkAmoraCostGuard(getServiceClient(), {
+  const costGuard = await reserveAmoraTurn(getServiceClient(), {
     coupleId,
     isAdmin: userProfile?.is_admin === true,
   });

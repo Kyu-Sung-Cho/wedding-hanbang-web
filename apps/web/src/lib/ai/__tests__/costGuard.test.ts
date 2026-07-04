@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { checkAmoraCostGuard } from "../costGuard";
+import { checkAmoraCostGuard, reserveAmoraTurn } from "../costGuard";
 
 // chat_messages 카운트를 흉내내는 가짜 Supabase 클라이언트.
 // .from().select(...,{head,count}).eq().eq()/.gte() 체인이 최종적으로
@@ -68,5 +68,100 @@ describe("checkAmoraCostGuard", () => {
   it("카운트 에러 시 fail-open (통과)", async () => {
     const r = await checkAmoraCostGuard(makeAdmin({ error: true }), BASE);
     expect(r.allowed).toBe(true);
+  });
+});
+
+// 원자 예약 경로용 가짜 클라이언트 — rpc()와, 폴백 검증용 from() 체인을 함께 제공.
+// rpc: "error"면 { data: null, error } 반환, "throw"면 예외, 객체면 정상 응답 row.
+function makeReserveAdmin(opts: {
+  rpc: { allowed: boolean; reason?: string | null } | "error" | "throw";
+  counts?: { global?: number; couple?: number; error?: boolean };
+}) {
+  const base = makeAdmin(opts.counts ?? {}) as { from: () => unknown };
+  const rpcSpy = vi.fn(async () => {
+    if (opts.rpc === "throw") throw new Error("rpc boom");
+    if (opts.rpc === "error") return { data: null, error: { message: "function not found" } };
+    // Supabase는 RETURNS TABLE을 행 배열로 돌려준다
+    return { data: [opts.rpc], error: null };
+  });
+  return { admin: { from: base.from, rpc: rpcSpy } as never, rpcSpy };
+}
+
+describe("reserveAmoraTurn (원자 예약)", () => {
+  const ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...ENV };
+    delete process.env.AMORA_COST_GUARD_ENABLED;
+  });
+  afterEach(() => {
+    process.env = ENV;
+  });
+
+  it("관리자는 면제 — RPC를 호출하지 않는다 (턴 미소모)", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await reserveAmoraTurn(admin, { ...BASE, isAdmin: true });
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("RPC allowed=true면 통과", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 100,
+      p_global_cap: 300,
+    });
+  });
+
+  it("전역 상한 도달 시 차단 + 사용자 메시지", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "global_daily" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+    expect(r.message).toBeTruthy();
+  });
+
+  it("커플 상한 도달 시 차단", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("couple_quota");
+  });
+
+  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 상한 초과면 차단", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 100 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("couple_quota");
+  });
+
+  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 정상 범위면 통과", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 5 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("RPC 예외 시에도 폴백", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "throw", counts: { global: 10, couple: 5 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("알 수 없는 reason은 fail-open (가드 오류가 사용을 막지 않도록)", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "invalid_args" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("가드 비활성 시 통과 + RPC 미호출", async () => {
+    process.env.AMORA_COST_GUARD_ENABLED = "false";
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await mod.reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).not.toHaveBeenCalled();
   });
 });

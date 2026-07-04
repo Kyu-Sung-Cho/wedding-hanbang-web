@@ -4,10 +4,18 @@
 //  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
 //  2) 전역 일일 상한 — 정상 유저가 많아도 하루 총비용에 천장(서킷브레이커).
 //
+// 두 함수:
+//  - reserveAmoraTurn: 원자적 체크+예약 (reserve_amora_turn RPC, FOR UPDATE 잠금).
+//    실제 LLM 호출 직전에 사용 — 동시 요청도 상한을 못 넘는다 (감사 2.3 H1 해소).
+//  - checkAmoraCostGuard: 읽기전용 체크 (레이스 가능). LLM 호출이 일어날지 불확실한
+//    앞단 게이트(예: check-couple-conflict — 파트너 메시지마다 호출되나 대부분 LLM 0회)와
+//    RPC 미배포 시 폴백용. 여기서 예약하면 LLM 없는 호출이 쿼터를 태우므로 예약 금지.
+//
 // 카운트 기준은 ai_interactions_log의 chat_turn — 모든 LLM 턴이 isDemo·저장 여부와
 // 무관하게 무조건 기록되는 비용 장부라 클라이언트가 어떤 값을 조작해도 속일 수 없다.
 // (chat_messages 기준은 두 번 기각: ①user 메시지 카운트는 파트너 메시지(비용 0)까지
 // 깎아 부당 차단 ②AI 메시지 카운트는 isDemo 위조 시 저장 스킵으로 카운트 우회 가능)
+// 카운터 테이블(amora_turn_counters)은 첫 접근 시 이 장부에서 자동 시드된다.
 // DB 카운트라 서버리스에서도 정확. service_role로 RLS 우회.
 //
 // ⚠️ 면제는 is_admin(DB 검증)만. 클라이언트가 보내는 값(body의 isDemo 등)으로
@@ -32,6 +40,56 @@ export interface CostGuardResult {
 
 const ALLOW: CostGuardResult = { allowed: true };
 
+const DENY_GLOBAL: CostGuardResult = {
+  allowed: false,
+  reason: "global_daily",
+  message:
+    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
+};
+
+const DENY_COUPLE: CostGuardResult = {
+  allowed: false,
+  reason: "couple_quota",
+  message:
+    "베타 기간 무료 상담을 모두 사용하셨어요. 더 많은 상담은 곧 열릴 예정이에요 — 그때 가장 먼저 알려드릴게요.",
+};
+
+// LLM 턴 1회를 원자적으로 "체크+예약" (감사 2.3 H1 — TOCTOU 레이스 해소).
+// reserve_amora_turn RPC가 카운터 행을 FOR UPDATE로 잠그고 같은 트랜잭션에서
+// 증가시키므로, 동시 요청이 상한을 초과할 수 없다. 실제 LLM 호출 직전에만
+// 부를 것 — 통과하면 턴 1회가 소모된 것으로 계산된다.
+// RPC 미배포/실패 시 기존 읽기전용 가드로 폴백 (무중단, patchJourneyProgress 패턴).
+export async function reserveAmoraTurn(
+  admin: SupabaseClient,
+  params: { coupleId: string; isAdmin: boolean }
+): Promise<CostGuardResult> {
+  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
+
+  try {
+    const { data, error } = await admin.rpc("reserve_amora_turn", {
+      p_couple_id: params.coupleId,
+      p_couple_cap: FREE_PER_COUPLE,
+      p_global_cap: GLOBAL_DAILY_CAP,
+    });
+    if (error) {
+      console.error("[costGuard] 원자 예약 실패 (읽기전용 가드 폴백):", error.message);
+      return checkAmoraCostGuard(admin, params);
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.allowed === true) return ALLOW;
+    if (row?.reason === "global_daily") return DENY_GLOBAL;
+    if (row?.reason === "couple_quota") return DENY_COUPLE;
+
+    // 알 수 없는 응답 형태 — 가드 오류가 정상 사용을 막으면 안 됨 (fail-open)
+    console.error("[costGuard] 예약 RPC 응답 형태 불명 (통과 처리):", JSON.stringify(row ?? null));
+    return ALLOW;
+  } catch (err) {
+    console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
+    return checkAmoraCostGuard(admin, params);
+  }
+}
+
 // 커플 단위로 아모라 사용 가능 여부 판정. LLM 턴 로그 수로 비용을 추정.
 export async function checkAmoraCostGuard(
   admin: SupabaseClient,
@@ -53,12 +111,7 @@ export async function checkAmoraCostGuard(
     return ALLOW;
   }
   if ((globalToday ?? 0) >= GLOBAL_DAILY_CAP) {
-    return {
-      allowed: false,
-      reason: "global_daily",
-      message:
-        "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
-    };
+    return DENY_GLOBAL;
   }
 
   // 2) 커플 누적 무료 상한 — 이 커플이 발생시킨 LLM 턴 수
@@ -73,12 +126,7 @@ export async function checkAmoraCostGuard(
     return ALLOW;
   }
   if ((coupleTotal ?? 0) >= FREE_PER_COUPLE) {
-    return {
-      allowed: false,
-      reason: "couple_quota",
-      message:
-        "베타 기간 무료 상담을 모두 사용하셨어요. 더 많은 상담은 곧 열릴 예정이에요 — 그때 가장 먼저 알려드릴게요.",
-    };
+    return DENY_COUPLE;
   }
 
   return ALLOW;

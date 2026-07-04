@@ -26,7 +26,7 @@ import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-dete
 import { extractMediation } from "@/lib/ai/mediation";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { checkAmoraCostGuard } from "@/lib/ai/costGuard";
+import { checkAmoraCostGuard, reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const MEDIATION_MODEL = "claude-sonnet-4-6";
@@ -79,6 +79,8 @@ export async function POST(req: NextRequest) {
 
     // 비용 가드 — mediation LLM 호출도 메인 채팅과 같은 장부(chat_turn)를 공유한다.
     // 상한 도달 시 detector 실행 전에 차단(가드 밖 LLM 호출 사각지대 제거).
+    // 여기는 읽기전용 체크만 — 이 라우트는 파트너 메시지마다 fire-and-forget으로
+    // 호출되고 대부분 LLM 0회로 끝나므로, 예약(턴 소모)은 mediation 직전에만 한다.
     const guard = await checkAmoraCostGuard(admin, {
       coupleId,
       isAdmin: profile?.is_admin === true,
@@ -273,6 +275,16 @@ export async function POST(req: NextRequest) {
     });
 
     // 6-f. Claude 호출 (non-streaming)
+    // 실제 LLM 호출 직전 원자 예약 — 앞단 읽기전용 체크와 달리 여기서 턴 1회를
+    // 소모 확정한다 (동시 요청 상한 초과 방지, 감사 2.3 H1).
+    const reserved = await reserveAmoraTurn(admin, {
+      coupleId,
+      isAdmin: profile?.is_admin === true,
+    });
+    if (!reserved.allowed) {
+      return NextResponse.json({ triggered: false, reason: "cost_guard" });
+    }
+
     const completion = await createAnthropicMessageWithAudit({
       params: {
         model: MEDIATION_MODEL,
