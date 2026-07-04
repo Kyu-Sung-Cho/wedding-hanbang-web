@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 
 function getAdminSupabase() {
@@ -21,8 +21,7 @@ export async function POST(request: Request) {
 
     // signup과 동일한 발송 표면 — Turnstile + rate limit으로 이메일 폭탄을 막는다.
     // enumeration 방지를 위해 차단 시에도 동일하게 success를 반환(무발송)한다.
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-    const turnstile = await verifyTurnstile(turnstileToken, clientIp);
+    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
     if (!turnstile.ok) {
       return NextResponse.json({ success: true });
     }

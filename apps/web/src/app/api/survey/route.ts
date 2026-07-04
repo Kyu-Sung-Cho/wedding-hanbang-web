@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTurnstile } from "@/lib/turnstile";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
   cleanOptionalText,
@@ -53,10 +53,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     const turnstile = await verifyTurnstile(
       typeof body.turnstileToken === "string" ? body.turnstileToken : null,
-      clientIp
+      getClientIp(request)
     );
     if (!turnstile.ok) {
       return NextResponse.json(

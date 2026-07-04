@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 
@@ -49,9 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const clientIp = forwardedFor?.split(",")[0]?.trim();
-    const turnstile = await verifyTurnstile(turnstileToken, clientIp);
+    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
     if (!turnstile.ok) {
       return NextResponse.json(
         { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },

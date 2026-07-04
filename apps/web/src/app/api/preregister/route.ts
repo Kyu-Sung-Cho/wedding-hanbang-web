@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalBoolean,
   cleanOptionalEnum,
@@ -76,10 +76,9 @@ export async function POST(request: NextRequest) {
     });
     if (emailLimited) return emailLimited;
 
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     const turnstile = await verifyTurnstile(
       typeof body.turnstileToken === "string" ? body.turnstileToken : null,
-      clientIp
+      getClientIp(request)
     );
     if (!turnstile.ok) {
       return NextResponse.json(

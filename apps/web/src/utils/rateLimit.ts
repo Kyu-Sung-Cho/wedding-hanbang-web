@@ -107,6 +107,22 @@ export async function checkRateLimitPersistent(
   }
 }
 
+/**
+ * 클라이언트 IP 추출 — 스푸핑 저항 (감사 2.2 M2).
+ * Vercel이 실제 접속 IP로 설정하는 x-real-ip를 우선 신뢰.
+ * XFF 폴백은 "최우측" 토큰만 사용 — 최좌측은 클라이언트가 헤더에 임의 값을
+ * 넣어 조작 가능하지만(익명 rate limit 우회 벡터), 최우측은 마지막 신뢰
+ * 프록시가 붙인 값이다. Turnstile remoteip 등 IP가 필요한 곳도 이걸 쓴다.
+ */
+export function getClientIp(req: Request): string | null {
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (!forwarded) return null;
+  const tokens = forwarded.split(",").map((t) => t.trim()).filter(Boolean);
+  return tokens.length > 0 ? tokens[tokens.length - 1] : null;
+}
+
 /** IP 또는 유저 ID 기반 키 생성 */
 export function rateLimitKey(
   prefix: string,
@@ -114,7 +130,5 @@ export function rateLimitKey(
   userId?: string,
 ): string {
   if (userId) return `${prefix}:${userId}`;
-  const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() ?? "unknown";
-  return `${prefix}:${ip}`;
+  return `${prefix}:${getClientIp(req) ?? "unknown"}`;
 }

@@ -123,6 +123,24 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       const admin = createAdminClient();
+
+      // 감사 2.2 M1 방어 — vendor_leads 반영은 "이 유저의 첫 언급"일 때만 (멱등).
+      // 같은 (vendorName, category)를 반복 제출해 카운터를 부풀리는 조작을 차단한다.
+      // 판정은 quote_checks 저장 이전에 해야 방금 저장한 행이 끼지 않는다.
+      let isFirstMention = false;
+      if (input.vendorName) {
+        const { data: priorMention, error: priorErr } = await admin
+          .from("amora_quote_checks")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("category", input.category)
+          .eq("vendor_name", input.vendorName)
+          .limit(1)
+          .maybeSingle();
+        // 판정 실패 시 반영 안 함 (오염 방지가 우선 — fail-closed)
+        isFirstMention = !priorErr && !priorMention;
+      }
+
       const { data: saved, error: saveError } = await admin
         .from("amora_quote_checks")
         .insert({
@@ -151,12 +169,18 @@ export async function POST(req: NextRequest) {
         savedId = saved?.id ?? null;
       }
 
-      if (input.vendorName) {
+      // 감사 2.2 M1 방어 — 사용자 언급은 저신뢰 신호로만 취급:
+      //  ① priority_score 가중 0 (언급만으로 내부 리드 우선순위를 못 올림)
+      //  ② proof_count 불변 (이 경로에는 실제 증빙이 없음 — 필드 의미 보존)
+      //  ③ 기존 source를 'user_mention'으로 덮어쓰지 않음
+      //  ④ 유저당 같은 (name, category) 1회만 반영 (위 isFirstMention)
+      // 운영 반영은 관리자 검토(status='raw' 큐)에서 결정한다.
+      if (input.vendorName && isFirstMention) {
         const leadCategory = LEAD_CATEGORY_BY_QUOTE_CATEGORY[input.category];
         const sourcePlaceId = buildQuoteLeadPlaceId(input.vendorName, leadCategory, input.region);
         const { data: existingLead, error: leadReadError } = await admin
           .from("vendor_leads")
-          .select("id, mention_count, proof_count, priority_score, source_place_id")
+          .select("id, mention_count, source_place_id")
           .eq("name", input.vendorName)
           .eq("category", leadCategory)
           .maybeSingle();
@@ -168,9 +192,6 @@ export async function POST(req: NextRequest) {
             .from("vendor_leads")
             .update({
               mention_count: Number(existingLead.mention_count ?? 0) + 1,
-              proof_count: Number(existingLead.proof_count ?? 0) + 1,
-              priority_score: Number(existingLead.priority_score ?? 0) + 4,
-              source: "user_mention",
               source_place_id: existingLead.source_place_id ?? sourcePlaceId,
             })
             .eq("id", existingLead.id);
@@ -188,15 +209,15 @@ export async function POST(req: NextRequest) {
               source_place_id: sourcePlaceId,
               status: "raw",
               mention_count: 1,
-              proof_count: 1,
-              priority_score: 4,
+              proof_count: 0,
+              priority_score: 0,
               owner_notes: "Created from logged-in Amora quote check.",
             });
           if (leadInsertError) {
             if (leadInsertError.code === "23505") {
               const { data: duplicateLead } = await admin
                 .from("vendor_leads")
-                .select("id, mention_count, proof_count, priority_score")
+                .select("id, mention_count")
                 .eq("source", "user_mention")
                 .eq("source_place_id", sourcePlaceId)
                 .maybeSingle();
@@ -206,8 +227,6 @@ export async function POST(req: NextRequest) {
                   .from("vendor_leads")
                   .update({
                     mention_count: Number(duplicateLead.mention_count ?? 0) + 1,
-                    proof_count: Number(duplicateLead.proof_count ?? 0) + 1,
-                    priority_score: Number(duplicateLead.priority_score ?? 0) + 4,
                   })
                   .eq("id", duplicateLead.id);
                 if (duplicateUpdateError) {

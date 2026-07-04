@@ -98,11 +98,28 @@ describe("rateLimitKey", () => {
     expect(rateLimitKey("chat", req)).toBe("chat:1.2.3.4");
   });
 
-  it("uses first IP from comma-separated x-forwarded-for", () => {
+  it("uses LAST IP from comma-separated x-forwarded-for (최좌측은 스푸핑 가능 — 감사 2.2 M2)", () => {
     const req = new Request("http://localhost", {
       headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
     });
-    expect(rateLimitKey("chat", req)).toBe("chat:1.2.3.4");
+    expect(rateLimitKey("chat", req)).toBe("chat:5.6.7.8");
+  });
+
+  it("prefers x-real-ip over x-forwarded-for", () => {
+    const req = new Request("http://localhost", {
+      headers: { "x-real-ip": "7.7.7.7", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+    });
+    expect(rateLimitKey("chat", req)).toBe("chat:7.7.7.7");
+  });
+
+  it("spoofed leftmost XFF cannot create fresh buckets", () => {
+    const spoofed = new Request("http://localhost", {
+      headers: { "x-forwarded-for": "6.6.6.6, 5.6.7.8" },
+    });
+    const spoofed2 = new Request("http://localhost", {
+      headers: { "x-forwarded-for": "9.9.9.9, 5.6.7.8" },
+    });
+    expect(rateLimitKey("chat", spoofed)).toBe(rateLimitKey("chat", spoofed2));
   });
 
   it("falls back to 'unknown' when no IP header", () => {
