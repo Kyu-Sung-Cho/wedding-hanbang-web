@@ -73,10 +73,23 @@
   저심각도 21건(에러 원문 노출·rate limit 부재 등). 안전 확인 38건.
   **감사 방법론 교훈**: 워크플로가 시드 4종 중 1개만 CONFIRMED·3개 REFUTED로 냈으나 직접 확인 결과 4개 동일 결함 공유 — 반박 판정이 "표현 오류"를 걸러낸 것이지 결함 부재가 아니었음. 확정 건 직접 재검증이 필수임을 재확인.
   상세: `docs/SECURITY_AUDIT_2.1_ADMIN_AUTH_2026-07-03.md`
-- [ ] **2.2 API 인증 감사 B: 돈 계열** — `api/money`, `api/bookings`, `api/quote`(견적/위약금) 계열. service role 남용, 남의 데이터 접근 가능 여부.
-- [ ] **2.3 API 인증 감사 C: AI 계열** — `api/chat`, `api/amora`. 무인증 호출로 Claude API 비용 태울 수 있는지 (비용 폭탄 리스크).
-- [ ] **2.4 API 인증 감사 D: 나머지** — `api/community`, `api/vendors`, `api/preregister`, `api/events`, `api/favorites`, `api/messages`, `api/journey`, `api/couple`, `api/survey`, `api/demo`.
-- [ ] **2.5 Supabase RLS 정책 점검** — `supabase/` 폴더 + `supabase-migration.sql`의 RLS 정책이 실제 테이블 접근 패턴과 맞는지.
+- [x] **2.2 API 인증 감사 B: 돈 계열** — 완료 (2026-07-03). **등급: ⚠️ 취약 (돈 코어는 견고, 취약점은 견적 진단 부수 표면).**
+  money/bookings 코어(축의금 CRUD·예약 생성/결과)는 IDOR·service-role 오남용에서 깨끗 — couple_id 서버 파생, `assertMoneyOwner`/outcome 이중 스코프, `create_booking_atomic`은 authenticated EXECUTE 회수(service_role 전용), RLS 백스톱. IDOR 각도 발견 0.
+  확정 medium 2건(둘 다 `amora/quote-check`, 커플/금전 데이터 아님·감사자 직접 재검증): **M1** vendor_leads 데이터 오염(인증 사용자가 임의 vendorName으로 내부 리드 priority/mention/proof 무검증 조작, admin 클라 RLS 우회 — 내부 운영 테이블 국한, PII·공개 노출 없음). **M2** rate limit IP 키가 X-Forwarded-For 최좌측 신뢰 → 익명 rate limit 우회 + rate_limit_buckets GC 부재로 테이블 블로트(공용 유틸이라 signup 등에도 공유, 단 quote-check 익명 경로는 LLM 비용 0). 불확실 low 2건(인메모리 rate limit 다중 인스턴스 배수·다계정 증폭). 반박 5건.
+  죽은 코드: `bookings/mine`의 contracts/payments 조인(결제층 삭제로 0행, 유일 참조처).
+  상세: `docs/SECURITY_AUDIT_2.2_MONEY_2026-07-03.md`
+- [x] **2.3 API 인증 감사 C: AI 계열** — 완료 (2026-07-03). **등급: ⚠️ 취약 (무인증 비용폭탄 경로 없음, costGuard는 best-effort).**
+  **무인증/무권한 LLM 호출 경로 0건** — 2.3의 핵심 공포는 방어됨. 모든 Anthropic 호출은 두 경로(감사 래퍼/메인 스트리밍)로만 나가고 둘 다 로깅, 인증+costGuard(또는 관리자 전용) 통과 필수. is_admin 면제는 DB 조회라 위조 불가. proactive는 LLM 미호출(순수 로컬).
+  확정(감사자 직접 재검증): **H1(high, 코드레벨)** costGuard TOCTOU 레이스 — 가드가 chat_turn 카운트를 SELECT로 읽고 현재 턴은 fire-and-forget으로 後기록 → 동시요청이 커플100·전역300 상한 초과. 전역캡은 per-user rate limit이 못 지킴. **단 Anthropic 콘솔 월 $30 하드캡이 실 지갑손실 봉인 → 출시 차단 아님, 베타상한 키우기 전 최우선 원자화.** **L1(low)** 첨부 fetch DNS rebinding TOCTOU(인증·blind·https강제로 저수율). **I1(info)** ai-comment 비용이 costGuard 장부 밖(관리자 전용이라 무해). 반박 7.
+  compounding: 가드가 "턴"을 세나 1턴이 tool round 6 + Haiku sub 4 = 실 API 최대 ~10배 → 상한이 이중으로 느슨(레이스+그래뉼래러티).
+  상세: `docs/SECURITY_AUDIT_2.3_AI_2026-07-03.md`
+- [x] **2.4 API 인증 감사 D: 나머지** — 완료 (2026-07-03, 인라인 Fable). **등급: ✅ 견고 (2.x 첫 견고).**
+  신규 확정 결함 0. "나머지" 표면은 확립된 안전 패턴을 일관되게 따름: ①공개 쓰기(preregister·survey·demo)는 Turnstile+rate limit+검증, demo는 서명 쿠키만 발급(데이터 미노출) ②인증 커플-데이터(journey·couple·events·favorites)는 couple_id를 body 아닌 profiles에서 서버 파생·스코프 ③messages는 senderType/customerId 서버 결정(클라 무시) ④vendors는 공개 읽기+user 스코프 좋아요 ⑤community 쓰기(comments/posts edit·delete)는 author_id 소유권 403, cohort/투표/미디어는 round-2 하드닝. 교차 이슈는 기존 M2(XFF IP rate limit)뿐 — 공개 표면은 Turnstile이 실 게이트라 영향 제한. 상세: `docs/SECURITY_AUDIT_2.4_REST_2026-07-03.md`
+- [x] **2.5 Supabase RLS 정책 점검** — 완료 (2026-07-03, 인라인 Fable). **등급: ✅ 견고 (핵심 민감 테이블 모범적).**
+  70개 테이블 RLS enable. 민감 데이터 모범적: profiles/couples/journeys는 anon+authenticated 권한 REVOKE + 컬럼 가드 트리거(couple_id/role/is_admin/bride/groom 직접변경 잠금, 멤버십은 join_couple RPC만) + SECURITY DEFINER 헬퍼(재귀 회피). chat_messages/decision_nodes는 커플+visibility 격리(파트너가 상대 개인채팅 못 봄). ai_interactions_log는 user_id 소유자만 SELECT·service만 쓰기. RLS enable+정책없음(deny all) 사례 0.
+  발견: **L1(low)** 삭제된 청첩장/방명록 테이블이 과permissive RLS(USING/CHECK true) 잔존 — 라이브 위험 아니나 정리(DROP) 권고, 죽은 코드(0.2)와 병합. **I1(info)** community_profiles/achievements 공개 SELECT는 by-design. 신규 라이브 결함 0. 정적 마이그레이션 리뷰(CLI 링크 없어 라이브 프로빙 미수행). 상세: `docs/SECURITY_AUDIT_2.5_RLS_2026-07-03.md`
+
+**★ Phase 2(보안) 종료**: 2.1⚠️→2.2⚠️→2.3⚠️→2.4✅→2.5✅. 크리티컬 0. 리메디에이션 우선순위 = ~~H1 costGuard 원자화~~(코드 완료 2026-07-04, 마이그레이션 실행 대기) > M1/M2 quote-check·XFF > 죽은 테이블/코드 정리.
 
 ## Phase 3 — 웹 기능 하나씩 (기능당 1작업)
 
@@ -126,3 +139,9 @@
 | 2026-07-03 | 1.5 의존성·시크릿 감사 | ⚠️ 경미 — 시크릿/히스토리 완전 클린, critical 0. 잔여: undici override, Sentry 업데이트, ADMIN_PASSWORD 회전(4월 권고 미이행), DECART 키 revoke |
 | 2026-07-03 | 1.5 후속: 패치 적용 | ✅ audit 8→1건 — undici 7.28.0 override 추가, Sentry 10.48→10.63(루트+web 중복 선언 둘 다). 잔존 1건은 Sentry 경유 otel(상류 릴리스 대기, 수용 리스크로 기록). ⚠️ 교훈: 전역 pnpm 9.15가 lockfile을 오염시킴(override 소실) — **이 레포는 반드시 `npx pnpm@11.7.0`로 실행** (packageManager 필드 기준) |
 | 2026-07-03 | 2.1 API 인증 감사 A | ⚠️ 취약 — critical/high 0(인증 견고). medium 3(시드 환경게이트/멱등성, seed PUT 무차별, onboarding 고아화). 저심각 21. 상세 리포트 별도 |
+| 2026-07-03 | 2.2 API 인증 감사 B(돈) | ⚠️ 취약 — 돈 코어(money/bookings) IDOR·service-role 깨끗. 확정 medium 2(vendor_leads 오염, XFF rate limit 우회 — 둘 다 quote-check, 커플/금전 데이터 아님). bookings/mine에 죽은 contracts/payments 조인. 상세 리포트 별도 |
+| 2026-07-03 | 2.3 API 인증 감사 C(AI) | ⚠️ 취약 — 무인증 비용폭탄 경로 0(모든 LLM 호출 인증+costGuard, is_admin DB검증). 확정 high 1(costGuard TOCTOU 레이스 — 상한 초과, 단 콘솔 $30캡이 봉인)·low 1(첨부 DNS rebinding)·info 1(ai-comment 장부밖, 관리자전용). 상세 리포트 별도 |
+| 2026-07-03 | 2.4 API 인증 감사 D(나머지) | ✅ 견고 — 인라인 Fable. 신규 결함 0. 공개쓰기 Turnstile+검증, 인증 라우트 couple_id 서버파생, messages 서버결정, vendors 공개읽기, community 소유권 403. 교차이슈는 기존 M2뿐. 상세 리포트 별도 |
+| 2026-07-03 | 2.5 Supabase RLS 점검 | ✅ 견고 — 인라인 Fable. 민감 테이블 모범적(권한 REVOKE+컬럼가드 트리거+visibility 격리+ai_log 소유자만). L1 죽은 청첩장/방명록 테이블 과permissive(정리 권고)·I1 community 공개읽기 by-design. 신규 라이브 결함 0. **Phase 2 종료.** 상세 리포트 별도 |
+| 2026-07-04 | 전체 코드 품질 훑기 | 인라인 Fable. 위생 상위권(`as any`·TODO 0). 신규 4건: ①packages/shared 유령(import 0, 모바일은 웹 상수 복붙 중) ②etiquetteData 103KB가 채팅 클라 번들에 포함 ③mockVendors 배열 2/3 죽은 데이터 ④engines.pnpm>=9가 lockfile 오염 사고 경로 방치. H1/M2/죽은코드 전부 미수리 재확인 |
+| 2026-07-04 | H1 후속: costGuard 원자화 + pnpm 가드 | `reserve_amora_turn` RPC 신설(카운터 테이블 FOR UPDATE 원자 체크+예약, 첫 접근 시 ai_interactions_log에서 시드 — 기존 사용량 유지, 거부는 미소모, 잠금순서 global→couple 고정). `reserveAmoraTurn()`: chat 라우트는 가드 지점에서 예약, conflict 라우트는 파트너 메시지마다 호출되므로 앞단은 읽기전용 유지·mediation LLM 직전만 예약. RPC 미배포 시 기존 읽기전용 폴백(무중단). 테스트 +9(278 통과)·tsc 0·build 그린. **⚠️ 마이그레이션 `20260704120000` SQL Editor 실행 필요(사용자)** — 실행 전까지 기존 레이스 동작 유지. ② engines.pnpm `>=11.7.0` + `.npmrc engine-strict=true` — 구버전 pnpm 설치 하드 차단 |
