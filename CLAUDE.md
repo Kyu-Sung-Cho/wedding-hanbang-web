@@ -60,4 +60,6 @@
 
 ## 빌드·검증
 커밋 전 `apps/web`에서 `npx tsc --noEmit` + `npx vitest run` + `npx next build` 통과 확인.
-마이그레이션은 Supabase CLI 링크가 없어 항상 **SQL Editor 수동 실행** — 새 마이그레이션은 사용자에게 복붙용 SQL로 전달.
+마이그레이션은 `apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN`(2026-07-04부터)으로 **Management API 직접 실행** 가능
+(`POST https://api.supabase.com/v1/projects/{ref}/database/query` — SQL Editor와 동일 경로).
+실행 후 PostgREST 원격 검증(RPC 응답·권한 거부 확인)까지 수행할 것. 토큰이 없으면 폴백: 사용자에게 복붙용 SQL 전달(SQL Editor 수동 실행).

@@ -89,7 +89,7 @@
   70개 테이블 RLS enable. 민감 데이터 모범적: profiles/couples/journeys는 anon+authenticated 권한 REVOKE + 컬럼 가드 트리거(couple_id/role/is_admin/bride/groom 직접변경 잠금, 멤버십은 join_couple RPC만) + SECURITY DEFINER 헬퍼(재귀 회피). chat_messages/decision_nodes는 커플+visibility 격리(파트너가 상대 개인채팅 못 봄). ai_interactions_log는 user_id 소유자만 SELECT·service만 쓰기. RLS enable+정책없음(deny all) 사례 0.
   발견: **L1(low)** 삭제된 청첩장/방명록 테이블이 과permissive RLS(USING/CHECK true) 잔존 — 라이브 위험 아니나 정리(DROP) 권고, 죽은 코드(0.2)와 병합. **I1(info)** community_profiles/achievements 공개 SELECT는 by-design. 신규 라이브 결함 0. 정적 마이그레이션 리뷰(CLI 링크 없어 라이브 프로빙 미수행). 상세: `docs/SECURITY_AUDIT_2.5_RLS_2026-07-03.md`
 
-**★ Phase 2(보안) 종료**: 2.1⚠️→2.2⚠️→2.3⚠️→2.4✅→2.5✅. 크리티컬 0. 리메디에이션 우선순위 = ~~H1 costGuard 원자화~~(코드 완료 2026-07-04, 마이그레이션 실행 대기) > M1/M2 quote-check·XFF > 죽은 테이블/코드 정리.
+**★ Phase 2(보안) 종료**: 2.1⚠️→2.2⚠️→2.3⚠️→2.4✅→2.5✅. 크리티컬 0. 리메디에이션 우선순위 = ~~H1 costGuard 원자화~~(**완전 종결 2026-07-04** — 코드+마이그레이션 적용+원격 검증) > M1/M2 quote-check·XFF > 죽은 테이블/코드 정리.
 
 ## Phase 3 — 웹 기능 하나씩 (기능당 1작업)
 
@@ -144,4 +144,5 @@
 | 2026-07-03 | 2.4 API 인증 감사 D(나머지) | ✅ 견고 — 인라인 Fable. 신규 결함 0. 공개쓰기 Turnstile+검증, 인증 라우트 couple_id 서버파생, messages 서버결정, vendors 공개읽기, community 소유권 403. 교차이슈는 기존 M2뿐. 상세 리포트 별도 |
 | 2026-07-03 | 2.5 Supabase RLS 점검 | ✅ 견고 — 인라인 Fable. 민감 테이블 모범적(권한 REVOKE+컬럼가드 트리거+visibility 격리+ai_log 소유자만). L1 죽은 청첩장/방명록 테이블 과permissive(정리 권고)·I1 community 공개읽기 by-design. 신규 라이브 결함 0. **Phase 2 종료.** 상세 리포트 별도 |
 | 2026-07-04 | 전체 코드 품질 훑기 | 인라인 Fable. 위생 상위권(`as any`·TODO 0). 신규 4건: ①packages/shared 유령(import 0, 모바일은 웹 상수 복붙 중) ②etiquetteData 103KB가 채팅 클라 번들에 포함 ③mockVendors 배열 2/3 죽은 데이터 ④engines.pnpm>=9가 lockfile 오염 사고 경로 방치. H1/M2/죽은코드 전부 미수리 재확인 |
-| 2026-07-04 | H1 후속: costGuard 원자화 + pnpm 가드 | `reserve_amora_turn` RPC 신설(카운터 테이블 FOR UPDATE 원자 체크+예약, 첫 접근 시 ai_interactions_log에서 시드 — 기존 사용량 유지, 거부는 미소모, 잠금순서 global→couple 고정). `reserveAmoraTurn()`: chat 라우트는 가드 지점에서 예약, conflict 라우트는 파트너 메시지마다 호출되므로 앞단은 읽기전용 유지·mediation LLM 직전만 예약. RPC 미배포 시 기존 읽기전용 폴백(무중단). 테스트 +9(278 통과)·tsc 0·build 그린. **⚠️ 마이그레이션 `20260704120000` SQL Editor 실행 필요(사용자)** — 실행 전까지 기존 레이스 동작 유지. ② engines.pnpm `>=11.7.0` + `.npmrc engine-strict=true` — 구버전 pnpm 설치 하드 차단 |
+| 2026-07-04 | H1 후속: costGuard 원자화 + pnpm 가드 | `reserve_amora_turn` RPC 신설(카운터 테이블 FOR UPDATE 원자 체크+예약, 첫 접근 시 ai_interactions_log에서 시드 — 기존 사용량 유지, 거부는 미소모, 잠금순서 global→couple 고정). `reserveAmoraTurn()`: chat 라우트는 가드 지점에서 예약, conflict 라우트는 파트너 메시지마다 호출되므로 앞단은 읽기전용 유지·mediation LLM 직전만 예약. RPC 미배포 시 기존 읽기전용 폴백(무중단). 테스트 +9(278 통과)·tsc 0·build 그린. 마이그레이션 `20260704120000`은 같은 날 적용 완료(아래 행). ② engines.pnpm `>=11.7.0` + `.npmrc engine-strict=true` — 구버전 pnpm 설치 하드 차단 |
+| 2026-07-04 | H1 마이그레이션 적용 + 원격 검증 | 사용자가 PAT 제공(`apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN`, gitignore 확인) → **Management API로 직접 실행**(SQL Editor와 동일 경로, 201). 원격 검증 6종 전부 통과: ①null인자→invalid_args ②카운터 테이블 존재 ③anon RPC 401 ④anon 테이블 401 ⑤allow 경로 실예약(couple/global 카운터 1 생성) ⑥count=100 세팅 후 재예약→couple_quota 거부. 테스트 흔적은 삭제(다음 실예약 때 로그에서 자동 재시드, 잔여 0). **H1 완전 종결.** 이후 마이그레이션은 Claude가 직접 실행+검증 가능 (CLAUDE.md 규칙 갱신) |
