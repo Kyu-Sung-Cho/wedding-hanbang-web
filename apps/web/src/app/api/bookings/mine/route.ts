@@ -40,48 +40,12 @@ export async function GET(req: NextRequest) {
 
     const vendorMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));
 
-    // 계약 정보 조인
-    const bookingIds = (bookingRows ?? []).map((b) => b.id);
-    const { data: contracts } = bookingIds.length > 0
-      ? await supabase
-          .from("contracts")
-          .select("id, booking_id, status, contract_amount, deposit_amount")
-          .in("booking_id", bookingIds)
-          .not("status", "eq", "cancelled")
-      : { data: [] };
-
-    const contractMap = new Map((contracts ?? []).map((c) => [c.booking_id, c]));
-
-    // 결제 정보 조인
-    const { data: payments } = bookingIds.length > 0
-      ? await supabase
-          .from("payments")
-          .select("id, booking_id, status, amount, payment_type")
-          .in("booking_id", bookingIds)
-          .eq("payment_type", "deposit")
-          .eq("status", "paid")
-      : { data: [] };
-
-    const paymentMap = new Map((payments ?? []).map((p) => [p.booking_id, p]));
-
-    const bookings = (bookingRows ?? []).map((row) => {
-      const contract = contractMap.get(row.id);
-      const payment = paymentMap.get(row.id);
-      return {
-        ...bookingRowToBooking(row),
-        vendorName: vendorMap[row.vendor_id] ?? "",
-        contract: contract ? {
-          id: contract.id,
-          status: contract.status,
-          contractAmount: contract.contract_amount,
-          depositAmount: contract.deposit_amount,
-        } : null,
-        payment: payment ? {
-          id: payment.id,
-          amount: payment.amount,
-        } : null,
-      };
-    });
+    // contracts/payments 조인은 제거됨 — 결제층 삭제(Week 1 수술)로 두 테이블 모두
+    // 0행이고 소비처(bookings 페이지·BudgetContent)도 해당 필드를 읽지 않는다 (감사 2.2).
+    const bookings = (bookingRows ?? []).map((row) => ({
+      ...bookingRowToBooking(row),
+      vendorName: vendorMap[row.vendor_id] ?? "",
+    }));
 
     return NextResponse.json({ bookings });
   } catch (err) {

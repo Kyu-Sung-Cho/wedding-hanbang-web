@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
-import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/mockVendors";
+import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@/data/vendorFields";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
