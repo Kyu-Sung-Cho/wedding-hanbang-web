@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Animated,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -21,6 +22,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { AppHeader, EmptyState, LoadingState, PrimaryButton } from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
@@ -51,7 +53,7 @@ function RoomCard({
   joining,
 }: {
   room: CohortRoom;
-  onJoin: (roomId: string) => void;
+  onJoin: (room: CohortRoom) => void;
   joining: string | null;
 }) {
   const isJoining = joining === room.id;
@@ -95,7 +97,7 @@ function RoomCard({
         style={styles.joinButton}
         onPress={(e) => {
           e.stopPropagation?.();
-          onJoin(room.id);
+          onJoin(room);
         }}
         disabled={isJoining}
         icon={isJoining ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
@@ -121,7 +123,7 @@ function MonthlySection({
   joining,
 }: {
   rooms: CohortRoom[];
-  onJoin: (roomId: string) => void;
+  onJoin: (room: CohortRoom) => void;
   joining: string | null;
 }) {
   // 연도+분기별로 그룹핑
@@ -223,9 +225,11 @@ export default function CohortDiscoveryScreen() {
     }).start();
   }, [activeTab, indicatorAnim]);
 
-  // 동기방 입장
-  async function handleJoin(roomId: string) {
-    setJoining(roomId);
+  // 동기방 입장 — 멤버십 쓰기는 서버 전용(20260615090000 하드닝):
+  // 클라 직접 INSERT는 트리거가 차단하므로, 웹 API(POST /api/community/cohort)가
+  // 배정·정원(30명)·member_count 갱신을 service-role로 처리한다.
+  async function handleJoin(room: CohortRoom) {
+    setJoining(room.id);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user?.id;
@@ -234,33 +238,35 @@ export default function CohortDiscoveryScreen() {
         return;
       }
 
-      // 이미 멤버인지 확인
+      // 이미 이 방의 활성 멤버면 바로 입장 (SELECT는 클라 허용)
       const { data: existing } = await supabase
         .from("cohort_members")
         .select("id")
-        .eq("room_id", roomId)
+        .eq("room_id", room.id)
         .eq("user_id", userId)
+        .eq("is_active", true)
         .maybeSingle();
 
-      if (!existing) {
-        // RPC로 자동 배정 또는 직접 삽입
-        const { error } = await supabase.from("cohort_members").insert({
-          room_id: roomId,
-          user_id: userId,
-        });
-        if (error) {
-          console.error("동기방 입장 에러:", error);
-          setJoining(null);
-          return;
-        }
-
-        // member_count 증가
-        await supabase.rpc("increment_cohort_member_count", { rid: roomId });
+      if (existing) {
+        router.push({ pathname: "/community/cohort/[id]", params: { id: room.id } });
+        return;
       }
 
-      router.push({ pathname: "/community/cohort/[id]", params: { id: roomId } });
+      const res = await apiFetch("/api/community/cohort", {
+        method: "POST",
+        body: JSON.stringify({ year: room.year, month: room.month }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { room_id?: string; error?: string };
+      if (!res.ok || !data.room_id) {
+        Alert.alert("입장 실패", data.error ?? "동기방 입장에 실패했어요. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+
+      // 서버가 같은 분기 내 정원 여유 방으로 배정 — 응답의 room_id로 이동
+      router.push({ pathname: "/community/cohort/[id]", params: { id: data.room_id } });
     } catch (err) {
       console.error("동기방 입장 에러:", err);
+      Alert.alert("입장 실패", "동기방 입장에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setJoining(null);
     }
