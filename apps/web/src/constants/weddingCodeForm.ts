@@ -1,9 +1,10 @@
-// 웨딩코드 v0.3 스모크 폼 콘텐츠 — 출처: docs/wedding-code/15_no_code_form_v0.3_build_pack.md
+// 웨딩코드 v0.4 스모크 폼 콘텐츠 — 카피 원본: docs/wedding-code/19_item_set_v0.4_rewrite.md
+// (v0.3 → v0.4: 첫 내부 테스트 피드백 "너무 구체적·현실감 없음" 반영 — 감정 훅 + 단문
+//  선택지로 표면 리라이트. 구성개념 매핑·선택지 성향 구조·낙인 방지 가드레일은 v0.3 유지.)
 // 이 파일은 "수집용 프로토타입"이다. 채점·가중치·공개 코드·유형·캐릭터·궁합 표현 금지
 // (가드레일 결정 기록: docs/wedding-code/16_inapp_prototype_decision_v1.md).
-// 문구를 바꿀 때는 15번 빌드팩과 함께 바꿔서 드리프트를 막는다.
 
-export const WEDDING_CODE_FORM_VERSION = "v0.3";
+export const WEDDING_CODE_FORM_VERSION = "v0.4";
 
 export const WC_INTRO_TITLE = "웨딩코드 3분 테스트 — 프로토타입";
 
@@ -20,9 +21,9 @@ export const WC_NO_RIGHT_ANSWER = "정답은 없습니다. 가장 가까운 반�
 export const WC_CONSENT_LABEL = "위 내용을 확인했고, 테스트 목적의 응답 수집에 동의합니다.";
 
 export const WC_HYPOTHETICAL_NOTE =
-  "아직 해당 상황을 겪지 않았다면, 그런 상황이라고 가정하고 가장 가까운 반응을 골라주세요.";
+  "아직 겪지 않은 상황일 수 있어요. 그런 상황이라고 상상하고 가장 가까운 반응을 골라주세요.";
 
-export const WC_OPTIONAL_SECTION_TITLE = "아직 겪지 않았을 수 있는 결혼 준비 상황";
+export const WC_OPTIONAL_SECTION_TITLE = "아직 겪지 않았을 수 있는 상황";
 
 export const WC_THANK_YOU = `참여해주셔서 감사합니다.
 
@@ -77,7 +78,7 @@ export const WC_CONCERNS = [
   "기타",
 ] as const;
 
-// ── 16문항 (v0.3 확정 카피) ─────────────────────────────────
+// ── 16문항 (v0.4 — 감정 훅 + 단문 선택지, 구인 매핑은 v0.3과 동일) ──
 
 export interface WcQuestion {
   /** 내보내기 컬럼명 q01~q16 */
@@ -94,182 +95,166 @@ export interface WcQuestion {
 export const WC_QUESTIONS: WcQuestion[] = [
   {
     key: "q01", id: "WC-Q-costRisk-005", construct: "costRisk", required: true,
-    question:
-      "스튜디오 패키지가 좋아 보이지만 원본, 보정, 헬퍼, 얼리스타트 비용이 분명하지 않습니다. 가장 먼저 할 일은 무엇인가요?",
+    question: "견적서를 받았는데, 어디서 돈이 더 나올지 감이 안 와요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "포함·불포함 항목과 추가 비용을 항목별로 먼저 확인한다." },
-      { value: "B", label: "포트폴리오와 촬영 결과가 우리가 원하는 분위기와 맞는지 더 본다." },
-      { value: "C", label: "상대와 촬영에서 꼭 필요한 항목과 조정 가능한 항목을 나눈다." },
-      { value: "D", label: "비슷한 구성을 이용한 실제 후기나 사례를 더 확인한다." },
+      { value: "A", label: "뭐가 포함이고 뭐가 추가금인지부터 따져본다" },
+      { value: "B", label: "일단 결과물 분위기가 우리랑 맞는지 본다" },
+      { value: "C", label: "둘이서 '꼭 필요한 것'부터 추린다" },
+      { value: "D", label: "실제 해본 사람들 후기를 찾아본다" },
     ],
   },
   {
     key: "q02", id: "WC-Q-experienceMeaning-001", construct: "experienceMeaning", required: true,
-    question:
-      "본식 의상이나 촬영 스타일 중 하나가 오래 기억에 남을 것 같지만 추가 비용이 있습니다. 무엇을 먼저 생각하나요?",
+    question: "이건 두고두고 기억에 남을 것 같은데, 추가 비용이 있대요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "이 선택이 시간이 지나도 우리에게 의미 있게 남을지 먼저 생각한다." },
-      { value: "B", label: "추가 비용이 전체 예산 안에서 감당 가능한지 먼저 계산한다." },
-      { value: "C", label: "비슷한 느낌을 주는 다른 의상이나 촬영 스타일도 함께 찾아본다." },
-      { value: "D", label: "상대와 어떤 장면을 오래 남기고 싶은지 먼저 이야기한다." },
+      { value: "A", label: "시간이 지나도 의미 있을지를 먼저 생각한다" },
+      { value: "B", label: "예산 안에서 감당되는지부터 계산한다" },
+      { value: "C", label: "비슷한 느낌의 다른 선택지를 찾아본다" },
+      { value: "D", label: "어떤 장면을 남기고 싶은지 둘이 얘기한다" },
     ],
   },
   {
     key: "q03", id: "WC-Q-coPreparation-003", construct: "coPreparation", required: true,
-    question:
-      "상담 후 마음에 드는 업체가 생겼지만 상대는 아직 자세히 보지 못했습니다. 무엇이 먼저 필요하다고 느끼나요?",
+    question: "마음에 드는 곳을 찾았는데, 상대는 아직 제대로 못 봤어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "상대가 직접 볼 수 있도록 상담 내용과 후보 자료를 함께 펼쳐 확인한다." },
-      { value: "B", label: "내가 상담 핵심과 판단 기준을 한 장으로 요약한 뒤 최종 확인만 같이 한다." },
-      { value: "C", label: "계약 전에 둘 다 확인할 견적·조건·후기 체크 항목부터 만든다." },
-      { value: "D", label: "왜 마음에 들었는지 분위기와 기억 포인트를 먼저 설명하고 반응을 들어본다." },
+      { value: "A", label: "같이 보면서 처음부터 다시 살펴본다" },
+      { value: "B", label: "내가 핵심만 정리하고 마지막 결정만 같이 한다" },
+      { value: "C", label: "결정 전에 둘 다 볼 체크 목록부터 만든다" },
+      { value: "D", label: "왜 끌렸는지 먼저 말하고 반응을 들어본다" },
     ],
   },
   {
     key: "q04", id: "WC-Q-roleOwnership-006", construct: "roleOwnership", required: true,
-    question:
-      "한 사람이 업체 후보를 먼저 알아봤고, 계약 전에는 둘 다 최종 확인하려고 합니다. 어떤 방식으로 확인하는 게 가장 필요할까요?",
+    question: "한 명이 알아보고, 결정 전에 둘이 최종 확인하기로 했어요. 이럴 때 우리는 —",
     options: [
-      { value: "A", label: "알아본 사람이 후보별 선택 이유와 남은 확인점을 요약하고 둘이 승인한다." },
-      { value: "B", label: "둘이 계약서, 견적, 후기, 포트폴리오를 처음부터 끝까지 같이 본다." },
-      { value: "C", label: "최종 확인은 계약서와 견적 조건처럼 되돌리기 어려운 항목에 집중한다." },
-      { value: "D", label: "한 사람은 조건·일정, 한 사람은 무드·만족도 체크리스트를 맡아 확인한다." },
+      { value: "A", label: "알아본 사람이 요약하고, 같이 승인한다" },
+      { value: "B", label: "중요한 건 처음부터 끝까지 둘이 같이 본다" },
+      { value: "C", label: "되돌리기 어려운 것(계약·환불)만 집중해서 본다" },
+      { value: "D", label: "한 명은 조건을, 다른 한 명은 분위기를 나눠 본다" },
     ],
   },
   {
     key: "q05", id: "WC-Q-evidenceDecision-006", construct: "evidenceDecision", required: true,
-    question:
-      "상담 중 서비스 추가를 약속받았지만 계약서에는 아직 없습니다. 다음 행동으로 가장 가까운 것은 무엇인가요?",
+    question: "\"그건 그냥 해드릴게요\"라고 했는데, 계약서엔 그 말이 없어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "약속받은 서비스 이름과 조건을 계약서나 메시지로 남겨달라고 요청한다." },
-      { value: "B", label: "추가 서비스가 실제로 우리에게 필요한 혜택인지 따져본다." },
-      { value: "C", label: "그 약속이 없어도 이 업체가 우리 기준에 맞는지 다시 본다." },
-      { value: "D", label: "문서 확인 후 다시 결정할 시간을 잡고 계약 일정은 잠시 늦춘다." },
+      { value: "A", label: "문자로라도 남겨달라고 요청한다" },
+      { value: "B", label: "그 혜택이 진짜 필요한 건지 따져본다" },
+      { value: "C", label: "그 약속 없이도 괜찮은 곳인지 다시 본다" },
+      { value: "D", label: "확인될 때까지 결정을 잠깐 미룬다" },
     ],
   },
   {
     key: "q06", id: "WC-Q-aestheticMood-002", construct: "aestheticMood", required: true,
-    question:
-      "투어 중 한 홀에 들어갔을 때 분위기가 우리와 잘 맞는다고 느꼈습니다. 무엇을 먼저 확인하고 싶나요?",
+    question: "투어 중 들어간 곳이 딱 '우리 느낌'이었어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "현장에서 느낀 색감, 공간감, 전체 톤이 우리가 원한 분위기와 맞는지 정리한다." },
-      { value: "B", label: "식대, 보증 인원, 교통처럼 가족과 하객에게 영향을 주는 조건을 확인한다." },
-      { value: "C", label: "사진과 영상에 남을 조명, 동선, 촬영 각도를 확인한다." },
-      { value: "D", label: "상대가 중요하게 보는 기준과 가족이 볼 기준을 따로 적어 맞춰본다." },
+      { value: "A", label: "원하던 분위기가 맞는지 찬찬히 뜯어본다" },
+      { value: "B", label: "식대·인원·교통 같은 조건부터 확인한다" },
+      { value: "C", label: "사진과 영상에 어떻게 남을지 본다" },
+      { value: "D", label: "상대와 가족이 볼 기준을 적어 맞춰본다" },
     ],
   },
   {
     key: "q07", id: "WC-Q-familyIntegration-002", construct: "familyIntegration", required: true,
-    question:
-      "우리는 분위기가 좋은 예식장이 끌리지만 부모님은 음식과 교통을 더 중요하게 봅니다. 무엇을 먼저 해보고 싶나요?",
+    question: "우린 분위기에 끌리는데, 부모님은 음식과 교통을 보세요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "부모님이 걱정하는 음식과 교통 기준을 먼저 구체적으로 들어본다." },
-      { value: "B", label: "분위기와 하객 편의를 함께 비교할 수 있는 표를 만든다." },
-      { value: "C", label: "예산과 보증 인원까지 포함해 현실적인 차이를 확인한다." },
-      { value: "D", label: "우리 기준을 정리한 뒤 부모님께 설명할 절충안을 준비한다." },
+      { value: "A", label: "부모님 기준부터 구체적으로 들어본다" },
+      { value: "B", label: "양쪽 기준을 한 표에 놓고 비교한다" },
+      { value: "C", label: "예산·인원까지 현실적인 차이를 확인한다" },
+      { value: "D", label: "우리 기준을 정리해 절충안을 준비한다" },
     ],
   },
   {
     key: "q08", id: "WC-Q-coupleAutonomy-004", construct: "coupleAutonomy", required: true,
-    question:
-      "부모님께 우리 결혼식의 예산·하객수·진행 방식 기준을 설명해야 합니다. 가장 먼저 준비할 것은 무엇인가요?",
+    question: "우리 결혼식 기준을 부모님께 말씀드려야 해요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "둘이 먼저 예산, 하객수, 진행 방식의 기준을 맞춘다." },
-      { value: "B", label: "부모님께 보여드릴 예산 범위, 하객수 기준, 진행 이유를 숫자로 정리한다." },
-      { value: "C", label: "부모님이 걱정할 지점을 예상하고 어떤 순서로 들을지 정한다." },
-      { value: "D", label: "우리 기준을 처음 꺼낼 때 쓸 부드러운 첫 문장을 만들어본다." },
+      { value: "A", label: "그 전에 둘의 기준부터 확실히 맞춘다" },
+      { value: "B", label: "예산과 이유를 숫자로 정리해 보여드린다" },
+      { value: "C", label: "걱정하실 지점을 먼저 예상해본다" },
+      { value: "D", label: "부드럽게 꺼낼 첫마디를 준비한다" },
     ],
   },
   {
     key: "q09", id: "WC-Q-emotionalSupport-002", construct: "emotionalSupport", required: true,
-    question:
-      "상담 후 걱정된다고 말했더니 상대가 바로 해결책을 제안했습니다. 그 순간 가장 가까운 느낌은 무엇인가요?",
+    question: "\"걱정된다\"고 했더니 상대가 바로 해결책부터 내놨어요. 이 순간 나는 —",
     options: [
-      { value: "A", label: "해결책 전에 왜 걱정되는지 먼저 들어주면 좋겠다고 느낀다." },
-      { value: "B", label: "걱정된다는 말을 짧게 확인받은 뒤 선택지를 같이 정리하면 도움이 될 것 같다." },
-      { value: "C", label: "바로 다음 행동을 정리해주는 것도 괜찮다고 느낀다." },
-      { value: "D", label: "이런 상황에서 어떤 반응이 나에게 맞는지 상대와 이야기하고 싶다." },
+      { value: "A", label: "일단 내 마음부터 들어줬으면 싶다" },
+      { value: "B", label: "짧게 공감받고, 같이 정리하면 좋겠다" },
+      { value: "C", label: "바로 정리해주는 것도 고맙다" },
+      { value: "D", label: "나한테 맞는 반응을 얘기해두고 싶다" },
     ],
   },
   {
     key: "q10", id: "WC-Q-executionSupport-006", construct: "executionSupport", required: true,
     gateFlag: "q_execution_stage_flag",
-    question:
-      "본식이 가까워져 업체 연락, 가족 안내, 준비물 확인이 한꺼번에 남았다고 가정하면, 가장 먼저 하고 싶은 것은 무엇인가요?",
+    question: "본식 직전, 연락할 곳과 챙길 게 한꺼번에 쏟아진다면 나는 먼저 —",
     options: [
-      { value: "A", label: "남은 일을 누가 맡을지 먼저 나눈다." },
-      { value: "B", label: "오늘, 내일, 본식 당일 순서로 마감이 가까운 일부터 정렬한다." },
-      { value: "C", label: "가족과 업체에 보낼 안내 문장을 먼저 정리한다." },
-      { value: "D", label: "서로 부담되는 부분을 이야기한 뒤 일을 나눈다." },
+      { value: "A", label: "누가 뭘 맡을지부터 나눈다" },
+      { value: "B", label: "마감 순서대로 할 일을 줄 세운다" },
+      { value: "C", label: "보낼 안내 문자부터 정리한다" },
+      { value: "D", label: "서로 부담부터 얘기하고 일을 나눈다" },
     ],
   },
   {
     key: "q11", id: "WC-Q-decisionPaceRisk-004", construct: "decisionPaceRisk", required: true,
-    question:
-      "상담을 다녀온 직후 매우 마음에 들어 바로 정하고 싶은 기분이 듭니다. 무엇이 가장 도움이 될까요?",
+    question: "상담이 너무 좋아서 당장 계약하고 싶어요. 이럴 때 도움이 되는 건 —",
     options: [
-      { value: "A", label: "하루 정도 시간을 두고도 같은 마음인지 다시 확인한다." },
-      { value: "B", label: "마음에 든 이유와 걱정되는 점을 상대와 같이 적어본다." },
-      { value: "C", label: "계약서, 총액, 취소 조건을 확인한 뒤 결정한다." },
-      { value: "D", label: "다른 후보와 분위기와 조건을 한 번 더 비교한다." },
+      { value: "A", label: "하루 자고 나서도 같은 마음인지 보는 것" },
+      { value: "B", label: "좋았던 점과 걸리는 점을 같이 적어보는 것" },
+      { value: "C", label: "총액과 취소 조건을 확인하고 정하는 것" },
+      { value: "D", label: "다른 후보와 한 번 더 비교해보는 것" },
     ],
   },
   {
     key: "q12", id: "WC-Q-guidanceNeed-005", construct: "guidanceNeed", required: true,
     gateFlag: "q_guidance_stage_flag",
-    question:
-      "견적서를 받았다고 가정하면, 항목명이 낯설고 여러 장으로 나뉘어 있을 때 가장 도움이 되는 것은 무엇인가요?",
+    question: "견적서가 낯선 항목투성이라면, 나에게 필요한 건 —",
     options: [
-      { value: "A", label: "가장 먼저 확인할 3가지와 질문 순서만 추려주면 좋겠다." },
-      { value: "B", label: "내가 직접 비교할 수 있게 항목별 표로 정리해주면 좋겠다." },
-      { value: "C", label: "추가금 가능성이 큰 항목을 눈에 띄게 표시해주면 좋겠다." },
-      { value: "D", label: "상대와 이야기할 질문 목록으로 바꿔주면 좋겠다." },
+      { value: "A", label: "먼저 볼 3가지만 콕 집어주는 것" },
+      { value: "B", label: "직접 비교하게 표로 정리해주는 것" },
+      { value: "C", label: "추가금 붙기 쉬운 곳만 표시해주는 것" },
+      { value: "D", label: "둘이 얘기할 질문 목록으로 바꿔주는 것" },
     ],
   },
   {
     key: "q13", id: "WC-Q-costRisk-001", construct: "costRisk", required: false,
     gateFlag: "q_cost_boundary_flag",
-    question:
-      "마음에 드는 예식장이 예상보다 300만 원 비쌉니다. 상담 직후 가장 먼저 확인하고 싶은 것은 무엇인가요?",
+    question: "마음에 쏙 드는 식장이 예산보다 300만 원 비싸요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "총액, 추가금, 환불 조건을 먼저 확인한다." },
-      { value: "B", label: "이 장소가 우리에게 오래 남을 경험인지 먼저 생각한다." },
-      { value: "C", label: "부모님과 하객의 이동, 식사, 동선을 함께 고려한다." },
-      { value: "D", label: "상대와 예산과 만족감 기준을 다시 맞춘다." },
+      { value: "A", label: "총액과 추가금, 환불 조건부터 확인한다" },
+      { value: "B", label: "그만큼 오래 남을 곳인지 생각해본다" },
+      { value: "C", label: "가족과 하객 동선까지 같이 따져본다" },
+      { value: "D", label: "둘의 예산 기준을 다시 맞춰본다" },
     ],
   },
   {
     key: "q14", id: "WC-Q-roleOwnership-003", construct: "roleOwnership", required: false,
-    question:
-      "한 사람은 스타일 비교를 잘하고, 다른 한 사람은 조건 비교를 잘합니다. 준비 방식으로 가장 가까운 것은 무엇인가요?",
+    question: "한 명은 스타일, 다른 한 명은 조건 보는 눈이 좋아요. 우리라면 —",
     options: [
-      { value: "A", label: "각자 잘 보는 기준을 맡고 결과를 서로 공유한다." },
-      { value: "B", label: "중요한 후보는 스타일과 조건 모두 둘이 같이 확인한다." },
-      { value: "C", label: "한 사람이 후보를 2~3개로 줄이고, 줄인 이유를 공유한 뒤 마지막은 함께 정한다." },
-      { value: "D", label: "각자 본 기준을 점수 없이 한 비교표에 합쳐 같이 본다." },
+      { value: "A", label: "각자 잘 보는 걸 맡고 결과를 공유한다" },
+      { value: "B", label: "중요한 후보는 둘 다 같이 본다" },
+      { value: "C", label: "한 명이 2~3개로 줄이고 마지막은 함께 정한다" },
+      { value: "D", label: "각자 본 걸 한 표에 합쳐 같이 본다" },
     ],
   },
   {
     key: "q15", id: "WC-Q-evidenceDecision-001", construct: "evidenceDecision", required: false,
-    question:
-      "포트폴리오는 마음에 들지만 실제 이용 후기가 많지 않은 스튜디오가 있습니다. 무엇을 먼저 확인하나요?",
+    question: "느낌은 딱인데, 실제 후기가 별로 없어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "이 스튜디오의 실제 이용 사례, 후기, 포함 조건을 더 확인한다." },
-      { value: "B", label: "포트폴리오가 원하는 무드와 얼마나 맞는지 다시 본다." },
-      { value: "C", label: "비슷한 무드이면서 후기가 더 많은 다른 후보를 1~2곳 더 찾아본다." },
-      { value: "D", label: "상대와 어느 정도의 정보 부족까지 괜찮은지 이야기한다." },
+      { value: "A", label: "실제 사례와 포함 조건을 더 찾아본다" },
+      { value: "B", label: "우리 취향과 맞는지 한 번 더 본다" },
+      { value: "C", label: "비슷한 느낌에 후기 많은 곳을 더 찾아본다" },
+      { value: "D", label: "어느 정도 모험까지 괜찮은지 둘이 얘기한다" },
     ],
   },
   {
     key: "q16", id: "WC-Q-coupleAutonomy-002", construct: "coupleAutonomy", required: false,
     gateFlag: "q_autonomy_boundary_flag",
-    question:
-      "일부 전통 절차를 간소화하고 싶지만 가족이 어떻게 받아들일지 걱정됩니다. 무엇을 먼저 해보고 싶나요?",
+    question: "몇 가지 전통 절차는 줄이고 싶은데, 가족 반응이 걱정돼요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "왜 간소화하고 싶은지 둘의 기준과 의미를 먼저 정리한다." },
-      { value: "B", label: "가족이 걱정할 지점을 예상하고 설명 방식을 준비한다." },
-      { value: "C", label: "예절을 지키면서 줄일 수 있는 절차를 구분한다." },
-      { value: "D", label: "예산, 시간, 진행 흐름에 어떤 도움이 되는지 자료로 정리한다." },
+      { value: "A", label: "왜 줄이고 싶은지 둘의 이유부터 정리한다" },
+      { value: "B", label: "걱정하실 부분과 설명 방법을 준비한다" },
+      { value: "C", label: "지킬 것과 줄일 것을 구분해본다" },
+      { value: "D", label: "어떤 점이 좋아지는지 자료로 정리한다" },
     ],
   },
 ];
