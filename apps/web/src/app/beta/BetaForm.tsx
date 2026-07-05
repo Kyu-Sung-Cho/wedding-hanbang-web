@@ -7,6 +7,7 @@ import DatePickerPopover from "./DatePickerPopover";
 import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
+import { readStoredUtm } from "@/utils/utm";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -47,6 +48,14 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
     }
     setSubmitting(true);
     try {
+      // first-touch UTM(유통 링크가 /check·/wedding으로 들어온 경우) 우선,
+      // 없으면 현재 URL 쿼리 폴백 — 채널 전환 측정(G1)의 데이터원.
+      const storedUtm = readStoredUtm();
+      const currentParams = new URLSearchParams(window.location.search);
+      const utmSource = storedUtm?.source ?? currentParams.get("utm_source") ?? undefined;
+      const utmMedium = storedUtm?.medium ?? currentParams.get("utm_medium") ?? undefined;
+      const utmCampaign = storedUtm?.campaign ?? currentParams.get("utm_campaign") ?? undefined;
+
       const res = await fetch("/api/preregister", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,6 +67,9 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           message: message || undefined,
           isBetaCandidate: true,
           turnstileToken,
+          utmSource,
+          utmMedium,
+          utmCampaign,
         }),
       });
       const data = await res.json();

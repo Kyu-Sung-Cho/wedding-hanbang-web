@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
+import UtmCapture from "@/components/analytics/UtmCapture";
 import "./globals.css";
 
 // 모든 기기에서 일관된 viewport — iPhone notch (viewport-fit=cover) 대응 +
@@ -48,6 +49,7 @@ export default function RootLayout({
     <html lang="ko" data-scroll-behavior="smooth">
       <body className="antialiased">
         <AnalyticsProvider />
+        <UtmCapture />
         {children}
       </body>
     </html>

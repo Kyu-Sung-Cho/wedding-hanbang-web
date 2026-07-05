@@ -115,10 +115,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // UTM: body 우선, URL 쿼리 폴백 — 폼은 fetch POST라 쿼리가 안 실린다.
+    // 클라이언트(BetaForm)가 랜딩 시 캡처한 first-touch UTM을 body로 보낸다.
     const url = new URL(request.url);
-    const utm_source = cleanOptionalText(url.searchParams.get("utm_source"), 80);
-    const utm_medium = cleanOptionalText(url.searchParams.get("utm_medium"), 80);
-    const utm_campaign = cleanOptionalText(url.searchParams.get("utm_campaign"), 120);
+    const utm_source =
+      cleanOptionalText(body.utmSource, 80) ?? cleanOptionalText(url.searchParams.get("utm_source"), 80);
+    const utm_medium =
+      cleanOptionalText(body.utmMedium, 80) ?? cleanOptionalText(url.searchParams.get("utm_medium"), 80);
+    const utm_campaign =
+      cleanOptionalText(body.utmCampaign, 120) ?? cleanOptionalText(url.searchParams.get("utm_campaign"), 120);
 
     const { error: insertError } = await supabase
       .from("preregistrations")
