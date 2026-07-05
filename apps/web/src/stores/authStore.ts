@@ -169,7 +169,9 @@ interface AuthState {
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
   refreshJourney: () => Promise<void>;
   updateProfile: (
-    updates: Partial<Pick<Profile, "name">> & { sync_community_nickname?: boolean }
+    updates: Partial<Pick<Profile, "name" | "care_notifications_enabled">> & {
+      sync_community_nickname?: boolean;
+    }
   ) => Promise<void>;
   signOut: () => Promise<void>;
   reset: () => void;

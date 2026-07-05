@@ -205,6 +205,14 @@ export async function PATCH(request: Request) {
       updates.name = name;
     }
 
+    // 아모라 케어 아웃바운드(모멘트 이메일) 수신 설정 — boolean만 허용
+    if (body.care_notifications_enabled !== undefined) {
+      if (typeof body.care_notifications_enabled !== "boolean") {
+        return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
+      }
+      updates.care_notifications_enabled = body.care_notifications_enabled;
+    }
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });
     }

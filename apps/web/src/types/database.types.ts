@@ -14,6 +14,8 @@ export interface Profile {
   onboarding_completed: boolean;
   onboarding_step: number;
   is_admin: boolean;
+  /** 아모라 케어 아웃바운드(모멘트 이메일 등) 수신 여부 — 기본 true */
+  care_notifications_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

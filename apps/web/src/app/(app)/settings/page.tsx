@@ -81,7 +81,7 @@ const fadeIn = {
 };
 
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, isDemo, signOut, updateJourney } = useAuthStore();
+  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
@@ -754,6 +754,34 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
+          {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
+          <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
+            <div>
+              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기</p>
+              <p className="text-sm text-[#B5ADA3] font-light">
+                상견례·청첩장 모임 등 일정 전후에 아모라가 이메일로 먼저 안부를 물어요
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (isDemo) return;
+                updateProfile({
+                  care_notifications_enabled: !(profile?.care_notifications_enabled ?? true),
+                }).catch(() => {});
+              }}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                (profile?.care_notifications_enabled ?? true)
+                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a]"
+                  : "bg-[#B5ADA3]/30"
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
+                  (profile?.care_notifications_enabled ?? true) ? "left-[22px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
           {[
             { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
             { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
