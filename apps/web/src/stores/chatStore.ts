@@ -106,6 +106,9 @@ interface ChatStoreState {
   error: string | null;
   initialLoadDone: boolean;
 
+  /** 베타 무료 상담 잔여 횟수 — 임계 이하일 때만 서버가 알려줌(소진 예고 배너용). */
+  quotaRemaining: number | null;
+
   // 본인의 view-reset timestamp — "새 채팅(내 화면만)" 누른 시점.
   // pollNewMessages 등 후속 fetch 에서 이 시점 이전 메시지는 필터링.
   // 이전 사고: poll 이 lastMsg 기준으로만 since 잡아서 새 채팅 직후
@@ -501,6 +504,7 @@ async function parseSSEStream(
     onTextClear?: () => void;
     onToolResult: (result: ToolExecutionResult) => void;
     onSuggestions: (suggestions: string[]) => void;
+    onQuota?: (remaining: number) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
     onError: (message: string) => void;
   }
@@ -535,6 +539,9 @@ async function parseSSEStream(
             break;
           case "suggestions":
             callbacks.onSuggestions(event.suggestions);
+            break;
+          case "quota":
+            callbacks.onQuota?.(event.remaining);
             break;
           case "done":
             callbacks.onDone(event.fullContent, event.metadata);
@@ -663,6 +670,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   suggestions: [],
   error: null,
   initialLoadDone: false,
+  quotaRemaining: null,
   sharedClearedAt: null,
   privateClearedAt: null,
   presence: { partnerTyping: null, aiResponding: null },
@@ -990,6 +998,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => set({ suggestions: sug }),
+        onQuota: (remaining) => set({ quotaRemaining: remaining }),
         onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
         onError: (msg) => set({ error: msg }),
       });
@@ -1064,6 +1073,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => set({ suggestions: sug }),
+        onQuota: (remaining) => set({ quotaRemaining: remaining }),
         onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
         onError: (msg) => set({ error: msg }),
       });
@@ -1148,6 +1158,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => set({ suggestions: sug }),
+        onQuota: (remaining) => set({ quotaRemaining: remaining }),
         onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
         onError: (msg) => set({ error: msg }),
       });
@@ -1490,6 +1501,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       suggestions: [],
       error: null,
       initialLoadDone: false,
+      quotaRemaining: null,
       sharedClearedAt: null,
       privateClearedAt: null,
       presence: { partnerTyping: null, aiResponding: null },

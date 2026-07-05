@@ -346,6 +346,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     streamingToolResults,
     suggestions,
     error,
+    quotaRemaining,
     initialLoadDone,
     presence,
     loadMessages,
@@ -1716,6 +1717,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         >
           ↓
         </button>
+      )}
+
+      {/* 쿼터 소진 예고 — 갑작스런 차단(429) 대신 미리 안내 */}
+      {quotaRemaining !== null && !isStreaming && (
+        <div className="mx-2 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <p className="text-[13px] font-medium text-[#6d625a]">
+            {quotaRemaining > 0
+              ? `베타 무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+              : "베타 무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
+          </p>
+          <button
+            onClick={() => useChatStore.setState({ quotaRemaining: null })}
+            className="ml-2 flex-shrink-0 text-[#b5ada3] hover:text-[#6d625a]"
+            aria-label="안내 닫기"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* 에러 메시지 */}

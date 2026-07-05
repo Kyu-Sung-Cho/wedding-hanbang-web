@@ -36,6 +36,8 @@ export interface CostGuardResult {
   allowed: boolean;
   reason?: "couple_quota" | "global_daily";
   message?: string;
+  /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
+  remaining?: number;
 }
 
 const ALLOW: CostGuardResult = { allowed: true };
@@ -77,7 +79,11 @@ export async function reserveAmoraTurn(
     }
 
     const row = Array.isArray(data) ? data[0] : data;
-    if (row?.allowed === true) return ALLOW;
+    if (row?.allowed === true) {
+      // 소진 예고용 잔여 횟수 — 예약 직후 카운터 PK 조회(비원자여도 배너 용도라 충분).
+      // 조회 실패는 remaining만 비울 뿐 통과 여부에 영향 없음.
+      return { allowed: true, remaining: await readCoupleRemaining(admin, params.coupleId) };
+    }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
     if (row?.reason === "couple_quota") return DENY_COUPLE;
 
@@ -88,6 +94,26 @@ export async function reserveAmoraTurn(
     console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
     return checkAmoraCostGuard(admin, params);
   }
+}
+
+// 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
+async function readCoupleRemaining(
+  admin: SupabaseClient,
+  coupleId: string
+): Promise<number | undefined> {
+  try {
+    const { data } = await admin
+      .from("amora_turn_counters")
+      .select("count")
+      .eq("key", `couple:${coupleId}`)
+      .maybeSingle();
+    if (typeof data?.count === "number") {
+      return Math.max(0, FREE_PER_COUPLE - data.count);
+    }
+  } catch {
+    // 배너용 조회 실패는 무시
+  }
+  return undefined;
 }
 
 // 커플 단위로 아모라 사용 가능 여부 판정. LLM 턴 로그 수로 비용을 추정.

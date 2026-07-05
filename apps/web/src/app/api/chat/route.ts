@@ -759,6 +759,12 @@ export async function POST(request: Request) {
         }
       };
 
+      // 쿼터 소진 예고 — 절벽(갑작스런 429)을 예고된 언덕으로.
+      // 잔여가 임계 이하일 때만 이벤트를 보내 클라가 배너로 안내한다.
+      if (typeof costGuard.remaining === "number" && costGuard.remaining <= 15) {
+        send({ type: "quota", remaining: costGuard.remaining });
+      }
+
       // D1: 로깅 집계 버퍼 (한 turn = 1 row)
       const turnStartedAt = startLatencyClock();
       let totalTokensIn = 0;
