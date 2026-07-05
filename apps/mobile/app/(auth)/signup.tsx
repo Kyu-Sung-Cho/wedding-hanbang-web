@@ -126,6 +126,7 @@ export default function SignupScreen() {
           email: email.trim(),
           password,
           name: name.trim(),
+          marketingAgreed: agreeMarketing,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
@@ -202,7 +203,7 @@ export default function SignupScreen() {
               style={[styles.input, { flex: 1, marginBottom: 0 }]}
               value={password}
               onChangeText={setPassword}
-              placeholder="6자 이상"
+              placeholder="8자 이상, 대/소문자·숫자·특수문자"
               placeholderTextColor={colors.taupe[400]}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
@@ -241,6 +242,11 @@ export default function SignupScreen() {
                 {strengthConfig[passwordStrength].label}
               </Text>
             </View>
+          )}
+          {password.length > 0 && !isStrongPassword(password) && (
+            <Text style={styles.errorText}>
+              8자 이상, 대문자·소문자·숫자·특수문자를 모두 포함해야 해요
+            </Text>
           )}
 
           {/* 비밀번호 확인 */}

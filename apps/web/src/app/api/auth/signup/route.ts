@@ -35,9 +35,11 @@ function isStrongPassword(value: unknown): value is string {
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, password, name: rawName, turnstileToken } = await request.json();
+    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed } = await request.json();
     const email = normalizeEmail(rawEmail);
     const name = cleanOptionalText(rawName, 60);
+    // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
+    const marketingConsent = marketingAgreed === true;
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        data: { name },
+        data: { name, marketing_agreed: marketingConsent },
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"}/api/auth/callback`,
       },
     });

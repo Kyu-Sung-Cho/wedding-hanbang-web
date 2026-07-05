@@ -266,7 +266,10 @@ export default function CohortDiscoveryScreen() {
       router.push({ pathname: "/community/cohort/[id]", params: { id: data.room_id } });
     } catch (err) {
       console.error("동기방 입장 에러:", err);
-      Alert.alert("입장 실패", "동기방 입장에 실패했어요. 잠시 후 다시 시도해주세요.");
+      // 세션 만료는 apiFetch가 이미 Alert+재로그인 이동을 처리 — 중복 알림 방지
+      if (!(err instanceof Error && err.message.includes("세션"))) {
+        Alert.alert("입장 실패", "동기방 입장에 실패했어요. 잠시 후 다시 시도해주세요.");
+      }
     } finally {
       setJoining(null);
     }
