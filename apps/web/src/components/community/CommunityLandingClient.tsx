@@ -50,6 +50,7 @@ import type {
 import { timeAgo } from "@/utils/timeAgo";
 import { communityPostLinkProps, communityPostUrl, isCommunityCategory } from "@/lib/community/routes";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { captureEvent } from "@/lib/analytics";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_YEAR,
@@ -422,6 +423,7 @@ export default function CommunityLandingClient({
 
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
+      <QuoteCheckHero />
       <SearchHub
         searchDraft={searchDraft}
         searchQuery={searchQuery}
@@ -457,6 +459,49 @@ export default function CommunityLandingClient({
         <PenSquare className="h-5 w-5" />
       </Link>
     </div>
+  );
+}
+
+// 첫 방문자에게 커뮤니티(피드)보다 먼저 보여줄 "쐐기" — 견적 체크.
+// 콜드스타트 단계에서 빈 피드가 첫인상이 되지 않도록, 로그인 없이 바로 쓰는
+// 도구를 랜딩 최상단에 세운다. 문구는 판정 금지 원칙 준수(좋다/나쁘다 없음).
+function QuoteCheckHero() {
+  return (
+    <section className={`${shell} mt-4`}>
+      <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_52%,#eef4f1_100%)] px-5 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.05)] md:px-8 md:py-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              계약 전 3분 체크 · 로그인 없이 무료
+            </span>
+            <h1 className="mt-2.5 font-serif-kr text-[26px] font-medium leading-[1.3] text-[#071629] md:text-[30px]">
+              스드메 견적서, 빠진 항목 없는지 확인해 보세요
+            </h1>
+            <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.65] text-[#5d6879] md:text-[14px]">
+              좋다·나쁘다 판정 대신 사실만 — 확인 안 된 항목, 한국소비자원 평균가,
+              계약 전에 업체에 보낼 질문까지 정리해 드려요.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
+            <Link
+              {...weddingLinkProps("/community/quote-check")}
+              onClick={() => captureEvent("quote_check_hero_click", { source: "landing_hero" })}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642]"
+            >
+              내 견적 확인하기
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+            <Link
+              {...weddingLinkProps("/market-prices")}
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
+            >
+              시세표 먼저 보기
+            </Link>
+          </div>
+        </div>
+      </article>
+    </section>
   );
 }
 
