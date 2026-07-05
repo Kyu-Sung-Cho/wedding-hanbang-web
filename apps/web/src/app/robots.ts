@@ -23,6 +23,7 @@ export default function robots(): MetadataRoute.Robots {
           "/wedding/vendors",
           "/wedding/favorites",
           "/demo",
+          "/wedding-code",
         ],
       },
     ],

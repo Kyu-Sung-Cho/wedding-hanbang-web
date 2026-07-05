@@ -1,0 +1,100 @@
+# WeddingCode 드라이런 킷 v1 (2026-07-05)
+
+> 목표는 두 가지뿐: ①문항이 이해되는가 ②"정답처럼 보이는" 선택지가 있는가.
+> 이 단계는 시장 수요 검증이 아니다. 유형·점수 기대를 만들지 않는다.
+
+## 링크
+
+- 기본: `https://hanbang.ai/wedding-code`
+- 채널 태깅 (판독용 — 유통 테스트와 캠페인 분리):
+  - 지인: `https://hanbang.ai/wedding-code?utm_source=friend&utm_medium=dm&utm_campaign=wc_dry1`
+  - 동기방/커뮤니티: `https://hanbang.ai/wedding-code?utm_source=community&utm_medium=post&utm_campaign=wc_dry1`
+  - (나중에 지식iN·카페에 섞을 땐 `utm_campaign=g1_w1` 유지 + `utm_content=wc01` 식으로)
+
+## 모집 순서 (15번 §14 준수)
+
+1. **내부 3회 + 모바일 1회** — 본인·파트너가 직접 완주 (오탈자·흐름 확인)
+2. **내부 드라이런 5명** — 지인 DM
+3. **미니 테스트 20명** — 동기방·커뮤니티
+4. 20명 판독 통과 후에만 100명 스모크 고려
+
+## 모집 문구 (정직글 원칙 — 사칭·후기위장 금지)
+
+지인 DM용:
+
+```
+결혼 준비 서비스 만들면서 "결혼 준비 성향 질문"이 실제 상황처럼 느껴지는지
+테스트 중이야. 3분짜리고, 유형 결과가 나오는 건 아니고(프로토타입) 질문이
+이해되는지 봐주는 거야. 해주면 진짜 큰 도움!
+https://hanbang.ai/wedding-code?utm_source=friend&utm_medium=dm&utm_campaign=wc_dry1
+```
+
+커뮤니티/동기방용:
+
+```
+[3분 테스트] 결혼 준비 상황 질문 16개, 실제처럼 느껴지는지 봐주실 분 계실까요?
+
+직접 만들고 있는 결혼 준비 서비스의 질문을 다듬는 중입니다. 심리검사나 유형
+테스트가 아니고(결과 안 나옴), 질문이 공감되는지·어색한 게 있는지 피드백을
+모으는 프로토타입입니다. 로그인 없이 3분이면 끝나요.
+https://hanbang.ai/wedding-code?utm_source=community&utm_medium=post&utm_campaign=wc_dry1
+
+만든 사람이 직접 올리는 글입니다. 불편한 문항이 있었다면 그게 가장 값진 피드백이에요.
+```
+
+## 판독 (Claude에게 "웨딩코드 판독해줘" 한 마디면 아래 쿼리 실행)
+
+기본 현황:
+
+```sql
+SELECT count(*) AS n,
+       round(avg((feedback->>'feels_like_me')::numeric), 2)  AS feels_like_me,
+       round(avg((feedback->>'scenario_realism')::numeric), 2) AS realism,
+       round(avg((feedback->>'clarity')::numeric), 2) AS clarity,
+       round(avg(duration_ms)/1000.0, 0) AS avg_sec
+FROM wedding_code_responses WHERE form_version = 'v0.3';
+```
+
+정답 편향(good-answer bias) 감시 — 옵션 분포가 한쪽에 쏠린 문항:
+
+```sql
+SELECT key AS q, value AS opt, count(*) AS n
+FROM wedding_code_responses, jsonb_each_text(answers)
+GROUP BY 1, 2 ORDER BY 1, 3 DESC;
+```
+
+단계 적합성 — 게이팅 문항의 노출 상태별 응답:
+
+```sql
+SELECT key AS q, value AS shown_as, count(*)
+FROM wedding_code_responses, jsonb_each_text(stage_flags)
+GROUP BY 1, 2 ORDER BY 1, 2;
+```
+
+낙인·혼란 신호 (4~5점이면 free_text 원문 확인):
+
+```sql
+SELECT id, feedback->>'stigma_feedback_score' AS stigma,
+       feedback->>'confusing_question_score' AS confusing,
+       free_text
+FROM wedding_code_responses
+WHERE (feedback->>'stigma_feedback_score')::int >= 4
+   OR (feedback->>'confusing_question_score')::int >= 4;
+```
+
+## 판정 기준 (15번 §13 그대로 + 이 단계 보정)
+
+| 지표 | 기준 | 비고 |
+|---|---|---|
+| feels_like_me | ≥ 4.0 | |
+| scenario_realism | ≥ 4.0 | |
+| 낙인 피드백(4~5점 비율) | < 5% | 1건이라도 원문 필독 |
+| 혼란 피드백(4~5점 비율) | < 10% | 특정 문항 반복 지목 시 그 문항만 v0.4 수정 |
+| 특정 옵션 80%+ 쏠림 문항 | 0개 목표 | 쏠림 = 정답 편향 신호, 옵션 재설계 |
+| partner_invite ≥20% | **이번엔 미적용** | 결과 화면 없는 프로토타입이라 낮게 나올 운명 — 수요 없음으로 오독 금지 |
+
+## 다음 버전 트리거
+
+- 20명 판독 통과 → `09_expert_review_pack_v0.2` 실제 전문가 발송 + 01 v0.2 정의 동봉
+- 혼란/낙인 지목 문항 → 해당 문항만 v0.4 패치 (전면 재설계 금지 — 과수정 방지)
+- 그 다음에야 결과 화면(공개 축 표현층) 설계 논의 시작 — 채점 설계는 Phase 5 데이터 전 금지
