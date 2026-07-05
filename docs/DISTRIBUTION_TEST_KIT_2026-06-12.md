@@ -116,6 +116,20 @@ https://hanbang.ai/wedding?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1
 G1 공식 (30일차): `전환 = (quote_check_submitted 또는 signup_started) ÷ 캠페인 유입 ≥ 3%`
 7일차 중간 판독: 유입 자체가 0~한 자릿수면 전환율 무의미 → 채널(글이 노출 안 됨)이 문제, 글 수를 늘리거나 채널 교체.
 
+## 4.5 게시 전 베이스라인 (2026-07-05 실측 — 판독 기준점)
+
+UTM 캡처 배선 완료(first-touch sessionStorage + body 전송, 커밋 08c2d712) 후 스냅샷:
+
+| 지표 | 값 |
+|---|---|
+| preregistrations 총 | 3건 (전부 utm 없음 — 수리 전 레거시) |
+| utm_campaign='g1_w1' | **0건** ← 게시 후 이 캠페인에 찍히는 건 전부 유통 테스트 귀속 |
+| auth.users 총 | 50개 |
+| 유통 링크 10종 | 전부 라이브 검증(307/200, UTM 보존) — 2026-07-05 |
+
+판독 쿼리(7일 후): `SELECT utm_source, utm_content, count(*) FROM preregistrations WHERE utm_campaign='g1_w1' GROUP BY 1,2;`
+G1 = 채널 노출 대비 전환 ≥3%.
+
 ## 5. 기록표 (매일 1분)
 
 | 날짜 | 채널 | 글/답변 링크 | 착지 | utm_content | 노출 반응(조회·채택·댓글) |
