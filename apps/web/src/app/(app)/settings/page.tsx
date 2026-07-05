@@ -88,6 +88,39 @@ export default function SettingsPage() {
   const [isFullyLinked, setIsFullyLinked] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
 
+  // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneConsent, setPhoneConsent] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhoneInput(profile?.phone ?? "");
+    setPhoneConsent(Boolean(profile?.phone_care_consented_at));
+  }, [profile?.phone, profile?.phone_care_consented_at]);
+
+  const phoneDirty =
+    (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "") ||
+    Boolean(profile?.phone_care_consented_at) !== phoneConsent;
+
+  async function savePhone() {
+    if (isDemo || phoneSaving) return;
+    setPhoneSaving(true);
+    setPhoneMessage(null);
+    try {
+      await updateProfile({
+        phone: phoneInput,
+        phone_care_consent: phoneInput.replace(/[^0-9]/g, "") ? phoneConsent : false,
+      });
+      setPhoneMessage("저장했어요.");
+    } catch (err) {
+      setPhoneMessage(err instanceof Error ? err.message : "저장에 실패했어요.");
+    } finally {
+      setPhoneSaving(false);
+      window.setTimeout(() => setPhoneMessage(null), 4000);
+    }
+  }
+
   // 수정 모드
   const [editingName, setEditingName] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
@@ -781,6 +814,46 @@ export default function SettingsPage() {
                 }`}
               />
             </button>
+          </div>
+          {/* 휴대폰 번호 — 알림톡/문자 케어 채널 준비 (서버 저장) */}
+          <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
+            <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
+            <p className="text-sm text-[#B5ADA3] font-light mb-3">
+              카톡·문자 케어 오픈 시 이 번호로 아모라가 먼저 안부를 물어요 (준비 중)
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                placeholder="010-1234-5678"
+                disabled={isDemo}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[15px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all disabled:opacity-50"
+              />
+              <button
+                onClick={savePhone}
+                disabled={isDemo || phoneSaving || !phoneDirty}
+                className="px-5 py-2.5 rounded-xl bg-[#795252] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors flex-shrink-0"
+              >
+                {phoneSaving ? "저장 중" : "저장"}
+              </button>
+            </div>
+            <label className="mt-3 flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={phoneConsent}
+                onChange={(e) => setPhoneConsent(e.target.checked)}
+                disabled={isDemo || !phoneInput.replace(/[^0-9]/g, "")}
+                className="mt-0.5 h-4 w-4 accent-[#795252]"
+              />
+              <span className="text-sm text-[#504444] font-light leading-relaxed">
+                직접 입력한 일정 안내를 카톡·문자로 받는 것에 동의합니다
+                <span className="text-[#B5ADA3]"> (언제든 여기서 해제 가능)</span>
+              </span>
+            </label>
+            {phoneMessage && (
+              <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
+            )}
           </div>
           {[
             { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },

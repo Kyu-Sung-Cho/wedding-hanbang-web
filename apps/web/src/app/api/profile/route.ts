@@ -8,7 +8,12 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { cleanOptionalText, isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+import {
+  cleanOptionalKoreanMobile,
+  cleanOptionalText,
+  isBodyTooLarge,
+  isRecord,
+} from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -211,6 +216,56 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
       }
       updates.care_notifications_enabled = body.care_notifications_enabled;
+    }
+
+    // 휴대폰 번호 — 알림톡/문자 케어 채널용. 숫자만 저장, 삭제 시 채널 동의도 함께 해제.
+    if (body.phone !== undefined) {
+      const phone = cleanOptionalKoreanMobile(body.phone);
+      if (phone === undefined) {
+        return NextResponse.json(
+          { error: "휴대폰 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)" },
+          { status: 400 }
+        );
+      }
+      updates.phone = phone;
+      if (phone === null) updates.phone_care_consented_at = null;
+    }
+
+    // 카톡·문자 케어 수신 동의 — 동의 시각을 기록(법적 근거). 번호 없이 동의만은 불가.
+    if (body.phone_care_consent !== undefined) {
+      if (typeof body.phone_care_consent !== "boolean") {
+        return NextResponse.json({ error: "동의 값이 올바르지 않습니다." }, { status: 400 });
+      }
+      if (body.phone_care_consent) {
+        const willHavePhone =
+          typeof updates.phone === "string"
+            ? true
+            : updates.phone === null
+              ? false
+              : undefined; // 이 요청에서 번호 변경 없음 → 기존 번호 확인 필요
+        if (willHavePhone === false) {
+          return NextResponse.json(
+            { error: "휴대폰 번호를 먼저 입력해주세요." },
+            { status: 400 }
+          );
+        }
+        if (willHavePhone === undefined) {
+          const { data: current } = await getAdminClient()
+            .from("profiles")
+            .select("phone")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (!current?.phone) {
+            return NextResponse.json(
+              { error: "휴대폰 번호를 먼저 입력해주세요." },
+              { status: 400 }
+            );
+          }
+        }
+        updates.phone_care_consented_at = new Date().toISOString();
+      } else {
+        updates.phone_care_consented_at = null;
+      }
     }
 
     if (Object.keys(updates).length === 0) {

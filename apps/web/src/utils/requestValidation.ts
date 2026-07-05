@@ -73,6 +73,16 @@ export function cleanOptionalIsoDate(raw: unknown): string | null | undefined {
   return raw;
 }
 
+// 한국 휴대폰 번호 정규화 — 하이픈/공백 제거 후 01X + 7~8자리 검증, 숫자만 반환.
+// 반환: 정규화 문자열 | null(빈 입력 = 삭제 의도) | undefined(형식 오류)
+export function cleanOptionalKoreanMobile(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (typeof raw !== "string") return undefined;
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (digits === "") return null;
+  return /^01[016789][0-9]{7,8}$/.test(digits) ? digits : undefined;
+}
+
 export function cleanIntegerInRange(
   raw: unknown,
   min: number,
