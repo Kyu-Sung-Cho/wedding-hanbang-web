@@ -164,7 +164,8 @@ export default function WeddingCodeClient() {
         savedAt: new Date().toISOString(),
       };
       try {
-        window.sessionStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(resultBackup));
+        // localStorage — 카톡 인앱 종료 후 재방문에도 결과 복원 (재응시 시 덮어쓰기 허용)
+        window.localStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(resultBackup));
       } catch { /* storage 불가 시에도 이동 — 결과 화면이 폼으로 안내 */ }
       router.push("/wedding-code/result");
     } catch {

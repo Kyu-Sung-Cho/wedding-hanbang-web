@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, Check, ChevronDown, ChevronUp, ClipboardCheck, Copy, Download, Heart, Loader2,
+  ArrowRight, Check, ChevronDown, ChevronUp, ClipboardCheck, Copy, Heart, Loader2, Share2, X,
 } from "lucide-react";
 import { WC_QUESTIONS } from "@/constants/weddingCodeForm";
 import {
@@ -15,7 +15,7 @@ import {
   WC_FACTS, WC_CARD_DEFS, WC_QUOTE_TEXTS, WC_SCENARIO_SUMMARIES,
   pickTalkCard, WC_CARD_BRAND,
 } from "@/constants/weddingCodeResult";
-import { renderShareCard, downloadCanvasPng } from "@/lib/weddingCode/shareCard";
+import { renderShareCard, downloadCanvasPng, canvasToPngBlob } from "@/lib/weddingCode/shareCard";
 import { captureEvent } from "@/lib/analytics";
 
 export interface WcResultBackup {
@@ -35,9 +35,11 @@ const primaryBtn =
 const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
+// localStorage 사용 — 카톡 인앱 브라우저는 세션이 쉽게 끊겨 sessionStorage로는
+// 재방문 시 결과가 증발한다. 같은 기기 재응시는 제출 성공 시 덮어쓰기 허용(프로토타입).
 function readBackup(): WcResultBackup | null {
   try {
-    const raw = window.sessionStorage.getItem(WC_RESULT_STORAGE_KEY);
+    const raw = window.localStorage.getItem(WC_RESULT_STORAGE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as WcResultBackup;
     return value && typeof value === "object" && value.answers ? value : null;
@@ -48,7 +50,7 @@ function readBackup(): WcResultBackup | null {
 
 function writeBackup(backup: WcResultBackup): void {
   try {
-    window.sessionStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(backup));
+    window.localStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(backup));
   } catch {
     /* storage 불가 환경 무시 */
   }
@@ -57,6 +59,8 @@ function writeBackup(backup: WcResultBackup): void {
 export default function WeddingCodeResultClient() {
   const [backup, setBackup] = useState<WcResultBackup | null | "loading">("loading");
   const [savingCard, setSavingCard] = useState<number | null>(null);
+  // 길게 눌러 저장 오버레이 (공유시트 미지원/실패 시 b단계)
+  const [saveOverlay, setSaveOverlay] = useState<{ cardId: number; dataUrl: string; canvas: HTMLCanvasElement } | null>(null);
   const [allOpen, setAllOpen] = useState(false);
   const [inviteState, setInviteState] = useState<"idle" | "creating" | "copied" | "error">("idle");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -92,19 +96,48 @@ export default function WeddingCodeResultClient() {
     }).filter((c): c is NonNullable<typeof c> => c !== null);
   }, [backup]);
 
+  // 저장 3단 캐스케이드: a) 공유시트(사진첩 직행) → b) 길게 눌러 저장 오버레이 → c) 파일 다운로드.
+  // iOS는 웹→사진첩 직접 저장 API가 없어 공유시트가 정석 — <a download>는 '파일 앱'으로 가버림.
   async function saveCard(cardId: number, scenario: string, quote: string, factText: string | null, factSource: string | null) {
     setSavingCard(cardId);
     try {
       const canvas = await renderShareCard({
         scenario, quote, factText, factSource, brand: WC_CARD_BRAND,
       });
-      downloadCanvasPng(canvas, `weddingcode-card-${cardId}.png`);
-      captureEvent("wc_result_card_saved", { card_id: cardId });
+
+      // a) Web Share API (files) — 공유시트에서 '이미지 저장' 또는 카톡/인스타 직행
+      const blob = await canvasToPngBlob(canvas);
+      if (blob && typeof navigator.canShare === "function") {
+        const file = new File([blob], `weddingcode-card-${cardId}.png`, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            captureEvent("wc_result_card_saved", { card_id: cardId, method: "share" });
+            return;
+          } catch (err) {
+            // 사용자가 시트를 닫은 경우(AbortError)는 저장 아님 — 조용히 종료
+            if (err instanceof Error && err.name === "AbortError") return;
+            // 활성화 소실(NotAllowedError) 등 → b단계로 강하
+          }
+        }
+      }
+
+      // b) 전체화면 오버레이 — 이미지를 길게 눌러 사진첩에 저장
+      const dataUrl = canvas.toDataURL("image/png");
+      setSaveOverlay({ cardId, dataUrl, canvas });
+      captureEvent("wc_result_card_saved", { card_id: cardId, method: "longpress_shown" });
     } catch {
       /* 렌더 실패는 조용히 — 다음 탭에서 재시도 가능 */
     } finally {
       setSavingCard(null);
     }
+  }
+
+  // c) 최후 폴백 — 오버레이 안의 '파일로 저장' (기존 <a download> 경로 유지)
+  function downloadFromOverlay() {
+    if (!saveOverlay) return;
+    downloadCanvasPng(saveOverlay.canvas, `weddingcode-card-${saveOverlay.cardId}.png`);
+    captureEvent("wc_result_card_saved", { card_id: saveOverlay.cardId, method: "download" });
   }
 
   async function createInvite() {
@@ -191,8 +224,10 @@ export default function WeddingCodeResultClient() {
         {backup.paired && (
           <div className="mt-5 flex items-center gap-2.5 rounded-[14px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3.5">
             <Heart className="h-4 w-4 shrink-0 text-[#36534E]" />
+            {/* 문구-동작 정합(패치 4): 결과는 이 기기의 결과 화면에서 다시 볼 수 있다 (localStorage) —
+                ct 링크 재방문은 폼으로 가므로 "링크로 확인" 표현은 제거 */}
             <p className="text-[13px] font-semibold leading-relaxed text-[#36534E]">
-              두 분의 응답이 연결됐어요. 비교 리포트는 준비 중 — 이 링크로 다시 확인할 수 있어요.
+              두 분의 응답이 연결됐어요. 비교 리포트는 준비 중 — 완성되면 이 결과 화면에서 보여드릴게요.
             </p>
           </div>
         )}
@@ -222,8 +257,8 @@ export default function WeddingCodeResultClient() {
                   disabled={savingCard === c.cardId}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:text-[#2d4642] disabled:opacity-50"
                 >
-                  {savingCard === c.cardId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  이미지로 저장
+                  {savingCard === c.cardId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                  카드 저장·공유
                 </button>
               </div>
             </article>
@@ -311,6 +346,34 @@ export default function WeddingCodeResultClient() {
 
         <p className="mt-6 text-center text-[11px] font-medium text-[#b5ada3]">{WC_CARD_BRAND}</p>
       </div>
+
+      {/* b단계 오버레이 — 길게 눌러 사진첩 저장 */}
+      {saveOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1a1a1f]/92 px-6 py-8">
+          <button
+            onClick={() => setSaveOverlay(null)}
+            aria-label="닫기"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- data URL은 next/image 불가 */}
+          <img
+            src={saveOverlay.dataUrl}
+            alt="웨딩코드 카드"
+            className="max-h-[70vh] w-auto rounded-[12px] shadow-2xl"
+          />
+          <p className="mt-4 text-center text-[14px] font-semibold leading-relaxed text-white">
+            이미지를 길게 눌러 &lsquo;사진 앱에 저장&rsquo;을 선택하세요
+          </p>
+          <button
+            onClick={downloadFromOverlay}
+            className="mt-3 text-[12px] font-medium text-white/60 underline underline-offset-2"
+          >
+            또는 파일로 저장
+          </button>
+        </div>
+      )}
     </div>
   );
 }

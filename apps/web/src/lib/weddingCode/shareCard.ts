@@ -235,6 +235,17 @@ export async function renderShareCard(input: ShareCardInput): Promise<HTMLCanvas
   return canvas;
 }
 
+/** 캔버스 → PNG Blob (공유시트용). 실패 시 null — 호출부가 다음 폴백으로 강하 */
+export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((blob) => resolve(blob), "image/png");
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 /** PNG 다운로드 — iOS Safari는 download 미지원 시 새 탭 이미지로 폴백 */
 export function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): void {
   const dataUrl = canvas.toDataURL("image/png");
