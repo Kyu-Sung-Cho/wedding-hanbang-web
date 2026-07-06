@@ -99,4 +99,9 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
   it("법률·의료 조언 금지가 존재한다", () => {
     expect(prompt).toContain("법적/의료적 조언");
   });
+
+  it("콜드스타트 첫 세션 스크립트가 존재한다 (첫 3문답 가치 증명 — 2026-07-06)", () => {
+    expect(prompt).toContain("첫 3문답 안에 가치 증명");
+    expect(prompt).toContain("계약 전 체크");
+  });
 });
