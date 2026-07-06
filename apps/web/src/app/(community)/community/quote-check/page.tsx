@@ -25,6 +25,7 @@ import {
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
+import ReportCardButton from "./ReportCardButton";
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
@@ -617,6 +618,12 @@ function ResultPanel({
       <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#36534E]">
         {result.recommendedAction}
       </div>
+
+      {/* 리포트 PNG 카드 — 카톡·인스타에서 텍스트보다 훨씬 잘 도는 유통 단위 */}
+      <div className="mt-4">
+        <ReportCardButton result={result} />
+      </div>
+
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={chatHref}
