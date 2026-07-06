@@ -2,8 +2,8 @@
  * 자동 생성 파일 — 직접 수정 금지.
  * 생성: scripts/update-market-prices.mjs (npm run update:market-prices)
  * 출처: 한국소비자원 참가격 결혼서비스 가격조사 (price.go.kr)
- * 수집 시각: 2026-06-11T14:16:32.517Z
- * 포함 기간: 202504 ~ 202604 (13개)
+ * 수집 시각: 2026-07-06T11:54:16.476Z
+ * 포함 기간: 202504 ~ 202605 (14개)
  */
 
 export const GEN_PRICE_PERIODS = [
@@ -84,6 +84,12 @@ export const GEN_PRICE_PERIODS = [
     "label": "2026년 4월",
     "year": 2026,
     "month": 4
+  },
+  {
+    "id": "202605",
+    "label": "2026년 5월",
+    "year": 2026,
+    "month": 5
   }
 ] as const;
 
@@ -165,6 +171,12 @@ export const GEN_NATIONAL_TOTALS: Record<string, { meal: number; sdm: number; re
     "sdm": 319.3,
     "rental": 436.1,
     "decoration": 70.1
+  },
+  "202605": {
+    "meal": 1317.9,
+    "sdm": 318.6,
+    "rental": 436.2,
+    "decoration": 69.4
   }
 };
 
@@ -376,6 +388,22 @@ export const GEN_MEAL_DATA: Record<string, number[]> = {
     1029.1,
     840.8,
     1394.3
+  ],
+  "202605": [
+    2015.4,
+    1763.1,
+    757.6,
+    1041.6,
+    1005.9,
+    1176.7,
+    1076.5,
+    1091.6,
+    1248.9,
+    1178.4,
+    998.2,
+    1037.8,
+    801.8,
+    1402.3
   ]
 };
 
@@ -587,6 +615,22 @@ export const GEN_SDM_DATA: Record<string, number[]> = {
     318.4,
     211.9,
     149.3
+  ],
+  "202605": [
+    406.5,
+    506.8,
+    278.9,
+    266.6,
+    225.4,
+    335.5,
+    280.8,
+    226,
+    254.7,
+    231.5,
+    282.8,
+    318.5,
+    211.5,
+    141.4
   ]
 };
 
@@ -798,6 +842,22 @@ export const GEN_RENTAL_DATA: Record<string, number[]> = {
     321.1,
     266.4,
     149.7
+  ],
+  "202605": [
+    718.6,
+    699.5,
+    195.6,
+    201.9,
+    279.2,
+    242.7,
+    289.7,
+    365.5,
+    416.5,
+    310.9,
+    365.2,
+    320.3,
+    258.4,
+    115.4
   ]
 };
 
@@ -1009,6 +1069,22 @@ export const GEN_DECO_DATA: Record<string, number[]> = {
     10.4,
     0.9,
     51
+  ],
+  "202605": [
+    234.1,
+    113.7,
+    0,
+    36.7,
+    16.6,
+    1.5,
+    60.5,
+    8.5,
+    48.4,
+    41.6,
+    13.6,
+    13.3,
+    0.5,
+    48.2
   ]
 };
 
@@ -1217,6 +1293,22 @@ export const GEN_VENUE_NECESSARY = [
     "periodId": "202604",
     "scope": "seoul",
     "rental": 700,
+    "minGuests": 200,
+    "perPersonMeal": 8,
+    "totalFood": 1600
+  },
+  {
+    "periodId": "202605",
+    "scope": "national",
+    "rental": 340,
+    "minGuests": 200,
+    "perPersonMeal": 5.9,
+    "totalFood": 1140
+  },
+  {
+    "periodId": "202605",
+    "scope": "seoul",
+    "rental": 630,
     "minGuests": 200,
     "perPersonMeal": 8,
     "totalFood": 1600
@@ -1465,6 +1557,25 @@ export const GEN_VENUE_OPT_NATIONAL: Record<string, number[]> = {
     77,
     50,
     14,
+    40,
+    37,
+    27.5,
+    38,
+    15
+  ],
+  "202605": [
+    237.5,
+    25,
+    30,
+    30,
+    16,
+    30,
+    10,
+    15,
+    25,
+    77,
+    50,
+    15,
     40,
     37,
     27.5,
@@ -1720,6 +1831,25 @@ export const GEN_VENUE_OPT_SEOUL: Record<string, number[]> = {
     33,
     44,
     32
+  ],
+  "202605": [
+    500,
+    30,
+    30,
+    30,
+    20,
+    36,
+    15,
+    16.5,
+    29,
+    85,
+    50,
+    22,
+    40,
+    37,
+    33,
+    44,
+    34
   ]
 };
 
@@ -2178,6 +2308,41 @@ export const GEN_SDM_PACKAGES = [
     "packageMedian": 280,
     "dmPackageMedian": 180,
     "studioBasic": 112
+  },
+  {
+    "periodId": "202605",
+    "region": "전체",
+    "packageMedian": 292,
+    "dmPackageMedian": 180,
+    "studioBasic": 139
+  },
+  {
+    "periodId": "202605",
+    "region": "서울",
+    "packageMedian": 350,
+    "dmPackageMedian": 180,
+    "studioBasic": 150
+  },
+  {
+    "periodId": "202605",
+    "region": "경기/인천",
+    "packageMedian": 240,
+    "dmPackageMedian": 133,
+    "studioBasic": 120
+  },
+  {
+    "periodId": "202605",
+    "region": "5대광역시",
+    "packageMedian": 278,
+    "dmPackageMedian": 180,
+    "studioBasic": 140
+  },
+  {
+    "periodId": "202605",
+    "region": "기타지역",
+    "packageMedian": 280,
+    "dmPackageMedian": 180,
+    "studioBasic": 115
   }
 ];
 
@@ -2361,6 +2526,20 @@ export const GEN_DRESS_PRICES = [
     "periodId": "202604",
     "scope": "seoul",
     "photoShoot": 177,
+    "ceremony": 158,
+    "secondDress": 150
+  },
+  {
+    "periodId": "202605",
+    "scope": "national",
+    "photoShoot": 160,
+    "ceremony": 145,
+    "secondDress": 141
+  },
+  {
+    "periodId": "202605",
+    "scope": "seoul",
+    "photoShoot": 179,
     "ceremony": 158,
     "secondDress": 150
   }
@@ -2548,6 +2727,20 @@ export const GEN_MAKEUP_PRICES = [
     "photoShoot": 96,
     "ceremony": 84,
     "rehearsal": 77
+  },
+  {
+    "periodId": "202605",
+    "scope": "national",
+    "photoShoot": 80.5,
+    "ceremony": 72.5,
+    "rehearsal": 66
+  },
+  {
+    "periodId": "202605",
+    "scope": "seoul",
+    "photoShoot": 97,
+    "ceremony": 84,
+    "rehearsal": 77
   }
 ];
 
@@ -2712,7 +2905,7 @@ export const GEN_OPTION_PRICES = [
     "category": "dress",
     "name": "드레스 지정비",
     "nationalPrice": 88,
-    "seoulPrice": 82.5
+    "seoulPrice": 78.75
   },
   {
     "category": "dress",
@@ -2729,26 +2922,26 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "dress",
     "name": "2부 드레스",
-    "nationalPrice": 44,
+    "nationalPrice": 42,
     "seoulPrice": 50
   },
   {
     "category": "dress",
     "name": "퍼스트웨어",
-    "nationalPrice": 105,
+    "nationalPrice": 110,
     "seoulPrice": 110
   },
   {
     "category": "dress",
     "name": "야외 예식",
     "nationalPrice": 15,
-    "seoulPrice": 16.5
+    "seoulPrice": 15
   },
   {
     "category": "dress",
     "name": "턱시도 대여",
-    "nationalPrice": 22.5,
-    "seoulPrice": 27.5
+    "nationalPrice": 21.25,
+    "seoulPrice": 25
   },
   {
     "category": "dress",
@@ -2789,7 +2982,7 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "makeup",
     "name": "신부 커트",
-    "nationalPrice": 6.6,
+    "nationalPrice": 7.5,
     "seoulPrice": 6.6
   },
   {
@@ -2932,5 +3125,11 @@ export const GEN_SEASONAL_DATA = [
     "peak": 1575,
     "offPeak": 1400,
     "savings": 175
+  },
+  {
+    "periodId": "202605",
+    "peak": 1550,
+    "offPeak": 1400,
+    "savings": 150
   }
 ];

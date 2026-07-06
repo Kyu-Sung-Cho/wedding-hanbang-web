@@ -108,7 +108,7 @@ function toCheckItem(item: HiddenCostItem, scope: AmoraQuoteScope): AmoraQuoteCh
 }
 
 // 한국소비자원 스드메 패키지 통계의 지역 구분에 입력 지역을 매핑.
-// 서울(350만원대)과 경기/인천(230만원대)은 중위가가 50% 이상 차이나므로
+// 서울(350만원대)과 경기/인천(240만원대, 2026-05)은 중위가가 40%대 후반 차이나므로
 // scope(서울/전국) 2분법으로 뭉개면 참고치가 정반대로 읽힐 수 있다 — 지역별 비교가 필수.
 const SDM_REGION_BY_QUOTE_REGION: Record<AmoraQuoteRegion, string> = {
   seoul: "서울",
