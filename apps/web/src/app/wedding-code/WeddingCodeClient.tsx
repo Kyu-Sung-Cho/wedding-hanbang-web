@@ -1,8 +1,8 @@
 "use client";
 
-// 웨딩코드 v0.3 스모크 폼 — 한 화면 한 질문, 단계 게이팅(Option B), 가정 섹션.
-// 채점·유형·캐릭터·코드 없음(가드레일). 완료 화면 CTA는 일반 탐색 링크일 뿐,
-// 답변 기반 라우팅이 아니다(16번 결정 문서).
+// 웨딩코드 스모크 폼 (카피 버전은 weddingCodeForm.ts의 WEDDING_CODE_FORM_VERSION) —
+// 한 화면 한 질문, 단계 게이팅(Option B), 가정 섹션. 채점·유형·캐릭터·코드 없음(가드레일).
+// 제출 성공 시 /wedding-code/result로 이동, 답변 기반 라우팅 아님(16번 결정 문서).
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -197,8 +197,9 @@ export default function WeddingCodeClient() {
                 style={{ width: `${Math.round((answeredCount / flow.length) * 100)}%` }}
               />
             </div>
+            {/* 번호는 현재 위치 기준 — 뒤로가기로 재방문해도 보고 있는 문항과 일치 */}
             <p className="mt-1.5 text-right text-[12px] font-medium text-[#9a9188]">
-              {Math.min(answeredCount + 1, flow.length)} / {flow.length}
+              {qIndex + 1} / {flow.length}
             </p>
           </div>
         )}
