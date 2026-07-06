@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { WC_QUESTIONS } from "@/constants/weddingCodeForm";
 import {
-  WC_RESULT_TITLE, WC_RESULT_SUBTITLE, WC_RESULT_PROTO_NOTICE,
+  wcResultTitle, WC_RESULT_SUBTITLE, WC_RESULT_PROTO_NOTICE,
   WC_FACTS, WC_CARD_DEFS, WC_QUOTE_TEXTS, WC_SCENARIO_SUMMARIES,
   pickTalkCard, WC_CARD_BRAND,
 } from "@/constants/weddingCodeResult";
@@ -92,17 +92,19 @@ export default function WeddingCodeResultClient() {
         quote,
         factText: fact?.text ?? null,
         factSource: fact?.source ?? null,
+        // 브릿지는 본래 배정 팩트에 걸린 문구 — 폴백(팩트 없음) 카드에선 사용 안 함
+        factBridge: fact ? def.bridge ?? null : null,
       };
     }).filter((c): c is NonNullable<typeof c> => c !== null);
   }, [backup]);
 
   // 저장 3단 캐스케이드: a) 공유시트(사진첩 직행) → b) 길게 눌러 저장 오버레이 → c) 파일 다운로드.
   // iOS는 웹→사진첩 직접 저장 API가 없어 공유시트가 정석 — <a download>는 '파일 앱'으로 가버림.
-  async function saveCard(cardId: number, scenario: string, quote: string, factText: string | null, factSource: string | null) {
+  async function saveCard(cardId: number, scenario: string, quote: string, factText: string | null, factSource: string | null, factBridge: string | null) {
     setSavingCard(cardId);
     try {
       const canvas = await renderShareCard({
-        scenario, quote, factText, factSource, brand: WC_CARD_BRAND,
+        scenario, quote, factText, factSource, factLabel: factBridge, brand: WC_CARD_BRAND,
       });
 
       // a) Web Share API (files) — 공유시트에서 '이미지 저장' 또는 카톡/인스타 직행
@@ -214,7 +216,7 @@ export default function WeddingCodeResultClient() {
 
         {/* 섹션 A — 헤더 */}
         <h1 className="text-center font-serif-kr text-[27px] font-medium leading-[1.3] text-[#263832] sm:text-[31px]">
-          {WC_RESULT_TITLE}
+          {wcResultTitle(Object.keys(backup.answers).length)}
         </h1>
         <p className="mt-2 text-center text-[13px] font-medium leading-relaxed text-[#5d6879]">
           {WC_RESULT_SUBTITLE}
@@ -245,7 +247,7 @@ export default function WeddingCodeResultClient() {
                 </p>
                 {c.factText && (
                   <div className="mt-5 border-t border-[#eadfc9] pt-4">
-                    <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">함께 보는 시장 숫자</p>
+                    <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{c.factBridge ?? "함께 보는 시장 숫자"}</p>
                     <p className="mt-1.5 text-[13px] font-medium leading-[1.7] text-[#34445a]">{c.factText}</p>
                     <p className="mt-1 text-[11px] font-medium text-[#9a9188]">출처: {c.factSource}</p>
                   </div>
@@ -253,7 +255,7 @@ export default function WeddingCodeResultClient() {
               </div>
               <div className="border-t border-[#eadfc9] bg-[#fffdf7] px-6 py-3 sm:px-8">
                 <button
-                  onClick={() => saveCard(c.cardId, c.scenario, c.quote, c.factText, c.factSource)}
+                  onClick={() => saveCard(c.cardId, c.scenario, c.quote, c.factText, c.factSource, c.factBridge)}
                   disabled={savingCard === c.cardId}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:text-[#2d4642] disabled:opacity-50"
                 >

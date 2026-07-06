@@ -87,6 +87,26 @@ describe("공유 카드 레이아웃 — 후보 문장 16종 전수 (승인 반�
   });
 });
 
+describe("팩트 블록 브릿지·출처 라벨 — PNG 한 줄 폭 가드", () => {
+  it("팩트 있는 카드 3장 전부에 브릿지가 있고, 30px 한 줄(개행 없음)에 들어간다", () => {
+    for (const def of WC_CARD_DEFS) {
+      if (!def.factId) continue;
+      expect(def.bridge, `card${def.cardId} 브릿지 존재`).toBeTruthy();
+      expect(def.bridge, `card${def.cardId} 개행 금지`).not.toContain("\n");
+      expect(
+        approxMeasure(def.bridge!, 30),
+        `card${def.cardId} 브릿지 폭: "${def.bridge}"`
+      ).toBeLessThanOrEqual(MAX_WIDTH);
+    }
+  });
+
+  it("출처 문자열 4종 전부 '출처: ' 접두 포함 28px 한 줄에 들어간다", () => {
+    for (const fact of Object.values(WC_FACTS)) {
+      expect(approxMeasure(`출처: ${fact.source}`, 28), `${fact.id} 출처 폭`).toBeLessThanOrEqual(MAX_WIDTH);
+    }
+  });
+});
+
 describe("카드 배정 무결성 (§2-B)", () => {
   it("카드 대상 문항의 모든 선택지에 1인칭 문장이 존재한다", () => {
     const targets = new Set<string>();

@@ -5,7 +5,10 @@
 
 // ── 헤더 카피 (§2-A) ─────────────────────────────────────────
 
-export const WC_RESULT_TITLE = "3분 동안 당신이 한 16개의 선택";
+/** 실제 답한 문항 수 반영 — 선택 문항(q13~q16) 건너뜀 시 16이 아닐 수 있다 (정확성 원칙) */
+export function wcResultTitle(answeredCount: number): string {
+  return `3분 동안 당신이 한 ${answeredCount}개의 선택`;
+}
 export const WC_RESULT_SUBTITLE = "점수도 유형도 없어요. 당신이 고른 문장과, 시장의 실제 숫자만 있어요.";
 export const WC_RESULT_PROTO_NOTICE = "정답도 점수도 없는 프로토타입이에요.";
 
@@ -49,14 +52,17 @@ export interface WcCardDef {
   cardId: 1 | 2 | 3;
   questionKey: string;
   factId: keyof typeof WC_FACTS | null;
+  /** 상황↔팩트를 잇는 한 줄 (팩트 블록 라벨 자리) — 어떤 선택에도 동일 문구(조건 분기
+   *  금지 가드레일 준수). 숫자가 "답변 평가"가 아니라 "상황의 근거"로 읽히게 한다. */
+  bridge?: string;
   /** questionKey가 건너뜀일 때 대체 (팩트 없이 인용만 — 억지 매칭 금지) */
   fallback?: { questionKey: string; factId: null };
 }
 
 export const WC_CARD_DEFS: WcCardDef[] = [
-  { cardId: 1, questionKey: "q01", factId: "F1" },
-  { cardId: 2, questionKey: "q05", factId: "F2" },
-  { cardId: 3, questionKey: "q13", factId: "F3", fallback: { questionKey: "q11", factId: null } },
+  { cardId: 1, questionKey: "q01", factId: "F1", bridge: "그 '더 나올 것 같은 돈', 기분 탓이 아니에요" },
+  { cardId: 2, questionKey: "q05", factId: "F2", bridge: "가격조차 다 알려주지 않는 시장이라서요" },
+  { cardId: 3, questionKey: "q13", factId: "F3", bridge: "'300만 원 차이'가 이상하지 않은 시장이에요", fallback: { questionKey: "q11", factId: null } },
 ];
 
 // ── 1인칭 인용 문장 (카드 후보 4문항 × 4옵션 = 16종, 뜻 변경 없이 다듬기만) ──

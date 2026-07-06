@@ -123,6 +123,8 @@ export interface ShareCardInput {
   quote: string;
   factText: string | null;
   factSource: string | null;
+  /** 팩트 블록 헤더 — 카드별 상황↔팩트 브릿지 한 줄 (없으면 중립 라벨) */
+  factLabel?: string | null;
   brand: string;
 }
 
@@ -210,7 +212,7 @@ export async function renderShareCard(input: ShareCardInput): Promise<HTMLCanvas
 
     ctx.fillStyle = GOLD;
     ctx.font = fontStack("600", 30);
-    ctx.fillText("함께 보는 시장 숫자", PAD, fy);
+    ctx.fillText(input.factLabel || "함께 보는 시장 숫자", PAD, fy);
     fy += 56;
 
     ctx.fillStyle = INK;
