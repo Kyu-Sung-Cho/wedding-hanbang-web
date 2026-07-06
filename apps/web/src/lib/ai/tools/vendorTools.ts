@@ -148,6 +148,7 @@ export async function executeCheckVendorAvailability(
     .from("vendors")
     .select("name")
     .eq("id", vendorId)
+    .eq("status", "approved") // 비노출(pending 등) 업체는 과거 대화의 [vendor:ID]로도 접근 불가
     .single();
 
   if (!vendor) {
@@ -477,6 +478,7 @@ export async function executeGetVendorDetail(
     .from("vendors")
     .select("id, name, category, location, price_range")
     .eq("id", vendorId)
+    .eq("status", "approved") // 비노출 업체 상세 차단 (시드 pending 전환 이전 대화 잔재 방어)
     .single();
 
   if (!vendor) {

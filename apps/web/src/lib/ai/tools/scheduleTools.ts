@@ -80,6 +80,16 @@ function findCategoryScheduleEvent(
   );
 }
 
+const EVENT_YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidEventDate(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    EVENT_YMD_RE.test(value) &&
+    !Number.isNaN(new Date(`${value}T00:00:00`).getTime())
+  );
+}
+
 export async function executeAddScheduleEvent(
   input: Record<string, unknown>,
   ctx: ToolExecutionContext
@@ -88,6 +98,15 @@ export async function executeAddScheduleEvent(
   const title = input.title as string;
   const memo = input.memo as string | undefined;
   const categoryKey = input.category_key as string | undefined;
+
+  if (!isValidEventDate(date)) {
+    return {
+      toolName: "add_schedule_event", toolInput: input,
+      toolOutput: { error: "invalid_date", received: String(date) },
+      success: false,
+      displayMessage: "일정 날짜는 YYYY-MM-DD 형식이어야 합니다. 날짜를 다시 확인해주세요.",
+    };
+  }
 
   const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
   const now = new Date().toISOString();
@@ -152,7 +171,17 @@ export async function executeUpdateScheduleEvent(
   }
 
   const updates: Partial<ScheduleEvent> = {};
-  if (input.date) updates.date = input.date as string;
+  if (input.date) {
+    if (!isValidEventDate(input.date)) {
+      return {
+        toolName: "update_schedule_event", toolInput: input,
+        toolOutput: { error: "invalid_date", received: String(input.date) },
+        success: false,
+        displayMessage: "일정 날짜는 YYYY-MM-DD 형식이어야 합니다. 날짜를 다시 확인해주세요.",
+      };
+    }
+    updates.date = input.date as string;
+  }
   if (input.title) updates.title = input.title as string;
   if (input.memo !== undefined) updates.memo = input.memo as string;
 

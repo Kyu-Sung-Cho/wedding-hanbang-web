@@ -217,6 +217,7 @@ export async function executeGetAvailableSlots(
     .from("vendors")
     .select("name")
     .eq("id", vendorId)
+    .eq("status", "approved") // 비노출 업체 슬롯 조회 차단
     .single();
 
   if (!vendor) {
@@ -496,7 +497,6 @@ export async function executeCreateBooking(
   input: Record<string, unknown>,
   ctx: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const admin = getAdminClient();
   const vendorId = input.vendor_id as string;
   const productId = (input.product_id as string) || null;
   const staffId = (input.staff_id as string) || null;
@@ -555,10 +555,12 @@ export async function executeCreateBooking(
     };
   }
 
+  const admin = getAdminClient(); // 입력 검증 통과 후에만 생성
   const { data: vendor } = await admin
     .from("vendors")
     .select("name, category")
     .eq("id", vendorId)
+    .eq("status", "approved") // 비노출 업체 예약 생성 차단 — 과거 대화 카드의 [vendor:ID] 잔재 방어
     .single();
 
   if (!vendor) {
@@ -820,7 +822,6 @@ export async function executeCancelBooking(
   input: Record<string, unknown>,
   ctx: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const admin = getAdminClient();
   const bookingId = input.booking_id as string;
   const confirmation = requireDestructiveConfirmation(
     "cancel_booking",
@@ -838,6 +839,7 @@ export async function executeCancelBooking(
     };
   }
 
+  const admin = getAdminClient(); // 확인 게이트·ID 검증 통과 후에만 생성
   const { data: booking, error: fetchError } = await admin
     .from("vendor_bookings")
     .select("id, vendor_id, product_id, booking_date, booking_time, status, amount")

@@ -567,24 +567,35 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   const total = ctx.weddingContext.budget;
   const progress = ctx.weddingContext.progress;
 
+  // 실데이터만 보고한다 — 배정은 progress[key].budget(미설정 시 평균 비율 "참고치"로 표시),
+  // 지출은 실제 기록된 spent/cost만. 상태 기반 추정(진행중=40% 등)으로 지출을 지어내면
+  // 대시보드 실값과 모순되는 숫자를 아모라가 말하게 된다(출처 원칙 위반).
   const categories = Object.entries(CATEGORY_RATIOS).map(([key, ratio]) => {
-    const allocated = Math.round(total * ratio);
-    const p = progress[key];
-    let spent = 0;
-    if (p?.status === "completed") spent = allocated;
-    else if (p?.status === "in_progress") spent = Math.round(allocated * 0.4);
+    const p = (progress[key] ?? {}) as Record<string, unknown>;
+    const hasSetBudget = typeof p.budget === "number" && Number.isFinite(p.budget as number);
+    const allocated = hasSetBudget ? (p.budget as number) : Math.round(total * ratio);
+    const spent =
+      typeof p.spent === "number" && Number.isFinite(p.spent as number)
+        ? (p.spent as number)
+        : typeof p.cost === "number" && Number.isFinite(p.cost as number)
+          ? (p.cost as number)
+          : 0;
 
     return {
       key,
       label: CATEGORY_LABELS[key] || key,
       allocated,
+      allocated_is_estimate: !hasSetBudget,
       spent,
-      status: p?.status || "not_started",
+      status: (p.status as string) || "not_started",
     };
   });
 
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
   const remaining = total - totalSpent;
+  const estimateNote = categories.some((c) => c.allocated_is_estimate)
+    ? " (예산 미설정 카테고리는 평균 비율 참고치)"
+    : "";
 
   return {
     toolName: "get_budget_summary",
@@ -596,7 +607,7 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       categories,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 사용 ${formatWon(totalSpent)} / 잔여 ${formatWon(remaining)}`,
+    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / 잔여 ${formatWon(remaining)}${estimateNote}`,
   };
 }
 
