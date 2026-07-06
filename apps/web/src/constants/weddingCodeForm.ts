@@ -4,7 +4,7 @@
 // 이 파일은 "수집용 프로토타입"이다. 채점·가중치·공개 코드·유형·캐릭터·궁합 표현 금지
 // (가드레일 결정 기록: docs/wedding-code/16_inapp_prototype_decision_v1.md).
 
-export const WEDDING_CODE_FORM_VERSION = "v0.4.1";
+export const WEDDING_CODE_FORM_VERSION = "v0.4.2";
 
 export const WC_INTRO_TITLE = "웨딩코드 3분 테스트 — 프로토타입";
 
@@ -105,7 +105,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
   },
   {
     key: "q02", id: "WC-Q-experienceMeaning-001", construct: "experienceMeaning", required: true,
-    question: "이건 두고두고 기억에 남을 것 같은데, 추가 비용이 있대요. 이럴 때 나는 —",
+    question: "두고두고 기억에 남을 것 같은 옵션인데, 추가 비용이 있대요. 이럴 때 나는 —",
     options: [
       { value: "A", label: "시간이 지나도 의미 있을지를 먼저 생각한다" },
       { value: "B", label: "예산 안에서 감당되는지부터 계산한다" },
@@ -125,7 +125,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
   },
   {
     key: "q04", id: "WC-Q-roleOwnership-006", construct: "roleOwnership", required: true,
-    question: "한 명이 알아보고, 결정 전에 둘이 최종 확인하기로 했어요. 이럴 때 우리는 —",
+    question: "한 명이 주로 알아보고, 결정 전에 둘이 최종 확인하기로 했어요. 이럴 때 우리는 —",
     options: [
       { value: "A", label: "알아본 사람이 요약하고, 같이 승인한다" },
       { value: "B", label: "중요한 건 처음부터 끝까지 둘이 같이 본다" },
@@ -135,12 +135,12 @@ export const WC_QUESTIONS: WcQuestion[] = [
   },
   {
     key: "q05", id: "WC-Q-evidenceDecision-006", construct: "evidenceDecision", required: true,
-    question: "\"그건 그냥 해드릴게요\"라고 했는데, 계약서엔 그 말이 없어요. 이럴 때 나는 —",
+    question: "상담에서 \"그건 그냥 해드릴게요\"라고 했는데, 계약서엔 그 내용이 없어요. 이럴 때 나는 —",
     options: [
       { value: "A", label: "문자로라도 남겨달라고 요청한다" },
       { value: "B", label: "그 혜택이 진짜 필요한 건지 따져본다" },
       { value: "C", label: "그 약속 없이도 괜찮은 곳인지 다시 본다" },
-      { value: "D", label: "확인될 때까지 결정을 잠깐 미룬다" },
+      { value: "D", label: "그 내용이 계약서에 적힌 걸 확인한 뒤에 계약한다" },
     ],
   },
   {
@@ -150,7 +150,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "원하던 분위기가 맞는지 찬찬히 뜯어본다" },
       { value: "B", label: "식대·인원·교통 같은 조건부터 확인한다" },
       { value: "C", label: "사진과 영상에 어떻게 남을지 본다" },
-      { value: "D", label: "상대와 가족이 볼 기준을 적어 맞춰본다" },
+      { value: "D", label: "상대와 가족 기준에도 맞을지 먼저 확인한다" },
     ],
   },
   {
@@ -159,7 +159,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     options: [
       { value: "A", label: "부모님 기준부터 구체적으로 들어본다" },
       { value: "B", label: "양쪽 기준을 표 하나에 나란히 적어 비교한다" },
-      { value: "C", label: "예산·인원까지 현실적인 차이를 확인한다" },
+      { value: "C", label: "예산·인원 같은 현실 조건부터 확인한다" },
       { value: "D", label: "우리 기준을 정리해 절충안을 준비한다" },
     ],
   },
@@ -240,7 +240,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     key: "q15", id: "WC-Q-evidenceDecision-001", construct: "evidenceDecision", required: false,
     question: "느낌은 딱인데, 실제 후기가 별로 없어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "실제 사례와 포함 조건을 더 찾아본다" },
+      { value: "A", label: "실제 진행 사례와 뭐가 포함되는지 더 찾아본다" },
       { value: "B", label: "우리 취향과 맞는지 한 번 더 본다" },
       { value: "C", label: "비슷한 느낌에 후기 많은 곳을 더 찾아본다" },
       { value: "D", label: "어느 정도 모험까지 괜찮은지 둘이 얘기한다" },
@@ -254,7 +254,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "왜 줄이고 싶은지 둘의 이유부터 정리한다" },
       { value: "B", label: "걱정하실 부분과 설명 방법을 준비한다" },
       { value: "C", label: "지킬 것과 줄일 것을 구분해본다" },
-      { value: "D", label: "어떤 점이 좋아지는지 자료로 정리한다" },
+      { value: "D", label: "어떤 점이 좋아지는지 정리해서 보여드린다" },
     ],
   },
 ];
