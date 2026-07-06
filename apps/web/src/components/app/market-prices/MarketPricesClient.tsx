@@ -132,7 +132,7 @@ export default function MarketPricesClient() {
               +{formatWonToMan(1740000)}
             </div>
             <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
-              출처: 기획재정부 「결혼서비스 실태조사」, 2024
+              출처: 정부 「결혼서비스 실태조사」, 2024 (기획재정부 발표)
             </div>
           </div>
 

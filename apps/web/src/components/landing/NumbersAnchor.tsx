@@ -14,7 +14,7 @@ interface AnchorCard {
 
 const CARDS: AnchorCard[] = [
   { label: "전국 평균 결혼서비스", value: "₩21,010,000", source: "한국소비자원, 2025" },
-  { label: "스드메 추가금 평균", value: "+₩1,740,000", source: "기획재정부, 2024" },
+  { label: "스드메 추가금 평균", value: "+₩1,740,000", source: "정부 결혼서비스 실태조사, 2024" },
   { label: "가격 정보 어려움", value: "85.4%", source: "한국소비자원, 2024" },
   { label: "추가비용 경험률", value: "83.2%", source: "한국소비자원, 2024" },
 ];
