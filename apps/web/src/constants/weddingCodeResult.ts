@@ -66,7 +66,7 @@ export const WC_CARD_DEFS: WcCardDef[] = [
 export const WC_QUOTE_TEXTS: Record<string, Record<string, string>> = {
   q01: {
     A: "나는 뭐가 포함이고\n뭐가 추가금인지부터 따져본다",
-    B: "나는 일단 결과물 분위기가\n우리랑 맞는지 본다",
+    B: "나는 가격보다,\n나올 사진·스타일이\n우리 느낌인지부터 본다",
     C: "나는 둘이서\n'꼭 필요한 것'부터 추린다",
     D: "나는 실제 해본 사람들\n후기를 찾아본다",
   },

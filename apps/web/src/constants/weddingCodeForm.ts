@@ -4,7 +4,7 @@
 // 이 파일은 "수집용 프로토타입"이다. 채점·가중치·공개 코드·유형·캐릭터·궁합 표현 금지
 // (가드레일 결정 기록: docs/wedding-code/16_inapp_prototype_decision_v1.md).
 
-export const WEDDING_CODE_FORM_VERSION = "v0.4";
+export const WEDDING_CODE_FORM_VERSION = "v0.4.1";
 
 export const WC_INTRO_TITLE = "웨딩코드 3분 테스트 — 프로토타입";
 
@@ -98,7 +98,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     question: "견적서를 받았는데, 어디서 돈이 더 나올지 감이 안 와요. 이럴 때 나는 —",
     options: [
       { value: "A", label: "뭐가 포함이고 뭐가 추가금인지부터 따져본다" },
-      { value: "B", label: "일단 결과물 분위기가 우리랑 맞는지 본다" },
+      { value: "B", label: "가격보다, 나올 사진·스타일이 우리 느낌인지부터 본다" },
       { value: "C", label: "둘이서 '꼭 필요한 것'부터 추린다" },
       { value: "D", label: "실제 해본 사람들 후기를 찾아본다" },
     ],
@@ -158,7 +158,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     question: "우린 분위기에 끌리는데, 부모님은 음식과 교통을 보세요. 이럴 때 나는 —",
     options: [
       { value: "A", label: "부모님 기준부터 구체적으로 들어본다" },
-      { value: "B", label: "양쪽 기준을 한 표에 놓고 비교한다" },
+      { value: "B", label: "양쪽 기준을 표 하나에 나란히 적어 비교한다" },
       { value: "C", label: "예산·인원까지 현실적인 차이를 확인한다" },
       { value: "D", label: "우리 기준을 정리해 절충안을 준비한다" },
     ],
@@ -180,7 +180,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "일단 내 마음부터 들어줬으면 싶다" },
       { value: "B", label: "짧게 공감받고, 같이 정리하면 좋겠다" },
       { value: "C", label: "바로 정리해주는 것도 고맙다" },
-      { value: "D", label: "나한테 맞는 반응을 얘기해두고 싶다" },
+      { value: "D", label: "'다음엔 이렇게 반응해줘'라고 미리 말해두고 싶다" },
     ],
   },
   {
@@ -196,23 +196,23 @@ export const WC_QUESTIONS: WcQuestion[] = [
   },
   {
     key: "q11", id: "WC-Q-decisionPaceRisk-004", construct: "decisionPaceRisk", required: true,
-    question: "상담이 너무 좋아서 당장 계약하고 싶어요. 이럴 때 도움이 되는 건 —",
+    question: "상담이 너무 좋아서 당장 계약하고 싶어요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "하루 자고 나서도 같은 마음인지 보는 것" },
-      { value: "B", label: "좋았던 점과 걸리는 점을 같이 적어보는 것" },
-      { value: "C", label: "총액과 취소 조건을 확인하고 정하는 것" },
-      { value: "D", label: "다른 후보와 한 번 더 비교해보는 것" },
+      { value: "A", label: "하루 자고 나서도 같은 마음인지 본다" },
+      { value: "B", label: "좋았던 점과 걸리는 점을 같이 적어본다" },
+      { value: "C", label: "총액과 취소 조건을 확인하고 정한다" },
+      { value: "D", label: "다른 후보와 한 번 더 비교해본다" },
     ],
   },
   {
     key: "q12", id: "WC-Q-guidanceNeed-005", construct: "guidanceNeed", required: true,
     gateFlag: "q_guidance_stage_flag",
-    question: "견적서가 낯선 항목투성이라면, 나에게 필요한 건 —",
+    question: "견적서가 낯선 항목투성이라면, 나는 —",
     options: [
-      { value: "A", label: "먼저 볼 3가지만 콕 집어주는 것" },
-      { value: "B", label: "직접 비교하게 표로 정리해주는 것" },
-      { value: "C", label: "추가금 붙기 쉬운 곳만 표시해주는 것" },
-      { value: "D", label: "둘이 얘기할 질문 목록으로 바꿔주는 것" },
+      { value: "A", label: "먼저 볼 3가지만 콕 집어주면 좋겠다" },
+      { value: "B", label: "직접 비교하게 표로 정리해주면 좋겠다" },
+      { value: "C", label: "추가금 붙기 쉬운 곳만 표시해주면 좋겠다" },
+      { value: "D", label: "둘이 얘기할 질문 목록으로 바꿔주면 좋겠다" },
     ],
   },
   {
@@ -233,7 +233,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "각자 잘 보는 걸 맡고 결과를 공유한다" },
       { value: "B", label: "중요한 후보는 둘 다 같이 본다" },
       { value: "C", label: "한 명이 2~3개로 줄이고 마지막은 함께 정한다" },
-      { value: "D", label: "각자 본 걸 한 표에 합쳐 같이 본다" },
+      { value: "D", label: "각자 본 내용을 표 하나로 합쳐서 같이 본다" },
     ],
   },
   {
