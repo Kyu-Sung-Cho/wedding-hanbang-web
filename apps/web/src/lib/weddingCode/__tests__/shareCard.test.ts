@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { approxMeasure, wrapText, layoutQuote } from "../shareCard";
+import {
+  approxMeasure, wrapText, layoutQuote, computeQuoteTop,
+  CARD_W, CARD_H, CARD_PAD, QUOTE_MARK_SPACE,
+} from "../shareCard";
 import { WC_QUOTE_TEXTS, WC_FACTS, pickTalkCard, WC_TALK_DEFAULT, WC_CARD_DEFS } from "@/constants/weddingCodeResult";
 import { WC_QUESTIONS } from "@/constants/weddingCodeForm";
 
-// 카드 캔버스 규격 (shareCard.ts와 동일)
-const CARD_W = 1080;
-const PAD = 96;
-const MAX_WIDTH = CARD_W - PAD * 2;
+const MAX_WIDTH = CARD_W - CARD_PAD * 2;
 
 describe("공유 카드 레이아웃 — 후보 문장 16종 전수 (승인 반영사항 3)", () => {
   const allQuotes = Object.entries(WC_QUOTE_TEXTS).flatMap(([q, opts]) =>
@@ -25,6 +25,41 @@ describe("공유 카드 레이아웃 — 후보 문장 16종 전수 (승인 반�
         expect(approxMeasure(line, layout.fontSize), `${id} 줄 폭: "${line}"`).toBeLessThanOrEqual(MAX_WIDTH);
       }
     }
+  });
+
+  it("수동 개행(\\n)이 그대로 보존된다 — 의미 단위가 쪼개지지 않음 (패치 2)", () => {
+    for (const { id, text } of allQuotes) {
+      const manual = text.split("\n");
+      expect(manual.length, `${id} 수동 개행 존재`).toBeGreaterThan(1);
+      const layout = layoutQuote(text, MAX_WIDTH, approxMeasure);
+      expect(layout.lines, `${id} 수동 줄 보존`).toEqual(manual);
+    }
+  });
+
+  it("세로 균형 — 인용 블록이 광학 중심(45%)에 오고 경계를 침범하지 않는다 (패치 1)", () => {
+    const scenarioBottom = 228; // 상황줄 1줄 기준
+    for (const { id, text } of allQuotes) {
+      const layout = layoutQuote(text, MAX_WIDTH, approxMeasure);
+      const blockHeight = layout.lines.length * Math.round(layout.fontSize * 1.42);
+      for (const hasFact of [true, false]) {
+        const top = computeQuoteTop({ blockHeight, scenarioBottom, hasFact });
+        // 위 경계: 상황줄+인용부호 아래
+        expect(top, `${id} 위 경계`).toBeGreaterThanOrEqual(scenarioBottom + QUOTE_MARK_SPACE + 40);
+        // 아래 경계: 팩트/브랜드 블록 침범 금지
+        const bottomBound = (hasFact ? CARD_H - 460 : CARD_H - 260) - 80;
+        expect(top + blockHeight, `${id} 아래 경계`).toBeLessThanOrEqual(bottomBound);
+        // 짧은 블록(2줄)은 중심이 45%±15% 안에
+        if (layout.lines.length <= 3) {
+          const center = top + blockHeight / 2;
+          expect(Math.abs(center - CARD_H * 0.45), `${id} 광학 중심`).toBeLessThanOrEqual(CARD_H * 0.15);
+        }
+      }
+    }
+  });
+
+  it("computeQuoteTop — 초대형 블록은 위 기준으로 클램프(내용 우선)", () => {
+    const top = computeQuoteTop({ blockHeight: 1400, scenarioBottom: 228, hasFact: true });
+    expect(top).toBe(228 + QUOTE_MARK_SPACE + 40);
   });
 
   it("팩트 문구 4종도 38px에서 4줄 이내", () => {
