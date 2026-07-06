@@ -73,6 +73,21 @@ describe("웨딩코드 응답 검증", () => {
     expect(validateWcSubmission(badOption).ok).toBe(false);
   });
 
+  it("couple_token: 유효 UUID는 통과, 형식 오류는 거부가 아니라 무시(null)", () => {
+    const valid = validateWcSubmission(
+      validBody({ couple_token: "123e4567-e89b-42d3-a456-426614174000" })
+    );
+    expect(valid.ok).toBe(true);
+    if (valid.ok) expect(valid.data.couple_token).toBe("123e4567-e89b-42d3-a456-426614174000");
+
+    const invalid = validateWcSubmission(validBody({ couple_token: "not-a-uuid" }));
+    expect(invalid.ok).toBe(true); // 테스트 자체를 막지 않는다
+    if (invalid.ok) expect(invalid.data.couple_token).toBeNull();
+
+    const absent = validateWcSubmission(validBody());
+    if (absent.ok) expect(absent.data.couple_token).toBeNull();
+  });
+
   it("자유 텍스트는 정화·길이 제한된다", () => {
     const r = validateWcSubmission(
       validBody({ free_text: { free_text_feedback: "<script>x</script>" + "가".repeat(2000) } })

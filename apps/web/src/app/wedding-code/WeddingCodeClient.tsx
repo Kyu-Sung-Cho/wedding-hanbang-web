@@ -4,20 +4,23 @@
 // 채점·유형·캐릭터·코드 없음(가드레일). 완료 화면 CTA는 일반 탐색 링크일 뿐,
 // 답변 기반 라우팅이 아니다(16번 결정 문서).
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, ClipboardCheck, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import {
   WC_INTRO_TITLE, WC_INTRO_BODY, WC_NO_RIGHT_ANSWER, WC_CONSENT_LABEL,
-  WC_HYPOTHETICAL_NOTE, WC_OPTIONAL_SECTION_TITLE, WC_THANK_YOU,
+  WC_HYPOTHETICAL_NOTE, WC_OPTIONAL_SECTION_TITLE,
   WC_STAGES, WC_ANSWERING_MODES, WC_QUOTE_STATUSES, WC_PARENT_INVOLVEMENTS, WC_CONCERNS,
   WC_QUESTIONS, WC_SCALE_LABELS, WC_FEEDBACK_ITEMS, WC_CTA_ITEMS, WC_FREE_TEXT_ITEMS,
   gateQuestion, type WcQuestion,
 } from "@/constants/weddingCodeForm";
 import { readStoredUtm } from "@/utils/utm";
 import { captureEvent } from "@/lib/analytics";
+import { WC_RESULT_STORAGE_KEY, type WcResultBackup } from "./result/ResultClient";
 
-type Step = "intro" | "context" | "questions" | "feedback" | "cta" | "freetext" | "done";
+type Step = "intro" | "context" | "questions" | "feedback" | "cta" | "freetext";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface FlowQuestion extends WcQuestion {
   presentation: "direct" | "hypothetical";
@@ -30,9 +33,17 @@ const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
 export default function WeddingCodeClient() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("intro");
   const [consent, setConsent] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+
+  // 파트너 유입 페어링 토큰 (?ct=) — 형식만 확인, 엄격 검증은 서버
+  const [ctToken, setCtToken] = useState<string | null>(null);
+  useEffect(() => {
+    const ct = new URLSearchParams(window.location.search).get("ct");
+    if (ct && UUID_RE.test(ct)) setCtToken(ct);
+  }, []);
 
   // 참여자 컨텍스트
   const [stage, setStage] = useState("");
@@ -130,15 +141,32 @@ export default function WeddingCodeClient() {
           utm_medium: utm?.medium ?? params.get("utm_medium") ?? undefined,
           utm_campaign: utm?.campaign ?? params.get("utm_campaign") ?? undefined,
           utm_content: params.get("utm_content") ?? undefined,
+          couple_token: ctToken ?? undefined,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean; error?: string; id?: string | null; paired?: boolean;
+      };
       if (!res.ok || !data.success) {
         setError(data.error ?? "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
         return;
       }
       captureEvent("wedding_code_completed", { stage, quote_status: quoteStatus });
-      setStep("done");
+      if (data.paired) captureEvent("wc_invite_pair_completed", {});
+
+      // 결과 화면용 백업 (새로고침 대비) → /wedding-code/result 이동
+      const resultBackup: WcResultBackup = {
+        answers,
+        skipped,
+        responseId: data.id ?? null,
+        paired: data.paired === true,
+        coupleToken: null,
+        savedAt: new Date().toISOString(),
+      };
+      try {
+        window.sessionStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(resultBackup));
+      } catch { /* storage 불가 시에도 이동 — 결과 화면이 폼으로 안내 */ }
+      router.push("/wedding-code/result");
     } catch {
       setError("네트워크 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
     } finally {
@@ -349,30 +377,7 @@ export default function WeddingCodeClient() {
           </div>
         )}
 
-        {/* ── 완료 ── */}
-        {step === "done" && (
-          <div className={`${card} p-6 text-center sm:p-8`}>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#36534E] text-white">
-              <Check className="h-6 w-6" />
-            </div>
-            <p className="whitespace-pre-line text-left text-[14px] font-medium leading-[1.8] text-[#5d6879]">
-              {WC_THANK_YOU}
-            </p>
-            <div className="mt-6 flex flex-col gap-2.5">
-              <Link
-                href="/check"
-                onClick={() => captureEvent("wedding_code_to_quote_check", {})}
-                className={primaryBtn}
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                견적서 빠진 항목 체크해보기 (무료·로그인 없음)
-              </Link>
-              <Link href="/beta" className={ghostBtn}>
-                웨딩한방 베타 신청하기
-              </Link>
-            </div>
-          </div>
-        )}
+        {/* 제출 성공 시 /wedding-code/result 로 이동 — 완료 화면은 결과 화면이 대체 */}
       </div>
     </div>
   );

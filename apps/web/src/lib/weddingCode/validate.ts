@@ -13,7 +13,7 @@ import {
   WC_CTA_ITEMS,
   WC_FREE_TEXT_ITEMS,
 } from "@/constants/weddingCodeForm";
-import { isRecord } from "@/utils/requestValidation";
+import { isRecord, isUuid } from "@/utils/requestValidation";
 import { sanitizeText } from "@/utils/sanitize";
 
 const OPTION_VALUES = new Set(["A", "B", "C", "D"]);
@@ -38,6 +38,8 @@ export interface WcSubmission {
   free_text: Record<string, string>;
   duration_ms: number | null;
   utm: { source: string | null; medium: string | null; campaign: string | null; content: string | null };
+  /** 파트너 유입(?ct=) 페어링 토큰 — UUID v4만 허용, 형식 오류는 제출 거부가 아니라 무시(null) */
+  couple_token: string | null;
 }
 
 export function validateWcSubmission(
@@ -140,6 +142,8 @@ export function validateWcSubmission(
         campaign: cleanUtm(body.utm_campaign, 120),
         content: cleanUtm(body.utm_content, 120),
       },
+      // 잘못된 토큰으로 테스트 자체를 막지 않는다 — 페어링만 조용히 포기
+      couple_token: isUuid(body.couple_token) ? (body.couple_token as string) : null,
     },
   };
 }
