@@ -58,3 +58,45 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).toContain("예약금액: 50만원");
   });
 });
+
+// 컴플라이언스 회귀 잠금 (3.3 감사 I2 해소) — 전략·법적 결정(6/12)이 인코딩된
+// 프롬프트 지시가 리팩토링에서 조용히 사라지는 것을 차단한다. 문구를 바꿀 땐
+// 의도적으로 이 테스트도 함께 바꿔야 한다.
+describe("시스템 프롬프트 컴플라이언스 잠금", () => {
+  const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+  it("견적 판정 금지 지시가 존재한다 (판정 금지 제품 원칙)", () => {
+    expect(prompt).toContain("견적의 좋고 나쁨을 판정하지 마세요");
+  });
+
+  it("업체 상대 권고·단정 금지 지시가 존재한다 (6/12 법적 수정)", () => {
+    expect(prompt).toContain("업체 상대 권고·단정 금지");
+  });
+
+  it("근거 등급 A~F 원칙이 존재한다 (할루시네이션 방지)", () => {
+    expect(prompt).toContain("근거 등급 원칙");
+    expect(prompt).toContain("F: 근거 없음");
+  });
+
+  it("환각 업체 금지 + 0건 정직 안내가 존재한다", () => {
+    expect(prompt).toContain("절대 가짜 업체 만들지 마세요");
+  });
+
+  it("갈등 중재 편들기 금지가 존재한다", () => {
+    expect(prompt).toContain("절대 한쪽에게 도덕적 공을 몰아주지 마세요");
+  });
+
+  it("출처 예시가 컨텍스트 값 사용을 강제한다 (낡은 예시 수치 복사 방지 — 2026-07-06)", () => {
+    expect(prompt).toContain("예시 문장의 수치를 복사 금지");
+    expect(prompt).not.toContain("5500만원");
+    expect(prompt).not.toContain("2025년 4월 기준");
+  });
+
+  it("시세 컨텍스트가 최신 기간 라벨로 자기 표기된다", () => {
+    expect(prompt).toMatch(/한국소비자원 웨딩 시세 \(20\d{2}년 \d{1,2}월 기준/);
+  });
+
+  it("법률·의료 조언 금지가 존재한다", () => {
+    expect(prompt).toContain("법적/의료적 조언");
+  });
+});
