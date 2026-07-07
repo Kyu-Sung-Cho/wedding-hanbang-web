@@ -159,6 +159,7 @@ pnpm --filter @hanbang/web test
 pnpm --filter @hanbang/web typecheck
 pnpm --filter @hanbang/web lint
 pnpm --filter @hanbang/web build
+pnpm qa:local
 ```
 
 Known lint warning that already existed at handoff time:
@@ -172,6 +173,30 @@ Browser checks were also performed locally:
 - No browser console errors were observed during the checked flows.
 
 Re-run all gates after pulling this commit on a new machine.
+
+## Known CI Issue At Handoff
+
+GitHub Actions CI is currently expected to fail before dependency install because `.github/workflows/ci.yml` pins `pnpm/action-setup` to `version: 9.15.0`, while `package.json` declares `packageManager: pnpm@11.7.0`.
+
+Observed failing run:
+
+- Workflow: `CI`
+- Job: `Quality Gate`
+- Failure step: `Setup pnpm`
+- Error: multiple pnpm versions specified.
+
+The local equivalent gate passed with `corepack pnpm qa:local`, so this is a CI configuration problem, not a WeddingCode build/test failure.
+
+Recommended fix:
+
+```yaml
+- name: Setup pnpm
+  uses: pnpm/action-setup@v6
+```
+
+In other words, remove the explicit `version: 9.15.0` and let the action use `packageManager` from `package.json`.
+
+Note: the Codex GitHub token available in this session did not have the `workflow` scope, so it could not push a commit that modifies `.github/workflows/ci.yml`. A user or machine with a GitHub token that includes `workflow` scope should apply this small CI-only fix.
 
 ## Important Product Constraints Going Forward
 
