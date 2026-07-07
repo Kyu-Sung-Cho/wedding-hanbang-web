@@ -170,7 +170,7 @@ describe("bookingTools", () => {
 
     expect(result.success).toBe(true);
     const output = result.toolOutput as {
-      slots: Array<{ date: string; time: string; remaining: number }>;
+      slots: Array<{ date: string; time: string; remaining: number; dateTimeLabel: string }>;
       count: number;
       exactDateAvailable: boolean | null;
       _debug: { slotSource: string };
@@ -179,8 +179,16 @@ describe("bookingTools", () => {
     expect(output.exactDateAvailable).toBe(true);
     expect(output.count).toBe(1);
     expect(output.slots).toEqual([
-      { date: "2026-07-06", time: "10:00", remaining: 2, dayLabel: expect.any(String), hour: 10 },
+      {
+        date: "2026-07-06",
+        time: "10:00",
+        dateTimeLabel: "2026-07-06 (월) 10:00",
+        remaining: 2,
+        dayLabel: expect.any(String),
+        hour: 10,
+      },
     ]);
+    expect(result.displayMessage).toContain("2026-07-06 (월) 10:00");
   });
 
   it("remaps past target months into the next future matching month", async () => {

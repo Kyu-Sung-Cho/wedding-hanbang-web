@@ -11,6 +11,7 @@ import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
+import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 
 const MAX_ATTACHMENTS = 5;
@@ -30,6 +31,10 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+}
+
+function fileInputKey(file: File): string {
+  return `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
 }
 
 interface ChatSidePanelProps {
@@ -220,14 +225,17 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     reader.onload = () => {
       const base64Full = reader.result as string;
       const base64Data = base64Full.split(",")[1];
+      const attachment = {
+        base64: base64Data,
+        mediaType: file.type,
+        previewUrl: file.type.startsWith("image/") ? base64Full : "",
+        fileName: file.name,
+      };
       setAttachments((prev) => {
         if (prev.length >= MAX_ATTACHMENTS) return prev;
-        return [...prev, {
-          base64: base64Data,
-          mediaType: file.type,
-          previewUrl: file.type.startsWith("image/") ? base64Full : "",
-          fileName: file.name,
-        }];
+        const key = chatAttachmentKey(attachment);
+        if (prev.some((item) => chatAttachmentKey(item) === key)) return prev;
+        return [...prev, attachment];
       });
     };
     reader.readAsDataURL(file);
@@ -236,7 +244,13 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).forEach(processFile);
+    const seen = new Set<string>();
+    Array.from(files).forEach((file) => {
+      const key = fileInputKey(file);
+      if (seen.has(key)) return;
+      seen.add(key);
+      processFile(file);
+    });
     e.target.value = "";
   }, [processFile]);
 

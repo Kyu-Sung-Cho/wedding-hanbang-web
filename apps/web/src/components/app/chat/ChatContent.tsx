@@ -13,6 +13,7 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
@@ -37,6 +38,24 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+}
+
+function fileInputKey(file: File): string {
+  return `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
+}
+
+function uniqueFiles(files: File[]): File[] {
+  const seen = new Set<string>();
+  return files.filter((file) => {
+    const key = fileInputKey(file);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function revokeObjectPreview(previewUrl: string) {
+  if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
 }
 
 interface CommunityAskDraft {
@@ -701,6 +720,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest("textarea,input,[contenteditable='true']")) return;
+
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -727,7 +749,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const remaining = MAX_ATTACHMENTS - attachments.length;
     if (remaining <= 0) return;
 
-    files.slice(0, remaining).forEach((file) => {
+    uniqueFiles(files).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
         alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word 가능)`);
@@ -744,10 +766,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         const base64 = result.split(",")[1];
         const isImage = file.type.startsWith("image/");
         const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
+        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name };
 
         setAttachments((prev) => {
-          if (prev.length >= MAX_ATTACHMENTS) return prev;
-          return [...prev, { base64, mediaType: file.type, previewUrl, fileName: file.name }];
+          if (prev.length >= MAX_ATTACHMENTS) {
+            revokeObjectPreview(previewUrl);
+            return prev;
+          }
+          const key = chatAttachmentKey(attachment);
+          if (prev.some((item) => chatAttachmentKey(item) === key)) {
+            revokeObjectPreview(previewUrl);
+            return prev;
+          }
+          return [...prev, attachment];
         });
       };
       reader.readAsDataURL(file);
@@ -781,6 +812,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
     if (files.length > 0) {
       e.preventDefault();
+      e.stopPropagation();
       addFiles(files);
     }
   }, [addFiles]);
@@ -842,6 +874,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const currentAttachments = [...attachments];
       setInput("");
       setAttachments([]);
+      currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
 
       // 기본 메시지 생성
       let defaultMsg = "";

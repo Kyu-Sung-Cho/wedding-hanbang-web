@@ -16,7 +16,8 @@ export const WC_INTRO_BODY = `이 테스트는 웨딩코드 질문을 다듬기 
 
 이번 테스트에서는 최종 유형, 점수, 캐릭터, 4글자 코드가 부여되지 않습니다. 답변은 문항 품질과 제품 방향을 개선하는 데 사용됩니다.`;
 
-export const WC_NO_RIGHT_ANSWER = "정답은 없습니다. 가장 가까운 반응을 골라주세요.";
+export const WC_NO_RIGHT_ANSWER =
+  "정답은 없습니다. 여러 선택지가 다 맞을 수 있어요. 이 상황에서 가장 먼저 할 반응을 골라주세요.";
 
 export const WC_CONSENT_LABEL = "위 내용을 확인했고, 테스트 목적의 응답 수집에 동의합니다.";
 

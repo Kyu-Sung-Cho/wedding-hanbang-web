@@ -1,19 +1,21 @@
 "use client";
 
-// 웨딩코드 스모크 폼 (카피 버전은 weddingCodeForm.ts의 WEDDING_CODE_FORM_VERSION) —
-// 한 화면 한 질문, 단계 게이팅(Option B), 가정 섹션. 채점·유형·캐릭터·코드 없음(가드레일).
-// 제출 성공 시 /wedding-code/result로 이동, 답변 기반 라우팅 아님(16번 결정 문서).
+// 웨딩코드 v0.5 폼 — 16개 상황형 질문을 한 화면 한 질문으로 진행한다.
+// 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 진단/예측으로 표현하지 않는다.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import {
-  WC_INTRO_TITLE, WC_INTRO_BODY, WC_NO_RIGHT_ANSWER, WC_CONSENT_LABEL,
-  WC_HYPOTHETICAL_NOTE, WC_OPTIONAL_SECTION_TITLE,
+  WC_NO_RIGHT_ANSWER, WC_CONSENT_LABEL,
   WC_STAGES, WC_ANSWERING_MODES, WC_QUOTE_STATUSES, WC_PARENT_INVOLVEMENTS, WC_CONCERNS,
-  WC_QUESTIONS, WC_SCALE_LABELS, WC_FEEDBACK_ITEMS, WC_CTA_ITEMS, WC_FREE_TEXT_ITEMS,
-  gateQuestion, type WcQuestion,
+  WC_SCALE_LABELS, WC_FEEDBACK_ITEMS, WC_CTA_ITEMS, WC_FREE_TEXT_ITEMS,
 } from "@/constants/weddingCodeForm";
+import {
+  WEDDING_CODE_V05_QUESTIONS,
+  WEDDING_CODE_V05_VERSION,
+  type WeddingCodeV05Question,
+} from "@/constants/weddingCodeV05";
 import { readStoredUtm } from "@/utils/utm";
 import { captureEvent } from "@/lib/analytics";
 import { WC_RESULT_STORAGE_KEY, type WcResultBackup } from "./result/ResultClient";
@@ -22,9 +24,12 @@ type Step = "intro" | "context" | "questions" | "feedback" | "cta" | "freetext";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface FlowQuestion extends WcQuestion {
-  presentation: "direct" | "hypothetical";
-}
+type FlowQuestion = WeddingCodeV05Question;
+
+const WC_V05_INTRO_TITLE = "웨딩코드 3분 테스트";
+const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족 조율, 역할 분담, 서로에게 필요한 말의 순서가 한꺼번에 섞입니다.
+
+웨딩코드는 16개의 실제 결혼 준비 상황을 통해 내가 어떤 기준으로 준비를 바라보는지 정리해보는 도구예요. 결과는 심리 진단이나 결혼 예측이 아니라, 상대와 더 편하게 이야기하기 위한 참고 자료로만 사용합니다.`;
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
@@ -66,21 +71,9 @@ export default function WeddingCodeClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 컨텍스트 확정 후 문항 순서 계산: direct 먼저, 가정(hypothetical)은 뒤 섹션으로
-  const flow: FlowQuestion[] = useMemo(() => {
-    if (!stage || !quoteStatus || !parentInvolvement) return [];
-    const ctx = { stage, quoteStatus, parentInvolvement };
-    const direct: FlowQuestion[] = [];
-    const hypo: FlowQuestion[] = [];
-    for (const q of WC_QUESTIONS) {
-      const presentation = gateQuestion(q, ctx);
-      (presentation === "direct" ? direct : hypo).push({ ...q, presentation });
-    }
-    return [...direct, ...hypo];
-  }, [stage, quoteStatus, parentInvolvement]);
+  const flow: FlowQuestion[] = useMemo(() => [...WEDDING_CODE_V05_QUESTIONS], []);
 
   const current = flow[qIndex];
-  const firstHypoIndex = flow.findIndex((q) => q.presentation === "hypothetical");
   const contextComplete = stage && mode && quoteStatus && parentInvolvement;
 
   function toggleConcern(c: string) {
@@ -91,16 +84,6 @@ export default function WeddingCodeClient() {
     setAnswers((prev) => ({ ...prev, [q.key]: value }));
     setSkipped((prev) => ({ ...prev, [q.key]: false }));
     window.setTimeout(() => advance(), 160);
-  }
-
-  function skipCurrent(q: FlowQuestion) {
-    setSkipped((prev) => ({ ...prev, [q.key]: true }));
-    setAnswers((prev) => {
-      const next = { ...prev };
-      delete next[q.key];
-      return next;
-    });
-    advance();
   }
 
   function advance() {
@@ -115,11 +98,6 @@ export default function WeddingCodeClient() {
     try {
       const utm = readStoredUtm();
       const params = new URLSearchParams(window.location.search);
-      const stageFlags: Record<string, string> = {};
-      for (const q of flow) {
-        if (!q.gateFlag) continue;
-        stageFlags[q.key] = skipped[q.key] ? "skipped" : q.presentation;
-      }
       const res = await fetch("/api/wedding-code/response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,7 +110,7 @@ export default function WeddingCodeClient() {
           biggest_concern: concerns,
           biggest_concern_other: concerns.includes("기타") ? concernOther : undefined,
           answers,
-          stage_flags: stageFlags,
+          stage_flags: {},
           feedback,
           cta_interest: cta,
           free_text: freeText,
@@ -158,6 +136,7 @@ export default function WeddingCodeClient() {
       const resultBackup: WcResultBackup = {
         answers,
         skipped,
+        version: WEDDING_CODE_V05_VERSION,
         responseId: data.id ?? null,
         paired: data.paired === true,
         coupleToken: null,
@@ -175,17 +154,17 @@ export default function WeddingCodeClient() {
     }
   }
 
-  const answeredCount = flow.filter((q) => answers[q.key] || skipped[q.key]).length;
+  const answeredCount = flow.filter((q) => answers[q.key]).length;
 
   return (
     <div className="min-h-screen bg-[#fbf8f2] px-4 py-8 sm:py-12">
       <div className="mx-auto w-full max-w-[560px]">
         {/* 헤더 */}
         <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">
-          WEDDINGCODE PROTOTYPE
+          WEDDINGCODE V0.5
         </p>
-        <h1 className="mb-6 text-center font-serif-kr text-[26px] font-medium leading-[1.3] text-[#263832] sm:text-[30px]">
-          {WC_INTRO_TITLE}
+        <h1 className="mb-6 text-center text-[26px] font-semibold leading-[1.3] text-[#263832] sm:text-[30px]">
+          {WC_V05_INTRO_TITLE}
         </h1>
 
         {/* 진행 바 (문항 단계에서만) */}
@@ -208,7 +187,7 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} p-6 sm:p-8`}>
             <p className="whitespace-pre-line text-[14px] font-medium leading-[1.8] text-[#5d6879]">
-              {WC_INTRO_BODY}
+              {WC_V05_INTRO_BODY}
             </p>
             <label className="mt-6 flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5 select-none">
               <input
@@ -284,13 +263,8 @@ export default function WeddingCodeClient() {
         {/* ── 문항 (한 화면 한 질문) ── */}
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
-            {qIndex === firstHypoIndex && current.presentation === "hypothetical" && (
-              <div className="mb-4 rounded-[14px] border border-[#d8bb86]/60 bg-[#fdf7ea] px-4 py-3">
-                <p className="text-[13px] font-semibold text-[#9d6f36]">{WC_OPTIONAL_SECTION_TITLE}</p>
-                <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8a7c5e]">{WC_HYPOTHETICAL_NOTE}</p>
-              </div>
-            )}
-            <p className="font-serif-kr text-[19px] font-medium leading-[1.5] text-[#263832] sm:text-[21px]">
+            <p className="mb-2 text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
+            <p className="text-[19px] font-semibold leading-[1.5] text-[#263832] sm:text-[21px]">
               {current.question}
             </p>
             <div className="mt-5 flex flex-col gap-2.5">
@@ -315,11 +289,6 @@ export default function WeddingCodeClient() {
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
               </button>
-              {current.presentation === "hypothetical" && (
-                <button onClick={() => skipCurrent(current)} className={ghostBtn}>
-                  이 질문 건너뛰기
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -351,7 +320,7 @@ export default function WeddingCodeClient() {
         {/* ── 자유 텍스트 + 제출 ── */}
         {step === "freetext" && (
           <div className={`${card} p-6 sm:p-8`}>
-            <h2 className="mb-4 font-serif-kr text-[20px] font-medium text-[#263832]">마지막으로, 자유롭게 남겨주세요</h2>
+            <h2 className="mb-4 text-[20px] font-semibold text-[#263832]">마지막으로, 자유롭게 남겨주세요</h2>
             {WC_FREE_TEXT_ITEMS.map((item) => (
               <div key={item.key} className="mb-4">
                 <p className="mb-1.5 text-[13px] font-semibold text-[#34445a]">
@@ -427,7 +396,7 @@ function ScaleScreen({
 }) {
   return (
     <div className={`${card} p-6 sm:p-8`}>
-      <h2 className="mb-1 font-serif-kr text-[20px] font-medium text-[#263832]">{title}</h2>
+      <h2 className="mb-1 text-[20px] font-semibold text-[#263832]">{title}</h2>
       <p className="mb-5 text-[12px] font-medium text-[#9a9188]">
         1 = {WC_SCALE_LABELS[0]} · 5 = {WC_SCALE_LABELS[4]} (선택 사항)
       </p>

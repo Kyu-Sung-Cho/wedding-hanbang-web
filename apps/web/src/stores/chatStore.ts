@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
+import { dedupeChatAttachments } from "@/lib/chat/attachments";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -799,6 +800,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
+    const uniqueImages = dedupeChatAttachments(images);
 
     // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
     const msgMetadata = target === "partner" ? { target: "partner" as const } : null;
@@ -812,8 +814,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
     const imagePaths: string[] = [];
-    if (images && images.length > 0 && !isDemo) {
-      for (const img of images) {
+    if (uniqueImages.length > 0 && !isDemo) {
+      for (const img of uniqueImages) {
         try {
           const ext = img.mediaType.split("/")[1] || "jpg";
           const fileName = `${coupleId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
@@ -936,7 +938,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       // 단, 총 크기 3MB 이하만 전송 (Vercel 4.5MB body 제한)
       const MAX_PAYLOAD_SIZE = 3 * 1024 * 1024; // 3MB
       let totalSize = 0;
-      const attachmentPayload = images?.map((img) => {
+      const attachmentPayload = uniqueImages.map((img) => {
         const size = img.base64.length;
         if (totalSize + size > MAX_PAYLOAD_SIZE) {
           console.warn("첨부파일 크기 초과, 건너뜀:", img.mediaType);

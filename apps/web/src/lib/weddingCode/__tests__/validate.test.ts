@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateWcSubmission } from "../validate";
-import { WC_QUESTIONS, gateQuestion } from "@/constants/weddingCodeForm";
+import { WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 
 function validBody(overrides: Record<string, unknown> = {}) {
   const answers: Record<string, string> = {};
-  const stage_flags: Record<string, string> = {};
-  for (const q of WC_QUESTIONS) {
+  for (const q of WEDDING_CODE_V05_QUESTIONS) {
     answers[q.key] = "A";
-    if (q.gateFlag) stage_flags[q.key] = "hypothetical";
   }
   return {
     consent: true,
@@ -17,7 +15,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
     parent_involvement: "low",
     biggest_concern: ["예산·견적"],
     answers,
-    stage_flags,
+    stage_flags: {},
     feedback: { feels_like_me: 4, clarity: 5 },
     cta_interest: { quote_check_interest: 3 },
     free_text: { free_text_feedback: "좋아요" },
@@ -43,25 +41,10 @@ describe("웨딩코드 응답 검증", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("필수 문항 누락 거부, 비게이팅 선택 문항(q14) 미응답은 허용", () => {
+  it("v0.5 필수 문항 누락은 거부한다", () => {
     const missing = validBody();
-    delete (missing.answers as Record<string, string>).q01;
+    delete (missing.answers as Record<string, string>).A1;
     expect(validateWcSubmission(missing).ok).toBe(false);
-
-    const optional = validBody();
-    delete (optional.answers as Record<string, string>).q14;
-    expect(validateWcSubmission(optional).ok).toBe(true);
-  });
-
-  it("게이팅 문항은 skipped면 무응답 허용, 답이 있으면 모순으로 거부", () => {
-    const body = validBody();
-    (body.stage_flags as Record<string, string>).q16 = "skipped";
-    delete (body.answers as Record<string, string>).q16;
-    expect(validateWcSubmission(body).ok).toBe(true);
-
-    const contradict = validBody();
-    (contradict.stage_flags as Record<string, string>).q16 = "skipped"; // 답변은 남긴 채
-    expect(validateWcSubmission(contradict).ok).toBe(false);
   });
 
   it("enum 밖 값·범위 밖 척도 거부", () => {
@@ -69,7 +52,7 @@ describe("웨딩코드 응답 검증", () => {
     const badScale = validBody({ feedback: { feels_like_me: 9 } });
     expect(validateWcSubmission(badScale).ok).toBe(false);
     const badOption = validBody();
-    (badOption.answers as Record<string, string>).q02 = "E";
+    (badOption.answers as Record<string, string>).A2 = "E";
     expect(validateWcSubmission(badOption).ok).toBe(false);
   });
 
@@ -97,24 +80,5 @@ describe("웨딩코드 응답 검증", () => {
       expect(r.data.free_text.free_text_feedback).not.toContain("<script>");
       expect(r.data.free_text.free_text_feedback.length).toBeLessThanOrEqual(1000);
     }
-  });
-});
-
-describe("단계 게이팅 (15번 §6 Option B)", () => {
-  it("본식 주간이면 q10 직접 노출, 초기 단계면 가정 섹션", () => {
-    const q10 = WC_QUESTIONS.find((q) => q.key === "q10")!;
-    expect(gateQuestion(q10, { stage: "wedding_week", quoteStatus: "none", parentInvolvement: "low" })).toBe("direct");
-    expect(gateQuestion(q10, { stage: "dating_or_meeting", quoteStatus: "none", parentInvolvement: "low" })).toBe("hypothetical");
-  });
-
-  it("견적 경험 있으면 q12 직접 노출", () => {
-    const q12 = WC_QUESTIONS.find((q) => q.key === "q12")!;
-    expect(gateQuestion(q12, { stage: "sdm_search", quoteStatus: "received", parentInvolvement: "low" })).toBe("direct");
-    expect(gateQuestion(q12, { stage: "sdm_search", quoteStatus: "none", parentInvolvement: "low" })).toBe("hypothetical");
-  });
-
-  it("게이팅 없는 문항은 항상 direct", () => {
-    const q01 = WC_QUESTIONS.find((q) => q.key === "q01")!;
-    expect(gateQuestion(q01, { stage: "dating_or_meeting", quoteStatus: "none", parentInvolvement: "low" })).toBe("direct");
   });
 });

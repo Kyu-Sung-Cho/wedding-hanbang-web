@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { validateWcSubmission } from "@/lib/weddingCode/validate";
-import { WEDDING_CODE_FORM_VERSION } from "@/constants/weddingCodeForm";
+import { WEDDING_CODE_V05_VERSION } from "@/constants/weddingCodeV05";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error } = await admin
       .from("wedding_code_responses")
       .insert({
-        form_version: WEDDING_CODE_FORM_VERSION,
+        form_version: WEDDING_CODE_V05_VERSION,
         participant_stage: data.participant_stage,
         answering_mode: data.answering_mode,
         quote_status: data.quote_status,

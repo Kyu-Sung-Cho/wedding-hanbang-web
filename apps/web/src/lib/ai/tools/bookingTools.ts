@@ -24,6 +24,24 @@ function getAdminClient() {
   return createAdminClient();
 }
 
+function formatSlotDateTime(slot: { date?: string | null; dayLabel?: string | null; time: string }): string {
+  if (slot.date) {
+    return slot.dayLabel ? `${slot.date} (${slot.dayLabel}) ${slot.time}` : `${slot.date} ${slot.time}`;
+  }
+  return slot.dayLabel ? `${slot.dayLabel}요일 ${slot.time}` : slot.time;
+}
+
+function formatSlotSummary(
+  slots: Array<{ date?: string | null; dayLabel?: string | null; time: string; remaining?: number }>,
+  limit = 5
+): string {
+  const summary = slots.slice(0, limit).map((slot) => {
+    const remaining = typeof slot.remaining === "number" ? `(잔여 ${slot.remaining}석)` : "";
+    return `${formatSlotDateTime(slot)}${remaining}`;
+  }).join(", ");
+  return `${summary}${slots.length > limit ? " ..." : ""}`;
+}
+
 function isValidHourTime(value: string): boolean {
   if (!HH_00_RE.test(value)) return false;
   const hour = Number(value.slice(0, 2));
@@ -388,6 +406,7 @@ export async function executeGetAvailableSlots(
     dayLabel: string;
     hour: number;
     time: string;
+    dateTimeLabel: string;
     remaining: number;
   }[] = [];
 
@@ -403,6 +422,7 @@ export async function executeGetAvailableSlots(
           dayLabel: days[slot.day],
           hour: slot.hour,
           time: timeStr,
+          dateTimeLabel: formatSlotDateTime({ date: dateStr, dayLabel: days[slot.day], time: timeStr }),
           remaining,
         });
       }
@@ -442,20 +462,18 @@ export async function executeGetAvailableSlots(
     }
   }
 
-  const firstDate = primarySlots[0]?.date;
-  const lastDate = primarySlots[primarySlots.length - 1]?.date;
-  const fallbackFirstDate = fallbackSlots[0]?.date;
-  const fallbackLastDate = fallbackSlots[fallbackSlots.length - 1]?.date;
+  const primarySlotSummary = formatSlotSummary(primarySlots);
+  const fallbackSlotSummary = formatSlotSummary(fallbackSlots);
 
   let displayMessage: string;
   if (primarySlots.length > 0) {
     displayMessage = filterLabel
-      ? `${vendor.name} ${filterLabel} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`
-      : `${vendor.name} 예약 가능 시간 ${primarySlots.length}개 (${firstDate} ~ ${lastDate})`;
+      ? `${vendor.name} ${filterLabel} 예약 가능 시간 ${primarySlots.length}개: ${primarySlotSummary}`
+      : `${vendor.name} 예약 가능 시간 ${primarySlots.length}개: ${primarySlotSummary}`;
   } else if (fallbackSlots.length > 0) {
     displayMessage = targetDate
-      ? `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 예약은 진행하지 않았고, 다른 날짜 후보 ${fallbackSlots.length}개를 참고용으로 보여드릴게요.`
-      : `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackFirstDate} ~ ${fallbackLastDate} 중 ${fallbackSlots.length}개 슬롯이 가능해요.`;
+      ? `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 예약은 진행하지 않았고, 다른 날짜 후보 ${fallbackSlots.length}개를 참고용으로 보여드릴게요: ${fallbackSlotSummary}`
+      : `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackSlots.length}개 슬롯이 가능해요: ${fallbackSlotSummary}`;
   } else {
     displayMessage = filterLabel
       ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
@@ -519,39 +537,44 @@ export async function executeCreateBooking(
       toolName: "create_booking", toolInput: input,
       toolOutput: { error: "past_booking_date", attemptedDate: date, today: todayYmd },
       success: false,
-      displayMessage: `예약 날짜 ${date}는 오늘(${todayYmd})보다 이전이라 예약을 진행하지 않았습니다. 미래 날짜로 다시 확인해 주세요.`,
+      displayMessage: `예약 날짜/시간 ${date} ${time}는 오늘(${todayYmd})보다 이전이라 예약을 진행하지 않았습니다. 미래 날짜로 다시 확인해 주세요.`,
     };
   }
 
   const requestedDate = extractRequestedBookingDate(ctx.currentUserText, todayYmd);
+  const requestedTime = extractRequestedBookingTime(ctx.currentUserText);
   if (requestedDate && requestedDate !== date) {
+    const requestedDateTime = `${requestedDate}${requestedTime ? ` ${requestedTime}` : ""}`;
     return {
       toolName: "create_booking", toolInput: input,
       toolOutput: {
         error: "requested_date_mismatch",
         requestedDate,
         attemptedDate: date,
-      },
-      success: false,
-      displayMessage:
-        `사용자가 요청한 날짜는 ${requestedDate}인데 예약 시도 날짜가 ${date}라서 예약을 진행하지 않았습니다. ` +
-        "정확한 요청 날짜의 가능 시간만 다시 확인해 주세요.",
-    };
-  }
-
-  const requestedTime = extractRequestedBookingTime(ctx.currentUserText);
-  if (requestedTime && requestedTime !== time) {
-    return {
-      toolName: "create_booking", toolInput: input,
-      toolOutput: {
-        error: "requested_time_mismatch",
-        requestedTime,
         attemptedTime: time,
       },
       success: false,
       displayMessage:
-        `사용자가 요청한 시간은 ${requestedTime}인데 예약 시도 시간이 ${time}라서 예약을 진행하지 않았습니다. ` +
-        "정확한 요청 시간의 가능 여부만 다시 확인해 주세요.",
+        `사용자가 요청한 날짜/시간은 ${requestedDateTime}인데 예약 시도 날짜/시간은 ${date} ${time}라서 예약을 진행하지 않았습니다. ` +
+        "정확한 요청 날짜와 시간의 가능 여부만 다시 확인해 주세요.",
+    };
+  }
+
+  if (requestedTime && requestedTime !== time) {
+    const requestedDateTime = requestedDate ? `${requestedDate} ${requestedTime}` : requestedTime;
+    return {
+      toolName: "create_booking", toolInput: input,
+      toolOutput: {
+        error: "requested_time_mismatch",
+        requestedDate: requestedDate ?? null,
+        requestedTime,
+        attemptedDate: date,
+        attemptedTime: time,
+      },
+      success: false,
+      displayMessage:
+        `사용자가 요청한 날짜/시간은 ${requestedDateTime}인데 예약 시도 날짜/시간은 ${date} ${time}라서 예약을 진행하지 않았습니다. ` +
+        "정확한 요청 날짜와 시간의 가능 여부만 다시 확인해 주세요.",
     };
   }
 
@@ -665,14 +688,14 @@ export async function executeCreateBooking(
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: {}, success: false,
-        displayMessage: "해당 시간은 예약이 불가능합니다.",
+        displayMessage: `해당 날짜/시간(${date} ${time})은 예약이 불가능합니다.`,
       };
     }
     if (msg.includes("slot_full")) {
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: {}, success: false,
-        displayMessage: "해당 시간의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.",
+        displayMessage: `해당 날짜/시간(${date} ${time})의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.`,
       };
     }
     throw rpcError;
@@ -806,15 +829,19 @@ export async function executeGetMyBookings(
     productName: booking.product_id ? (productMap.get(booking.product_id) ?? "") : "",
     date: booking.booking_date,
     time: booking.booking_time,
+    dateTimeLabel: `${booking.booking_date} ${booking.booking_time}`,
     status: booking.status,
     amount: booking.amount ?? 0,
   }));
+  const bookingSummary = enriched.slice(0, 5)
+    .map((booking) => `${booking.vendorName} ${booking.dateTimeLabel}${booking.productName ? ` / ${booking.productName}` : ""}`)
+    .join(", ");
 
   return {
     toolName: "get_my_bookings", toolInput: input,
     toolOutput: { bookings: enriched },
     success: true,
-    displayMessage: `${enriched.length}건의 예약이 있습니다.`,
+    displayMessage: `${enriched.length}건의 예약이 있습니다: ${bookingSummary}${enriched.length > 5 ? " ..." : ""}`,
   };
 }
 

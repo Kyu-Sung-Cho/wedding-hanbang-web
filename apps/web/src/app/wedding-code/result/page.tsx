@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import WeddingCodeResultClient from "./ResultClient";
 
-// 미러 프로필 v0 결과 — noindex (robots.ts의 /wedding-code 프리픽스 disallow와 이중 방어)
+// 웨딩코드 v0.5 결과 — noindex (robots.ts의 /wedding-code 프리픽스 disallow와 이중 방어)
 export const metadata: Metadata = {
-  title: "웨딩코드 결과 — 프로토타입 | 웨딩한방",
+  title: "웨딩코드 결과 | 웨딩한방",
   robots: { index: false, follow: false },
 };
 

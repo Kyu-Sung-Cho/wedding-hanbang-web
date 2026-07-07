@@ -1,9 +1,8 @@
 // 웨딩코드 응답 제출 검증 — 시스템 경계(API)에서 스키마를 강제한다.
 // 프로토타입이라도 쓰레기 데이터가 스모크 판독을 오염시키면 테스트 전체가 무효가 되므로
-// enum·범위·길이를 전부 잠근다. 채점/가중치 계산은 여기서도 어디서도 하지 않는다.
+// enum·범위·길이를 전부 잠근다. 채점은 결과 화면에서 클라이언트 참고용으로만 수행한다.
 
 import {
-  WC_QUESTIONS,
   WC_STAGES,
   WC_ANSWERING_MODES,
   WC_QUOTE_STATUSES,
@@ -13,11 +12,11 @@ import {
   WC_CTA_ITEMS,
   WC_FREE_TEXT_ITEMS,
 } from "@/constants/weddingCodeForm";
+import { WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 import { isRecord, isUuid } from "@/utils/requestValidation";
 import { sanitizeText } from "@/utils/sanitize";
 
 const OPTION_VALUES = new Set(["A", "B", "C", "D"]);
-const FLAG_VALUES = new Set(["direct", "hypothetical", "skipped"]);
 const STAGE_SET = new Set<string>(WC_STAGES.map((s) => s.value));
 const MODE_SET = new Set<string>(WC_ANSWERING_MODES.map((s) => s.value));
 const QUOTE_SET = new Set<string>(WC_QUOTE_STATUSES.map((s) => s.value));
@@ -65,36 +64,27 @@ export function validateWcSubmission(
       ? sanitizeText(body.biggest_concern_other).slice(0, 200).trim() || null
       : null;
 
-  // 답변: 필수 12문항 전부 + 선택 문항은 있으면 A-D. stage_flags는 게이팅 문항의 노출 상태.
+  // v0.5: 16문항 모두 필수. stage_flags는 구버전 호환 저장 필드라 있으면 정화만 한다.
   const rawAnswers = isRecord(body.answers) ? body.answers : {};
   const rawFlags = isRecord(body.stage_flags) ? body.stage_flags : {};
   const answers: Record<string, string> = {};
   const stageFlags: Record<string, string> = {};
 
-  for (const q of WC_QUESTIONS) {
+  for (const q of WEDDING_CODE_V05_QUESTIONS) {
     const v = rawAnswers[q.key];
-    const flag = rawFlags[q.key];
-    if (q.gateFlag) {
-      if (typeof flag !== "string" || !FLAG_VALUES.has(flag)) {
-        return { ok: false, error: "문항 노출 정보가 올바르지 않습니다." };
-      }
-      stageFlags[q.key] = flag;
-      if (flag === "skipped") {
-        if (v !== undefined && v !== null && v !== "") {
-          return { ok: false, error: "건너뛴 문항에 답변이 있습니다." };
-        }
-        continue;
-      }
-    }
     if (v === undefined || v === null || v === "") {
-      if (q.required && !q.gateFlag) return { ok: false, error: "필수 문항에 모두 답해주세요." };
-      if (q.gateFlag) return { ok: false, error: "필수 문항에 모두 답해주세요." };
-      continue; // 비게이팅 선택 문항(q14, q15)은 미응답 허용
+      return { ok: false, error: "필수 문항에 모두 답해주세요." };
     }
     if (typeof v !== "string" || !OPTION_VALUES.has(v)) {
       return { ok: false, error: "답변 값이 올바르지 않습니다." };
     }
     answers[q.key] = v;
+  }
+  for (const [key, value] of Object.entries(rawFlags)) {
+    if (typeof key !== "string" || typeof value !== "string") continue;
+    const cleanedKey = sanitizeText(key).slice(0, 40).trim();
+    const cleanedValue = sanitizeText(value).slice(0, 40).trim();
+    if (cleanedKey && cleanedValue) stageFlags[cleanedKey] = cleanedValue;
   }
 
   const feedback = readScales(body.feedback, WC_FEEDBACK_ITEMS.map((f) => f.key));

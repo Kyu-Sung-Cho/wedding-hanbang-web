@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  executeCheckVendorAvailability,
   executeGetVendorDetail,
   executeSearchVendors,
 } from "../vendorTools";
@@ -27,6 +28,8 @@ class FakeQuery {
 
   select() { return this; }
   eq() { return this; }
+  in() { return this; }
+  neq() { return this; }
   limit() { return this; }
   order() { return this; }
   or() { return this; }
@@ -34,6 +37,10 @@ class FakeQuery {
   gte() { return this; }
 
   single(): Promise<QueryResult> {
+    return Promise.resolve(this.handler.singleResult ?? { data: null, error: null });
+  }
+
+  maybeSingle(): Promise<QueryResult> {
     return Promise.resolve(this.handler.singleResult ?? { data: null, error: null });
   }
 
@@ -70,6 +77,10 @@ function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
 describe("vendorTools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps get_vendor_detail not-found response", async () => {
@@ -215,5 +226,33 @@ describe("vendorTools", () => {
       category: "드레스",
       result_count: 1,
     }]);
+  });
+
+  it("includes the concrete date and time in availability output", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T00:00:00.000Z"));
+
+    mockAdminClient({
+      vendors: [{ singleResult: { data: { name: "한방스튜디오" }, error: null } }],
+      vendor_timeslots: [{
+        awaitResult: {
+          data: [{ day: 0, hour: 10, available: true, max_bookings: 2 }],
+          error: null,
+        },
+      }],
+      vendor_bookings: [{ awaitResult: { data: [], error: null } }],
+    });
+
+    const result = await executeCheckVendorAvailability({ vendor_id: "vendor-1" });
+
+    expect(result.success).toBe(true);
+    expect(result.displayMessage).toContain("2026-07-06 (월) 10:00");
+    expect(result.toolOutput).toMatchObject({
+      slots: [{
+        date: "2026-07-06",
+        time: "10:00",
+        dateTimeLabel: "2026-07-06 (월) 10:00",
+      }],
+    });
   });
 });

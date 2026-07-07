@@ -54,6 +54,13 @@ function getAdminClient() {
   return createAdminClient();
 }
 
+function formatAvailabilitySlotDateTime(slot: { date?: string | null; dayLabel?: string | null; time: string }): string {
+  if (slot.date) {
+    return slot.dayLabel ? `${slot.date} (${slot.dayLabel}) ${slot.time}` : `${slot.date} ${slot.time}`;
+  }
+  return slot.dayLabel ? `${slot.dayLabel}요일 ${slot.time}` : slot.time;
+}
+
 export async function executeSearchVendors(
   input: Record<string, unknown>,
   ctx: VendorToolExecutionContext
@@ -253,6 +260,7 @@ export async function executeCheckVendorAvailability(
       hour: slot.hour,
       time: timeStr,
       date: dateStr,
+      dateTimeLabel: formatAvailabilitySlotDateTime({ date: dateStr, dayLabel: days[slot.day], time: timeStr }),
       maxBookings: slot.max_bookings,
       currentBookings,
       remaining,
@@ -266,7 +274,7 @@ export async function executeCheckVendorAvailability(
     toolOutput: { vendorName: vendor.name, slots: availableSlots, count: availableSlots.length },
     success: true,
     displayMessage: availableSlots.length > 0
-      ? `${vendor.name}의 예약 가능 시간 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dayLabel} ${slot.time}(잔여${slot.remaining}석)`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}`
+      ? `${vendor.name}의 예약 가능 시간 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dateTimeLabel}(잔여${slot.remaining}석)`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}`
       : `${vendor.name}은(는) 현재 예약 가능한 시간이 없습니다.`,
   };
 }
