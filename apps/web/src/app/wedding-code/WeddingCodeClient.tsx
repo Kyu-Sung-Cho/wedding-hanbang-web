@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, MessageCircle, UsersRound } from "lucide-react";
 import {
   WC_NO_RIGHT_ANSWER, WC_CONSENT_LABEL,
   WC_STAGES, WC_ANSWERING_MODES, WC_QUOTE_STATUSES, WC_PARENT_INVOLVEMENTS, WC_CONCERNS,
@@ -29,13 +29,19 @@ type FlowQuestion = WeddingCodeV05Question;
 const WC_V05_INTRO_TITLE = "웨딩코드 3분 테스트";
 const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족 조율, 역할 분담, 서로에게 필요한 말의 순서가 한꺼번에 섞입니다.
 
-웨딩코드는 16개의 실제 결혼 준비 상황을 통해 내가 어떤 기준으로 준비를 바라보는지 정리해보는 도구예요. 결과는 사람을 평가하거나 두 사람의 앞날을 단정하기 위한 것이 아니라, 상대와 더 편하게 이야기하기 위한 참고 자료로만 사용합니다.`;
+웨딩코드는 16개의 실제 상황으로 내가 먼저 보는 기준을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-7 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
 const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
+
+const INTRO_POINTS = [
+  { icon: Clock3, label: "3분", body: "16개 장면" },
+  { icon: MessageCircle, label: "대화", body: "질문 카드" },
+  { icon: UsersRound, label: "커플", body: "비교 리포트" },
+] as const;
 
 export default function WeddingCodeClient() {
   const router = useRouter();
@@ -74,7 +80,9 @@ export default function WeddingCodeClient() {
   const flow: FlowQuestion[] = useMemo(() => [...WEDDING_CODE_V05_QUESTIONS], []);
 
   const current = flow[qIndex];
-  const contextComplete = stage && mode && quoteStatus && parentInvolvement;
+  const contextAnswerCount = [stage, mode, quoteStatus, parentInvolvement].filter(Boolean).length;
+  const contextMissingCount = 4 - contextAnswerCount;
+  const contextComplete = contextMissingCount === 0;
 
   function toggleConcern(c: string) {
     setConcerns((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -157,13 +165,13 @@ export default function WeddingCodeClient() {
   const answeredCount = flow.filter((q) => answers[q.key]).length;
 
   return (
-    <div className="min-h-screen bg-[#fbf8f2] px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-[560px]">
+    <div className="min-h-screen bg-[#fbf8f2] px-4 py-7 sm:py-12">
+      <div className="mx-auto w-full max-w-[620px]">
         {/* 헤더 */}
         <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">
           WEDDINGCODE V0.5
         </p>
-        <h1 className="mb-6 text-center text-[26px] font-semibold leading-[1.3] text-[#263832] sm:text-[30px]">
+        <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[#263832] sm:text-[30px]">
           {WC_V05_INTRO_TITLE}
         </h1>
 
@@ -185,11 +193,26 @@ export default function WeddingCodeClient() {
 
         {/* ── 인트로 + 동의 ── */}
         {step === "intro" && (
-          <div className={`${card} p-6 sm:p-8`}>
-            <p className="whitespace-pre-line text-[14px] font-medium leading-[1.8] text-[#5d6879]">
-              {WC_V05_INTRO_BODY}
-            </p>
-            <label className="mt-6 flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5 select-none">
+          <div className={`${card} overflow-hidden`}>
+            <div className="p-5 sm:p-8">
+              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">준비 기준을 먼저 정리해요</p>
+              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[#34445a]">
+                {WC_V05_INTRO_BODY}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-[#eadfc9] border-y border-[#eadfc9] bg-[#fffdf7]">
+              {INTRO_POINTS.map((point) => (
+                <div key={point.label} className="min-w-0 px-3 py-3 text-center sm:px-5 sm:py-4">
+                  <point.icon className="mx-auto h-4 w-4 text-[#36534E]" />
+                  <div>
+                    <p className="mt-1.5 text-[12px] font-semibold text-[#263832]">{point.label}</p>
+                    <p className="mt-0.5 truncate text-[11px] font-medium leading-relaxed text-[#6d625a]">{point.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-5 sm:p-8">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5 select-none">
               <input
                 type="checkbox"
                 checked={consent}
@@ -210,12 +233,27 @@ export default function WeddingCodeClient() {
             >
               시작하기 <ArrowRight className="h-4 w-4" />
             </button>
+            </div>
           </div>
         )}
 
         {/* ── 참여자 컨텍스트 ── */}
         {step === "context" && (
           <div className={`${card} p-6 sm:p-8`}>
+            <div className="mb-6 rounded-[14px] bg-[#EEF4F1] px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] font-semibold text-[#36534E]">기본 상황 {contextAnswerCount} / 4</p>
+                <p className="text-[11px] font-semibold text-[#6d625a]">
+                  {contextComplete ? "질문으로 넘어갈 수 있어요" : `${contextMissingCount}개 더 선택`}
+                </p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+                <div
+                  className="h-full rounded-full bg-[#36534E] transition-all"
+                  style={{ width: `${(contextAnswerCount / 4) * 100}%` }}
+                />
+              </div>
+            </div>
             <ContextSelect label="지금 결혼 준비 단계는 어디에 가장 가깝나요?" options={WC_STAGES} value={stage} onChange={setStage} />
             <ContextSelect label="답변은 혼자 하고 있나요, 상대와 함께 하고 있나요?" options={WC_ANSWERING_MODES} value={mode} onChange={setMode} />
             <ContextSelect label="업체 견적을 받아본 적이 있나요?" options={WC_QUOTE_STATUSES} value={quoteStatus} onChange={setQuoteStatus} />
@@ -254,7 +292,7 @@ export default function WeddingCodeClient() {
               disabled={!contextComplete}
               className={`${primaryBtn} mt-6 w-full`}
             >
-              질문 시작 <ArrowRight className="h-4 w-4" />
+              {contextComplete ? "질문 시작" : `${contextMissingCount}개 더 선택하면 시작`} <ArrowRight className="h-4 w-4" />
             </button>
             <p className="mt-3 text-center text-[12px] font-medium text-[#9a9188]">{WC_NO_RIGHT_ANSWER}</p>
           </div>
@@ -263,7 +301,12 @@ export default function WeddingCodeClient() {
         {/* ── 문항 (한 화면 한 질문) ── */}
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
-            <p className="mb-2 text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
+              <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
+                {qIndex + 1} / {flow.length}
+              </p>
+            </div>
             <p className="text-[19px] font-semibold leading-[1.5] text-[#263832] sm:text-[21px]">
               {current.question}
             </p>
@@ -272,13 +315,18 @@ export default function WeddingCodeClient() {
                 <button
                   key={opt.value}
                   onClick={() => selectOption(current, opt.value)}
-                  className={`rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
+                  className={`flex items-start gap-3 rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
                     answers[current.key] === opt.value
                       ? "border-[#36534E] bg-[#EEF4F1] text-[#263832]"
                       : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#36534E]/50 hover:bg-[#fffdf7]"
                   }`}
                 >
-                  {opt.label}
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                    answers[current.key] === opt.value ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#d8c9ad] bg-[#fffdf7]"
+                  }`}>
+                    {answers[current.key] === opt.value && <Check className="h-3 w-3" />}
+                  </span>
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </div>
@@ -370,12 +418,14 @@ function ContextSelect({
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
-            className={`rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+            aria-pressed={value === opt.value}
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
               value === opt.value
                 ? "border-[#36534E] bg-[#36534E] text-white"
                 : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#b68a3a]"
             }`}
           >
+            {value === opt.value && <Check className="h-3.5 w-3.5" />}
             {opt.label}
           </button>
         ))}

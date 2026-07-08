@@ -120,6 +120,11 @@ export default function WeddingCodeResultClient() {
 
   const score = useMemo(() => scoreWeddingCodeV05(answers), [answers]);
   const report = useMemo(() => buildWeddingCodeV05IndividualReport(score), [score]);
+  const strongestAxis = useMemo(() => {
+    return [...report.axisReports]
+      .filter((axis) => axis.leftScore !== null && axis.rightScore !== null)
+      .sort((a, b) => Math.abs((b.leftScore ?? 0) - (b.rightScore ?? 0)) - Math.abs((a.leftScore ?? 0) - (a.rightScore ?? 0)))[0] ?? null;
+  }, [report.axisReports]);
   const visibleInviteLink = useMemo(() => {
     if (inviteLink) return inviteLink;
     if (!backup || backup === "loading" || !backup.coupleToken || typeof window === "undefined") return null;
@@ -279,11 +284,14 @@ export default function WeddingCodeResultClient() {
           {report.subtitleKo}
         </p>
 
-        <section className={`${card} mt-7 p-5 sm:p-6`}>
-          <div className="flex items-start justify-between gap-4">
+        <section className={`${card} mt-7 overflow-hidden`}>
+          <div className="flex items-start justify-between gap-4 p-5 sm:p-6">
             <div>
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">내 웨딩코드 카드</p>
-              <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#34445a]">
+              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">결과 요약</p>
+              <p className="mt-2 text-[17px] font-semibold leading-relaxed text-[#263832]">
+                {strongestAxis?.summaryKo ?? report.subtitleKo}
+              </p>
+              <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#5d6879]">
                 점수로 판정하지 않고, 결혼 준비 대화에 바로 쓸 수 있는 기준만 정리했어요.
               </p>
             </div>
@@ -296,6 +304,11 @@ export default function WeddingCodeResultClient() {
             >
               {savingCard ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
             </button>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-[#eadfc9] border-t border-[#eadfc9] bg-[#fffdf7]">
+            <SummaryMetric label="응답" value={`${score.answeredCount}개`} />
+            <SummaryMetric label="핵심 축" value={strongestAxis?.labelKo ?? "균형"} />
+            <SummaryMetric label="용도" value="대화 기준" />
           </div>
         </section>
 
@@ -465,7 +478,7 @@ export default function WeddingCodeResultClient() {
 function AxisMeter({ label, value }: { label: string; value: number | null }) {
   const width = value === null ? 0 : Math.min(100, Math.max(0, value));
   return (
-    <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] p-3">
+    <div className="min-w-0">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold text-[#6d625a]">{label}</span>
         <span className="text-[12px] font-semibold text-[#263832]">{formatPercent(value)}</span>
@@ -635,6 +648,15 @@ function CoupleScenarioCard({
           {card.firstQuestionKo}
         </p>
       </div>
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 px-4 py-3.5 text-center">
+      <p className="text-[11px] font-semibold text-[#9d6f36]">{label}</p>
+      <p className="mt-1 truncate text-[13px] font-semibold text-[#263832]">{value}</p>
     </div>
   );
 }
