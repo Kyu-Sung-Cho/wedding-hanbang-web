@@ -279,15 +279,6 @@ export default function WeddingCodeResultClient() {
           {report.subtitleKo}
         </p>
 
-        {backup.paired && !backup.coupleToken && (
-          <div className="mt-5 flex items-center gap-2.5 rounded-[14px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3.5">
-            <Heart className="h-4 w-4 shrink-0 text-[#36534E]" />
-            <p className="text-[13px] font-semibold leading-relaxed text-[#36534E]">
-              두 분의 응답이 연결됐어요. 커플 비교 리포트는 다음 단계에서 이 결과 화면에 붙일 예정이에요.
-            </p>
-          </div>
-        )}
-
         <section className={`${card} mt-7 p-5 sm:p-6`}>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -364,7 +355,7 @@ export default function WeddingCodeResultClient() {
         </section>
 
         <div className="mt-7 flex flex-col gap-2.5">
-          {!backup.paired && backup.responseId && coupleReportState.kind !== "ready" && (
+          {!backup.coupleToken && backup.responseId && coupleReportState.kind !== "ready" && (
             <div className={`${card} p-5`}>
               <button onClick={createInvite} disabled={inviteState === "creating"} className={`${primaryBtn} w-full`}>
                 {inviteState === "creating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
