@@ -30,6 +30,23 @@ export type WeddingCodeV05CoupleAxisOverlap = {
   overlapScore: number;
   label: "high" | "medium" | "low";
   summaryKo: string;
+  firstSideKo: string;
+  secondSideKo: string;
+};
+
+export type WeddingCodeV05CoupleSolutionCard = {
+  id:
+    | "dress_budget_style"
+    | "vendor_shortlist_roles"
+    | "family_guest_scope"
+    | "planning_talk_order";
+  axisKey: WeddingCodeV05AxisScore["key"];
+  categoryKo: string;
+  titleKo: string;
+  attentionKo: string;
+  solutionKo: string;
+  firstQuestionKo: string;
+  overlapScore: number;
 };
 
 export type WeddingCodeV05CoupleReport = {
@@ -38,6 +55,7 @@ export type WeddingCodeV05CoupleReport = {
   overlapLabelKo: string;
   easyPoints: WeddingCodeV05CoupleAxisOverlap[];
   talkFirst: WeddingCodeV05CoupleAxisOverlap | null;
+  solutionCards: WeddingCodeV05CoupleSolutionCard[];
   guideKo: string;
   disclaimerKo: string;
 };
@@ -84,6 +102,7 @@ export function buildWeddingCodeV05CoupleReport(
       overlapLabelKo: "아직 비교하기엔 응답이 부족해요",
       easyPoints: [],
       talkFirst: null,
+      solutionCards: [],
       guideKo: "두 사람이 같은 문항에 조금 더 답하면, 대화가 쉬운 지점과 먼저 맞춰볼 지점을 나눠볼 수 있어요.",
       disclaimerKo: COUPLE_DISCLAIMER,
     };
@@ -91,7 +110,8 @@ export function buildWeddingCodeV05CoupleReport(
 
   const overlapScore = roundScore(overlaps.reduce((sum, axis) => sum + axis.overlapScore, 0) / overlaps.length);
   const orderedByOverlap = [...overlaps].sort((a, b) => b.overlapScore - a.overlapScore);
-  const talkFirst = [...overlaps].sort((a, b) => a.overlapScore - b.overlapScore)[0] ?? null;
+  const orderedByNeed = [...overlaps].sort((a, b) => a.overlapScore - b.overlapScore);
+  const talkFirst = orderedByNeed[0] ?? null;
 
   return {
     titleKo: "두 사람의 준비 방식 겹침도",
@@ -99,6 +119,7 @@ export function buildWeddingCodeV05CoupleReport(
     overlapLabelKo: coupleOverlapLabel(overlapScore),
     easyPoints: orderedByOverlap.slice(0, 2),
     talkFirst,
+    solutionCards: orderedByNeed.map(solutionCardForAxis),
     guideKo: talkFirst
       ? `${talkFirst.labelKo}부터 먼저 맞춰보면 좋아요. 점수가 낮다는 뜻이 아니라, 대화를 시작하면 효율이 큰 지점이에요.`
       : "두 사람이 비슷하게 답한 지점부터 가볍게 이야기해보세요.",
@@ -221,6 +242,8 @@ function axisOverlap(
     overlapScore,
     label,
     summaryKo: coupleAxisSummary(first, second, overlapScore),
+    firstSideKo: sidePhrase(first),
+    secondSideKo: sidePhrase(second),
   };
 }
 
@@ -253,6 +276,70 @@ function coupleOverlapLabel(score: number): string {
   if (score >= 75) return "대화가 쉽게 시작될 지점이 많아요";
   if (score >= 55) return "겹치는 부분과 맞춰볼 부분이 함께 있어요";
   return "먼저 맞춰볼 대화 주제가 뚜렷해요";
+}
+
+function solutionCardForAxis(axis: WeddingCodeV05CoupleAxisOverlap): WeddingCodeV05CoupleSolutionCard {
+  const attentionKo = sideAttention(axis);
+  switch (axis.key) {
+    case "decisionCriteria":
+      return {
+        id: "dress_budget_style",
+        axisKey: axis.key,
+        categoryKo: "드레스·스튜디오 선택",
+        titleKo: "예산선과 마음에 드는 장면을 같이 보기",
+        attentionKo,
+        solutionKo:
+          "먼저 넘지 않을 상한선을 정하고, 그 선을 넘겨도 되는 이유가 있는지 한 문장으로 따로 적어보세요. 가격 이야기를 먼저 닫은 뒤, 사진·무드·오래 남을 장면을 다시 보면 대화가 덜 엉켜요.",
+        firstQuestionKo: "이 선택은 얼마까지 괜찮고, 무엇 때문에 그만큼 쓸 수 있다고 느끼는지부터 말해볼까요?",
+        overlapScore: axis.overlapScore,
+      };
+    case "preparationMode":
+      return {
+        id: "vendor_shortlist_roles",
+        axisKey: axis.key,
+        categoryKo: "업체 후보 정리",
+        titleKo: "같이 볼 결정과 맡아볼 일을 분리하기",
+        attentionKo,
+        solutionKo:
+          "처음부터 전부 같이 보려 하면 느려지고, 한쪽이 다 정리하면 소외감이 생길 수 있어요. 후보 압축은 맡아서 하되, 계약·취향·예산이 걸린 최종 결정은 함께 보는 식으로 선을 나눠보세요.",
+        firstQuestionKo: "이번 주에는 무엇을 같이 보고, 무엇을 각자 맡아 정리하면 편할까요?",
+        overlapScore: axis.overlapScore,
+      };
+    case "coordinationScope":
+      return {
+        id: "family_guest_scope",
+        axisKey: axis.key,
+        categoryKo: "예식장·하객·가족 조율",
+        titleKo: "우리 기준과 가족 기준을 한 표에 놓기",
+        attentionKo,
+        solutionKo:
+          "한쪽은 둘의 기준을 지키고 싶고, 다른 쪽은 부모님·하객·식사·교통을 먼저 볼 수 있어요. 우리 기준, 가족이 볼 기준, 조정 가능한 기준을 세 칸으로 나눠 적으면 누가 양보해야 하는지보다 무엇을 맞출지가 선명해져요.",
+        firstQuestionKo: "우리가 꼭 지킬 기준 하나와 가족이 중요하게 볼 기준 하나를 같이 적어볼까요?",
+        overlapScore: axis.overlapScore,
+      };
+    case "supportOrder":
+      return {
+        id: "planning_talk_order",
+        axisKey: axis.key,
+        categoryKo: "준비 대화가 지칠 때",
+        titleKo: "듣는 시간과 정리하는 시간을 순서대로 두기",
+        attentionKo,
+        solutionKo:
+          "한 사람은 마음을 먼저 들어주길 바라고, 다른 사람은 바로 해결 방법을 잡아주려 할 수 있어요. 처음 5분은 걱정을 끊지 않고 듣고, 그다음 오늘 정할 한 가지만 고르는 순서로 나눠보세요.",
+        firstQuestionKo: "지금은 먼저 들어줬으면 좋겠어요, 아니면 바로 정리해보는 게 편해요?",
+        overlapScore: axis.overlapScore,
+      };
+  }
+}
+
+function sideAttention(axis: WeddingCodeV05CoupleAxisOverlap): string {
+  if (axis.firstSideKo === axis.secondSideKo) {
+    return `두 사람 모두 ${axis.firstSideKo}에 가까워도, 실제 결정 장면에서는 기준을 말로 꺼내지 않으면 서로 이미 안다고 착각하기 쉬워요.`;
+  }
+  if (axis.firstSideKo === "균형" || axis.secondSideKo === "균형") {
+    return `한 사람은 ${axis.firstSideKo}, 다른 사람은 ${axis.secondSideKo}에 가까울 수 있어요. 균형 쪽 답변도 상황이 급해지면 한 기준으로 기울 수 있으니 먼저 순서를 정해두면 좋아요.`;
+  }
+  return `한 사람은 ${axis.firstSideKo}, 다른 사람은 ${axis.secondSideKo}에 가까울 수 있어요. 둘 중 하나가 더 맞다는 뜻이 아니라, 먼저 보는 창이 달라 대화 순서가 엉킬 수 있는 지점이에요.`;
 }
 
 function roundScore(value: number): number {

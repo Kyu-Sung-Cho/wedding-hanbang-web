@@ -567,10 +567,53 @@ function CoupleReportSection({
       <p className="mt-4 rounded-[12px] bg-[#fffdf7] px-4 py-3 text-[13px] font-medium leading-relaxed text-[#34445a]">
         {report.guideKo}
       </p>
+
+      {report.solutionCards.length > 0 && (
+        <div className="mt-5 border-t border-[#eadfc9] pt-5">
+          <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">상황별 맞춰볼 방법</p>
+          <div className="mt-3 grid gap-3">
+            {report.solutionCards.map((card) => (
+              <CoupleSolutionCard key={card.id} card={card} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="mt-3 text-[11px] font-medium leading-relaxed text-[#9a9188]">
         {report.disclaimerKo}
       </p>
     </section>
+  );
+}
+
+function CoupleSolutionCard({
+  card,
+}: {
+  card: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["solutionCards"][number];
+}) {
+  return (
+    <div className="rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{card.categoryKo}</p>
+          <p className="mt-1 text-[14px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
+        </div>
+        <p className="shrink-0 text-[12px] font-semibold text-[#36534E]">{formatPercent(card.overlapScore)}</p>
+      </div>
+      <div className="mt-3 grid gap-2.5">
+        <div>
+          <p className="text-[11px] font-semibold text-[#8F6662]">조심할 지점</p>
+          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{card.attentionKo}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold text-[#36534E]">이렇게 해보기</p>
+          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#34445a]">{card.solutionKo}</p>
+        </div>
+        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[#263832]">
+          {card.firstQuestionKo}
+        </p>
+      </div>
+    </div>
   );
 }
 

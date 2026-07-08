@@ -81,6 +81,9 @@ describe("WeddingCode v0.5 result copy", () => {
     expect(report.overlapScore).not.toBeNull();
     expect(report.easyPoints.length).toBeGreaterThan(0);
     expect(report.talkFirst).not.toBeNull();
+    expect(report.solutionCards).toHaveLength(4);
+    expect(report.solutionCards.map((card) => card.categoryKo)).toContain("드레스·스튜디오 선택");
+    expect(text).toContain("예산선과 마음에 드는 장면");
     for (const word of BANNED_PUBLIC_WORDS) {
       expect(text).not.toContain(word);
     }
@@ -90,6 +93,7 @@ describe("WeddingCode v0.5 result copy", () => {
     const report = buildWeddingCodeV05CoupleReport(scoreWeddingCodeV05({ A1: "A" }), scoreWeddingCodeV05({ A1: "B" }));
 
     expect(report.overlapScore).toBeNull();
+    expect(report.solutionCards).toHaveLength(0);
     expect(report.overlapLabelKo).toContain("부족");
     expect(report.disclaimerKo).toContain("결혼 결과");
     expect(flattenText(report)).not.toContain("궁합");
