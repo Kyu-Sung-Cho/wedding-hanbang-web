@@ -106,7 +106,7 @@ describe("WeddingCode v0.5 result copy", () => {
     expect(report.scenarioCards).toHaveLength(0);
     expect(report.solutionCards).toHaveLength(0);
     expect(report.overlapLabelKo).toContain("부족");
-    expect(report.disclaimerKo).toContain("결혼 결과");
+    expect(report.disclaimerKo).toContain("좋고 나쁨");
     expect(flattenText(report)).not.toContain("궁합");
   });
 });

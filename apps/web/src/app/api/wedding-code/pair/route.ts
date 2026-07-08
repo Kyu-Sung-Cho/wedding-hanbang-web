@@ -7,9 +7,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { isRecord, isUuid } from "@/utils/requestValidation";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
 export const dynamic = "force-dynamic";
+
+const MAX_BODY_BYTES = 4 * 1024;
 
 function getServiceClient() {
   return createClient(
@@ -21,6 +23,10 @@ function getServiceClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+
     const limited = await checkRateLimitPersistent(rateLimitKey("wedding-code-pair", request), {
       maxRequests: 20,
       windowMs: 60 * 60 * 1000,

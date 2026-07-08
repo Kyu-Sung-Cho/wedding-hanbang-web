@@ -1,7 +1,7 @@
 "use client";
 
 // 웨딩코드 v0.5 폼 — 16개 상황형 질문을 한 화면 한 질문으로 진행한다.
-// 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 진단/예측으로 표현하지 않는다.
+// 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 사람이나 관계를 단정하지 않는다.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,7 +29,7 @@ type FlowQuestion = WeddingCodeV05Question;
 const WC_V05_INTRO_TITLE = "웨딩코드 3분 테스트";
 const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족 조율, 역할 분담, 서로에게 필요한 말의 순서가 한꺼번에 섞입니다.
 
-웨딩코드는 16개의 실제 결혼 준비 상황을 통해 내가 어떤 기준으로 준비를 바라보는지 정리해보는 도구예요. 결과는 심리 진단이나 결혼 예측이 아니라, 상대와 더 편하게 이야기하기 위한 참고 자료로만 사용합니다.`;
+웨딩코드는 16개의 실제 결혼 준비 상황을 통해 내가 어떤 기준으로 준비를 바라보는지 정리해보는 도구예요. 결과는 사람을 평가하거나 두 사람의 앞날을 단정하기 위한 것이 아니라, 상대와 더 편하게 이야기하기 위한 참고 자료로만 사용합니다.`;
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =

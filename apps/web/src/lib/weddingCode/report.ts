@@ -79,10 +79,10 @@ export type WeddingCodeV05CoupleReport = {
 };
 
 const INDIVIDUAL_DISCLAIMER =
-  "이 결과는 심리 진단이나 결혼 예측이 아니라, 현재 답변을 바탕으로 결혼 준비 대화를 시작하기 쉽게 정리한 참고 자료예요.";
+  "이 결과는 현재 답변을 바탕으로 결혼 준비 대화를 시작하기 쉽게 정리한 참고 자료예요. 사람을 평가하거나 앞날을 단정하는 데 쓰지 않아요.";
 
 const COUPLE_DISCLAIMER =
-  "두 사람의 점수 차이는 좋고 나쁨이나 결혼 결과를 예측하지 않고, 결혼 준비에서 먼저 맞춰볼 대화 순서를 찾기 위한 참고예요.";
+  "두 사람의 점수 차이는 좋고 나쁨을 가르는 기준이 아니라, 결혼 준비에서 먼저 맞춰볼 대화 순서를 찾기 위한 참고예요.";
 
 export function buildWeddingCodeV05IndividualReport(
   score: WeddingCodeV05ScoreResult
