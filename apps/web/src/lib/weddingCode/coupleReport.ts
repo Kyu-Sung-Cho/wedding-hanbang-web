@@ -52,7 +52,8 @@ export function buildWeddingCodeCoupleReportPayload(
     };
   }
 
-  const scores = compatibleRows.map((row) => scoreWeddingCodeV05(toWeddingCodeV05Answers(row.answers)));
+  const answerSets = compatibleRows.map((row) => toWeddingCodeV05Answers(row.answers));
+  const scores = answerSets.map((answers) => scoreWeddingCodeV05(answers));
   if (scores.some((score) => score.answeredCount < WEDDING_CODE_V05_QUESTIONS.length)) {
     return {
       status: "incompatible",
@@ -64,11 +65,13 @@ export function buildWeddingCodeCoupleReportPayload(
   return {
     status: "ready",
     responseCount: 2,
-    report: buildWeddingCodeV05CoupleReport(scores[0], scores[1]),
+    report: buildWeddingCodeV05CoupleReport(scores[0], scores[1], {
+      firstAnswers: answerSets[0],
+      secondAnswers: answerSets[1],
+    }),
     participants: [
       { submittedAt: compatibleRows[0].created_at, answeredCount: scores[0].answeredCount },
       { submittedAt: compatibleRows[1].created_at, answeredCount: scores[1].answeredCount },
     ],
   };
 }
-

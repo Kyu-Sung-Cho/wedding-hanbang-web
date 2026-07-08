@@ -568,9 +568,20 @@ function CoupleReportSection({
         {report.guideKo}
       </p>
 
+      {report.scenarioCards.length > 0 && (
+        <div className="mt-5 border-t border-[#eadfc9] pt-5">
+          <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">실제 장면별 솔루션</p>
+          <div className="mt-3 grid gap-4">
+            {report.scenarioCards.map((card) => (
+              <CoupleScenarioCard key={card.id} card={card} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {report.solutionCards.length > 0 && (
         <div className="mt-5 border-t border-[#eadfc9] pt-5">
-          <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">상황별 맞춰볼 방법</p>
+          <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">축별 맞춰볼 방법</p>
           <div className="mt-3 grid gap-3">
             {report.solutionCards.map((card) => (
               <CoupleSolutionCard key={card.id} card={card} />
@@ -583,6 +594,57 @@ function CoupleReportSection({
         {report.disclaimerKo}
       </p>
     </section>
+  );
+}
+
+function CoupleScenarioCard({
+  card,
+}: {
+  card: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["scenarioCards"][number];
+}) {
+  const sameChoice = card.relation === "same";
+
+  return (
+    <div className="border-t border-[#eadfc9] pt-4 first:border-t-0 first:pt-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{card.categoryKo}</p>
+          <p className="mt-1 text-[15px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
+        </div>
+        <p className="shrink-0 rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
+          {sameChoice ? "같은 초점" : "서로 다른 초점"}
+        </p>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-[#8F6662]">
+            {sameChoice ? "두 사람 모두 고른 방향" : "한 사람이 먼저 보는 방향"}
+          </p>
+          <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.firstChoiceKo}</p>
+        </div>
+        {!sameChoice && (
+          <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-[#8F6662]">다른 사람이 먼저 보는 방향</p>
+            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.secondChoiceKo}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 grid gap-2.5">
+        <div>
+          <p className="text-[11px] font-semibold text-[#8F6662]">조심할 지점</p>
+          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{card.attentionKo}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold text-[#36534E]">해결 방법</p>
+          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#34445a]">{card.solutionKo}</p>
+        </div>
+        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[#263832]">
+          {card.firstQuestionKo}
+        </p>
+      </div>
+    </div>
   );
 }
 

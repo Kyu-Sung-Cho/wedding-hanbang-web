@@ -74,13 +74,23 @@ describe("WeddingCode v0.5 result copy", () => {
   });
 
   it("커플 리포트는 준비 방식 겹침도만 말하고 궁합/적합도 표현을 쓰지 않는다", () => {
-    const report = buildWeddingCodeV05CoupleReport(scoreWeddingCodeV05(allA()), scoreWeddingCodeV05(allD()));
+    const firstAnswers = allA();
+    const secondAnswers = allD();
+    const report = buildWeddingCodeV05CoupleReport(scoreWeddingCodeV05(firstAnswers), scoreWeddingCodeV05(secondAnswers), {
+      firstAnswers,
+      secondAnswers,
+    });
     const text = flattenText(report);
 
     expect(report.titleKo).toContain("준비 방식 겹침도");
     expect(report.overlapScore).not.toBeNull();
     expect(report.easyPoints.length).toBeGreaterThan(0);
     expect(report.talkFirst).not.toBeNull();
+    expect(report.scenarioCards).toHaveLength(5);
+    expect(report.scenarioCards[0].relation).toBe("different");
+    expect(report.scenarioCards.map((card) => card.id)).toContain("venue_budget_gap");
+    expect(text).toContain("실제 보증인원 차이");
+    expect(JSON.stringify(report)).not.toContain("\"A1\"");
     expect(report.solutionCards).toHaveLength(4);
     expect(report.solutionCards.map((card) => card.categoryKo)).toContain("드레스·스튜디오 선택");
     expect(text).toContain("예산선과 마음에 드는 장면");
@@ -93,6 +103,7 @@ describe("WeddingCode v0.5 result copy", () => {
     const report = buildWeddingCodeV05CoupleReport(scoreWeddingCodeV05({ A1: "A" }), scoreWeddingCodeV05({ A1: "B" }));
 
     expect(report.overlapScore).toBeNull();
+    expect(report.scenarioCards).toHaveLength(0);
     expect(report.solutionCards).toHaveLength(0);
     expect(report.overlapLabelKo).toContain("부족");
     expect(report.disclaimerKo).toContain("결혼 결과");

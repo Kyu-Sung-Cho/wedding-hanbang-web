@@ -55,6 +55,8 @@ describe("WeddingCode couple report payload", () => {
     expect(payload.report.overlapScore).not.toBeNull();
     expect(payload.participants).toHaveLength(2);
     expect(payload.participants[0].answeredCount).toBe(16);
+    expect(payload.report.scenarioCards.length).toBeGreaterThan(0);
+    expect(flattenText(payload.report.scenarioCards)).toContain("한 사람");
     for (const word of BANNED_PUBLIC_WORDS) {
       expect(flattenText(payload.report)).not.toContain(word);
     }
@@ -70,4 +72,3 @@ describe("WeddingCode couple report payload", () => {
     expect(flattenText(payload)).toContain("전체 응답");
   });
 });
-
