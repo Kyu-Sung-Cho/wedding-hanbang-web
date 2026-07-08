@@ -18,11 +18,11 @@ import {
   WEDDING_CODE_V05_PUBLIC_AXES,
   WEDDING_CODE_V05_QUESTIONS,
   WEDDING_CODE_V05_VERSION,
-  type WeddingCodeV05OptionValue,
-  type WeddingCodeV05QuestionKey,
 } from "@/constants/weddingCodeV05";
+import { toWeddingCodeV05Answers } from "@/lib/weddingCode/answers";
+import type { WeddingCodeCoupleReportPayload } from "@/lib/weddingCode/coupleReport";
 import { buildWeddingCodeV05IndividualReport } from "@/lib/weddingCode/report";
-import { scoreWeddingCodeV05, type WeddingCodeV05Answers } from "@/lib/weddingCode/score";
+import { scoreWeddingCodeV05 } from "@/lib/weddingCode/score";
 import { renderShareCard, downloadCanvasPng, canvasToPngBlob } from "@/lib/weddingCode/shareCard";
 import { captureEvent } from "@/lib/analytics";
 
@@ -38,13 +38,19 @@ export interface WcResultBackup {
 
 export const WC_RESULT_STORAGE_KEY = "wc_result_v05";
 
+type CoupleReportState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "waiting"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "waiting" }> }
+  | { kind: "incompatible"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "incompatible" }> }
+  | { kind: "ready"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }> }
+  | { kind: "error"; messageKo: string };
+
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] disabled:opacity-40";
 const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
-
-const OPTION_VALUES = new Set<string>(["A", "B", "C", "D"]);
 
 function readBackup(): WcResultBackup | null {
   try {
@@ -63,16 +69,6 @@ function writeBackup(backup: WcResultBackup): void {
   } catch {
     /* storage 불가 환경 무시 */
   }
-}
-
-function toV05Answers(raw: Record<string, string>): WeddingCodeV05Answers {
-  const keys = new Set<string>(WEDDING_CODE_V05_QUESTIONS.map((question) => question.key));
-  const answers: WeddingCodeV05Answers = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (!keys.has(key) || !OPTION_VALUES.has(value)) continue;
-    answers[key as WeddingCodeV05QuestionKey] = value as WeddingCodeV05OptionValue;
-  }
-  return answers;
 }
 
 function formatPercent(value: number | null): string {
@@ -108,6 +104,8 @@ export default function WeddingCodeResultClient() {
   const [allOpen, setAllOpen] = useState(false);
   const [inviteState, setInviteState] = useState<"idle" | "creating" | "copied" | "error">("idle");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [coupleReportState, setCoupleReportState] = useState<CoupleReportState>({ kind: "idle" });
+  const [coupleReportReloadKey, setCoupleReportReloadKey] = useState(0);
 
   useEffect(() => {
     const data = readBackup();
@@ -117,11 +115,54 @@ export default function WeddingCodeResultClient() {
 
   const answers = useMemo(() => {
     if (!backup || backup === "loading") return {};
-    return toV05Answers(backup.answers);
+    return toWeddingCodeV05Answers(backup.answers);
   }, [backup]);
 
   const score = useMemo(() => scoreWeddingCodeV05(answers), [answers]);
   const report = useMemo(() => buildWeddingCodeV05IndividualReport(score), [score]);
+  const visibleInviteLink = useMemo(() => {
+    if (inviteLink) return inviteLink;
+    if (!backup || backup === "loading" || !backup.coupleToken || typeof window === "undefined") return null;
+    return `${window.location.origin}/wedding-code?ct=${backup.coupleToken}`;
+  }, [backup, inviteLink]);
+
+  useEffect(() => {
+    if (!backup || backup === "loading" || !backup.coupleToken) {
+      setCoupleReportState({ kind: "idle" });
+      return;
+    }
+
+    const coupleToken = backup.coupleToken;
+    let cancelled = false;
+    async function loadCoupleReport() {
+      setCoupleReportState({ kind: "loading" });
+      try {
+        const res = await fetch(`/api/wedding-code/couple-report?ct=${encodeURIComponent(coupleToken)}`);
+        const payload = (await res.json().catch(() => null)) as WeddingCodeCoupleReportPayload | { error?: string } | null;
+        if (cancelled) return;
+        if (!res.ok || !payload || !("status" in payload)) {
+          const messageKo = payload && "error" in payload ? payload.error : null;
+          setCoupleReportState({ kind: "error", messageKo: messageKo ?? "비교 리포트를 불러오지 못했어요." });
+          return;
+        }
+        if (payload.status === "ready") {
+          setCoupleReportState({ kind: "ready", payload });
+          captureEvent("wc_couple_report_viewed", { version: WEDDING_CODE_V05_VERSION });
+        } else if (payload.status === "waiting") {
+          setCoupleReportState({ kind: "waiting", payload });
+        } else {
+          setCoupleReportState({ kind: "incompatible", payload });
+        }
+      } catch {
+        if (!cancelled) setCoupleReportState({ kind: "error", messageKo: "네트워크 오류로 비교 리포트를 불러오지 못했어요." });
+      }
+    }
+
+    loadCoupleReport();
+    return () => {
+      cancelled = true;
+    };
+  }, [backup, coupleReportReloadKey]);
 
   async function saveResultCard() {
     setSavingCard(true);
@@ -238,7 +279,7 @@ export default function WeddingCodeResultClient() {
           {report.subtitleKo}
         </p>
 
-        {backup.paired && (
+        {backup.paired && !backup.coupleToken && (
           <div className="mt-5 flex items-center gap-2.5 rounded-[14px] border border-[#36534E]/25 bg-[#EEF4F1] px-4 py-3.5">
             <Heart className="h-4 w-4 shrink-0 text-[#36534E]" />
             <p className="text-[13px] font-semibold leading-relaxed text-[#36534E]">
@@ -266,6 +307,13 @@ export default function WeddingCodeResultClient() {
             </button>
           </div>
         </section>
+
+        {backup.coupleToken && (
+          <CoupleReportSection
+            state={coupleReportState}
+            onRefresh={() => setCoupleReportReloadKey((value) => value + 1)}
+          />
+        )}
 
         <section className="mt-5 flex flex-col gap-3">
           {report.axisReports.map((axis) => (
@@ -316,7 +364,7 @@ export default function WeddingCodeResultClient() {
         </section>
 
         <div className="mt-7 flex flex-col gap-2.5">
-          {!backup.paired && backup.responseId && (
+          {!backup.paired && backup.responseId && coupleReportState.kind !== "ready" && (
             <div className={`${card} p-5`}>
               <button onClick={createInvite} disabled={inviteState === "creating"} className={`${primaryBtn} w-full`}>
                 {inviteState === "creating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
@@ -325,13 +373,13 @@ export default function WeddingCodeResultClient() {
               <p className="mt-2 text-center text-[12px] font-medium text-[#9a9188]">
                 상대가 같은 테스트를 완료하면 두 사람의 준비 방식 겹침도를 만들 수 있어요.
               </p>
-              {inviteLink && (
+              {visibleInviteLink && (
                 <div className="mt-3 flex items-center gap-2 rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
-                  <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#34445a]">{inviteLink}</p>
+                  <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#34445a]">{visibleInviteLink}</p>
                   <button
                     onClick={async () => {
                       try {
-                        await navigator.clipboard.writeText(inviteLink);
+                        await navigator.clipboard.writeText(visibleInviteLink);
                         setInviteState("copied");
                       } catch {
                         /* 수동 복사 안내 유지 */
@@ -434,6 +482,117 @@ function AxisMeter({ label, value }: { label: string; value: number | null }) {
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#efe6d7]">
         <div className="h-full rounded-full bg-[#36534E]" style={{ width: `${width}%` }} />
       </div>
+    </div>
+  );
+}
+
+function CoupleReportSection({
+  state,
+  onRefresh,
+}: {
+  state: CoupleReportState;
+  onRefresh: () => void;
+}) {
+  if (state.kind === "loading") {
+    return (
+      <section className={`${card} mt-5 p-5 sm:p-6`}>
+        <div className="flex items-center gap-2.5">
+          <Loader2 className="h-4 w-4 animate-spin text-[#36534E]" />
+          <p className="text-[14px] font-semibold text-[#263832]">두 사람의 준비 방식 겹침도를 불러오는 중이에요.</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (state.kind === "waiting" || state.kind === "idle") {
+    return (
+      <section className={`${card} mt-5 p-5 sm:p-6`}>
+        <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">커플 비교</p>
+        <p className="mt-2 text-[17px] font-semibold text-[#263832]">
+          {state.kind === "waiting" ? state.payload.messageKo : "아직 상대 응답을 기다리고 있어요."}
+        </p>
+        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
+          상대가 같은 링크로 테스트를 마치면, 이 화면에서 대화가 쉬운 지점과 먼저 맞춰볼 지점을 볼 수 있어요.
+        </p>
+        <button onClick={onRefresh} className={`${ghostBtn} mt-4`}>
+          상태 다시 확인
+        </button>
+      </section>
+    );
+  }
+
+  if (state.kind === "incompatible" || state.kind === "error") {
+    return (
+      <section className={`${card} mt-5 p-5 sm:p-6`}>
+        <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">커플 비교</p>
+        <p className="mt-2 text-[17px] font-semibold text-[#263832]">
+          {state.kind === "incompatible" ? state.payload.messageKo : state.messageKo}
+        </p>
+        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
+          비교는 두 사람 모두 v0.5 테스트를 완료했을 때만 보여줘요.
+        </p>
+        <button onClick={onRefresh} className={`${ghostBtn} mt-4`}>
+          다시 불러오기
+        </button>
+      </section>
+    );
+  }
+
+  const { report } = state.payload;
+
+  return (
+    <section className={`${card} mt-5 p-5 sm:p-6`}>
+      <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">커플 비교</p>
+      <div className="mt-2 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-[20px] font-semibold leading-[1.35] text-[#263832]">{report.titleKo}</h2>
+          <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
+            {report.overlapLabelKo}
+          </p>
+        </div>
+        <p className="shrink-0 text-[34px] font-semibold leading-none text-[#263832]">
+          {formatPercent(report.overlapScore)}
+        </p>
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {report.easyPoints.map((axis) => (
+          <CoupleAxisRow key={axis.key} label="대화가 쉬운 지점" axis={axis} />
+        ))}
+        {report.talkFirst && (
+          <CoupleAxisRow label="먼저 맞춰볼 지점" axis={report.talkFirst} emphasis />
+        )}
+      </div>
+
+      <p className="mt-4 rounded-[12px] bg-[#fffdf7] px-4 py-3 text-[13px] font-medium leading-relaxed text-[#34445a]">
+        {report.guideKo}
+      </p>
+      <p className="mt-3 text-[11px] font-medium leading-relaxed text-[#9a9188]">
+        {report.disclaimerKo}
+      </p>
+    </section>
+  );
+}
+
+function CoupleAxisRow({
+  label,
+  axis,
+  emphasis = false,
+}: {
+  label: string;
+  axis: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["easyPoints"][number];
+  emphasis?: boolean;
+}) {
+  return (
+    <div className={`rounded-[14px] border px-4 py-3.5 ${
+      emphasis ? "border-[#36534E]/25 bg-[#EEF4F1]" : "border-[#eadfc9] bg-[#fffdf7]"
+    }`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{label}</p>
+        <p className="text-[12px] font-semibold text-[#263832]">{formatPercent(axis.overlapScore)}</p>
+      </div>
+      <p className="mt-1 text-[14px] font-semibold text-[#263832]">{axis.labelKo}</p>
+      <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{axis.summaryKo}</p>
     </div>
   );
 }

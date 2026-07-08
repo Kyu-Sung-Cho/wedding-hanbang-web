@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       paired = (count ?? 0) >= 2;
     }
 
-    return NextResponse.json({ success: true, id: inserted?.id ?? null, paired });
+    return NextResponse.json({ success: true, id: inserted?.id ?? null, paired, coupleToken });
   } catch (err) {
     console.error("[wedding-code] 서버 오류:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

@@ -123,7 +123,7 @@ export default function WeddingCodeClient() {
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean; error?: string; id?: string | null; paired?: boolean;
+        success?: boolean; error?: string; id?: string | null; paired?: boolean; coupleToken?: string | null;
       };
       if (!res.ok || !data.success) {
         setError(data.error ?? "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
@@ -139,7 +139,7 @@ export default function WeddingCodeClient() {
         version: WEDDING_CODE_V05_VERSION,
         responseId: data.id ?? null,
         paired: data.paired === true,
-        coupleToken: null,
+        coupleToken: data.coupleToken ?? null,
         savedAt: new Date().toISOString(),
       };
       try {
