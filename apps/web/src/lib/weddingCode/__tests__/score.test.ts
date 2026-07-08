@@ -48,7 +48,7 @@ describe("WeddingCode v0.5 candidate item integrity", () => {
   it("D4는 빠른 결정을 낙인찍지 않고 조건 확인 시간을 묻는다", () => {
     const d4 = WEDDING_CODE_V05_QUESTIONS.find((question) => question.key === "D4")!;
     expect(d4.question).toContain("오늘 계약하면 혜택");
-    expect(d4.options.map((option) => option.label).join(" ")).toContain("총액·추가금·취소 조건");
+    expect(d4.options.map((option) => option.label).join(" ")).toContain("총액, 추가금, 취소 조건");
     expect(d4.options.map((option) => option.label).join(" ")).not.toContain("잡고 싶다");
   });
 

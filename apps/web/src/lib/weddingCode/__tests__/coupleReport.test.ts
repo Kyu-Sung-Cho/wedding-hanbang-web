@@ -46,6 +46,15 @@ describe("WeddingCode couple report payload", () => {
     expect(flattenText(payload)).toContain("버전");
   });
 
+  it("allows candidate.1 and candidate.2 rows because only user-facing copy changed", () => {
+    const payload = buildWeddingCodeCoupleReportPayload([
+      row("A", { form_version: "v0.5-candidate.1" }),
+      row("B"),
+    ]);
+
+    expect(payload.status).toBe("ready");
+  });
+
   it("builds a bounded preparation-style overlap report for two v0.5 responses", () => {
     const payload = buildWeddingCodeCoupleReportPayload([row("A"), row("D")]);
 

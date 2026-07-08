@@ -29,7 +29,7 @@ type FlowQuestion = WeddingCodeV05Question;
 const WC_V05_INTRO_TITLE = "웨딩코드 3분 테스트";
 const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족 조율, 역할 분담, 서로에게 필요한 말의 순서가 한꺼번에 섞입니다.
 
-웨딩코드는 16개의 실제 상황으로 내가 먼저 보는 기준을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
+웨딩코드는 16개의 실제 상황에서 내가 중요하게 보는 것을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
@@ -195,7 +195,7 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} overflow-hidden`}>
             <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">준비 기준을 먼저 정리해요</p>
+              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">중요하게 보는 것을 정리해요</p>
               <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[#34445a]">
                 {WC_V05_INTRO_BODY}
               </p>

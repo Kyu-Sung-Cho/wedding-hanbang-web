@@ -516,7 +516,7 @@ function CoupleReportSection({
           {state.kind === "waiting" ? state.payload.messageKo : "아직 상대 응답을 기다리고 있어요."}
         </p>
         <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-          상대가 같은 링크로 테스트를 마치면, 이 화면에서 대화가 쉬운 지점과 먼저 맞춰볼 지점을 볼 수 있어요.
+          상대가 같은 링크로 테스트를 마치면, 이 화면에서 쉽게 이야기할 부분과 먼저 맞출 부분을 볼 수 있어요.
         </p>
         <button onClick={onRefresh} className={`${ghostBtn} mt-4`}>
           상태 다시 확인
@@ -564,7 +564,7 @@ function CoupleReportSection({
           <CoupleAxisRow key={axis.key} label="대화가 쉬운 지점" axis={axis} />
         ))}
         {report.talkFirst && (
-          <CoupleAxisRow label="먼저 맞춰볼 지점" axis={report.talkFirst} emphasis />
+          <CoupleAxisRow label="먼저 맞출 부분" axis={report.talkFirst} emphasis />
         )}
       </div>
 
@@ -623,13 +623,13 @@ function CoupleScenarioCard({
       <div className="mt-3 grid gap-2">
         <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
           <p className="text-[11px] font-semibold text-[#8F6662]">
-            {sameChoice ? "두 사람 모두 고른 방향" : "한 사람이 먼저 보는 방향"}
+            {sameChoice ? "두 사람 모두 중요하게 본 것" : "한 사람이 더 중요하게 본 것"}
           </p>
           <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.firstChoiceKo}</p>
         </div>
         {!sameChoice && (
           <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-[#8F6662]">다른 사람이 먼저 보는 방향</p>
+            <p className="text-[11px] font-semibold text-[#8F6662]">다른 사람이 더 중요하게 본 것</p>
             <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.secondChoiceKo}</p>
           </div>
         )}

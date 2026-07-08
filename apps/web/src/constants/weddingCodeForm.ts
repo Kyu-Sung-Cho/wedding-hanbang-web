@@ -2,20 +2,20 @@
 // 실제 v0.5 문항·채점 버전은 weddingCodeV05.ts가 관리한다.
 // 공개 결과는 준비 방식 참고 카드이며, 최종 유형·캐릭터·4글자 코드·관계 판정으로 표현하지 않는다.
 
-export const WEDDING_CODE_FORM_VERSION = "v0.5-candidate.1";
+export const WEDDING_CODE_FORM_VERSION = "v0.5-candidate.4";
 
 export const WC_INTRO_TITLE = "웨딩코드 3분 테스트";
 
 export const WC_INTRO_BODY = `웨딩코드는 결혼 준비 대화를 더 쉽게 시작하기 위한 상황형 테스트입니다.
 
-결혼 준비를 하다 보면 예산, 견적, 분위기, 가족 조율, 상대와의 역할 분담처럼 여러 기준을 함께 보게 됩니다. 이 테스트는 실제 결혼 준비 상황형 질문을 통해 내가 어떤 기준을 먼저 보는지 정리해봅니다.
+결혼 준비를 하다 보면 예산, 견적, 분위기, 가족 조율, 상대와의 역할 분담을 함께 봐야 합니다. 이 테스트는 실제 결혼 준비 상황에서 내가 중요하게 보는 것을 정리해봅니다.
 
 결과는 사람을 평가하거나 두 사람의 앞날을 단정하기 위한 자료가 아닙니다.
 
 결과 화면에서는 답변을 바탕으로 준비 방식 축과 대화 카드를 보여줄 수 있습니다. 최종 유형, 캐릭터, 4글자 코드, 두 사람의 관계 판정은 제공하지 않습니다.`;
 
 export const WC_NO_RIGHT_ANSWER =
-  "정답은 없습니다. 여러 선택지가 다 맞을 수 있어요. 이 상황에서 가장 먼저 할 반응을 골라주세요.";
+  "정답은 없습니다. 여러 선택지가 다 맞을 수 있어요. 지금 나에게 가장 가까운 답 하나를 골라주세요.";
 
 export const WC_CONSENT_LABEL = "위 내용을 확인했고, 테스트 목적의 응답 수집에 동의합니다.";
 
@@ -149,7 +149,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "원하던 분위기가 맞는지 찬찬히 뜯어본다" },
       { value: "B", label: "식대·인원·교통 같은 조건부터 확인한다" },
       { value: "C", label: "사진과 영상에 어떻게 남을지 본다" },
-      { value: "D", label: "상대와 가족 기준에도 맞을지 먼저 확인한다" },
+      { value: "D", label: "상대와 가족이 중요하게 볼 점도 확인한다" },
     ],
   },
   {
@@ -159,14 +159,14 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "부모님 기준부터 구체적으로 들어본다" },
       { value: "B", label: "양쪽 기준을 표 하나에 나란히 적어 비교한다" },
       { value: "C", label: "예산·인원 같은 현실 조건부터 확인한다" },
-      { value: "D", label: "우리 기준을 정리해 절충안을 준비한다" },
+      { value: "D", label: "우리가 원하는 것을 정리해 절충안을 준비한다" },
     ],
   },
   {
     key: "q08", id: "WC-Q-coupleAutonomy-004", construct: "coupleAutonomy", required: true,
     question: "우리 결혼식 기준을 부모님께 말씀드려야 해요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "그 전에 둘의 기준부터 확실히 맞춘다" },
+      { value: "A", label: "그 전에 둘이 양보하기 어려운 것부터 맞춘다" },
       { value: "B", label: "예산과 이유를 숫자로 정리해 보여드린다" },
       { value: "C", label: "걱정하실 지점을 먼저 예상해본다" },
       { value: "D", label: "부드럽게 꺼낼 첫마디를 준비한다" },
@@ -208,7 +208,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     gateFlag: "q_guidance_stage_flag",
     question: "견적서가 낯선 항목투성이라면, 나는 —",
     options: [
-      { value: "A", label: "먼저 볼 3가지만 콕 집어주면 좋겠다" },
+      { value: "A", label: "확인할 3가지만 콕 집어주면 좋겠다" },
       { value: "B", label: "직접 비교하게 표로 정리해주면 좋겠다" },
       { value: "C", label: "추가금 붙기 쉬운 곳만 표시해주면 좋겠다" },
       { value: "D", label: "둘이 얘기할 질문 목록으로 바꿔주면 좋겠다" },
@@ -252,7 +252,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     options: [
       { value: "A", label: "왜 줄이고 싶은지 둘의 이유부터 정리한다" },
       { value: "B", label: "걱정하실 부분과 설명 방법을 준비한다" },
-      { value: "C", label: "지킬 것과 줄일 것을 구분해본다" },
+      { value: "C", label: "그대로 할 절차와 간단히 할 절차를 나눠본다" },
       { value: "D", label: "어떤 점이 좋아지는지 정리해서 보여드린다" },
     ],
   },

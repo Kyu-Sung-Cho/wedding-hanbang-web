@@ -1,7 +1,9 @@
-import { WEDDING_CODE_V05_QUESTIONS, WEDDING_CODE_V05_VERSION } from "@/constants/weddingCodeV05";
+import { WEDDING_CODE_V05_COMPATIBLE_VERSIONS, WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 import { toWeddingCodeV05Answers } from "./answers";
 import { buildWeddingCodeV05CoupleReport, type WeddingCodeV05CoupleReport } from "./report";
 import { scoreWeddingCodeV05 } from "./score";
+
+type CompatibleWeddingCodeVersion = (typeof WEDDING_CODE_V05_COMPATIBLE_VERSIONS)[number];
 
 export interface WeddingCodeStoredResponseForCouple {
   created_at: string | null;
@@ -42,7 +44,7 @@ export function buildWeddingCodeCoupleReportPayload(
   }
 
   const compatibleRows = rows
-    .filter((row) => row.form_version === WEDDING_CODE_V05_VERSION)
+    .filter((row) => WEDDING_CODE_V05_COMPATIBLE_VERSIONS.includes(row.form_version as CompatibleWeddingCodeVersion))
     .slice(0, 2);
   if (compatibleRows.length < 2) {
     return {
