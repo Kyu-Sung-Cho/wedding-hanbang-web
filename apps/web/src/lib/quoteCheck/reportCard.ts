@@ -4,7 +4,6 @@
 // 측정·랩핑은 웨딩코드 shareCard의 검증된 유틸을 재사용한다.
 
 import {
-  approxMeasure,
   wrapText,
   canvasToPngBlob,
   downloadCanvasPng,
