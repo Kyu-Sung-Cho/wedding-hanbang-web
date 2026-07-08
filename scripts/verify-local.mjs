@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 
 function createCommand(args) {
+  if (process.platform !== "win32" && process.env.PNPM_HOME && args[0] === "pnpm") {
+    return { command: "pnpm", args: args.slice(1) };
+  }
+
   if (process.platform !== "win32") {
     return { command: "corepack", args };
   }
