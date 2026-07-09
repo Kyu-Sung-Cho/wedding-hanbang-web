@@ -5,6 +5,14 @@ Branch to publish: `agent/wedding-code-plain-language`
 Project path: `hanbang-web/`  
 Main URL checked locally: `http://localhost:3000/wedding-code`
 
+## GitHub Publish Status
+
+- Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
+- Remote branch: `origin/agent/wedding-code-plain-language`
+- Initial work commit: `83314418 refine wedding code plain language`
+- Draft PR: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/37`
+- Base branch: `main`
+
 ## Why This Work Happened
 
 WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하기 어려운 표현이 남아 있었다.
@@ -100,7 +108,7 @@ Result:
 
 ## How To Continue On Another Computer
 
-After this work is pushed to GitHub:
+This work has been pushed to GitHub on `origin/agent/wedding-code-plain-language`.
 
 ```bash
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
