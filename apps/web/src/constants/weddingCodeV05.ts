@@ -1,8 +1,9 @@
 import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
 
-export const WEDDING_CODE_V05_VERSION = "v0.5-candidate.8";
+export const WEDDING_CODE_V05_VERSION = "v0.5-candidate.9";
 export const WEDDING_CODE_V05_COMPATIBLE_VERSIONS = [
   WEDDING_CODE_V05_VERSION,
+  "v0.5-candidate.8",
   "v0.5-candidate.7",
   "v0.5-candidate.6",
   "v0.5-candidate.5",
@@ -121,7 +122,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     options: [
       { value: "A", label: "우리가 쓸 수 있는 돈 안에서 가능한지", weights: [{ construct: "costRisk", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
       { value: "B", label: "예시로 보여준 사진, 드레스, 메이크업이 마음에 드는지", weights: [{ construct: "aestheticMood", value: 2 }, { construct: "experienceMeaning", value: 1 }] },
-      { value: "C", label: "처음 안내받은 가격으로 할 수 있는 것과 따로 돈 내야 하는 것", weights: [{ construct: "coPreparation", value: 1 }, { construct: "coupleAutonomy", value: 1 }, { construct: "costRisk", value: 1 }] },
+      { value: "C", label: "처음 안내받은 가격에 들어 있는 것과 따로 내야 하는 돈", weights: [{ construct: "coPreparation", value: 1 }, { construct: "coupleAutonomy", value: 1 }, { construct: "costRisk", value: 1 }] },
       { value: "D", label: "이곳을 이용한 사람들의 후기가 괜찮은지", weights: [{ construct: "evidenceDecision", value: 2 }, { construct: "guidanceNeed", value: 1 }] },
     ],
   },
@@ -135,20 +136,20 @@ export const WEDDING_CODE_V05_QUESTIONS = [
       { value: "A", label: "나중에 다시 봤을 때 잘 선택했다고 느낄지", weights: [{ construct: "experienceMeaning", value: 2 }, { construct: "aestheticMood", value: 1 }] },
       { value: "B", label: "추가로 내는 돈이 부담되지 않을지", weights: [{ construct: "costRisk", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
       { value: "C", label: "더 적은 돈으로 필요한 장면만 남길 방법이 있는지", weights: [{ construct: "guidanceNeed", value: 1 }, { construct: "aestheticMood", value: 1 }, { construct: "costRisk", value: 1 }] },
-      { value: "D", label: "우리 둘 다 꼭 남기고 싶은 장면인지", weights: [{ construct: "coPreparation", value: 2 }, { construct: "experienceMeaning", value: 1 }] },
+      { value: "D", label: "우리 둘 다 나중에 보고 싶어 할 장면인지", weights: [{ construct: "coPreparation", value: 2 }, { construct: "experienceMeaning", value: 1 }] },
     ],
   },
   {
     key: "A3",
     title: "예산보다 300만 원 더 드는 결혼식장",
-    question: "마음에 드는 결혼식장이 처음 잡은 예산보다 300만 원 더 비싸요. 계속 알아볼지 정할 때 제일 중요한 것은?",
+    question: "마음에 드는 결혼식장이 처음 잡은 예산보다 300만 원 더 비싸요. 계속 볼지 정할 때 제일 중요한 것은?",
     sourceReview: "29_item_review_A3_venue_budget_gap_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
       { value: "A", label: "식사 비용까지 더한 최종 금액", weights: [{ construct: "costRisk", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
       { value: "B", label: "이 결혼식장을 왜 마음에 들어 하는지", weights: [{ construct: "experienceMeaning", value: 2 }, { construct: "aestheticMood", value: 1 }] },
       { value: "C", label: "초대할 사람들이 오기 쉽고 음식이 괜찮은지", weights: [{ construct: "familyIntegration", value: 2 }, { construct: "costRisk", value: 1 }] },
-      { value: "D", label: "우리 둘 다 300만 원을 더 쓸 마음이 있는지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "coPreparation", value: 1 }, { construct: "costRisk", value: 1 }] },
+      { value: "D", label: "우리 둘 다 300만 원을 더 써도 괜찮은지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "coPreparation", value: 1 }, { construct: "costRisk", value: 1 }] },
     ],
   },
   {
@@ -161,7 +162,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
       { value: "A", label: "최근에 실제로 찍은 사진을 더 볼 수 있는지", weights: [{ construct: "evidenceDecision", value: 2 }, { construct: "costRisk", value: 1 }] },
       { value: "B", label: "예시 사진이 우리가 좋아하는 사진과 가까운지", weights: [{ construct: "aestheticMood", value: 2 }, { construct: "experienceMeaning", value: 1 }] },
       { value: "C", label: "후기가 더 많은 다른 곳도 비교해볼지", weights: [{ construct: "guidanceNeed", value: 1 }, { construct: "evidenceDecision", value: 1 }, { construct: "aestheticMood", value: 1 }] },
-      { value: "D", label: "후기가 적어도 둘 다 이곳을 선택할 마음이 있는지", weights: [{ construct: "coPreparation", value: 2 }, { construct: "decisionPaceRisk", value: 1 }] },
+      { value: "D", label: "후기가 적어도 둘 다 이곳이 괜찮다고 느끼는지", weights: [{ construct: "coPreparation", value: 2 }, { construct: "decisionPaceRisk", value: 1 }] },
     ],
   },
   {
@@ -197,9 +198,9 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     sourceReview: "34_item_review_B3_different_lenses_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
-      { value: "A", label: "가격, 위치, 사진처럼 확인할 부분을 나눠 맡는다", weights: [{ construct: "roleOwnership", value: 2 }] },
+      { value: "A", label: "각자 잘 보는 부분을 나눠 맡는다", weights: [{ construct: "roleOwnership", value: 2 }] },
       { value: "B", label: "마지막으로 고를 곳은 둘이 같이 본다", weights: [{ construct: "coPreparation", value: 2 }] },
-      { value: "C", label: "많이 알아본 사람이 후보를 2~3곳으로 줄여온다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "coPreparation", value: 1 }] },
+      { value: "C", label: "많이 알아본 사람이 먼저 2~3곳만 추려서 공유한다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "coPreparation", value: 1 }] },
       { value: "D", label: "가격, 위치, 마음에 드는 점을 표에 적어 비교한다", weights: [{ construct: "roleOwnership", value: 1 }, { construct: "coPreparation", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
     ],
   },
@@ -210,8 +211,8 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     sourceReview: "35_item_review_B4_candidate_overload_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
-      { value: "A", label: "돈이나 위치가 안 맞는 곳부터 뺀다", weights: [{ construct: "coPreparation", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
-      { value: "B", label: "한 사람이 먼저 후보를 2~3곳으로 줄여온다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "coPreparation", value: 1 }] },
+      { value: "A", label: "예산이나 위치가 안 맞는 곳부터 뺀다", weights: [{ construct: "coPreparation", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
+      { value: "B", label: "한 사람이 먼저 2~3곳만 추려서 공유한다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "coPreparation", value: 1 }] },
       { value: "C", label: "각자 가장 마음에 드는 곳 하나씩 골라온다", weights: [{ construct: "roleOwnership", value: 1 }, { construct: "coPreparation", value: 1 }] },
       { value: "D", label: "오늘은 새로운 곳을 더 찾지 않고 쉰다", weights: [{ construct: "decisionPaceRisk", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
     ],
@@ -236,7 +237,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     sourceReview: "37_item_review_C2_parent_direction_talk_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
-      { value: "A", label: "둘이 꼭 지키고 싶은 한 가지", weights: [{ construct: "coupleAutonomy", value: 2 }] },
+      { value: "A", label: "둘이 먼저 정해두고 싶은 한 가지", weights: [{ construct: "coupleAutonomy", value: 2 }] },
       { value: "B", label: "예산, 인원, 날짜처럼 이미 정한 내용", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
       { value: "C", label: "부모님이 궁금해하실 내용", weights: [{ construct: "familyIntegration", value: 2 }] },
       { value: "D", label: "대화를 시작할 첫 문장과 말할 순서", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }] },
@@ -244,15 +245,15 @@ export const WEDDING_CODE_V05_QUESTIONS = [
   },
   {
     key: "C3",
-    title: "전통 행사나 가족 선물을 줄이고 싶을 때",
+    title: "전통 행사나 가족 선물을 간단히 하고 싶을 때",
     question: "결혼식 전후에 하는 전통 행사나 가족끼리 주고받는 선물을 간단히 하고 싶어요. 말하기 전에 제일 먼저 정리할 것은?",
     sourceReview: "38_item_review_C3_simplify_ceremony_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
-      { value: "A", label: "왜 간단히 하고 싶은지", weights: [{ construct: "coupleAutonomy", value: 2 }] },
-      { value: "B", label: "가족이 꼭 중요하게 생각하는 것이 있는지", weights: [{ construct: "familyIntegration", value: 2 }] },
-      { value: "C", label: "그대로 할 것과 줄일 것", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }] },
-      { value: "D", label: "줄이면 시간과 비용이 얼마나 달라지는지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
+      { value: "A", label: "간단히 하고 싶은 이유", weights: [{ construct: "coupleAutonomy", value: 2 }] },
+      { value: "B", label: "가족이 중요하게 생각하는 부분이 있는지", weights: [{ construct: "familyIntegration", value: 2 }] },
+      { value: "C", label: "어떤 건 그대로 하고, 어떤 건 간단히 바꿀지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }] },
+      { value: "D", label: "간단히 하면 시간과 비용이 얼마나 달라지는지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
     ],
   },
   {
@@ -263,7 +264,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     status: "candidate_pending_human_validation",
     options: [
       { value: "A", label: "실제로 올 것 같은 사람 수와 식장에 예약해야 하는 최소 인원의 차이", weights: [{ construct: "costRisk", value: 2 }, { construct: "evidenceDecision", value: 1 }] },
-      { value: "B", label: "두 집안에서 꼭 초대하고 싶은 사람들", weights: [{ construct: "familyIntegration", value: 2 }] },
+      { value: "B", label: "두 집안에서 먼저 챙기고 싶어 하는 사람들", weights: [{ construct: "familyIntegration", value: 2 }] },
       { value: "C", label: "우리가 감당할 수 있는 돈과 사람 수", weights: [{ construct: "coupleAutonomy", value: 2 }, { construct: "costRisk", value: 1 }] },
       { value: "D", label: "친척, 친구, 직장 동료 중 어디까지 초대할지", weights: [{ construct: "coupleAutonomy", value: 1 }, { construct: "familyIntegration", value: 1 }, { construct: "evidenceDecision", value: 1 }] },
     ],
@@ -277,7 +278,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     options: [
       { value: "A", label: "왜 걱정되는지 먼저 들어주는 시간", weights: [{ construct: "emotionalSupport", value: 2 }] },
       { value: "B", label: "짧게 공감한 뒤 같이 정리하는 시간", weights: [{ construct: "emotionalSupport", value: 1 }, { construct: "executionSupport", value: 1 }, { construct: "coPreparation", value: 1 }] },
-      { value: "C", label: "다음에 할 일을 바로 정해주는 것", weights: [{ construct: "executionSupport", value: 2 }] },
+      { value: "C", label: "다음에 할 일을 바로 정하는 것", weights: [{ construct: "executionSupport", value: 2 }] },
       { value: "D", label: "다음에는 먼저 들어주면 좋은지, 바로 정리하면 좋은지 말하는 시간", weights: [{ construct: "coPreparation", value: 1 }] },
     ],
   },
@@ -302,7 +303,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     status: "candidate_pending_human_validation",
     options: [
       { value: "A", label: "각자 어느 부분에서 막혔는지 먼저 들어본다", weights: [{ construct: "emotionalSupport", value: 2 }, { construct: "coPreparation", value: 1 }] },
-      { value: "B", label: "오늘 꼭 정할 것 하나만 고른다", weights: [{ construct: "executionSupport", value: 2 }, { construct: "coPreparation", value: 1 }] },
+      { value: "B", label: "오늘 정할 것 하나만 고른다", weights: [{ construct: "executionSupport", value: 2 }, { construct: "coPreparation", value: 1 }] },
       { value: "C", label: "각자 바로 할 수 있는 일을 하나씩 맡는다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "executionSupport", value: 1 }] },
       { value: "D", label: "급한 일과 나중에 해도 되는 일을 나눈다", weights: [{ construct: "executionSupport", value: 2 }, { construct: "roleOwnership", value: 1 }] },
     ],

@@ -2,7 +2,7 @@
 // 실제 v0.5 문항·채점 버전은 weddingCodeV05.ts가 관리한다.
 // 공개 결과는 준비 방식 참고 카드이며, 최종 유형·캐릭터·4글자 코드·관계 판정으로 표현하지 않는다.
 
-export const WEDDING_CODE_FORM_VERSION = "v0.5-candidate.8";
+export const WEDDING_CODE_FORM_VERSION = "v0.5-candidate.9";
 
 export const WC_INTRO_TITLE = "웨딩코드 3분 테스트";
 
@@ -100,7 +100,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     options: [
       { value: "A", label: "가격에 들어 있는 것과 추가로 돈 내야 하는 것을 먼저 본다" },
       { value: "B", label: "예시 사진과 드레스, 메이크업이 마음에 드는지부터 본다" },
-      { value: "C", label: "둘이 꼭 필요한 것부터 고른다" },
+      { value: "C", label: "둘이 필요한 것부터 고른다" },
       { value: "D", label: "이곳을 이용한 사람들의 후기를 찾아본다" },
     ],
   },
@@ -111,7 +111,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
       { value: "A", label: "나중에 다시 봤을 때 잘 선택했다고 느낄지 생각한다" },
       { value: "B", label: "추가로 내는 돈이 부담되지 않을지 계산한다" },
       { value: "C", label: "더 적은 돈으로 필요한 장면만 남길 방법을 찾아본다" },
-      { value: "D", label: "둘 다 꼭 남기고 싶은 장면인지 이야기한다" },
+      { value: "D", label: "둘 다 나중에 보고 싶어 할 장면인지 이야기한다" },
     ],
   },
   {
@@ -168,7 +168,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     key: "q08", id: "WC-Q-coupleAutonomy-004", construct: "coupleAutonomy", required: true,
     question: "우리 결혼식 기준을 부모님께 말씀드려야 해요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "그 전에 둘이 꼭 지키고 싶은 것부터 맞춘다" },
+      { value: "A", label: "그 전에 둘이 먼저 정해두고 싶은 것부터 맞춘다" },
       { value: "B", label: "예산과 이유를 숫자로 정리해 보여드린다" },
       { value: "C", label: "걱정하실 지점을 먼저 예상해본다" },
       { value: "D", label: "부드럽게 꺼낼 첫마디를 준비한다" },
@@ -233,7 +233,7 @@ export const WC_QUESTIONS: WcQuestion[] = [
     options: [
       { value: "A", label: "각자 확인할 부분을 맡고 결과를 공유한다" },
       { value: "B", label: "마지막으로 고를 곳은 둘 다 같이 본다" },
-      { value: "C", label: "한 명이 후보를 2~3개로 줄이고 마지막은 함께 정한다" },
+      { value: "C", label: "한 명이 2~3개만 추리고 마지막은 함께 정한다" },
       { value: "D", label: "각자 본 내용을 표 하나로 합쳐서 같이 본다" },
     ],
   },
@@ -250,11 +250,11 @@ export const WC_QUESTIONS: WcQuestion[] = [
   {
     key: "q16", id: "WC-Q-coupleAutonomy-002", construct: "coupleAutonomy", required: false,
     gateFlag: "q_autonomy_boundary_flag",
-    question: "결혼식 전후에 하는 전통 행사나 가족 선물을 줄이고 싶은데, 가족 반응이 걱정돼요. 이럴 때 나는 —",
+    question: "결혼식 전후에 하는 전통 행사나 가족 선물을 간단히 하고 싶은데, 가족 반응이 걱정돼요. 이럴 때 나는 —",
     options: [
-      { value: "A", label: "왜 줄이고 싶은지 둘의 이유부터 정리한다" },
+      { value: "A", label: "왜 간단히 하고 싶은지 둘의 이유부터 정리한다" },
       { value: "B", label: "걱정하실 부분과 설명 방법을 준비한다" },
-      { value: "C", label: "그대로 할 것과 줄일 것을 나눠본다" },
+      { value: "C", label: "어떤 건 그대로 하고, 어떤 건 간단히 바꿀지 나눠본다" },
       { value: "D", label: "시간과 비용이 어떻게 달라지는지 정리한다" },
     ],
   },
