@@ -82,7 +82,7 @@ const INDIVIDUAL_DISCLAIMER =
   "이 결과는 현재 답변을 바탕으로 결혼 준비 대화를 시작하기 쉽게 정리한 참고 자료예요. 사람을 평가하거나 앞날을 단정하는 데 쓰지 않아요.";
 
 const COUPLE_DISCLAIMER =
-  "두 사람의 점수 차이는 좋고 나쁨을 가르는 기준이 아니라, 결혼 준비에서 무엇부터 이야기할지 찾기 위한 참고예요.";
+  "두 사람의 답변 차이는 좋고 나쁨을 가르는 기준이 아니라, 결혼 준비에서 무엇부터 이야기할지 찾기 위한 참고예요.";
 
 export function buildWeddingCodeV05IndividualReport(
   score: WeddingCodeV05ScoreResult
@@ -182,7 +182,7 @@ function axisSummary(axis: WeddingCodeV05AxisScore): string {
     case "coordinationScope":
       if (balanced) return "둘이 원하는 것과 가족·초대 손님이 중요하게 볼 것을 함께 조율하려는 편이에요.";
       return axis.leaning === "left"
-        ? "둘이 꼭 지키고 싶은 것을 먼저 정해두면 가족과도 편하게 이야기하는 편이에요."
+        ? "둘이 먼저 정해두고 싶은 것을 확인하면 가족과도 편하게 이야기하는 편이에요."
         : "부모님, 초대 손님, 음식, 오는 길처럼 함께 살펴야 할 부분을 중요하게 보는 편이에요.";
     case "supportOrder":
       if (balanced) return "마음을 먼저 듣는 시간과 바로 할 일을 정하는 시간이 둘 다 필요한 편이에요.";
@@ -210,7 +210,7 @@ function buildTalkStarters(axes: WeddingCodeV05AxisScore[]): string[] {
       starters.push("같이 볼 결정과 맡아서 볼 일을 나눠서, 서로 기대하는 준비 방식을 맞춰보세요.");
       break;
     case "coordinationScope":
-      starters.push("우리가 꼭 지키고 싶은 것 1개와 가족이 중요하게 볼 것 1개를 나란히 적어보세요.");
+      starters.push("우리가 먼저 정해두고 싶은 것 1개와 가족이 중요하게 볼 것 1개를 나란히 적어보세요.");
       break;
     case "supportOrder":
       starters.push("힘들 때 먼저 듣기와 바로 정리하기 중 어떤 순서가 편한지 한 문장으로 말해보세요.");
@@ -325,7 +325,7 @@ function solutionCardForAxis(axis: WeddingCodeV05CoupleAxisOverlap): WeddingCode
         titleKo: "같이 볼 결정과 맡아볼 일을 분리하기",
         attentionKo,
         solutionKo:
-          "처음부터 전부 같이 보려 하면 느려지고, 한쪽이 다 정리하면 소외감이 생길 수 있어요. 결혼 준비 업체나 장소를 줄이는 일은 맡아서 하되, 예약 확정·취향·예산이 걸린 마지막 결정은 함께 보는 식으로 선을 나눠보세요.",
+          "처음부터 전부 같이 보려 하면 느려지고, 한쪽이 다 정리하면 소외감이 생길 수 있어요. 결혼 준비 업체나 장소를 추리는 일은 맡아서 하되, 예약 확정·취향·예산이 걸린 마지막 결정은 함께 보는 식으로 선을 나눠보세요.",
         firstQuestionKo: "이번 주에는 무엇을 같이 보고, 무엇을 각자 맡아 정리하면 편할까요?",
         overlapScore: axis.overlapScore,
       };
@@ -338,7 +338,7 @@ function solutionCardForAxis(axis: WeddingCodeV05CoupleAxisOverlap): WeddingCode
         attentionKo,
         solutionKo:
           "한쪽은 둘이 원하는 것을 지키고 싶고, 다른 쪽은 부모님·초대 손님·음식·오는 길을 중요하게 볼 수 있어요. 우리가 원하는 것, 가족이 보는 것, 조정할 수 있는 것을 세 칸으로 나눠 적으면 누가 양보해야 하는지보다 무엇을 맞출지가 선명해져요.",
-        firstQuestionKo: "우리가 꼭 지키고 싶은 것 하나와 가족이 중요하게 볼 것 하나를 같이 적어볼까요?",
+        firstQuestionKo: "우리가 먼저 정해두고 싶은 것 하나와 가족이 중요하게 볼 것 하나를 같이 적어볼까요?",
         overlapScore: axis.overlapScore,
       };
     case "supportOrder":
@@ -405,7 +405,7 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
       "두 사람이 비슷한 선택을 했어요. 그래도 상담 후에는 비용, 추가로 돈이 드는 부분, 마음에 드는 느낌을 각각 따로 적어두면 빠뜨리는 항목이 줄어들어요.",
     solutionKo:
       "상담 내용을 세 칸으로 나눠보세요. 우리가 쓸 수 있는 돈, 따로 돈이 드는 것, 마음에 드는 느낌입니다. 세 칸을 다 본 뒤에 총금액 이야기를 하면 대화가 덜 날카로워져요.",
-    firstQuestionKo: "이 상담에서 꼭 확인할 돈 문제 1개와, 마음에 드는 부분 1개는 뭐예요?",
+    firstQuestionKo: "이 상담에서 먼저 확인할 돈 문제 1개와, 마음에 드는 부분 1개는 뭐예요?",
     priority: 88,
   },
   A2: {
@@ -441,7 +441,7 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
       "두 사람이 비슷하게 보고 있어요. 후기가 적은 업체는 마음에 들어도 확인 자료를 조금 더 모아야 나중에 불안이 줄어들어요.",
     solutionKo:
       "예시 사진이 마음에 들수록 최근 실제 촬영 사진, 가격에 들어 있는 내용, 수정 가능한 범위를 한 번 더 확인하세요. 마음에 드는 점은 살리고, 확인할 것은 따로 체크하는 방식이 안전해요.",
-    firstQuestionKo: "이 업체는 어떤 사진이 마음에 들고, 예약 전에 꼭 확인할 자료는 뭐예요?",
+    firstQuestionKo: "이 업체는 어떤 사진이 마음에 들고, 예약 전에 확인할 자료는 뭐예요?",
     priority: 82,
   },
   B1: {
@@ -472,11 +472,11 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
     categoryKo: "결혼 준비 업체·장소 비교",
     titleKo: "각자 중요하게 보는 점을 한 표에 합치기",
     differenceKo:
-      "한 사람은 후보를 2~3곳으로 줄이고 싶고, 다른 사람은 마지막으로 고를 곳은 같이 보고 싶을 수 있어요.",
+      "한 사람은 먼저 볼 곳을 2~3곳으로 추리고 싶고, 다른 사람은 마지막으로 고를 곳은 같이 보고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 실제로 볼 곳이 많아지면 서로 중요하게 보는 점이 흩어질 수 있어요.",
     solutionKo:
-      "후보별로 가격, 위치, 마음에 드는 점, 아쉬운 점 네 칸만 적어보세요. 각자 확인할 칸을 맡으면 속도와 함께 보는 느낌을 둘 다 챙길 수 있어요.",
+      "곳마다 가격, 위치, 마음에 드는 점, 아쉬운 점 네 칸만 적어보세요. 각자 확인할 칸을 맡으면 속도와 함께 보는 느낌을 둘 다 챙길 수 있어요.",
     firstQuestionKo: "나는 어떤 항목을 확인할 테니, 너는 어떤 항목을 봐주면 좋을까요?",
     priority: 62,
   },
@@ -484,7 +484,7 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
     categoryKo: "선택지 과부하",
     titleKo: "더 찾기 전에 뺄 곳부터 정하기",
     differenceKo:
-      "한 사람은 선택지를 더 줄이고 싶고, 다른 사람은 같이 비교하거나 잠시 멈추고 싶을 수 있어요.",
+      "한 사람은 선택지를 더 좁히고 싶고, 다른 사람은 같이 비교하거나 잠시 멈추고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 볼 곳이 계속 늘면 피로가 결정을 끌고 갈 수 있어요.",
     solutionKo:
@@ -501,31 +501,31 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
       "두 사람이 비슷하게 보고 있어도, 가족이 중요하게 볼 부분이 뒤늦게 들어오면 결정이 흔들리기 쉬워요.",
     solutionKo:
       "우리가 원하는 것과 가족이 중요하게 볼 것을 경쟁시키지 말고 나란히 놓으세요. 장소, 음식, 오는 길, 비용 네 칸을 만든 뒤 각 칸에서 최소로 지킬 것을 정하면 좋아요.",
-    firstQuestionKo: "우리가 꼭 지키고 싶은 것 하나와 부모님이 중요하게 볼 것 하나를 같이 적어볼까요?",
+    firstQuestionKo: "우리가 먼저 정해두고 싶은 것 하나와 부모님이 중요하게 볼 것 하나를 같이 적어볼까요?",
     priority: 84,
   },
   C2: {
     categoryKo: "부모님께 처음 말하기",
-    titleKo: "둘이 꼭 지키고 싶은 것을 맞춘 뒤 말할 순서 정하기",
+    titleKo: "둘이 먼저 정해둘 것을 맞춘 뒤 말할 순서 정하기",
     differenceKo:
-      "한 사람은 둘이 꼭 지키고 싶은 것을 먼저 정하고 싶고, 다른 사람은 부모님이 궁금해할 부분이나 말 꺼내는 순서를 먼저 준비하고 싶을 수 있어요.",
+      "한 사람은 둘이 먼저 정해둘 것을 확인하고 싶고, 다른 사람은 부모님이 궁금해할 부분이나 말 꺼내는 순서를 먼저 준비하고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 부모님께 말할 때는 합의한 내용과 표현 순서를 따로 맞춰두는 게 좋아요.",
     solutionKo:
-      "먼저 둘이 꼭 지키고 싶은 것 2개를 정하고, 그다음 부모님께 말할 첫 문장과 숫자로 설명할 근거를 나눠 준비하세요.",
+      "먼저 둘이 정해두고 싶은 것 2개를 고르고, 그다음 부모님께 말할 첫 문장과 숫자로 설명할 근거를 나눠 준비하세요.",
     firstQuestionKo: "우리가 먼저 합의할 것은 뭐고, 부모님께는 어떤 순서로 말할까요?",
     priority: 80,
   },
   C3: {
     categoryKo: "전통 행사·가족 선물 조율",
-    titleKo: "그대로 할 것과 줄일 것 나누기",
+    titleKo: "그대로 할 부분과 간단히 바꿀 부분 나누기",
     differenceKo:
-      "한 사람은 전통 행사나 가족 선물을 우리 상황에 맞게 줄이고 싶고, 다른 사람은 가족이 중요하게 여길 부분을 먼저 확인하고 싶을 수 있어요.",
+      "한 사람은 전통 행사나 가족 선물을 우리 상황에 맞게 간단히 하고 싶고, 다른 사람은 가족이 중요하게 여길 부분을 먼저 확인하고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 생각해도, 전통 행사나 가족 선물 이야기는 가족에게 다르게 받아들여질 수 있어서 설명 방식이 중요해요.",
     solutionKo:
-      "할지 말지로 바로 가지 말고, 그대로 할 것, 줄일 것, 설명이 필요한 것으로 나누세요. 줄이려는 이유를 돈만이 아니라 피로, 이동, 시간으로 말하면 덜 날카롭습니다.",
-    firstQuestionKo: "그대로 할 것과 줄일 것은 각각 뭐예요?",
+      "할지 말지로 바로 가지 말고, 그대로 할 부분, 간단히 바꿀 부분, 설명이 필요한 부분으로 나누세요. 간단히 하려는 이유를 돈만이 아니라 피로, 이동, 시간으로 말하면 덜 날카롭습니다.",
+    firstQuestionKo: "어떤 건 그대로 하고, 어떤 건 간단히 바꿀까요?",
     priority: 70,
   },
   C4: {
@@ -582,7 +582,7 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
     differenceKo:
       "한 사람은 마음이 움직였을 때 예약하고 싶고, 다른 사람은 총금액, 추가 비용, 취소 조건을 확인해야 마음이 놓일 수 있어요.",
     sharedKo:
-      "두 사람이 비슷하게 답해도, 오늘만 준다는 할인이나 서비스는 결정을 빠르게 만들 수 있어서 예약을 확정하기 전 확인 시간이 꼭 필요해요.",
+      "두 사람이 비슷하게 답해도, 오늘만 준다는 할인이나 서비스는 결정을 빠르게 만들 수 있어서 예약을 확정하기 전 확인 시간이 필요해요.",
     solutionKo:
       "오늘 받을 수 있는 혜택은 메모해두되, 결정은 총금액, 추가 비용, 취소 조건, 다른 선택지를 확인한 뒤 하세요. 마음이 움직인 이유도 같이 적어야 나중에 후회가 줄어듭니다.",
     firstQuestionKo: "오늘 마음이 움직인 이유와, 예약 전에 확인할 조건 3개는 뭐예요?",

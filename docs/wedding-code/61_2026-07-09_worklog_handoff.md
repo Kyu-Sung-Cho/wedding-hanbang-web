@@ -28,7 +28,7 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 
 ## Final Product State
 
-현재 live WeddingCode 문항 버전은 `v0.5-candidate.8`이다.
+이 문서 작성 당시 live WeddingCode 문항 버전은 `v0.5-candidate.8`이었다. 이후 보수적 카피 패스로 `v0.5-candidate.9`가 추가되었다.
 
 핵심 원칙:
 
@@ -72,7 +72,7 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 - `apps/web/src/lib/weddingCode/__tests__/score.test.ts`
 - `apps/web/src/lib/weddingCode/__tests__/validate.test.ts`
 
-기대 문구를 candidate.8 표현에 맞췄다.
+기대 문구를 당시 candidate.8 표현에 맞췄다.
 
 ## Audit Documents Added
 
@@ -83,8 +83,9 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 - `docs/wedding-code/59_candidate7_a1_plain_speech_fix_2026-07-09.md`
 - `docs/wedding-code/60_candidate8_full_item_plain_language_audit_2026-07-09.md`
 - `docs/wedding-code/61_2026-07-09_worklog_handoff.md`
+- `docs/wedding-code/62_candidate9_conservative_copy_pass_2026-07-09.md`
 
-`60_candidate8_full_item_plain_language_audit_2026-07-09.md`가 최종 16문항 전체 감사 문서다.
+`60_candidate8_full_item_plain_language_audit_2026-07-09.md`가 당시 16문항 전체 감사 문서이며, `62_candidate9_conservative_copy_pass_2026-07-09.md`가 이후 보수적 문장 다듬기 기록이다.
 
 ## Verification Done
 

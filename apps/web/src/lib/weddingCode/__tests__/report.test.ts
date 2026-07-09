@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { WeddingCodeV05QuestionKey } from "@/constants/weddingCodeV05";
 import { WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 import { buildWeddingCodeV05CoupleReport, buildWeddingCodeV05IndividualReport } from "../report";
@@ -18,6 +20,8 @@ const BANNED_PUBLIC_WORDS = [
   "호구",
   "팔랑귀",
 ];
+
+const CONFUSING_PUBLIC_COPY_WORDS = ["후보", "줄여온다", "줄일 것", "그대로 할 것", "점수 차이", "꼭"];
 
 function allA() {
   return Object.fromEntries(WEDDING_CODE_V05_QUESTIONS.map((question) => [question.key, "A"])) as Record<
@@ -41,6 +45,16 @@ function flattenText(value: unknown): string {
 }
 
 describe("WeddingCode v0.5 result copy", () => {
+  it("문항과 결과 카피는 헷갈린다고 지적된 표현을 다시 쓰지 않는다", () => {
+    const questionText = flattenText(WEDDING_CODE_V05_QUESTIONS);
+    const reportSource = readFileSync(join(process.cwd(), "src/lib/weddingCode/report.ts"), "utf8");
+
+    for (const word of CONFUSING_PUBLIC_COPY_WORDS) {
+      expect(questionText).not.toContain(word);
+      expect(reportSource).not.toContain(word);
+    }
+  });
+
   it("개인 결과는 금지어 없이 4개 공개 축과 행동 카드를 만든다", () => {
     const report = buildWeddingCodeV05IndividualReport(scoreWeddingCodeV05(allA()));
     const text = flattenText(report);
