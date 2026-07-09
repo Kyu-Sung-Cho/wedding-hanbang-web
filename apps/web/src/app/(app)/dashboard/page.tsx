@@ -196,7 +196,6 @@ function getSpent(progress: Record<string, ProgressItem>) {
 export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
-  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryMeta | null>(null);
 
@@ -228,9 +227,8 @@ export default function DashboardPage() {
     if (!couple || partner || inviteCode || isDemo) return;
     fetch("/api/couple/code")
       .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string; requiresRelinkConfirmation?: boolean }) => {
+      .then((data: { inviteCode?: string }) => {
         if (data.inviteCode) setInviteCode(data.inviteCode);
-        setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
       })
       .catch(() => {});
   }, [couple, inviteCode, isDemo, partner]);
@@ -303,22 +301,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 text-[#061a34]">
-      {couple && !partner && requiresRelinkConfirmation && (
-        <section className="rounded-[18px] border border-[#d9c3ae] bg-[#fffaf4] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
-          <p className="text-[15px] font-semibold text-[#071629]">새 커플 공간으로 안전하게 시작해 주세요</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-            이전 공간의 자료는 새 파트너에게 넘기지 않고, 비어 있는 새 공간과 초대 코드를 만듭니다.
-          </p>
-          <Link
-            href={weddingPath("/settings")}
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#795252] px-5 py-3 text-[14px] font-semibold text-white"
-          >
-            설정에서 새 공간 만들기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </section>
-      )}
-
       {couple && !partner && inviteCode && (
         <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

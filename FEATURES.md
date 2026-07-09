@@ -2,7 +2,6 @@
 
 > ⚠️ **경고 (2026-07-03 감사)**: 이 문서는 2026-06-11 "Week 1 수술"(청첩장·B2B 포털·결제·전자계약 등 약 2.5만 줄 삭제) **이전** 스냅샷입니다.
 > 여기 기술된 기능 중 상당수는 현재 코드에 없습니다. 현재 상태는 `CLAUDE.md`, 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
-> **AI 공급자 주의 (2026-07-10)**: 아래 Claude/Anthropic 설명은 과거 기록입니다. 현재 아모라 런타임은 OpenAI GPT-5.6 Terra/Luna입니다.
 
 > 최종 업데이트: 2026-03-01
 
@@ -98,7 +97,7 @@
 - **채팅방 관리**: 생성, 삭제, 대화 초기화
 - **실시간 동기화**: Supabase Realtime 구독
 
-**AI 기능 (과거 Claude API 스냅샷 — 현재 런타임은 GPT-5.6 Terra/Luna):**
+**AI 기능 (Claude API):**
 - 스트리밍 응답 (SSE)
 - Tool Use 통합:
   - 예산 업데이트 / 웨딩날짜 변경 / 할일 상태 변경
@@ -474,7 +473,7 @@
 | Realtime | 채팅 메시지, 예약 알림 실시간 동기화 |
 | Storage | 업체 사진, 고객 업로드 |
 
-### 과거 스냅샷: Claude AI (Anthropic) — 현재 운영 설정 아님
+### Claude AI (Anthropic)
 | 항목 | 상세 |
 |------|------|
 | 모델 | Claude 3.5 Sonnet |
@@ -532,7 +531,7 @@
 | 스타일링 | Tailwind CSS 4 |
 | 상태관리 | Zustand |
 | 백엔드/DB | Supabase (PostgreSQL, Auth, Realtime, Storage) |
-| AI | 현재: OpenAI GPT-5.6 Terra/Luna · 아래 Claude 표기는 과거 스냅샷 |
+| AI | Claude API (Anthropic) — Tool Use + Streaming |
 | 결제 | 토스페이먼츠 (Toss Payments V2) |
 | 이메일 | Resend |
 | 배포 | Vercel |

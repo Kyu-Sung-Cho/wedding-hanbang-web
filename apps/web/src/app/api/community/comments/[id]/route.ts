@@ -78,7 +78,7 @@ export async function PATCH(
       );
     }
 
-    const { data: updatedComment, error } = await getServiceClient()
+    const { data: updatedComment, error } = await supabase
       .from("community_comments")
       .update({
         content,

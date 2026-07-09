@@ -8,7 +8,7 @@ export default function TermsPage() {
     <div className="min-h-screen bg-ivory-50">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
         <div className="max-w-[800px] mx-auto px-6 h-16 flex items-center">
-          <Link href="/" className="flex min-h-11 items-center gap-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
+          <Link href="/" className="flex items-center gap-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             홈으로
           </Link>
@@ -19,7 +19,7 @@ export default function TermsPage() {
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">서비스 이용약관</h1>
         <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 4월 29일</p>
 
-        <div className="prose prose-sm max-w-none text-[15px] text-charcoal leading-[1.9] font-normal space-y-8">
+        <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제1조 (목적)</h2>
             <p>본 약관은 주식회사 웨딩한방(이하 &quot;회사&quot;)이 운영하는 웨딩한방 플랫폼(이하 &quot;플랫폼&quot;)에서 제공하는 서비스의 이용과 관련하여, 회사와 회원 간의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.</p>
@@ -114,8 +114,8 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제9조 (AI 서비스 관련 고지)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>아모라는 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」(이하 &quot;AI 기본법&quot;)에 따라 AI 기반 서비스임을 사전에 고지합니다. 자세한 사항은 <Link href="/ai-policy" className="text-rose-500 underline">AI 정책</Link>을 참고하시기 바랍니다.</li>
-              <li>아모라 화면에는 &quot;AI 생성&quot; 표시가 제공됩니다. 상호작용 원문과 감사 기록의 보유기간은 <Link href="/privacy" className="text-rose-500 underline">개인정보 처리방침</Link>에 따릅니다.</li>
+              <li>아모라는 「인공지능 발전 및 신뢰 기반 조성 등에 관한 법률」(이하 &quot;AI 기본법&quot;)에 따라 AI 기반 서비스임을 사전에 고지합니다. 자세한 사항은 <Link href="/ai-policy" className="text-rose-500 underline">AI 정책</Link>을 참고하시기 바랍니다.</li>
+              <li>아모라가 생성하는 모든 응답에는 &quot;AI 생성&quot; 표시가 포함되며, 회원의 모든 상호작용 기록은 관련 법령에 따라 5년간 보관됩니다.</li>
               <li>아모라의 추천·답변은 참고 자료이며, 최종 결정과 책임은 회원에게 있습니다.</li>
             </ol>
           </section>
@@ -124,7 +124,7 @@ export default function TermsPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 언제든지 설정 페이지에서 탈퇴를 신청할 수 있습니다.</li>
-              <li>탈퇴 신청 즉시 신규 이용과 새 AI 처리를 차단하고 삭제 절차를 시작합니다. 진행 중인 요청의 안전한 종료와 삭제 작업을 거쳐 개인정보를 제거하며, 관련 법령에 따라 보관이 의무화된 정보는 해당 기간 동안 분리 보관됩니다.</li>
+              <li>탈퇴 시 회원의 개인정보는 즉시 삭제되며, 단 관련 법령에 따라 보관이 의무화된 정보는 해당 기간까지 보관됩니다.</li>
               <li>회사는 회원이 본 약관을 중대하게 위반한 경우 사전 통지 후 회원 자격을 상실시킬 수 있습니다.</li>
             </ol>
           </section>

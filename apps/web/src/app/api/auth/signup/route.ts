@@ -5,9 +5,6 @@ import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rat
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 
-const GENERIC_SIGNUP_MESSAGE =
-  "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다. 받지 못했다면 잠시 후 다시 시도해주세요.";
-
 function getAdminSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,63 +33,6 @@ function isStrongPassword(value: unknown): value is string {
   );
 }
 
-function genericSignupResponse() {
-  return NextResponse.json({ success: true, message: GENERIC_SIGNUP_MESSAGE });
-}
-
-function safeErrorMetadata(error: unknown): Record<string, unknown> {
-  if (!error || typeof error !== "object") {
-    return { errorType: typeof error };
-  }
-
-  const value = error as { name?: unknown; code?: unknown; status?: unknown };
-  return {
-    errorName: typeof value.name === "string" ? value.name : undefined,
-    code: typeof value.code === "string" ? value.code : undefined,
-    status: typeof value.status === "number" ? value.status : undefined,
-  };
-}
-
-async function compensateCreatedUser(
-  supabase: ReturnType<typeof getAdminSupabase>,
-  userId: string | undefined,
-  reason: "missing_action_link" | "email_delivery_failed"
-): Promise<void> {
-  const incidentId = crypto.randomUUID();
-
-  if (!userId) {
-    console.error("AUTH_SIGNUP_COMPENSATION_IMPOSSIBLE", {
-      incidentId,
-      reason,
-      severity: "critical",
-      detail: "generateLink succeeded without a user id",
-    });
-    return;
-  }
-
-  try {
-    const { error } = await supabase.auth.admin.deleteUser(userId);
-    if (error) throw error;
-
-    console.error("AUTH_SIGNUP_DELIVERY_FAILED_COMPENSATED", {
-      incidentId,
-      reason,
-      userId,
-      severity: "error",
-    });
-  } catch (error) {
-    // userId는 운영자가 고아 계정을 수동 복구할 수 있도록 의도적으로 남긴다.
-    // 이메일 주소·이름은 로그에 기록하지 않는다.
-    console.error("AUTH_SIGNUP_COMPENSATION_FAILED", {
-      incidentId,
-      reason,
-      userId,
-      severity: "critical",
-      ...safeErrorMetadata(error),
-    });
-  }
-}
-
 export async function POST(request: Request) {
   try {
     const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed } = await request.json();
@@ -111,14 +51,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // 모든 비인증 호출은 출처와 관계없이 서버 검증을 통과해야 한다.
-    // 클라이언트가 임의로 만들 수 있는 헤더는 절대 우회 근거로 사용하지 않는다.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
-    if (!turnstile.ok) {
-      return NextResponse.json(
-        { error: "보안 확인을 완료한 뒤 다시 시도해주세요." },
-        { status: 400 }
-      );
+    // 모바일 앱은 Turnstile 위젯을 렌더할 수 없어 토큰을 만들 수 없다.
+    // 브라우저 봇 차단(Turnstile)만 생략하고, 이메일 폭탄의 실제 방어선인
+    // IP/이메일 rate limit·enumeration 마스킹·강한 비밀번호는 모바일에도 그대로 적용한다.
+    // (헤더는 스푸핑 가능하나, 남용은 아래 rate limit + 이메일 인증 필수로 봉인된다.
+    //  장기적으로는 모바일 앱 어테스테이션/Turnstile 도입 권장.)
+    const isMobileClient = request.headers.get("x-hanbang-client") === "mobile";
+    if (!isMobileClient) {
+      const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
+      if (!turnstile.ok) {
+        return NextResponse.json(
+          { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
+          { status: 400 }
+        );
+      }
     }
 
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
@@ -145,35 +91,32 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      // 기존 계정과 공급자 오류 모두 같은 외부 응답을 사용해 계정 열거를 막는다.
-      console.error("AUTH_SIGNUP_LINK_GENERATION_FAILED", {
-        severity: "error",
-        code: error.code,
-        status: error.status,
-      });
-      return genericSignupResponse();
+      if (
+        error.message.includes("already been registered") ||
+        error.message.includes("already registered")
+      ) {
+        return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
+      }
+      console.error("generateLink error:", error);
+      return NextResponse.json(
+        { error: "회원가입 처리 중 오류가 발생했습니다." },
+        { status: 400 }
+      );
     }
 
     if (!data?.properties?.action_link) {
-      await compensateCreatedUser(supabase, data?.user?.id, "missing_action_link");
-      return genericSignupResponse();
+      return NextResponse.json({ error: "인증 링크 생성에 실패했습니다." }, { status: 500 });
     }
 
     const confirmLink = data.properties.action_link;
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const safeName = escapeHtml(name);
-    const safeConfirmLink = escapeHtml(confirmLink);
 
-    try {
-      if (!process.env.RESEND_API_KEY) {
-        throw new Error("RESEND_API_KEY is not configured");
-      }
-
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const { error: emailError } = await resend.emails.send({
-        from: "웨딩한방 <noreply@hanbang.ai>",
-        to: email,
-        subject: "웨딩한방 이메일 인증을 완료해주세요",
-        html: `
+    await resend.emails.send({
+      from: "웨딩한방 <noreply@hanbang.ai>",
+      to: email,
+      subject: "웨딩한방 이메일 인증을 완료해주세요",
+      html: `
         <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
             <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
@@ -186,7 +129,7 @@ export async function POST(request: Request) {
             아래 버튼을 클릭하여 이메일 인증을 완료해주세요.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="${safeConfirmLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="${confirmLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               이메일 인증하기
             </a>
           </div>
@@ -194,7 +137,7 @@ export async function POST(request: Request) {
             버튼이 작동하지 않으면 아래 링크를 복사해 브라우저에 붙여넣어주세요:
           </p>
           <p style="font-size: 12px; color: #B5ADA3; word-break: break-all; text-align: center; margin-bottom: 32px; padding: 16px; background: #FAF7F2; border-radius: 12px;">
-            ${safeConfirmLink}
+            ${confirmLink}
           </p>
           <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
             본 메일은 웨딩한방 회원가입 요청에 따라 발송되었습니다.<br>
@@ -204,21 +147,10 @@ export async function POST(request: Request) {
             © 2026 웨딩한방. All rights reserved.
           </p>
         </div>
-        `,
-      });
+      `,
+    });
 
-      if (emailError) throw emailError;
-    } catch (error) {
-      console.error("AUTH_SIGNUP_EMAIL_DELIVERY_FAILED", {
-        severity: "error",
-        userId: data.user?.id,
-        ...safeErrorMetadata(error),
-      });
-      await compensateCreatedUser(supabase, data.user?.id, "email_delivery_failed");
-    }
-
-    // 성공·기존 계정·보상 처리 결과를 구분하지 않아 이메일 열거를 막는다.
-    return genericSignupResponse();
+    return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
   } catch (err) {
     console.error("Signup API error:", err);
     return NextResponse.json(

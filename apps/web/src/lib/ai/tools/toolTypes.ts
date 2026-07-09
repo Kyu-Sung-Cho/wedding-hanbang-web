@@ -2,11 +2,7 @@ import type { ToolExecutionResult } from "@/types/database.types";
 
 export interface ToolExecutionContext {
   coupleId: string;
-  currentUserId?: string;
   currentUserText?: string;
-  signal?: AbortSignal;
-  /** false이면 공유 상태/외부 예약을 변경하는 도구를 실행하지 않는다. */
-  allowMutations?: boolean;
   weddingContext: {
     weddingDate: string | null;
     budget: number;

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking,
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Send, Sparkles, Heart } from "lucide-react-native";
@@ -11,7 +11,6 @@ import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
-import { parseChatSse } from "@hanbang/shared";
 
 interface ChatMessage {
   id: string;
@@ -79,7 +78,7 @@ export default function ChatScreen() {
       if (profile.role) setUserRole(profile.role as "bride" | "groom");
 
       // 파트너
-      const { data: partners } = await supabase.rpc("get_my_partner_public");
+      const { data: partners } = await supabase.from("profiles").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
       if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
 
       // 대화 이력
@@ -131,47 +130,24 @@ export default function ChatScreen() {
     if (!text || streaming || !coupleId || !userId) return;
 
     if (target === "partner") {
-      const response = await apiFetch("/api/chat/messages", {
-        method: "POST",
-        body: JSON.stringify({ coupleId, content: text, target: "partner", visibility: "shared" }),
-      });
-      if (!response.ok) return;
-      setInput("");
-      return;
+      await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: userId, sender_type: userRole, role: "user", content: text, metadata: { target: "partner" } });
+      setInput(""); return;
     }
 
     // AI
-    const persistResponse = await apiFetch("/api/chat/messages", {
-      method: "POST",
-      body: JSON.stringify({ coupleId, content: text, visibility: "shared" }),
-    });
-    const persistPayload = await persistResponse.json().catch(() => ({}));
-    if (!persistResponse.ok || !persistPayload.message) return;
-    const ui = persistPayload.message as ChatMessage;
-    const userMsg: ChatMessage = { ...ui, role: "user", sender_type: userRole };
+    const { data: ui } = await supabase.from("chat_messages").insert({ couple_id: coupleId, sender_id: userId, sender_type: userRole, role: "user", content: text }).select("id, role, sender_type, content, created_at").single();
+    const userMsg: ChatMessage = ui ? { ...ui, role: "user", sender_type: userRole } : { id: Date.now().toString(), role: "user", sender_type: userRole, content: text };
     const tempId = `temp_${Date.now()}`;
     setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "" }]);
     setInput(""); setStreaming(true); scrollToLatest(true);
 
     try {
-      const recentContext = [...messages, userMsg]
-        .slice(-20)
-        .map((m) => ({ role: m.role, content: m.content }));
-      const res = await apiFetch("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          messages: recentContext,
-          coupleId,
-          senderName: userName,
-          clientRequestId: `mobile:${userMsg.id}`.slice(0, 120),
-        }),
-      });
+      const res = await apiFetch("/api/chat", { method: "POST", body: JSON.stringify({ messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })), coupleId, senderName: userName }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "채팅 오류");
       const raw = await res.text();
-      const parsed = parseChatSse(raw);
-      if (parsed.error) throw new Error(parsed.error);
-      if (!parsed.completed) throw new Error("AI 응답이 완료되지 않았어요. 다시 시도해주세요.");
-      const full = parsed.content;
+      let full = "";
+      for (const line of raw.split("\n")) { if (!line.startsWith("data: ")) continue; const j = line.slice(6).trim(); if (j === "[DONE]" || !j) continue; try { const p = JSON.parse(j); if (p.type === "content_block_delta" && p.delta?.text) full += p.delta.text; else if (p.text) full += p.text; else if (p.chunk) full += p.chunk; } catch { if (j) full += j; } }
+      if (!full && raw) { try { const json = JSON.parse(raw); full = json.text || json.content || raw; } catch { full = raw; } }
       const clean = full.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim() || full || "응답을 받지 못했어요.";
       setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: clean } : m));
       scrollToLatest(true);
@@ -216,21 +192,9 @@ export default function ChatScreen() {
       </View>
 
       <View style={st.targetRow}>
-        <Pressable style={[st.targetBtn, !isP && st.targetActive]} onPress={() => setTarget("ai")} accessibilityRole="tab" accessibilityState={{ selected: !isP }}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
-        <Pressable style={[st.targetBtn, isP && st.targetPartner]} onPress={() => setTarget("partner")} accessibilityRole="tab" accessibilityState={{ selected: isP }}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+        <Pressable style={[st.targetBtn, !isP && st.targetActive]} onPress={() => setTarget("ai")}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
+        <Pressable style={[st.targetBtn, isP && st.targetPartner]} onPress={() => setTarget("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
       </View>
-
-      {!isP && (
-        <Pressable
-          style={st.aiNotice}
-          onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai"}/ai-policy`)}
-          accessibilityRole="link"
-          accessibilityLabel="AI 생성 안내와 AI 정책 열기"
-        >
-          <Sparkles size={12} color={colors.gold.DEFAULT} />
-          <Text style={st.aiNoticeText}>AI 생성 · GPT-5.6 · AI 정책</Text>
-        </Pressable>
-      )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {!initialLoaded ? (
@@ -276,14 +240,12 @@ const st = StyleSheet.create({
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerSub: { fontSize: 11, color: colors.textTertiary },
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  targetBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11 },
+  targetBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
   targetPartner: { borderBottomWidth: 2, borderBottomColor: colors.rose[500] },
   targetText: { fontSize: 14, color: colors.textTertiary },
   targetTextActive: { color: colors.noir[800], fontWeight: "600" },
   targetTextPartner: { color: colors.rose[500], fontWeight: "600" },
-  aiNotice: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  aiNoticeText: { fontSize: 12, color: colors.textSecondary, textDecorationLine: "underline" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   loadingText: { fontSize: 13, color: colors.textTertiary },
@@ -305,6 +267,6 @@ const st = StyleSheet.create({
   bubbleText: { fontSize: 15, lineHeight: 22 },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 40, height: 40, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
   sendBtnOff: { backgroundColor: colors.taupe[400] },
 });

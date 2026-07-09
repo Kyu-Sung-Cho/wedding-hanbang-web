@@ -10,104 +10,127 @@ function getAdmin() {
   );
 }
 
-type InviteState = {
-  invite_code?: unknown;
-  is_fully_linked?: unknown;
-  requires_relink_confirmation?: unknown;
-};
-
-async function getAuthenticatedUser(req: NextRequest) {
-  const supabase = await createClientFromRequest(req);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+function generateCode() {
+  const hex = Array.from({ length: 6 }, () =>
+    "0123456789ABCDEF"[Math.floor(Math.random() * 16)]
+  ).join("");
+  return `WH-${hex}`;
 }
 
-async function readInviteState(
-  userId: string,
-  rotate: boolean
-) {
-  const { data, error } = await getAdmin().rpc("get_or_rotate_invite_code_safely", {
-    p_user_id: userId,
-    p_rotate: rotate,
-  });
-  if (error) throw error;
-
-  return normalizeInviteState(data);
-}
-
-function normalizeInviteState(data: unknown) {
-  const state = data as InviteState | null;
-  const requiresRelinkConfirmation = state?.requires_relink_confirmation === true;
-  const inviteCode = typeof state?.invite_code === "string" ? state.invite_code : null;
-  if (!state
-    || typeof state.is_fully_linked !== "boolean"
-    || (inviteCode === null && !requiresRelinkConfirmation)
-    || (inviteCode !== null && !/^WH-[A-F0-9]{12}$/.test(inviteCode))) {
-    throw new Error("Invalid invite-code RPC response");
-  }
-  return {
-    inviteCode,
-    isFullyLinked: state.is_fully_linked,
-    requiresRelinkConfirmation,
-  };
-}
-
-// GET: 현재 커플 코드 조회 + 연결 상태
+// GET: 현재 커플 코드 조회 + 연동 상태
 export async function GET(req: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const supabase = await createClientFromRequest(req);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-    return NextResponse.json(await readInviteState(user.id, false));
+
+    const admin = getAdmin();
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.couple_id) {
+      return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
+    }
+
+    const { data: couple } = await admin
+      .from("couples")
+      .select("invite_code, bride_id, groom_id")
+      .eq("id", profile.couple_id)
+      .single();
+
+    if (!couple) {
+      return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
+    }
+
+    // 코드가 없으면 생성
+    let inviteCode = couple.invite_code;
+    if (!inviteCode) {
+      const { data: newCode } = await admin.rpc("generate_invite_code");
+      inviteCode = (newCode as string) || generateCode();
+      await admin
+        .from("couples")
+        .update({ invite_code: inviteCode })
+        .eq("id", profile.couple_id);
+    }
+
+    // 양쪽 다 연동되었는지 확인
+    const isFullyLinked = !!(couple.bride_id && couple.groom_id);
+
+    return NextResponse.json({ inviteCode, isFullyLinked });
   } catch (err) {
-    console.error("커플 코드 조회 오류:", err);
-    return NextResponse.json({ error: "커플 코드를 확인할 수 없습니다." }, { status: 500 });
+    console.error("커플 코드 조회 에러:", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
-// POST: 코드 재발급 (양쪽 다 연결된 경우 불가)
+// POST: 코드 재발급 (양쪽 다 연동된 경우 불가)
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(req);
+    const supabase = await createClientFromRequest(req);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-    const body = (await req.json().catch(() => ({}))) as { confirmLegacyRelink?: unknown };
-    let state;
-    if (body.confirmLegacyRelink === true) {
-      const { data, error } = await getAdmin().rpc("restart_blocked_amora_couple_safely", {
-        p_user_id: user.id,
-      });
-      if (error) throw error;
-      state = normalizeInviteState(data);
-    } else {
-      state = await readInviteState(user.id, true);
-      if (state.requiresRelinkConfirmation) {
-        return NextResponse.json(
-          { error: "기존 자료를 공유하지 않는 새 커플 공간 생성 확인이 필요합니다." },
-          { status: 409 }
-        );
-      }
+
+    const admin = getAdmin();
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.couple_id) {
+      return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
     }
-    return NextResponse.json(state);
+
+    const { data: couple } = await admin
+      .from("couples")
+      .select("bride_id, groom_id")
+      .eq("id", profile.couple_id)
+      .single();
+
+    if (!couple) {
+      return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
+    }
+
+    // 양쪽 다 연동되었으면 재발급 불가
+    if (couple.bride_id && couple.groom_id) {
+      return NextResponse.json(
+        { error: "이미 파트너와 연동 완료되어 코드를 재발급할 수 없습니다." },
+        { status: 409 }
+      );
+    }
+
+    // 새 코드 생성
+    const { data: newCode } = await admin.rpc("generate_invite_code");
+    const code = (newCode as string) || generateCode();
+
+    const { error: updateError } = await admin
+      .from("couples")
+      .update({ invite_code: code, updated_at: new Date().toISOString() })
+      .eq("id", profile.couple_id);
+
+    if (updateError) {
+      console.error("코드 재발급 에러:", updateError);
+      return NextResponse.json({ error: "코드 재발급에 실패했습니다." }, { status: 500 });
+    }
+
+    return NextResponse.json({ inviteCode: code });
   } catch (err) {
-    console.error("코드 재발급 오류:", err);
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("after linking")) {
-      return NextResponse.json(
-        { error: "이미 파트너와 연결되어 코드를 재발급할 수 없습니다." },
-        { status: 409 }
-      );
-    }
-    if (message.includes("active provider lease")) {
-      return NextResponse.json(
-        { error: "진행 중인 아모라 응답이 끝난 뒤 다시 시도해 주세요." },
-        { status: 409 }
-      );
-    }
-    return NextResponse.json({ error: "코드를 재발급할 수 없습니다." }, { status: 500 });
+    console.error("코드 재발급 에러:", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

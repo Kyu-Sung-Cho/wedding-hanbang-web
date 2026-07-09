@@ -2,7 +2,6 @@
 
 > ⚠️ **경고 (2026-07-03 감사)**: 이 감사는 2026-06-11 "Week 1 수술" **이전** 코드 기준입니다.
 > 현재 상태는 `CLAUDE.md`, 최신 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
-> **AI 공급자 주의 (2026-07-10)**: 아래 Claude/Anthropic 항목은 당시 스냅샷이며, 현재 아모라 런타임은 OpenAI GPT-5.6 Terra/Luna입니다.
 
 **작성일**: 2026-04-23
 **방법**: 코드 정적 분석 + 파일 존재 + schema 참조 (런타임 테스트 없음)
@@ -130,7 +129,7 @@
 ### 환경 변수 (전체 15개 사용)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `[과거 환경변수] ANTHROPIC_API_KEY` — 현재 런타임은 `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_LAUNCH_MODE` (coming_soon 모드 제어)
 - `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` (장소 검색)
@@ -471,7 +470,7 @@ community_xp_log, community_streaks, community_achievements
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `[과거 환경변수] ANTHROPIC_API_KEY` — 현재 AI 채팅은 `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY` (AI 채팅)
 
 **기능 제공자용**:
 - `RESEND_API_KEY` (없으면 이메일 silent skip)

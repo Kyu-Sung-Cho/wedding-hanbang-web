@@ -27,7 +27,6 @@ export const maxDuration = 120;
 const MAX_FIRES_PER_RUN = 100;
 // 조회 커플 상한 — 규모가 커지면 페이지네이션으로 전환할 것 (그 전에 이 캡이 알림).
 const MAX_JOURNEYS = 500;
-const CARE_MOMENTS_CRON_ENABLED = false;
 
 function getAdmin() {
   return createAdminClient(
@@ -43,9 +42,6 @@ export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!CARE_MOMENTS_CRON_ENABLED) {
-    return NextResponse.json({ ok: true, disabled: true, reason: "disabled_for_safety_and_cost" });
   }
 
   const admin = getAdmin();

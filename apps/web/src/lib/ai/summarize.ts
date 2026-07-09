@@ -1,7 +1,7 @@
 // =============================================
 // Conversation Summarizer — Memory Step A
 // =============================================
-// 목적: /api/chat 턴 종료 후 대화를 저비용 GPT로 1-3문장 요약 → chat_summaries INSERT
+// 목적: /api/chat 턴 종료 후 대화를 Haiku로 1-3문장 요약 → chat_summaries INSERT
 // 특징:
 //   - Fire-and-forget (main chat flow 막지 않음)
 //   - Trigger: 마지막 요약 이후 10 메시지+ 누적 시
@@ -10,10 +10,11 @@
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 const SUMMARY_TRIGGER_THRESHOLD = 10; // 마지막 요약 이후 새 메시지 N개 이상이면 요약
-const MAX_INPUT_CHARS = 12_000; // 저비용 모델에 보낼 대화 전문 상한 (토큰 절약)
+const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
+const MAX_INPUT_CHARS = 12_000; // Haiku에 보낼 대화 전문 상한 (토큰 절약)
 const MAX_MESSAGE_CHARS = 800;  // 개별 메시지 truncate 길이
 
 const getAdminClient = createAdminClient;
@@ -54,7 +55,7 @@ function formatMessagesForSummary(messages: MessageInput[]): string {
 }
 
 // -------------------------------------------
-// 저비용 GPT 요약 생성
+// Haiku 요약 생성
 // -------------------------------------------
 const SUMMARY_SYSTEM_PROMPT = `당신은 웨딩 준비 대화의 요약 생성기입니다.
 
@@ -72,22 +73,16 @@ const SUMMARY_SYSTEM_PROMPT = `당신은 웨딩 준비 대화의 요약 생성�
 
 async function generateSummary(
   formattedConversation: string,
-  audit: {
-    userId?: string | null;
-    coupleId: string;
-    totalCount: number;
-    coveredRange: string;
-    visibility: "shared" | "bride_private" | "groom_private";
-    signal?: AbortSignal;
-  }
+  audit: { userId?: string | null; coupleId: string; totalCount: number; coveredRange: string }
 ): Promise<{ summary: string; usage?: { input_tokens: number; output_tokens: number } } | null> {
   try {
-    const response = await createOpenAIResponseWithAudit({
-      modelRole: "fast",
-      maxOutputTokens: 200,
-      instructions: SUMMARY_SYSTEM_PROMPT,
-      input: formattedConversation,
-      signal: audit.signal,
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: SUMMARY_MODEL,
+        max_tokens: 200,
+        system: SUMMARY_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: formattedConversation }],
+      },
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
@@ -97,11 +92,11 @@ async function generateSummary(
           endpoint: "chat/summarize",
           message_count: audit.totalCount,
           covered_range: audit.coveredRange,
-          visibility: audit.visibility,
         },
       },
     });
-    const text = response.text;
+    const firstBlock = response.content[0];
+    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
     if (!text) return null;
     return {
       summary: text,
@@ -110,7 +105,7 @@ async function generateSummary(
         : undefined,
     };
   } catch (err) {
-    console.error("[summarize] GPT 호출 실패:", err);
+    console.error("[summarize] Haiku 호출 실패:", err);
     return null;
   }
 }
@@ -133,12 +128,10 @@ export interface MaybeSummarizeInput {
    * private turn: 본인만 회상 (mixed shared+private 컨텍스트라도 본인 시점)
    */
   visibility?: "shared" | "bride_private" | "groom_private";
-  signal?: AbortSignal;
-  reserveLLMCall?: () => Promise<boolean>;
 }
 
 /**
- * 대화 길이가 threshold 넘었으면 저비용 GPT로 요약 → chat_summaries INSERT.
+ * 대화 길이가 threshold 넘었으면 Haiku로 요약 → chat_summaries INSERT.
  * fire-and-forget 패턴:
  *   void maybeSummarize({ ... });
  */
@@ -150,23 +143,16 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
     // Threshold 미달이면 skip
     if (newMessages < SUMMARY_TRIGGER_THRESHOLD) return;
 
-    // 새로 커버할 구간만 저비용 GPT로 요약
+    // 새로 커버할 구간만 Haiku로 요약
     const uncoveredSlice = input.messages.slice(input.lastCoveredCount);
     const conversation = formatMessagesForSummary(uncoveredSlice);
     if (!conversation) return;
-    input.signal?.throwIfAborted();
-    if (input.reserveLLMCall && !(await input.reserveLLMCall())) {
-      console.warn("[summarize] 비용 예약이 거부되어 보조 요약을 건너뜁니다.");
-      return;
-    }
 
     const result = await generateSummary(conversation, {
       userId: input.userId ?? null,
       coupleId: input.coupleId,
       totalCount,
       coveredRange: `${input.lastCoveredCount}-${totalCount}`,
-      visibility: input.visibility ?? "shared",
-      signal: input.signal,
     });
     if (!result) return;
 

@@ -145,7 +145,7 @@ export async function POST(
       );
     }
 
-    const { data, error } = await createAdminClient()
+    const { data, error } = await supabase
       .from("cohort_contracts")
       .insert({
         room_id: roomId,

@@ -71,11 +71,12 @@ export default function MyFavoritesPage() {
           return;
         }
 
-        const vendorsRes = await fetch(
-          `/api/vendors?ids=${encodeURIComponent(vendorIds.join(","))}&limit=100`
-        );
-        const vendorsData = await vendorsRes.json().catch(() => ({}));
-        setVendors((Array.isArray(vendorsData.vendors) ? vendorsData.vendors : []) as Vendor[]);
+        const { data } = await supabase
+          .from("vendors")
+          .select("*")
+          .in("id", vendorIds);
+
+        setVendors((data ?? []) as Vendor[]);
       } finally {
         setLoading(false);
       }

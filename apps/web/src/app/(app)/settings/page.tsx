@@ -24,7 +24,6 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
-import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
@@ -64,19 +63,6 @@ const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
   { value: "over300", label: "300명 이상" },
 ];
 
-async function waitForLifecycleResponse(url: string, init: RequestInit) {
-  for (let attempt = 0; attempt < 360; attempt++) {
-    const response = await fetch(url, init);
-    const data = await response.json().catch(() => ({}));
-    if (response.status !== 202) return { response, data };
-    const retryMs = typeof data.retryAfterMs === "number"
-      ? Math.max(500, Math.min(5000, data.retryAfterMs))
-      : 1000;
-    await new Promise((resolve) => setTimeout(resolve, retryMs));
-  }
-  throw new Error("진행 중인 AI 요청 종료를 기다리는 시간이 초과되었습니다.");
-}
-
 type WeddingPreferenceState = Partial<{
   weddingStyle: WeddingStyle | null;
   priorities: PriorityItem[];
@@ -94,36 +80,13 @@ const fadeIn = {
   animate: { opacity: 1, y: 0 },
 };
 
-async function purgeLocalUserData(): Promise<void> {
-  try { localStorage.clear(); } catch { /* storage unavailable */ }
-  try { sessionStorage.clear(); } catch { /* storage unavailable */ }
-  try {
-    for (const cookie of document.cookie.split(";")) {
-      const name = cookie.split("=")[0]?.trim();
-      if (name) document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-    }
-  } catch { /* cookie cleanup best effort */ }
-  try {
-    if ("caches" in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map((name) => caches.delete(name)));
-    }
-  } catch { /* cache cleanup best effort */ }
-  try {
-    const { default: posthog } = await import("posthog-js");
-    posthog.reset(true);
-  } catch { /* analytics may be disabled */ }
-}
-
 export default function SettingsPage() {
   const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
   const [isFullyLinked, setIsFullyLinked] = useState(false);
-  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [coupleCodeError, setCoupleCodeError] = useState("");
 
   // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
   const [phoneInput, setPhoneInput] = useState("");
@@ -174,6 +137,7 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
+  const [deleteReasonOther, setDeleteReasonOther] = useState("");
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
@@ -196,7 +160,6 @@ export default function SettingsPage() {
       .then((d) => {
         if (d.inviteCode) setCoupleCode(d.inviteCode);
         if (d.isFullyLinked) setIsFullyLinked(true);
-        setRequiresRelinkConfirmation(d.requiresRelinkConfirmation === true);
       })
       .catch(() => {});
   }, [couple, isDemo]);
@@ -210,27 +173,19 @@ export default function SettingsPage() {
 
   const handleRegenerateCode = async () => {
     setRegenerating(true);
-    setCoupleCodeError("");
     try {
       if (isDemo) {
         setCoupleCode(`WH-DEMO${Math.floor(Math.random() * 90 + 10)}`);
         return;
       }
 
-      const res = await fetch("/api/couple/code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmLegacyRelink: requiresRelinkConfirmation }),
-      });
+      const res = await fetch("/api/couple/code", { method: "POST" });
       const data = await res.json();
       if (res.ok && data.inviteCode) {
         setCoupleCode(data.inviteCode);
-        setRequiresRelinkConfirmation(false);
-      } else {
-        setCoupleCodeError(data.error ?? "초대 코드를 만들지 못했습니다.");
       }
     } catch {
-      setCoupleCodeError("초대 코드를 만들지 못했습니다.");
+      // 실패 시 무시
     } finally {
       setRegenerating(false);
     }
@@ -344,7 +299,7 @@ export default function SettingsPage() {
     { value: "wedding_done", label: "결혼 준비 완료" },
     { value: "privacy", label: "개인정보 우려" },
     { value: "low_usage", label: "사용 빈도 낮음" },
-    { value: "other", label: "기타" },
+    { value: "other", label: "기타 (직접 입력)" },
   ];
 
   const handleDeleteAccount = async () => {
@@ -352,27 +307,25 @@ export default function SettingsPage() {
     setDeleting(true);
     setDeleteError("");
 
+    const reason = deleteReason === "other"
+      ? (deleteReasonOther.trim() || "기타")
+      : DELETE_REASONS.find(r => r.value === deleteReason)?.label ?? deleteReason;
+
     try {
       const res = await fetch("/api/auth/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: deleteReason }),
+        body: JSON.stringify({ reason }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json();
 
-      if (res.status !== 202) {
+      if (!res.ok) {
         setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
         return;
       }
 
-      try {
-        await createClient().auth.signOut();
-      } catch {
-        // The durable server job is already queued. Continue with local purge
-        // even if remote session revocation is temporarily unavailable.
-      }
-      useAuthStore.getState().reset();
-      await purgeLocalUserData();
+      document.cookie = "onboarding_complete=; path=/; max-age=0";
+      document.cookie = "demo_mode=; path=/; max-age=0";
       window.location.href = "/login";
     } catch {
       setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -387,11 +340,12 @@ export default function SettingsPage() {
     setResetWeddingError("");
 
     try {
-      const { response: res, data } = await waitForLifecycleResponse("/api/couple/reset", {
+      const res = await fetch("/api/couple/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
       });
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setResetWeddingError(data.error ?? "초기화에 실패했습니다.");
@@ -734,24 +688,6 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-[#F6F3F2] rounded-xl p-5">
-          {requiresRelinkConfirmation && !partner && (
-            <div className="mb-4 rounded-xl border border-[#D9C3AE] bg-white p-4">
-              <p className="text-sm font-medium text-[#1A1A1F]">새 커플 공간으로 시작해 주세요</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#6F645C]">
-                이전 공간의 일정·예산·대화는 새 파트너에게 공유하지 않습니다. 비어 있는 새 공간과
-                새 초대 코드를 만들며, 필요한 정보는 안전하게 다시 입력할 수 있어요.
-              </p>
-              <button
-                type="button"
-                onClick={handleRegenerateCode}
-                disabled={regenerating}
-                className="mt-3 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#684545] disabled:opacity-50"
-              >
-                {regenerating ? "새 공간 만드는 중..." : "확인하고 새 커플 공간 만들기"}
-              </button>
-            </div>
-          )}
-
           {coupleCode && !isFullyLinked && (
             <div className="mb-3">
               <div className="flex items-center justify-between">
@@ -786,10 +722,6 @@ export default function SettingsPage() {
                 {regenerating ? "재발급 중..." : "코드 재발급"}
               </button>
             </div>
-          )}
-
-          {coupleCodeError && (
-            <p className="mb-3 text-sm text-[#9B3A3A]" role="alert">{coupleCodeError}</p>
           )}
 
           {partner ? (
@@ -1105,11 +1037,9 @@ export default function SettingsPage() {
                 정말 탈퇴하시겠어요?
               </h3>
               <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
-                본인 비공개 상담과 직접 작성한 내용은 삭제되며 계정은 복구할 수 없습니다.
+                탈퇴하면 모든 데이터가 영구 삭제되며
                 <br />
-                파트너의 공동 계획·AI 답변과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있습니다.
-                <br />
-                요청이 접수되면 바로 로그아웃되며, 삭제는 서버에서 안전하게 계속 처리됩니다.
+                복구할 수 없습니다.
               </p>
 
               {/* 탈퇴 사유 */}
@@ -1132,6 +1062,15 @@ export default function SettingsPage() {
                     </label>
                   ))}
                 </div>
+                {deleteReason === "other" && (
+                  <textarea
+                    value={deleteReasonOther}
+                    onChange={(e) => setDeleteReasonOther(e.target.value)}
+                    placeholder="탈퇴 사유를 알려주세요..."
+                    rows={2}
+                    className="w-full mt-2 px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-base outline-none resize-none focus:ring-2 focus:ring-[#795252]/30"
+                  />
+                )}
               </div>
 
               <div className="mb-5">
@@ -1153,19 +1092,20 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || deleting}
+                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || (deleteReason === "other" && !deleteReasonOther.trim()) || deleting}
                 className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {deleting ? "삭제 요청 접수 중..." : "계정 영구 삭제"}
+                {deleting ? "삭제 중..." : "계정 영구 삭제"}
               </button>
 
               <button
                 onClick={() => {
                   setShowDeleteModal(false);
                   setDeleteConfirmText("");
-                   setDeleteError("");
-                   setDeleteReason("");
-                 }}
+                  setDeleteError("");
+                  setDeleteReason("");
+                  setDeleteReasonOther("");
+                }}
                 className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
               >
                 취소

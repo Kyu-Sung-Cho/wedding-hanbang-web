@@ -440,19 +440,11 @@ export default function PostDetailScreen() {
     });
 
     try {
-      const response = await apiFetch(`/api/community/posts/${postId}/vote`, {
-        method: "POST",
-        body: JSON.stringify({ voteType: newVote }),
+      await supabase.rpc("community_vote_post", {
+        p_user_id: user.id,
+        p_post_id: postId,
+        p_vote_type: newVote,
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "좋아요 저장에 실패했습니다.");
-      if (typeof body.upvote_count === "number") {
-        setPost((current) => current ? {
-          ...current,
-          upvote_count: Math.max(0, body.upvote_count),
-          downvote_count: Math.max(0, body.downvote_count ?? 0),
-        } : current);
-      }
     } catch {
       setUserVote(prevVote);
       setPost(prevPost);
@@ -479,14 +471,17 @@ export default function PostDetailScreen() {
     setBookmarked(!wasBookmarked);
 
     try {
-      const response = await apiFetch(`/api/community/posts/${postId}/bookmark`, {
-        method: "POST",
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || typeof body.bookmarked !== "boolean") {
-        throw new Error(body.error ?? "북마크 저장에 실패했습니다.");
+      if (wasBookmarked) {
+        await supabase
+          .from("community_bookmarks")
+          .delete()
+          .eq("post_id", postId)
+          .eq("user_id", user.id);
+      } else {
+        await supabase
+          .from("community_bookmarks")
+          .upsert({ post_id: postId, user_id: user.id });
       }
-      setBookmarked(body.bookmarked);
     } catch {
       setBookmarked(wasBookmarked);
       showActionNotice("북마크를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");

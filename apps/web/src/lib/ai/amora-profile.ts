@@ -7,7 +7,7 @@
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
 export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -79,10 +79,9 @@ interface MaybeUpdateAmoraProfileInput {
   currentProfile?: AmoraCoupleProfile | null;
   stageTag?: string | null;
   isDemo?: boolean;
-  signal?: AbortSignal;
-  reserveLLMCall?: () => Promise<boolean>;
 }
 
+const PROFILE_MODEL = "claude-haiku-4-5-20251001";
 const MAX_MESSAGE_CHARS = 900;
 const MAX_INPUT_CHARS = 8_000;
 const MAX_TEXT_FIELD_CHARS = 500;
@@ -374,11 +373,6 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
 
     const conversation = formatMessagesForProfile(input.messages);
     if (!conversation) return;
-    input.signal?.throwIfAborted();
-    if (input.reserveLLMCall && !(await input.reserveLLMCall())) {
-      console.warn("[amora-profile] 비용 예약이 거부되어 프로필 갱신을 건너뜁니다.");
-      return;
-    }
 
     const currentProfile = input.currentProfile ?? null;
     const currentProfileJson = compactJson(profileForPrompt(currentProfile));
@@ -386,15 +380,21 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       ? "shared: 두 사람이 함께 보는 아모라 대화에만 사용"
       : `${input.visibility}: 해당 사용자 개인 상담에만 사용`;
 
-    const response = await createOpenAIResponseWithAudit({
-      modelRole: "fast",
-      maxOutputTokens: 750,
-      instructions: PROFILE_SYSTEM_PROMPT,
-      input:
-        `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
-        `[현재 프로필]\n${currentProfileJson}\n\n` +
-        `[최근 대화]\n${conversation}`,
-      signal: input.signal,
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: PROFILE_MODEL,
+        max_tokens: 750,
+        system: PROFILE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content:
+              `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
+              `[현재 프로필]\n${currentProfileJson}\n\n` +
+              `[최근 대화]\n${conversation}`,
+          },
+        ],
+      },
       audit: {
         userId: input.userId ?? null,
         coupleId: input.coupleId,
@@ -408,7 +408,8 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       },
     });
 
-    const text = response.text;
+    const firstBlock = response.content[0];
+    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
     if (!text) return;
 
     const parsed = parseProfileResponse(text);

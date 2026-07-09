@@ -104,7 +104,11 @@ export default function ProfileScreen() {
       weddingDate = journey?.wedding_date ?? null;
 
       // 파트너 이름
-      const { data: partners } = await supabase.rpc("get_my_partner_public");
+      const { data: partners } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("couple_id", data.couple_id)
+        .neq("id", user.id);
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
       }

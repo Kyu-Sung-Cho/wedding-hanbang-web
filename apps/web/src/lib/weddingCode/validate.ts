@@ -52,7 +52,7 @@ export function validateWcSubmission(
   const mode = typeof body.answering_mode === "string" ? body.answering_mode : "";
   if (!MODE_SET.has(mode)) return { ok: false, error: "답변 방식을 선택해주세요." };
   const quote = typeof body.quote_status === "string" ? body.quote_status : "";
-  if (!QUOTE_SET.has(quote)) return { ok: false, error: "견적 경험을 선택해주세요." };
+  if (!QUOTE_SET.has(quote)) return { ok: false, error: "비용표를 받아본 적이 있는지 선택해주세요." };
   const parent = typeof body.parent_involvement === "string" ? body.parent_involvement : "";
   if (!PARENT_SET.has(parent)) return { ok: false, error: "가족 관여도를 선택해주세요." };
 

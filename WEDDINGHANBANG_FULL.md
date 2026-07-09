@@ -1,7 +1,6 @@
 # 웨딩한방 (hanbang.ai) — 전체 서비스 종합 문서
 
 > **작성일**: 2026-04-28
-> **AI 공급자 갱신**: 2026-07-10 — OpenAI GPT-5.6 Terra/Luna
 > **도메인**: hanbang.ai / www.hanbang.ai
 > **저장소**: github.com/Kyu-Sung-Cho/wedding-hanbang-web
 > **하나도 빠짐없이** — 운영원칙·기능·페이지·API·DB·디자인·컴플라이언스 전체
@@ -196,7 +195,7 @@ wedding-hanbang-web/
 | Styling | Tailwind CSS | 4 |
 | State | Zustand | ^5.0.11 |
 | Auth/DB | Supabase (PostgreSQL + Auth + Realtime + Storage) | @supabase/ssr ^0.8.0, supabase-js ^2.95.3 |
-| AI | OpenAI Responses API | openai 6.46.0 (GPT-5.6 Terra/Luna) |
+| AI | Anthropic Claude API | @anthropic-ai/sdk ^0.74.0 (Opus 4.7) |
 | 결제 | 토스페이먼츠 | @tosspayments/tosspayments-sdk ^2.5.0 |
 | 이메일 | Resend | ^6.9.1 |
 | Animation | Framer Motion | ^12.34.0 |
@@ -227,18 +226,13 @@ wedding-hanbang-web/
 - `typography.ts` — 한글 세리프/산세리프 + 영문 Cormorant
 - `spacing.ts`, `radius.ts`
 
-### 핵심 환경변수 (전체 목록은 `apps/web/.env.example`)
+### 환경변수 (전체 15개)
 
 **필수**:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- `OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra`
-- `OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna`
-- `AMORA_MAX_INPUT_TOKENS=48000` (Terra/Luna 장문 요금 구간 진입 전 차단)
-- `AMORA_FREE_MESSAGES_PER_COUPLE=30` (사용자에게 보이는 무료 상담 턴)
-- `AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP=60` (Terra/Luna 실제 생성 호출 합산)
+- `ANTHROPIC_API_KEY`
 
 **기능별**:
 - `RESEND_API_KEY` (이메일, 없으면 silent skip)
@@ -249,12 +243,6 @@ wedding-hanbang-web/
 - `NEXT_PUBLIC_LAUNCH_MODE` (`coming_soon` / `live` 스위치)
 - `NEXT_PUBLIC_SITE_URL`
 - `NODE_ENV`
-
-**아모라 안전 경계**:
-- 비공개 상담 또는 첨부파일이 있는 턴은 읽기 전용 도구만 노출합니다.
-- 예약 생성·취소와 삭제성 도구는 서버 발급 확인 토큰이 도입될 때까지 모델 실행을 차단합니다.
-- 모든 실제 생성 호출은 정확한 입력 토큰 계산 뒤 원자 비용 예약을 수행합니다.
-- 같은 `clientRequestId`는 요청 전체를 먼저 선점하고 완료 응답을 재생해 도구 중복 실행을 막습니다.
 
 ---
 
@@ -503,13 +491,13 @@ wedding-hanbang-web/
 - **새 채팅 banner**: 200개 메시지 임계 도달 시
 
 #### 핵심 기능
-- 24시간 실시간 AI 상담 (일반 Luna, 고위험 턴 Terra, 스트리밍 SSE)
+- 24시간 실시간 AI 상담 (Claude Opus 4.7, 스트리밍 SSE)
 - Tool Use 27개 (예산/일정/업체/예약/시세/장소/견적분석)
 - 커플 채팅 갈등 자동 감지 → 중재 모드
 - 추천 버튼 (후속 질문 2~3개 제안)
-- 첫 입장 자동 인사(`/api/chat/proactive`)는 삭제 lifecycle 보강 전 코드 하드 비활성
+- 첫 입장 시 자동 인사 (`/api/chat/proactive`)
 - 업체 카드 / 예절 가이드 카드 / 액션 카드 / 견적분석 카드
-- 파일 첨부 (이미지·PDF·DOCX, 최대 3개·합계 2MB; PDF 최대 20페이지)
+- 파일 첨부 (이미지·PDF·Word·Excel, 최대 5개, 5~10MB)
 - 드래그앤드롭 업로드
 - 새 채팅 시작 (탭별: shared/private 분리 처리)
 - 피드백 학습 (👍/👎 + 자유 입력)
@@ -723,7 +711,7 @@ PENDING_PAYMENT (결제 대기)
 - 건배사
 
 #### 기능
-- OpenAI Responses API 스트리밍 생성
+- Claude API 스트리밍 생성
 - 즐겨찾기 (하트)
 - 편집/삭제
 - 저장 → `ai_scripts` 테이블
@@ -809,7 +797,7 @@ PENDING_PAYMENT (결제 대기)
 - **이름**: 아모라 (Amora) — 이전 이름 '아리아'에서 2026-03-06 변경
 - **역할**: 한국 결혼 준비 전문 AI 플래너
 - **톤**: 베테랑 웨딩 플래너 (매뉴얼 안 따름, 관찰자형)
-- **모델**: GPT-5.6 Luna(일반 상담·도구 실행) + GPT-5.6 Terra(계약·분쟁/안전·반복 수정 승격)
+- **모델**: Claude Opus 4.7
 
 ### 10.2 심리학 기반 설계 (감정 곡선)
 | 단계 | D-day 범위 | 톤 |
@@ -1518,7 +1506,7 @@ PENDING_PAYMENT (결제 대기)
 |--------|------|------|
 | GET/POST | `/api/scripts` | 대본 CRUD |
 | PUT/DELETE | `/api/scripts/[id]` | 수정/삭제 |
-| POST | `/api/scripts/generate` | 현재 라우트 없음(과거 계획 항목) |
+| POST | `/api/scripts/generate` | 생성 (Claude) |
 
 ### 17.14 게스트북 (3)
 | 메서드 | 경로 | 설명 |
@@ -1825,11 +1813,9 @@ PENDING_PAYMENT (결제 대기)
 - `invitation-photos`
 - `chat-attachments`
 
-### 21.4 OpenAI GPT-5.6
-- 일반 상담·도구 실행: **GPT-5.6 Luna** (`gpt-5.6-luna`)
-- 계약·분쟁/안전·반복 수정 턴: **GPT-5.6 Terra** (`gpt-5.6-terra`)
-- 별도 요약·분류·프로필 작업은 비용·삭제 경합 때문에 기본 코드 하드 비활성
-- 기능: Responses API, Function Calling(34개 도구), Streaming, 1.05M context
+### 21.4 Anthropic Claude
+- 모델: **Claude Opus 4.7** (`claude-opus-4-7`)
+- 기능: Tool Use (27개), Streaming, 1M context
 - 최대 Tool 라운드: 5
 - 타임아웃: 60초
 

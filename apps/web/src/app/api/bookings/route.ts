@@ -85,12 +85,6 @@ export async function POST(req: Request) {
     if (!profile?.couple_id) {
       return NextResponse.json({ error: "커플 정보가 필요합니다." }, { status: 404 });
     }
-    const { data: isMember, error: membershipError } = await supabase.rpc("is_couple_member", {
-      p_couple_id: profile.couple_id,
-    });
-    if (membershipError || isMember !== true) {
-      return NextResponse.json({ error: "현재 커플 연결을 확인할 수 없습니다." }, { status: 403 });
-    }
 
     // 상품 금액 조회
     const admin = createAdminClient();

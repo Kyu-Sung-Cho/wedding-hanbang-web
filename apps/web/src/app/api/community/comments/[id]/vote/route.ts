@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -52,8 +51,7 @@ export async function POST(
     }
 
     // RPC 호출로 원자적 투표 처리
-    const admin = createAdminClient();
-    const { error } = await admin.rpc("community_vote_comment", {
+    const { error } = await supabase.rpc("community_vote_comment", {
       p_user_id: user.id,
       p_comment_id: id,
       p_vote_type: voteType,
@@ -67,7 +65,7 @@ export async function POST(
       );
     }
 
-    const { data: counts } = await admin
+    const { data: counts } = await supabase
       .from("community_comments")
       .select("upvote_count")
       .eq("id", id)

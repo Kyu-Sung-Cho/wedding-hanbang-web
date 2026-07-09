@@ -256,7 +256,7 @@ export default function WeddingCodeClient() {
             </div>
             <ContextSelect label="지금 결혼 준비 단계는 어디에 가장 가깝나요?" options={WC_STAGES} value={stage} onChange={setStage} />
             <ContextSelect label="답변은 혼자 하고 있나요, 상대와 함께 하고 있나요?" options={WC_ANSWERING_MODES} value={mode} onChange={setMode} />
-            <ContextSelect label="업체 견적을 받아본 적이 있나요?" options={WC_QUOTE_STATUSES} value={quoteStatus} onChange={setQuoteStatus} />
+            <ContextSelect label="업체 비용표를 받아본 적이 있나요?" options={WC_QUOTE_STATUSES} value={quoteStatus} onChange={setQuoteStatus} />
             <ContextSelect label="부모님 또는 가족이 결혼 준비 결정에 어느 정도 관여하고 있나요?" options={WC_PARENT_INVOLVEMENTS} value={parentInvolvement} onChange={setParentInvolvement} />
 
             <p className="mb-2 mt-6 text-[14px] font-semibold text-[#263832]">

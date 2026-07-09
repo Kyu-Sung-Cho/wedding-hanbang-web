@@ -394,7 +394,7 @@ function SlideHowToUse() {
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">내 경험도 나눠주세요</div>
             <div className="text-sm text-[#635b51] font-light leading-relaxed">
-              사진과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요
+              사진/영상과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요
             </div>
           </div>
         </div>

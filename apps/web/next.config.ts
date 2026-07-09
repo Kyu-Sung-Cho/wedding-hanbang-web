@@ -13,7 +13,6 @@ const contentSecurityPolicy = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://*.posthog.com https://us.i.posthog.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://api.dicebear.com https://hanbang.ai",
-  "media-src 'self' blob: https://*.supabase.co https://*.supabase.in",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in https://challenges.cloudflare.com https://*.posthog.com https://us.i.posthog.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
   "frame-src https://challenges.cloudflare.com",
@@ -45,10 +44,8 @@ const nextConfig: NextConfig = {
 
   // 이미지 최적화
   images: {
-    // 사용자 생성 미디어 삭제 후 Next optimizer 사본이 장기 잔존하지 않게 한다.
-    unoptimized: true,
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 60, // 개인정보 삭제 후 장기 optimizer 캐시가 남지 않도록 최소화
+    minimumCacheTTL: 60 * 60 * 24 * 30, // 30일 — Supabase Storage 이미지 장기 캐시
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
       { protocol: "https", hostname: "**.supabase.in" },

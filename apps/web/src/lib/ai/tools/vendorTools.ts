@@ -10,7 +10,6 @@ import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/re
 
 type VendorToolExecutionContext = {
   coupleId: string;
-  currentUserId?: string;
   weddingContext: {
     budget: number;
     progress: Record<string, { category: string; status: string }>;
@@ -115,6 +114,23 @@ export async function executeSearchVendors(
     aiRecommend: vendor.ai_recommend,
     link: weddingPath(`/vendors/${vendor.id}`),
   }));
+
+  if (ctx.coupleId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("couple_id", ctx.coupleId)
+      .limit(1)
+      .single();
+    if (profile) {
+      await admin.from("search_logs").insert({
+        user_id: profile.id,
+        query: (input.search as string) || (input.category as string) || "AI 검색",
+        category: (input.category as string) || null,
+        result_count: results.length,
+      }).then(() => {});
+    }
+  }
 
   return {
     toolName: "search_vendors",
@@ -284,15 +300,24 @@ export async function executeRecommendVendors(
   const estimatedBudget = priceMax || categoryBudget || Math.round(totalBudget * ratio);
 
   let viewedVendorIds: string[] = [];
-  if (ctx.currentUserId) {
-    const { data: viewed } = await admin
-      .from("customer_events")
-      .select("vendor_id")
-      .eq("user_id", ctx.currentUserId)
-      .eq("event_type", "vendor_view")
-      .not("vendor_id", "is", null)
-      .limit(50);
-    viewedVendorIds = (viewed ?? []).map((viewedVendor) => viewedVendor.vendor_id).filter(Boolean);
+  if (ctx.coupleId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("couple_id", ctx.coupleId)
+      .limit(1)
+      .single();
+
+    if (profile) {
+      const { data: viewed } = await admin
+        .from("customer_events")
+        .select("vendor_id")
+        .eq("user_id", profile.id)
+        .eq("event_type", "vendor_view")
+        .not("vendor_id", "is", null)
+        .limit(50);
+      viewedVendorIds = (viewed ?? []).map((viewedVendor) => viewedVendor.vendor_id).filter(Boolean);
+    }
   }
 
   let query = admin

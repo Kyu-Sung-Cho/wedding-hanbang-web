@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -15,20 +14,16 @@ import {
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
 const MONEY_METHODS = ["cash", "transfer", "etc"] as const;
-const MONEY_SELECT = "id, couple_id, guest_name, amount, side, relation, method, memo, received_at, created_at, updated_at";
 
 // 축의금 항목 소유권 검증: row의 couple_id와 사용자의 couple_id 일치 여부
 async function assertMoneyOwner(
   supabase: SupabaseClient,
   moneyId: string,
   userId: string
-): Promise<
-  { ok: true; coupleId: string; ownerUserId: string }
-  | { ok: false; status: number; error: string }
-> {
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const { data: row } = await supabase
     .from("congratulatory_money")
-    .select("couple_id, owner_user_id")
+    .select("couple_id")
     .eq("id", moneyId)
     .single();
 
@@ -40,11 +35,11 @@ async function assertMoneyOwner(
     .eq("id", userId)
     .single();
 
-  if (!profile || profile.couple_id !== row.couple_id || typeof row.owner_user_id !== "string") {
+  if (!profile || profile.couple_id !== row.couple_id) {
     return { ok: false, status: 403, error: "권한이 없습니다." };
   }
 
-  return { ok: true, coupleId: row.couple_id, ownerUserId: row.owner_user_id };
+  return { ok: true };
 }
 
 // 화이트리스트 — 임의 컬럼 (couple_id 등) 변조 방지
@@ -127,14 +122,11 @@ export async function PATCH(
       update.received_at = receivedAt;
     }
 
-    const admin = createAdminClient();
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from("congratulatory_money")
       .update(update)
       .eq("id", id)
-      .eq("couple_id", ownerCheck.coupleId)
-      .eq("owner_user_id", ownerCheck.ownerUserId)
-      .select(MONEY_SELECT)
+      .select()
       .single();
 
     if (error) {
@@ -173,13 +165,7 @@ export async function DELETE(
       return NextResponse.json({ error: ownerCheck.error }, { status: ownerCheck.status });
     }
 
-    const admin = createAdminClient();
-    const { error } = await admin
-      .from("congratulatory_money")
-      .delete()
-      .eq("id", id)
-      .eq("couple_id", ownerCheck.coupleId)
-      .eq("owner_user_id", ownerCheck.ownerUserId);
+    const { error } = await supabase.from("congratulatory_money").delete().eq("id", id);
     if (error) {
       console.error("[money/:id DELETE] supabase:", error);
       return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });

@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
     if (parent_id) {
       const { data: parentComment } = await supabase
         .from("community_comments")
-        .select("parent_id, post_id")
+        .select("parent_id")
         .eq("id", parent_id)
         .single();
 
@@ -178,13 +178,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: "부모 댓글을 찾을 수 없습니다." },
           { status: 404 }
-        );
-      }
-
-      if (parentComment.post_id !== post_id) {
-        return NextResponse.json(
-          { error: "부모 댓글과 게시글이 일치하지 않습니다." },
-          { status: 400 }
         );
       }
 

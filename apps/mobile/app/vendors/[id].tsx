@@ -94,6 +94,7 @@ interface Vendor {
   price_range: string | null;
   price_min: number | null;
   price_max: number | null;
+  business_license_url: string | null;
 }
 
 interface Product {
@@ -152,7 +153,7 @@ export default function VendorDetailScreen() {
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max")
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max, business_license_url")
         .eq("id", id)
         .single();
 
@@ -180,6 +181,7 @@ export default function VendorDetailScreen() {
         price_range: v.price_range ? String(v.price_range) : null,
         price_min: typeof v.price_min === "number" && v.price_min > 0 ? v.price_min : null,
         price_max: typeof v.price_max === "number" && v.price_max > 0 ? v.price_max : null,
+        business_license_url: v.business_license_url ? String(v.business_license_url) : null,
       });
     } catch (err) {
       console.error("업체 로드 오류:", err);
@@ -465,7 +467,7 @@ export default function VendorDetailScreen() {
               />
               <Text style={st.trustMetricLabel}>검증</Text>
               <Text style={st.trustMetricValue}>
-                {vendor.is_verified ? "완료" : "확인 전"}
+                {vendor.is_verified ? "완료" : vendor.business_license_url ? "서류 등록" : "확인 전"}
               </Text>
             </View>
             <View style={st.trustMetricDivider} />

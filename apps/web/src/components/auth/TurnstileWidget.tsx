@@ -1,6 +1,6 @@
 "use client";
 
-// Cloudflare Turnstile 위젯 — 회원가입·비밀번호 복구 발송 표면 봇 차단.
+// Cloudflare Turnstile 위젯 — 가입 폼 봇 차단.
 // NEXT_PUBLIC_TURNSTILE_SITE_KEY 없으면 아무것도 렌더하지 않음(no-op).
 // 토큰이 발급되면 onVerify(token)로 전달, 만료 시 onVerify("")로 초기화.
 

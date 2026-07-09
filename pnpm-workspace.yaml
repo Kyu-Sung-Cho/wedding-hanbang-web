@@ -29,6 +29,3 @@ onlyBuiltDependencies:
   - core-js
   - sharp
   - unrs-resolver
-
-minimumReleaseAgeExclude:
-  - openai@6.46.0

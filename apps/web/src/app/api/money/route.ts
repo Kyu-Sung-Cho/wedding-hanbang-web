@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -14,7 +13,6 @@ import {
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
 const MONEY_METHODS = ["cash", "transfer", "etc"] as const;
-const MONEY_SELECT = "id, couple_id, guest_name, amount, side, relation, method, memo, received_at, created_at, updated_at";
 
 export async function GET(request: Request) {
   try {
@@ -34,16 +32,13 @@ export async function GET(request: Request) {
       .eq("id", user.id)
       .single();
 
-    const { data: isMember, error: membershipError } = await supabase.rpc("is_couple_member", {
-      p_couple_id: coupleId,
-    });
-    if (membershipError || !profile || profile.couple_id !== coupleId || isMember !== true) {
+    if (!profile || profile.couple_id !== coupleId) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
     const { data, error } = await supabase
       .from("congratulatory_money")
-      .select(MONEY_SELECT)
+      .select("*")
       .eq("couple_id", coupleId)
       .order("received_at", { ascending: false });
 
@@ -88,12 +83,6 @@ export async function POST(request: Request) {
     if (!profile?.couple_id) {
       return NextResponse.json({ error: "커플 정보 없음" }, { status: 400 });
     }
-    const { data: isMember, error: membershipError } = await supabase.rpc("is_couple_member", {
-      p_couple_id: profile.couple_id,
-    });
-    if (membershipError || isMember !== true) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
-    }
 
     // 입력 검증 — amount는 INTEGER 컬럼에 CHECK 제약이 없어 음수·비정수·오버플로가
     // 합계를 왜곡하거나 500을 유발할 수 있다. 경계에서 막는다.
@@ -119,12 +108,10 @@ export async function POST(request: Request) {
     }
     const receivedAt = cleanReceivedAt ?? new Date().toISOString().slice(0, 10);
 
-    const admin = createAdminClient();
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from("congratulatory_money")
       .insert({
         couple_id: profile.couple_id,
-        owner_user_id: user.id,
         guest_name: guestName,
         amount,
         side,
@@ -133,7 +120,7 @@ export async function POST(request: Request) {
         memo: cleanOptionalText(body.memo, 500),
         received_at: receivedAt,
       })
-      .select(MONEY_SELECT)
+      .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

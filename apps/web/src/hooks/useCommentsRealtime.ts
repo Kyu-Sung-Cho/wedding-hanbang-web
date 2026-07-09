@@ -31,7 +31,7 @@ export function useCommentsRealtime(postId: string | null) {
           // author 프로필 조회
           const { data: profile } = await supabase
             .from("community_profiles")
-            .select("user_id, nickname, rank, avatar_url")
+            .select("user_id, nickname, rank, avatar_url, wedding_year, wedding_month")
             .eq("user_id", newComment.author_id)
             .maybeSingle();
 

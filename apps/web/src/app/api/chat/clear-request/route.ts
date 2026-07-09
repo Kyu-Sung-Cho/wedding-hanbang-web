@@ -127,32 +127,68 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "messageId 가 필요합니다." }, { status: 400 });
     }
 
-    // pending 검증, 상대방 확인, metadata CAS, 양쪽 epoch 갱신을 한 DB
-    // transaction에서 처리한다. 중간 실패가 accepted 카드만 남기지 않는다.
-    const { data: result, error: responseError } = await admin.rpc(
-      "respond_amora_shared_clear_request",
-      {
-        p_user_id: user.id,
-        p_message_id: messageId,
-        p_action: action,
-      }
-    );
-    if (responseError) {
+    // 요청 메시지 fetch + 검증
+    const { data: reqMsg, error: reqErr } = await admin
+      .from("chat_messages")
+      .select("id, couple_id, sender_id, created_at, metadata")
+      .eq("id", messageId)
+      .single();
+    if (reqErr || !reqMsg) {
+      return NextResponse.json({ error: "요청을 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (reqMsg.couple_id !== myCoupleId) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+    const meta = (reqMsg.metadata as { clearRequest?: ClearRequestMeta } | null)?.clearRequest;
+    if (!meta || meta.type !== "shared") {
+      return NextResponse.json({ error: "잘못된 요청 메시지입니다." }, { status: 400 });
+    }
+    if (meta.status !== "pending") {
+      return NextResponse.json({ error: "이미 처리된 요청입니다." }, { status: 409 });
+    }
+    // 본인이 요청자면 응답 불가 (상대방만 응답)
+    if (reqMsg.sender_id === user.id) {
       return NextResponse.json(
-        { error: "이미 처리되었거나 응답할 수 없는 요청입니다." },
-        { status: responseError.code === "P0002" ? 404 : 409 }
+        { error: "본인이 보낸 요청에는 응답할 수 없어요." },
+        { status: 400 }
       );
     }
-    const response = (result && typeof result === "object")
-      ? result as Record<string, unknown>
-      : {};
-    return NextResponse.json({
-      success: true,
-      action,
-      ...(typeof response.cleared_at === "string"
-        ? { clearedAt: response.cleared_at }
-        : {}),
-    });
+
+    const respondedAt = new Date().toISOString();
+    const nextStatus = action === "accept" ? "accepted" : "declined";
+    const nextMeta: ClearRequestMeta = {
+      ...meta,
+      status: nextStatus,
+      respondedBy: user.id,
+      respondedAt,
+    };
+
+    // 메시지 metadata 업데이트
+    const { error: updateErr } = await admin
+      .from("chat_messages")
+      .update({
+        metadata: { ...((reqMsg.metadata as Record<string, unknown>) ?? {}), clearRequest: nextMeta },
+      })
+      .eq("id", body.messageId);
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    // accept 면 양쪽 cleared_at 갱신 (요청 메시지의 created_at 기준)
+    if (action === "accept") {
+      const clearedAt = reqMsg.created_at as string;
+      const userIds = [reqMsg.sender_id as string, user.id];
+      const { error: profileErr } = await admin
+        .from("profiles")
+        .update({ shared_chat_cleared_at: clearedAt })
+        .in("id", userIds);
+      if (profileErr) {
+        return NextResponse.json({ error: profileErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, action, clearedAt });
+    }
+
+    return NextResponse.json({ success: true, action });
   } catch (err) {
     console.error("[clear-request] error:", err);
     return NextResponse.json({ error: "처리 실패" }, { status: 500 });

@@ -12,10 +12,13 @@ interface ImageUploaderProps {
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_GIF_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const ALL_ACCEPTED = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 // iOS Safari + accept — heic/heif도 picker 진입 허용 (실제 업로드 시 friendly error 처리)
 const ACCEPT_STRING =
-  "image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif";
+  "image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,image/heic,image/heif,.heic,.heif";
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -31,6 +34,9 @@ function inferMimeFromName(name: string): string {
       png: "image/png",
       gif: "image/gif",
       webp: "image/webp",
+      mp4: "video/mp4",
+      mov: "video/quicktime",
+      webm: "video/webm",
       heic: "image/heic",
       heif: "image/heif",
     }[ext] ?? ""
@@ -68,16 +74,19 @@ export default function ImageUploader({
         return null;
       }
 
-      if (!ACCEPTED_IMAGE_TYPES.includes(effectiveType)) {
-        setError("JPG, PNG, GIF, WEBP 이미지만 업로드할 수 있습니다.");
+      if (!ALL_ACCEPTED.includes(effectiveType)) {
+        setError("JPG, PNG, GIF, WEBP, MP4, MOV, WebM 파일만 업로드할 수 있습니다.");
         return null;
       }
+      const isVideo = ACCEPTED_VIDEO_TYPES.includes(effectiveType);
       const isGif = effectiveType === "image/gif";
-      const maxSize = isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
       if (file.size > maxSize) {
-        const msg = isGif
-          ? "GIF는 10MB 이하여야 합니다."
-          : "이미지는 5MB 이하여야 합니다.";
+        const msg = isVideo
+          ? "영상은 50MB 이하여야 합니다."
+          : isGif
+            ? "GIF는 10MB 이하여야 합니다."
+            : "이미지는 5MB 이하여야 합니다.";
         setError(msg);
         return null;
       }
@@ -196,10 +205,10 @@ export default function ImageUploader({
                 : "클릭하거나 파일을 드래그하세요"}
             </p>
             <p className="mt-1 text-xs text-[#B5ADA3]">
-              이미지 5MB · GIF 10MB / {images.length}/{max}개
+              이미지 5MB · GIF 10MB · 영상 50MB / {images.length}/{max}개
             </p>
             <p className="mt-0.5 text-xs text-[#B5ADA3]">
-              JPG, PNG, GIF, WEBP
+              JPG, PNG, GIF, WEBP, MP4, MOV, WebM
             </p>
           </div>
         </div>

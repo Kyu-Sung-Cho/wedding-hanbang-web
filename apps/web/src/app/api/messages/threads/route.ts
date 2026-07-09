@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -10,10 +9,9 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-    const admin = createAdminClient();
 
     // 내가 업체 소유자인지 확인
-    const { data: myVendor } = await admin
+    const { data: myVendor } = await supabase
       .from("vendors")
       .select("id, name")
       .eq("owner_id", user.id)
@@ -31,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     if (myVendor) {
       // 업체 소유자: 내 업체에 온 모든 대화
-      const { data: messages } = await admin
+      const { data: messages } = await supabase
         .from("vendor_messages")
         .select("*")
         .eq("vendor_id", myVendor.id)
@@ -50,7 +48,7 @@ export async function GET(req: NextRequest) {
       // 고객 이름 조회
       const customerIds = [...customerMap.keys()];
       const { data: profiles } = customerIds.length > 0
-        ? await admin.from("profiles").select("id, name").in("id", customerIds)
+        ? await supabase.from("profiles").select("id, name").in("id", customerIds)
         : { data: [] };
 
       const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.name]));
@@ -71,7 +69,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // 일반 고객: 내가 보낸/받은 모든 대화
-      const { data: messages } = await admin
+      const { data: messages } = await supabase
         .from("vendor_messages")
         .select("*")
         .eq("customer_id", user.id)
@@ -90,7 +88,7 @@ export async function GET(req: NextRequest) {
       // 업체명 조회
       const vendorIds = [...vendorMap.keys()];
       const { data: vendors } = vendorIds.length > 0
-        ? await admin.from("vendors").select("id, name").in("id", vendorIds)
+        ? await supabase.from("vendors").select("id, name").in("id", vendorIds)
         : { data: [] };
 
       const vendorNameMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));

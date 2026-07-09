@@ -14,16 +14,16 @@ import StreamingBubble from "./StreamingBubble";
 import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 
-const MAX_ATTACHMENTS = 3;
-const MAX_TOTAL_ATTACHMENT_BYTES = 2 * 1024 * 1024;
+const MAX_ATTACHMENTS = 5;
 
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 2 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 2 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 2 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 2 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 2 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 2 * 1024 * 1024, label: "DOCX" },
+  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
+  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
+  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
+  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
+  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
+  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
 };
 
 interface AttachmentItem {
@@ -31,7 +31,6 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
-  byteSize: number;
 }
 
 function fileInputKey(file: File): string {
@@ -219,14 +218,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
     const typeInfo = ALLOWED_TYPES[file.type];
-    if (!typeInfo) {
-      alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, DOCX 가능)`);
-      return;
-    }
-    if (file.size > typeInfo.maxSize) {
-      alert(`${typeInfo.label} 파일은 2MB 이하만 가능해요.`);
-      return;
-    }
+    if (!typeInfo) return;
+    if (file.size > typeInfo.maxSize) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -237,16 +230,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         mediaType: file.type,
         previewUrl: file.type.startsWith("image/") ? base64Full : "",
         fileName: file.name,
-        byteSize: file.size,
       };
       setAttachments((prev) => {
         if (prev.length >= MAX_ATTACHMENTS) return prev;
         const key = chatAttachmentKey(attachment);
         if (prev.some((item) => chatAttachmentKey(item) === key)) return prev;
-        if (prev.reduce((sum, item) => sum + item.byteSize, 0) + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
-          alert("첨부파일 합계는 2MB 이하만 가능해요.");
-          return prev;
-        }
         return [...prev, attachment];
       });
     };
@@ -424,41 +412,28 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {messages.length > 0 && (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
                 title="대화 초기화"
-                aria-label="내 화면의 대화 목록 정리"
               >
                 <Trash2 className="w-4 h-4 text-taupe-500 hover:text-red-400" />
               </button>
             )}
             <button
               onClick={handleExpand}
-              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="전체 화면으로 보기"
-              aria-label="아모라 채팅 전체 화면으로 보기"
             >
               <Maximize2 className="w-4 h-4 text-taupe-500" />
             </button>
             <button
               onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="닫기"
               aria-label="아모라 상담 패널 닫기"
             >
               <X className="w-4 h-4 text-taupe-500" />
             </button>
           </div>
-        </div>
-
-        <div className="flex min-h-9 items-center justify-center gap-2 border-b border-black/[0.05] bg-[#FBF8F2] px-4 text-xs text-[#5F5B52]">
-          <span className="inline-flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3 text-gold" aria-hidden="true" />
-            AI 생성 · GPT-5.6
-          </span>
-          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
-          <a href="/ai-policy" className="underline underline-offset-2 hover:text-[#795252]">
-            AI 정책
-          </a>
         </div>
 
         {showEmpty ? (
@@ -480,10 +455,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-xs text-red-600">내 화면의 대화 목록을 정리할까요? 서버 데이터는 보존됩니다.</p>
+                <p className="text-xs text-red-600">대화를 모두 삭제할까요?</p>
                 <div className="flex gap-1.5">
                   <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={handleClearChat} className="px-2.5 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">화면 정리</button>
+                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
                 </div>
               </div>
             )}

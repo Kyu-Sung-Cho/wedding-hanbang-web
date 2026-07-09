@@ -1,7 +1,7 @@
 // =============================================
 // AI Interaction Log — Bucket C 로깅 헬퍼
 // =============================================
-// 목적: 모든 AI API 호출을 ai_interactions_log에 기록
+// 목적: 모든 Claude API 호출을 ai_interactions_log에 기록
 // 특징:
 //   - Service role로 INSERT (유저 권한 무관)
 //   - try/catch로 감싸 예외 절대 propagate 안 함
@@ -18,74 +18,11 @@ import type { InteractionType, SpecialistType } from "@/types/moat.types";
 // -------------------------------------------
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
-// OpenAI 공개 가격 확인일: 2026-07-10
-// https://developers.openai.com/api/docs/models
-// Claude 가격은 공급자 전환 전 과거 로그 재계산을 위해 보존한다.
-interface TokenRates {
-  in: number;
-  out: number;
-  cacheWrite: number;
-  cacheRead: number;
-}
-
-interface ModelCost extends TokenRates {
-  longContext?: TokenRates & { threshold: number };
-}
-
-const MODEL_COSTS: Record<string, ModelCost> = {
-  "gpt-5.6-terra": {
-    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.125 / 1_000_000, cacheRead: 0.25 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
-      cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-    },
-  },
-  "gpt-5.6-luna": {
-    in: 1 / 1_000_000, out: 6 / 1_000_000,
-    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 2 / 1_000_000, out: 9 / 1_000_000,
-      cacheWrite: 2.5 / 1_000_000, cacheRead: 0.2 / 1_000_000,
-    },
-  },
-  "gpt-5.6-sol": {
-    in: 5 / 1_000_000, out: 30 / 1_000_000,
-    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 10 / 1_000_000, out: 45 / 1_000_000,
-      cacheWrite: 12.5 / 1_000_000, cacheRead: 1 / 1_000_000,
-    },
-  },
-  "gpt-5.5": {
-    in: 5 / 1_000_000, out: 30 / 1_000_000,
-    cacheWrite: 0, cacheRead: 0.5 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 10 / 1_000_000, out: 45 / 1_000_000,
-      cacheWrite: 0, cacheRead: 1 / 1_000_000,
-    },
-  },
-  "gpt-5.4-mini": {
-    in: 0.75 / 1_000_000, out: 4.5 / 1_000_000,
-    cacheWrite: 0, cacheRead: 0.075 / 1_000_000,
-  },
-  "gpt-5.4-nano": {
-    in: 0.2 / 1_000_000, out: 1.25 / 1_000_000,
-    cacheWrite: 0, cacheRead: 0.02 / 1_000_000,
-  },
-  "gpt-5.4": {
-    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 0, cacheRead: 0.25 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
-      cacheWrite: 0, cacheRead: 0.5 / 1_000_000,
-    },
-  },
+// 출처: Anthropic 공식 가격 (확인일: 2026-06-17)
+// https://platform.claude.com/docs/en/about-claude/pricing
+// cache_write = 표준 input × 1.25 (캐시 생성 시 25% premium)
+// cache_read  = 표준 input × 0.10 (캐시 hit 시 90% 할인)
+const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number; cacheRead: number }> = {
   "claude-fable-5": {
     in: 10 / 1_000_000, out: 50 / 1_000_000,
     cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
@@ -149,42 +86,20 @@ export function calcCostUsd(
   model: string | null | undefined,
   tokensIn: number | null | undefined,
   tokensOut: number | null | undefined,
-  cacheWriteTokens?: number | null,
+  cacheCreationTokens?: number | null,
   cacheReadTokens?: number | null
 ): number | null {
   if (!model || tokensIn == null || tokensOut == null) return null;
-  // gpt-5.4보다 gpt-5.4-mini를 먼저 매칭하도록 긴 키를 우선한다.
-  const key = Object.keys(MODEL_COSTS)
-    .sort((a, b) => b.length - a.length)
-    .find((candidate) => model.startsWith(candidate)) ?? null;
-  const modelCost = key ? MODEL_COSTS[key] : null;
-  if (!modelCost) return null;
-  const rate = modelCost.longContext && tokensIn > modelCost.longContext.threshold
-    ? modelCost.longContext
-    : modelCost;
-
-  const isOpenAI = model.startsWith("gpt-");
-  if (isOpenAI) {
-    // OpenAI input_tokens에는 cache read/write 토큰이 포함되므로 세 구간을 분리한다.
-    const cachedTokens = Math.min(Math.max(cacheReadTokens ?? 0, 0), tokensIn);
-    const writtenTokens = Math.min(
-      Math.max(cacheWriteTokens ?? 0, 0),
-      Math.max(tokensIn - cachedTokens, 0)
-    );
-    const uncachedTokens = Math.max(tokensIn - cachedTokens - writtenTokens, 0);
-    return (
-      uncachedTokens * rate.in +
-      writtenTokens * rate.cacheWrite +
-      cachedTokens * rate.cacheRead +
-      tokensOut * rate.out
-    );
-  }
-
-  // 과거 Anthropic 로그는 uncached/cache-write/cache-read가 각각 분리되어 있다.
+  // 모델명 부분 매칭 (버전 suffix 허용)
+  const key = Object.keys(MODEL_COSTS).find((k) => model.startsWith(k)) ?? null;
+  if (!key) return null;
+  const rate = MODEL_COSTS[key];
+  // tokensIn 은 Anthropic 기준 '캐시 안 된 input' 만 포함 (cache_creation/cache_read 와 분리).
+  // 셋 다 별도 가격으로 합산.
   return (
     tokensIn * rate.in +
     tokensOut * rate.out +
-    (cacheWriteTokens ?? 0) * rate.cacheWrite +
+    (cacheCreationTokens ?? 0) * rate.cacheWrite +
     (cacheReadTokens ?? 0) * rate.cacheRead
   );
 }
@@ -210,15 +125,13 @@ export interface AIInteractionLogInput {
   model?: string | null;
   tokensInput?: number | null;
   tokensOutput?: number | null;
-  /** 캐시에 새로 기록된 input 토큰. OpenAI 5.6 및 레거시 Anthropic 로그에 사용. */
-  cacheWriteTokens?: number | null;
-  /** 캐시 hit input 토큰. OpenAI에서는 tokensInput에 포함된 부분집합이다. */
+  /** Prompt caching: 캐시 생성 시 사용된 input 토큰 (cache_write, 25% premium) */
+  cacheCreationTokens?: number | null;
+  /** Prompt caching: 캐시 hit 시 사용된 input 토큰 (cache_read, 90% 할인) */
   cacheReadTokens?: number | null;
   /** 미리 계산된 cost — 없으면 내부에서 MODEL_COSTS 기반 자동 계산 */
   costUsd?: number | null;
   metadata?: Record<string, unknown> | null;
-  /** true면 감사 장부 실패를 호출자에게 전파해 성공처럼 진행하지 않는다. */
-  required?: boolean;
 }
 
 const getAdminClient = createAdminClient;
@@ -238,23 +151,22 @@ export async function logAIInteraction(
     const admin = getAdminClient();
 
     const cost =
-      params.costUsd !== undefined
-        ? params.costUsd
-        : calcCostUsd(
+      params.costUsd ??
+      calcCostUsd(
         params.model,
         params.tokensInput,
         params.tokensOutput,
-        params.cacheWriteTokens,
+        params.cacheCreationTokens,
         params.cacheReadTokens
-        );
+      );
 
     // cache 토큰은 metadata 에 동봉 (schema 변경 없이 추적 가능)
     const baseMetadata = params.metadata ?? {};
     const metadataWithCache =
-      params.cacheWriteTokens || params.cacheReadTokens
+      params.cacheCreationTokens || params.cacheReadTokens
         ? {
             ...baseMetadata,
-            cache_write_input_tokens: params.cacheWriteTokens ?? 0,
+            cache_creation_input_tokens: params.cacheCreationTokens ?? 0,
             cache_read_input_tokens: params.cacheReadTokens ?? 0,
           }
         : baseMetadata;
@@ -283,13 +195,9 @@ export async function logAIInteraction(
 
     if (error) {
       console.error("[ai-log] INSERT 실패 (무시됨):", error.message);
-      if (params.required) {
-        throw new Error(`[ai-log] 필수 감사 장부 기록 실패: ${error.message}`);
-      }
     }
   } catch (err) {
     console.error("[ai-log] 예외 (무시됨):", err);
-    if (params.required) throw err;
   }
 }
 

@@ -410,7 +410,7 @@ export default function WeddingCodeResultClient() {
             className={`${ghostBtn} w-full`}
           >
             <ClipboardCheck className="h-4 w-4" />
-            내 견적 체크하러 가기
+            내 비용표 체크하러 가기
           </Link>
         </div>
 

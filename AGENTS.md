@@ -25,7 +25,7 @@
 | Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
 | State | Zustand | 앱과 동일한 패턴 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | OpenAI Responses API | 웨딩 AI 플래너 채팅 |
+| AI | Codex API (Anthropic) | 웨딩 AI 플래너 채팅 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
 | 배포 | Vercel | 자동 배포, Edge Functions |
 | 이메일 | Resend | 사전등록 확인 메일 |
@@ -118,7 +118,7 @@ hanbang-web/
 │   │   │   ├── server.ts        # 서버용 클라이언트
 │   │   │   └── middleware.ts    # Auth 미들웨어
 │   │   ├── ai/
-│   │   │   ├── openai.ts       # OpenAI Responses API 호출
+│   │   │   ├── Codex.ts        # Codex API 호출
 │   │   │   └── prompts.ts       # 시스템 프롬프트
 │   │   └── resend.ts            # 이메일 발송
 │   │
@@ -184,10 +184,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
-# OpenAI Responses API
-OPENAI_API_KEY=sk-proj-xxx...
-OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
-OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
+# Codex AI
+ANTHROPIC_API_KEY=sk-ant-xxx...
 
 # Resend (이메일)
 RESEND_API_KEY=re_xxx...
@@ -269,7 +267,7 @@ CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true)
 
 ### Phase 4: 핵심 기능 (Day 3-7)
 1. 대시보드 (D-day, 진행률, 카테고리 현황)
-2. AI 채팅 (OpenAI Responses API 연동)
+2. AI 채팅 (Codex API 연동)
 3. 예산 관리
 4. 일정 관리
 5. 업체 탐색

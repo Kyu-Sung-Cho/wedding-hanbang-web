@@ -13,7 +13,6 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/api";
 import ErrorRetry from "@/components/ErrorRetry";
 import { AppHeader, EmptyState, IconBadge, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
@@ -144,12 +143,13 @@ export default function VendorsScreen() {
   const loadFavorites = useCallback(async () => {
     if (!userId) return;
     try {
-      const response = await apiFetch("/api/favorites");
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(body.vendorIds)) {
-        throw new Error(body.error ?? "즐겨찾기 목록을 불러오지 못했습니다.");
+      const { data } = await supabase
+        .from("favorites")
+        .select("vendor_id")
+        .eq("user_id", userId);
+      if (data) {
+        setFavoriteIds(new Set(data.map((r) => r.vendor_id)));
       }
-      setFavoriteIds(new Set(body.vendorIds.filter((id: unknown): id is string => typeof id === "string")));
     } catch (err) {
       console.error("즐겨찾기 로드 오류:", err);
     }
@@ -178,20 +178,17 @@ export default function VendorsScreen() {
     });
 
     try {
-      const response = await apiFetch("/api/favorites", {
-        method: "POST",
-        body: JSON.stringify({ vendorId }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || typeof body.isFavorite !== "boolean") {
-        throw new Error(body.error ?? "즐겨찾기를 저장하지 못했습니다.");
+      if (isFav) {
+        await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", userId)
+          .eq("vendor_id", vendorId);
+      } else {
+        await supabase
+          .from("favorites")
+          .insert({ user_id: userId, vendor_id: vendorId });
       }
-      setFavoriteIds((prev) => {
-        const next = new Set(prev);
-        if (body.isFavorite) next.add(vendorId);
-        else next.delete(vendorId);
-        return next;
-      });
     } catch (err) {
       console.error("즐겨찾기 동기화 오류:", err);
       // 실패 시 롤백

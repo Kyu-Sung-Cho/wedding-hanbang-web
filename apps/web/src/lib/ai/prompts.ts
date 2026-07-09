@@ -4,36 +4,6 @@ import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
 import { ymdInKst, koreanDateInKst } from "@/lib/utils/kstDate";
 
-const MAX_PROMPT_FIELD_CHARS = 240;
-
-/**
- * DB-backed labels and notes are untrusted prompt data. Collapse control/newline
- * characters and cap them before interpolation so one old row cannot create a
- * long-context request or impersonate a new system section.
- */
-function boundedPromptText(value: unknown, max = MAX_PROMPT_FIELD_CHARS): string {
-  if (typeof value !== "string") return "";
-  return value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
-}
-
-function boundedPromptList(values: unknown, maxItems = 8, maxChars = 120): string[] {
-  if (!Array.isArray(values)) return [];
-  return values
-    .map((value) => boundedPromptText(value, maxChars))
-    .filter(Boolean)
-    .slice(0, maxItems);
-}
-
-function safePromptNumber(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function safePromptDate(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(value)) return "날짜 미상";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "날짜 미상" : parsed.toISOString().slice(0, 10);
-}
-
 // 사용자 행동 패턴 분석 → 개인화된 인사이트 생성
 function generateBehaviorInsights(context: {
   weddingDate: string | null;
@@ -226,19 +196,17 @@ export function getWeddingPlannerSystemPrompt(context: {
     dDayInfo = diff > 0 ? `(D-${diff})` : diff === 0 ? "(D-Day!)" : `(D+${Math.abs(diff)})`;
   }
 
-  const safeBudget = safePromptNumber(context.budget);
   const budgetInfo =
-    safeBudget > 0
-      ? `총 예산: ${(safeBudget / 10000).toLocaleString()}만원`
+    context.budget > 0
+      ? `총 예산: ${(context.budget / 10000).toLocaleString()}만원`
       : "예산: 미설정";
 
-  const safeVenue = boundedPromptText(context.venue, 160);
-  const venueInfo = safeVenue ? `예식장: ${safeVenue}` : "예식장: 미정";
+  const venueInfo = context.venue ? `예식장: ${context.venue}` : "예식장: 미정";
 
   // 커플 이름
   const coupleInfo = [
-    context.brideName ? `신부: ${boundedPromptText(context.brideName, 80)}` : null,
-    context.groomName ? `신랑: ${boundedPromptText(context.groomName, 80)}` : null,
+    context.brideName ? `신부: ${context.brideName}` : null,
+    context.groomName ? `신랑: ${context.groomName}` : null,
   ].filter(Boolean).join(", ");
 
   const progressEntries = Object.entries(context.progress).filter(([k]) => k !== "__events");
@@ -248,16 +216,12 @@ export function getWeddingPlannerSystemPrompt(context: {
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const status = p.status === "completed" ? "✅완료" : p.status === "in_progress" ? "🔄진행중" : "⬜예정";
-      const categoryBudget = safePromptNumber(p.budget);
-      const categorySpent = safePromptNumber(p.spent ?? p.cost);
-      const budget = categoryBudget > 0 ? `${(categoryBudget / 10000).toLocaleString()}만원` : "미설정";
-      const spent = categorySpent > 0
-        ? `지출: ${(categorySpent / 10000).toLocaleString()}만원`
+      const budget = typeof p.budget === "number" ? `${(p.budget as number / 10000).toLocaleString()}만원` : "미설정";
+      const spent = typeof p.spent === "number" || typeof p.cost === "number"
+        ? `지출: ${(((p.spent ?? p.cost) as number) / 10000).toLocaleString()}만원`
         : "";
-      const vendorText = boundedPromptText(p.vendor, 100);
-      const notesText = boundedPromptText(p.notes, 160);
-      const vendor = vendorText ? `업체: ${vendorText}` : "";
-      const notes = notesText ? `메모: ${notesText}` : "";
+      const vendor = p.vendor ? `업체: ${p.vendor}` : "";
+      const notes = p.notes ? `메모: ${p.notes}` : "";
       const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
       const checklistInfo = checklist.length > 0
         ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
@@ -272,12 +236,12 @@ export function getWeddingPlannerSystemPrompt(context: {
   let totalAllocated = 0;
   for (const [key] of Object.entries(CATEGORY_LABELS)) {
     const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-    totalSpent += safePromptNumber(p.spent ?? p.cost);
-    totalAllocated += safePromptNumber(p.budget);
+    totalSpent += ((p.spent ?? p.cost ?? 0) as number);
+    totalAllocated += ((p.budget ?? 0) as number);
   }
   const spentInfo = totalSpent > 0 ? `총 지출: ${(totalSpent / 10000).toLocaleString()}만원` : "";
-  const unallocated = safeBudget - totalAllocated;
-  const unallocatedInfo = safeBudget > 0 && unallocated > 0
+  const unallocated = context.budget - totalAllocated;
+  const unallocatedInfo = context.budget > 0 && unallocated > 0
     ? `미배정 예산: ${(unallocated / 10000).toLocaleString()}만원`
     : "";
 
@@ -292,7 +256,7 @@ export function getWeddingPlannerSystemPrompt(context: {
   // 예약 내역 포맷
   let bookingsSection = "";
   if (context.bookings.length > 0) {
-    const bookingLines = context.bookings.slice(0, 20).map((b) => {
+    const bookingLines = context.bookings.map((b) => {
       const statusLabel =
         b.status === "confirmed"
           ? "✅확정"
@@ -328,11 +292,7 @@ export function getWeddingPlannerSystemPrompt(context: {
       }
 
       const amountStr = amountParts.length > 0 ? ` | ${amountParts.join(" | ")}` : "";
-      const safeDate = boundedPromptText(b.date, 20) || "날짜 미상";
-      const safeTime = boundedPromptText(b.time, 20);
-      const safeVendor = boundedPromptText(b.vendorName, 100) || "알 수 없는 업체";
-      const safeCategory = boundedPromptText(CATEGORY_LABELS[b.category] ?? b.category, 60);
-      return `  - ${safeDate} ${safeTime} | ${safeVendor} (${safeCategory}) | ${boundedPromptText(statusLabel, 30)}${amountStr}`;
+      return `  - ${b.date} ${b.time} | ${b.vendorName} (${CATEGORY_LABELS[b.category] ?? b.category}) | ${statusLabel}${amountStr}`;
     }).join("\n");
     bookingsSection = `\n### 예약 내역\n${bookingLines}`;
   }
@@ -354,19 +314,15 @@ export function getWeddingPlannerSystemPrompt(context: {
     if (upcoming.length > 0) {
       lines.push("  **다가오는 일정:**");
       for (const e of upcoming) {
-        const categoryText = e.categoryKey
-          ? boundedPromptText(CATEGORY_LABELS[e.categoryKey] ?? e.categoryKey, 60)
-          : "";
-        const cat = categoryText ? ` (${categoryText})` : "";
-        const memoText = boundedPromptText(e.memo, 160);
-        const memo = memoText ? ` - ${memoText}` : "";
-        lines.push(`  - ${boundedPromptText(e.date, 20)} | ${boundedPromptText(e.title, 120)}${cat}${memo}`);
+        const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? e.categoryKey})` : "";
+        const memo = e.memo ? ` - ${e.memo}` : "";
+        lines.push(`  - ${e.date} | ${e.title}${cat}${memo}`);
       }
     }
     if (past.length > 0) {
       lines.push("  **지난 일정:**");
       for (const e of past) {
-        lines.push(`  - ${boundedPromptText(e.date, 20)} | ${boundedPromptText(e.title, 120)}`);
+        lines.push(`  - ${e.date} | ${e.title}`);
       }
     }
     if (lines.length > 0) {
@@ -377,10 +333,7 @@ export function getWeddingPlannerSystemPrompt(context: {
   // 대화 요약 (이전 대화 기억)
   let summarySection = "";
   if (context.chatSummaries.length > 0) {
-    const summaryLines = context.chatSummaries
-      .slice(0, 3)
-      .map((s, i) => `  ${i + 1}. ${boundedPromptText(s, 1_200)}`)
-      .join("\n");
+    const summaryLines = context.chatSummaries.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
     summarySection = `\n### 이전 대화 요약\n${summaryLines}`;
   }
 
@@ -408,16 +361,16 @@ export function getWeddingPlannerSystemPrompt(context: {
   let preferencesSection = "";
   if (prefs && (prefs.weddingStyle || (prefs.priorities && prefs.priorities.length > 0) || prefs.budgetAttitude || prefs.guestCount)) {
     const styleLine = prefs.weddingStyle
-      ? `- 웨딩 스타일: ${boundedPromptText(STYLE_LABEL[prefs.weddingStyle] ?? prefs.weddingStyle, 80)}`
+      ? `- 웨딩 스타일: ${STYLE_LABEL[prefs.weddingStyle] ?? prefs.weddingStyle}`
       : "- 웨딩 스타일: 미설정";
     const priorityLine = prefs.priorities && prefs.priorities.length > 0
-      ? `- 우선순위: ${boundedPromptList(prefs.priorities, 8, 60).map((k) => boundedPromptText(CATEGORY_LABELS[k] ?? k, 60)).join(", ")}`
+      ? `- 우선순위: ${prefs.priorities.map((k) => CATEGORY_LABELS[k] ?? k).join(", ")}`
       : "- 우선순위: 미설정";
     const budgetAttLine = prefs.budgetAttitude
-      ? `- 예산 성향: ${boundedPromptText(BUDGET_LABEL[prefs.budgetAttitude] ?? prefs.budgetAttitude, 80)}`
+      ? `- 예산 성향: ${BUDGET_LABEL[prefs.budgetAttitude] ?? prefs.budgetAttitude}`
       : "- 예산 성향: 미설정";
     const guestLine = prefs.guestCount
-      ? `- 하객 규모: ${boundedPromptText(GUEST_LABEL[prefs.guestCount] ?? prefs.guestCount, 80)}`
+      ? `- 하객 규모: ${GUEST_LABEL[prefs.guestCount] ?? prefs.guestCount}`
       : "- 하객 규모: 미설정";
     preferencesSection =
       `\n## 사용자 성향 프로필 (설정에서 입력한 값 — 다시 묻지 말 것)\n` +
@@ -432,20 +385,20 @@ export function getWeddingPlannerSystemPrompt(context: {
   type PromptAmoraProfile = NonNullable<NonNullable<typeof context.amoraProfiles>["shared"]>;
   const formatAmoraProfile = (profile: PromptAmoraProfile, title: string): string => {
     const lines = [
-      profile.personaSummary ? `- 커플 요약: ${boundedPromptText(profile.personaSummary, 500)}` : null,
-      profile.budgetPosture ? `- 예산 판단 기준: ${boundedPromptText(profile.budgetPosture)}` : null,
-      profile.decisionStyle ? `- 결정 방식: ${boundedPromptText(profile.decisionStyle)}` : null,
-      profile.tasteProfile ? `- 취향/스타일: ${boundedPromptText(profile.tasteProfile)}` : null,
-      profile.communicationStyle ? `- 답변 방식: ${boundedPromptText(profile.communicationStyle)}` : null,
-      profile.conflictPattern ? `- 조율 패턴: ${boundedPromptText(profile.conflictPattern)}` : null,
+      profile.personaSummary ? `- 커플 요약: ${profile.personaSummary}` : null,
+      profile.budgetPosture ? `- 예산 판단 기준: ${profile.budgetPosture}` : null,
+      profile.decisionStyle ? `- 결정 방식: ${profile.decisionStyle}` : null,
+      profile.tasteProfile ? `- 취향/스타일: ${profile.tasteProfile}` : null,
+      profile.communicationStyle ? `- 답변 방식: ${profile.communicationStyle}` : null,
+      profile.conflictPattern ? `- 조율 패턴: ${profile.conflictPattern}` : null,
       profile.sensitiveTopics && profile.sensitiveTopics.length > 0
-        ? `- 조심할 주제: ${boundedPromptList(profile.sensitiveTopics).join(", ")}`
+        ? `- 조심할 주제: ${profile.sensitiveTopics.join(", ")}`
         : null,
       profile.recommendationRules && profile.recommendationRules.length > 0
-        ? `- 추천 규칙: ${boundedPromptList(profile.recommendationRules).join(" / ")}`
+        ? `- 추천 규칙: ${profile.recommendationRules.join(" / ")}`
         : null,
       profile.openQuestions && profile.openQuestions.length > 0
-        ? `- 아직 애매한 점: ${boundedPromptList(profile.openQuestions).join(" / ")}`
+        ? `- 아직 애매한 점: ${profile.openQuestions.join(" / ")}`
         : null,
       typeof profile.confidenceScore === "number"
         ? `- 프로필 신뢰도: ${profile.confidenceScore.toFixed(2)}`
@@ -514,21 +467,20 @@ ${lessonsText}
     const recentConsidering = recent.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
 
     const formatDetailed = (d: typeof context.pastDecisions[number]): string => {
-      const dateStr = safePromptDate(d.createdAt);
-      const categoryLabel = boundedPromptText(CATEGORY_LABELS[d.category] ?? d.category, 60);
-      const source = boundedPromptText(d.source, 40);
-      const sourceTag = source === "chat" || !source ? "" : ` [${source}]`;
-      const valueText = d.value ? `: ${boundedPromptText(d.value, 180)}` : "";
-      const reasonText = d.reasoning ? ` — ${boundedPromptText(d.reasoning, 240)}` : "";
-      return `  - [${categoryLabel}]${sourceTag} ${boundedPromptText(d.title, 120)}${valueText}${reasonText} (${dateStr})`;
+      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const categoryLabel = CATEGORY_LABELS[d.category] ?? d.category;
+      const sourceTag = d.source === "chat" ? "" : ` [${d.source}]`;
+      const valueText = d.value ? `: ${d.value}` : "";
+      const reasonText = d.reasoning ? ` — ${d.reasoning}` : "";
+      return `  - [${categoryLabel}]${sourceTag} ${d.title}${valueText}${reasonText} (${dateStr})`;
     };
 
     // 오래된 결정: 압축 (날짜 + 카테고리 + 제목만, reasoning 생략)
     const formatCompact = (d: typeof context.pastDecisions[number]): string => {
-      const dateStr = safePromptDate(d.createdAt);
-      const categoryLabel = boundedPromptText(CATEGORY_LABELS[d.category] ?? d.category, 60);
-      const valueText = d.value ? `: ${boundedPromptText(d.value, 180)}` : "";
-      return `  - [${categoryLabel}] ${boundedPromptText(d.title, 120)}${valueText} (${dateStr})`;
+      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const categoryLabel = CATEGORY_LABELS[d.category] ?? d.category;
+      const valueText = d.value ? `: ${d.value}` : "";
+      return `  - [${categoryLabel}] ${d.title}${valueText} (${dateStr})`;
     };
 
     const sections: string[] = [];
@@ -541,8 +493,8 @@ ${lessonsText}
       .slice(0, 5);
     if (preferences.length > 0) {
       const formatPref = (d: typeof context.pastDecisions[number]): string => {
-        const valueText = d.value ? `**${boundedPromptText(d.value, 180)}**` : "";
-        return `  - ${valueText} — *왜?* ${boundedPromptText(d.reasoning, 240)}`;
+        const valueText = d.value ? `**${d.value}**` : "";
+        return `  - ${valueText} — *왜?* ${d.reasoning}`;
       };
       sections.push(
         `**🪞 드러난 가치관 (top ${preferences.length}, 추천 시 가중치 높게):**\n${preferences.map(formatPref).join("\n")}`
@@ -588,11 +540,11 @@ ${sections.join("\n\n")}
   let pastConflictsSection = "";
   if (context.pastConflicts && context.pastConflicts.length > 0) {
     const formatConflict = (c: NonNullable<typeof context.pastConflicts>[number], i: number): string => {
-      const dateStr = safePromptDate(c.createdAt);
-      const resolutionText = c.resolution ? ` → ${boundedPromptText(c.resolution, 180)}` : "";
-      const reasonText = c.reasoning ? ` (배경: ${boundedPromptText(c.reasoning, 240)})` : "";
-      const stageText = c.stageTag ? ` [${boundedPromptText(c.stageTag, 40)}]` : "";
-      return `  ${i + 1}. ${boundedPromptText(c.title, 120)}${resolutionText}${reasonText} (${dateStr})${stageText}`;
+      const dateStr = new Date(c.createdAt).toISOString().slice(0, 10);
+      const resolutionText = c.resolution ? ` → ${c.resolution}` : "";
+      const reasonText = c.reasoning ? ` (배경: ${c.reasoning})` : "";
+      const stageText = c.stageTag ? ` [${c.stageTag}]` : "";
+      return `  ${i + 1}. ${c.title}${resolutionText}${reasonText} (${dateStr})${stageText}`;
     };
 
     pastConflictsSection = `\n## 이 커플의 갈등·합의 히스토리 (최근 ${context.pastConflicts.length}개)
@@ -620,7 +572,7 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 
   return `당신은 '웨딩한방'의 AI 웨딩 플래너 **아모라**입니다.
 이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.
-지금 대화 중인 사용자: **${boundedPromptText(context.senderName, 80) || "사용자"}** | 오늘: ${today} (ISO: ${todayIso})
+지금 대화 중인 사용자: **${context.senderName}** | 오늘: ${today} (ISO: ${todayIso})
 
 **🗓 날짜 처리 절대 규칙 (어기지 말 것)**
 - 현재 연도는 **${_thisYear}년**입니다. "올해"=${_thisYear}, "내년"=${_nextYear}, "내후년"=${_yearAfter}.

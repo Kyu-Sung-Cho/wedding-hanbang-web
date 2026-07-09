@@ -32,7 +32,7 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
         <div className="space-y-1 leading-relaxed">
           <p className={`font-medium ${labelCls}`}>AI 기반 서비스 고지</p>
           <p>
-            웨딩한방의 AI 플래너 &#39;아모라&#39;는 OpenAI의 GPT 모델을 활용합니다.
+            웨딩한방의 AI 플래너 &#39;아모라&#39;는 Anthropic Claude를 활용합니다.
             AI 생성 답변은 참고용이며, 중요한 의사결정은 반드시 본인이 확인하시기 바랍니다.
           </p>
           <p>

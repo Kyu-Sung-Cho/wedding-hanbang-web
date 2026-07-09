@@ -21,15 +21,13 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     throw new Error("로그인이 필요합니다.");
   }
 
-  const headers = new Headers(options.headers);
-  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  headers.set("Authorization", `Bearer ${token}`);
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
   });
 
   // 세션 만료 시 로그아웃 후 로그인 화면으로 이동
@@ -59,4 +57,24 @@ export async function apiJson<T = unknown>(path: string, options: RequestInit = 
     throw new Error(body.error || `API 오류 (${res.status})`);
   }
   return res.json();
+}
+
+/**
+ * 무인증 공개 API 호출 (가입·비밀번호찾기 등 로그인 이전 표면).
+ * Bearer 토큰이 없으므로 apiFetch 대신 이걸 쓴다. `x-hanbang-client: mobile`
+ * 헤더로 서버가 모바일 요청을 식별한다 — 서버는 이 헤더가 있을 때만 Turnstile을
+ * 생략하고, IP/이메일 rate limit·enumeration 마스킹·강한 비밀번호는 그대로 적용한다.
+ */
+export async function publicApiFetch(path: string, options: RequestInit = {}) {
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    throw new Error("내부 API 경로만 호출할 수 있습니다.");
+  }
+  return fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "x-hanbang-client": "mobile",
+      ...options.headers,
+    },
+  });
 }

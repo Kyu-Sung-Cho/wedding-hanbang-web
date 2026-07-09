@@ -10,7 +10,7 @@
  *  3. detectCoupleConflict 실행 (휴리스틱 + borderline LLM 검증)
  *  4. 트리거 시:
  *     a. cooldown 락 — 최근 10분 내 mediation 메시지 있으면 abort (race condition 방어)
- *     b. OpenAI Responses API로 [MEDIATION_REQUEST] 응답 생성
+ *     b. Claude API 호출하여 [MEDIATION_REQUEST] 응답 생성
  *     c. extractMediation 으로 [mediation] 마커 파싱
  *     d. chat_messages 에 sender_type='ai', visibility='shared', metadata.mediation 으로 INSERT
  *  5. Realtime 이 양쪽 클라이언트에 mediation 메시지 자동 전달
@@ -26,16 +26,12 @@ import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-dete
 import { extractMediation } from "@/lib/ai/mediation";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { reserveAmoraProviderCall } from "@/lib/ai/costGuard";
-import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
-import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
+import { checkAmoraCostGuard, reserveAmoraTurn } from "@/lib/ai/costGuard";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 
+const MEDIATION_MODEL = "claude-sonnet-4-6";
 const MEDIATION_COOLDOWN_MIN = 10;
 const RECENT_MESSAGE_LIMIT = 20;
-// Lifecycle-safe atomic completion/attachment cleanup is not yet available for
-// this background path. Keep it code-hard-disabled to prevent hidden spend and
-// post-deletion writes; do not replace with an environment-only switch.
-const AUTO_CONFLICT_MEDIATION_ENABLED = false;
 
 function getAdminClient() {
   return createServiceClient(
@@ -45,9 +41,6 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!AUTO_CONFLICT_MEDIATION_ENABLED) {
-    return NextResponse.json({ triggered: false, reason: "disabled_for_safety_and_cost" });
-  }
   try {
     // ── 1. 인증 + 커플 확인 ───────────────────────────────────
     const supabase = await createClientFromRequest(req);
@@ -58,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
-    // Rate limit — 이 라우트는 mediation 시 LLM을 호출하므로, 메인 채팅과
+    // Rate limit — 이 라우트는 mediation 시 LLM(Sonnet)을 호출하므로, 메인 채팅과
     // 별개로 호출 빈도를 제한해 borderline 구간 반복 호출로 인한 LLM 폭주를 막는다.
     const limited = checkRateLimit(rateLimitKey("conflict-check", req, user.id), {
       maxRequests: 30,
@@ -82,6 +75,18 @@ export async function POST(req: NextRequest) {
     }
     if (requestCoupleId && requestCoupleId !== coupleId) {
       return NextResponse.json({ triggered: false, reason: "couple_mismatch" }, { status: 403 });
+    }
+
+    // 비용 가드 — mediation LLM 호출도 메인 채팅과 같은 장부(chat_turn)를 공유한다.
+    // 상한 도달 시 detector 실행 전에 차단(가드 밖 LLM 호출 사각지대 제거).
+    // 여기는 읽기전용 체크만 — 이 라우트는 파트너 메시지마다 fire-and-forget으로
+    // 호출되고 대부분 LLM 0회로 끝나므로, 예약(턴 소모)은 mediation 직전에만 한다.
+    const guard = await checkAmoraCostGuard(admin, {
+      coupleId,
+      isAdmin: profile?.is_admin === true,
+    });
+    if (!guard.allowed) {
+      return NextResponse.json({ triggered: false, reason: "cost_guard" });
     }
 
     // ── 2. cooldown 락 — 최근 10분 mediation 메시지 검사 ──────
@@ -149,13 +154,6 @@ export async function POST(req: NextRequest) {
       recentSharedMessages: recentMessages,
       pastConflicts,
       windowMinutes: 5,
-      reserveLLMCall: async () => {
-        const reservation = await reserveAmoraProviderCall(admin, {
-          coupleId,
-          isAdmin: profile?.is_admin === true,
-        });
-        return reservation.allowed;
-      },
     });
 
     if (!detection.triggered) {
@@ -168,10 +166,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 6. mediation 메시지 생성 ─────────────────────────────
-    if (!hasOpenAIConfig("primary")) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
       return NextResponse.json({
         triggered: false,
-        reason: "OpenAI 주 모델 설정 없음",
+        reason: "ANTHROPIC_API_KEY 없음",
       });
     }
 
@@ -257,7 +256,7 @@ export async function POST(req: NextRequest) {
       pastConflicts: pastConflictsForPrompt,
     });
 
-    // 6-e. OpenAI 호출용 메시지 — recent 메시지에 [MEDIATION_REQUEST] 추가
+    // 6-e. Claude API 호출용 메시지 — recent 메시지에 [MEDIATION_REQUEST] 추가
     const messageList = recentMessages.map((m) => {
       if (m.senderRole === "ai") {
         return { role: "assistant" as const, content: m.content };
@@ -275,10 +274,10 @@ export async function POST(req: NextRequest) {
       content: `[${triggerRoleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등이 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${detection.conflictContext}`,
     });
 
-    // 6-f. OpenAI 호출 (non-streaming)
+    // 6-f. Claude 호출 (non-streaming)
     // 실제 LLM 호출 직전 원자 예약 — 앞단 읽기전용 체크와 달리 여기서 턴 1회를
     // 소모 확정한다 (동시 요청 상한 초과 방지, 감사 2.3 H1).
-    const reserved = await reserveAmoraProviderCall(admin, {
+    const reserved = await reserveAmoraTurn(admin, {
       coupleId,
       isAdmin: profile?.is_admin === true,
     });
@@ -286,26 +285,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "cost_guard" });
     }
 
-    const completion = await createOpenAIResponseWithAudit({
-      modelRole: "primary",
-      maxOutputTokens: 800,
-      instructions: systemPrompt,
-      input: messageList,
+    const completion = await createAnthropicMessageWithAudit({
+      params: {
+        model: MEDIATION_MODEL,
+        max_tokens: 800,
+        system: systemPrompt,
+        messages: messageList,
+        temperature: 0.6,
+      },
       audit: {
         userId: user.id,
         coupleId,
         interactionType: "chat_turn",
         specialistType: "general",
         userInput: detection.conflictContext ?? "",
-        metadata: {
-          source: "auto_conflict_detection",
-          score: detection.score,
-          visibility: "shared",
-        },
+        metadata: { source: "auto_conflict_detection", score: detection.score },
       },
     });
 
-    const fullText = completion.text;
+    const fullText = completion.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("");
 
     const { cleanText, mediation } = extractMediation(fullText);
     if (!cleanText.trim()) {

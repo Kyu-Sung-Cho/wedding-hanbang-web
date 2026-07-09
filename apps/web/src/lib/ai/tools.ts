@@ -1,6 +1,6 @@
-import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import type { Tool } from "@anthropic-ai/sdk/resources/messages";
 
-export const WEDDING_TOOLS: AiToolDefinition[] = [
+export const WEDDING_TOOLS: Tool[] = [
   {
     name: "update_budget",
     description:
@@ -521,10 +521,6 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
-            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
-          ],
           description: "업체 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물', '신혼여행'",
         },
         location: {
@@ -583,10 +579,6 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
-            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
-          ],
           description: "추천 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물'",
         },
         mood: {
@@ -710,10 +702,6 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         status: {
           type: "string",
-          enum: [
-            "pending", "confirmed", "contract_sent", "contract_signed", "deposit_paid",
-            "in_service", "service_completed", "settled", "completed", "cancelled",
-          ],
           description: "필터할 예약 상태 (선택). pending, confirmed, cancelled 등. 미지정 시 취소 제외 전체.",
         },
       },
@@ -946,61 +934,9 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
 // vendor onboarding 진행되어 활성화. 시드 데이터 부족할 경우 search_vendors 는
 // 빈 결과를 반환하므로 AI 는 솔직하게 "현재 등록된 곳 없어요" 안내하도록 prompts 에서 가이드.
 // 환각 방지: prompts.ts 의 "업체 추천 가이드" 섹션이 DB 결과 외 추천 금지 룰을 강제.
-/**
- * 모델이 보낸 `confirmed: true`는 사용자의 신뢰 가능한 확인 증거가 아니다.
- * 별도의 서버 발급 확인 토큰/nonce가 도입되기 전까지 파괴적 도구는 모델에 노출하지 않는다.
- */
-export const MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "delete_category",
-  "reset_category",
-  "delete_schedule_event",
-  "create_booking",
-  "cancel_booking",
-]);
-
-/** 모델 자유문자열이 제3자 API로 전송되는 외부 도구는 서버 조립 쿼리 전까지 차단. */
-export const MODEL_DISABLED_EXTERNAL_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "search_nearby_places",
-]);
-
-/** 공유 상태나 외부 예약을 변경하는 도구. private/첨부 턴에서는 전부 차단한다. */
-export const MODEL_MUTATING_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "update_budget",
-  "update_wedding_date",
-  "update_task_status",
-  "update_venue",
-  "update_category_budget",
-  "apply_budget_plan",
-  "add_custom_category",
-  "delete_category",
-  "reset_category",
-  "add_schedule_event",
-  "update_schedule_event",
-  "delete_schedule_event",
-  "toggle_checklist_item",
-  "add_amora_action",
-  "log_wedding_event",
-  "update_amora_action",
-  "create_booking",
-  "cancel_booking",
-]);
-
-export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  ...MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES,
-  ...MODEL_DISABLED_EXTERNAL_TOOL_NAMES,
-  // 계정 삭제/동시성/확인 토큰을 mutation RPC 안에서 검증하기 전까지
-  // 모델 기반 shared 상태 변경은 전부 비활성화한다.
-  ...MODEL_MUTATING_TOOL_NAMES,
-]);
+export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([]);
 
 /** 베타용: 비활성 도구를 제외한 안전한 도구 목록 */
-export const BETA_SAFE_TOOLS: AiToolDefinition[] = WEDDING_TOOLS.filter(
+export const BETA_SAFE_TOOLS: Tool[] = WEDDING_TOOLS.filter(
   (t) => !BETA_DISABLED_TOOL_NAMES.has(t.name)
-);
-
-/** 프롬프트 주입이나 비공개 대화가 공유 상태를 바꾸지 못하게 하는 읽기 전용 목록. */
-export const READ_ONLY_SAFE_TOOLS: AiToolDefinition[] = BETA_SAFE_TOOLS.filter(
-  (tool) =>
-    !MODEL_MUTATING_TOOL_NAMES.has(tool.name) &&
-    !MODEL_DISABLED_EXTERNAL_TOOL_NAMES.has(tool.name)
 );

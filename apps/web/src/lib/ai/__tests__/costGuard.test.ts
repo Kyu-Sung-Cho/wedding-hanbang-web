@@ -1,159 +1,167 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  reserveAmoraProviderCall,
-  reserveAmoraUserTurn,
-} from "../costGuard";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { checkAmoraCostGuard, reserveAmoraTurn } from "../costGuard";
+
+// chat_messages 카운트를 흉내내는 가짜 Supabase 클라이언트.
+// .from().select(...,{head,count}).eq().eq()/.gte() 체인이 최종적으로
+// { count, error }를 resolve 하도록 구성. 호출별로 다른 count를 주입한다.
+function makeAdmin(counts: { global?: number; couple?: number; error?: boolean }) {
+  return {
+    from() {
+      let isGlobalQuery = false;
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder;
+      builder.select = chain;
+      builder.eq = chain;
+      // 전역 쿼리만 .gte(created_at)를 사용 → 이 호출이 있으면 global로 식별
+      builder.gte = () => {
+        isGlobalQuery = true;
+        return builder;
+      };
+      // await 가능하게 thenable 로 만든다
+      builder.then = (resolve: (v: { count: number | null; error: unknown }) => void) => {
+        if (counts.error) return resolve({ count: null, error: { message: "boom" } });
+        const count = isGlobalQuery ? (counts.global ?? 0) : (counts.couple ?? 0);
+        return resolve({ count, error: null });
+      };
+      return builder;
+    },
+  } as never;
+}
 
 const BASE = { coupleId: "c1", isAdmin: false };
 
-function makeAdmin(result: {
-  allowed?: boolean;
-  reason?: string | null;
-  remaining?: number | null;
-  error?: boolean;
-  throws?: boolean;
-}) {
-  const rpc = vi.fn(async () => {
-    if (result.throws) throw new Error("rpc boom");
-    if (result.error) return { data: null, error: { message: "rpc unavailable" } };
-    return {
-      data: [{
-        allowed: result.allowed ?? true,
-        reason: result.reason ?? null,
-        remaining: result.remaining ?? null,
-      }],
-      error: null,
-    };
-  });
-  return { admin: { rpc } as never, rpc };
-}
-
-describe("split Amora usage reservations", () => {
+describe("checkAmoraCostGuard", () => {
   const ENV = process.env;
   beforeEach(() => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
-    delete process.env.AMORA_COST_GUARD_FAIL_OPEN;
     delete process.env.AMORA_FREE_MESSAGES_PER_COUPLE;
-    delete process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP;
+    vi.resetModules();
   });
   afterEach(() => {
-    vi.unstubAllEnvs();
     process.env = ENV;
   });
 
-  it("user turn reserves both the couple quota and one provider call", async () => {
-    const { admin, rpc } = makeAdmin({ allowed: true, remaining: 29 });
-    const result = await reserveAmoraUserTurn(admin, BASE);
-    expect(result).toEqual({ allowed: true, remaining: 29 });
-    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", {
+  it("관리자는 면제", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 9999, couple: 9999 }), { ...BASE, isAdmin: true });
+    expect(r.allowed).toBe(true);
+  });
+
+  it("정상 범위 내면 통과", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 5 }), BASE);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("전역 일일 상한 도달 시 차단", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 300, couple: 0 }), BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+  });
+
+  it("커플 누적 상한 도달 시 차단", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 100 }), BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("couple_quota");
+  });
+
+  it("카운트 에러 시 fail-open (통과)", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ error: true }), BASE);
+    expect(r.allowed).toBe(true);
+  });
+});
+
+// 원자 예약 경로용 가짜 클라이언트 — rpc()와, 폴백 검증용 from() 체인을 함께 제공.
+// rpc: "error"면 { data: null, error } 반환, "throw"면 예외, 객체면 정상 응답 row.
+function makeReserveAdmin(opts: {
+  rpc: { allowed: boolean; reason?: string | null } | "error" | "throw";
+  counts?: { global?: number; couple?: number; error?: boolean };
+}) {
+  const base = makeAdmin(opts.counts ?? {}) as { from: () => unknown };
+  const rpcSpy = vi.fn(async () => {
+    if (opts.rpc === "throw") throw new Error("rpc boom");
+    if (opts.rpc === "error") return { data: null, error: { message: "function not found" } };
+    // Supabase는 RETURNS TABLE을 행 배열로 돌려준다
+    return { data: [opts.rpc], error: null };
+  });
+  return { admin: { from: base.from, rpc: rpcSpy } as never, rpcSpy };
+}
+
+describe("reserveAmoraTurn (원자 예약)", () => {
+  const ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...ENV };
+    delete process.env.AMORA_COST_GUARD_ENABLED;
+  });
+  afterEach(() => {
+    process.env = ENV;
+  });
+
+  it("관리자는 면제 — RPC를 호출하지 않는다 (턴 미소모)", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await reserveAmoraTurn(admin, { ...BASE, isAdmin: true });
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("RPC allowed=true면 통과", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
       p_couple_id: "c1",
-      p_couple_cap: 30,
-      p_global_provider_cap: 60,
-      p_count_user_turn: true,
+      p_couple_cap: 100,
+      p_global_cap: 300,
     });
   });
 
-  it("hidden Luna and extra Terra calls reserve provider usage only", async () => {
-    const { admin, rpc } = makeAdmin({ allowed: true });
-    const result = await reserveAmoraProviderCall(admin, BASE);
-    expect(result.allowed).toBe(true);
-    expect(result.remaining).toBeUndefined();
-    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", expect.objectContaining({
-      p_count_user_turn: false,
-    }));
+  it("전역 상한 도달 시 차단 + 사용자 메시지", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "global_daily" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+    expect(r.message).toBeTruthy();
   });
 
-  it("admins skip the couple quota but not the global provider breaker", async () => {
-    const { admin, rpc } = makeAdmin({ allowed: true });
-    await reserveAmoraUserTurn(admin, { ...BASE, isAdmin: true });
-    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", expect.objectContaining({
-      p_count_user_turn: false,
-    }));
+  it("커플 상한 도달 시 차단", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("couple_quota");
   });
 
-  it.each([
-    ["global_daily", "global_daily"],
-    ["couple_quota", "couple_quota"],
-  ])("maps %s denial", async (rpcReason, expectedReason) => {
-    const { admin } = makeAdmin({ allowed: false, reason: rpcReason });
-    const result = await reserveAmoraUserTurn(admin, BASE);
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toBe(expectedReason);
-    expect(result.message).toBeTruthy();
+  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 상한 초과면 차단", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 100 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("couple_quota");
   });
 
-  it("fails closed when the atomic ledger is unavailable", async () => {
-    const { admin } = makeAdmin({ error: true });
-    await expect(reserveAmoraProviderCall(admin, BASE)).resolves.toMatchObject({
-      allowed: false,
-      reason: "guard_unavailable",
-    });
+  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 정상 범위면 통과", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 5 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
   });
 
-  it("fails closed on unexpected RPC output", async () => {
-    const { admin } = makeAdmin({ allowed: false, reason: "invalid_args" });
-    await expect(reserveAmoraUserTurn(admin, BASE)).resolves.toMatchObject({
-      allowed: false,
-      reason: "guard_unavailable",
-    });
+  it("RPC 예외 시에도 폴백", async () => {
+    const { admin } = makeReserveAdmin({ rpc: "throw", counts: { global: 10, couple: 5 } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
   });
 
-  it("only an explicit fail-open environment override bypasses DB errors", async () => {
-    process.env.AMORA_COST_GUARD_FAIL_OPEN = "true";
-    vi.resetModules();
-    const costGuardModule = await import("../costGuard");
-    const { admin } = makeAdmin({ throws: true });
-    await expect(costGuardModule.reserveAmoraProviderCall(admin, BASE)).resolves.toEqual({ allowed: true });
+  it("알 수 없는 reason은 fail-open (가드 오류가 사용을 막지 않도록)", async () => {
+    const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "invalid_args" } });
+    const r = await reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
   });
 
-  it("code-enforces the reduced ceilings even when stale deployment variables are higher", async () => {
-    process.env.AMORA_FREE_MESSAGES_PER_COUPLE = "100";
-    process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP = "300";
-    vi.resetModules();
-    const costGuardModule = await import("../costGuard");
-    const { admin, rpc } = makeAdmin({ allowed: true });
-
-    await costGuardModule.reserveAmoraUserTurn(admin, BASE);
-
-    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", {
-      p_couple_id: "c1",
-      p_couple_cap: 30,
-      p_global_provider_cap: 60,
-      p_count_user_turn: true,
-    });
-  });
-
-  it("still permits deployment variables to lower the reviewed ceilings", async () => {
-    process.env.AMORA_FREE_MESSAGES_PER_COUPLE = "10";
-    process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP = "20";
-    vi.resetModules();
-    const costGuardModule = await import("../costGuard");
-    const { admin, rpc } = makeAdmin({ allowed: true });
-
-    await costGuardModule.reserveAmoraUserTurn(admin, BASE);
-
-    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", {
-      p_couple_id: "c1",
-      p_couple_cap: 10,
-      p_global_provider_cap: 20,
-      p_count_user_turn: true,
-    });
-  });
-
-  it("cannot disable or fail open the cost ledger in production", async () => {
-    vi.stubEnv("NODE_ENV", "production");
+  it("가드 비활성 시 통과 + RPC 미호출", async () => {
     process.env.AMORA_COST_GUARD_ENABLED = "false";
-    process.env.AMORA_COST_GUARD_FAIL_OPEN = "true";
     vi.resetModules();
-    const costGuardModule = await import("../costGuard");
-    const { admin, rpc } = makeAdmin({ error: true });
-
-    await expect(costGuardModule.reserveAmoraProviderCall(admin, BASE)).resolves.toMatchObject({
-      allowed: false,
-      reason: "guard_unavailable",
-    });
-    expect(rpc).toHaveBeenCalledOnce();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+    const r = await mod.reserveAmoraTurn(admin, BASE);
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).not.toHaveBeenCalled();
   });
 });

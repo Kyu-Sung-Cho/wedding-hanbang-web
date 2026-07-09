@@ -1,6 +1,5 @@
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
 type PostVoteType = 0 | 1;
@@ -56,8 +55,7 @@ export async function POST(
       );
     }
 
-    const admin = createAdminClient();
-    const { error } = await admin.rpc("community_vote_post", {
+    const { error } = await supabase.rpc("community_vote_post", {
       p_user_id: user.id,
       p_post_id: id,
       p_vote_type: voteType,
@@ -71,7 +69,7 @@ export async function POST(
       );
     }
 
-    const { data: counts } = await admin
+    const { data: counts } = await supabase
       .from("community_posts")
       .select("upvote_count, downvote_count")
       .eq("id", id)

@@ -48,7 +48,6 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -57,11 +56,6 @@ export default function LoginPage() {
     // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
     const callbackError = params.get("error");
-    const requestedMode = params.get("mode");
-
-    if (requestedMode === "signup" || requestedMode === "forgot") {
-      setMode(requestedMode);
-    }
 
     // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
     const hash = window.location.hash.substring(1);
@@ -154,10 +148,7 @@ export default function LoginPage() {
         if (!res.ok) {
           setError(result.error || "회원가입에 실패했습니다.");
         } else {
-          setSuccess(
-            result.message ||
-              "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다."
-          );
+          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
         }
       } else if (mode === "forgot") {
         // 서버 API로 비밀번호 재설정 이메일 발송
@@ -166,14 +157,10 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, turnstileToken }),
         });
-        const result = await res.json().catch(() => ({}));
         if (res.ok) {
-          setSuccess(
-            result.message ||
-              "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다."
-          );
+          setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
         } else {
-          setError(result.error || "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
+          setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -214,11 +201,6 @@ export default function LoginPage() {
       setError(`오류: ${msg}`);
     } finally {
       setLoading(null);
-      if (mode === "signup" || mode === "forgot") {
-        // Turnstile 토큰은 일회용이므로 요청마다 위젯까지 새로 만든다.
-        setTurnstileToken("");
-        setTurnstileAttempt((value) => value + 1);
-      }
     }
   };
 
@@ -410,10 +392,7 @@ export default function LoginPage() {
 
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
-                  <TurnstileWidget
-                    key={`${mode}-${turnstileAttempt}`}
-                    onVerify={setTurnstileToken}
-                  />
+                  <TurnstileWidget onVerify={setTurnstileToken} />
                 )}
 
                 {error && (
@@ -425,7 +404,7 @@ export default function LoginPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                       {success}
                     </p>
-                    <p className="text-[11px] text-[#36534E]/70 mt-1">안내가 도착하면 스팸 메일함도 확인해주세요</p>
+                    <p className="text-[11px] text-[#36534E]/70 mt-1">스팸 메일함도 확인해주세요</p>
                   </div>
                 )}
 

@@ -1,7 +1,7 @@
 // =============================================
 // Decision Extractor — Memory Step B (v2: multi-extraction)
 // =============================================
-// 목적: /api/chat 턴 종료 후 저비용 GPT로 "사용자가 결정/선호를 표현했나?" 분류
+// 목적: /api/chat 턴 종료 후 Haiku로 "사용자가 결정/선호를 표현했나?" 분류
 //       → decision_nodes INSERT (recordDecision 헬퍼 경유)
 // v2 변경:
 //   - Array 반환 → 한 메시지에 복수 개념 있을 때 각각 row 생성
@@ -16,9 +16,10 @@
 // =============================================
 
 import { recordDecision } from "@/lib/memory/record-decision";
-import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
 import type { StageTag, DecisionType } from "@/types/moat.types";
 
+const EXTRACT_MODEL = "claude-haiku-4-5-20251001";
 const CONTEXT_WINDOW_MESSAGES = 6;
 const MAX_MESSAGE_CHARS = 600;
 const MAX_INPUT_CHARS = 6_000;
@@ -67,7 +68,7 @@ function formatMessagesForExtraction(messages: MessageInput[]): string {
 }
 
 // -------------------------------------------
-// 저비용 GPT 분류기 (v2 — array)
+// Haiku 분류기 (v2 — array)
 // -------------------------------------------
 const EXTRACT_SYSTEM_PROMPT = `당신은 웨딩 대화에서 사용자의 [의사결정] 또는 [선호]를 추출하는 JSON 분류기입니다.
 
@@ -126,26 +127,21 @@ interface ExtractionItem {
   confidence: number;
 }
 
-async function extractWithFastModel(
+async function extractWithHaiku(
   conversation: string,
-  audit: {
-    userId?: string | null;
-    coupleId: string;
-    stageTag?: StageTag | null;
-    visibility: "shared" | "bride_private" | "groom_private";
-    signal?: AbortSignal;
-  }
+  audit: { userId?: string | null; coupleId: string; stageTag?: StageTag | null }
 ): Promise<{
   extractions: ExtractionItem[];
   usage?: { input_tokens: number; output_tokens: number };
 } | null> {
   try {
-    const response = await createOpenAIResponseWithAudit({
-      modelRole: "fast",
-      maxOutputTokens: 500,
-      instructions: EXTRACT_SYSTEM_PROMPT,
-      input: conversation,
-      signal: audit.signal,
+    const response = await createAnthropicMessageWithAudit({
+      params: {
+        model: EXTRACT_MODEL,
+        max_tokens: 500,
+        system: EXTRACT_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: conversation }],
+      },
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
@@ -154,11 +150,11 @@ async function extractWithFastModel(
         metadata: {
           endpoint: "chat/extract-decision",
           stage_tag: audit.stageTag ?? null,
-          visibility: audit.visibility,
         },
       },
     });
-    const text = response.text;
+    const firstBlock = response.content[0];
+    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
     if (!text) return null;
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -187,7 +183,7 @@ async function extractWithFastModel(
         : undefined,
     };
   } catch (err) {
-    console.error("[extract-decision] GPT 호출 실패:", err);
+    console.error("[extract-decision] Haiku 호출 실패:", err);
     return null;
   }
 }
@@ -203,8 +199,6 @@ export interface MaybeExtractDecisionInput {
   lastUserText: string;
   /** 추출된 결정의 visibility (현재 채팅 turn의 visibility와 동일) */
   visibility?: "shared" | "bride_private" | "groom_private";
-  signal?: AbortSignal;
-  reserveLLMCall?: () => Promise<boolean>;
 }
 
 export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Promise<void> {
@@ -215,26 +209,15 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     if (userText.includes("[MEDIATION_REQUEST]")) return;
     if (userText.includes("[quote_analysis]")) return;
     if (input.messages.length < 2) return;
-    // 명시적 결정·선호 신호가 없는 잡담까지 매 턴 분류 모델에 보내지 않는다.
-    if (!/(확정|결정|선택|예약|계약|하기로|하자|할게|할래|원해|원하지|선호|좋아|싫어|낫겠|마음에|중요|우선|예산|\d[\d,]*(?:만)?원)/.test(userText)) {
-      return;
-    }
 
     const recent = input.messages.slice(-CONTEXT_WINDOW_MESSAGES);
     const conversation = formatMessagesForExtraction(recent);
     if (!conversation) return;
-    input.signal?.throwIfAborted();
-    if (input.reserveLLMCall && !(await input.reserveLLMCall())) {
-      console.warn("[extract-decision] 비용 예약이 거부되어 보조 추출을 건너뜁니다.");
-      return;
-    }
 
-    const result = await extractWithFastModel(conversation, {
+    const result = await extractWithHaiku(conversation, {
       userId: input.userId ?? null,
       coupleId: input.coupleId,
       stageTag: input.stageTag ?? null,
-      visibility: input.visibility ?? "shared",
-      signal: input.signal,
     });
     if (!result) return;
 
@@ -270,7 +253,7 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
         confidence,
         visibility: input.visibility ?? "shared",
         metadata: {
-          extracted_by: "gpt-5.6-luna",
+          extracted_by: "haiku",
           extraction_type: ext.type,
         },
       });

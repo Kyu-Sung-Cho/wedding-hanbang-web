@@ -1,10 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { cleanOptionalText, isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
 export const dynamic = "force-dynamic";
-const MAX_BODY_BYTES = 8 * 1024;
 
 // Service role 클라이언트 (RLS 우회)
 function getServiceClient() {
@@ -34,9 +32,6 @@ async function checkRateLimit(userId: string): Promise<boolean> {
  */
 export async function POST(request: Request) {
   try {
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
-    }
     // 인증 체크
     const supabase = await createClientFromRequest(request);
     const {
@@ -47,17 +42,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => null);
-    if (!isRecord(body)) {
-      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
-    }
-    const messageId = isUuid(body.messageId) ? body.messageId : null;
-    const rating = body.rating === "good" || body.rating === "bad" ? body.rating : null;
-    const correction = cleanOptionalText(body.correction, 1_000);
-    const category = cleanOptionalText(body.category, 80);
+    const body = await request.json();
+    const { messageId, rating, correction, category } = body as {
+      messageId: string;
+      rating: "good" | "bad";
+      correction?: string;
+      category?: string;
+    };
 
     // 필수 필드 검증
-    if (!messageId || !rating) {
+    if (!messageId || !rating || !["good", "bad"].includes(rating)) {
       return NextResponse.json(
         { error: "messageId와 유효한 rating(good/bad)이 필요합니다." },
         { status: 400 }
@@ -75,15 +69,42 @@ export async function POST(request: Request) {
 
     const admin = getServiceClient();
 
-    // profile/couple slot을 잠근 DB 함수가 account deletion/private 권한과
-    // 대상 AI 메시지를 다시 검증한 뒤 원문 복제 없이 저장한다.
-    const { data: feedbackId, error: insertError } = await admin.rpc("save_amora_feedback", {
-      p_user_id: user.id,
-      p_message_id: messageId,
-      p_rating: rating,
-      p_correction: correction ?? "",
-      p_category: category ?? "",
-    });
+    // 사용자의 couple_id 조회
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .single();
+
+    const coupleId = profile?.couple_id ?? null;
+
+    // AI 메시지 내용 복사 (컨텍스트 보존용)
+    let messageContent: string | null = null;
+    if (coupleId) {
+      const { data: msg } = await admin
+        .from("chat_messages")
+        .select("content")
+        .eq("id", messageId)
+        .eq("couple_id", coupleId)
+        .single();
+
+      messageContent = msg?.content ?? null;
+    }
+
+    // 피드백 저장
+    const { data: feedback, error: insertError } = await admin
+      .from("chat_feedback")
+      .insert({
+        user_id: user.id,
+        couple_id: coupleId,
+        message_id: messageId,
+        rating,
+        correction: correction?.trim() || null,
+        category: category?.trim() || null,
+        message_content: messageContent,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       console.error("피드백 저장 실패:", insertError.message);
@@ -93,7 +114,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, id: feedbackId });
+    return NextResponse.json({ success: true, id: feedback?.id });
   } catch (err) {
     console.error("피드백 API 에러:", err);
     return NextResponse.json(
@@ -119,9 +140,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    // Raw corrections are never injected into prompts. Keep the compatibility
-    // endpoint but return no learned prompt material.
-    return NextResponse.json({ lessons: [] });
+    const admin = getServiceClient();
+
+    // 사용자의 couple_id 조회
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .single();
+
+    const coupleId = profile?.couple_id ?? null;
+
+    // feedbackLessons 로드 (내부에서 동일 로직 사용)
+    const { loadFeedbackLessons } = await import("@/lib/ai/feedbackLessons");
+    const lessons = await loadFeedbackLessons(coupleId);
+
+    return NextResponse.json({ lessons });
   } catch (err) {
     console.error("피드백 조회 에러:", err);
     return NextResponse.json(

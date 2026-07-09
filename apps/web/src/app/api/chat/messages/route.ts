@@ -2,58 +2,10 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { checkRateLimit, checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
-const MAX_BODY_BYTES = 16 * 1024;
-
-export async function POST(request: Request) {
-  try {
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return NextResponse.json({ error: "메시지가 너무 깁니다." }, { status: 413 });
-    }
-    const supabase = await createClientFromRequest(request);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-
-    const limited = await checkRateLimitPersistent(rateLimitKey("chat:messages:create", request, user.id), {
-      maxRequests: 30,
-      windowMs: 60 * 1000,
-    });
-    if (limited) return limited;
-
-    const body = await request.json().catch(() => null);
-    if (!isRecord(body) || !isUuid(body.coupleId) || typeof body.content !== "string") {
-      return NextResponse.json({ error: "메시지 형식이 올바르지 않습니다." }, { status: 400 });
-    }
-    const content = body.content.trim();
-    if (!content || new TextEncoder().encode(content).byteLength > 12_000) {
-      return NextResponse.json({ error: "메시지가 너무 깁니다." }, { status: 413 });
-    }
-    const visibility = body.visibility === "bride_private" || body.visibility === "groom_private"
-      ? body.visibility
-      : "shared";
-    const target = body.target === "partner" ? "partner" : null;
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    const { data, error } = await admin.rpc("insert_amora_user_message", {
-      p_user_id: user.id,
-      p_couple_id: body.coupleId,
-      p_content: content,
-      p_visibility: visibility,
-      p_target: target,
-    });
-    if (error || !isRecord(data)) {
-      return NextResponse.json({ error: "메시지 전송에 실패했습니다." }, { status: 409 });
-    }
-    return NextResponse.json({ message: data }, { status: 201 });
-  } catch (error) {
-    console.error("메시지 저장 에러:", error);
-    return NextResponse.json({ error: "메시지 전송에 실패했습니다." }, { status: 500 });
-  }
-}
+const MAX_BODY_BYTES = 8 * 1024;
 
 // 사용자가 해당 커플에 속하는지 + role 반환
 async function verifyCoupleOwnership(
@@ -101,6 +53,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
+    const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
+      maxRequests: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (limited) return limited;
+
     const body = await request.json().catch(() => null);
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
@@ -125,96 +83,52 @@ export async function DELETE(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    let isLifecycleContinuation = false;
-    if (mode === "delete_private") {
-      const { data: lifecycle } = await admin
-        .from("profiles")
-        .select("private_chat_deleting_at")
-        .eq("id", user!.id)
-        .maybeSingle();
-      isLifecycleContinuation = Boolean(lifecycle?.private_chat_deleting_at);
-    }
-    if (!isLifecycleContinuation) {
-      const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
-        maxRequests: 10,
-        windowMs: 10 * 60 * 1000,
-      });
-      if (limited) return limited;
-    }
+    const now = new Date().toISOString();
 
     switch (mode) {
       case "view_reset_shared": {
-        const { data: clearedAt, error } = await admin.rpc("reset_my_amora_chat_view", {
-          p_user_id: user!.id,
-          p_couple_id: coupleId,
-          p_visibility: "shared",
-        });
+        // 본인 프로필의 timestamp만 업데이트. DB의 메시지는 그대로.
+        const { error } = await admin
+          .from("profiles")
+          .update({ shared_chat_cleared_at: now })
+          .eq("id", user!.id);
         if (error) throw error;
-        return NextResponse.json({ success: true, mode, clearedAt });
+        return NextResponse.json({ success: true, mode, clearedAt: now });
       }
 
       case "view_reset_private": {
-        if (role !== "bride" && role !== "groom") {
-          return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
-        }
-        const privateVisibility = role === "bride" ? "bride_private" : "groom_private";
-        const { data: clearedAt, error } = await admin.rpc("reset_my_amora_chat_view", {
-          p_user_id: user!.id,
-          p_couple_id: coupleId,
-          p_visibility: privateVisibility,
-        });
+        const { error } = await admin
+          .from("profiles")
+          .update({ private_chat_cleared_at: now })
+          .eq("id", user!.id);
         if (error) throw error;
-        return NextResponse.json({ success: true, mode, clearedAt });
+        return NextResponse.json({ success: true, mode, clearedAt: now });
       }
 
       case "delete_shared": {
-        // 물리 삭제는 상대방 동의를 API에서 원자 검증할 수 있을 때까지 금지한다.
-        // 현재 동의 플로우는 양쪽 cleared_at만 갱신하는 안전한 view-reset이다.
-        return NextResponse.json(
-          { error: "공유 대화 물리 삭제는 지원하지 않습니다. 동의 요청을 통해 양쪽 화면을 정리해주세요." },
-          { status: 409 }
-        );
+        // 둘 다 새로 시작 — 양쪽 영향. shared 메시지만 삭제 (private은 보존).
+        const { count, error } = await admin
+          .from("chat_messages")
+          .delete({ count: "exact" })
+          .eq("couple_id", coupleId)
+          .eq("visibility", "shared");
+        if (error) throw error;
+        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
       }
 
       case "delete_private": {
-        // 본인 private만 원자 삭제. 역할/visibility 소유권은 DB 함수가 같은
-        // 트랜잭션에서 다시 검증하므로 상대방 private은 건드릴 수 없다.
+        // 본인 private만 삭제. 상대방 private은 절대 못 건드림.
         if (role !== "bride" && role !== "groom") {
           return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
         }
         const myVisibility = role === "bride" ? "bride_private" : "groom_private";
-
-        const { error: beginError } = await admin.rpc("begin_private_amora_delete", {
-          p_user_id: user!.id,
-          p_couple_id: coupleId,
-          p_visibility: myVisibility,
-        });
-        if (beginError) throw beginError;
-
-        const { data: activeLeaseCount, error: leaseError } = await admin.rpc(
-          "count_active_amora_private_provider_leases",
-          { p_user_id: user!.id, p_visibility: myVisibility }
-        );
-        if (leaseError) throw leaseError;
-        if (Number(activeLeaseCount ?? 0) > 0) {
-          return NextResponse.json(
-            { pending: true, retryAfterMs: 1000 },
-            { status: 202, headers: { "Retry-After": "1" } }
-          );
-        }
-
-        const { data: deleted, error } = await admin.rpc("delete_private_amora_data", {
-          p_user_id: user!.id,
-          p_couple_id: coupleId,
-          p_visibility: myVisibility,
-        });
+        const { count, error } = await admin
+          .from("chat_messages")
+          .delete({ count: "exact" })
+          .eq("couple_id", coupleId)
+          .eq("visibility", myVisibility);
         if (error) throw error;
-
-        return NextResponse.json({
-          success: true,
-          mode,
-          deleted: typeof deleted === "number" ? deleted : Number(deleted ?? 0),
-        });
+        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
       }
 
       default:

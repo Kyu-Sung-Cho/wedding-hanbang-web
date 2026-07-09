@@ -1,5 +1,4 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { messageRowToMessage } from "@/lib/utils/vendorMapper";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -13,7 +12,6 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_MESSAGE_BODY_BYTES = 16 * 1024;
 const MAX_MESSAGE_LENGTH = 2000;
-const MESSAGE_SELECT = "id, vendor_id, customer_id, sender_type, content, is_read, booking_id, created_at";
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
@@ -40,32 +38,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "customerId가 올바르지 않습니다." }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    const { data: vendor } = await admin
-      .from("vendors")
-      .select("id, owner_id, status")
-      .eq("id", vendorId)
-      .maybeSingle();
-    if (!vendor) {
-      return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
-    }
-
-    let query = admin
+    let query = supabase
       .from("vendor_messages")
-      .select(MESSAGE_SELECT)
+      .select("*")
       .eq("vendor_id", vendorId)
       .order("created_at", { ascending: true });
 
     if (customerId) {
       // customerId 지정 시 해당 vendor의 owner만 조회 가능
-      if (vendor.owner_id !== user.id) {
+      const { data: vendorOwner } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("id", vendorId)
+        .eq("owner_id", user.id)
+        .single();
+
+      if (!vendorOwner) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
       }
       query = query.eq("customer_id", customerId);
     } else {
-      if (vendor.status !== "approved") {
-        return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
-      }
       query = query.eq("customer_id", user.id);
     }
 
@@ -81,7 +73,7 @@ export async function GET(req: Request) {
       .map((m) => m.id);
 
     if (unreadIds.length > 0) {
-      await admin
+      await supabase
         .from("vendor_messages")
         .update({ is_read: true })
         .in("id", unreadIds);
@@ -134,42 +126,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "customerId가 올바르지 않습니다." }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    const { data: vendor } = await admin
+    const { data: vendorOwnership } = await supabase
       .from("vendors")
-      .select("id, owner_id, status")
+      .select("id")
       .eq("id", vendorId)
-      .maybeSingle();
-    if (!vendor || (vendor.status !== "approved" && vendor.owner_id !== user.id)) {
-      return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
-    }
+      .eq("owner_id", user.id)
+      .single();
 
-    const isVendorOwner = vendor.owner_id === user.id;
-    if (!isVendorOwner && rawCustomerId !== undefined && rawCustomerId !== null) {
-      return NextResponse.json({ error: "customerId를 지정할 권한이 없습니다." }, { status: 403 });
-    }
-    if (isVendorOwner && !customerId) {
-      return NextResponse.json({ error: "customerId는 필수입니다." }, { status: 400 });
-    }
-    const resolvedSenderType = isVendorOwner ? "vendor" : "customer";
-    const resolvedCustomerId = isVendorOwner ? customerId! : user.id;
+    const resolvedSenderType = vendorOwnership ? "vendor" : "customer";
+    const resolvedCustomerId = vendorOwnership && customerId ? customerId : user.id;
 
-    // 업체는 고객이 먼저 연 기존 대화에만 답장할 수 있다. 임의 UUID를
-    // customerId로 넣어 선제 메시지를 보내는 경로는 차단한다.
-    if (isVendorOwner) {
-      const { data: existingThread } = await admin
-        .from("vendor_messages")
-        .select("id")
-        .eq("vendor_id", vendorId)
-        .eq("customer_id", resolvedCustomerId)
-        .limit(1)
-        .maybeSingle();
-      if (!existingThread) {
-        return NextResponse.json({ error: "기존 고객 대화에만 답장할 수 있습니다." }, { status: 403 });
-      }
-    }
-
-    const { data: message, error } = await admin
+    const { data: message, error } = await supabase
       .from("vendor_messages")
       .insert({
         vendor_id: vendorId,
@@ -178,7 +145,7 @@ export async function POST(req: Request) {
         content,
         is_read: false,
       })
-      .select(MESSAGE_SELECT)
+      .select()
       .single();
 
     if (error) {
