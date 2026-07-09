@@ -89,11 +89,11 @@ describe("WeddingCode v0.5 result copy", () => {
     expect(report.scenarioCards).toHaveLength(5);
     expect(report.scenarioCards[0].relation).toBe("different");
     expect(report.scenarioCards.map((card) => card.id)).toContain("venue_budget_gap");
-    expect(text).toContain("실제 보증인원 차이");
+    expect(text).toContain("식장에 예약해야 하는 최소 인원");
     expect(JSON.stringify(report)).not.toContain("\"A1\"");
     expect(report.solutionCards).toHaveLength(4);
-    expect(report.solutionCards.map((card) => card.categoryKo)).toContain("드레스·스튜디오 선택");
-    expect(text).toContain("예산선과 마음에 드는 장면");
+    expect(report.solutionCards.map((card) => card.categoryKo)).toContain("사진·드레스·메이크업 선택");
+    expect(text).toContain("쓸 수 있는 돈과 마음에 드는 느낌");
     for (const word of BANNED_PUBLIC_WORDS) {
       expect(text).not.toContain(word);
     }

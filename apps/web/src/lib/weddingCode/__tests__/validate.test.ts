@@ -13,7 +13,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
     answering_mode: "alone",
     quote_status: "none",
     parent_involvement: "low",
-    biggest_concern: ["예산·견적"],
+    biggest_concern: ["예산·비용"],
     answers,
     stage_flags: {},
     feedback: { feels_like_me: 4, clarity: 5 },
