@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const admin = getServiceClient();
     const { data, error } = await admin
       .from("wedding_code_responses")
-      .select("created_at, form_version, answers")
+      .select("created_at, form_version, scoring_version, answers")
       .eq("couple_token", coupleToken)
       .order("created_at", { ascending: true })
       .limit(2);

@@ -3,7 +3,7 @@
 // 웨딩코드 v0.5 폼 — 16개 상황형 질문을 한 화면 한 질문으로 진행한다.
 // 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 사람이나 관계를 단정하지 않는다.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, MessageCircle, UsersRound } from "lucide-react";
 import {
@@ -13,16 +13,22 @@ import {
 } from "@/constants/weddingCodeForm";
 import {
   WEDDING_CODE_V05_QUESTIONS,
+  WEDDING_CODE_V05_SCORING_VERSION,
   WEDDING_CODE_V05_VERSION,
   type WeddingCodeV05Question,
 } from "@/constants/weddingCodeV05";
 import { readStoredUtm } from "@/utils/utm";
+import { isUuid } from "@/utils/requestValidation";
 import { captureEvent } from "@/lib/analytics";
-import { WC_RESULT_STORAGE_KEY, type WcResultBackup } from "./result/ResultClient";
+import {
+  clearSubmissionId,
+  getOrCreateSubmissionId,
+  parseWeddingCodeSubmissionResult,
+  type SubmissionAttemptIdentity,
+} from "@/lib/weddingCode/submissionAttempt";
+import { storeWcResultBackup, type WcResultBackup } from "./result/resultBackup";
 
 type Step = "intro" | "context" | "questions" | "feedback" | "cta" | "freetext";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type FlowQuestion = WeddingCodeV05Question;
 
@@ -51,9 +57,12 @@ export default function WeddingCodeClient() {
 
   // 파트너 유입 페어링 토큰 (?ct=) — 형식만 확인, 엄격 검증은 서버
   const [ctToken, setCtToken] = useState<string | null>(null);
+  const [invalidInvite, setInvalidInvite] = useState(false);
   useEffect(() => {
     const ct = new URLSearchParams(window.location.search).get("ct");
-    if (ct && UUID_RE.test(ct)) setCtToken(ct);
+    if (!ct) return;
+    if (isUuid(ct)) setCtToken(ct.toLowerCase());
+    else setInvalidInvite(true);
   }, []);
 
   // 참여자 컨텍스트
@@ -66,8 +75,10 @@ export default function WeddingCodeClient() {
 
   // 문항
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   const [qIndex, setQIndex] = useState(0);
+  const advanceTimerRef = useRef<number | null>(null);
+  const submissionIdRef = useRef<SubmissionAttemptIdentity | null>(null);
+  const submittingRef = useRef(false);
 
   // 피드백·CTA·자유 텍스트
   const [feedback, setFeedback] = useState<Record<string, number>>({});
@@ -84,81 +95,146 @@ export default function WeddingCodeClient() {
   const contextMissingCount = 4 - contextAnswerCount;
   const contextComplete = contextMissingCount === 0;
 
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
+    };
+  }, []);
+
+  function cancelPendingAdvance() {
+    if (advanceTimerRef.current === null) return;
+    window.clearTimeout(advanceTimerRef.current);
+    advanceTimerRef.current = null;
+  }
+
   function toggleConcern(c: string) {
     setConcerns((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   }
 
   function selectOption(q: FlowQuestion, value: string) {
+    cancelPendingAdvance();
     setAnswers((prev) => ({ ...prev, [q.key]: value }));
-    setSkipped((prev) => ({ ...prev, [q.key]: false }));
-    window.setTimeout(() => advance(), 160);
+    const selectedIndex = qIndex;
+    advanceTimerRef.current = window.setTimeout(() => {
+      advanceTimerRef.current = null;
+      if (selectedIndex + 1 < flow.length) setQIndex(selectedIndex + 1);
+      else setStep("feedback");
+    }, 160);
   }
 
-  function advance() {
-    if (qIndex + 1 < flow.length) setQIndex(qIndex + 1);
-    else setStep("feedback");
+  function goBackFromQuestion() {
+    cancelPendingAdvance();
+    if (qIndex > 0) setQIndex((index) => index - 1);
+    else setStep("context");
   }
 
   async function submit() {
-    if (submitting) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
+    let submissionConfirmed = false;
     try {
       const utm = readStoredUtm();
       const params = new URLSearchParams(window.location.search);
+      const stablePayload = {
+        consent: true,
+        form_version: WEDDING_CODE_V05_VERSION,
+        scoring_version: WEDDING_CODE_V05_SCORING_VERSION,
+        participant_stage: stage,
+        answering_mode: mode,
+        quote_status: quoteStatus,
+        parent_involvement: parentInvolvement,
+        biggest_concern: concerns,
+        biggest_concern_other: concerns.includes("기타") ? concernOther : undefined,
+        answers,
+        stage_flags: {},
+        feedback,
+        cta_interest: cta,
+        free_text: freeText,
+        utm_source: utm?.source ?? params.get("utm_source") ?? undefined,
+        utm_medium: utm?.medium ?? params.get("utm_medium") ?? undefined,
+        utm_campaign: utm?.campaign ?? params.get("utm_campaign") ?? undefined,
+        utm_content: params.get("utm_content") ?? undefined,
+        couple_token: ctToken ?? undefined,
+      };
+      // Keep one idempotency key for this invite/standalone attempt. If the DB
+      // committed but the HTTP response was lost, a retry or reload must not
+      // create a second participant row or consume another pair slot.
+      const submissionId = getOrCreateSubmissionId(
+        submissionIdRef,
+        ctToken ?? `standalone:${WEDDING_CODE_V05_VERSION}`
+      );
       const res = await fetch("/api/wedding-code/response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          consent: true,
-          participant_stage: stage,
-          answering_mode: mode,
-          quote_status: quoteStatus,
-          parent_involvement: parentInvolvement,
-          biggest_concern: concerns,
-          biggest_concern_other: concerns.includes("기타") ? concernOther : undefined,
-          answers,
-          stage_flags: {},
-          feedback,
-          cta_interest: cta,
-          free_text: freeText,
+          ...stablePayload,
+          submission_id: submissionId,
           duration_ms: startedAt ? Date.now() - startedAt : undefined,
-          utm_source: utm?.source ?? params.get("utm_source") ?? undefined,
-          utm_medium: utm?.medium ?? params.get("utm_medium") ?? undefined,
-          utm_campaign: utm?.campaign ?? params.get("utm_campaign") ?? undefined,
-          utm_content: params.get("utm_content") ?? undefined,
-          couple_token: ctToken ?? undefined,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean; error?: string; id?: string | null; paired?: boolean; coupleToken?: string | null;
+        success?: boolean;
+        error?: string;
+        id?: string | null;
+        paired?: boolean;
+        recovered?: boolean;
+        pairingStatus?: "unpaired" | "waiting" | "paired" | "full";
+        coupleToken?: string | null;
+        formVersion?: string;
+        scoringVersion?: string;
+        participantStage?: string;
+        quoteStatus?: string;
+        answers?: unknown;
       };
       if (!res.ok || !data.success) {
         setError(data.error ?? "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
         return;
       }
-      captureEvent("wedding_code_completed", { stage, quote_status: quoteStatus });
-      if (data.paired) captureEvent("wc_invite_pair_completed", {});
+
+      const canonicalResult = parseWeddingCodeSubmissionResult(data);
+      if (!canonicalResult) {
+        // The DB may already have committed. Keep the pending submission id so
+        // the same button safely asks the server for the canonical row again.
+        setError("저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      captureEvent("wedding_code_completed", {
+        stage: canonicalResult.participantStage,
+        quote_status: canonicalResult.quoteStatus,
+        version: canonicalResult.formVersion,
+      });
+      if (canonicalResult.paired) captureEvent("wc_invite_pair_completed", {});
 
       // 결과 화면용 백업 (새로고침 대비) → /wedding-code/result 이동
       const resultBackup: WcResultBackup = {
-        answers,
-        skipped,
-        version: WEDDING_CODE_V05_VERSION,
-        responseId: data.id ?? null,
-        paired: data.paired === true,
-        coupleToken: data.coupleToken ?? null,
+        answers: canonicalResult.answers,
+        skipped: {},
+        version: canonicalResult.formVersion,
+        scoringVersion: canonicalResult.scoringVersion,
+        responseId: canonicalResult.id,
+        paired: canonicalResult.paired,
+        pairingStatus: canonicalResult.pairingStatus,
+        coupleToken: canonicalResult.coupleToken,
+        recoveredPriorSubmission: canonicalResult.recovered,
         savedAt: new Date().toISOString(),
       };
-      try {
-        // localStorage — 카톡 인앱 종료 후 재방문에도 결과 복원 (재응시 시 덮어쓰기 허용)
-        window.localStorage.setItem(WC_RESULT_STORAGE_KEY, JSON.stringify(resultBackup));
-      } catch { /* storage 불가 시에도 이동 — 결과 화면이 폼으로 안내 */ }
-      router.push("/wedding-code/result");
+      // localStorage가 막힌 인앱 브라우저에서도 DB 응답을 다시 제출하지 않고
+      // sessionStorage 또는 현재 탭 메모리로 결과를 넘긴다.
+      storeWcResultBackup(resultBackup);
+      router.replace("/wedding-code/result");
+      submissionConfirmed = true;
+      clearSubmissionId(submissionIdRef);
     } catch {
       setError("네트워크 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
     } finally {
-      setSubmitting(false);
+      // A confirmed response must stay locked until navigation unmounts this
+      // form. Reopening the button could create a fresh id and self-pair.
+      if (!submissionConfirmed) {
+        submittingRef.current = false;
+        setSubmitting(false);
+      }
     }
   }
 
@@ -168,7 +244,7 @@ export default function WeddingCodeClient() {
     <div className="min-h-screen bg-[#fbf8f2] px-4 py-7 sm:py-12">
       <div className="mx-auto w-full max-w-[620px]">
         {/* 헤더 */}
-        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">
+        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b5528]">
           WEDDINGCODE V0.5
         </p>
         <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[#263832] sm:text-[30px]">
@@ -178,14 +254,21 @@ export default function WeddingCodeClient() {
         {/* 진행 바 (문항 단계에서만) */}
         {step === "questions" && flow.length > 0 && (
           <div className="mb-5">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]"
+              role="progressbar"
+              aria-label="웨딩코드 질문 진행률"
+              aria-valuemin={0}
+              aria-valuemax={flow.length}
+              aria-valuenow={answeredCount}
+            >
               <div
-                className="h-full rounded-full bg-[#36534E] transition-all duration-300"
+                className="h-full rounded-full bg-[#36534E] transition-[width] duration-300 motion-reduce:transition-none"
                 style={{ width: `${Math.round((answeredCount / flow.length) * 100)}%` }}
               />
             </div>
             {/* 번호는 현재 위치 기준 — 뒤로가기로 재방문해도 보고 있는 문항과 일치 */}
-            <p className="mt-1.5 text-right text-[12px] font-medium text-[#9a9188]">
+            <p className="mt-1.5 text-right text-[12px] font-medium text-[#6d625a]">
               {qIndex + 1} / {flow.length}
             </p>
           </div>
@@ -195,7 +278,26 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} overflow-hidden`}>
             <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">중요하게 보는 것을 정리해요</p>
+              <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">중요하게 보는 것을 정리해요</p>
+              {ctToken && (
+                <div className="mt-3 flex items-start gap-3 rounded-[14px] bg-[#EEF4F1] px-4 py-3.5" role="status">
+                  <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-[#36534E]" aria-hidden="true" />
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#263832]">상대가 보낸 초대 링크로 들어왔어요</p>
+                    <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#5d6879]">
+                      테스트를 완료하면 두 사람의 준비 방식을 같은 화면에서 비교할 수 있어요.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {invalidInvite && (
+                <div className="mt-3 rounded-[14px] border border-[#d8b8b2] bg-[#fff7f5] px-4 py-3.5" role="alert">
+                  <p className="text-[13px] font-semibold text-[#7d4540]">초대 링크가 올바르지 않아요</p>
+                  <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#6d625a]">
+                    이대로 진행하면 개인 결과만 저장돼요. 상대에게 새 초대 링크를 받아 다시 열어주세요.
+                  </p>
+                </div>
+              )}
               <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[#34445a]">
                 {WC_V05_INTRO_BODY}
               </p>
@@ -247,9 +349,16 @@ export default function WeddingCodeClient() {
                   {contextComplete ? "질문으로 넘어갈 수 있어요" : `${contextMissingCount}개 더 선택`}
                 </p>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-white"
+                role="progressbar"
+                aria-label="기본 상황 응답 진행률"
+                aria-valuemin={0}
+                aria-valuemax={4}
+                aria-valuenow={contextAnswerCount}
+              >
                 <div
-                  className="h-full rounded-full bg-[#36534E] transition-all"
+                  className="h-full rounded-full bg-[#36534E] transition-[width] motion-reduce:transition-none"
                   style={{ width: `${(contextAnswerCount / 4) * 100}%` }}
                 />
               </div>
@@ -260,14 +369,15 @@ export default function WeddingCodeClient() {
             <ContextSelect label="부모님 또는 가족이 결혼 준비 결정에 어느 정도 관여하고 있나요?" options={WC_PARENT_INVOLVEMENTS} value={parentInvolvement} onChange={setParentInvolvement} />
 
             <p className="mb-2 mt-6 text-[14px] font-semibold text-[#263832]">
-              지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[#9a9188]">(복수 선택)</span>
+              지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[#6d625a]">(복수 선택)</span>
             </p>
             <div className="flex flex-wrap gap-2">
               {WC_CONCERNS.map((c) => (
                 <button
                   key={c}
                   onClick={() => toggleConcern(c)}
-                  className={`rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                  aria-pressed={concerns.includes(c)}
+                  className={`min-h-11 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                     concerns.includes(c)
                       ? "border-[#36534E] bg-[#36534E] text-white"
                       : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#b68a3a]"
@@ -282,6 +392,8 @@ export default function WeddingCodeClient() {
                 type="text"
                 value={concernOther}
                 onChange={(e) => setConcernOther(e.target.value)}
+                maxLength={200}
+                aria-label="기타 결혼 준비 고민"
                 placeholder="기타 고민을 적어주세요"
                 className="mt-3 w-full rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[14px] text-[#263832] outline-none focus:border-[#36534E]"
               />
@@ -294,7 +406,7 @@ export default function WeddingCodeClient() {
             >
               {contextComplete ? "질문 시작" : `${contextMissingCount}개 더 선택하면 시작`} <ArrowRight className="h-4 w-4" />
             </button>
-            <p className="mt-3 text-center text-[12px] font-medium text-[#9a9188]">{WC_NO_RIGHT_ANSWER}</p>
+            <p className="mt-3 text-center text-[12px] font-medium text-[#6d625a]">{WC_NO_RIGHT_ANSWER}</p>
           </div>
         )}
 
@@ -302,7 +414,7 @@ export default function WeddingCodeClient() {
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
+              <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">{current.title}</p>
               <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
                 {qIndex + 1} / {flow.length}
               </p>
@@ -315,6 +427,7 @@ export default function WeddingCodeClient() {
                 <button
                   key={opt.value}
                   onClick={() => selectOption(current, opt.value)}
+                  aria-pressed={answers[current.key] === opt.value}
                   className={`flex items-start gap-3 rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
                     answers[current.key] === opt.value
                       ? "border-[#36534E] bg-[#EEF4F1] text-[#263832]"
@@ -332,7 +445,7 @@ export default function WeddingCodeClient() {
             </div>
             <div className="mt-5 flex items-center justify-between">
               <button
-                onClick={() => (qIndex > 0 ? setQIndex(qIndex - 1) : setStep("context"))}
+                onClick={goBackFromQuestion}
                 className={ghostBtn}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
@@ -369,12 +482,16 @@ export default function WeddingCodeClient() {
         {step === "freetext" && (
           <div className={`${card} p-6 sm:p-8`}>
             <h2 className="mb-4 text-[20px] font-semibold text-[#263832]">마지막으로, 자유롭게 남겨주세요</h2>
+            <p className="mb-4 rounded-[12px] bg-[#fff7f5] px-3.5 py-3 text-[12px] font-semibold leading-relaxed text-[#7d4540]">
+              이름, 전화번호, 이메일, 업체 담당자 정보처럼 개인을 알아볼 수 있는 내용은 적지 말아주세요.
+            </p>
             {WC_FREE_TEXT_ITEMS.map((item) => (
               <div key={item.key} className="mb-4">
-                <p className="mb-1.5 text-[13px] font-semibold text-[#34445a]">
-                  {item.label} <span className="font-medium text-[#9a9188]">(선택)</span>
-                </p>
+                <label htmlFor={`wc-free-text-${item.key}`} className="mb-1.5 block text-[13px] font-semibold text-[#34445a]">
+                  {item.label} <span className="font-medium text-[#6d625a]">(선택)</span>
+                </label>
                 <textarea
+                  id={`wc-free-text-${item.key}`}
                   value={freeText[item.key] ?? ""}
                   onChange={(e) => setFreeText((p) => ({ ...p, [item.key]: e.target.value }))}
                   rows={2}
@@ -383,7 +500,7 @@ export default function WeddingCodeClient() {
                 />
               </div>
             ))}
-            {error && <p className="mb-3 text-[13px] font-semibold text-red-500">{error}</p>}
+            {error && <p className="mb-3 text-[13px] font-semibold text-red-700" role="alert">{error}</p>}
             <div className="flex items-center justify-between gap-3">
               <button onClick={() => setStep("cta")} className={ghostBtn}>
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
@@ -419,7 +536,7 @@ function ContextSelect({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={value === opt.value}
-            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
               value === opt.value
                 ? "border-[#36534E] bg-[#36534E] text-white"
                 : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#b68a3a]"
@@ -447,7 +564,7 @@ function ScaleScreen({
   return (
     <div className={`${card} p-6 sm:p-8`}>
       <h2 className="mb-1 text-[20px] font-semibold text-[#263832]">{title}</h2>
-      <p className="mb-5 text-[12px] font-medium text-[#9a9188]">
+      <p className="mb-5 text-[12px] font-medium text-[#6d625a]">
         1 = {WC_SCALE_LABELS[0]} · 5 = {WC_SCALE_LABELS[4]} (선택 사항)
       </p>
       {items.map((item) => (
@@ -459,7 +576,8 @@ function ScaleScreen({
                 key={n}
                 onClick={() => onChange(item.key, n)}
                 aria-label={`${item.label} — ${n}점 (${WC_SCALE_LABELS[n - 1]})`}
-                className={`h-10 flex-1 rounded-[10px] border text-[14px] font-semibold transition-colors ${
+                aria-pressed={values[item.key] === n}
+                className={`min-h-11 flex-1 rounded-[10px] border text-[14px] font-semibold transition-colors ${
                   values[item.key] === n
                     ? "border-[#36534E] bg-[#36534E] text-white"
                     : "border-[#eadfc9] bg-white text-[#6d625a] hover:border-[#36534E]/50"

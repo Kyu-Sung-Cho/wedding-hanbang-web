@@ -1,6 +1,10 @@
 import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
 
 export const WEDDING_CODE_V05_VERSION = "v0.5-candidate.9";
+// Copy/form revisions may change without changing the weight map. Keep the
+// scoring contract separate so stored answers are never evaluated under an
+// unrecorded algorithm revision.
+export const WEDDING_CODE_V05_SCORING_VERSION = "v0.5-scoring.1";
 export const WEDDING_CODE_V05_COMPATIBLE_VERSIONS = [
   WEDDING_CODE_V05_VERSION,
   "v0.5-candidate.8",
@@ -198,7 +202,7 @@ export const WEDDING_CODE_V05_QUESTIONS = [
     sourceReview: "34_item_review_B3_different_lenses_v0.1.md",
     status: "candidate_pending_human_validation",
     options: [
-      { value: "A", label: "각자 잘 보는 부분을 나눠 맡는다", weights: [{ construct: "roleOwnership", value: 2 }] },
+      { value: "A", label: "가격·위치·사진처럼 각자 잘 보는 항목을 나눠 맡는다", weights: [{ construct: "roleOwnership", value: 2 }] },
       { value: "B", label: "마지막으로 고를 곳은 둘이 같이 본다", weights: [{ construct: "coPreparation", value: 2 }] },
       { value: "C", label: "많이 알아본 사람이 먼저 2~3곳만 추려서 공유한다", weights: [{ construct: "roleOwnership", value: 2 }, { construct: "coPreparation", value: 1 }] },
       { value: "D", label: "가격, 위치, 마음에 드는 점을 표에 적어 비교한다", weights: [{ construct: "roleOwnership", value: 1 }, { construct: "coPreparation", value: 1 }, { construct: "evidenceDecision", value: 1 }] },

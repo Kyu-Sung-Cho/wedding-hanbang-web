@@ -6,6 +6,12 @@
 import { useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
+import {
+  POSTHOG_SENSITIVE_QUERY_KEYS,
+  redactSensitiveAnalyticsCapture,
+  redactSensitiveNetworkCapture,
+  redactSensitiveUrl,
+} from "@/lib/analytics/urlPrivacy";
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
@@ -15,9 +21,23 @@ function ensureInit() {
   initialized = true;
   posthog.init(POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+    // Feature flags are unused. This blocks the SDK's flags/remote-config
+    // requests, whose initial-person payload is created before before_send.
+    advanced_disable_flags: true,
+    // Scrub SDK-generated current/referrer URLs before they are persisted or
+    // attached to any request, in addition to our event-level before_send hook.
+    mask_personal_data_properties: true,
+    custom_personal_data_properties: [...POSTHOG_SENSITIVE_QUERY_KEYS],
     capture_pageview: false, // App Router 라우트 전환은 아래에서 수동 캡처
     capture_pageleave: true,
     persistence: "localStorage+cookie",
+    session_recording: {
+      maskAllInputs: true,
+      recordBody: false,
+      recordHeaders: false,
+      maskCapturedNetworkRequestFn: redactSensitiveNetworkCapture,
+    },
+    before_send: redactSensitiveAnalyticsCapture,
   });
 }
 
@@ -30,7 +50,9 @@ function PageViewTracker() {
     ensureInit();
     const qs = searchParams?.toString();
     posthog.capture("$pageview", {
-      $current_url: window.location.origin + pathname + (qs ? `?${qs}` : ""),
+      $current_url: redactSensitiveUrl(
+        window.location.origin + pathname + (qs ? `?${qs}` : "")
+      ),
     });
   }, [pathname, searchParams]);
 

@@ -15,6 +15,7 @@ vi.mock("@/utils/rateLimit", () => ({
 
 const RESPONSE_ID = "123e4567-e89b-42d3-a456-426614174000";
 const COUPLE_TOKEN = "223e4567-e89b-42d3-a456-426614174000";
+const CANONICAL_TOKEN = "323e4567-e89b-42d3-a456-426614174000";
 
 function request(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/wedding-code/pair", {
@@ -25,34 +26,28 @@ function request(body: unknown, headers: Record<string, string> = {}) {
 }
 
 function mockAdmin(options: {
-  existingCount?: number;
-  updated?: { id: string } | null;
-  updateError?: { message: string } | null;
+  pairingStatus?: string;
+  coupleToken?: string | null;
+  error?: { message: string } | null;
 }) {
-  const countQuery = {
-    select: vi.fn(() => countQuery),
-    eq: vi.fn(() => Promise.resolve({ count: options.existingCount ?? 0, error: null })),
-  };
-  const updateQuery = {
-    update: vi.fn(() => updateQuery),
-    eq: vi.fn(() => updateQuery),
-    is: vi.fn(() => updateQuery),
-    select: vi.fn(() => updateQuery),
-    maybeSingle: vi.fn(() =>
+  const pairingStatus = options.pairingStatus ?? "waiting";
+  const coupleToken = Object.prototype.hasOwnProperty.call(options, "coupleToken")
+    ? options.coupleToken
+    : pairingStatus === "waiting" || pairingStatus === "paired"
+      ? COUPLE_TOKEN
+      : null;
+  const admin = {
+    rpc: vi.fn(() =>
       Promise.resolve({
-        data: options.updated === undefined ? { id: RESPONSE_ID } : options.updated,
-        error: options.updateError ?? null,
+        data: options.error
+          ? null
+          : [{ pairing_status: pairingStatus, couple_token: coupleToken }],
+        error: options.error ?? null,
       })
     ),
   };
-  const admin = {
-    from: vi
-      .fn()
-      .mockReturnValueOnce(countQuery)
-      .mockReturnValueOnce(updateQuery),
-  };
   vi.mocked(createClient).mockReturnValue(admin as unknown as ReturnType<typeof createClient>);
-  return { admin, countQuery, updateQuery };
+  return admin;
 }
 
 describe("/api/wedding-code/pair POST", () => {
@@ -80,26 +75,82 @@ describe("/api/wedding-code/pair POST", () => {
   });
 
   it("rejects a token that already has two responses", async () => {
-    const { updateQuery } = mockAdmin({ existingCount: 2 });
+    const admin = mockAdmin({ pairingStatus: "full" });
 
     const response = await POST(request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN }));
     const body = await response.json();
 
     expect(response.status).toBe(409);
     expect(body.error).toContain("이미 두 분");
-    expect(updateQuery.update).not.toHaveBeenCalled();
+    expect(body.pairingStatus).toBe("full");
+    expect(admin.rpc).toHaveBeenCalledWith("pair_wedding_code_response", {
+      p_response_id: RESPONSE_ID,
+      p_couple_token: COUPLE_TOKEN,
+    });
   });
 
   it("links a response that does not already have a couple token", async () => {
-    const { updateQuery } = mockAdmin({ existingCount: 1 });
+    const admin = mockAdmin({ pairingStatus: "waiting" });
 
     const response = await POST(request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(updateQuery.update).toHaveBeenCalledWith({ couple_token: COUPLE_TOKEN });
-    expect(updateQuery.eq).toHaveBeenCalledWith("id", RESPONSE_ID);
-    expect(updateQuery.is).toHaveBeenCalledWith("couple_token", null);
+    expect(body.pairingStatus).toBe("waiting");
+    expect(body.coupleToken).toBe(COUPLE_TOKEN);
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when the atomic pairing RPC is unavailable", async () => {
+    mockAdmin({ error: { message: "function missing" } });
+
+    const response = await POST(request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN }));
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.pairingStatus).toBe("error");
+  });
+
+  it("treats a same-token retry as an idempotent success", async () => {
+    mockAdmin({ pairingStatus: "paired" });
+    const response = await POST(
+      request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      success: true,
+      pairingStatus: "paired",
+      coupleToken: COUPLE_TOKEN,
+    });
+  });
+
+  it("does not expose a token when the response capability is missing", async () => {
+    mockAdmin({ pairingStatus: "not_found" });
+    const missingResponse = await POST(
+      request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN })
+    );
+    const missingBody = await missingResponse.json();
+
+    expect(missingResponse.status).toBe(409);
+    expect(missingBody.pairingStatus).toBe("conflict");
+    expect(missingBody.coupleToken).toBeUndefined();
+  });
+
+  it("returns the canonical token when a stale tab requests another token", async () => {
+    mockAdmin({ pairingStatus: "paired", coupleToken: CANONICAL_TOKEN });
+    const response = await POST(
+      request({ response_id: RESPONSE_ID, couple_token: COUPLE_TOKEN })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      success: true,
+      pairingStatus: "paired",
+      coupleToken: CANONICAL_TOKEN,
+    });
   });
 });

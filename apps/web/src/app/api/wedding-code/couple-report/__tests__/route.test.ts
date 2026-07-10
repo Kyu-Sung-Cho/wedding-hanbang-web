@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { WEDDING_CODE_V05_QUESTIONS, WEDDING_CODE_V05_VERSION } from "@/constants/weddingCodeV05";
+import {
+  WEDDING_CODE_V05_QUESTIONS,
+  WEDDING_CODE_V05_SCORING_VERSION,
+  WEDDING_CODE_V05_VERSION,
+} from "@/constants/weddingCodeV05";
 import { GET } from "../route";
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -20,7 +24,7 @@ type QueryResult = {
 
 class FakeQuery {
   constructor(private readonly result: QueryResult) {}
-  select() { return this; }
+  select = vi.fn(() => this);
   eq() { return this; }
   order() { return this; }
   limit() { return this; }
@@ -33,11 +37,12 @@ class FakeQuery {
 }
 
 function mockAdmin(result: QueryResult) {
+  const query = new FakeQuery(result);
   const admin = {
-    from: vi.fn(() => new FakeQuery(result)),
+    from: vi.fn(() => query),
   };
   vi.mocked(createClient).mockReturnValue(admin as unknown as ReturnType<typeof createClient>);
-  return admin;
+  return { admin, query };
 }
 
 function request(ct: string) {
@@ -63,16 +68,18 @@ describe("/api/wedding-code/couple-report GET", () => {
   });
 
   it("returns a computed couple report without exposing raw answers", async () => {
-    mockAdmin({
+    const { query } = mockAdmin({
       data: [
         {
           created_at: "2026-07-08T00:00:00.000Z",
           form_version: WEDDING_CODE_V05_VERSION,
+          scoring_version: WEDDING_CODE_V05_SCORING_VERSION,
           answers: completeAnswers("A"),
         },
         {
           created_at: "2026-07-08T00:01:00.000Z",
           form_version: WEDDING_CODE_V05_VERSION,
+          scoring_version: WEDDING_CODE_V05_SCORING_VERSION,
           answers: completeAnswers("D"),
         },
       ],
@@ -86,6 +93,9 @@ describe("/api/wedding-code/couple-report GET", () => {
     expect(body.status).toBe("ready");
     expect(body.report.titleKo).toContain("준비 방식 겹침도");
     expect(JSON.stringify(body)).not.toContain("\"A1\"");
+    expect(query.select).toHaveBeenCalledWith(
+      "created_at, form_version, scoring_version, answers"
+    );
   });
 
   it("returns 500 on Supabase read failure", async () => {
