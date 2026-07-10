@@ -37,6 +37,12 @@ function allD() {
   >;
 }
 
+function answersFromSequence(sequence: string) {
+  return Object.fromEntries(
+    WEDDING_CODE_V05_QUESTIONS.map((question, index) => [question.key, sequence[index]])
+  ) as Record<WeddingCodeV05QuestionKey, "A" | "B" | "C" | "D">;
+}
+
 function flattenText(value: unknown): string {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(flattenText).join("\n");
@@ -122,5 +128,49 @@ describe("WeddingCode v0.5 result copy", () => {
     expect(report.overlapLabelKo).toContain("부족");
     expect(report.disclaimerKo).toContain("좋고 나쁨");
     expect(flattenText(report)).not.toContain("궁합");
+  });
+
+  it("역할 분담 카피는 무엇을 나눠 보는지 구체적인 예를 든다", () => {
+    const b3 = WEDDING_CODE_V05_QUESTIONS.find((question) => question.key === "B3");
+    const option = b3?.options.find((candidate) => candidate.value === "A");
+    const report = buildWeddingCodeV05IndividualReport(scoreWeddingCodeV05({
+      B1: "B",
+      B2: "C",
+      B3: "A",
+      B4: "B",
+      D2: "D",
+      D3: "C",
+    }));
+    const preparationMode = report.axisReports.find((axis) => axis.key === "preparationMode");
+
+    expect(option?.label).toBe("가격·위치·사진처럼 각자 잘 보는 항목을 나눠 맡는다");
+    expect(preparationMode?.summaryKo).toContain("가격·위치·사진처럼");
+  });
+
+  it("모든 축이 높게 겹치면 쉬운 지점을 먼저 맞출 부분으로 중복 경고하지 않는다", () => {
+    const sameAnswers = allA();
+    const report = buildWeddingCodeV05CoupleReport(
+      scoreWeddingCodeV05(sameAnswers),
+      scoreWeddingCodeV05(sameAnswers),
+      { firstAnswers: sameAnswers, secondAnswers: sameAnswers }
+    );
+
+    expect(report.easyPoints.length).toBeGreaterThan(0);
+    expect(report.easyPoints.every((axis) => axis.overlapScore >= 75)).toBe(true);
+    expect(report.talkFirst).toBeNull();
+    expect(report.guideKo).not.toContain("점수");
+  });
+
+  it("모든 축의 겹침이 낮으면 상대적 상위 축을 쉬운 지점이라고 부르지 않는다", () => {
+    const firstAnswers = answersFromSequence("CACBDDCACCBBBBBB");
+    const secondAnswers = answersFromSequence("DBDABCDBDBACCDBC");
+    const report = buildWeddingCodeV05CoupleReport(
+      scoreWeddingCodeV05(firstAnswers),
+      scoreWeddingCodeV05(secondAnswers)
+    );
+
+    expect(report.solutionCards.every((card) => card.overlapScore < 75)).toBe(true);
+    expect(report.easyPoints).toEqual([]);
+    expect(report.talkFirst).not.toBeNull();
   });
 });

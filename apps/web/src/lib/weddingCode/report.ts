@@ -134,18 +134,24 @@ export function buildWeddingCodeV05CoupleReport(
   const overlapScore = roundScore(overlaps.reduce((sum, axis) => sum + axis.overlapScore, 0) / overlaps.length);
   const orderedByOverlap = [...overlaps].sort((a, b) => b.overlapScore - a.overlapScore);
   const orderedByNeed = [...overlaps].sort((a, b) => a.overlapScore - b.overlapScore);
-  const talkFirst = orderedByNeed[0] ?? null;
+  // "대화가 쉬운 지점" is an absolute claim, not merely a ranking. Do not
+  // apply it when even the two closest axes are still below the high-overlap
+  // threshold.
+  const easyPoints = orderedByOverlap.filter((axis) => axis.overlapScore >= 75).slice(0, 2);
+  const easyPointKeys = new Set(easyPoints.map((axis) => axis.key));
+  const talkFirst =
+    orderedByNeed.find((axis) => axis.overlapScore < 75 && !easyPointKeys.has(axis.key)) ?? null;
 
   return {
     titleKo: "두 사람의 준비 방식 겹침도",
     overlapScore,
     overlapLabelKo: coupleOverlapLabel(overlapScore),
-    easyPoints: orderedByOverlap.slice(0, 2),
+    easyPoints,
     talkFirst,
     scenarioCards: buildScenarioCards(options.firstAnswers, options.secondAnswers),
     solutionCards: orderedByNeed.map(solutionCardForAxis),
     guideKo: talkFirst
-      ? `${talkFirst.labelKo}부터 이야기해보면 좋아요. 점수가 낮다는 뜻이 아니라, 먼저 맞추면 대화가 쉬워지는 부분이에요.`
+      ? `${talkFirst.labelKo}부터 이야기해보면 좋아요. 좋고 나쁨이 아니라, 먼저 맞추면 대화가 쉬워지는 부분이에요.`
       : "두 사람이 비슷하게 답한 지점부터 가볍게 이야기해보세요.",
     disclaimerKo: COUPLE_DISCLAIMER,
   };
@@ -178,7 +184,7 @@ function axisSummary(axis: WeddingCodeV05AxisScore): string {
       if (balanced) return "함께 보는 일과 맡아서 정리하는 일을 상황에 따라 섞는 편이에요.";
       return axis.leaning === "left"
         ? "상대와 같이 보고 중요한 점을 맞춰야 준비가 편해지는 편이에요."
-        : "각자 잘 보는 일을 맡아 정리한 뒤 함께 확인하면 준비가 편해지는 편이에요.";
+        : "가격·위치·사진처럼 각자 잘 보는 항목을 나눠 맡고 함께 확인하면 준비가 편해지는 편이에요.";
     case "coordinationScope":
       if (balanced) return "둘이 원하는 것과 가족·초대 손님이 중요하게 볼 것을 함께 조율하려는 편이에요.";
       return axis.leaning === "left"

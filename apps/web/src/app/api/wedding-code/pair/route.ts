@@ -42,35 +42,64 @@ export async function POST(request: NextRequest) {
 
     const admin = getServiceClient();
 
-    // 페어 최대 2행 — 이 토큰이 이미 2행이면 연결 거부
-    const { count } = await admin
-      .from("wedding_code_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("couple_token", coupleToken);
-    if ((count ?? 0) >= 2) {
-      return NextResponse.json({ error: "이 링크는 이미 두 분이 사용했어요." }, { status: 409 });
-    }
-
-    // 토큰이 아직 없는 본인 행에만 설정 (불변)
-    const { data: updated, error } = await admin
-      .from("wedding_code_responses")
-      .update({ couple_token: coupleToken })
-      .eq("id", responseId)
-      .is("couple_token", null)
-      .select("id")
-      .maybeSingle();
+    // Row lock + token advisory lock + count + update execute in one DB
+    // transaction, so two concurrent requests cannot claim a third slot.
+    const { data: pairedResult, error } = await admin.rpc("pair_wedding_code_response", {
+      p_response_id: responseId,
+      p_couple_token: coupleToken,
+    });
 
     if (error) {
-      console.error("[wedding-code/pair] update 실패:", error.message);
-      return NextResponse.json({ error: "연결에 실패했습니다." }, { status: 500 });
-    }
-    if (!updated) {
-      return NextResponse.json({ error: "이미 연결됐거나 응답을 찾을 수 없어요." }, { status: 409 });
+      console.error("[wedding-code/pair] atomic pair 실패:", error.message);
+      return NextResponse.json(
+        { error: "연결에 실패했습니다.", pairingStatus: "error" },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ success: true });
+    const row = Array.isArray(pairedResult) ? pairedResult[0] : pairedResult;
+    const pairingStatus = isRecord(row) ? row.pairing_status : null;
+    const storedCoupleToken = isRecord(row) ? row.couple_token : null;
+    if (pairingStatus === "full") {
+      if (storedCoupleToken !== null) {
+        console.error("[wedding-code/pair] full 응답에 토큰이 포함됨");
+        return NextResponse.json(
+          { error: "연결 결과를 확인하지 못했어요.", pairingStatus: "error" },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json(
+        { error: "이 링크는 이미 두 분이 사용했어요.", pairingStatus: "full" },
+        { status: 409 }
+      );
+    }
+    if (pairingStatus === "not_found") {
+      return NextResponse.json(
+        { error: "이미 연결됐거나 응답을 찾을 수 없어요.", pairingStatus: "conflict" },
+        { status: 409 }
+      );
+    }
+    if (
+      (pairingStatus !== "waiting" && pairingStatus !== "paired") ||
+      !isUuid(storedCoupleToken)
+    ) {
+      console.error("[wedding-code/pair] atomic pair 응답 형식 오류");
+      return NextResponse.json(
+        { error: "연결 결과를 확인하지 못했어요.", pairingStatus: "error" },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      pairingStatus,
+      coupleToken: storedCoupleToken,
+    });
   } catch (err) {
     console.error("[wedding-code/pair] 서버 오류:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다.", pairingStatus: "error" },
+      { status: 503 }
+    );
   }
 }

@@ -12,7 +12,11 @@ import {
   WC_CTA_ITEMS,
   WC_FREE_TEXT_ITEMS,
 } from "@/constants/weddingCodeForm";
-import { WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
+import {
+  WEDDING_CODE_V05_QUESTIONS,
+  WEDDING_CODE_V05_SCORING_VERSION,
+  WEDDING_CODE_V05_VERSION,
+} from "@/constants/weddingCodeV05";
 import { isRecord, isUuid } from "@/utils/requestValidation";
 import { sanitizeText } from "@/utils/sanitize";
 
@@ -24,6 +28,9 @@ const PARENT_SET = new Set<string>(WC_PARENT_INVOLVEMENTS.map((s) => s.value));
 const CONCERN_SET = new Set<string>(WC_CONCERNS);
 
 export interface WcSubmission {
+  submission_id: string;
+  form_version: typeof WEDDING_CODE_V05_VERSION;
+  scoring_version: typeof WEDDING_CODE_V05_SCORING_VERSION;
   participant_stage: string;
   answering_mode: string;
   quote_status: string;
@@ -46,6 +53,15 @@ export function validateWcSubmission(
 ): { ok: true; data: WcSubmission } | { ok: false; error: string } {
   if (!isRecord(body)) return { ok: false, error: "잘못된 요청입니다." };
   if (body.consent !== true) return { ok: false, error: "참여 동의가 필요합니다." };
+  if (body.form_version !== WEDDING_CODE_V05_VERSION) {
+    return { ok: false, error: "테스트가 업데이트됐어요. 새로고침 후 다시 참여해주세요." };
+  }
+  if (body.scoring_version !== WEDDING_CODE_V05_SCORING_VERSION) {
+    return { ok: false, error: "결과 계산 버전이 달라요. 새로고침 후 다시 참여해주세요." };
+  }
+  if (!isUuid(body.submission_id)) {
+    return { ok: false, error: "제출 식별자가 올바르지 않습니다." };
+  }
 
   const stage = typeof body.participant_stage === "string" ? body.participant_stage : "";
   if (!STAGE_SET.has(stage)) return { ok: false, error: "준비 단계를 선택해주세요." };
@@ -102,11 +118,18 @@ export function validateWcSubmission(
     if (cleaned) freeText[item.key] = cleaned;
   }
 
-  const durationRaw = Number(body.duration_ms);
-  const duration =
-    Number.isFinite(durationRaw) && durationRaw > 0 && durationRaw < 6 * 60 * 60 * 1000
-      ? Math.round(durationRaw)
-      : null;
+  let duration: number | null = null;
+  if (body.duration_ms !== undefined && body.duration_ms !== null && body.duration_ms !== "") {
+    if (
+      typeof body.duration_ms !== "number" ||
+      !Number.isFinite(body.duration_ms) ||
+      body.duration_ms <= 0 ||
+      body.duration_ms >= 6 * 60 * 60 * 1000
+    ) {
+      return { ok: false, error: "소요 시간 값이 올바르지 않습니다." };
+    }
+    duration = Math.round(body.duration_ms);
+  }
 
   const cleanUtm = (v: unknown, max: number) =>
     typeof v === "string" ? sanitizeText(v).slice(0, max).trim() || null : null;
@@ -114,6 +137,9 @@ export function validateWcSubmission(
   return {
     ok: true,
     data: {
+      submission_id: body.submission_id as string,
+      form_version: WEDDING_CODE_V05_VERSION,
+      scoring_version: WEDDING_CODE_V05_SCORING_VERSION,
       participant_stage: stage,
       answering_mode: mode,
       quote_status: quote,
@@ -145,9 +171,8 @@ function readScales(raw: unknown, keys: readonly string[]): Record<string, numbe
   for (const key of keys) {
     const v = obj[key];
     if (v === undefined || v === null || v === "") continue;
-    const n = Number(v);
-    if (!Number.isInteger(n) || n < 1 || n > 5) return null;
-    out[key] = n;
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 5) return null;
+    out[key] = v;
   }
   return out;
 }
