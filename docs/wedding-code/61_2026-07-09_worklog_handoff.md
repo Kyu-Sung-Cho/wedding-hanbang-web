@@ -1,17 +1,25 @@
 # 2026-07-09 WeddingCode Worklog & Handoff
 
-Date: 2026-07-09  
-Branch to publish: `agent/wedding-code-plain-language`  
-Project path: `hanbang-web/`  
-Main URL checked locally: `http://localhost:3000/wedding-code`
+- Date: 2026-07-09
+- Truth refresh: 2026-07-10
+- Branch to publish: `agent/wedding-code-plain-language`
+- Repository root: `wedding/` in this checkout (`wedding-hanbang-web` on GitHub)
+- Main URL checked locally: `http://localhost:3000/wedding-code`
 
-## GitHub Publish Status
+> 이 문서는 2026-07-09 작업과 2026-07-10 초반의 진실성 갱신 스냅샷이다. 이후 보안·DB·UI 보강과 49 files / 410 tests, production build 재검증은 [`../AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md`](../AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md)가 이어받는다. 아래 로컬/PR/main/production 표는 당시 상태 기록으로 유지한다.
 
-- Repository: `Kyu-Sung-Cho/wedding-hanbang-web`
-- Remote branch: `origin/agent/wedding-code-plain-language`
-- Initial work commit: `83314418 refine wedding code plain language`
-- Draft PR: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/37`
-- Base branch: `main`
+## Local, PR, Main, and Production Status
+
+These are separate states. A local commit or PR update is not proof that production changed.
+
+| Surface | Git/source snapshot on 2026-07-10 | WeddingCode version | Meaning |
+|---|---|---|---|
+| Local branch | `d6ff8e88` on `agent/wedding-code-plain-language` | `v0.5-candidate.9` | Candidate.9 exists locally. |
+| Remote PR branch | `91cbad68` on `origin/agent/wedding-code-plain-language` | `v0.5-candidate.8` | Draft [PR #37](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/37) had not received local candidate.9 yet. |
+| `origin/main` | `8d8933e1` | `v0.5-candidate.4` | Main-branch source, not by itself deployment proof. |
+| Live `https://hanbang.ai/wedding-code` | Production chunk checked directly on 2026-07-10 | `v0.5-candidate.4` | Live deployment was still candidate.4 at verification time. |
+
+Repository: `Kyu-Sung-Cho/wedding-hanbang-web`; PR base: `main`; initial work commit: `83314418`. Re-check Git and the live URL after any push, merge, or deploy because this table is a dated snapshot.
 
 ## Why This Work Happened
 
@@ -26,9 +34,9 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 
 이번 작업의 기준은 "웨딩 업계 용어를 모르는 사람이 봐도, 상황과 선택지가 바로 이해되는가"였다.
 
-## Final Product State
+## Candidate Copy State
 
-이 문서 작성 당시 live WeddingCode 문항 버전은 `v0.5-candidate.8`이었다. 이후 보수적 카피 패스로 `v0.5-candidate.9`가 추가되었다.
+이 문서 작성 당시 작업 브랜치는 candidate.8까지 원격에 있었고, 이후 보수적 카피 패스로 candidate.9가 로컬에 추가되었다. 위 표처럼 candidate.9는 이 진실성 갱신 시점에 PR 또는 프로덕션 버전이 아니었다.
 
 핵심 원칙:
 
@@ -39,7 +47,7 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 
 ## What Changed
 
-### Live 16 Questions
+### Candidate.9 16 Questions (local source)
 
 `apps/web/src/constants/weddingCodeV05.ts`
 
@@ -89,36 +97,45 @@ WeddingCode 문항이 문법적으로는 맞아도 사용자가 바로 이해하
 
 ## Verification Done
 
-All commands were run from `hanbang-web/`.
+The conservative audit rerun used the repository root and `corepack pnpm` against local candidate.9 commit `d6ff8e88`.
 
 ```bash
-pnpm --filter @hanbang/web exec vitest run src/lib/weddingCode src/app/api/wedding-code --reporter=dot
-pnpm --filter @hanbang/web typecheck
-pnpm --filter @hanbang/web lint
-pnpm --filter @hanbang/web build
+corepack pnpm --filter @hanbang/web test -- --reporter=dot
+corepack pnpm --filter @hanbang/web exec vitest run src/lib/weddingCode src/app/api/wedding-code --reporter=dot
+corepack pnpm --filter @hanbang/web typecheck
+corepack pnpm --filter @hanbang/web lint
 ```
 
 Result:
 
-- WeddingCode tests: 48 passed
+- Full `@hanbang/web` suite: 44 files passed, 365 tests passed.
+- Focused WeddingCode/API suite: 8 files passed, 49 tests passed.
 - Typecheck: passed
 - Lint: passed
-- Production build: passed
-- Chrome/Playwright mobile viewport flow: 16 live questions rendered and advanced successfully
-- Old/unclear term search gate: 0 hits in checked WeddingCode app/result/constants/lib paths
+
+Not independently rerun in the 2026-07-10 audit:
+
+- Production build
+- Browser/mobile-viewport flow
+- Live deployment flow after candidate.9
+
+The earlier 2026-07-09 work session recorded build, browser-flow, and term-search checks. Treat those as historical evidence, not as a fresh verification of later local changes.
 
 ## How To Continue On Another Computer
 
-This work has been pushed to GitHub on `origin/agent/wedding-code-plain-language`.
+Do not assume local, remote PR, and production contain the same commit. Fetch and inspect first.
 
 ```bash
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
 cd wedding-hanbang-web
 git fetch origin
 git switch agent/wedding-code-plain-language
-pnpm install
-pnpm --filter @hanbang/web dev
+git rev-parse HEAD
+corepack pnpm install
+corepack pnpm --filter @hanbang/web dev
 ```
+
+At the 2026-07-10 snapshot, the remote branch above resolved to candidate.8. Candidate.9 becomes available on another computer only after commit `d6ff8e88` is pushed to that branch (or merged elsewhere).
 
 Then open:
 
@@ -131,10 +148,18 @@ If the branch is merged into `main`, use:
 ```bash
 git switch main
 git pull origin main
-pnpm install
-pnpm --filter @hanbang/web dev
+corepack pnpm install
+corepack pnpm --filter @hanbang/web dev
 ```
 
 ## Remaining Truth Boundary
 
-This is a strong copy, clarity, and internal verification pass. It is not human-response validation. The next real quality step is a small cognitive interview with actual users to see whether any question still causes hesitation.
+This is a copy, clarity, and internal verification pass. It is not human-response validation. The source still marks the set as `candidate_pending_human_validation`, and no evidence in this handoff shows the required human gates were completed.
+
+Before calling the set final or validated:
+
+1. Run n=5 cognitive interviews using the execution kit.
+2. Confirm each option is understood without facilitator explanation, with special attention to B3/B4 and C2/C3.
+3. Record and fix repeated hesitation or misinterpretation.
+4. Only after the interview gate passes, run the n=20 mini test.
+5. Keep claims limited to a wedding-preparation conversation aid; do not describe it as a validated psychological test, compatibility score, or relationship predictor.
