@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   executeCheckVendorAvailability,
   executeGetVendorDetail,
+  executeRecommendVendors,
   executeSearchVendors,
 } from "../vendorTools";
 
@@ -21,15 +22,17 @@ type TableHandler = {
   singleResult?: QueryResult;
   insertResult?: QueryResult;
   onInsert?: (payload: unknown) => void;
+  onEq?: (column: string, value: unknown) => void;
 };
 
 class FakeQuery {
   constructor(private readonly handler: TableHandler) {}
 
   select() { return this; }
-  eq() { return this; }
+  eq(column: string, value: unknown) { this.handler.onEq?.(column, value); return this; }
   in() { return this; }
   neq() { return this; }
+  not() { return this; }
   limit() { return this; }
   order() { return this; }
   or() { return this; }
@@ -167,8 +170,7 @@ describe("vendorTools", () => {
     });
   });
 
-  it("keeps search_vendors output shape and search log insert", async () => {
-    const insertedLogs: unknown[] = [];
+  it("keeps search_vendors output shape without persisting conversational search text", async () => {
     mockAdminClient({
       vendors: [{
         awaitResult: {
@@ -187,8 +189,6 @@ describe("vendorTools", () => {
           error: null,
         },
       }],
-      profiles: [{ singleResult: { data: { id: "profile-1" }, error: null } }],
-      search_logs: [{ onInsert: (payload) => insertedLogs.push(payload) }],
     });
 
     const result = await executeSearchVendors(
@@ -220,12 +220,6 @@ describe("vendorTools", () => {
         link: "/wedding/vendors/vendor-1",
       }],
     });
-    expect(insertedLogs).toEqual([{
-      user_id: "profile-1",
-      query: "실크",
-      category: "드레스",
-      result_count: 1,
-    }]);
   });
 
   it("includes the concrete date and time in availability output", async () => {
@@ -254,5 +248,28 @@ describe("vendorTools", () => {
         dateTimeLabel: "2026-07-06 (월) 10:00",
       }],
     });
+  });
+
+  it("uses only the current user's view history for recommendations", async () => {
+    const filters: Array<[string, unknown]> = [];
+    mockAdminClient({
+      customer_events: [{
+        awaitResult: { data: [], error: null },
+        onEq: (column, value) => filters.push([column, value]),
+      }],
+      vendors: [{ awaitResult: { data: [], error: null } }],
+    });
+
+    await executeRecommendVendors(
+      { category: "studio", limit: 3 },
+      {
+        coupleId: "couple-1",
+        currentUserId: "current-user",
+        weddingContext: { budget: 50_000_000, progress: {} },
+      }
+    );
+
+    expect(filters).toContainEqual(["user_id", "current-user"]);
+    expect(filters.some(([column, value]) => column === "couple_id" || value === "partner-user")).toBe(false);
   });
 });

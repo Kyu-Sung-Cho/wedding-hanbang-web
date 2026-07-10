@@ -537,7 +537,7 @@ function PostWriteContent() {
     }
     if (postMode === "slides") {
       if (slides.length === 0) {
-        setError("카드 게시물에는 이미지나 영상이 최소 1장 이상 필요해요.");
+        setError("카드 게시물에는 이미지가 최소 1장 이상 필요해요.");
         return;
       }
     } else if (!content.trim()) {
@@ -944,11 +944,11 @@ function PostWriteContent() {
               )}
             </section>
 
-            {/* 이미지/영상 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
+            {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
             {postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
-                  이미지/영상
+                  이미지
                 </label>
                 <ImageUploader images={images} onChange={setImages} max={5} />
               </section>

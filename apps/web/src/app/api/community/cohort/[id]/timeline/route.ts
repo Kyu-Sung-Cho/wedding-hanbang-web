@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import type { CohortEventType } from "@/types/community.types";
 
@@ -41,7 +42,7 @@ export async function GET(
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await createAdminClient()
       .from("cohort_timeline_events")
       .select("*")
       .eq("room_id", roomId)

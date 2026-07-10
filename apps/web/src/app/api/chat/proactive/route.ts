@@ -4,7 +4,15 @@ import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
+// Outbound/template messages bypass the main GPT request lease and can race
+// membership deletion. Keep them code-hard-off; this also removes hidden
+// background/email spend while the low-cost Luna/Terra chat path is validated.
+const PROACTIVE_CHAT_ENABLED = false;
+
 export async function GET(req: NextRequest) {
+  if (!PROACTIVE_CHAT_ENABLED) {
+    return NextResponse.json({ triggered: false, reason: "disabled_for_safety_and_cost" });
+  }
   try {
     const supabase = await createClientFromRequest(req);
     const {

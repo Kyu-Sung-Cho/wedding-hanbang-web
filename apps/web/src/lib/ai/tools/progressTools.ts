@@ -6,8 +6,8 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
  * apply_journey_progress_patch RPC(20260611160000) 가 DB row lock 으로 현재 값을 읽어
  * 병합하므로, 커플 2인이 서로 다른 키를 동시에 고쳐도 lost update 가 나지 않는다.
  *
- * RPC 가 아직 배포(마이그레이션 적용)되지 않았으면 기존 whole-blob 방식으로 폴백한다
- * → 마이그레이션 적용 전에도 무중단. 적용되는 순간 자동으로 원자 경로로 전환된다.
+ * RPC 실패 시 stale whole-blob UPDATE로 폴백하지 않는다. RPC commit 뒤 응답만
+ * 유실된 경우나 동시 수정 중에 폴백하면 파트너의 변경을 덮을 수 있기 때문이다.
  */
 export async function patchJourneyProgress(
   ctx: ToolExecutionContext,
@@ -21,22 +21,11 @@ export async function patchJourneyProgress(
     p_remove_keys: removeKeys,
   });
 
-  if (!error && data) {
-    ctx.weddingContext.progress = data as ToolExecutionContext["weddingContext"]["progress"];
-    return;
+  if (error) throw error;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("apply_journey_progress_patch returned an invalid progress object");
   }
-
-  const merged: Record<string, unknown> = {
-    ...(ctx.weddingContext.progress as Record<string, unknown>),
-  };
-  for (const key of removeKeys) delete merged[key];
-  Object.assign(merged, patch);
-  const { error: fallbackError } = await admin
-    .from("wedding_journeys")
-    .update({ progress: merged })
-    .eq("couple_id", ctx.coupleId);
-  if (fallbackError) throw fallbackError;
-  ctx.weddingContext.progress = merged as unknown as ToolExecutionContext["weddingContext"]["progress"];
+  ctx.weddingContext.progress = data as ToolExecutionContext["weddingContext"]["progress"];
 }
 
 /**

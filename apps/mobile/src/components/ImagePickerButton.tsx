@@ -13,7 +13,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Plus, X } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 
 interface ImagePickerButtonProps {
   images: string[];
@@ -55,45 +55,36 @@ export default function ImagePickerButton({
     setProgress(0);
 
     try {
-      // 파일 정보
       const uri = asset.uri;
-      const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
-      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error("이미지를 업로드하려면 로그인이 필요합니다.");
+      const mimeType = asset.mimeType === "image/png" ||
+        asset.mimeType === "image/webp" ||
+        asset.mimeType === "image/jpeg"
+        ? asset.mimeType
+        : "image/jpeg";
+      if (typeof asset.fileSize === "number" && asset.fileSize > 5 * 1024 * 1024) {
+        throw new Error("이미지는 5MB 이하로 업로드할 수 있어요.");
       }
-      const filePath = `${user.id}/${fileName}`;
-
-      // URI에서 blob 생성
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+      const fileName = asset.fileName?.slice(0, 120) || `community-image.${extension}`;
+      const formData = new FormData();
+      formData.append("file", {
+        uri,
+        name: fileName,
+        type: mimeType,
+      } as unknown as Blob);
 
       setProgress(0.3);
-
-      // Supabase Storage 업로드
-      const { error: uploadError } = await supabase.storage
-        .from("community-images")
-        .upload(filePath, blob, {
-          contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      setProgress(0.8);
-
-      // 공개 URL 취득
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("community-images").getPublicUrl(filePath);
+      const response = await apiFetch("/api/community/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!response.ok || typeof payload.url !== "string") {
+        throw new Error(payload.error || "이미지 업로드에 실패했어요.");
+      }
 
       setProgress(1);
-
-      onChange([...images, publicUrl]);
+      onChange([...images, payload.url]);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "이미지 업로드에 실패했어요";

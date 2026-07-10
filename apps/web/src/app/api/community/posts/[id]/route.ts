@@ -335,8 +335,9 @@ export async function PATCH(
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
     updateData.updated_at = new Date().toISOString();
 
-    const writeClient = userIsAdmin ? getServiceClient() : supabase;
-    const { data: updatedPost, error } = await writeClient
+    // Authenticated table writes are revoked at the DB layer; ownership was
+    // verified above, so the validated server route performs the mutation.
+    const { data: updatedPost, error } = await getServiceClient()
       .from("community_posts")
       .update(updateData)
       .eq("id", id)

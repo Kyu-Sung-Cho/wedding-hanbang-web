@@ -26,13 +26,13 @@ export function useCommunityRealtime() {
           // author 프로필 조회
           const { data: profile } = await supabase
             .from("community_profiles")
-            .select("user_id, nickname, rank, wedding_year, wedding_month")
+            .select("user_id, nickname, rank")
             .eq("user_id", newPost.author_id)
             .maybeSingle();
 
           const postWithAuthor = {
             ...newPost,
-            author: profile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
+            author: profile ?? { nickname: "익명", rank: "sprout" },
             user_vote: null,
           };
 

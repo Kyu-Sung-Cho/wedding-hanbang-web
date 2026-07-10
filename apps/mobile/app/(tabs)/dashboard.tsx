@@ -403,11 +403,7 @@ export default function DashboardScreen() {
       // 파트너 활동 감지
       let partnerActivity: PartnerActivity | null = null;
       try {
-        const { data: partners } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("couple_id", profile.couple_id)
-          .neq("id", user.id);
+        const { data: partners } = await supabase.rpc("get_my_partner_public");
 
         if (partners && partners.length > 0) {
           const partnerName = partners[0]?.name ?? "파트너";

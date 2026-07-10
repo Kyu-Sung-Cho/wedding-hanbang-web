@@ -1,14 +1,14 @@
-// Sentry 초기화 — DSN이 있을 때만 활성화
-// Phase 1 에서 Sentry 프로젝트 생성 후 EXPO_PUBLIC_SENTRY_DSN 채우면 자동 on
+// 처리위탁·리전·보유기간·국외처리 고지 승인 전에는 DSN과 무관하게 비활성화한다.
 
 import * as Sentry from "@sentry/react-native";
 
 const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+const THIRD_PARTY_TELEMETRY_ENABLED = false;
 
 export function initSentry() {
-  if (!dsn) {
+  if (!THIRD_PARTY_TELEMETRY_ENABLED || !dsn) {
     if (__DEV__) {
-      console.warn("[Sentry] DSN 없음 — Sentry 비활성화 (개발 중)");
+      console.warn("[Sentry] 개인정보 처리 승인 전 코드 비활성화 상태");
     }
     return;
   }

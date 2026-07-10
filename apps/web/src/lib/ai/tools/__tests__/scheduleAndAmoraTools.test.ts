@@ -62,13 +62,18 @@ class FakeQuery {
   }
 }
 
-function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
+function mockAdminClient(
+  tableHandlers: Record<string, TableHandler[]>,
+  rpcHandler?: (name: string, args: Record<string, unknown>) => QueryResult
+) {
   const admin = {
     from: vi.fn((table: string) => {
       const handler = tableHandlers[table]?.shift() ?? {};
       return new FakeQuery(handler);
     }),
-    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    rpc: vi.fn((name: string, args: Record<string, unknown>) =>
+      Promise.resolve(rpcHandler?.(name, args) ?? { data: {}, error: null })
+    ),
   };
   vi.mocked(createAdminClient).mockReturnValue(
     admin as unknown as ReturnType<typeof createAdminClient>
@@ -118,6 +123,9 @@ describe("scheduleTools", () => {
         },
         updateResult: { error: null },
       }],
+    }, (_name, args) => {
+      updatedProgress = args.p_patch as Record<string, unknown>;
+      return { data: updatedProgress, error: null };
     });
 
     const ctx = createContext({});
@@ -191,6 +199,9 @@ describe("amoraActionTools", () => {
         },
         updateResult: { error: null },
       }],
+    }, (_name, args) => {
+      updatedProgress = args.p_patch as Record<string, unknown>;
+      return { data: updatedProgress, error: null };
     });
 
     const ctx = createContext({

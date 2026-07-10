@@ -3,7 +3,7 @@
  *
  * 설계:
  *  - A안: 휴리스틱 강화 (정규화, 회상 필터, 턴 패턴, 농담 필터, pastConflicts 가중치)
- *  - B안: borderline(5~9점) 케이스만 Haiku 검증으로 false positive 제거
+ *  - B안: borderline(5~9점) 케이스만 GPT-5.6 Luna 검증으로 false positive 제거
  *  - 점수 < 5: 확실히 비-갈등 → 즉시 false
  *  - 점수 5~9: borderline → LLM 검증 (수동공격·반어·맥락 판단)
  *  - 점수 ≥ 10: 확실한 갈등 → LLM 호출 없이 즉시 true
@@ -14,9 +14,8 @@
  *  ChatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
  */
 
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
-
-const FAST_MODEL = "claude-haiku-4-5-20251001";
+import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 
 // ──────────────────────────────────────────────────────────────
 // 타입
@@ -346,8 +345,8 @@ async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
   audit?: { coupleId?: string | null; userId?: string | null }
 ): Promise<{ isConflict: boolean; reason: string }> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return { isConflict: false, reason: "ANTHROPIC_API_KEY 없음 — LLM 검증 스킵" };
+  if (!hasOpenAIConfig("fast")) {
+    return { isConflict: false, reason: "OpenAI 보조 모델 설정 없음 — LLM 검증 스킵" };
   }
 
   // 최근 10개만 + 라벨링
@@ -378,27 +377,21 @@ ${formatted}
 {"conflict": true|false, "reason": "한국어 한 줄로 판단 이유 (30자 이내)"}`;
 
   try {
-    const res = await createAnthropicMessageWithAudit({
-      params: {
-        model: FAST_MODEL,
-        max_tokens: 100,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0,
-      },
+    const res = await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 100,
+      instructions: "커플 대화의 갈등 여부를 보수적으로 판별하고 요청된 JSON 형식으로만 답하세요.",
+      input: prompt,
       audit: {
         userId: audit?.userId ?? null,
         coupleId: audit?.coupleId ?? null,
         interactionType: "chat_turn",
         userInput: formatted,
-        metadata: { source: "conflict_detector_verify" },
+        metadata: { source: "conflict_detector_verify", visibility: "shared" },
       },
     });
 
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
+    const text = res.text;
 
     // JSON 추출 — 응답 앞뒤에 다른 텍스트 있을 수 있어 robust 파싱
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -434,6 +427,8 @@ export async function detectCoupleConflict(params: {
   pastConflicts: PastConflictSummary[];
   /** 최대 윈도우 (분) — 이 시간 이전 메시지는 무시. 기본 5분 */
   windowMinutes?: number;
+  /** borderline 검증 LLM을 실제 호출하기 직전 원자 비용 예약 */
+  reserveLLMCall?: () => Promise<boolean>;
 }): Promise<ConflictDetection> {
   const windowMs = (params.windowMinutes ?? 5) * 60 * 1000;
   const cutoff = Date.now() - windowMs;
@@ -483,6 +478,16 @@ export async function detectCoupleConflict(params: {
   }
 
   // borderline — LLM 검증
+  const reserved = await params.reserveLLMCall?.();
+  if (reserved !== true) {
+    return {
+      triggered: false,
+      score: h.score,
+      reason: `borderline 점수 ${h.score} — 비용 보호 장치로 LLM 검증 생략`,
+      conflictContext: h.conflictMessages.join(" / "),
+      llmVerified: false,
+    };
+  }
   const llm = await verifyWithLLM(coupleMessages, {
     coupleId: params.coupleId ?? null,
     userId: params.userId ?? null,

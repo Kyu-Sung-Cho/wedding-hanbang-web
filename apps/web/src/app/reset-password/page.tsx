@@ -76,7 +76,20 @@ export default function ResetPasswordPage() {
         const params = new URLSearchParams(window.location.search);
         const redirectTo = params.get("redirect") || "/login";
         // 외부 URL 방지 (상대 경로만 허용)
-        const safePath = redirectTo.startsWith("/") ? redirectTo : "/login";
+        let safePath = "/login";
+        try {
+          const candidate = new URL(redirectTo, window.location.origin);
+          if (
+            candidate.origin === window.location.origin
+            && redirectTo.startsWith("/")
+            && !redirectTo.startsWith("//")
+            && !/[\\\u0000-\u001F\u007F]/.test(redirectTo)
+          ) {
+            safePath = `${candidate.pathname}${candidate.search}${candidate.hash}`;
+          }
+        } catch {
+          safePath = "/login";
+        }
         setTimeout(() => {
           window.location.href = safePath;
         }, 2000);
