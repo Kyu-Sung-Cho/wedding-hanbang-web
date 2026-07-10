@@ -1,5 +1,8 @@
 ﻿# WeddingCode v0.5 Copy Clarity Pass
 
+> [!WARNING]
+> **CORRUPTED / SUPERSEDED.** 이 파일의 본문은 인코딩 손상(mojibake)으로 신뢰할 수 없습니다. 내용을 추측해 복원하지 마십시오. 읽을 수 있는 후속 기록인 [candidate.4 rewrite](./54_candidate4_plain_language_rewrite_2026-07-08.md), [candidate.8 full audit](./60_candidate8_full_item_plain_language_audit_2026-07-09.md), [candidate.9 conservative pass](./62_candidate9_conservative_copy_pass_2026-07-09.md)를 사용하십시오.
+
 ?묒꽦?? 2026-07-08
 ?곹깭: 1李??ъ슜???쇰뱶諛?諛섏쁺 ??肄붾뱶 ?섏젙 ?꾨즺
 

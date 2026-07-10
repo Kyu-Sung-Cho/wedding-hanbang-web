@@ -4,6 +4,16 @@
 모든 AI 호출은 ai_interactions_log에 기록되며,
 모든 커플 의사결정은 decision_nodes에 기록된다.
 
+## 현재 소스 오브 트루스 (2026-07-10)
+
+> 아래 `2026-06-11 기준` 섹션은 당시 작업 기록이다. 현재 구현·버전·경로는 실제 코드와 패키지 매니페스트를 우선한다.
+
+- 모노레포 구조: `apps/web`, `apps/mobile`, `packages/design-tokens`, `packages/shared`, `supabase`, `scripts`.
+- 웹: Next.js `16.2.6`, React `19.2.3`, Tailwind CSS 4. 모바일: Expo 54, React Native 0.81. 정확한 버전은 각 `package.json`/`pnpm-lock.yaml` 기준.
+- AI: `@anthropic-ai/sdk` 기반 Anthropic Claude API. `Codex API (Anthropic)`는 폐기된 오표기.
+- 디자인: 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹 적용값은 `apps/web/src/app/globals.css`에서 확인.
+- 명령: 저장소 루트에서 `corepack pnpm ...`를 사용하고, 실행 가능한 스크립트는 `package.json`을 확인.
+
 ## 📍 현재 상태 (2026-06-11 기준 — 새 세션은 여기부터)
 - **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG + SESSION_SYNTHESIS_2026-06-11 (전부 docs/).
 - **Week 1 수술 완료 (2026-06-11)**: 페르소나 자동화·AI 대본·피팅 스텁·B2B·청첩장·방명록·결제(Toss)·정산·전자계약·벤더포털 **코드 전체 삭제** (커밋 3개, 약 -2.5만 줄, 라우트 213→127). 실데이터 확인(payments·settlements·contracts 0행, 청첩장·방명록 각 2건 테스트) 후 진행. DB 테이블은 보존, 복구는 `pre-surgery` 태그. 예약(bookings)은 방문·상담 예약으로 단순화(취소는 아모라 채팅 cancel_booking). 축의금은 moneyStore/money.types로 분리되어 유지.
@@ -34,19 +44,19 @@
 > 베껴두면 코드와 어긋난다(드리프트). 항상 실제 소스를 ground truth로 본다.
 
 ## 개요·스택
-- **무엇**: 한국 AI 웨딩 플래너 "아모라". 모바일 앱(별도 레포, React Native)과 **같은 Supabase 프로젝트** 공유.
-- **스택**: Next.js 16 App Router · TypeScript · Tailwind · Zustand · Supabase(PostgreSQL/Auth/Realtime/Storage) · Claude API · Resend. 배포 Vercel.
+- **무엇**: 한국 AI 웨딩 플래너 "아모라". 웹과 `apps/mobile` 모바일 앱이 **같은 Supabase 프로젝트**를 공유.
+- **스택**: Next.js 16.2.6 App Router · React 19 · TypeScript · Tailwind CSS 4 · Zustand 5 · Supabase(PostgreSQL/Auth/Realtime/Storage) · Anthropic Claude API · Resend. 웹 배포 대상은 Vercel.
 - **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `wedding/`.
 
 ## 진짜 출처 (여기를 본다)
 | 알고 싶은 것 | 본다 |
 |---|---|
-| 색상·디자인 토큰 | `apps/web/src/app/globals.css`, `@hanbang/design-tokens` |
+| 디자인 의도·색상·토큰 | `DESIGN.md` → `packages/design-tokens/src/`(공유) → `apps/web/src/app/globals.css`(웹 적용값) |
 | 환경변수 (전체 목록·설명) | `apps/web/.env.example` |
 | DB 스키마·RLS·RPC | `supabase/migrations/` (시간순) |
 | 라우트·페이지 구조 | `apps/web/src/app/` (App Router 디렉토리 = 라우트) |
 | 시세 데이터 | `apps/web/src/constants/marketPricesData.generated.ts` (자동생성, `npm run update:market-prices`) |
-| 폰트 | Noto Serif/Sans KR, Cormorant Garamond (제목·숫자) |
+| 폰트 | Paperlogy (`DESIGN.md`, 웹 `globals.css`, 모바일 폰트 자산) |
 
 ## 코딩 컨벤션
 - 함수형 컴포넌트만 (`export default function`). 스타일은 Tailwind만(인라인 style 금지).
@@ -59,7 +69,7 @@
 `feat:` 기능 / `fix:` 버그 / `style:` 디자인 / `refactor:` 리팩토링 / `docs:` 문서 / `chore:` 설정·패키지
 
 ## 빌드·검증
-커밋 전 `apps/web`에서 `npx tsc --noEmit` + `npx vitest run` + `npx next build` 통과 확인.
+커밋 전 저장소 루트에서 `corepack pnpm --filter @hanbang/web typecheck` + `corepack pnpm --filter @hanbang/web test` + `corepack pnpm --filter @hanbang/web build` 통과 확인. 필요하면 `corepack pnpm --filter @hanbang/web lint`도 실행한다.
 마이그레이션은 `apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN`(2026-07-04부터)으로 **Management API 직접 실행** 가능
 (`POST https://api.supabase.com/v1/projects/{ref}/database/query` — SQL Editor와 동일 경로).
 실행 후 PostgREST 원격 검증(RPC 응답·권한 거부 확인)까지 수행할 것. 토큰이 없으면 폴백: 사용자에게 복붙용 SQL 전달(SQL Editor 수동 실행).
