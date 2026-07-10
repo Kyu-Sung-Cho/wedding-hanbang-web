@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
+
+const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -42,6 +45,8 @@ export default function DemoLoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -94,6 +99,7 @@ export default function DemoLoginPage() {
     e.preventDefault();
     if (mode === "forgot") {
       if (!email) { setError("이메일을 입력해주세요."); return; }
+      if (TURNSTILE_ENABLED && !turnstileToken) { setError("봇 확인을 완료해주세요."); return; }
     } else if (!email || !password) {
       setError("이메일과 비밀번호를 입력해주세요.");
       return;
@@ -112,6 +118,10 @@ export default function DemoLoginPage() {
         setError("비밀번호가 일치하지 않습니다.");
         return;
       }
+      if (TURNSTILE_ENABLED && !turnstileToken) {
+        setError("봇 확인을 완료해주세요.");
+        return;
+      }
     }
 
     setLoading("email");
@@ -127,25 +137,32 @@ export default function DemoLoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({ email, password, name, turnstileToken }),
         });
         const result = await res.json();
         if (!res.ok) {
           setError(result.error || "회원가입에 실패했습니다.");
         } else {
-          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
+          setSuccess(
+            result.message ||
+              "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다."
+          );
         }
       } else if (mode === "forgot") {
         // 서버 API로 비밀번호 재설정 이메일 발송
         const res = await fetch("/api/auth/forgot-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, turnstileToken }),
         });
+        const result = await res.json().catch(() => ({}));
         if (res.ok) {
-          setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
+          setSuccess(
+            result.message ||
+              "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다."
+          );
         } else {
-          setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+          setError(result.error || "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -187,6 +204,10 @@ export default function DemoLoginPage() {
       setError(`오류: ${msg}`);
     } finally {
       setLoading(null);
+      if (mode === "signup" || mode === "forgot") {
+        setTurnstileToken("");
+        setTurnstileAttempt((value) => value + 1);
+      }
     }
   };
 
@@ -368,6 +389,13 @@ export default function DemoLoginPage() {
               </div>
             )}
 
+            {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
+              <TurnstileWidget
+                key={`${mode}-${turnstileAttempt}`}
+                onVerify={setTurnstileToken}
+              />
+            )}
+
             {error && (
               <p className="text-[12px] text-rose-600 px-1">{error}</p>
             )}
@@ -377,13 +405,13 @@ export default function DemoLoginPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   {success}
                 </p>
-                <p className="text-[11px] text-[#2E7D5A]/70 mt-1">스팸 메일함도 확인해주세요</p>
+                <p className="text-[11px] text-[#2E7D5A]/70 mt-1">안내가 도착하면 스팸 메일함도 확인해주세요</p>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim())) || (mode === "forgot" && !email)}
+              disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
               className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
             >
               {loading === "email"
@@ -403,7 +431,7 @@ export default function DemoLoginPage() {
                 <p>
                   아직 계정이 없으신가요?{" "}
                   <button
-                    onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
+                    onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
                     className="text-rose-500 font-medium hover:underline"
                   >
                     회원가입
@@ -411,7 +439,7 @@ export default function DemoLoginPage() {
                 </p>
                 <p>
                   <button
-                    onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); }}
+                    onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
                     className="text-taupe-400 hover:text-rose-500 hover:underline transition-colors"
                   >
                     비밀번호를 잊으셨나요?
@@ -423,7 +451,7 @@ export default function DemoLoginPage() {
               <p>
                 이미 계정이 있으신가요?{" "}
                 <button
-                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
+                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
                   className="text-rose-500 font-medium hover:underline"
                 >
                   로그인
@@ -433,7 +461,7 @@ export default function DemoLoginPage() {
             {mode === "forgot" && (
               <p>
                 <button
-                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); }}
+                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
                   className="text-rose-500 font-medium hover:underline"
                 >
                   ← 로그인으로 돌아가기

@@ -1,4 +1,4 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
@@ -19,7 +19,7 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClientFromRequest(req);
+    const admin = createAdminClient();
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
     // 캐논 v2: ai_recommend 우선 정렬 제거. 평점 + 등록순으로만.
     // (Phase 2에서 "조건 공개"/"검증 참여" 기반 설명 가능한 랭킹으로 재도입 예정)
-    let query = supabase
+    let query = admin
       .from("vendors")
       .select("*", { count: "exact" })
       .eq("status", "approved")
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
     const vendorIds = (vendorRows ?? []).map((v) => v.id);
 
     const { data: productRows } = vendorIds.length > 0
-      ? await supabase
+      ? await admin
           .from("vendor_products")
           .select("*")
           .in("vendor_id", vendorIds)

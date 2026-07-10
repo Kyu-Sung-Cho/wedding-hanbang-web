@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -14,6 +15,7 @@ function getJoinCoupleErrorMessage(error: string | undefined) {
   if (error === "Groom slot is already linked.") return "이미 신랑 역할이 연결되어 있습니다.";
   if (error === "Invalid role.") return "역할 정보가 올바르지 않습니다.";
   if (error === "Unauthenticated.") return "로그인이 필요합니다.";
+  if (error === "Invite unavailable.") return "초대 코드가 올바르지 않거나 이미 사용된 자리입니다.";
   return error ?? "커플 연동에 실패했습니다.";
 }
 
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     const normalizedInviteCode = String(inviteCode).trim().toUpperCase();
-    if (!/^WH-[A-Z0-9]{6,12}$/.test(normalizedInviteCode)) {
+    if (!/^WH-[A-Z0-9]{12}$/.test(normalizedInviteCode)) {
       return NextResponse.json(
         { error: "초대 코드 형식이 올바르지 않습니다." },
         { status: 400 }
@@ -66,10 +68,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // join_couple 함수로 원자적 커플 조인 (SECURITY DEFINER)
-    const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
+    // 인증 사용자는 DB join RPC를 직접 실행할 수 없다. 서버 rate limit 뒤
+    // service-only 함수가 profile→couple 순으로 잠그고 원자 조인한다.
+    const { data: joinResult, error: joinError } = await createAdminClient().rpc("join_couple_server", {
+      p_user_id: user.id,
       p_invite_code: normalizedInviteCode,
       p_role: profile.role,
+      p_wedding_date: null,
+      p_venue: "",
+      p_total_budget: 20_000_000,
+      p_progress: {},
+      p_sanggyeonrye_date: null,
     });
 
     if (joinError) {

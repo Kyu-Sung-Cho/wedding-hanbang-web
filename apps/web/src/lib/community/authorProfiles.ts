@@ -35,7 +35,7 @@ export async function getCommunityAuthorMap(
 
   const { data: communityProfiles, error: communityProfileError } = await client
     .from("community_profiles")
-    .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
+    .select("user_id, nickname, avatar_url, rank")
     .in("user_id", uniqueAuthorIds);
 
   if (communityProfileError) {
@@ -73,8 +73,8 @@ export async function getCommunityAuthorMap(
           nickname: (profile.nickname as string | null) || "익명",
           avatar_url: (profile.avatar_url as string | null) ?? null,
           rank: ((profile.rank as CommunityRank | null) ?? "sprout"),
-          wedding_year: (profile.wedding_year as number | null) ?? null,
-          wedding_month: (profile.wedding_month as number | null) ?? null,
+          wedding_year: null,
+          wedding_month: null,
           role: roleMap[userId] ?? null,
         },
       ];

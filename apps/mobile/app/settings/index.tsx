@@ -97,6 +97,8 @@ export default function SettingsScreen() {
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
+  const [relinking, setRelinking] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
 
   // 알림 설정 로드
@@ -185,11 +187,7 @@ export default function SettingsScreen() {
         if (profile?.couple_id) {
           try {
             // 파트너 이름 조회
-            const { data: partners } = await supabase
-              .from("profiles")
-              .select("name")
-              .eq("couple_id", profile.couple_id)
-              .neq("id", user.id);
+            const { data: partners } = await supabase.rpc("get_my_partner_public");
 
             if (partners && partners.length > 0) {
               setPartnerName(partners[0]?.name ?? null);
@@ -201,6 +199,7 @@ export default function SettingsScreen() {
               const codeData = await codeRes.json();
               setInviteCode(codeData.inviteCode ?? null);
               setIsFullyLinked(codeData.isFullyLinked ?? false);
+              setRequiresRelinkConfirmation(codeData.requiresRelinkConfirmation === true);
             }
           } catch (err) {
             console.error("파트너 정보 로드 오류:", err);
@@ -387,6 +386,37 @@ export default function SettingsScreen() {
     }
   }
 
+  async function unlockLegacyInvite() {
+    setRelinking(true);
+    try {
+      const response = await apiFetch("/api/couple/code", {
+        method: "POST",
+        body: JSON.stringify({ confirmLegacyRelink: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || typeof body.inviteCode !== "string") {
+        throw new Error(body.error ?? "초대 코드를 만들지 못했습니다.");
+      }
+      setInviteCode(body.inviteCode);
+      setRequiresRelinkConfirmation(false);
+    } catch (error) {
+      Alert.alert("초대 코드 오류", error instanceof Error ? error.message : "초대 코드를 만들지 못했습니다.");
+    } finally {
+      setRelinking(false);
+    }
+  }
+
+  function confirmLegacyRelink() {
+    Alert.alert(
+      "새 커플 공간 만들기",
+      "이전 공간의 일정·예산·대화는 새 파트너에게 공유되지 않습니다. 비어 있는 새 공간으로 시작할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "확인하고 만들기", onPress: () => void unlockLegacyInvite() },
+      ]
+    );
+  }
+
   // 로그아웃
   function handleLogout() {
     Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
@@ -406,7 +436,7 @@ export default function SettingsScreen() {
   function handleDeleteAccount() {
     Alert.alert(
       "회원 탈퇴",
-      "정말 탈퇴하시겠어요?\n모든 데이터가 삭제되며 복구할 수 없어요.",
+      "본인 비공개 상담과 직접 작성한 내용은 삭제됩니다. 파트너의 공동 계획과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있어요.",
       [
         { text: "취소", style: "cancel" },
         {
@@ -416,7 +446,7 @@ export default function SettingsScreen() {
             // 2차 확인
             Alert.alert(
               "최종 확인",
-              "한번 삭제된 계정은 복구할 수 없습니다.\n정말 탈퇴하시겠어요?",
+              "계정은 복구할 수 없습니다. 파트너에게 남는 공동 기록과 법정 보존 항목을 확인했나요?",
               [
                 { text: "취소", style: "cancel" },
                 {
@@ -424,29 +454,21 @@ export default function SettingsScreen() {
                   style: "destructive",
                   onPress: async () => {
                     try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (!session?.access_token) {
-                        Alert.alert("오류", "로그인 상태를 확인해주세요.");
-                        return;
-                      }
+                      const res = await apiFetch("/api/auth/delete", {
+                        method: "DELETE",
+                        body: JSON.stringify({ reason: "other" }),
+                      });
 
-                      const res = await fetch(
-                        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
-                        {
-                          method: "POST",
-                          headers: {
-                            Authorization: `Bearer ${session.access_token}`,
-                            "Content-Type": "application/json",
-                          },
-                        }
-                      );
-
-                      if (!res.ok) {
+                      if (res.status !== 202) {
                         const body = await res.json().catch(() => ({}));
-                        throw new Error(body.message ?? "탈퇴 처리 중 오류가 발생했어요");
+                        throw new Error(body.error ?? "탈퇴 처리 중 오류가 발생했어요");
                       }
 
-                      await supabase.auth.signOut();
+                      // 서버의 영속 큐가 접수했으므로 앱이 닫혀도 삭제는 계속된다.
+                      // 네트워크 로그아웃 실패가 로컬 데이터 정리를 막지 않게 한다.
+                      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+                      clearCommunityCaches();
+                      await AsyncStorage.clear();
                       router.replace("/(auth)/login");
                     } catch (err) {
                       const message =
@@ -695,6 +717,28 @@ export default function SettingsScreen() {
 
               <View style={styles.field}>
                 <Text style={styles.label}>커플 초대 코드</Text>
+                {requiresRelinkConfirmation && (
+                  <View style={styles.relinkNotice}>
+                    <Text style={styles.relinkTitle}>새 커플 공간으로 시작해 주세요</Text>
+                    <Text style={styles.relinkText}>
+                      이전 자료를 새 파트너에게 넘기지 않고 비어 있는 새 공간을 만듭니다.
+                    </Text>
+                    <Pressable
+                      onPress={confirmLegacyRelink}
+                      disabled={relinking}
+                      style={({ pressed }) => [
+                        styles.relinkButton,
+                        (pressed || relinking) && { opacity: 0.65 },
+                      ]}
+                    >
+                      {relinking ? (
+                        <ActivityIndicator size="small" color={colors.surface} />
+                      ) : (
+                        <Text style={styles.relinkButtonText}>확인하고 새 공간 만들기</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
                 <View style={styles.codeRow}>
                   <View style={styles.codeBox}>
                     <Text style={styles.codeText}>{inviteCode ?? "---"}</Text>
@@ -1016,6 +1060,38 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     fontFamily: "CormorantGaramond_400Regular",
     letterSpacing: 0,
+  },
+  relinkNotice: {
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.rose.pale,
+    backgroundColor: colors.ivory[100],
+  },
+  relinkTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.noir[900],
+  },
+  relinkText: {
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  relinkButton: {
+    marginTop: 12,
+    minHeight: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.rose[500],
+  },
+  relinkButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "700",
   },
   copyBtn: {
     width: 40,

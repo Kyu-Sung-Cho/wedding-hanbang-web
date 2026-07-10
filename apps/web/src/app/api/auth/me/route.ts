@@ -49,20 +49,23 @@ export async function GET(request: Request) {
         profile.name = name;
       }
     } else {
-      // 프로필 없으면 생성
-      const { data: newProfile, error: profileInsertErr } = await supabase
-        .from("profiles")
-        .insert({
-          id: user.id,
-          name: user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자",
-          email: user.email,
-          onboarding_completed: false,
-          onboarding_step: 0,
-        })
-        .select()
-        .single();
-      if (profileInsertErr) _debug.profileInsertError = profileInsertErr.message;
-      profile = newProfile;
+      // 직접 profiles INSERT 권한은 권한상승 방지를 위해 회수했다. 서버 정의
+      // 함수가 auth.uid/email과 안전 기본값만 사용해 생성한 뒤 own-row를 다시 읽는다.
+      const safeName = user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자";
+      const { error: profileInsertErr } = await supabase.rpc("ensure_my_profile", {
+        p_name: safeName,
+      });
+      if (profileInsertErr) {
+        _debug.profileInsertError = profileInsertErr.message;
+      } else {
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+        if (newProfileError) _debug.profileSelectAfterInsertError = newProfileError.message;
+        profile = newProfile;
+      }
     }
 
     if (!profile) {
@@ -95,13 +98,13 @@ export async function GET(request: Request) {
             ? coupleData.groom_id
             : coupleData.bride_id;
         if (partnerId) {
-          const { data: partnerData, error: partnerErr } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", partnerId)
-            .single();
+          const { data: partnerRows, error: partnerErr } = await supabase
+            .rpc("get_my_partner_public");
           if (partnerErr) _debug.partnerSelectError = partnerErr.message;
-          partner = partnerData;
+          const partnerData = Array.isArray(partnerRows) ? partnerRows[0] : partnerRows;
+          partner = partnerData && partnerData.id === partnerId
+            ? { id: partnerData.id, name: partnerData.name, role: partnerData.role }
+            : null;
         }
       }
 

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { reserveAmoraProviderCall } from "@/lib/ai/costGuard";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
+// Hidden community generation is non-essential and lacks the main chat's
+// provider lease/deletion lifecycle. Keep code-hard-disabled to cap spend.
+const COMMUNITY_AI_COMMENT_ENABLED = false;
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -41,6 +45,9 @@ const SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 '아모라'입니다.
 - 확실하지 않은 내용은 확실하지 않다고 말하기`;
 
 export async function POST(req: NextRequest) {
+  if (!COMMUNITY_AI_COMMENT_ENABLED) {
+    return NextResponse.json({ error: "커뮤니티 AI 댓글은 현재 비활성화되어 있습니다." }, { status: 503 });
+  }
   try {
     const { authorized, userId } = await verifyAdmin(req);
     if (!authorized) {
@@ -118,14 +125,20 @@ export async function POST(req: NextRequest) {
 
 위 게시글에 대한 아모라의 짧은 댓글을 작성해주세요. (2-3문장 + CTA)`;
 
-    const model = "claude-haiku-4-5-20251001";
-    const message = await createAnthropicMessageWithAudit({
-      params: {
-        model,
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userContent }],
-      },
+    const reservation = await reserveAmoraProviderCall(serviceClient, {
+      // provider-only 예약에서는 couple 카운터를 사용하지 않는다.
+      coupleId: AMORA_USER_ID,
+      isAdmin: true,
+    });
+    if (!reservation.allowed) {
+      return NextResponse.json({ error: reservation.message }, { status: 503 });
+    }
+
+    const message = await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 300,
+      instructions: SYSTEM_PROMPT,
+      input: userContent,
       audit: {
         userId: post.author_id ?? null,
         interactionType: "community_amora_comment",
@@ -141,8 +154,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const firstBlock = message.content[0];
-    const aiText = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+    const aiText = message.text;
 
     if (!aiText) {
       return NextResponse.json({ error: "AI 응답 생성 실패" }, { status: 500 });
