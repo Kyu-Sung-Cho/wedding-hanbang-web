@@ -378,7 +378,7 @@ export default function WeddingCodeResultClient() {
             </p>
           </div>
           <Link
-            href="/check"
+              href="/wedding/community/quote-check"
             onClick={() => captureEvent("wedding_code_to_quote_check", { version: sourceVersion })}
             className={`${ghostBtn} w-full`}
           >
