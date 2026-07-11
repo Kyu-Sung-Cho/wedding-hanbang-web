@@ -56,7 +56,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     initialLoadDone,
     loadMessages,
     sendMessage,
-    requestInitialGreeting,
     clearMessages,
     subscribeToMessages,
   } = useChatStore();
@@ -69,7 +68,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const [mediationDismissed, setMediationDismissed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const greetingRequested = useRef(false);
   const subscribed = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coupleId = couple?.id;
@@ -127,34 +125,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       };
     }
   }, [isOpen, coupleId, isDemo, loadMessages, subscribeToMessages]);
-
-  // 메시지 0개일 때 AI 첫 인사
-  useEffect(() => {
-    if (
-      !isOpen ||
-      !coupleId ||
-      !profile ||
-      isDemo ||
-      !initialLoadDone ||
-      isStreaming ||
-      messages.length > 0 ||
-      greetingRequested.current
-    )
-      return;
-
-    greetingRequested.current = true;
-    requestInitialGreeting({
-      coupleId,
-      senderRole: profile.role ?? "bride",
-      senderName: profile.name ?? "사용자",
-      weddingContext: {
-        weddingDate: journey?.wedding_date ?? null,
-        budget: journey?.total_budget ?? 0,
-        venue: journey?.venue ?? null,
-        progress: journey?.progress ?? {},
-      },
-    });
-  }, [isOpen, coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -350,7 +320,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   const handleClearChat = async () => {
     if (!coupleId) return;
-    greetingRequested.current = false;
     // SidePanel에서는 가장 안전한 default — "내 화면만 정리 (함께 대화)"
     // 진짜 삭제는 메인 채팅 modal에서만 가능
     await clearMessages(coupleId, "view_reset_shared");
@@ -497,6 +466,16 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
             {/* 메시지 영역 */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {messages.length === 0 && initialLoadDone && (
+                <div className="py-10 text-center" role="status">
+                  <Sparkles className="mx-auto mb-3 h-8 w-8 text-rose-500/30" aria-hidden="true" />
+                  <p className="text-sm font-medium text-noir-800">안녕하세요, 아모라예요.</p>
+                  <p className="mt-2 text-xs leading-relaxed text-taupe-500">
+                    채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.
+                    <br />궁금한 준비를 직접 입력해 주세요.
+                  </p>
+                </div>
+              )}
               {(() => {
                 // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
                 const recentAiIds = new Set(
