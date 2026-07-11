@@ -4,6 +4,7 @@ import {
   isCoupleInviteCode,
   manwonInputToWon,
   normalizeCoupleInviteCode,
+  wonToManwonInput,
 } from "@hanbang/shared";
 
 describe("onboarding contract shared by web and mobile", () => {
@@ -22,5 +23,7 @@ describe("onboarding contract shared by web and mobile", () => {
     expect(manwonInputToWon("3000")).toBe(30_000_000);
     expect(manwonInputToWon("3,000")).toBe(30_000_000);
     expect(manwonInputToWon("not-a-number")).toBe(0);
+    expect(wonToManwonInput(30_000_000)).toBe("3000");
+    expect(manwonInputToWon(wonToManwonInput(30_000_000))).toBe(30_000_000);
   });
 });
