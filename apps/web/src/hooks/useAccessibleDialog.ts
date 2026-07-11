@@ -40,6 +40,7 @@ interface AccessibleDialogOptions {
   onClose: () => void;
   closeOnEscape?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -51,6 +52,7 @@ export function useAccessibleDialog({
   onClose,
   closeOnEscape = true,
   initialFocusRef,
+  returnFocusRef,
 }: AccessibleDialogOptions) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -67,6 +69,7 @@ export function useAccessibleDialog({
 
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const explicitReturnFocus = returnFocusRef?.current;
 
     lockBodyScroll();
 
@@ -111,11 +114,12 @@ export function useAccessibleDialog({
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
       unlockBodyScroll();
-      if (previouslyFocused?.isConnected) {
-        previouslyFocused.focus({ preventScroll: true });
+      const returnFocus = explicitReturnFocus ?? previouslyFocused;
+      if (returnFocus?.isConnected) {
+        returnFocus.focus({ preventScroll: true });
       }
     };
-  }, [closeOnEscape, initialFocusRef, isOpen]);
+  }, [closeOnEscape, initialFocusRef, isOpen, returnFocusRef]);
 
   return { dialogRef };
 }

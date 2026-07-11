@@ -5,10 +5,11 @@
 // b) 전체화면 오버레이 — 이미지를 길게 눌러 사진 앱에 저장
 // c) 오버레이 안 "또는 파일로 저장" (다운로드 폴백)
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ImageDown, Loader2, X } from "lucide-react";
 import { captureEvent } from "@/lib/analytics";
 import { shareFileThenText } from "@/lib/share/nativeShare";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
   type AmoraQuoteCheckResult,
@@ -24,6 +25,12 @@ const REPORT_BRAND = "웨딩한방 견적 체크 · hanbang.ai/check";
 export default function ReportCardButton({ result }: { result: AmoraQuoteCheckResult }) {
   const [saving, setSaving] = useState(false);
   const [overlay, setOverlay] = useState<{ dataUrl: string; canvas: HTMLCanvasElement } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const { dialogRef } = useAccessibleDialog({
+    isOpen: overlay !== null,
+    onClose: () => setOverlay(null),
+    returnFocusRef: triggerRef,
+  });
 
   async function saveReport() {
     if (saving) return;
@@ -80,6 +87,7 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={saveReport}
         disabled={saving}
@@ -90,10 +98,18 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
       </button>
 
       {overlay && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1a1a1f]/92 px-6 py-8">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="견적 체크 리포트 저장"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1a1a1f]/92 px-6 py-8"
+        >
           <button
             onClick={() => setOverlay(null)}
             aria-label="닫기"
+            data-dialog-initial-focus
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
           >
             <X className="h-5 w-5" />
