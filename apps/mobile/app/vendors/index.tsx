@@ -3,13 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable,
-  RefreshControl, TextInput, Image,
+  RefreshControl, TextInput, Image, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   Search, MapPin, Store, BadgeCheck, Star, Heart,
-  ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info,
+  ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -123,6 +123,7 @@ export default function VendorsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [favoriteError, setFavoriteError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedSort, setSelectedSort] = useState<SortKey>("recommended");
@@ -144,6 +145,7 @@ export default function VendorsScreen() {
   const loadFavorites = useCallback(async () => {
     if (!userId) return;
     try {
+      setFavoriteError(false);
       const response = await apiFetch("/api/favorites");
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(body.vendorIds)) {
@@ -152,6 +154,7 @@ export default function VendorsScreen() {
       setFavoriteIds(new Set(body.vendorIds.filter((id: unknown): id is string => typeof id === "string")));
     } catch (err) {
       console.error("즐겨찾기 로드 오류:", err);
+      setFavoriteError(true);
     }
   }, [userId]);
 
@@ -204,6 +207,7 @@ export default function VendorsScreen() {
         }
         return next;
       });
+      Alert.alert("즐겨찾기를 저장하지 못했어요", "연결을 확인하고 다시 시도해주세요.");
     } finally {
       favoriteSyncing.current.delete(vendorId);
     }
@@ -557,6 +561,19 @@ export default function VendorsScreen() {
         />
       </View>
 
+      {favoriteError && !loading && !error ? (
+        <Pressable
+          style={({ pressed }) => [s.favoriteWarning, pressed && s.favoriteWarningPressed]}
+          onPress={loadFavorites}
+          accessibilityRole="button"
+          accessibilityLabel="저장된 즐겨찾기 다시 불러오기"
+        >
+          <AlertTriangle size={16} color={colors.danger} />
+          <Text style={s.favoriteWarningText}>저장된 즐겨찾기를 불러오지 못했어요</Text>
+          <Text style={s.favoriteWarningAction}>다시 시도</Text>
+        </Pressable>
+      ) : null}
+
       {!loading && !error && (
         <Surface style={s.trustPanel}>
           <View style={s.trustPanelTop}>
@@ -693,6 +710,29 @@ const s = StyleSheet.create({
   sortChipTextActive: {
     color: colors.rose[600],
     fontWeight: "600",
+  },
+  favoriteWarning: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+  },
+  favoriteWarningPressed: { opacity: 0.78 },
+  favoriteWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  favoriteWarningAction: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.danger,
   },
 
   trustPanel: {

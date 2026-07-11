@@ -16,6 +16,7 @@ import { formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import ErrorRetry from "@/components/ErrorRetry";
 import {
   AppHeader,
   AppText,
@@ -178,6 +179,8 @@ export default function ScheduleScreen() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   // 진행률 애니메이션
@@ -196,23 +199,29 @@ export default function ScheduleScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setLoadError(false);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw authError ?? new Error("authenticated user not found");
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", user.id)
         .single();
 
-      if (!profile?.couple_id) return;
+      if (profileError || !profile?.couple_id) {
+        throw profileError ?? new Error("couple profile not found");
+      }
       setCoupleId(profile.couple_id);
 
-      const { data: journey } = await supabase
+      const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
         .select("wedding_date, progress")
         .eq("couple_id", profile.couple_id)
         .single();
+      if (journeyError || !journey) {
+        throw journeyError ?? new Error("wedding journey not found");
+      }
 
       setWeddingDate(journey?.wedding_date ?? null);
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
@@ -277,8 +286,10 @@ export default function ScheduleScreen() {
       // 이벤트 추출
       const evts = ((prog.__events as ScheduleEvent[]) ?? []).map(normalizeScheduleEvent);
       setEvents(evts);
+      setHasLoadedData(true);
     } catch (err) {
       console.error("일정 로드 오류:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -620,6 +631,18 @@ export default function ScheduleScreen() {
     );
   }
 
+  if (loadError && !hasLoadedData) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="체크리스트" onBack={() => router.back()} />
+        <ErrorRetry
+          message="체크리스트와 일정을 불러오지 못했어요"
+          onRetry={() => { setLoading(true); loadData(); }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader
@@ -632,6 +655,19 @@ export default function ScheduleScreen() {
           </Pressable>
         }
       />
+
+      {loadError && hasLoadedData ? (
+        <Pressable
+          style={({ pressed }) => [styles.loadWarning, pressed && styles.loadWarningPressed]}
+          onPress={loadData}
+          accessibilityRole="button"
+          accessibilityLabel="체크리스트 최신 정보 다시 불러오기"
+        >
+          <AlertTriangle size={16} color={colors.danger} />
+          <Text style={styles.loadWarningText}>최신 체크리스트를 불러오지 못했어요</Text>
+          <Text style={styles.loadWarningAction}>다시 시도</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView
         style={{ flex: 1 }}
@@ -980,6 +1016,10 @@ export default function ScheduleScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  loadWarning: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "rgba(239, 68, 68, 0.08)" },
+  loadWarningPressed: { opacity: 0.78 },
+  loadWarningText: { flex: 1, fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary },
+  loadWarningAction: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.danger },
   header: {
     flexDirection: "row",
     alignItems: "center",

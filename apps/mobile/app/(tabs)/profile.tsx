@@ -337,7 +337,6 @@ export default function ProfileScreen() {
             <MenuItem
               icon={Info}
               label={`앱 버전 v${appVersion} (${buildNumber})`}
-              onPress={() => {}}
               isLast
               hideChevron
             />
@@ -409,7 +408,7 @@ function MenuItem({
 }: {
   icon: typeof Settings;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
   isLast?: boolean;
   hideChevron?: boolean;
 }) {
