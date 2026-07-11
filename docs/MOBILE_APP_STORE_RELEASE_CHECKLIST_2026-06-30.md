@@ -123,6 +123,18 @@ Before TestFlight:
 - Privacy policy describes Supabase, analytics, AI, push notifications, and user-generated content if used.
 - App Store privacy answers match actual data collection across app and web.
 
+### OpenAI Production Canary Gate
+
+Do not invite external testers until all items pass with the actual production OpenAI project key:
+
+- The project is entitled to the exact `gpt-5.6-luna` and `gpt-5.6-terra` model IDs.
+- A normal consultation stays on Luna, while only the documented contract/dispute, safety, or recent repeated-correction cases escalate to Terra.
+- SSE text streaming and the post-tool follow-up response complete without dropped text or duplicate user-turn charging.
+- Image/PDF input, refusal handling, client abort, provider timeout, and user retry behavior are verified on device.
+- Input/output token ceilings, per-couple turn quota, global provider-call cap, and project budget alerts fail closed at their configured limits.
+- `store:false`, reasoning `none`, standard service tier, and zero SDK retries are confirmed in request telemetry without storing user content in logs.
+- External-processing region, DPA, retention, cross-border transfer notice, and privacy-policy language are approved before real user content is sent.
+
 ## 7. Deep Link And OAuth Checks
 
 Before TestFlight:
@@ -166,6 +178,11 @@ Do not submit to App Review until:
 - Store screenshots match the current UI.
 - Review demo account is prepared if login is required.
 - Database migrations are applied to the target Supabase environment.
+- The complete migration chain passes on both a fresh database and a production-shaped snapshot in staging before the target environment is changed.
+- The target Supabase migration ledger and schema are remotely verified after deployment; local SQL files alone are not release evidence.
+- Quote checks save privately by default, explicit publish exposes only the redacted projection, and owner revoke immediately makes the public URL return 404.
+- WeddingCode `/response`, `/pair`, and `/couple-report` return HTTP 410 in the target environment, and the DB pairing/response fences are remotely verified.
+- The OpenAI production canary and DPA/region/privacy gates above are complete.
 - Sentry release/environment tags are verified.
 - Support and privacy URLs are live.
 

@@ -12,7 +12,7 @@ Run this before App Store/TestFlight work and after any change touching:
 - `wedding_journeys.progress`
 - `profiles.name`
 - `community_profiles.nickname`
-- booking outcome/cancel routes
+- booking outcome routes; general booking cancellation remains a blocked release gate
 - Supabase Realtime publication or RLS around shared couple data
 
 ## Preflight
@@ -112,7 +112,12 @@ Pass:
 - budget category spent changes once, not double-counted
 - Amora context is consistent with the saved amount
 
-## Scenario 3: Booking Cancellation Reverts Planning Memory
+## Release Gate 3: Booking Cancellation Reverts Planning Memory — Blocked
+
+> [!WARNING]
+> **Not executable in the current product.** There is no general user-facing booking cancellation UI/API, and Amora's `cancel_booking` tool is disabled. Keep the steps below as future acceptance criteria; do not mark this gate passed or simulate it with direct database edits.
+
+Acceptance criteria after a trusted cancellation route is implemented:
 
 1. As User A, cancel a booking that has contributed to schedule/budget progress.
 2. Open Budget.
@@ -133,14 +138,16 @@ Pass:
 2. As User A, save a booking outcome.
 3. Confirm User B Budget updates through Realtime or focus refresh.
 4. Keep User B on Bookings with a detail sheet open.
-5. As User A, update/cancel the booking.
-6. Confirm User B list and open detail sheet refresh or close safely if the row disappears.
+5. As User A, update the booking.
+6. Confirm User B list and open detail sheet refresh safely.
+7. After the blocked cancellation gate is implemented, repeat with cancellation and confirm the row closes or refreshes safely.
 
 Pass:
 
 - no manual pull-to-refresh required after returning to the screen
 - open detail sheet does not display stale amounts/status
-- no crash when a partner cancels the open booking
+- no crash when a partner updates the open booking
+- future cancellation path: no stale detail or crash after a partner cancels
 
 ## Scenario 5: Community And Lounge Sanity
 
@@ -236,7 +243,7 @@ Stop and fix before App Store/TestFlight work if any occur:
 ### Scenarios
 - Login/Home:
 - Booking outcome -> Budget:
-- Booking cancellation:
+- Booking cancellation: Blocked / not implemented / not run
 - Partner freshness:
 - Community/Lounge:
 - Settings identity:

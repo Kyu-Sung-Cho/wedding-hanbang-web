@@ -1,5 +1,8 @@
 # Migration 20260423 — 누락 테이블 추가 실행 가이드
 
+> [!WARNING]
+> **역사 운영 기록입니다.** 현재 원격 DB에 그대로 실행하거나 재실행하는 지침이 아닙니다. 최신 기준은 `docs/CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`, 현재 migration chain, fresh/snapshot staging 검증 결과를 따릅니다.
+
 ## 목적
 코드가 참조하지만 migrations에 정의 없던 5개 테이블을 추가합니다.
 
