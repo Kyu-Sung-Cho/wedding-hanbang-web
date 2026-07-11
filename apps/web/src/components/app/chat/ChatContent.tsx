@@ -2050,6 +2050,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <button
             onClick={() => attemptSend()}
             disabled={isDemo || (!input.trim() && attachments.length === 0) || isStreaming}
+            aria-label={
+              isDemo
+                ? "데모에서는 메시지를 보낼 수 없어요"
+                : messageTarget === "partner"
+                  ? "상대방에게 메시지 보내기"
+                  : isPrivate
+                    ? "아모라에게 비공개 메시지 보내기"
+                    : "아모라에게 메시지 보내기"
+            }
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
