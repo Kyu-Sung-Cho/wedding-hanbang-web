@@ -59,6 +59,7 @@ const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
 const mobileSupabase = readText("apps/mobile/src/lib/supabase.ts");
 const mobileLogin = readText("apps/mobile/app/(auth)/login.tsx");
 const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
+const mobileMetroConfig = readText("apps/mobile/metro.config.js");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
 const expectedEasCliVersion = "20.5.1";
 const repositoryNodeVersion = rootPackage.engines?.node?.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1];
@@ -146,6 +147,7 @@ expect(mobilePackage.dependencies?.["expo-application"] === "~7.0.8", "Mobile de
 expect(mobileProfile.includes('from "expo-application"'), "Mobile profile reads native application metadata");
 expect(mobileProfile.includes("Application.nativeApplicationVersion"), "Mobile profile displays the native app version");
 expect(mobileProfile.includes("Application.nativeBuildVersion"), "Mobile profile displays the native build version");
+expect(!mobileMetroConfig.includes('require("metro-cache")'), "Metro config uses Expo's declared default cache");
 
 for (const scriptName of [
   "eas:init",
