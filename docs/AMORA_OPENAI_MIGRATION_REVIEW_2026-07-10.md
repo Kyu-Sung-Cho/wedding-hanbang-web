@@ -1,5 +1,7 @@
 # 아모라 OpenAI GPT-5.6 전환 보수 검토 (2026-07-10)
 
+> **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 비용 예약, 실패 무료 턴 환불, 비소모 preflight, 의도별 도구 축소와 결정적 위기 응답이 추가됐다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 신규 DB migration은 운영 적용이 확인되지 않았으므로 이 문서의 과거 테스트 수치나 완료 표현을 운영 증거로 사용하지 않는다.
+
 ## 결론
 
 코드 기준 아모라 런타임의 Anthropic 의존은 제거했다. 일반 상담·도구 오케스트레이션은
