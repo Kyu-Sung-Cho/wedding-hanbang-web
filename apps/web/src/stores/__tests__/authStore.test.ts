@@ -157,11 +157,18 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
     });
 
-    it("silently ignores PATCH failure in non-demo mode", async () => {
+    it("reports PATCH failure to the caller without throwing", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
       useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
 
-      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.not.toThrow();
+      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.toBe(false);
+    });
+
+    it("reports a non-2xx PATCH response to the caller", async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: "unavailable" }) });
+      useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
+
+      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.toBe(false);
     });
 
     it("does nothing when journey is null in demo mode", async () => {

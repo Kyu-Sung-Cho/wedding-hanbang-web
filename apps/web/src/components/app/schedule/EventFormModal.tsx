@@ -58,9 +58,11 @@ export default function EventFormModal({
   const [categoryKey, setCategoryKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
+    setError("");
     if (mode === "edit" && event) {
       setTitle(event.title);
       setDate(event.date);
@@ -77,6 +79,7 @@ export default function EventFormModal({
   const handleSubmit = async () => {
     if (!title.trim() || !date) return;
     setSaving(true);
+    setError("");
     try {
       await onSave({
         date,
@@ -84,6 +87,8 @@ export default function EventFormModal({
         memo: memo.trim() || undefined,
         categoryKey: categoryKey || undefined,
       });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "일정을 저장하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
@@ -92,8 +97,11 @@ export default function EventFormModal({
   const handleDelete = async () => {
     if (!onDelete) return;
     setDeleting(true);
+    setError("");
     try {
       await onDelete();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "일정을 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setDeleting(false);
     }
@@ -133,6 +141,11 @@ export default function EventFormModal({
 
         {/* 폼 */}
         <div className="px-6 py-4 flex flex-col gap-4">
+          {error && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {error}
+            </p>
+          )}
           {/* 제목 */}
           <div>
             <label className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
