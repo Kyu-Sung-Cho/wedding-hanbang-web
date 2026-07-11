@@ -371,7 +371,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     presence,
     loadMessages,
     sendMessage,
-    requestInitialGreeting,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
@@ -448,7 +447,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [searchParams, router]);
-  const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
   useEffect(() => {
@@ -556,34 +554,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       return () => window.clearTimeout(timer);
     }
   }, [messages.length, showNewChatBanner]);
-
-  // 메시지 0개 + 로딩 완료 시 AI 첫 인사
-  useEffect(() => {
-    if (
-      !coupleId ||
-      !profile ||
-      isDemo ||
-      !initialLoadDone ||
-      isStreaming ||
-      messages.length > 0 ||
-      greetingRequested.current
-    )
-      return;
-
-    greetingRequested.current = true;
-
-    requestInitialGreeting({
-      coupleId,
-      senderRole: profile.role ?? "bride",
-      senderName: profile.name ?? "사용자",
-      weddingContext: {
-        weddingDate: journey?.wedding_date ?? null,
-        budget: journey?.total_budget ?? 0,
-        venue: journey?.venue ?? null,
-        progress: journey?.progress ?? {},
-      },
-    });
-  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤 정책 — 페이지 전체는 절대 안 건드림, 메시지 컨테이너만 움직임.
   // 이전 사고: scrollIntoView()가 부모 체인 모두 끌고 내려가서 페이지까지 같이 움직임.
@@ -1032,7 +1002,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const performClear = useCallback(
     async (mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private") => {
       if (!coupleId) return;
-      greetingRequested.current = false;
       try {
         await clearMessages(coupleId, mode);
         setClearStep("closed");
@@ -1613,6 +1582,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             } else {
               previousHuman = message;
             }
+          }
+
+          if (!q && filteredMessages.length === 0 && initialLoadDone) {
+            return (
+              <div className="mx-auto max-w-lg py-12 text-center" role="status">
+                <Sparkles className="mx-auto mb-3 h-9 w-9 text-[#795252]/35" aria-hidden="true" />
+                <p className="text-[15px] font-medium text-[#1A1A1F]">안녕하세요, 아모라예요.</p>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#706963]">
+                  채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.
+                  <br />궁금한 준비를 직접 입력하면 그때 답할게요.
+                </p>
+              </div>
+            );
           }
           return filteredMessages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;

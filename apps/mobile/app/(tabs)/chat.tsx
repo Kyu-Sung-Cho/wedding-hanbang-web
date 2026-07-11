@@ -11,6 +11,10 @@ import { useRouter } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import {
+  MobileChatTimeoutError,
+  withMobileChatTimeout,
+} from "@/lib/chatRequestTimeout";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import {
   chatVisibilityForMobileTarget,
@@ -60,6 +64,14 @@ type LoadIssue = "signed_out" | "couple_missing" | "load_failed";
 interface SendIssue {
   message: string;
   retry: "send" | "ai";
+  claimCode?: string;
+}
+
+class ChatApiError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+    this.name = "ChatApiError";
+  }
 }
 
 interface ChatStreamReader {
@@ -130,9 +142,11 @@ async function readChatSseResponse(
   }
 }
 
-async function readResponseError(response: Response, fallback: string): Promise<string> {
+async function readResponseError(response: Response, fallback: string): Promise<ChatApiError> {
   const payload = await response.json().catch(() => null);
-  return isRecord(payload) && typeof payload.error === "string" ? payload.error : fallback;
+  const message = isRecord(payload) && typeof payload.error === "string" ? payload.error : fallback;
+  const code = isRecord(payload) && typeof payload.code === "string" ? payload.code : undefined;
+  return new ChatApiError(message, code);
 }
 
 function cleanAssistantContent(content: string): string {
@@ -357,15 +371,18 @@ export default function ChatScreen() {
     scrollToLatest(true);
 
     try {
-      const response = await apiFetch("/api/chat", {
-        method: "POST",
-        body: JSON.stringify(pending.body),
-      });
-      if (!response.ok) {
-        throw new Error(await readResponseError(response, "아모라 연결에 실패했어요."));
-      }
+      const parsed = await withMobileChatTimeout(async (signal) => {
+        const response = await apiFetch("/api/chat", {
+          method: "POST",
+          body: JSON.stringify(pending.body),
+          signal,
+        });
+        if (!response.ok) {
+          throw await readResponseError(response, "아모라 연결에 실패했어요.");
+        }
 
-      const parsed = await readChatSseResponse(response, (next) => applyStreamUpdate(pending, next));
+        return readChatSseResponse(response, (next) => applyStreamUpdate(pending, next));
+      });
       if (parsed.error) throw new Error(parsed.error);
       if (!parsed.completed) throw new Error("응답 연결이 중간에 끊겼어요.");
 
@@ -379,7 +396,13 @@ export default function ChatScreen() {
       setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
         ? { ...message, content: "아모라 답변을 불러오지 못했어요." }
         : message));
-      setSendIssue({ message: `${detail} 입력한 내용은 그대로 두었어요.`, retry: "ai" });
+      setSendIssue({
+        message: `${detail} 입력한 내용은 그대로 두었어요.`,
+        retry: "ai",
+        claimCode: error instanceof ChatApiError || error instanceof MobileChatTimeoutError
+          ? error.code
+          : undefined,
+      });
     } finally {
       aiLockRef.current = false;
       setStreaming(false);
@@ -507,13 +530,44 @@ export default function ChatScreen() {
     }
   }
 
-  function retrySend() {
+  async function retrySend() {
     if (submitting || streaming) return;
     if (sendIssue?.retry === "ai" && pendingAiRequest) {
-      void requestAiReply(pendingAiRequest);
+      const previous = pendingAiRequest;
+      setSubmitting(true);
+      try {
+        // 먼저 같은 ID로 완료 응답 replay/진행 중 상태를 확인한다. 서버가
+        // 명시적으로 request_failed를 반환한 뒤에만 새 provider 실행 ID를 만든다.
+        if (sendIssue.claimCode !== "request_failed") {
+          await requestAiReply(previous);
+          return;
+        }
+
+        const retryRequestId = `mobile:retry:${Date.now().toString(36)}`;
+        const nextPending: PendingAiRequest = {
+          ...previous,
+          requestId: retryRequestId,
+          body: {
+            ...previous.body,
+            clientRequestId: retryRequestId,
+          },
+        };
+        setMessages((messagesBeforeRetry) => messagesBeforeRetry.map((message) =>
+          matchesPendingRequest(message, previous)
+            ? {
+                ...message,
+                id: previous.tempId,
+                metadata: { ...(message.metadata ?? {}), client_request_id: retryRequestId },
+              }
+            : message
+        ));
+        await requestAiReply(nextPending);
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
-    void handleSend();
+    await handleSend();
   }
 
   function handleInputChange(value: string) {

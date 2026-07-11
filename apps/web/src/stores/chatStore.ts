@@ -153,12 +153,6 @@ interface ChatStoreState {
     target?: ChatMessageTarget;
     visibility?: "shared" | "bride_private" | "groom_private";
   }) => Promise<void>;
-  requestInitialGreeting: (params: {
-    coupleId: string;
-    senderRole: MessageSenderRole;
-    senderName: string;
-    weddingContext: WeddingContext;
-  }) => Promise<void>;
   requestMediation: (params: {
     coupleId: string;
     senderRole: MessageSenderRole;
@@ -1016,75 +1010,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             : "AI 응답을 받지 못했습니다.",
       });
     } finally {
-      set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
-    }
-  },
-
-  // 첫 진입 시 AI 인사 (타임아웃 + gotDone 체크 추가)
-  requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
-    if (get().isStreaming) return;
-
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
-
-    // 180초 타임아웃
-    const abortController = new AbortController();
-    const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
-
-    try {
-      const roleLabel = senderRole === "bride" ? "신부" : "신랑";
-      const isDemo = document.cookie.includes("demo_mode=true");
-      const clientRequestId = createChatRequestId("greeting");
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
-          coupleId, senderName, senderRole, weddingContext, isDemo, clientRequestId,
-        }),
-        signal: abortController.signal,
-      });
-
-      clearTimeout(fetchTimeout);
-
-      if (!res.ok) throw new Error("AI 초기 인사 실패");
-
-      let fullContent = "";
-      let finalMetadata: ChatMessageMetadata | null = null;
-      let gotDone = false;
-
-      await parseSSEStream(res, {
-        onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
-        onTextClear: () => set({ streamingContent: "" }),
-        onToolResult: (result) => {
-          syncToolResult(result);
-          set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
-        },
-        onSuggestions: (sug) => set({ suggestions: sug }),
-        onQuota: (remaining) => set({ quotaRemaining: remaining }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => set({ error: msg }),
-      });
-
-      // 스트림이 done 없이 끊긴 경우 에러 표시
-      if (!gotDone && !fullContent && !get().error) {
-        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
-      }
-
-      if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
-        const isDemo = document.cookie.includes("demo_mode=true");
-        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
-      }
-    } catch (err) {
-      console.error("초기 인사 에러:", err);
-      const isAbort = err instanceof DOMException && err.name === "AbortError";
-      set({
-        error: isAbort
-          ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
-      });
-    } finally {
-      clearTimeout(fetchTimeout);
       set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
     }
   },
