@@ -8,6 +8,7 @@ import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@
 import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
+import { databaseWeekdayIndex, formatLocalDateOnly } from "@hanbang/shared";
 
 interface ReviewItem {
   id: string;
@@ -134,6 +135,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [booked, setBooked] = useState(false);
   const [booking, setBooking] = useState(false);
+  const [bookingError, setBookingError] = useState("");
   const [showMessageBox, setShowMessageBox] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
@@ -261,15 +263,16 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const handleBook = async () => {
     if (selectedSlot === null) return;
     setBooking(true);
+    setBookingError("");
 
     // 오늘 기준으로 가장 가까운 선택 요일 날짜 계산
     const today = new Date();
-    const todayDay = (today.getDay() + 6) % 7; // 0=월 ~ 6=일
+    const todayDay = databaseWeekdayIndex(today);
     let diff = selectedDay - todayDay;
     if (diff <= 0) diff += 7;
     const bookingDate = new Date(today);
     bookingDate.setDate(today.getDate() + diff);
-    const dateStr = bookingDate.toISOString().split("T")[0];
+    const dateStr = formatLocalDateOnly(bookingDate);
     const timeStr = `${String(selectedSlot).padStart(2, "0")}:00`;
 
     try {
@@ -297,9 +300,17 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
           metadata: { date: dateStr, time: timeStr },
         });
         setTimeout(() => setBooked(false), 3000);
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        setBookingError(
+          typeof payload.error === "string"
+            ? payload.error
+            : "예약을 완료하지 못했습니다. 선택한 날짜와 시간을 확인한 뒤 다시 시도해주세요."
+        );
       }
     } catch (err) {
       console.error("Booking error:", err);
+      setBookingError("예약 요청 중 연결이 끊겼습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setBooking(false);
     }
@@ -693,6 +704,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                       "시간을 선택해주세요"
                     )}
                   </button>
+
+                  {bookingError && (
+                    <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
+                      {bookingError}
+                    </p>
+                  )}
 
                   {booked && (
                     <p className="text-sm text-[#2E7D5A] text-center mt-2">
