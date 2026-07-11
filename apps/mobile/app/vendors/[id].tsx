@@ -310,15 +310,38 @@ export default function VendorDetailScreen() {
           memo: memo.trim() || undefined,
         }),
       });
-      const payload = await res.json().catch(() => ({} as { error?: string; message?: string }));
+      const payload = await res.json().catch(() => ({} as { error?: string; message?: string; code?: string }));
 
       if (!res.ok) {
-        Alert.alert("예약 실패", payload.error || "다시 시도해주세요.");
+        if (payload.code === "booking_contact_required") {
+          Alert.alert(
+            "연락처가 필요해요",
+            payload.error || "설정에서 휴대폰 번호를 등록해 주세요.",
+            [
+              { text: "나중에", style: "cancel" },
+              { text: "설정으로 이동", onPress: () => router.push("/settings") },
+            ],
+          );
+        } else {
+          Alert.alert("예약 실패", payload.error || "다시 시도해주세요.");
+        }
         return;
       }
 
-      Alert.alert("예약 완료", payload.message || "예약이 완료되었어요!");
-      closeBookingModal();
+      Alert.alert(
+        "예약 접수 완료",
+        payload.message || "예약이 접수되었어요.",
+        [
+          { text: "계속 보기", style: "cancel", onPress: closeBookingModal },
+          {
+            text: "예약 내역 보기",
+            onPress: () => {
+              closeBookingModal();
+              router.push("/bookings");
+            },
+          },
+        ],
+      );
     } catch (err) {
       console.error("예약 오류:", err);
       Alert.alert("예약 실패", "다시 시도해주세요.");

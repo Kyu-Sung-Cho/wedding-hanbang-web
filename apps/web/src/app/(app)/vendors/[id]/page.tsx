@@ -136,6 +136,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [booked, setBooked] = useState(false);
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  const [bookingNeedsContact, setBookingNeedsContact] = useState(false);
   const [showMessageBox, setShowMessageBox] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
@@ -264,6 +265,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
     if (selectedSlot === null) return;
     setBooking(true);
     setBookingError("");
+    setBookingNeedsContact(false);
 
     // 오늘 기준으로 가장 가까운 선택 요일 날짜 계산
     const today = new Date();
@@ -301,7 +303,8 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         });
         setTimeout(() => setBooked(false), 3000);
       } else {
-        const payload = await res.json().catch(() => ({}));
+        const payload = await res.json().catch(() => ({} as { error?: string; code?: string }));
+        setBookingNeedsContact(payload.code === "booking_contact_required");
         setBookingError(
           typeof payload.error === "string"
             ? payload.error
@@ -706,15 +709,23 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   </button>
 
                   {bookingError && (
-                    <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
-                      {bookingError}
-                    </p>
+                    <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
+                      <p>{bookingError}</p>
+                      {bookingNeedsContact && (
+                        <Link href={weddingPath("/settings")} className="mt-2 inline-flex rounded-lg bg-red-700 px-3 py-1.5 font-medium text-white hover:bg-red-800">
+                          연락처 등록하기
+                        </Link>
+                      )}
+                    </div>
                   )}
 
                   {booked && (
-                    <p className="text-sm text-[#2E7D5A] text-center mt-2">
-                      업체에서 확인 후 연락드릴 예정입니다
-                    </p>
+                    <div className="mt-2 text-center text-sm text-[#2E7D5A]">
+                      <p>업체에서 확인 후 등록된 연락처로 안내드릴 예정입니다.</p>
+                      <Link href={weddingPath("/bookings")} className="mt-1 inline-flex font-medium underline underline-offset-2">
+                        예약 내역 보기
+                      </Link>
+                    </div>
                   )}
                 </>
               )}
