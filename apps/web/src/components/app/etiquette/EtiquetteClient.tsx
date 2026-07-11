@@ -19,6 +19,7 @@ import {
   ETIQUETTE_PARTS,
 } from "@/constants/etiquetteData";
 import { useAuthStore } from "@/stores/authStore";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import { addEvent, getEvents, updateEvent } from "@/utils/scheduleEvents";
 import type { ScheduleEvent } from "@/types/database.types";
 
@@ -639,6 +640,12 @@ function EtiquettePageInner() {
   const [toast, setToast] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  const { dialogRef: sidebarDialogRef } = useAccessibleDialog({
+    isOpen: sidebarOpen,
+    onClose: () => setSidebarOpen(false),
+    returnFocusRef: sidebarTriggerRef,
+  });
 
   const { journey, updateJourney } = useAuthStore();
   const part = ETIQUETTE_PARTS[selectedPart];
@@ -925,12 +932,25 @@ function EtiquettePageInner() {
 
       {/* 모바일 사이드바 오버레이 */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div
+          ref={sidebarDialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="전체 예절 목록"
+          tabIndex={-1}
+          className="lg:hidden fixed inset-0 z-50 flex"
+        >
           <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-[300px] bg-ivory-50 flex flex-col h-full animate-fade-in">
             <div className="p-4 border-b border-black/[0.04] flex items-center justify-between">
               <p className="text-lg font-medium text-noir-800">전체 목록</p>
-              <button onClick={() => setSidebarOpen(false)} className="p-1">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="전체 예절 목록 닫기"
+                data-dialog-initial-focus
+                className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white"
+              >
                 <ArrowLeft className="w-6 h-6 text-taupe-500" />
               </button>
             </div>
@@ -978,8 +998,11 @@ function EtiquettePageInner() {
         <div className="lg:hidden sticky top-0 z-10 bg-ivory-50/95 backdrop-blur-sm border-b border-black/[0.04]">
           <div className="flex items-center gap-2 px-4 pt-3 pb-2">
             <button
+              ref={sidebarTriggerRef}
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-white border border-black/[0.06] flex-shrink-0"
+              aria-label="전체 예절 목록 열기"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-black/[0.06] hover:bg-white"
             >
               <BookOpen className="w-4 h-4 text-taupe-500" />
             </button>
