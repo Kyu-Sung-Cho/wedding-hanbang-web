@@ -57,7 +57,7 @@ describe("WeddingCode atomic pairing migration contract", () => {
     );
   });
 
-  it("fills only the audited v0.5 family during a migration-first rollout", () => {
+  it("keeps the historical scoring.1 rollout trigger immutable for archived rows", () => {
     expect(migration).toContain("CREATE TRIGGER wedding_code_set_scoring_version");
     expect(migration).toContain("'v0.5-candidate.4'");
     expect(migration).toContain("NEW.scoring_version := 'v0.5-scoring.1'");

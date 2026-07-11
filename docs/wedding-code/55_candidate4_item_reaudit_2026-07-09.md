@@ -1,5 +1,7 @@
 # WeddingCode candidate.4 item re-audit
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** candidate.4와 삭제된 legacy 폼 fixture에 대한 당시 기록이다. 현재 문항·계산·공유 계약은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 Date: 2026-07-09
 Version reviewed: `v0.5-candidate.4`
 Scope: current live v0.5 question copy, forced-choice framing, scoring continuity, and result-card copy alignment.

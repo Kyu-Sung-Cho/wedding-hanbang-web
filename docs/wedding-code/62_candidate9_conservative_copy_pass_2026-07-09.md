@@ -1,5 +1,7 @@
 # WeddingCode candidate.9 conservative copy pass
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** candidate.9의 문항·선택지·scoring.1은 현재 구현이 아니다. candidate.10 전면 재설계와 비호환 경계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 Date: 2026-07-09
 Truth refresh: 2026-07-10
 Version: `v0.5-candidate.9`

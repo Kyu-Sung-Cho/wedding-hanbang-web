@@ -1,5 +1,7 @@
 ﻿# WeddingCode 3-Minute Smoke Test Shortlist v0.2
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 초기 후보와 삭제된 구인 파일 참조는 현재 런타임의 source of truth가 아니다. 현재 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)다.
+
 ## Changelog
 
 - v0.2 keeps the same 16-question structure as v0.1.

@@ -5,7 +5,7 @@ import {
 } from "@/constants/weddingCodeV05";
 import type { WeddingCodeV05Answers } from "./score";
 
-const OPTION_VALUES = new Set<string>(["A", "B", "C", "D"]);
+const OPTION_VALUES = new Set<string>(["A", "B"]);
 const QUESTION_KEYS = new Set<string>(WEDDING_CODE_V05_QUESTIONS.map((question) => question.key));
 
 export function toWeddingCodeV05Answers(raw: unknown): WeddingCodeV05Answers {

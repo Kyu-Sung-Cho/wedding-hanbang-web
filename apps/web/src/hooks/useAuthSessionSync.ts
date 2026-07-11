@@ -13,7 +13,9 @@ function resetUserScopedStores() {
 
 export function useAuthSessionSync(enabled = true) {
   useEffect(() => {
-    if (!enabled) return;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!enabled || !supabaseUrl?.trim() || !supabaseAnonKey?.trim()) return;
 
     const supabase = createClient();
 

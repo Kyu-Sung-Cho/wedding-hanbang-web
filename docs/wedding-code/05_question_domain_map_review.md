@@ -1,5 +1,7 @@
 # WeddingCode Question Domain Map Review v0.1
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 삭제된 12-구인 런타임 파일 참조를 포함한 초기 검토 기록이다. 현재 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)와 candidate.10 코드다.
+
 ## 0. Scope
 
 This review evaluates `docs/wedding-code/05_question_domain_map.md` before WC-003 question-bank generation.

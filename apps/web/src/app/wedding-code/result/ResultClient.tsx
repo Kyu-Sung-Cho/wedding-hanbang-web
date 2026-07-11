@@ -8,13 +8,14 @@ import {
   ChevronUp,
   ClipboardCheck,
   Loader2,
+  RotateCcw,
   Share2,
+  Trash2,
   X,
 } from "lucide-react";
 import {
   WEDDING_CODE_V05_PUBLIC_AXES,
   WEDDING_CODE_V05_QUESTIONS,
-  WEDDING_CODE_V05_SCORING_VERSION,
   WEDDING_CODE_V05_VERSION,
 } from "@/constants/weddingCodeV05";
 import { toWeddingCodeV05Answers } from "@/lib/weddingCode/answers";
@@ -23,6 +24,9 @@ import { scoreWeddingCodeV05 } from "@/lib/weddingCode/score";
 import { renderShareCard, downloadCanvasPng, canvasToPngBlob } from "@/lib/weddingCode/shareCard";
 import { captureEvent } from "@/lib/analytics";
 import {
+  clearWcResultBackup,
+  isCompleteCurrentWcResultBackup,
+  isCurrentWcResultBackup,
   readWcResultBackup,
   type WcResultBackup,
 } from "./resultBackup";
@@ -33,14 +37,14 @@ const primaryBtn =
 const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
-function confidenceLabel(value: string): string {
+function responsePatternLabel(value: string): string {
   switch (value) {
-    case "balanced":
-      return "균형";
-    case "slightly_close":
-      return "조금 기울어짐";
-    case "close":
-      return "뚜렷함";
+    case "mixed":
+      return "2개씩";
+    case "leaning":
+      return "3 대 1";
+    case "consistent":
+      return "4개 모두";
     default:
       return "응답 부족";
   }
@@ -60,6 +64,7 @@ export default function WeddingCodeResultClient() {
   const [saveOverlay, setSaveOverlay] = useState<{ dataUrl: string; canvas: HTMLCanvasElement } | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [allOpen, setAllOpen] = useState(false);
+  const [clearPending, setClearPending] = useState(false);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const saveOverlayRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +73,6 @@ export default function WeddingCodeResultClient() {
     setBackup(data);
     if (data) {
       captureEvent("wc_result_viewed", {
-        cached_pairing_status: data.pairingStatus ?? "unknown",
         version: data.version ?? "unknown",
       });
     }
@@ -77,7 +81,9 @@ export default function WeddingCodeResultClient() {
   const sourceVersion =
     !backup || backup === "loading" ? "unknown" : backup.version ?? "unknown";
   const scoringCompatible =
-    !!backup && backup !== "loading" && backup.scoringVersion === WEDDING_CODE_V05_SCORING_VERSION;
+    !!backup && backup !== "loading" && isCurrentWcResultBackup(backup);
+  const completeBackup =
+    !!backup && backup !== "loading" && isCompleteCurrentWcResultBackup(backup);
 
   const answers = useMemo(() => {
     if (!backup || backup === "loading" || !scoringCompatible) return {};
@@ -86,11 +92,6 @@ export default function WeddingCodeResultClient() {
 
   const score = useMemo(() => scoreWeddingCodeV05(answers), [answers]);
   const report = useMemo(() => buildWeddingCodeV05IndividualReport(score), [score]);
-  const strongestAxis = useMemo(() => {
-    return [...report.axisReports]
-      .filter((axis) => axis.leftScore !== null && axis.rightScore !== null)
-      .sort((a, b) => Math.abs((b.leftScore ?? 0) - (b.rightScore ?? 0)) - Math.abs((a.leftScore ?? 0) - (a.rightScore ?? 0)))[0] ?? null;
-  }, [report.axisReports]);
   useEffect(() => {
     if (!saveOverlay) return;
 
@@ -140,20 +141,25 @@ export default function WeddingCodeResultClient() {
     setSaveFeedback(null);
     try {
       const canvas = await renderShareCard({
-        scenario: "나의 웨딩코드",
-        quote: strongestAxis?.summaryKo ?? report.subtitleKo,
-        factText: report.disclaimerKo,
+        scenario: "나의 웨딩 준비 시작점",
+        quote: report.shareSummaryKo,
+        factText: `${report.sharePromptKo}\nhanbang.ai/wedding-code`,
         factSource: null,
-        factLabel: "읽는 방법",
+        factLabel: "같이 해보기",
         brand: "웨딩코드 · hanbang.ai",
       });
 
       const blob = await canvasToPngBlob(canvas);
       if (blob && typeof navigator.canShare === "function") {
         const file = new File([blob], "weddingcode-result.png", { type: "image/png" });
-        if (navigator.canShare({ files: [file] })) {
+        const shareData = {
+          files: [file],
+          title: "나의 웨딩 준비 시작점",
+          text: `${report.sharePromptKo}\nhttps://hanbang.ai/wedding-code`,
+        };
+        if (navigator.canShare(shareData)) {
           try {
-            await navigator.share({ files: [file] });
+            await navigator.share(shareData);
             captureEvent("wc_result_card_saved", { method: "share", version: sourceVersion });
             return;
           } catch (err) {
@@ -178,6 +184,17 @@ export default function WeddingCodeResultClient() {
     captureEvent("wc_result_card_saved", { method: "download", version: sourceVersion });
   }
 
+  function clearLocalResult() {
+    if (!clearPending) {
+      setClearPending(true);
+      return;
+    }
+    clearWcResultBackup();
+    captureEvent("wc_result_cleared", { version: sourceVersion });
+    setBackup(null);
+    setClearPending(false);
+  }
+
   if (backup === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2]" role="status" aria-live="polite">
@@ -187,7 +204,7 @@ export default function WeddingCodeResultClient() {
     );
   }
 
-  if (backup && backup.scoringVersion !== WEDDING_CODE_V05_SCORING_VERSION) {
+  if (backup && !scoringCompatible) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-4">
         <div className={`${card} max-w-[420px] p-8 text-center`} role="status">
@@ -203,16 +220,32 @@ export default function WeddingCodeResultClient() {
     );
   }
 
-  if (!backup || score.answeredCount === 0) {
+  if (!backup) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-4">
         <div className={`${card} max-w-[420px] p-8 text-center`}>
           <p className="text-[20px] font-semibold text-[#263832]">결과를 불러올 응답이 없어요</p>
           <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-            v0.5 테스트를 먼저 완료하면 이 화면에서 결혼 준비 방식을 정리해볼 수 있어요.
+            준비 순서 체크를 먼저 완료하면 이 화면에서 네 가지 시작점을 정리해볼 수 있어요.
           </p>
           <Link href="/wedding-code" className={`${primaryBtn} mt-5 w-full`}>
             테스트 하러 가기 <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!completeBackup || score.answeredCount !== WEDDING_CODE_V05_QUESTIONS.length) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-4">
+        <div className={`${card} max-w-[420px] p-8 text-center`} role="status">
+          <p className="text-[20px] font-semibold text-[#263832]">완료되지 않은 결과예요</p>
+          <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#5d6879]">
+            16개 장면의 유효한 답이 모두 있어야 결과를 보여드려요. 일부 답만으로 준비 순서를 추정하지 않습니다.
+          </p>
+          <Link href="/wedding-code" className={`${primaryBtn} mt-5 w-full`}>
+            처음부터 다시 하기 <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
@@ -223,7 +256,7 @@ export default function WeddingCodeResultClient() {
     <div className="min-h-screen bg-[#fbf8f2] px-4 py-8 sm:py-12">
       <div className="mx-auto w-full max-w-[960px]">
         <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b5528]">
-          WEDDINGCODE V0.5
+          WEDDINGCODE · BETA
         </p>
         <h1 className="mx-auto max-w-[720px] text-center text-[27px] font-semibold leading-[1.3] text-[#263832] sm:text-[31px]">
           {report.titleKo}
@@ -241,31 +274,15 @@ export default function WeddingCodeResultClient() {
             </p>
           </div>
         )}
-        {backup.recoveredPriorSubmission && (
-          <div className="mt-4 rounded-[14px] border border-[#d9c7a9] bg-[#fffdf7] px-4 py-3 text-center" role="status">
-            <p className="text-[12px] font-semibold leading-relaxed text-[#6d625a]">
-              이전 제출 시도에서 서버에 먼저 저장된 응답을 복구했어요. 오류 뒤에 답을 수정했다면 방금 수정한 내용보다 먼저 저장된 답변이 이 결과에 표시돼요.
-            </p>
-          </div>
-        )}
-        {backup.pairingStatus === "full" && (
-          <div className="mt-4 rounded-[14px] border border-[#d9c7a9] bg-[#fffdf7] px-4 py-3 text-center" role="status">
-            <p className="text-[13px] font-semibold text-[#263832]">이 초대 링크는 이미 두 사람이 완료했어요.</p>
-            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#6d625a]">
-              이번 응답은 내 결과로 저장됐지만 기존 커플 비교에는 연결되지 않았어요. 아래에서 새 초대 링크를 만들어 비교를 시작할 수 있어요.
-            </p>
-          </div>
-        )}
-
         <section className={`${card} mx-auto mt-7 max-w-[720px] overflow-hidden`}>
           <div className="flex items-start justify-between gap-4 p-5 sm:p-6">
             <div>
               <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">결과 요약</p>
               <p className="mt-2 text-[17px] font-semibold leading-relaxed text-[#263832]">
-                {strongestAxis?.summaryKo ?? report.subtitleKo}
+                {report.shareSummaryKo}
               </p>
               <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-                점수로 판정하지 않고, 결혼 준비 대화에 바로 쓸 수 있는 기준만 정리했어요.
+                네 축마다 4개 장면에서 무엇을 먼저 골랐는지 횟수 그대로 정리했어요.
               </p>
             </div>
             <button
@@ -287,8 +304,8 @@ export default function WeddingCodeResultClient() {
           )}
           <div className="grid grid-cols-3 divide-x divide-[#eadfc9] border-t border-[#eadfc9] bg-[#fffdf7]">
             <SummaryMetric label="응답" value={`${score.answeredCount}개`} />
-            <SummaryMetric label="핵심 축" value={strongestAxis?.labelKo ?? "균형"} />
-            <SummaryMetric label="용도" value="대화 기준" />
+            <SummaryMetric label="기준" value="4가지" />
+            <SummaryMetric label="보관" value="기기 안" />
           </div>
         </section>
 
@@ -302,16 +319,15 @@ export default function WeddingCodeResultClient() {
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-[16px] font-semibold text-[#263832]">{axis.labelKo}</h2>
                 <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[#36534E]">
-                  {confidenceLabel(axis.confidenceBand)}
+                  {responsePatternLabel(axis.responsePattern)}
                 </span>
               </div>
               <p className="mt-2 text-[14px] font-medium leading-[1.75] text-[#34445a]">{axis.summaryKo}</p>
               <AxisDirectionSummary
                 leftLabel={labels.left}
                 rightLabel={labels.right}
-                leftValue={axis.leftScore}
-                rightValue={axis.rightScore}
-                confidenceBand={axis.confidenceBand}
+                leftCount={axis.leftCount}
+                rightCount={axis.rightCount}
               />
                   </>
                 );
@@ -360,6 +376,21 @@ export default function WeddingCodeResultClient() {
             <ClipboardCheck className="h-4 w-4" />
             내 비용표 체크하러 가기
           </Link>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <Link href="/wedding-code" className={`${ghostBtn} w-full`}>
+              <RotateCcw className="h-4 w-4" />
+              다시 해보기
+            </Link>
+            <button
+              type="button"
+              onClick={clearLocalResult}
+              className={`${ghostBtn} w-full ${clearPending ? "border-red-200 text-red-700" : ""}`}
+              aria-live="polite"
+            >
+              <Trash2 className="h-4 w-4" />
+              {clearPending ? "한 번 더 눌러 지우기" : "이 기기 결과 지우기"}
+            </button>
+          </div>
         </div>
 
         {backup.version === WEDDING_CODE_V05_VERSION ? (
@@ -445,34 +476,26 @@ export default function WeddingCodeResultClient() {
 function AxisDirectionSummary({
   leftLabel,
   rightLabel,
-  leftValue,
-  rightValue,
-  confidenceBand,
+  leftCount,
+  rightCount,
 }: {
   leftLabel: string;
   rightLabel: string;
-  leftValue: number | null;
-  rightValue: number | null;
-  confidenceBand: string;
+  leftCount: number;
+  rightCount: number;
 }) {
-  let directionKo = "이 축은 답변이 조금 더 필요해요";
-  if (leftValue !== null && rightValue !== null) {
-    if (confidenceBand === "balanced") directionKo = "두 기준을 함께 보는 편이에요";
-    else {
-      const closerLabel = leftValue >= rightValue ? leftLabel : rightLabel;
-      directionKo = confidenceBand === "slightly_close"
-        ? `${closerLabel} 쪽에 조금 더 가까워요`
-        : `${closerLabel} 쪽이 비교적 뚜렷해요`;
-    }
-  }
-
   return (
     <div className="mt-4 rounded-[12px] bg-[#fffdf7] px-4 py-3">
-      <div className="flex items-start justify-between gap-4 text-[11px] font-semibold text-[#6d625a]">
-        <span>{leftLabel}</span>
-        <span className="text-right">{rightLabel}</span>
+      <div className="grid grid-cols-2 divide-x divide-[#eadfc9] text-center">
+        <div className="pr-3">
+          <p className="text-[11px] font-semibold text-[#6d625a]">{leftLabel}</p>
+          <p className="mt-1 text-[16px] font-semibold text-[#36534E]">{leftCount}개</p>
+        </div>
+        <div className="pl-3">
+          <p className="text-[11px] font-semibold text-[#6d625a]">{rightLabel}</p>
+          <p className="mt-1 text-[16px] font-semibold text-[#36534E]">{rightCount}개</p>
+        </div>
       </div>
-      <p className="mt-2 text-center text-[12px] font-semibold text-[#36534E]">{directionKo}</p>
     </div>
   );
 }
