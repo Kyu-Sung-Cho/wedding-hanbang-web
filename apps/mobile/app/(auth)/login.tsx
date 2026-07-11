@@ -76,7 +76,8 @@ export default function LoginScreen() {
         Alert.alert("로그인 실패", translateError(error.message));
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // 루트가 profile.onboarding_completed를 확인해 신규 가입자를 온보딩으로 보낸다.
+      router.replace("/");
     } catch {
       Alert.alert("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
@@ -94,7 +95,7 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      router.replace("/");
     } catch (err) {
       const message = err instanceof Error ? err.message : "로그인에 실패했어요";
       Alert.alert("로그인 오류", message);
