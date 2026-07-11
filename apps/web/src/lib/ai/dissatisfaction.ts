@@ -3,6 +3,18 @@ export type DissatisfactionResult = {
   signal: "correction" | "retry" | "frustration" | "negative" | "confusion" | "disengagement";
 };
 
+type ConversationMessage = Readonly<{
+  role: string;
+  content: string;
+}>;
+
+const REPAIR_SIGNALS = new Set<DissatisfactionResult["signal"]>([
+  "correction",
+  "retry",
+  "frustration",
+  "negative",
+]);
+
 export function detectDissatisfaction(
   userMessage: string,
   previousAiMessage?: string
@@ -45,4 +57,34 @@ export function detectDissatisfaction(
   }
 
   return null;
+}
+
+/**
+ * 가장 최근 사용자 턴부터 연속된 교정·재시도·불만만 센다.
+ * 중간에 정상 후속 질문이 하나라도 있으면 그 이전 신호는 현재 턴의
+ * 모델 승격 근거로 사용하지 않는다.
+ */
+export function countRecentConsecutiveDissatisfaction(
+  messages: readonly ConversationMessage[]
+): number {
+  let count = 0;
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role !== "user") continue;
+
+    const previousAssistant = messages
+      .slice(0, index)
+      .reverse()
+      .find((candidate) => candidate.role === "assistant");
+
+    // 첫 사용자 메시지는 Amora의 직전 답변을 고치는 턴이 아니다.
+    if (!previousAssistant) break;
+
+    const result = detectDissatisfaction(message.content, previousAssistant.content);
+    if (!result || !REPAIR_SIGNALS.has(result.signal)) break;
+    count++;
+  }
+
+  return count;
 }

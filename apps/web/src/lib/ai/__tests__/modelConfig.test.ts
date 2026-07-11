@@ -76,4 +76,36 @@ describe("Amora GPT-5.6 model configuration", () => {
       correctionCount: 2,
     })).toBe("primary");
   });
+
+  it.each([
+    "살기 싫어",
+    "죽고 싶어",
+    "극단적 선택을 생각하고 있어",
+    "예비신랑한테 맞았어",
+    "맞았어",
+    "스토킹을 당하는 것 같아",
+    "문을 잠그고 감금했어",
+    "성폭행을 당했어",
+    "112에 신고해야 할까",
+    "112",
+  ])("routes Korean safety phrase to Terra: %s", (userText) => {
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText,
+      correctionCount: 0,
+    })).toBe("primary");
+  });
+
+  it.each([
+    "드레스가 몸에 잘 맞았어",
+    "하객 112명 견적을 내줘",
+    "계약했어, 다음 할 일은 뭐야?",
+    "다시 알려줘",
+  ])("keeps a non-risk phrase on Luna: %s", (userText) => {
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText,
+      correctionCount: 0,
+    })).toBe("fast");
+  });
 });

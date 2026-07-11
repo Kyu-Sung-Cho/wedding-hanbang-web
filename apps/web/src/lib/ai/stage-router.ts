@@ -37,10 +37,26 @@ export function determineStage(
 // Specialist 라우팅
 // -------------------------------------------
 
+// 계약 완료 보고나 일정 대화에 들어간 단순 "계약"은 계약 검토 요청이 아니다.
+// 문서·조항·분쟁 표현 또는 계약을 실제로 확인해 달라는 의도가 함께 있을 때만
+// 고비용 contract_reviewer로 보낸다.
+const EXPLICIT_CONTRACT_REVIEW_PATTERN =
+  /계약서|약관|조항|특약|위약금?|환불|분쟁|손해배상|법적\s*효력|해약/;
+const CONTRACT_REVIEW_ACTION_PATTERN =
+  /검토|확인|체크|살펴|봐\s*줘|문제|위험|주의|불리|누락|효력|해지|취소|돌려|받을\s*수|계약해도|계약할까|계약해야/;
+const CANCELLATION_CONTEXT_PATTERN = /계약|예약금|계약금|업체|위약/;
+
+function hasExplicitContractReviewIntent(message: string): boolean {
+  if (EXPLICIT_CONTRACT_REVIEW_PATTERN.test(message)) return true;
+  if (/계약/.test(message) && CONTRACT_REVIEW_ACTION_PATTERN.test(message)) return true;
+  return /취소|해지/.test(message) && CANCELLATION_CONTEXT_PATTERN.test(message);
+}
+
 // 키워드 테이블 — 각 패턴은 OR로 연결
-const SPECIALIST_KEYWORDS: Record<Exclude<SpecialistType, "general">, RegExp> = {
-  // contract_reviewer를 budget_optimizer보다 먼저 체크해야 "계약금" 같은 금액 용어가 contract로 가지 않음
-  contract_reviewer: /계약서|계약|위약|환불|취소|약관|조항|분쟁|손해배상|추가금/,
+const SPECIALIST_KEYWORDS: Record<
+  Exclude<SpecialistType, "general" | "contract_reviewer">,
+  RegExp
+> = {
   sangkyeonrye_advisor: /상견례|양가|시댁|처가|어른|예법|상차림|부모님|예단|예물/,
   budget_optimizer: /예산|돈|가격|비용|얼마|만원|결제|견적|시세|할인|패키지|스드메|세일/,
   ceremony_coordinator: /본식|예식|당일|리허설|포토그래퍼|주례|축가|식순|하객|답례품|부케|폐백|사회자/,
@@ -67,10 +83,13 @@ export function routeSpecialist(
   const msg = (userMessage ?? "").trim();
   if (!msg) return STAGE_DEFAULT_SPECIALIST[stage] ?? "general";
 
-  // 1. 명확한 키워드 우선 매칭 (contract → budget → others 순서)
-  //    contract를 budget보다 먼저: "계약금" 이 금액 용어로 오분류되지 않도록
-  const priorityOrder: Array<Exclude<SpecialistType, "general">> = [
-    "contract_reviewer",
+  // 1. 명확한 계약 검토 의도는 다른 금액·일정 키워드보다 우선한다.
+  if (hasExplicitContractReviewIntent(msg)) return "contract_reviewer";
+
+  // 2. 나머지 키워드는 budget → ceremony → settlement → family 순으로 매칭한다.
+  const priorityOrder: Array<
+    Exclude<SpecialistType, "general" | "contract_reviewer">
+  > = [
     "budget_optimizer",
     "ceremony_coordinator",
     "settlement_companion",
@@ -88,13 +107,13 @@ export function routeSpecialist(
     return STAGE_DEFAULT_SPECIALIST[stage] ?? "general";
   }
 
-  // 2. 겹치는 키워드 (시댁/처가) — stage 기반 타이브레이크
+  // 3. 겹치는 키워드 (시댁/처가) — stage 기반 타이브레이크
   //    settlement 단계면 settlement_companion 우선
   if (OVERLAP_KEYWORDS.test(msg) && stage === "settlement_4") {
     return "settlement_companion";
   }
 
-  // 3. 첫 매치 승리 (priorityOrder 순서)
+  // 4. 첫 매치 승리 (priorityOrder 순서)
   return matched[0];
 }
 
@@ -112,10 +131,11 @@ const SPECIALIST_PROMPT_ADDONS: Record<SpecialistType, string> = {
 
   contract_reviewer: `
 
-[전문분야 — 계약서 검토]
-- 공정위 결혼준비대행업 표준계약서(2025.4.3 제정) 조항을 숙지합니다.
-- 취소·환불·위약금 산정, 손해배상 범위를 구체 수치로 안내합니다.
-- 계약서에 빠진 필수 조항을 지적하고 소비자 보호 기준을 제시합니다.`,
+[전문분야 — 계약 전 확인 지원]
+- 사용자가 제공한 계약서·견적서·대화 캡처와 시스템에 주입된 공식 근거에서 확인되는 내용만 정리합니다.
+- 기억에 의존해 표준계약서 조항을 단정하거나 인용하지 않습니다. 계약의 법적 효력·적법성, 위약금·손해배상액을 확정하거나 계산하지 않습니다.
+- 문서화된 조건, 빠지거나 모호한 조건, 업체에 보낼 확인 질문, 보존할 증빙을 구분해 안내합니다.
+- 분쟁·고액 손실·법률 판단이 필요한 경우 1372 소비자상담센터 또는 법률 전문가에게 확인하도록 안내하고, 상담 시 물어볼 질문을 정리합니다.`,
 
   budget_optimizer: `
 
