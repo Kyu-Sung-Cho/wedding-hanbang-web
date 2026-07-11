@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import { Bookmark, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
+import { createClient } from "@/lib/supabase/client";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
 
@@ -14,13 +14,9 @@ export default function MyBookmarksPage() {
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/bookmarks"))}`); return; }
 
@@ -34,7 +30,7 @@ export default function MyBookmarksPage() {
       } catch { /* ignore */ }
       setLoading(false);
     })();
-  }, [router, supabase.auth]);
+  }, [router]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

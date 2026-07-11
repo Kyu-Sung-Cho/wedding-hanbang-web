@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
@@ -10,6 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
+import { createClient } from "@/lib/supabase/client";
 import { weddingPath } from "@/lib/weddingPaths";
 import { timeAgo } from "@/utils/timeAgo";
 
@@ -37,18 +37,14 @@ export default function MyPostsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`); return; }
       setUserId(user.id);
     })();
-  }, [router, supabase.auth]);
+  }, [router]);
 
   useEffect(() => {
     if (!userId) return;
