@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -75,7 +76,12 @@ export async function updateSession(request: NextRequest) {
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {
     const url = request.nextUrl.clone();
+    const returnPath = protectedType === "customer"
+      ? sanitizeAuthReturnPath(`${pathname}${request.nextUrl.search}`)
+      : null;
     url.pathname = protectedType === "admin" ? "/admin/login" : "/login";
+    url.search = "";
+    if (returnPath) url.searchParams.set("next", returnPath);
     return NextResponse.redirect(url);
   }
 
