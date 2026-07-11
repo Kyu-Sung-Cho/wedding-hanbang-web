@@ -420,6 +420,7 @@ function ItemGroup({
               type="button"
               key={item.id}
               onClick={() => onToggle(item.id)}
+              aria-pressed={active}
               className={`flex min-h-[64px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
                 active
                   ? "border-[#36534E] bg-[#f6efe5]"
