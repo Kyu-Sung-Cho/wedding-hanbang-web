@@ -27,6 +27,7 @@ import {
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
+import { formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
@@ -340,7 +341,7 @@ export default function DashboardScreen() {
       const progressPercent = calcProgress(progress);
 
       // 오늘 할 일: 이벤트 중 오늘 날짜인 것
-      const today = new Date().toISOString().slice(0, 10);
+      const today = formatLocalDateOnly(new Date());
       const events =
         ((progress as Record<string, unknown>)?.__events as Array<{
           date: string;
@@ -357,7 +358,7 @@ export default function DashboardScreen() {
       const urgentTasks = calcUrgentTasks(dday, progress);
 
       const todayStart = getTodayStart();
-      const todayIso = todayStart.toISOString().slice(0, 10);
+      const todayIso = formatLocalDateOnly(todayStart);
       let bookingOutcomeTasks: BookingOutcomeTask[] = [];
       try {
         const { data: bookingRows, error: bookingError } = await supabase

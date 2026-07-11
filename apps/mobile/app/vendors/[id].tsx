@@ -12,6 +12,7 @@ import {
   ShieldCheck, WalletCards, Info, FileCheck2, AlertTriangle, Store, Star,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { databaseWeekdayIndex, formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import {
@@ -234,8 +235,8 @@ export default function VendorDetailScreen() {
     if (!id) return;
     setLoadingSlots(true);
     try {
-      const dayOfWeek = date.getDay(); // 0=일 ~ 6=토
-      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const dayOfWeek = databaseWeekdayIndex(date);
+      const dateStr = formatLocalDateOnly(date);
 
       // 해당 요일 타임슬롯 가져오기
       const { data: slots } = await supabase
@@ -296,7 +297,7 @@ export default function VendorDetailScreen() {
 
     setSubmitting(true);
     try {
-      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+      const dateStr = formatLocalDateOnly(selectedDate);
       const timeStr = `${String(selectedHour).padStart(2, "0")}:00`;
 
       const res = await apiFetch("/api/bookings", {

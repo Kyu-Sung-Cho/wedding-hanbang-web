@@ -15,6 +15,7 @@ import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
+import { formatLocalDateOnly } from "@hanbang/shared";
 
 const CATEGORY_KEYS = [
   "meeting", "venue", "studio", "dress", "makeup", "ring",
@@ -108,7 +109,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const events = useMemo(() => getEvents(progress as Record<string, unknown>), [progress]);
 
   // 다가오는 일정
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = formatLocalDateOnly(new Date());
   const upcomingEvents = useMemo(() => {
     return events
       .filter((e) => e.date >= todayStr)

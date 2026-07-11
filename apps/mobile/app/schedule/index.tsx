@@ -12,6 +12,7 @@ import {
   Plus, X, CalendarDays, Clock, Trash2, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -99,7 +100,7 @@ function getUpcomingDays(n: number): string[] {
   for (let i = 0; i < n; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    days.push(d.toISOString().slice(0, 10));
+    days.push(formatLocalDateOnly(d));
   }
   return days;
 }
@@ -463,7 +464,7 @@ export default function ScheduleScreen() {
   /* ── 이벤트 모달 ── */
   function openAddEventModal() {
     setEditingIdx(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = formatLocalDateOnly(new Date());
     setFormTitle("");
     setFormDate(today);
     setFormTime("");

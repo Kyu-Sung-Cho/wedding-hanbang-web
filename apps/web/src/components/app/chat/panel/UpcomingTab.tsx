@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
+import { formatLocalDateOnly } from "@hanbang/shared";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -70,7 +71,7 @@ export default function UpcomingTab() {
     [progress, weddingDate]
   );
 
-  const todayStr = now ? now.toISOString().slice(0, 10) : "";
+  const todayStr = now ? formatLocalDateOnly(now) : "";
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
     if (!todayStr) return [];
     return getEvents(progress as Record<string, unknown>)
