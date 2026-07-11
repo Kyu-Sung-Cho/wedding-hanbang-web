@@ -4,33 +4,46 @@
 모든 AI 호출은 ai_interactions_log에 기록되며,
 모든 커플 의사결정은 decision_nodes에 기록된다.
 
+## 현재 소스 오브 트루스 (2026-07-10)
+
+> 이 문서에는 초기 단일 웹앱 계획이 역사 기록으로 남아 있다. 현재 상태를 판단할 때는 아래 목록과 실제 코드·패키지 매니페스트를 우선하며, 오래된 계획 블록을 구현 사실로 인용하지 않는다.
+
+- 저장소는 pnpm/Turbo 모노레포다: `apps/web`, `apps/mobile`, `packages/design-tokens`, `packages/shared`, `supabase`, `scripts`.
+- 웹은 Next.js `16.2.6`/React `19.2.3`/Tailwind CSS 4, 모바일은 Expo 54/React Native 0.81이다. 정확한 버전은 각 `package.json`과 `pnpm-lock.yaml`이 최종 기준이다.
+- 아모라 AI 연동은 OpenAI Responses API다. 일반 상담은 정확히 `gpt-5.6-luna`, 계약·분쟁/안전·반복 교정만 정확히 `gpt-5.6-terra`를 사용하며 reasoning은 코드에서 `none`으로 고정한다. Anthropic/Claude 런타임과 SDK는 제거되었다.
+- WeddingCode는 개인 결과만 브라우저에서 계산한다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
+- 디자인 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹에 실제 적용된 값은 `apps/web/src/app/globals.css`가 기준이다. 충돌하면 실행 코드의 현재 동작을 먼저 확인하고 문서를 함께 동기화한다.
+- 저장소 명령은 루트에서 `corepack pnpm ...` 형식을 사용한다. 실제 스크립트는 루트와 각 앱의 `package.json`을 확인한다.
+
 ---
 
-# 웨딩한방 웹 (hanbang.ai) - Codex 가이드
+# 웨딩한방 모노레포 (hanbang.ai) - Codex 가이드
 
 ## 🎯 프로젝트 개요
 
-**한 줄 요약**: 웨딩한방 모바일 앱의 웹 버전 + 마케팅 랜딩페이지. 같은 Supabase 백엔드를 공유하여 앱과 웹 데이터가 실시간 동기화됨.
+**한 줄 요약**: 웹·모바일 앱과 공유 패키지를 함께 관리하는 웨딩한방 모노레포. 웹과 모바일은 같은 Supabase 백엔드를 사용한다.
 
 **도메인**: hanbang.ai (www.hanbang.ai)
 **배포**: Vercel
-**기존 앱**: React Native CLI (별도 레포)
+**모바일 앱**: `apps/mobile` (Expo/React Native, 같은 저장소)
 
 ## 🏗 기술 스택
 
 | 레이어 | 기술 | 이유 |
 |--------|------|------|
-| Framework | Next.js 14 (App Router) | SSR, API Routes, Vercel 최적화 |
+| Framework | Next.js 16.2.6 (App Router) | SSR, Route Handlers, Vercel 배포 |
 | Language | TypeScript | 타입 안정성 |
-| Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
-| State | Zustand | 앱과 동일한 패턴 |
+| Styling | Tailwind CSS 4 | 빠른 개발, 일관된 디자인 |
+| State | Zustand 5 | 웹·모바일의 로컬 상태 관리 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
 | AI | OpenAI Responses API | 웨딩 AI 플래너 채팅 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
-| 배포 | Vercel | 자동 배포, Edge Functions |
+| 배포 | Vercel | Next.js 웹 배포 |
 | 이메일 | Resend | 사전등록 확인 메일 |
 
-## 📁 프로젝트 구조
+## 📁 폐기된 초기 구조 초안 (현재 구조 아님)
+
+> 아래 트리는 초기 단일 앱 계획의 역사 기록이다. 현재 작업 경로로 사용하지 않는다. 실제 구조는 위의 `현재 소스 오브 트루스`와 `apps/`, `packages/`, `supabase/` 디렉터리에서 확인한다.
 
 ```
 hanbang-web/
@@ -145,9 +158,13 @@ hanbang-web/
 └── middleware.ts                 # Next.js 미들웨어 (인증 체크)
 ```
 
-## 🎨 디자인 시스템
+## 🎨 디자인 시스템 출처
 
-앱과 동일한 컬러 팔레트:
+현재 디자인 판단은 `DESIGN.md`에서 시작하고, 공유 구현 토큰은 `packages/design-tokens/src/`, 웹 런타임 값은 `apps/web/src/app/globals.css`에서 확인한다.
+
+> 아래 색상·폰트 블록은 초기안 기록이며 현재 적용 기준이 아니다.
+
+초기 컬러 팔레트 기록:
 
 ```css
 /* Primary - Noir */
@@ -171,7 +188,7 @@ hanbang-web/
 --gold: #C9A96E;
 ```
 
-폰트:
+초기 폰트 기록:
 - 한글 제목: Noto Serif KR (300, 400, 500)
 - 한글 본문: Noto Sans KR (300, 400, 500, 600)
 - 영문 제목/숫자: Cormorant Garamond (300, 400, 600)
@@ -245,7 +262,9 @@ CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true)
 4. 프로필 체크 → 신규면 온보딩, 기존이면 대시보드
 5. middleware.ts에서 (app) 그룹 페이지 접근 시 인증 체크
 
-## 🛠 개발 순서 (권장)
+## 🛠 초기 개발 순서 기록 (현재 실행 계획 아님)
+
+> 아래 단계는 초기 구축 계획이다. 현재 우선순위와 완료 상태는 최신 `docs/` 기록과 실제 이슈/코드를 확인한다.
 
 ### Phase 1: 기초 셋업 (Day 1)
 1. `npx create-next-app@latest hanbang-web --typescript --tailwind --app --src-dir`
@@ -303,10 +322,11 @@ chore: 설정, 패키지 등
 
 ## Design System
 
-Always read DESIGN.md before making any visual or UI decisions.
-All font choices, colors, spacing, and aesthetic direction are defined there.
-Do not deviate without explicit user approval.
-In QA mode, flag any code that does not match DESIGN.md.
+Read `DESIGN.md` before making visual or UI decisions. Treat it as the design-intent source.
+Check `packages/design-tokens/src/` for shared tokens and `apps/web/src/app/globals.css` for values actually applied on web.
+If these sources disagree, verify the rendered implementation and update the drift instead of copying an old value from this file.
+Do not deviate from an explicit approved direction without user approval.
+In QA mode, flag mismatches among `DESIGN.md`, shared tokens, and rendered code.
 For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md before changing navigation, screen hierarchy, AI flows, vendor flows, or launch-readiness behavior.
 
 ## Codex Operating Protocol

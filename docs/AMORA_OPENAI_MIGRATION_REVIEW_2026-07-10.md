@@ -10,7 +10,7 @@
 
 1. production catalog로 누락된 핵심 base-table baseline을 만들고 빈 DB fresh reset과 production snapshot upgrade를 모두 통과
 2. 실제 OpenAI 프로젝트 키로 Terra/Luna 접근 권한·2라운드 도구·PDF·refusal·abort canary
-3. `20260710010000` 이후 DB 마이그레이션을 provider/traffic drain 유지보수 창에서 적용하고 권한·RPC·동시성 원격 검증
+3. `20260710010000` 이후 DB 마이그레이션을 provider/traffic drain 유지보수 창에서 순서대로 적용하고 권한·RPC·동시성 원격 검증
 4. OpenAI 프로젝트 예산·알림·rate limit과 운영 환경변수 설정
 5. Supabase/Vercel/Resend/OpenAI의 실제 계약 법인·처리 리전·DPA를 확인한 국외 처리 고지 확정
 
@@ -26,7 +26,9 @@
 - 모델 ID는 코드에서 정확히 `gpt-5.6-luna`/`gpt-5.6-terra`만 허용하고 reasoning은
   `none`만 허용한다. 환경변수 suffix·고추론 설정으로 비용 정책이 바뀌면 호출 전에 실패한다.
 - 선택된 Terra/Luna 입력은 공식 input-token count를 실제 생성 전에 실행하고 48K를 넘으면 차단한다.
-- 사용자 무료 상담 턴(커플 기본 30)과 실제 provider 생성(전역 일일 기본 60)을 분리했다.
+- 사용자 무료 상담 턴(커플 30)과 실제 provider 생성(전역 일일 60)을 분리했다. 이 값은
+  production 코드의 하드 상한이라 과거 환경변수가 100/300으로 남아도 올라가지 않고 더 낮추는 것만 가능하다.
+- production에서는 비용 장부를 환경변수로 끄거나 장부 장애를 fail-open으로 바꿀 수 없다.
 - 도구 후속 생성은 무료 상담 횟수를 추가 차감하지 않지만 전역 provider 천장은 소모한다.
 - 프롬프트 캐시는 Terra/Luna 모두 explicit/no-breakpoint로 두어 애플리케이션이 사용자 원문
   cache write를 요청하지 않는다. 계약상 보존 조건을 확정하기 전의 보수 기본값이다.
@@ -55,9 +57,13 @@
   예약 개인정보를 상속하지 못하게 한다.
 - 모바일 가입·비밀번호 복구는 위조 가능한 헤더 우회를 제거하고 Turnstile이 있는 웹 흐름으로만
   연결한다. 모바일 소셜 로그인은 PKCE·검증된 App/Universal Link 적용 전까지 코드에서 꺼져 있다.
+- 관리자 seed API는 인증과 production seed gate를 통과한 요청 안에서만 service client를 만든다.
+  네 route의 import·인증 실패·gate 차단 순서를 15개 회귀 테스트로 고정해 빌드 시 비밀값 없는
+  모듈 평가와 우회 요청이 privileged client를 먼저 만들지 못하게 했다.
 - 커뮤니티 신규 업로드는 JPEG/PNG/GIF/WebP만 허용하며 magic byte와 실제 디코더 형식,
   가로·세로·픽셀·애니메이션 프레임/누적 픽셀을 검증한다. 일일 20개 한도는 service-only DB
-  예약 장부와 user/day advisory lock으로 원자화했다. 영상 신규 업로드 UI/API는 함께 비활성이다.
+  예약 장부와 user/day advisory lock으로 원자화했다. Storage metadata INSERT가 같은 트랜잭션에서
+  활성 예약을 소비하므로 만료 예약은 안전하게 해제되고 늦은 commit은 거절된다. 영상 신규 업로드 UI/API는 함께 비활성이다.
 - 외부 처리 계약과 리전 고지가 확정될 때까지 웹/모바일 PostHog·Sentry 송신은 키와 무관하게
   코드에서 비활성이다.
 
@@ -75,13 +81,16 @@
 - 배지 대비·12px 최소 글자·모바일 터치 타깃·선택 상태를 보강했다.
 - 첨부 선택 UI를 서버 정책(3개/총 2MiB, 이미지·PDF·DOCX)과 맞추고 `.doc` 오허용을 제거했다.
 - 비공개 삭제/공유 초기화 문구가 실제 동작 범위를 과장하지 않도록 고쳤다.
+- WeddingCode는 16문항 개인 결과만 브라우저에서 계산·최대 30일 보관한다. 과거 plaintext `ct`와
+  response UUID가 유출된 커플 초대·비교 및 익명 응답 수집 API는 모두 410으로 하드 차단했고,
+  DB 후속 마이그레이션은 기존 token을 NULL로 폐기하고 재부착을 CHECK 제약으로 막는다.
 
 ## 검증 결과
 
-- `pnpm qa:local`: 통과
-- Web TypeScript / ESLint / Vitest: 통과 (`52 files`, `414 tests`)
+- `pnpm qa:local`: CI와 같은 비밀값 없는 정적검증용 placeholder 환경에서 통과
+- Web TypeScript / ESLint / Vitest: 통과 (`65 files`, `503 tests`)
 - Next.js production build: 통과 (`101` static pages 생성)
-- Mobile release readiness: `55 passed`, warning/failure 0
+- Mobile release readiness: `56 passed`, warning/failure 0
 - Mobile lint/typecheck, shared/design-token typecheck: 통과
 - `pnpm audit --prod`: 알려진 취약점 0
 - `git diff --check`, 비밀값 패턴 검사, 비용 보고 스크립트 syntax: 통과
@@ -93,9 +102,10 @@
   `vendor_products`, `vendor_images`, `vendor_bookings`, `vendor_favorites`를 생성하지 않은 채
   ALTER한다. 운영 catalog를 추측해 baseline을 만들면 데이터·제약을 틀릴 수 있으므로,
   검토된 schema dump와 fresh/snapshot 양방향 staging 검증 전에는 어떤 신규 migration도 배포 금지다.
-- WeddingCode의 다른 컴퓨터 작업은 DB 원자 페어링으로 3번째 참여자 race를 막지만,
-  익명 `ct` capability의 해시 저장·만료·폐기 정책은 아직 없다. 이 토큰 수명주기와 실제 DB
-  concurrency 검증 전에는 WeddingCode를 production-ready로 판정하지 않는다.
+- **P0 — 운영 WeddingCode capability 폐기 미확인**: 다른 컴퓨터 작업의 과거 Git revision에
+  노출된 production `ct`/response UUID는 코드에서 하드 차단했고 `1100`/`1200`에 DB 폐기 fence를
+  넣었지만, 운영 DB에는 아직 적용하지 않았다. QA row 삭제 또는 token NULL, pair RPC 부재,
+  CHECK 제약을 원격 확인하기 전에는 production capability가 폐기됐다고 선언하지 않는다.
 - 가입 메일은 전송 실패 시 방금 만든 Auth 사용자를 보상 삭제하지만, 영속 email outbox와
   재시도/dead-letter가 없다. 공급자가 성공을 반환한 뒤 실제 전달이 유실되는 경우까지 보장하려면
   outbox를 추가해야 한다.
@@ -110,8 +120,9 @@
 - 외부 처리 리전·계약 고지가 확정되지 않았으므로 법무 검토 전 운영 배포는 금지한다.
 - existing one-slot couple·legacy private derived rows·owner 없는 축의금 행은 마이그레이션 preflight가
   자동 추정하지 않고 중단한다. 백업·inventory·운영자 repair 후 재실행해야 한다.
-- 0500 DDL은 runtime lock 순서와 교차할 수 있으므로 live traffic 및 provider를 완전히 drain한
-  유지보수 창에서만 적용한다.
+- 0500 DDL과 0800 Storage trigger는 runtime lock 순서·구버전 업로드 route와 교차할 수 있으므로
+  live traffic 및 provider를 완전히 drain한 유지보수 창에서만 적용한다. 새 route-before-DB는 503,
+  DB-before-old-route는 업로드 거절로 fail-closed지만 무중단 rolling deploy 계약은 아니다.
 
 ## 공식 근거
 

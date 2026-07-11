@@ -82,7 +82,7 @@ const INDIVIDUAL_DISCLAIMER =
   "이 결과는 현재 답변을 바탕으로 결혼 준비 대화를 시작하기 쉽게 정리한 참고 자료예요. 사람을 평가하거나 앞날을 단정하는 데 쓰지 않아요.";
 
 const COUPLE_DISCLAIMER =
-  "두 사람의 점수 차이는 좋고 나쁨을 가르는 기준이 아니라, 결혼 준비에서 무엇부터 이야기할지 찾기 위한 참고예요.";
+  "두 사람의 답변 차이는 좋고 나쁨을 가르는 기준이 아니라, 결혼 준비에서 무엇부터 이야기할지 찾기 위한 참고예요.";
 
 export function buildWeddingCodeV05IndividualReport(
   score: WeddingCodeV05ScoreResult
@@ -134,18 +134,24 @@ export function buildWeddingCodeV05CoupleReport(
   const overlapScore = roundScore(overlaps.reduce((sum, axis) => sum + axis.overlapScore, 0) / overlaps.length);
   const orderedByOverlap = [...overlaps].sort((a, b) => b.overlapScore - a.overlapScore);
   const orderedByNeed = [...overlaps].sort((a, b) => a.overlapScore - b.overlapScore);
-  const talkFirst = orderedByNeed[0] ?? null;
+  // "대화가 쉬운 지점" is an absolute claim, not merely a ranking. Do not
+  // apply it when even the two closest axes are still below the high-overlap
+  // threshold.
+  const easyPoints = orderedByOverlap.filter((axis) => axis.overlapScore >= 75).slice(0, 2);
+  const easyPointKeys = new Set(easyPoints.map((axis) => axis.key));
+  const talkFirst =
+    orderedByNeed.find((axis) => axis.overlapScore < 75 && !easyPointKeys.has(axis.key)) ?? null;
 
   return {
     titleKo: "두 사람의 준비 방식 겹침도",
     overlapScore,
     overlapLabelKo: coupleOverlapLabel(overlapScore),
-    easyPoints: orderedByOverlap.slice(0, 2),
+    easyPoints,
     talkFirst,
     scenarioCards: buildScenarioCards(options.firstAnswers, options.secondAnswers),
     solutionCards: orderedByNeed.map(solutionCardForAxis),
     guideKo: talkFirst
-      ? `${talkFirst.labelKo}부터 이야기해보면 좋아요. 점수가 낮다는 뜻이 아니라, 먼저 맞추면 대화가 쉬워지는 부분이에요.`
+      ? `${talkFirst.labelKo}부터 이야기해보면 좋아요. 좋고 나쁨이 아니라, 먼저 맞추면 대화가 쉬워지는 부분이에요.`
       : "두 사람이 비슷하게 답한 지점부터 가볍게 이야기해보세요.",
     disclaimerKo: COUPLE_DISCLAIMER,
   };
@@ -172,22 +178,22 @@ function axisSummary(axis: WeddingCodeV05AxisScore): string {
     case "decisionCriteria":
       if (balanced) return "조건 확인과 의미 있는 장면을 함께 보며 결정하려는 편이에요.";
       return axis.leaning === "left"
-        ? "포함 항목, 총액, 후기처럼 확인할 수 있는 내용이 보여야 마음이 놓이는 편이에요."
+        ? "가격에 들어 있는 항목, 총금액, 후기처럼 확인할 수 있는 내용이 보여야 마음이 놓이는 편이에요."
         : "이 선택이 어떤 장면과 의미로 남을지 먼저 그려봐야 마음이 움직이는 편이에요.";
     case "preparationMode":
       if (balanced) return "함께 보는 일과 맡아서 정리하는 일을 상황에 따라 섞는 편이에요.";
       return axis.leaning === "left"
         ? "상대와 같이 보고 중요한 점을 맞춰야 준비가 편해지는 편이에요."
-        : "각자 잘 보는 일을 맡아 정리한 뒤 함께 확인하면 준비가 편해지는 편이에요.";
+        : "가격·위치·사진처럼 각자 잘 보는 항목을 나눠 맡고 함께 확인하면 준비가 편해지는 편이에요.";
     case "coordinationScope":
-      if (balanced) return "둘이 원하는 것과 가족·하객이 중요하게 볼 것을 함께 조율하려는 편이에요.";
+      if (balanced) return "둘이 원하는 것과 가족·초대 손님이 중요하게 볼 것을 함께 조율하려는 편이에요.";
       return axis.leaning === "left"
-        ? "둘이 양보하기 어려운 것을 먼저 정해두면 가족과도 편하게 이야기하는 편이에요."
-        : "부모님, 하객, 식사, 교통처럼 함께 살펴야 할 부분을 중요하게 보는 편이에요.";
+        ? "둘이 먼저 정해두고 싶은 것을 확인하면 가족과도 편하게 이야기하는 편이에요."
+        : "부모님, 초대 손님, 음식, 오는 길처럼 함께 살펴야 할 부분을 중요하게 보는 편이에요.";
     case "supportOrder":
       if (balanced) return "마음을 먼저 듣는 시간과 바로 할 일을 정하는 시간이 둘 다 필요한 편이에요.";
       return axis.leaning === "left"
-        ? "걱정이나 막힌 지점을 먼저 들어야 다음 행동으로 넘어가기 쉬운 편이에요."
+        ? "걱정이나 멈춰 있는 부분을 먼저 들어야 다음 행동으로 넘어가기 쉬운 편이에요."
         : "할 일, 마감, 역할처럼 바로 움직일 내용이 잡혀야 마음이 놓이는 편이에요.";
   }
 }
@@ -204,13 +210,13 @@ function buildTalkStarters(axes: WeddingCodeV05AxisScore[]): string[] {
 
   switch (top.key) {
     case "decisionCriteria":
-      starters.push("계약 전 확인할 조건 3개와, 마음에 남는 장면 1개를 같이 적어보세요.");
+      starters.push("예약을 확정하기 전 확인할 조건 3개와, 마음에 남는 장면 1개를 같이 적어보세요.");
       break;
     case "preparationMode":
       starters.push("같이 볼 결정과 맡아서 볼 일을 나눠서, 서로 기대하는 준비 방식을 맞춰보세요.");
       break;
     case "coordinationScope":
-      starters.push("우리가 양보하기 어려운 것 1개와 가족이 중요하게 볼 것 1개를 나란히 적어보세요.");
+      starters.push("우리가 먼저 정해두고 싶은 것 1개와 가족이 중요하게 볼 것 1개를 나란히 적어보세요.");
       break;
     case "supportOrder":
       starters.push("힘들 때 먼저 듣기와 바로 정리하기 중 어떤 순서가 편한지 한 문장으로 말해보세요.");
@@ -236,15 +242,15 @@ function buildActionCards(score: WeddingCodeV05ScoreResult): WeddingCodeV05Actio
   if ((score.internalOnly.decisionPaceRisk.normalized ?? 0) >= 50) {
     cards.push({
       id: "contract_check",
-      titleKo: "계약 전 확인",
-      bodyKo: "마음이 크게 움직인 선택일수록 총액, 추가금, 취소 조건은 문서로 한 번 더 확인해보세요.",
+      titleKo: "예약 확정 전 확인",
+      bodyKo: "마음이 크게 움직인 선택일수록 총금액, 추가 비용, 취소 조건은 문서로 한 번 더 확인해보세요.",
     });
   }
   if ((score.internalOnly.guidanceNeed.normalized ?? 0) >= 50) {
     cards.push({
       id: "quote_guidance",
       titleKo: "먼저 확인할 3가지",
-      bodyKo: "업체나 견적이 많을 때는 먼저 확인할 것 3개만 골라 압축해보세요.",
+      bodyKo: "업체나 비용표가 많을 때는 먼저 확인할 것 3개만 골라 압축해보세요.",
     });
   }
   return cards;
@@ -309,23 +315,23 @@ function solutionCardForAxis(axis: WeddingCodeV05CoupleAxisOverlap): WeddingCode
       return {
         id: "dress_budget_style",
         axisKey: axis.key,
-        categoryKo: "드레스·스튜디오 선택",
-        titleKo: "예산선과 마음에 드는 장면을 같이 보기",
+        categoryKo: "사진·드레스·메이크업 선택",
+        titleKo: "쓸 수 있는 돈과 마음에 드는 느낌을 같이 보기",
         attentionKo,
         solutionKo:
-          "먼저 넘지 않을 상한선을 정하고, 그 선을 넘겨도 되는 이유가 있는지 한 문장으로 따로 적어보세요. 가격 이야기를 먼저 닫은 뒤, 사진·무드·오래 남을 장면을 다시 보면 대화가 덜 엉켜요.",
-        firstQuestionKo: "이 선택은 얼마까지 괜찮고, 무엇 때문에 그만큼 쓸 수 있다고 느끼는지부터 말해볼까요?",
+          "먼저 우리가 쓸 수 있는 돈을 정하고, 그 돈을 넘겨도 되는 이유가 있는지 한 문장으로 따로 적어보세요. 돈 이야기를 먼저 닫은 뒤, 예시 사진과 드레스, 메이크업을 다시 보면 대화가 덜 엉켜요.",
+        firstQuestionKo: "이번 선택은 얼마까지 괜찮고, 어떤 부분이 가장 마음에 드나요?",
         overlapScore: axis.overlapScore,
       };
     case "preparationMode":
       return {
         id: "vendor_shortlist_roles",
         axisKey: axis.key,
-        categoryKo: "업체·장소 정리",
+        categoryKo: "결혼 준비 업체·장소 정리",
         titleKo: "같이 볼 결정과 맡아볼 일을 분리하기",
         attentionKo,
         solutionKo:
-          "처음부터 전부 같이 보려 하면 느려지고, 한쪽이 다 정리하면 소외감이 생길 수 있어요. 업체나 장소를 좁히는 일은 맡아서 하되, 계약·취향·예산이 걸린 최종 결정은 함께 보는 식으로 선을 나눠보세요.",
+          "처음부터 전부 같이 보려 하면 느려지고, 한쪽이 다 정리하면 소외감이 생길 수 있어요. 결혼 준비 업체나 장소를 추리는 일은 맡아서 하되, 예약 확정·취향·예산이 걸린 마지막 결정은 함께 보는 식으로 선을 나눠보세요.",
         firstQuestionKo: "이번 주에는 무엇을 같이 보고, 무엇을 각자 맡아 정리하면 편할까요?",
         overlapScore: axis.overlapScore,
       };
@@ -333,12 +339,12 @@ function solutionCardForAxis(axis: WeddingCodeV05CoupleAxisOverlap): WeddingCode
       return {
         id: "family_guest_scope",
         axisKey: axis.key,
-        categoryKo: "예식장·하객·가족 조율",
+        categoryKo: "결혼식장·초대 손님·가족 조율",
         titleKo: "우리가 원하는 것과 가족이 보는 것 나란히 놓기",
         attentionKo,
         solutionKo:
-          "한쪽은 둘이 원하는 것을 지키고 싶고, 다른 쪽은 부모님·하객·식사·교통을 중요하게 볼 수 있어요. 우리가 원하는 것, 가족이 보는 것, 조정할 수 있는 것을 세 칸으로 나눠 적으면 누가 양보해야 하는지보다 무엇을 맞출지가 선명해져요.",
-        firstQuestionKo: "우리가 양보하기 어려운 것 하나와 가족이 중요하게 볼 것 하나를 같이 적어볼까요?",
+          "한쪽은 둘이 원하는 것을 지키고 싶고, 다른 쪽은 부모님·초대 손님·음식·오는 길을 중요하게 볼 수 있어요. 우리가 원하는 것, 가족이 보는 것, 조정할 수 있는 것을 세 칸으로 나눠 적으면 누가 양보해야 하는지보다 무엇을 맞출지가 선명해져요.",
+        firstQuestionKo: "우리가 먼저 정해두고 싶은 것 하나와 가족이 중요하게 볼 것 하나를 같이 적어볼까요?",
         overlapScore: axis.overlapScore,
       };
     case "supportOrder":
@@ -397,62 +403,62 @@ const SCENARIO_PUBLIC_IDS: Record<WeddingCodeV05QuestionKey, string> = {
 
 const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
   A1: {
-    categoryKo: "견적·추가금",
-    titleKo: "포함 항목과 원하는 결과물을 따로 보기",
+    categoryKo: "사진·드레스·메이크업",
+    titleKo: "비용, 추가 비용, 마음에 드는 느낌을 따로 보기",
     differenceKo:
-      "한 사람은 비용 구조를 확인하고 싶고, 다른 사람은 결과물의 느낌이나 후기를 중요하게 볼 수 있어요. 이때 가격 이야기가 취향을 누르는 말처럼 들리지 않게 순서를 나누는 게 좋아요.",
+      "한 사람은 비용과 추가로 돈이 드는 부분을 먼저 확인하고 싶고, 다른 사람은 사진·드레스·메이크업 느낌이나 후기를 중요하게 볼 수 있어요. 이때 돈 이야기가 취향을 누르는 말처럼 들리지 않게 순서를 나누는 게 좋아요.",
     sharedKo:
-      "두 사람이 비슷한 선택을 했어요. 그래도 실제 견적서 앞에서는 포함 항목, 추가금, 원하는 결과물을 각각 따로 적어두면 빠뜨리는 항목이 줄어들어요.",
+      "두 사람이 비슷한 선택을 했어요. 그래도 상담 후에는 비용, 추가로 돈이 드는 부분, 마음에 드는 느낌을 각각 따로 적어두면 빠뜨리는 항목이 줄어들어요.",
     solutionKo:
-      "견적서에 형광펜을 세 가지로 나눠보세요. 포함된 것, 추가로 낼 수 있는 것, 마음에 드는 결과물입니다. 세 칸을 다 본 뒤에 총액 이야기를 하면 대화가 덜 날카로워져요.",
-    firstQuestionKo: "이 견적에서 꼭 확인할 비용 1개와, 마음에 드는 결과물 1개는 뭐예요?",
+      "상담 내용을 세 칸으로 나눠보세요. 우리가 쓸 수 있는 돈, 따로 돈이 드는 것, 마음에 드는 느낌입니다. 세 칸을 다 본 뒤에 총금액 이야기를 하면 대화가 덜 날카로워져요.",
+    firstQuestionKo: "이 상담에서 먼저 확인할 돈 문제 1개와, 마음에 드는 부분 1개는 뭐예요?",
     priority: 88,
   },
   A2: {
-    categoryKo: "영상·앨범 옵션",
-    titleKo: "오래 남는 장면과 예산선을 같이 정하기",
+    categoryKo: "영상·앨범 추가 비용",
+    titleKo: "오래 남길 장면과 쓸 수 있는 돈을 같이 정하기",
     differenceKo:
-      "한 사람은 나중에 남을 장면을 중요하게 보고, 다른 사람은 전체 예산 안에서 감당되는지를 중요하게 볼 수 있어요.",
+      "한 사람은 나중에 다시 보고 싶은 장면을 중요하게 보고, 다른 사람은 추가로 내는 돈이 부담되지 않는지를 중요하게 볼 수 있어요.",
     sharedKo:
-      "두 사람이 비슷하게 보고 있어요. 그래도 추억이 남는 옵션은 현장에서 마음이 커지기 쉬워서, 미리 예산선과 이유를 같이 정해두면 좋아요.",
+      "두 사람이 비슷하게 보고 있어요. 그래도 추억이 남는 추가 선택은 현장에서 마음이 커지기 쉬워서, 미리 금액 선과 이유를 같이 정해두면 좋아요.",
     solutionKo:
-      "먼저 '나중에 다시 봤을 때 아깝지 않을 장면'을 한 문장으로 적고, 그다음 넘지 않을 금액을 정하세요. 장면의 이유와 금액의 선을 분리하면 둘 다 존중받는 느낌이 납니다.",
-    firstQuestionKo: "이 옵션은 어떤 장면 때문에 남기고 싶고, 얼마까지면 괜찮을까요?",
+      "먼저 '나중에 다시 봤을 때 남기길 잘했다고 느낄 장면'을 한 문장으로 적고, 그다음 넘지 않을 금액을 정하세요. 남기고 싶은 이유와 쓸 수 있는 돈을 분리하면 둘 다 존중받는 느낌이 납니다.",
+    firstQuestionKo: "이 추가 선택은 어떤 장면 때문에 남기고 싶고, 얼마까지면 괜찮을까요?",
     priority: 74,
   },
   A3: {
-    categoryKo: "예식장 예산 차이",
+    categoryKo: "결혼식장 예산 차이",
     titleKo: "예산 초과분을 숫자와 이유로 나눠보기",
     differenceKo:
-      "한 사람은 총액과 보증인원을 중요하게 보고, 다른 사람은 그 공간에서 하고 싶은 결혼식 장면을 중요하게 볼 수 있어요.",
+      "한 사람은 식사 비용까지 더한 최종 금액과 식장에 예약해야 하는 최소 인원을 중요하게 보고, 다른 사람은 그 공간에서 하고 싶은 결혼식 장면을 중요하게 볼 수 있어요.",
     sharedKo:
       "두 사람이 비슷한 점을 보고 있어요. 그래도 예산보다 큰 선택은 나중에 부담으로 돌아올 수 있으니, 초과분의 이유를 문장으로 남겨두는 게 좋아요.",
     solutionKo:
-      "초과 금액을 바로 찬반으로 보지 말고 세 줄로 나눠보세요. 전체 금액, 추가로 얻는 점, 부담되는 점입니다. 세 줄이 모두 납득될 때만 계속 알아보세요.",
+      "예산보다 더 드는 돈을 바로 찬반으로 보지 말고 세 줄로 나눠보세요. 전체 금액, 추가로 얻는 점, 부담되는 점입니다. 세 줄이 모두 납득될 때만 계속 알아보세요.",
     firstQuestionKo: "300만 원이 더 든다면 추가로 얻는 점과 부담되는 점은 무엇인가요?",
     priority: 100,
   },
   A4: {
-    categoryKo: "스튜디오·업체 확신",
-    titleKo: "취향 확신과 확인 자료를 같이 보기",
+    categoryKo: "사진 업체 확신",
+    titleKo: "사진 취향과 확인 자료를 같이 보기",
     differenceKo:
-      "한 사람은 취향과 무드를 먼저 믿고 싶고, 다른 사람은 실제 후기나 포함 조건이 있어야 마음이 놓일 수 있어요.",
+      "한 사람은 예시 사진이 마음에 드는지를 먼저 보고 싶고, 다른 사람은 실제 후기나 가격에 들어 있는 내용이 있어야 마음이 놓일 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 보고 있어요. 후기가 적은 업체는 마음에 들어도 확인 자료를 조금 더 모아야 나중에 불안이 줄어들어요.",
     solutionKo:
-      "포트폴리오가 마음에 들수록 최근 실제 촬영본, 포함 조건, 수정 가능 범위를 한 번 더 확인하세요. 취향은 살리고, 확인할 것은 따로 체크하는 방식이 안전해요.",
-    firstQuestionKo: "이 업체는 어떤 무드가 마음에 들고, 계약 전 꼭 확인할 자료는 뭐예요?",
+      "예시 사진이 마음에 들수록 최근 실제 촬영 사진, 가격에 들어 있는 내용, 수정 가능한 범위를 한 번 더 확인하세요. 마음에 드는 점은 살리고, 확인할 것은 따로 체크하는 방식이 안전해요.",
+    firstQuestionKo: "이 업체는 어떤 사진이 마음에 들고, 예약 전에 확인할 자료는 뭐예요?",
     priority: 82,
   },
   B1: {
-    categoryKo: "한쪽이 먼저 본 업체나 장소",
+    categoryKo: "한쪽이 먼저 본 결혼 준비 업체나 장소",
     titleKo: "먼저 본 사람의 확신과 나중에 보는 사람의 첫 느낌을 둘 다 살리기",
     differenceKo:
       "한 사람은 이미 끌린 이유가 있고, 다른 사람은 아직 자기 눈으로 볼 시간이 필요할 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 접근해도, 먼저 본 사람이 설명을 많이 하면 상대의 첫 느낌이 사라질 수 있어요.",
     solutionKo:
-      "먼저 본 사람은 좋았던 점과 걸리는 점만 짧게 공유하고, 상대가 사진이나 조건을 본 뒤 첫 느낌을 말할 시간을 따로 주세요.",
+      "먼저 본 사람은 좋았던 점과 아쉬운 점만 짧게 공유하고, 상대가 사진이나 조건을 본 뒤 첫 생각을 말할 시간을 따로 주세요.",
     firstQuestionKo: "내가 좋았던 이유를 말하기 전에, 너는 처음 봤을 때 뭐가 먼저 보여?",
     priority: 58,
   },
@@ -464,80 +470,80 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
     sharedKo:
       "두 사람이 비슷하게 느껴도 역할이 한쪽으로 쏠렸다면, 이미 지친 부분을 먼저 확인해야 다음 분담이 오래 갑니다.",
     solutionKo:
-      "처음 5분은 '어디가 제일 부담됐는지'만 말하고, 그다음 같이 볼 결정과 맡아서 볼 일을 둘로 나누세요.",
-    firstQuestionKo: "지금까지 준비하면서 제일 혼자 짊어진 느낌이 든 부분은 뭐였어요?",
+      "처음 5분은 '어느 부분이 제일 힘들었는지'만 말하고, 그다음 같이 정할 일과 각자 맡을 일을 둘로 나누세요.",
+    firstQuestionKo: "지금까지 준비하면서 제일 혼자 하고 있다고 느낀 부분은 뭐였어요?",
     priority: 86,
   },
   B3: {
-    categoryKo: "업체·장소 비교",
+    categoryKo: "결혼 준비 업체·장소 비교",
     titleKo: "각자 중요하게 보는 점을 한 표에 합치기",
     differenceKo:
-      "한 사람은 업체나 장소를 맡아 좁히고 싶고, 다른 사람은 같이 보며 중요하게 볼 점을 맞추고 싶을 수 있어요.",
+      "한 사람은 먼저 볼 곳을 2~3곳으로 추리고 싶고, 다른 사람은 마지막으로 고를 곳은 같이 보고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 실제로 볼 곳이 많아지면 서로 중요하게 보는 점이 흩어질 수 있어요.",
     solutionKo:
-      "장소나 업체별로 조건, 분위기, 비용, 걸리는 점 네 칸만 적어보세요. 각자 잘 보는 칸을 맡으면 속도와 함께 보는 느낌을 둘 다 챙길 수 있어요.",
-    firstQuestionKo: "나는 어떤 칸을 잘 볼 테니, 너는 어떤 칸을 봐주면 좋을까요?",
+      "곳마다 가격, 위치, 마음에 드는 점, 아쉬운 점 네 칸만 적어보세요. 각자 확인할 칸을 맡으면 속도와 함께 보는 느낌을 둘 다 챙길 수 있어요.",
+    firstQuestionKo: "나는 어떤 항목을 확인할 테니, 너는 어떤 항목을 봐주면 좋을까요?",
     priority: 62,
   },
   B4: {
     categoryKo: "선택지 과부하",
-    titleKo: "더 보기 전에 제외할 곳부터 정하기",
+    titleKo: "더 찾기 전에 뺄 곳부터 정하기",
     differenceKo:
       "한 사람은 선택지를 더 좁히고 싶고, 다른 사람은 같이 비교하거나 잠시 멈추고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 볼 곳이 계속 늘면 피로가 결정을 끌고 갈 수 있어요.",
     solutionKo:
-      "새로운 곳을 더 보기 전에 제외할 이유 2개를 먼저 정하세요. 예산, 위치, 날짜, 후기, 분위기 중 무엇이 안 맞으면 제외할지 정하면 비교가 짧아져요.",
+      "새로운 곳을 더 찾기 전에 뺄 이유 2개를 먼저 정하세요. 돈, 위치, 날짜, 후기, 마음에 드는 점 중 무엇이 안 맞으면 뺄지 정하면 비교가 짧아져요.",
     firstQuestionKo: "이번 주에는 어떤 곳을 더 볼지가 아니라, 어떤 곳을 그만 볼까요?",
     priority: 76,
   },
   C1: {
-    categoryKo: "예식장·가족 조율",
-    titleKo: "분위기와 음식·교통을 같이 놓기",
+    categoryKo: "결혼식장·가족 조율",
+    titleKo: "장소와 음식·오는 길을 같이 놓기",
     differenceKo:
-      "한 사람은 우리가 원하는 분위기를 지키고 싶고, 다른 사람은 부모님이나 하객이 중요하게 볼 부분을 살피고 싶을 수 있어요.",
+      "한 사람은 우리가 마음에 들어 한 결혼식장을 지키고 싶고, 다른 사람은 부모님이나 초대 손님이 중요하게 볼 부분을 살피고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 보고 있어도, 가족이 중요하게 볼 부분이 뒤늦게 들어오면 결정이 흔들리기 쉬워요.",
     solutionKo:
-      "우리가 원하는 것과 가족이 중요하게 볼 것을 경쟁시키지 말고 나란히 놓으세요. 분위기, 식사, 교통, 비용 네 칸을 만든 뒤 각 칸에서 최소로 지킬 것을 정하면 좋아요.",
-    firstQuestionKo: "우리가 양보하기 어려운 것 하나와 부모님이 중요하게 볼 것 하나를 같이 적어볼까요?",
+      "우리가 원하는 것과 가족이 중요하게 볼 것을 경쟁시키지 말고 나란히 놓으세요. 장소, 음식, 오는 길, 비용 네 칸을 만든 뒤 각 칸에서 최소로 지킬 것을 정하면 좋아요.",
+    firstQuestionKo: "우리가 먼저 정해두고 싶은 것 하나와 부모님이 중요하게 볼 것 하나를 같이 적어볼까요?",
     priority: 84,
   },
   C2: {
     categoryKo: "부모님께 처음 말하기",
-    titleKo: "둘이 양보하기 어려운 것을 맞춘 뒤 설명 순서 정하기",
+    titleKo: "둘이 먼저 정해둘 것을 맞춘 뒤 말할 순서 정하기",
     differenceKo:
-      "한 사람은 둘이 양보하기 어려운 것을 먼저 정하고 싶고, 다른 사람은 부모님이 궁금해할 부분이나 말 꺼내는 순서를 먼저 준비하고 싶을 수 있어요.",
+      "한 사람은 둘이 먼저 정해둘 것을 확인하고 싶고, 다른 사람은 부모님이 궁금해할 부분이나 말 꺼내는 순서를 먼저 준비하고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답했어도, 부모님께 말할 때는 합의한 내용과 표현 순서를 따로 맞춰두는 게 좋아요.",
     solutionKo:
-      "먼저 둘이 양보하기 어려운 것 2개를 정하고, 그다음 부모님께 말할 첫 문장과 숫자로 설명할 근거를 나눠 준비하세요.",
+      "먼저 둘이 정해두고 싶은 것 2개를 고르고, 그다음 부모님께 말할 첫 문장과 숫자로 설명할 근거를 나눠 준비하세요.",
     firstQuestionKo: "우리가 먼저 합의할 것은 뭐고, 부모님께는 어떤 순서로 말할까요?",
     priority: 80,
   },
   C3: {
-    categoryKo: "전통 절차 조율",
-    titleKo: "그대로 할 절차와 간단히 할 절차 나누기",
+    categoryKo: "전통 행사·가족 선물 조율",
+    titleKo: "그대로 할 부분과 간단히 바꿀 부분 나누기",
     differenceKo:
-      "한 사람은 우리 상황에 맞게 간소화하고 싶고, 다른 사람은 가족이 중요하게 여길 절차를 먼저 확인하고 싶을 수 있어요.",
+      "한 사람은 전통 행사나 가족 선물을 우리 상황에 맞게 간단히 하고 싶고, 다른 사람은 가족이 중요하게 여길 부분을 먼저 확인하고 싶을 수 있어요.",
     sharedKo:
-      "두 사람이 비슷하게 생각해도, 전통 절차는 가족에게 다르게 받아들여질 수 있어서 설명 방식이 중요해요.",
+      "두 사람이 비슷하게 생각해도, 전통 행사나 가족 선물 이야기는 가족에게 다르게 받아들여질 수 있어서 설명 방식이 중요해요.",
     solutionKo:
-      "절차를 없앨지 말지로 바로 가지 말고, 그대로 할 것, 간단히 할 것, 설명이 필요한 것으로 나누세요. 간단히 하려는 이유를 비용보다 피로·동선·시간으로 말하면 덜 날카롭습니다.",
-    firstQuestionKo: "그대로 하고 싶은 절차와 간단히 하고 싶은 절차는 각각 뭐예요?",
+      "할지 말지로 바로 가지 말고, 그대로 할 부분, 간단히 바꿀 부분, 설명이 필요한 부분으로 나누세요. 간단히 하려는 이유를 돈만이 아니라 피로, 이동, 시간으로 말하면 덜 날카롭습니다.",
+    firstQuestionKo: "어떤 건 그대로 하고, 어떤 건 간단히 바꿀까요?",
     priority: 70,
   },
   C4: {
-    categoryKo: "하객 수·보증인원",
-    titleKo: "초대 원칙과 비용 영향을 분리하기",
+    categoryKo: "초대 인원·식장 예약 인원",
+    titleKo: "초대 기준과 비용 영향을 분리하기",
     differenceKo:
-      "한 사람은 보증인원과 총액을 먼저 계산하고, 다른 사람은 양가가 초대하고 싶은 범위나 이유를 먼저 들을 수 있어요.",
+      "한 사람은 식장에 예약해야 하는 최소 인원과 총금액을 먼저 계산하고, 다른 사람은 두 집안에서 초대하고 싶은 범위나 이유를 먼저 들을 수 있어요.",
     sharedKo:
-      "두 사람이 비슷하게 답했어도, 하객 수는 양가 생각과 비용이 같이 움직여서 나중에 다시 커지기 쉬운 주제예요.",
+      "두 사람이 비슷하게 답했어도, 초대 인원은 두 집안의 생각과 비용이 같이 움직여서 나중에 다시 커지기 쉬운 주제예요.",
     solutionKo:
-      "먼저 예상 참석 인원과 보증인원의 차이를 계산하고, 그다음 양가 초대 원칙을 맞추세요. 비용표와 초대 원칙을 한 문서에 같이 두면 감정 싸움이 줄어듭니다.",
-    firstQuestionKo: "초대하고 싶은 범위와 실제 보증인원 차이는 얼마나 나나요?",
+      "먼저 실제로 올 것 같은 사람 수와 식장에 예약해야 하는 최소 인원의 차이를 계산하고, 그다음 두 집안의 초대 기준을 맞추세요. 비용표와 초대 기준을 한 문서에 같이 두면 감정 싸움이 줄어듭니다.",
+    firstQuestionKo: "초대하고 싶은 범위와 식장에 예약해야 하는 최소 인원의 차이는 얼마나 나나요?",
     priority: 90,
   },
   D1: {
@@ -548,7 +554,7 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
     sharedKo:
       "두 사람이 비슷하게 답했어도, 피곤한 날에는 듣기와 해결의 순서가 쉽게 어긋날 수 있어요.",
     solutionKo:
-      "걱정 이야기가 나오면 먼저 '듣기 모드인지, 정리 모드인지'를 확인하세요. 5분 듣고 10분 정리처럼 시간을 나누면 둘 다 덜 지칩니다.",
+      "걱정 이야기가 나오면 먼저 들어주면 좋은지, 바로 정리하면 좋은지 확인하세요. 5분 듣고 10분 정리처럼 시간을 나누면 둘 다 덜 지칩니다.",
     firstQuestionKo: "지금은 먼저 들어줬으면 좋겠어요, 아니면 같이 정리해볼까요?",
     priority: 92,
   },
@@ -566,26 +572,26 @@ const SCENARIO_META: Record<WeddingCodeV05QuestionKey, ScenarioMeta> = {
   },
   D3: {
     categoryKo: "준비 속도 차이",
-    titleKo: "막힌 이유와 오늘 할 일을 따로 보기",
+    titleKo: "멈춰 있는 이유와 오늘 할 일을 따로 보기",
     differenceKo:
-      "한 사람은 어디서 막혔는지 듣고 싶고, 다른 사람은 바로 할 일을 나누고 싶을 수 있어요.",
+      "한 사람은 어느 부분에서 멈춰 있는지 듣고 싶고, 다른 사람은 바로 할 일을 나누고 싶을 수 있어요.",
     sharedKo:
       "두 사람이 비슷하게 답해도 준비 속도는 실제 일정과 피로에 따라 계속 달라질 수 있어요.",
     solutionKo:
-      "속도가 다르다고 느끼면 먼저 막힌 이유를 한 문장으로 말하고, 그다음 오늘 바로 할 수 있는 작은 일 하나만 나누세요.",
-    firstQuestionKo: "지금 늦어진 이유는 마음의 부담 때문이에요, 아니면 할 일이 안 쪼개져서예요?",
+      "속도가 다르다고 느끼면 먼저 멈춰 있는 이유를 한 문장으로 말하고, 그다음 오늘 바로 할 수 있는 작은 일 하나만 나누세요.",
+    firstQuestionKo: "속도가 달라진 이유는 마음의 부담 때문이에요, 아니면 할 일을 작게 나누지 못해서예요?",
     priority: 72,
   },
   D4: {
-    categoryKo: "당일 혜택·계약 결정",
-    titleKo: "마음이 움직인 이유와 계약 조건을 분리 확인하기",
+    categoryKo: "오늘 예약 혜택",
+    titleKo: "마음이 움직인 이유와 예약 조건을 따로 확인하기",
     differenceKo:
-      "한 사람은 마음이 선명할 때 결정하고 싶고, 다른 사람은 총액·추가금·취소 조건을 확인해야 마음이 놓일 수 있어요.",
+      "한 사람은 마음이 움직였을 때 예약하고 싶고, 다른 사람은 총금액, 추가 비용, 취소 조건을 확인해야 마음이 놓일 수 있어요.",
     sharedKo:
-      "두 사람이 비슷하게 답해도, 당일 혜택은 속도를 높이는 장치라 계약 전 확인 시간이 꼭 필요해요.",
+      "두 사람이 비슷하게 답해도, 오늘만 준다는 할인이나 서비스는 결정을 빠르게 만들 수 있어서 예약을 확정하기 전 확인 시간이 필요해요.",
     solutionKo:
-      "오늘 계약 혜택은 메모해두되, 결정은 총액, 추가금, 취소 조건, 다른 선택지를 확인한 뒤 하세요. 마음이 움직인 이유도 같이 적어야 나중에 후회가 줄어듭니다.",
-    firstQuestionKo: "오늘 마음이 움직인 이유와, 계약 전에 확인할 조건 3개는 뭐예요?",
+      "오늘 받을 수 있는 혜택은 메모해두되, 결정은 총금액, 추가 비용, 취소 조건, 다른 선택지를 확인한 뒤 하세요. 마음이 움직인 이유도 같이 적어야 나중에 후회가 줄어듭니다.",
+    firstQuestionKo: "오늘 마음이 움직인 이유와, 예약 전에 확인할 조건 3개는 뭐예요?",
     priority: 96,
   },
 };

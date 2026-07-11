@@ -66,6 +66,7 @@ export async function executeSearchVendors(
   input: Record<string, unknown>,
   ctx: VendorToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  void ctx;
   const admin = getAdminClient();
   let query = admin
     .from("vendors")

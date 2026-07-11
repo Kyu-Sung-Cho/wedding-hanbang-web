@@ -56,6 +56,8 @@ const rootPackage = readJson("package.json");
 const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
+const mobileSupabase = readText("apps/mobile/src/lib/supabase.ts");
+const mobileLogin = readText("apps/mobile/app/(auth)/login.tsx");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
@@ -156,16 +158,45 @@ for (const envName of [
 }
 
 expect(
-  mobileAuth.includes('const redirectTo = `${SITE_URL}/auth/mobile-callback`;'),
-  "Mobile OAuth redirects through /auth/mobile-callback"
+  /export async function signInWithOAuth[\s\S]*?\{\s*void provider;\s*throw new Error\(/.test(mobileAuth) &&
+    [
+      "expo-web-browser",
+      "expo-linking",
+      "maybeCompleteAuthSession",
+      "supabase.auth.signInWithOAuth(",
+      "openAuthSessionAsync",
+      "Linking.createURL(",
+      ".auth.setSession(",
+      "access_token",
+      "refresh_token",
+    ].every((forbidden) => !mobileAuth.includes(forbidden)),
+  "Mobile OAuth implementation remains hard-disabled"
 );
 expect(
-  mobileAuth.includes('Linking.createURL("auth/callback")'),
-  "Mobile OAuth waits for auth/callback deep link"
+  /onPress=\{\(\) => handleSocialLogin\("kakao"\)\}\s+disabled(?:\s|>)/.test(mobileLogin) &&
+    /onPress=\{\(\) => handleSocialLogin\("apple"\)\}\s+disabled(?:\s|>)/.test(mobileLogin),
+  "Mobile social-login entry points remain disabled"
 );
 expect(
-  mobileCallback.includes("hanbang://auth/callback#"),
-  "Web mobile callback returns to hanbang://auth/callback"
+  mobileSupabase.includes('flowType: "pkce"') &&
+    mobileSupabase.includes("detectSessionInUrl: false") &&
+    !mobileSupabase.includes('flowType: "implicit"'),
+  "Mobile auth client rejects implicit URL sessions and is pinned to PKCE"
+);
+expect(
+  mobileCallback.includes("window.history.replaceState(null, \"\", window.location.pathname)") &&
+    [
+      "window.location.hash",
+      "window.location.search",
+      "URLSearchParams",
+      "access_token",
+      "refresh_token",
+      "hanbang://",
+      "window.location.href",
+      "NEXT_PUBLIC_EXPO_AUTH_CALLBACK_URL",
+      ".auth.setSession(",
+    ].every((forbidden) => !mobileCallback.includes(forbidden)),
+  "Web mobile callback strips the URL and never forwards bearer tokens"
 );
 
 const legacyPalette = [

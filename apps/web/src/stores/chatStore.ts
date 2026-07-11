@@ -818,7 +818,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
     captureEvent("chat_message_sent", { target });
 
-    const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
     const uniqueImages = dedupeChatAttachments(images);
 
