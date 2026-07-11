@@ -38,6 +38,7 @@ import {
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
+import { isStrongPassword, manwonInputToWon, wonToManwonInput } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
@@ -165,9 +166,7 @@ export default function SettingsScreen() {
           if (journey) {
             weddingDate = journey.wedding_date ?? "";
             venue = journey.venue ?? "";
-            totalBudget = journey.total_budget
-              ? String(journey.total_budget)
-              : "";
+            totalBudget = wonToManwonInput(journey.total_budget);
           }
         }
 
@@ -296,8 +295,11 @@ export default function SettingsScreen() {
       // 결혼 정보 업데이트
       if (nextData.coupleId) {
         const budgetNum = nextData.totalBudget
-          ? parseInt(nextData.totalBudget, 10)
+          ? manwonInputToWon(nextData.totalBudget)
           : null;
+        if (nextData.totalBudget && !budgetNum) {
+          throw new Error("총 예산을 만원 단위 숫자로 입력해주세요.");
+        }
 
         const { error: journeyError } = await supabase
           .from("wedding_journeys")
@@ -345,8 +347,8 @@ export default function SettingsScreen() {
       Alert.alert("오류", "새 비밀번호를 입력해주세요.");
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert("오류", "비밀번호는 6자 이상이어야 해요.");
+    if (!isStrongPassword(newPassword)) {
+      Alert.alert("오류", "비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 모두 포함해야 해요.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -940,7 +942,7 @@ export default function SettingsScreen() {
               disabled={
                 passwordSaving ||
                 !newPassword.trim() ||
-                newPassword.length < 6 ||
+                !isStrongPassword(newPassword) ||
                 newPassword !== confirmPassword
               }
               icon={passwordSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}

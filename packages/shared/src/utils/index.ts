@@ -4,3 +4,4 @@ export * from "./chatSse";
 export * from "./chatPrivacy";
 export * from "./dateOnly";
 export * from "./money";
+export * from "./passwordPolicy";

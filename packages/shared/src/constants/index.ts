@@ -23,3 +23,8 @@ export function manwonInputToWon(value: string): number {
   const won = manwon * 10_000;
   return Number.isSafeInteger(won) && won > 0 && won <= 10_000_000_000 ? won : 0;
 }
+
+export function wonToManwonInput(value: unknown): string {
+  const won = Number(value);
+  return Number.isFinite(won) && won > 0 ? String(won / 10_000) : "";
+}

@@ -5,6 +5,7 @@ import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rat
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 import { sanitizeAuthReturnPath } from "@/lib/authReturnPath";
+import { isStrongPassword } from "@hanbang/shared";
 
 const GENERIC_SIGNUP_MESSAGE =
   "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다. 받지 못했다면 잠시 후 다시 시도해주세요.";
@@ -24,17 +25,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function isStrongPassword(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length >= 8 &&
-    /[A-Z]/.test(value) &&
-    /[a-z]/.test(value) &&
-    /\d/.test(value) &&
-    /[^A-Za-z0-9]/.test(value)
-  );
 }
 
 function genericSignupResponse() {
