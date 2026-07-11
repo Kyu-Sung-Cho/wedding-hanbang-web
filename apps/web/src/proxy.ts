@@ -10,6 +10,12 @@ const MAINTENANCE_ERROR = {
 } as const;
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.hostname === "www.hanbang.ai") {
+    const url = request.nextUrl.clone();
+    url.hostname = "hanbang.ai";
+    return NextResponse.redirect(url, 308);
+  }
+
   const pathname = request.nextUrl.pathname;
   const maintenanceActive = process.env.MAINTENANCE_MODE === "true";
   const maintenanceExempt = pathname === "/maintenance"

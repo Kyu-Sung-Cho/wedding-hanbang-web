@@ -25,6 +25,9 @@ const postDeploy = readRepo("scripts/sql/supabase-post-deploy-contract.sql");
 const productionPreflight = readRepo(
   "scripts/sql/supabase-production-preflight.sql"
 );
+const dependencyCronPreflight = readRepo(
+  "scripts/sql/supabase-dependency-cron-preflight.sql"
+);
 const accountDeletionGuardAcl = readRepo(
   "supabase/migrations/20260711144000_lock_account_deletion_trigger_function_acl.sql"
 );
@@ -169,6 +172,81 @@ describe("release safety contract", () => {
       expect(sql).toContain("delete-expired-rate-limit-buckets");
       expect(sql).toContain("dbaddace99dcf6ddbe99da5eefe0797a");
       expect(sql).toContain("7583f22c1daf9cebea4f7a847a6a507f");
+    }
+  });
+
+  it("handles a production database where pg_cron is created by a pending migration", () => {
+    const extractPreflightCronContracts = (sql: string) => {
+      const block = sql.slice(
+        sql.indexOf("required_dependency_crons("),
+        sql.indexOf("), dependency_cron_status AS (")
+      );
+      return [...block.matchAll(
+        /\(\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*'(20\d{12})'\s*\)/g
+      )]
+        .map((match) => ({
+          jobName: match[1],
+          schedule: match[2],
+          command: match[3],
+          creatorVersion: match[4],
+        }))
+        .sort((left, right) => left.jobName.localeCompare(right.jobName));
+    };
+    const extractPostDeployCronContracts = (sql: string) => {
+      const block = sql.slice(
+        sql.indexOf("required_maintenance_crons("),
+        sql.indexOf("), maintenance_cron_status AS (")
+      );
+      return [...block.matchAll(
+        /\(\s*'([^']+)',\s*'([^']+)',\s*'([^']+)'\s*\)/g
+      )]
+        .map((match) => ({
+          jobName: match[1],
+          schedule: match[2],
+          command: match[3],
+        }))
+        .sort((left, right) => left.jobName.localeCompare(right.jobName));
+    };
+
+    expect(productionPreflight).not.toContain(
+      "LEFT JOIN cron.job job_row"
+    );
+    expect(productionPreflight).toContain("0::bigint AS existing_count");
+    expect(productionPreflight).toContain("true AS existing_replaceable");
+    expect(productionPreflight).toContain("false AS exact");
+    expect(ship).toContain(
+      "SELECT to_regclass('cron.job') IS NOT NULL AS present;"
+    );
+    expect(ship).toContain(
+      "scripts/sql/supabase-dependency-cron-preflight.sql"
+    );
+    expect(dependencyCronPreflight).toContain(
+      "LEFT JOIN cron.job job_row ON job_row.jobname = required.job_name"
+    );
+    const placeholderContracts = extractPreflightCronContracts(
+      productionPreflight
+    );
+    const exactContracts = extractPreflightCronContracts(
+      dependencyCronPreflight
+    );
+    expect(placeholderContracts).toHaveLength(5);
+    expect(exactContracts).toEqual(placeholderContracts);
+    expect(extractPostDeployCronContracts(postDeploy)).toEqual(
+      placeholderContracts.map((contract) => ({
+        jobName: contract.jobName,
+        schedule: contract.schedule,
+        command: contract.command,
+      }))
+    );
+    for (const jobName of [
+      "delete-expired-amora-request-claims",
+      "reconcile-stale-amora-chat-requests",
+      "enforce-ai-interaction-retention",
+      "enforce-application-survey-retention",
+      "delete-expired-rate-limit-buckets",
+    ]) {
+      expect(productionPreflight).toContain(jobName);
+      expect(dependencyCronPreflight).toContain(jobName);
     }
   });
 

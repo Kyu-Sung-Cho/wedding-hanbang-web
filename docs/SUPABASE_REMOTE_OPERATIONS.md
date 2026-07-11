@@ -1,5 +1,10 @@
 # Supabase 원격 운영 절차
 
+웹·DB·모바일을 함께 배포하거나 장애 복구를 판단할 때는
+[`PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`](./PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md)를
+같이 따른다. 이 문서는 Supabase 변경 절차를, runbook은 전체 출시 순서와
+복구 의사결정 경계를 정의한다.
+
 이 문서는 공유·운영 Supabase에 변경을 적용할 때의 유일한 표준 절차다. 운영 DB에는 Supabase CLI의 원시 `db push`, `db reset --linked`, `migration repair`, `--include-all`을 직접 실행하지 않는다. 이를 우회하던 package alias도 의도적으로 제거했다.
 
 ## 현재 출시 판정 (2026-07-11)

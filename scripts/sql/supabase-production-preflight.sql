@@ -768,16 +768,10 @@ WITH orphan_slots AS (
 ), dependency_cron_status AS (
   SELECT required.job_name,
          required.creator_version,
-         count(job_row.jobid) AS existing_count,
-         count(job_row.jobid) <= 1 AS existing_replaceable,
-         count(job_row.jobid) = 1 AND bool_and(
-           job_row.schedule = required.expected_schedule
-           AND job_row.command = required.expected_command
-           AND job_row.active
-         ) AS exact
+         0::bigint AS existing_count,
+         true AS existing_replaceable,
+         false AS exact
   FROM required_dependency_crons required
-  LEFT JOIN cron.job job_row ON job_row.jobname = required.job_name
-  GROUP BY required.job_name, required.creator_version
 ), required_lifecycle_functions(signature) AS (
   VALUES
     ('public.get_or_rotate_invite_code_safely(uuid,boolean)'),

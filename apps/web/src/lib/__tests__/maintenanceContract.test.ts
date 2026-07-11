@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(process.cwd(), "../..");
@@ -9,6 +10,10 @@ const proxySource = readFileSync(
 );
 const healthSource = readFileSync(
   resolve(repoRoot, "apps/web/src/app/api/health/maintenance/route.ts"),
+  "utf8"
+);
+const webEnvExample = readFileSync(
+  resolve(repoRoot, "apps/web/.env.example"),
   "utf8"
 );
 const webSettingsSource = readFileSync(
@@ -30,6 +35,17 @@ afterEach(() => {
 });
 
 describe("maintenance release contract", () => {
+  it("canonicalizes www to the apex domain before serving content", async () => {
+    const { proxy } = await import("../../proxy");
+    const response = await proxy(
+      new NextRequest("https://www.hanbang.ai/wedding?source=www")
+    );
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/wedding?source=www"
+    );
+  });
+
   it("fails writes and pages closed while leaving only the health proof reachable", () => {
     expect(proxySource).toContain('process.env.MAINTENANCE_MODE === "true"');
     expect(proxySource).toContain('pathname === "/api/health/maintenance"');
@@ -60,6 +76,8 @@ describe("maintenance release contract", () => {
     expect(healthSource).not.toContain("rateLimitKeySecret:");
     expect(healthSource).toContain('/^([a-z0-9]{20})\\.supabase\\.co$/');
     expect(healthSource).toContain('"Cache-Control": "no-store, max-age=0"');
+    expect(webEnvExample).toContain("MAINTENANCE_MODE=false");
+    expect(webEnvExample).toContain("MAINTENANCE_STARTED_AT_UTC=");
   });
 
   it("reports only whether the deployed rate-limit secret meets the minimum", async () => {

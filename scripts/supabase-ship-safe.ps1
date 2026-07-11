@@ -145,6 +145,24 @@ function Read-JsonSqlRow {
   return $document.rows[0]
 }
 
+function Complete-DependencyCronInventory {
+  param([Parameter(Mandatory = $true)]$Preflight)
+
+  $catalogRow = Read-JsonSqlRow "Detect pg_cron catalog" `
+    "SELECT to_regclass('cron.job') IS NOT NULL AS present;"
+  if ($catalogRow.present -eq $true) {
+    $cronRow = Read-JsonQueryRow "Exact pg_cron dependency inventory" `
+      "scripts/sql/supabase-dependency-cron-preflight.sql"
+    if ($null -eq $cronRow.dependency_cron_status) {
+      throw "pg_cron dependency inventory returned no job contracts."
+    }
+    $Preflight.dynamic_sources.dependency_cron_status = `
+      $cronRow.dependency_cron_status
+  }
+
+  return $Preflight
+}
+
 function Assert-PreflightDynamicSourceTopology {
   param(
     [Parameter(Mandatory = $true)]$Preflight,
@@ -378,6 +396,7 @@ function Complete-ProductionPreflightDynamicInventory {
     [string[]]$PendingVersions
   )
 
+  $Preflight = Complete-DependencyCronInventory $Preflight
   Assert-PreflightDynamicSourceTopology $Preflight $PendingVersions
 
   $weddingInventory = [pscustomobject]@{
