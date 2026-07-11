@@ -1,7 +1,7 @@
 // =============================================
 // Excavation Technique Classifier — 아모라 선호 발굴 기법 사용 로깅
 // =============================================
-// 목적: /api/chat 턴 종료 후 Haiku로 "아모라 응답이 5가지 Excavation 기법 중 무엇을 썼나?"
+// 목적: /api/chat 턴 종료 후 저비용 GPT로 "아모라 응답이 5가지 Excavation 기법 중 무엇을 썼나?"
 //       → ai_interactions_log.metadata.excavation_technique 에 기록
 // 5가지 기법 (prompts.ts와 1:1 매칭):
 //   1. constraint_first        — 제약 먼저 (싫어하는 것 먼저 묻기)
@@ -17,10 +17,9 @@
 //   - 예외 전부 내부 삼킴
 // =============================================
 
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import type { StageTag } from "@/types/moat.types";
 
-const CLASSIFY_MODEL = "claude-haiku-4-5-20251001";
 const MAX_USER_CHARS = 400;
 const MAX_AI_CHARS = 1_200;
 
@@ -34,7 +33,7 @@ const ALLOWED_TECHNIQUES = [
 type Technique = (typeof ALLOWED_TECHNIQUES)[number];
 
 // -------------------------------------------
-// Haiku 분류기
+// 저비용 GPT 분류기
 // -------------------------------------------
 const CLASSIFY_SYSTEM_PROMPT = `당신은 웨딩 AI "아모라"의 응답이 5가지 "선호 발굴(Excavation)" 기법 중 어떤 것을 사용했는지 판별하는 JSON 분류기입니다.
 
@@ -77,10 +76,16 @@ interface ClassifyResult {
   usage?: { input_tokens: number; output_tokens: number };
 }
 
-async function classifyWithHaiku(
+async function classifyWithFastModel(
   userText: string,
   aiText: string,
-  audit: { userId?: string | null; coupleId: string; stageTag?: StageTag | null }
+  audit: {
+    userId?: string | null;
+    coupleId: string;
+    stageTag?: StageTag | null;
+    visibility: "shared" | "bride_private" | "groom_private";
+    signal?: AbortSignal;
+  }
 ): Promise<ClassifyResult | null> {
   try {
     const truncatedUser =
@@ -90,13 +95,12 @@ async function classifyWithHaiku(
 
     const conversation = `사용자: ${truncatedUser}\n\n아모라: ${truncatedAi}`;
 
-    const response = await createAnthropicMessageWithAudit({
-      params: {
-        model: CLASSIFY_MODEL,
-        max_tokens: 200,
-        system: CLASSIFY_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: conversation }],
-      },
+    const response = await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 200,
+      instructions: CLASSIFY_SYSTEM_PROMPT,
+      input: conversation,
+      signal: audit.signal,
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
@@ -105,12 +109,12 @@ async function classifyWithHaiku(
         metadata: {
           endpoint: "chat/classify-excavation",
           stage_tag: audit.stageTag ?? null,
+          visibility: audit.visibility,
         },
       },
     });
 
-    const firstBlock = response.content[0];
-    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+    const text = response.text;
     if (!text) return null;
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -143,7 +147,7 @@ async function classifyWithHaiku(
         : undefined,
     };
   } catch (err) {
-    console.error("[classify-excavation] Haiku 호출 실패:", err);
+    console.error("[classify-excavation] GPT 호출 실패:", err);
     return null;
   }
 }
@@ -157,12 +161,17 @@ export interface MaybeClassifyExcavationInput {
   lastUserText: string;
   aiResponseText: string;
   stageTag?: StageTag | null;
+  visibility?: "shared" | "bride_private" | "groom_private";
+  signal?: AbortSignal;
+  reserveLLMCall?: () => Promise<boolean>;
 }
 
 export async function maybeClassifyExcavation(
   input: MaybeClassifyExcavationInput
 ): Promise<void> {
   try {
+    // 사용자 응답에 직접 필요한 기능이 아닌 품질 분석 호출은 비용 opt-in으로만 실행한다.
+    if (process.env.AMORA_EXCAVATION_CLASSIFICATION_ENABLED !== "true") return;
     const userText = input.lastUserText.trim();
     const aiText = input.aiResponseText.trim();
     if (!userText || !aiText) return;
@@ -172,11 +181,18 @@ export async function maybeClassifyExcavation(
 
     // AI 응답이 너무 짧으면 기법 적용 가능성 낮음 (도구 카드 트리거, 단답 등)
     if (aiText.length < 30) return;
+    input.signal?.throwIfAborted();
+    if (input.reserveLLMCall && !(await input.reserveLLMCall())) {
+      console.warn("[classify-excavation] 비용 예약이 거부되어 보조 분류를 건너뜁니다.");
+      return;
+    }
 
-    const result = await classifyWithHaiku(userText, aiText, {
+    const result = await classifyWithFastModel(userText, aiText, {
       userId: input.userId ?? null,
       coupleId: input.coupleId,
       stageTag: input.stageTag ?? null,
+      visibility: input.visibility ?? "shared",
+      signal: input.signal,
     });
     if (!result) return;
   } catch (err) {

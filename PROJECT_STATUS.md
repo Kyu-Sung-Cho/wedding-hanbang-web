@@ -2,6 +2,7 @@
 
 > ⚠️ **경고 (2026-07-03 감사)**: 이 문서는 2026-06-11 "Week 1 수술"(청첩장·B2B 포털·결제·전자계약 등 약 2.5만 줄 삭제) **이전** 스냅샷입니다.
 > 여기 기술된 기능 중 상당수는 현재 코드에 없습니다. 현재 상태는 `CLAUDE.md`, 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
+> **AI 공급자 주의 (2026-07-10)**: 아래 Claude/Anthropic 설명은 과거 기록입니다. 현재 아모라 런타임은 OpenAI GPT-5.6 Terra/Luna입니다.
 
 > **최종 업데이트**: 2026-04-22
 > **도메인**: hanbang.ai / www.hanbang.ai
@@ -65,7 +66,7 @@ wedding-hanbang-web/
 - **State**: Zustand
 - **Auth**: Supabase Auth (카카오, 구글, Apple, 이메일)
 - **Backend**: Supabase (PostgreSQL + Realtime + Storage)
-- **AI**: Anthropic Claude API (Opus 4.7)
+- **AI (과거 스냅샷)**: 당시 Anthropic Claude API (현재는 OpenAI GPT-5.6 Terra/Luna)
 - **Email**: Resend
 - **배포**: Vercel (자동 배포)
 
@@ -252,7 +253,7 @@ wedding-hanbang-web/
 
 ### 4.10 AI 대본 (`/scripts`)
 **기능**:
-- 축사/건배사/인사말 자동 생성 (Claude API)
+- 축사/건배사/인사말 자동 생성 (과거 Claude API 스냅샷; 해당 기능의 현재 존재 여부는 코드 기준 확인)
 - 타입별 템플릿
 - 즐겨찾기 (하트)
 - 편집/삭제

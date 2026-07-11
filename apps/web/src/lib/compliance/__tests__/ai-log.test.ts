@@ -2,8 +2,28 @@ import { describe, expect, it } from "vitest";
 import { calcCostUsd } from "../ai-log";
 
 describe("calcCostUsd", () => {
-  it("uses current Haiku 4.5 pricing including prompt cache tokens", () => {
+  it("prices OpenAI cached input without double charging total input tokens", () => {
     const cost = calcCostUsd(
+      "gpt-5.4-mini-2026-03-17",
+      1_000_000,
+      1_000_000,
+      0,
+      400_000
+    );
+
+    expect(cost).toBeCloseTo(4.98, 6);
+  });
+
+  it("matches the longest OpenAI model prefix", () => {
+    const mini = calcCostUsd("gpt-5.4-mini-2026-03-17", 1_000_000, 1_000_000);
+    const full = calcCostUsd("gpt-5.4-2026-03-05", 1_000_000, 1_000_000);
+
+    expect(mini).toBeCloseTo(5.25, 6);
+    expect(full).toBeCloseTo(27.5, 6);
+  });
+
+  it("keeps historical Claude pricing for existing audit rows", () => {
+    const historical = calcCostUsd(
       "claude-haiku-4-5-20251001",
       1_000_000,
       1_000_000,
@@ -11,15 +31,25 @@ describe("calcCostUsd", () => {
       1_000_000
     );
 
-    expect(cost).toBeCloseTo(7.35, 6);
+    expect(historical).toBeCloseTo(7.35, 6);
   });
 
-  it("uses current Opus 4.7 pricing instead of legacy Opus 4.1 pricing", () => {
-    const opus47 = calcCostUsd("claude-opus-4-7", 1_000_000, 1_000_000);
-    const opus41 = calcCostUsd("claude-opus-4-1", 1_000_000, 1_000_000);
+  it("prices Terra cache writes and reads without double charging input", () => {
+    const cost = calcCostUsd(
+      "gpt-5.6-terra",
+      200_000,
+      100_000,
+      40_000,
+      80_000
+    );
 
-    expect(opus47).toBeCloseTo(30, 6);
-    expect(opus41).toBeCloseTo(90, 6);
+    expect(cost).toBeCloseTo(1.845, 6);
+  });
+
+  it("uses Luna long-context pricing for inputs over 272K tokens", () => {
+    const cost = calcCostUsd("gpt-5.6-luna", 300_000, 100_000);
+
+    expect(cost).toBeCloseTo(1.5, 6);
   });
 
   it("returns null when the model is not priced", () => {

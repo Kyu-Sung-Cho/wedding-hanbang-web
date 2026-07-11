@@ -110,7 +110,7 @@ export default function CommunityAboutPage() {
               {
                 icon: PenSquare,
                 title: "내 경험 나누기",
-                desc: "사진, 영상과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
+                desc: "사진과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
                 color: "from-[#B89785]/20 to-[#2B423E]/5",
                 iconColor: "text-[#B89785]",
               },

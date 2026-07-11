@@ -4,6 +4,11 @@
 
 > 구현 상태와 버전은 문서의 과거 스냅샷보다 실제 코드, 각 `package.json`, `pnpm-lock.yaml`, `supabase/migrations/`를 우선합니다.
 
+현재 아모라는 OpenAI Responses API의 `gpt-5.6-luna`를 기본으로 사용하고 계약·분쟁/안전·반복
+교정 턴만 `gpt-5.6-terra`로 승격합니다. Anthropic/Claude 런타임은 제거되었습니다.
+WeddingCode는 개인 결과를 브라우저에서만 계산하며, 커플 초대·비교와 익명 응답 수집은
+보안·동의·보유기간 재설계 전까지 코드에서 비활성화되어 있습니다.
+
 ## 워크스페이스
 
 - `apps/web`: Next.js 16 웹 앱과 Route Handlers

@@ -69,24 +69,24 @@ describe("웨딩코드 결과 브라우저 백업", () => {
     setStorages(new MemoryStorage(), new MemoryStorage());
   });
 
-  it("localStorage에 저장되면 영구 백업을 읽는다", () => {
+  it("localStorage 결과를 읽을 때 과거 서버 응답 식별자를 제거한다", () => {
     const result = backup("local-result");
 
     expect(storeWcResultBackup(result)).toBe("local");
     resetWcResultBackupMemoryForTests();
 
-    expect(readWcResultBackup()).toMatchObject({ responseId: "local-result" });
+    expect(readWcResultBackup()).toMatchObject({ responseId: null, coupleToken: null });
     expect(readWcResultBackup()?.storageFallback).toBeUndefined();
   });
 
-  it("localStorage 쓰기가 막히면 sessionStorage로 내려가 중복 제출 없이 결과를 유지한다", () => {
+  it("localStorage 쓰기가 막히면 sessionStorage로 내려가 로컬 결과를 유지한다", () => {
     setStorages(new WriteBlockedStorage(), new MemoryStorage());
 
     expect(storeWcResultBackup(backup("session-result"))).toBe("session");
     resetWcResultBackupMemoryForTests();
 
     expect(readWcResultBackup()).toMatchObject({
-      responseId: "session-result",
+      responseId: null,
       storageFallback: "session",
     });
   });
@@ -96,7 +96,7 @@ describe("웨딩코드 결과 브라우저 백업", () => {
 
     expect(storeWcResultBackup(backup("memory-result"))).toBe("memory");
     expect(readWcResultBackup()).toMatchObject({
-      responseId: "memory-result",
+      responseId: null,
       storageFallback: "memory",
     });
   });
@@ -109,6 +109,7 @@ describe("웨딩코드 결과 브라우저 백업", () => {
 
     expect(readWcResultBackup()?.scoringVersion).toBe(WEDDING_CODE_V05_SCORING_VERSION);
 
+    resetWcResultBackupMemoryForTests();
     local.setItem(
       WC_RESULT_STORAGE_KEY,
       JSON.stringify({ ...legacy, version: "v0.4.2" })
@@ -116,7 +117,22 @@ describe("웨딩코드 결과 브라우저 백업", () => {
     expect(readWcResultBackup()?.scoringVersion).toBeUndefined();
   });
 
-  it("같은 savedAt이면 더 최근에 갱신된 저장소의 페어링 상태를 선택한다", () => {
+  it("30일이 지난 로컬 결과는 읽지 않고 저장소에서도 제거한다", () => {
+    const local = new MemoryStorage();
+    setStorages(local, new MemoryStorage());
+    local.setItem(
+      WC_RESULT_STORAGE_KEY,
+      JSON.stringify({
+        ...backup("expired-result"),
+        savedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    );
+
+    expect(readWcResultBackup()).toBeNull();
+    expect(local.getItem(WC_RESULT_STORAGE_KEY)).toBeNull();
+  });
+
+  it("과거 페어링 capability가 남아 있어도 읽는 즉시 제거하고 다시 쓴다", () => {
     const local = new MemoryStorage();
     setStorages(local, new MemoryStorage());
     const original = backup("freshness-result");
@@ -131,6 +147,14 @@ describe("웨딩코드 결과 브라우저 백업", () => {
       })
     );
 
-    expect(readWcResultBackup()?.coupleToken).toBe("223e4567-e89b-42d3-a456-426614174000");
+    expect(readWcResultBackup()).toMatchObject({
+      responseId: null,
+      coupleToken: null,
+      paired: false,
+      pairingStatus: "unpaired",
+    });
+    const rewritten = local.getItem(WC_RESULT_STORAGE_KEY) ?? "";
+    expect(rewritten).not.toContain("223e4567-e89b-42d3-a456-426614174000");
+    expect(rewritten).not.toContain("freshness-result");
   });
 });

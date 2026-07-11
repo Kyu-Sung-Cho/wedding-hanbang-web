@@ -4,12 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Check,
   ChevronDown,
   ChevronUp,
   ClipboardCheck,
-  Copy,
-  Heart,
   Loader2,
   Share2,
   X,
@@ -21,31 +18,14 @@ import {
   WEDDING_CODE_V05_VERSION,
 } from "@/constants/weddingCodeV05";
 import { toWeddingCodeV05Answers } from "@/lib/weddingCode/answers";
-import {
-  parseWeddingCodeCoupleReportPayload,
-  type WeddingCodeCoupleReportPayload,
-} from "@/lib/weddingCode/coupleReport";
 import { buildWeddingCodeV05IndividualReport } from "@/lib/weddingCode/report";
 import { scoreWeddingCodeV05 } from "@/lib/weddingCode/score";
 import { renderShareCard, downloadCanvasPng, canvasToPngBlob } from "@/lib/weddingCode/shareCard";
 import { captureEvent } from "@/lib/analytics";
-import { isRecord, isUuid } from "@/utils/requestValidation";
 import {
   readWcResultBackup,
-  storeWcResultBackup,
   type WcResultBackup,
 } from "./resultBackup";
-
-type CoupleReportState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "waiting"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "waiting" }> }
-  | { kind: "missing"; messageKo: string }
-  | { kind: "incompatible"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "incompatible" }> }
-  | { kind: "ready"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }> }
-  | { kind: "error"; messageKo: string };
-
-type InviteState = "idle" | "creating" | "copied" | "copy-error" | "create-error" | "conflict";
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
@@ -80,11 +60,6 @@ export default function WeddingCodeResultClient() {
   const [saveOverlay, setSaveOverlay] = useState<{ dataUrl: string; canvas: HTMLCanvasElement } | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [allOpen, setAllOpen] = useState(false);
-  const [inviteState, setInviteState] = useState<InviteState>("idle");
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [coupleReportState, setCoupleReportState] = useState<CoupleReportState>({ kind: "idle" });
-  const [coupleReportReloadKey, setCoupleReportReloadKey] = useState(0);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const saveOverlayRef = useRef<HTMLDivElement>(null);
 
@@ -116,102 +91,6 @@ export default function WeddingCodeResultClient() {
       .filter((axis) => axis.leftScore !== null && axis.rightScore !== null)
       .sort((a, b) => Math.abs((b.leftScore ?? 0) - (b.rightScore ?? 0)) - Math.abs((a.leftScore ?? 0) - (a.rightScore ?? 0)))[0] ?? null;
   }, [report.axisReports]);
-  const visibleInviteLink = useMemo(() => {
-    if (inviteLink) return inviteLink;
-    if (!backup || backup === "loading" || !backup.coupleToken || typeof window === "undefined") return null;
-    return `${window.location.origin}/wedding-code?ct=${backup.coupleToken}`;
-  }, [backup, inviteLink]);
-  const activeCoupleToken =
-    backup && backup !== "loading" ? backup.coupleToken : null;
-  const activeCoupleSourceVersion =
-    backup && backup !== "loading" ? backup.version ?? "unknown" : "unknown";
-  const activePairingUnavailable =
-    !!backup && backup !== "loading" && backup.pairingUnavailable === true;
-
-  useEffect(() => {
-    if (!activeCoupleToken) {
-      setCoupleReportState({ kind: "idle" });
-      return;
-    }
-    if (activePairingUnavailable) {
-      setCoupleReportState({
-        kind: "missing",
-        messageKo: "저장된 초대 응답을 찾지 못했어요.",
-      });
-      return;
-    }
-
-    const coupleToken = activeCoupleToken;
-    let cancelled = false;
-    async function loadCoupleReport() {
-      setCoupleReportState({ kind: "loading" });
-      try {
-        const res = await fetch(`/api/wedding-code/couple-report?ct=${encodeURIComponent(coupleToken)}`);
-        const rawPayload: unknown = await res.json().catch(() => null);
-        const payload = parseWeddingCodeCoupleReportPayload(rawPayload);
-        if (cancelled) return;
-        if (!res.ok || !payload) {
-          const messageKo =
-            isRecord(rawPayload) && typeof rawPayload.error === "string"
-              ? rawPayload.error
-              : null;
-          setCoupleReportState({ kind: "error", messageKo: messageKo ?? "비교 리포트를 불러오지 못했어요." });
-          return;
-        }
-        if (payload.status === "ready") {
-          setCoupleReportState({ kind: "ready", payload });
-          setBackup((current) => {
-            if (
-              !current ||
-              current === "loading" ||
-              current.coupleToken !== coupleToken ||
-              (current.paired && current.pairingStatus === "paired" && !current.pairingUnavailable)
-            ) {
-              return current;
-            }
-            const pairedBackup: WcResultBackup = {
-              ...current,
-              paired: true,
-              pairingStatus: "paired",
-            };
-            storeWcResultBackup(pairedBackup);
-            return pairedBackup;
-          });
-          captureEvent("wc_couple_report_viewed", { version: activeCoupleSourceVersion });
-        } else if (payload.status === "waiting") {
-          if (payload.responseCount === 0) {
-            setCoupleReportState({
-              kind: "missing",
-              messageKo: "저장된 초대 응답을 찾지 못했어요.",
-            });
-            setBackup((current) => {
-              if (!current || current === "loading" || current.coupleToken !== coupleToken) {
-                return current;
-              }
-              const unavailableBackup: WcResultBackup = {
-                ...current,
-                pairingUnavailable: true,
-              };
-              storeWcResultBackup(unavailableBackup);
-              return unavailableBackup;
-            });
-          } else {
-            setCoupleReportState({ kind: "waiting", payload });
-          }
-        } else {
-          setCoupleReportState({ kind: "incompatible", payload });
-        }
-      } catch {
-        if (!cancelled) setCoupleReportState({ kind: "error", messageKo: "네트워크 오류로 비교 리포트를 불러오지 못했어요." });
-      }
-    }
-
-    loadCoupleReport();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeCoupleToken, activeCoupleSourceVersion, activePairingUnavailable, coupleReportReloadKey]);
-
   useEffect(() => {
     if (!saveOverlay) return;
 
@@ -299,101 +178,6 @@ export default function WeddingCodeResultClient() {
     captureEvent("wc_result_card_saved", { method: "download", version: sourceVersion });
   }
 
-  async function createInvite() {
-    if (
-      !backup ||
-      backup === "loading" ||
-      !backup.responseId ||
-      backup.pairingUnavailable ||
-      inviteState === "creating" ||
-      inviteState === "conflict"
-    ) return;
-    let token = backup.coupleToken ?? backup.pendingCoupleToken ?? null;
-    setInviteState("creating");
-    setInviteError(null);
-    try {
-      if (!backup.coupleToken) {
-        if (!token) token = crypto.randomUUID();
-        const pendingBackup = { ...backup, pendingCoupleToken: token };
-        setBackup(pendingBackup);
-        storeWcResultBackup(pendingBackup);
-
-        const res = await fetch("/api/wedding-code/pair", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ response_id: backup.responseId, couple_token: token }),
-        });
-        const payload = (await res.json().catch(() => null)) as {
-          success?: boolean;
-          error?: string;
-          pairingStatus?: string;
-          coupleToken?: string;
-        } | null;
-        if (!res.ok) {
-          if (payload?.pairingStatus === "conflict") {
-            const unavailableBackup: WcResultBackup = {
-              ...pendingBackup,
-              pendingCoupleToken: null,
-              pairingUnavailable: true,
-            };
-            setBackup(unavailableBackup);
-            storeWcResultBackup(unavailableBackup);
-            setInviteError(payload.error ?? "이 응답으로는 초대 링크를 만들 수 없어요.");
-            setInviteState("conflict");
-            return;
-          }
-          if (payload?.pairingStatus === "full") {
-            const clearedBackup = { ...pendingBackup, pendingCoupleToken: null };
-            setBackup(clearedBackup);
-            storeWcResultBackup(clearedBackup);
-          }
-          setInviteError(payload?.error ?? "링크 생성에 실패했어요. 잠시 후 다시 시도해주세요.");
-          setInviteState("create-error");
-          return;
-        }
-        if (payload?.success !== true) {
-          setInviteError("연결 결과를 확인하지 못했어요. 같은 버튼으로 다시 확인해주세요.");
-          setInviteState("create-error");
-          return;
-        }
-        const confirmedPairingStatus = payload.pairingStatus;
-        if (
-          (confirmedPairingStatus !== "waiting" && confirmedPairingStatus !== "paired") ||
-          !isUuid(payload.coupleToken)
-        ) {
-          setInviteError("연결 결과를 확인하지 못했어요. 같은 버튼으로 다시 확인해주세요.");
-          setInviteState("create-error");
-          return;
-        }
-        // The DB may return an already-established token when another tab won
-        // the race. Always adopt that canonical capability.
-        token = payload.coupleToken;
-        const next: WcResultBackup = {
-          ...pendingBackup,
-          coupleToken: payload.coupleToken,
-          pendingCoupleToken: null,
-          pairingStatus: confirmedPairingStatus,
-          paired: confirmedPairingStatus === "paired",
-          pairingUnavailable: false,
-        };
-        setBackup(next);
-        storeWcResultBackup(next);
-        captureEvent("wc_invite_link_created", { version: sourceVersion });
-      }
-      const link = `${window.location.origin}/wedding-code?ct=${token}`;
-      setInviteLink(link);
-      try {
-        await navigator.clipboard.writeText(link);
-        setInviteState("copied");
-      } catch {
-        setInviteState("copy-error");
-      }
-    } catch {
-      setInviteError("네트워크 연결을 확인한 뒤 같은 버튼을 다시 눌러주세요.");
-      setInviteState("create-error");
-    }
-  }
-
   if (backup === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2]" role="status" aria-live="polite">
@@ -435,18 +219,16 @@ export default function WeddingCodeResultClient() {
     );
   }
 
-  const inviteUnavailable = backup.pairingUnavailable || inviteState === "conflict";
-
   return (
     <div className="min-h-screen bg-[#fbf8f2] px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-[620px]">
+      <div className="mx-auto w-full max-w-[960px]">
         <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b5528]">
           WEDDINGCODE V0.5
         </p>
-        <h1 className="text-center text-[27px] font-semibold leading-[1.3] text-[#263832] sm:text-[31px]">
+        <h1 className="mx-auto max-w-[720px] text-center text-[27px] font-semibold leading-[1.3] text-[#263832] sm:text-[31px]">
           {report.titleKo}
         </h1>
-        <p className="mt-2 text-center text-[13px] font-medium leading-relaxed text-[#5d6879]">
+        <p className="mx-auto mt-2 max-w-[720px] text-center text-[13px] font-medium leading-relaxed text-[#5d6879]">
           {report.subtitleKo}
         </p>
         {backup.storageFallback && (
@@ -475,7 +257,7 @@ export default function WeddingCodeResultClient() {
           </div>
         )}
 
-        <section className={`${card} mt-7 overflow-hidden`}>
+        <section className={`${card} mx-auto mt-7 max-w-[720px] overflow-hidden`}>
           <div className="flex items-start justify-between gap-4 p-5 sm:p-6">
             <div>
               <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">결과 요약</p>
@@ -510,14 +292,7 @@ export default function WeddingCodeResultClient() {
           </div>
         </section>
 
-        {backup.coupleToken && (
-          <CoupleReportSection
-            state={coupleReportState}
-            onRefresh={() => setCoupleReportReloadKey((value) => value + 1)}
-          />
-        )}
-
-        <section className="mt-5 flex flex-col gap-3">
+        <section className="mt-5 grid gap-3 md:grid-cols-2">
           {report.axisReports.map((axis) => (
             <article key={axis.key} className={`${card} p-5 sm:p-6`}>
               {(() => {
@@ -545,7 +320,8 @@ export default function WeddingCodeResultClient() {
           ))}
         </section>
 
-        <section className={`${card} mt-5 p-5 sm:p-6`}>
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <section className={`${card} p-5 sm:p-6`}>
           <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">오늘 대화해볼 것</p>
           <div className="mt-3 flex flex-col gap-2.5">
             {report.talkStarters.map((text) => (
@@ -556,7 +332,7 @@ export default function WeddingCodeResultClient() {
           </div>
         </section>
 
-        <section className={`${card} mt-5 p-5 sm:p-6`}>
+        <section className={`${card} p-5 sm:p-6`}>
           <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">다음 행동 카드</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {report.actionCards.map((action) => (
@@ -567,86 +343,15 @@ export default function WeddingCodeResultClient() {
             ))}
           </div>
         </section>
+        </div>
 
-        <div className="mt-7 flex flex-col gap-2.5">
-          {backup.responseId &&
-            coupleReportState.kind !== "ready" &&
-            coupleReportState.kind !== "incompatible" &&
-            coupleReportState.kind !== "missing" && (
-            <div className={`${card} p-5`}>
-              <button
-                onClick={createInvite}
-                disabled={inviteState === "creating" || inviteUnavailable}
-                className={`${primaryBtn} w-full`}
-              >
-                {inviteState === "creating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
-                {inviteUnavailable
-                  ? "초대 링크를 만들 수 없어요"
-                  : inviteState === "creating"
-                  ? "초대 링크 준비 중..."
-                  : backup.coupleToken
-                    ? "초대 링크 다시 복사하기"
-                    : "상대에게 보내고 비교 준비하기"}
-              </button>
-              {inviteUnavailable ? (
-                <div className="mt-3 text-center">
-                  <p className="text-[12px] font-semibold leading-relaxed text-[#7d4540]" role="alert">
-                    {inviteError ?? "저장된 응답을 찾지 못해 이 결과에서는 초대 링크를 만들 수 없어요."}
-                  </p>
-                  <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-[#6d625a]">
-                    같은 버튼을 반복해도 해결되지 않아요. 최신 테스트로 새 비교를 시작해주세요.
-                  </p>
-                  <Link href="/wedding-code" className={`${ghostBtn} mt-3 w-full`}>
-                    최신 테스트 다시 하기 <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              ) : (
-                <p className="mt-2 text-center text-[12px] font-medium text-[#6d625a]">
-                  상대가 같은 테스트를 완료하면 두 사람의 준비 방식 겹침도를 만들 수 있어요.
-                </p>
-              )}
-              {!inviteUnavailable && visibleInviteLink && (
-                <div className="mt-3 flex items-center gap-2 rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
-                  <input
-                    readOnly
-                    value={visibleInviteLink}
-                    onFocus={(event) => event.currentTarget.select()}
-                    aria-label="상대에게 보낼 웨딩코드 초대 링크"
-                    className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-[#34445a] outline-none"
-                  />
-                  <button
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(visibleInviteLink);
-                        setInviteState("copied");
-                      } catch {
-                        setInviteState("copy-error");
-                      }
-                    }}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#36534E]"
-                    aria-label="링크 복사"
-                  >
-                    {inviteState === "copied" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              )}
-              {!inviteUnavailable && inviteState === "copied" && (
-                <p className="mt-1.5 text-center text-[12px] font-semibold text-[#36534E]" role="status" aria-live="polite">
-                  링크를 복사했어요. 카톡으로 보내보세요.
-                </p>
-              )}
-              {!inviteUnavailable && inviteState === "copy-error" && (
-                <p className="mt-1.5 text-center text-[12px] font-semibold text-[#8F6662]" role="status" aria-live="polite">
-                  자동으로 복사하지 못했어요. 위 링크를 눌러 직접 복사해주세요.
-                </p>
-              )}
-              {!inviteUnavailable && inviteState === "create-error" && (
-                <p className="mt-1.5 text-center text-[12px] font-semibold text-red-600" role="alert">
-                  {inviteError ?? "링크 생성에 실패했어요. 잠시 후 버튼을 다시 눌러주세요."}
-                </p>
-              )}
-            </div>
-          )}
+        <div className="mx-auto mt-7 flex max-w-[720px] flex-col gap-2.5">
+          <div className={`${card} p-5`} role="status">
+            <p className="text-[14px] font-semibold text-[#263832]">커플 비교는 안전 점검 중이에요</p>
+            <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-[#6d625a]">
+              지금은 답변을 서버로 보내지 않고 개인 결과만 이 브라우저에 보관합니다.
+            </p>
+          </div>
           <Link
             href="/check"
             onClick={() => captureEvent("wedding_code_to_quote_check", { version: sourceVersion })}
@@ -658,7 +363,7 @@ export default function WeddingCodeResultClient() {
         </div>
 
         {backup.version === WEDDING_CODE_V05_VERSION ? (
-          <div className={`${card} mt-7 overflow-hidden`}>
+          <div className={`${card} mx-auto mt-7 max-w-[720px] overflow-hidden`}>
             <button
               onClick={() => setAllOpen(!allOpen)}
               className="flex w-full items-center justify-between px-6 py-4 text-left"
@@ -686,7 +391,7 @@ export default function WeddingCodeResultClient() {
             )}
           </div>
         ) : (
-          <div className={`${card} mt-7 p-5 text-center`} role="note">
+          <div className={`${card} mx-auto mt-7 max-w-[720px] p-5 text-center`} role="note">
             <p className="text-[14px] font-semibold text-[#263832]">당시 선택 문장은 다시 표시하지 않아요</p>
             <p className="mt-1.5 text-[12px] font-medium leading-relaxed text-[#6d625a]">
               질문 문구가 업데이트되어, 예전 선택값을 지금 문장으로 잘못 바꿔 보여주지 않도록 숨겼어요.
@@ -772,250 +477,11 @@ function AxisDirectionSummary({
   );
 }
 
-function CoupleReportSection({
-  state,
-  onRefresh,
-}: {
-  state: CoupleReportState;
-  onRefresh: () => void;
-}) {
-  if (state.kind === "loading") {
-    return (
-      <section className={`${card} mt-5 p-5 sm:p-6`} role="status" aria-live="polite">
-        <div className="flex items-center gap-2.5">
-          <Loader2 className="h-4 w-4 animate-spin text-[#36534E]" aria-hidden="true" />
-          <p className="text-[14px] font-semibold text-[#263832]">두 사람의 준비 방식 겹침도를 불러오는 중이에요.</p>
-        </div>
-      </section>
-    );
-  }
-
-  if (state.kind === "waiting" || state.kind === "idle") {
-    return (
-      <section className={`${card} mt-5 p-5 sm:p-6`} role="status" aria-live="polite">
-        <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">커플 비교</p>
-        <p className="mt-2 text-[17px] font-semibold text-[#263832]">
-          {state.kind === "waiting" ? state.payload.messageKo : "아직 상대 응답을 기다리고 있어요."}
-        </p>
-        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-          상대가 같은 링크로 테스트를 마치면, 이 화면에서 쉽게 이야기할 부분과 먼저 맞출 부분을 볼 수 있어요.
-        </p>
-        <button onClick={onRefresh} className={`${ghostBtn} mt-4`}>
-          상태 다시 확인
-        </button>
-      </section>
-    );
-  }
-
-  if (state.kind === "missing") {
-    return (
-      <section className={`${card} mt-5 p-5 sm:p-6`} role="alert" aria-live="assertive">
-        <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">커플 비교</p>
-        <p className="mt-2 text-[17px] font-semibold text-[#263832]">{state.messageKo}</p>
-        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-          이 링크를 다시 보내도 비교가 완성되지 않아요. 최신 테스트로 새 초대를 시작해주세요.
-        </p>
-        <Link href="/wedding-code" className={`${ghostBtn} mt-4`}>
-          최신 테스트 다시 하기 <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </section>
-    );
-  }
-
-  if (state.kind === "incompatible") {
-    return (
-      <section
-        className={`${card} mt-5 p-5 sm:p-6`}
-        role="status"
-        aria-live="polite"
-      >
-        <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">커플 비교</p>
-        <p className="mt-2 text-[17px] font-semibold text-[#263832]">{state.payload.messageKo}</p>
-        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-          이 연결에는 두 응답이 이미 고정되어 있어 같은 링크를 다시 보내도 해결되지 않아요. 최신 테스트로 새 비교를 시작해주세요.
-        </p>
-        <Link href="/wedding-code" className={`${ghostBtn} mt-4`}>
-          최신 테스트 다시 하기 <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </section>
-    );
-  }
-
-  if (state.kind === "error") {
-    return (
-      <section className={`${card} mt-5 p-5 sm:p-6`} role="alert" aria-live="assertive">
-        <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">커플 비교</p>
-        <p className="mt-2 text-[17px] font-semibold text-[#263832]">{state.messageKo}</p>
-        <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[#5d6879]">
-          네트워크나 서버의 일시적인 문제일 수 있어요. 잠시 후 다시 확인해주세요.
-        </p>
-        <button onClick={onRefresh} className={`${ghostBtn} mt-4`}>다시 불러오기</button>
-      </section>
-    );
-  }
-
-  const { report } = state.payload;
-
-  return (
-    <section className={`${card} mt-5 p-5 sm:p-6`}>
-      <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">커플 비교</p>
-      <div className="mt-2">
-        <h2 className="text-[20px] font-semibold leading-[1.35] text-[#263832]">{report.titleKo}</h2>
-        <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
-          {report.overlapLabelKo}
-        </p>
-      </div>
-
-      <div className="mt-5 grid gap-3">
-        {report.easyPoints.map((axis) => (
-          <CoupleAxisRow key={axis.key} label="대화가 쉬운 지점" axis={axis} />
-        ))}
-        {report.talkFirst && (
-          <CoupleAxisRow label="먼저 맞출 부분" axis={report.talkFirst} emphasis />
-        )}
-      </div>
-
-      <p className="mt-4 rounded-[12px] bg-[#fffdf7] px-4 py-3 text-[13px] font-medium leading-relaxed text-[#34445a]">
-        {report.guideKo}
-      </p>
-
-      {report.scenarioCards.length > 0 && (
-        <div className="mt-5 border-t border-[#eadfc9] pt-5">
-          <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">실제 장면별 솔루션</p>
-          <div className="mt-3 grid gap-4">
-            {report.scenarioCards.map((card) => (
-              <CoupleScenarioCard key={card.id} card={card} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {report.solutionCards.length > 0 && (
-        <div className="mt-5 border-t border-[#eadfc9] pt-5">
-          <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">축별 맞춰볼 방법</p>
-          <div className="mt-3 grid gap-3">
-            {report.solutionCards.map((card) => (
-              <CoupleSolutionCard key={card.id} card={card} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <p className="mt-3 text-[11px] font-medium leading-relaxed text-[#6d625a]">
-        {report.disclaimerKo}
-      </p>
-    </section>
-  );
-}
-
-function CoupleScenarioCard({
-  card,
-}: {
-  card: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["scenarioCards"][number];
-}) {
-  const sameChoice = card.relation === "same";
-
-  return (
-    <div className="border-t border-[#eadfc9] pt-4 first:border-t-0 first:pt-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold tracking-wide text-[#7b5528]">{card.categoryKo}</p>
-          <p className="mt-1 text-[15px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
-        </div>
-        <p className="shrink-0 rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
-          {sameChoice ? "같은 초점" : "서로 다른 초점"}
-        </p>
-      </div>
-
-      <div className="mt-3 grid gap-2">
-        <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
-          <p className="text-[11px] font-semibold text-[#8F6662]">
-            {sameChoice ? "두 사람 모두 중요하게 본 것" : "한 사람이 더 중요하게 본 것"}
-          </p>
-          <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.firstChoiceKo}</p>
-        </div>
-        {!sameChoice && (
-          <div className="rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-[#8F6662]">다른 사람이 더 중요하게 본 것</p>
-            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#34445a]">{card.secondChoiceKo}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3 grid gap-2.5">
-        <div>
-          <p className="text-[11px] font-semibold text-[#8F6662]">조심할 지점</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{card.attentionKo}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold text-[#36534E]">해결 방법</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#34445a]">{card.solutionKo}</p>
-        </div>
-        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[#263832]">
-          {card.firstQuestionKo}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-4 py-3.5 text-center">
       <p className="text-[11px] font-semibold text-[#7b5528]">{label}</p>
       <p className="mt-1 truncate text-[13px] font-semibold text-[#263832]">{value}</p>
-    </div>
-  );
-}
-
-function CoupleSolutionCard({
-  card,
-}: {
-  card: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["solutionCards"][number];
-}) {
-  return (
-    <div className="rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold tracking-wide text-[#7b5528]">{card.categoryKo}</p>
-          <p className="mt-1 text-[14px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
-        </div>
-      </div>
-      <div className="mt-3 grid gap-2.5">
-        <div>
-          <p className="text-[11px] font-semibold text-[#8F6662]">조심할 지점</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{card.attentionKo}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold text-[#36534E]">이렇게 해보기</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#34445a]">{card.solutionKo}</p>
-        </div>
-        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[#263832]">
-          {card.firstQuestionKo}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function CoupleAxisRow({
-  label,
-  axis,
-  emphasis = false,
-}: {
-  label: string;
-  axis: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["easyPoints"][number];
-  emphasis?: boolean;
-}) {
-  return (
-    <div className={`rounded-[14px] border px-4 py-3.5 ${
-      emphasis ? "border-[#36534E]/25 bg-[#EEF4F1]" : "border-[#eadfc9] bg-[#fffdf7]"
-    }`}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold tracking-wide text-[#7b5528]">{label}</p>
-      </div>
-      <p className="mt-1 text-[14px] font-semibold text-[#263832]">{axis.labelKo}</p>
-      <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{axis.summaryKo}</p>
     </div>
   );
 }

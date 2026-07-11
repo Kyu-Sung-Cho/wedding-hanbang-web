@@ -10,7 +10,8 @@
 
 - 저장소는 pnpm/Turbo 모노레포다: `apps/web`, `apps/mobile`, `packages/design-tokens`, `packages/shared`, `supabase`, `scripts`.
 - 웹은 Next.js `16.2.6`/React `19.2.3`/Tailwind CSS 4, 모바일은 Expo 54/React Native 0.81이다. 정확한 버전은 각 `package.json`과 `pnpm-lock.yaml`이 최종 기준이다.
-- AI 연동은 `@anthropic-ai/sdk`를 통한 Anthropic Claude API다. `Codex API (Anthropic)`라는 옛 표기는 사용하지 않는다.
+- 아모라 AI 연동은 OpenAI Responses API다. 일반 상담은 정확히 `gpt-5.6-luna`, 계약·분쟁/안전·반복 교정만 정확히 `gpt-5.6-terra`를 사용하며 reasoning은 코드에서 `none`으로 고정한다. Anthropic/Claude 런타임과 SDK는 제거되었다.
+- WeddingCode는 개인 결과만 브라우저에서 계산한다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
 - 디자인 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹에 실제 적용된 값은 `apps/web/src/app/globals.css`가 기준이다. 충돌하면 실행 코드의 현재 동작을 먼저 확인하고 문서를 함께 동기화한다.
 - 저장소 명령은 루트에서 `corepack pnpm ...` 형식을 사용한다. 실제 스크립트는 루트와 각 앱의 `package.json`을 확인한다.
 
@@ -35,7 +36,7 @@
 | Styling | Tailwind CSS 4 | 빠른 개발, 일관된 디자인 |
 | State | Zustand 5 | 웹·모바일의 로컬 상태 관리 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | Anthropic Claude API (`@anthropic-ai/sdk`) | 웨딩 AI 플래너 채팅 |
+| AI | OpenAI Responses API | 웨딩 AI 플래너 채팅 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
 | 배포 | Vercel | Next.js 웹 배포 |
 | 이메일 | Resend | 사전등록 확인 메일 |
@@ -130,7 +131,7 @@ hanbang-web/
 │   │   │   ├── server.ts        # 서버용 클라이언트
 │   │   │   └── middleware.ts    # Auth 미들웨어
 │   │   ├── ai/
-│   │   │   ├── Codex.ts        # Codex API 호출
+│   │   │   ├── openai.ts       # OpenAI Responses API 호출
 │   │   │   └── prompts.ts       # 시스템 프롬프트
 │   │   └── resend.ts            # 이메일 발송
 │   │
@@ -200,8 +201,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
-# Anthropic Claude API
-ANTHROPIC_API_KEY=sk-ant-xxx...
+# OpenAI Responses API
+OPENAI_API_KEY=sk-proj-xxx...
+OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
+OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
 
 # Resend (이메일)
 RESEND_API_KEY=re_xxx...
@@ -285,7 +288,7 @@ CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true)
 
 ### Phase 4: 핵심 기능 (Day 3-7)
 1. 대시보드 (D-day, 진행률, 카테고리 현황)
-2. AI 채팅 (Codex API 연동)
+2. AI 채팅 (OpenAI Responses API 연동)
 3. 예산 관리
 4. 일정 관리
 5. 업체 탐색

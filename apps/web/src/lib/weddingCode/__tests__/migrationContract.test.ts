@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   "utf8"
 );
+const retirementMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260710120000_disable_wedding_code_pairing.sql"
+  ),
+  "utf8"
+);
 
 describe("WeddingCode atomic pairing migration contract", () => {
   it("keeps retry identity unique while allowing legacy null submission ids", () => {
@@ -38,9 +45,16 @@ describe("WeddingCode atomic pairing migration contract", () => {
     expect(migration).not.toContain("wedding_code_submission_conflict");
   });
 
-  it("returns an already-established canonical pair token to stale tabs", () => {
-    expect(migration).toContain("RETURN QUERY SELECT v_pairing_status, v_existing_token");
-    expect(migration).not.toContain("'different_token'::TEXT");
+  it("revokes every legacy token and removes the token-returning pair RPC", () => {
+    expect(retirementMigration).toMatch(
+      /UPDATE public\.wedding_code_responses[\s\S]*SET couple_token = NULL/
+    );
+    expect(retirementMigration).toContain(
+      "DROP FUNCTION IF EXISTS public.pair_wedding_code_response(UUID, UUID)"
+    );
+    expect(retirementMigration).toMatch(
+      /ADD CONSTRAINT wedding_code_pairing_hard_disabled[\s\S]*CHECK \(couple_token IS NULL\)/
+    );
   });
 
   it("fills only the audited v0.5 family during a migration-first rollout", () => {

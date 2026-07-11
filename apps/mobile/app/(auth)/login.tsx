@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
+  Animated, Linking,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +12,8 @@ import { Eye, EyeOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { signInWithOAuth } from "@/lib/auth";
+
+const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 
 // Supabase 에러 메시지 한국어 변환
 function translateError(message: string): string {
@@ -99,6 +101,28 @@ export default function LoginScreen() {
     } finally {
       setLoading(null);
     }
+  }
+
+  function openSecureWebAuth(mode: "signup" | "forgot") {
+    const action = mode === "signup" ? "회원가입" : "비밀번호 재설정";
+    Alert.alert(
+      "웹 보안 확인이 필요해요",
+      `${action}은 봇 방지 보안 확인을 위해 안전한 웹 화면에서 진행합니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "웹 열기",
+          onPress: () => {
+            void Linking.openURL(`${SITE}/login?mode=${mode}`).catch(() => {
+              Alert.alert(
+                "웹 화면을 열 수 없어요",
+                "기본 브라우저에서 hanbang.ai/login을 열어 다시 시도해주세요."
+              );
+            });
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -191,11 +215,11 @@ export default function LoginScreen() {
 
             {/* 비밀번호 찾기 + 회원가입 */}
             <View style={styles.linkRow}>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
+              <Pressable onPress={() => openSecureWebAuth("forgot")}>
                 <Text style={styles.link}>비밀번호 찾기</Text>
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
+              <Pressable onPress={() => openSecureWebAuth("signup")}>
                 <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
               </Pressable>
             </View>
@@ -213,7 +237,7 @@ export default function LoginScreen() {
             <Pressable
               style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
-              disabled={loading !== null}
+              disabled
               accessibilityLabel="카카오로 로그인"
               accessibilityRole="button"
             >
@@ -224,7 +248,7 @@ export default function LoginScreen() {
                   <View style={styles.kakaoIcon}>
                     <Text style={styles.kakaoIconText}>K</Text>
                   </View>
-                  <Text style={styles.kakaoText}>카카오로 계속하기</Text>
+                  <Text style={styles.kakaoText}>카카오 로그인 준비 중</Text>
                 </View>
               )}
             </Pressable>
@@ -232,7 +256,7 @@ export default function LoginScreen() {
             <Pressable
               style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
-              disabled={loading !== null}
+              disabled
               accessibilityLabel="Apple로 로그인"
               accessibilityRole="button"
             >
@@ -241,7 +265,7 @@ export default function LoginScreen() {
               ) : (
                 <View style={styles.socialInner}>
                   <Text style={styles.appleIcon}>{"\uF8FF"}</Text>
-                  <Text style={styles.appleText}>Apple로 계속하기</Text>
+                  <Text style={styles.appleText}>Apple 로그인 준비 중</Text>
                 </View>
               )}
             </Pressable>

@@ -22,6 +22,7 @@ export interface WcResultBackup {
 
 export const WC_RESULT_STORAGE_KEY = "wc_result_v05";
 const WC_RESULT_SESSION_STORAGE_KEY = "wc_result_v05_session";
+const WC_RESULT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 let volatileBackup: WcResultBackup | null = null;
 
@@ -37,6 +38,10 @@ function parseBackup(raw: string | null): WcResultBackup | null {
       Array.isArray(value.answers) ||
       typeof value.savedAt !== "string"
     ) {
+      return null;
+    }
+    const savedAt = Date.parse(value.updatedAt ?? value.savedAt);
+    if (!Number.isFinite(savedAt) || Date.now() - savedAt > WC_RESULT_RETENTION_MS) {
       return null;
     }
 
@@ -64,23 +69,50 @@ function savedAtTime(backup: WcResultBackup): number {
 
 export function readWcResultBackup(): WcResultBackup | null {
   const candidates: WcResultBackup[] = [];
-  if (volatileBackup) candidates.push(volatileBackup);
+  if (volatileBackup) {
+    const parsedVolatile = parseBackup(JSON.stringify(volatileBackup));
+    if (parsedVolatile) candidates.push(parsedVolatile);
+    else volatileBackup = null;
+  }
 
   try {
-    const sessionBackup = parseBackup(window.sessionStorage.getItem(WC_RESULT_SESSION_STORAGE_KEY));
+    const rawSession = window.sessionStorage.getItem(WC_RESULT_SESSION_STORAGE_KEY);
+    const sessionBackup = parseBackup(rawSession);
     if (sessionBackup) candidates.push(sessionBackup);
+    else if (rawSession) window.sessionStorage.removeItem(WC_RESULT_SESSION_STORAGE_KEY);
   } catch {
     /* sessionStorage를 사용할 수 없는 환경에서는 다른 저장 경로를 확인한다. */
   }
 
   try {
-    const localBackup = parseBackup(window.localStorage.getItem(WC_RESULT_STORAGE_KEY));
+    const rawLocal = window.localStorage.getItem(WC_RESULT_STORAGE_KEY);
+    const localBackup = parseBackup(rawLocal);
     if (localBackup) candidates.push(localBackup);
+    else if (rawLocal) window.localStorage.removeItem(WC_RESULT_STORAGE_KEY);
   } catch {
     /* localStorage를 사용할 수 없는 환경에서는 탭 세션/메모리 결과를 사용한다. */
   }
 
-  return candidates.sort((a, b) => savedAtTime(b) - savedAtTime(a))[0] ?? null;
+  const latest = candidates.sort((a, b) => savedAtTime(b) - savedAtTime(a))[0] ?? null;
+  if (!latest) return null;
+
+  // Retire any plaintext capability/response identifier left by an older
+  // browser build. Rewriting the selected backup removes it from localStorage
+  // as soon as the result page is opened.
+  if (latest.responseId || latest.coupleToken || latest.pendingCoupleToken) {
+    const sanitized: WcResultBackup = {
+      ...latest,
+      responseId: null,
+      paired: false,
+      pairingStatus: "unpaired",
+      coupleToken: null,
+      pendingCoupleToken: null,
+      pairingUnavailable: undefined,
+    };
+    storeWcResultBackup(sanitized);
+    return sanitized;
+  }
+  return latest;
 }
 
 export function storeWcResultBackup(backup: WcResultBackup): "local" | "session" | "memory" {

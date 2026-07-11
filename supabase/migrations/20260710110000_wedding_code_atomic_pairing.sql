@@ -424,5 +424,21 @@ REVOKE ALL ON FUNCTION public.pair_wedding_code_response(UUID, UUID) FROM PUBLIC
 REVOKE ALL ON FUNCTION public.pair_wedding_code_response(UUID, UUID) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.pair_wedding_code_response(UUID, UUID) TO service_role;
 
+-- Conservative review retired the plaintext capability before this migration
+-- was approved for deployment. Keep the atomic insert work, but make applying
+-- this file alone fail closed as well; 1200 repeats the fence for environments
+-- that may already have applied an earlier copy of 1100.
+UPDATE public.wedding_code_responses
+SET couple_token = NULL
+WHERE couple_token IS NOT NULL;
+
+DROP FUNCTION IF EXISTS public.pair_wedding_code_response(UUID, UUID);
+
+ALTER TABLE public.wedding_code_responses
+  DROP CONSTRAINT IF EXISTS wedding_code_pairing_hard_disabled;
+ALTER TABLE public.wedding_code_responses
+  ADD CONSTRAINT wedding_code_pairing_hard_disabled
+  CHECK (couple_token IS NULL);
+
 COMMENT ON COLUMN public.wedding_code_responses.couple_token IS
-  '커플 페어링용 무의미 난수 토큰(UUID v4) — DB 트랜잭션에서 최대 2행 강제';
+  'Retired plaintext capability. Must remain NULL until a hashed, expiring, revocable replacement is approved.';

@@ -18,19 +18,19 @@ import { weddingPath } from "@/lib/weddingPaths";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
-const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS = 3;
+const MAX_TOTAL_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
 
 // 허용 파일 타입
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
+  "image/jpeg": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/png": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/gif": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/webp": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "application/pdf": { maxSize: 2 * 1024 * 1024, label: "PDF" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 2 * 1024 * 1024, label: "DOCX" },
 };
 
 interface AttachmentItem {
@@ -38,6 +38,7 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+  byteSize: number;
 }
 
 function fileInputKey(file: File): string {
@@ -752,7 +753,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     uniqueFiles(files).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
-        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word 가능)`);
+        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, DOCX 가능)`);
         return;
       }
       if (file.size > typeInfo.maxSize) {
@@ -766,7 +767,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         const base64 = result.split(",")[1];
         const isImage = file.type.startsWith("image/");
         const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
-        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name };
+        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name, byteSize: file.size };
 
         setAttachments((prev) => {
           if (prev.length >= MAX_ATTACHMENTS) {
@@ -776,6 +777,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           const key = chatAttachmentKey(attachment);
           if (prev.some((item) => chatAttachmentKey(item) === key)) {
             revokeObjectPreview(previewUrl);
+            return prev;
+          }
+          if (prev.reduce((sum, item) => sum + item.byteSize, 0) + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+            revokeObjectPreview(previewUrl);
+            alert("첨부파일 합계는 2MB 이하만 가능해요.");
             return prev;
           }
           return [...prev, attachment];
@@ -1369,20 +1375,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
           AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
-      <div className="sr-only">
+      <div className="flex justify-center border-b border-black/[0.04] bg-[#FBF8F2] px-4 py-1.5">
         <div
-          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
-          title="아모라 답변은 Anthropic Claude 가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
+          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-tight text-[#5F5B52]"
+          title="아모라 답변은 OpenAI의 GPT 모델이 생성합니다. 자세한 내용은 'AI 정책' 페이지에서 확인하세요."
         >
           <span className="inline-flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/50" />
             AI 생성
           </span>
-          <span className="text-[#D5C9C0]">·</span>
-          <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
-          <span className="text-[#D5C9C0]">·</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
+          <span>참고 데이터: 답변별 상이</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
           <span>전문가 검토 권장</span>
-          <span className="text-[#D5C9C0]">·</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
           <a
             href="/ai-policy"
             className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
@@ -1536,8 +1542,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     onClick={() => performClear("delete_private")}
                     className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-red-600 mb-1">영구 삭제</div>
-                    <div className="text-[12px] text-[#504444]">DB에서 완전히 삭제. <strong>복구 불가</strong>.</div>
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">채팅 메시지 삭제</div>
+                    <div className="text-[12px] text-[#504444]">비공개 메시지·요약·AI 기억을 삭제하고 연결된 감사 원문도 즉시 가립니다. <strong>복구 불가</strong>.</div>
                   </button>
                 </div>
                 <div className="mt-5 flex justify-end">
@@ -1945,7 +1951,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.doc"
+            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx"
             multiple
             onChange={handleFileSelect}
             className="hidden"

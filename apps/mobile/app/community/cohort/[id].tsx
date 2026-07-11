@@ -54,8 +54,6 @@ interface CohortMember {
   profile: {
     nickname: string;
     rank: string;
-    wedding_year: number | null;
-    wedding_month: number | null;
   } | null;
 }
 
@@ -211,14 +209,21 @@ export default function CohortChatScreen() {
   const loadMessages = useCallback(async () => {
     if (!id) return;
     try {
-      // 1. 자동 입장 (이미 멤버면 무시)
+      // 1. 서버에서 안전하게 자동 배정. 임의 room_id 직접 upsert는 금지한다.
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
-        await supabase.from("cohort_members").upsert(
-          { room_id: id, user_id: user.id },
-          { onConflict: "room_id,user_id" }
-        ).then(() => {});
+        const assignResponse = await apiFetch("/api/community/cohort/auto-assign", {
+          method: "POST",
+        });
+        const assignment = await assignResponse.json().catch(() => ({}));
+        if (!assignResponse.ok || typeof assignment.room_id !== "string") {
+          throw new Error(assignment.error ?? "동기방 배정에 실패했습니다.");
+        }
+        if (assignment.room_id !== id) {
+          router.replace(`/community/cohort/${assignment.room_id}`);
+          return;
+        }
       }
 
       // 2. 방 정보 로드
@@ -268,7 +273,7 @@ export default function CohortChatScreen() {
     try {
       const { data } = await supabase
         .from("cohort_members")
-        .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
+        .select("id, user_id, profile:community_profiles(nickname, rank)")
         .eq("room_id", id);
 
       setMembers((data as unknown as CohortMember[]) ?? []);
@@ -278,8 +283,10 @@ export default function CohortChatScreen() {
   }, [id]);
 
   useEffect(() => {
-    loadMessages();
-    loadMembers();
+    void (async () => {
+      await loadMessages();
+      await loadMembers();
+    })();
   }, [loadMessages, loadMembers]);
 
   // Supabase Realtime 구독

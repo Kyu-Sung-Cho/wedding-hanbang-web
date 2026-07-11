@@ -1,24 +1,46 @@
 # 2026-07-10 보수적 전체 감사 및 출시 경계
 
+> **통합 후 정정(2026-07-10)**: 이 문서의 아래 본문은 PR #37 단독 브랜치를 감사한 당시 기록이다.
+> 현재 통합 브랜치는 해당 페어링 설계를 production-ready로 승인하지 않았다. 과거 QA 문서에서
+> plaintext `ct`와 response UUID가 유출됐고, response UUID만으로 canonical token을 되찾거나 새
+> token을 재부착할 수 있어 커플 초대·비교 및 익명 응답 수집 API를 모두 코드에서 410으로 하드
+> 차단했다. WeddingCode 개인 결과는 서버 전송 없이 브라우저에서만 계산하고 최대 30일 보관한다.
+> `20260710110000` 끝과 `20260710120000`은 기존 token을 NULL로 만들고 pair RPC를 제거하며
+> `couple_token IS NULL` 제약으로 구버전 서버도 fail-closed시킨다. 아래의 "DB 선적용 후 페어링
+> 배포"·waiting→paired E2E 계획과 점수는 더 이상 현재 출시 계획이 아니며 역사적 맥락으로만 읽는다.
+
+## 통합 브랜치 현재 판정
+
+- Draft PR에 작업 보존: GO
+- WeddingCode 개인 결과(local-only): 정적·브라우저 QA 통과 후 GO
+- WeddingCode 응답 수집·커플 비교: NO-GO, 새 hashed/expiring/revocable 설계와 명시 동의·보유·삭제 계약 필요
+- 운영 배포: fresh DB baseline, 전체 migration staging, 운영 capability 폐기 확인 전 NO-GO
+- 현재 통합 브랜치: `agent/amora-openai-gpt56`
+- 최종 자동 검증: Web `65 files / 503 tests`, Next.js 정적 페이지 `101`, 모바일 release readiness `56/56`, 알려진 production dependency 취약점 0
+- 현재 소스 오브 트루스: `docs/AMORA_OPENAI_MIGRATION_REVIEW_2026-07-10.md`
+
+아래 항목은 PR #37 단독 브랜치 당시 감사 증거를 보존한 기록이다. 특히 페어링 migration-first
+배포, waiting→paired E2E, 운영 점수는 현재 실행 지침이 아니며 복사해 적용하면 안 된다.
+
 - 감사일: 2026-07-10 KST
 - 저장소: `Kyu-Sung-Cho/wedding-hanbang-web`
 - 작업 브랜치: `agent/wedding-code-plain-language`
 - 대상 PR: Draft [#37](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/37)
 - 기준: 통과한 자동화만으로 운영 안전 또는 사용자 검증 완료를 선언하지 않는다.
 
-## 결론
+## 보존 기록 — 결론
 
 현재 변경은 Draft PR에 올릴 수 있는 수준이지만, 운영 배포는 **조건부 NO-GO**다.
 
 코드 수준의 주요 P1 결함은 수정했고 타입검사, 린트, 410개 테스트, 프로덕션 빌드가 통과했다. 그러나 새 DB 마이그레이션은 실제 PostgreSQL/Supabase에 적용·동시성 검증되지 않았다. 과거 QA 문서에 노출됐던 운영 capability는 2026-07-10 읽기 전용 재확인에서 여전히 HTTP 200, `ready`, 2행으로 활성 상태였다. 이 두 항목을 끝내기 전에는 운영 안전 완료로 말할 수 없다.
 
-## 감사 범위와 증거 수준
+## 보존 기록 — 감사 범위와 증거 수준
 
 저장소 전체에는 이력·브랜치·stash 인벤토리, 타입검사, 린트, 전체 테스트, 전체 빌드, 의존성 감사, 추적 파일 비밀값 패턴 검사를 적용했다. 현재 로컬 변경과 WeddingCode 경로에는 API, DB 계약, 페어링 경쟁 조건, 결과 계산, 분석 도구, 문구, 모바일·데스크톱 UI, 접근성, 문서 사실성을 줄 단위로 교차 검토했다.
 
 이는 모든 과거 기능을 사람이 한 줄씩 다시 읽었다는 뜻은 아니다. 자동 검증이 없는 운영 인프라, 실제 DB 트랜잭션, 사람 대상 제품 검증은 별도 게이트로 남긴다.
 
-## 보수적 평가
+## 보존 기록 — 보수적 평가
 
 | 영역 | 현재 평가 | 근거와 제한 |
 |---|---:|---|
@@ -31,9 +53,9 @@
 | 제품 타당성 | 3.5/10 | 문구·계산은 candidate 상태. n=5 인지 인터뷰와 n=20 미니 테스트 완료 증거가 없음. |
 | 운영 출시 준비 | 5.5/10 | PR 업로드는 가능. DB 선적용, capability 폐기, 실제 2기기 E2E 전 운영 배포는 금지. |
 
-## 이번에 수정한 출시 차단 문제
+## 보존 기록 — 당시 수정한 출시 차단 문제
 
-### 보안·데이터
+### 보존 기록 — 보안·데이터
 
 - PostHog 이벤트뿐 아니라 초기 flags/remote-config 요청에서도 초대 토큰이 나가지 않도록 미사용 feature flags를 끄고 SDK 자체 query masking을 추가했다.
 - `form_version`과 `scoring_version`을 분리해 저장하고, 최신 클라이언트가 과거 문구/채점 계약으로 제출하면 거부한다.
@@ -45,7 +67,7 @@
 - 페어링 RPC는 다중 탭 경쟁에서 DB에 먼저 확정된 canonical token을 반환한다. 가득 찬 토큰과 알 수 없는 RPC 응답은 실패하고, 없는 response capability는 재시도 루프 대신 새 테스트로 보낸다.
 - API는 새 RPC가 없으면 안전하게 `503`으로 닫힌다. 따라서 앱보다 DB 마이그레이션을 먼저 배포해야 한다.
 
-### 결과 정확성·상태관리
+### 보존 기록 — 결과 정확성·상태관리
 
 - 같은 과거 폼 두 건도 candidate.9 문장으로 다시 인용하던 경로를 막았다. 선택 문장 카드는 두 응답 모두 현재 폼일 때만 표시한다.
 - 브라우저 결과 백업에 채점 계약을 기록하고, 알려진 candidate.1~9 무버전 백업만 명시적으로 이관한다. 알 수 없는 채점 계약은 최신 계산기로 조용히 재계산하지 않는다.
@@ -58,7 +80,7 @@
 - 커플 리포트 2xx도 status별 필수 필드를 runtime 검증해 깨진 payload를 영구 버전 불일치나 렌더 오류로 오해하지 않는다.
 - 모든 축 겹침이 낮으면 상대적 상위 축을 `대화가 쉬운 지점`이라고 부르지 않는다.
 
-### UI·문구·접근성
+### 보존 기록 — UI·문구·접근성
 
 - 정상 초대 진입과 깨진 초대 링크를 토큰 원문 노출 없이 구분해 안내한다.
 - 초대 링크 생성 뒤 링크·복사·재시도 UI가 사라지지 않는다.
@@ -70,7 +92,7 @@
 - 작은 landscape에서 저장 overlay를 스크롤할 수 있게 하고, 자유입력에는 개인정보 입력 금지 안내와 클라이언트 길이 제한을 추가했다.
 - B3의 추상적인 역할 분담 문구를 실제 항목 예시로 구체화했다.
 
-### 문서·이력
+### 보존 기록 — 문서·이력
 
 - 루트 README를 추가해 실제 모노레포 구조, 명령, 디자인 소스, 배포 표면을 기록했다.
 - `AGENTS.md`, `CLAUDE.md`의 오래된 스택·구조 설명을 현재 코드 우선 원칙과 맞췄다.
@@ -78,7 +100,7 @@
 - 문자 인코딩이 깨진 52·53 문서는 내용을 추측 복원하지 않고 `CORRUPTED / SUPERSEDED` 경계를 추가했다.
 - 로컬, PR, `main`, production 버전을 별도 상태로 기록했다. 2026-07-10 확인 당시 production은 candidate.4였으며 현재 브랜치 업로드가 곧 운영 배포라는 뜻은 아니다.
 
-## 검증 결과
+## 보존 기록 — 당시 검증 결과
 
 저장소 루트에서 다음을 다시 실행했다.
 
@@ -111,7 +133,7 @@ git diff --check
 - 1440px 데스크톱에서 가로 overflow 없음 (`scrollWidth = clientWidth = 1440`)
 - 최종 스크린샷은 로컬 `.gstack/.../design-audit-20260710/screenshots/`에 보존
 
-## 운영 DB 읽기 전용 확인
+## 보존 기록 — 당시 운영 DB 읽기 전용 확인
 
 2026-07-10 확인 당시 운영 데이터의 aggregate 상태는 다음과 같았다.
 
@@ -123,9 +145,9 @@ git diff --check
 
 현재 데이터에 이미 3인 연결이 없다는 사실은 새 경쟁 조건이 안전하다는 증거가 아니다. 마이그레이션 적용 뒤 실제 PostgreSQL 병렬 요청으로 3번째 슬롯이 막히는지 확인해야 한다.
 
-## 반드시 남은 게이트
+## 보존 기록 — 당시 남긴 게이트(현재 실행 금지)
 
-### P0 — 운영 배포 전
+### 보존 기록 — 당시 P0
 
 1. 47번 QA 문서의 과거 Git revision에서 회수 가능하고 현재도 활성인 production capability를 폐기한다. 해당 QA rows 삭제 또는 token 무효화를 운영 DB에서 확인한다.
 2. `supabase/migrations/20260710110000_wedding_code_atomic_pairing.sql`을 **웹 코드보다 먼저** 적용한다.
@@ -134,13 +156,13 @@ git diff --check
 5. 두 브라우저/두 기기에서 waiting -> paired -> ready 비교와 full/error/incompatible 복구 동선을 다시 확인한다.
 6. PostHog 네트워크에서 `/flags`가 발생하지 않고 이벤트·replay URL에 `ct`가 없는지 preview/production 환경에서 확인한다.
 
-### P1 — 제품을 final/validated라고 부르기 전
+### 보존 기록 — 당시 P1
 
 1. n=5 인지 인터뷰를 진행하고 진행자 설명 없이 각 문항·선택지가 이해되는지 기록한다.
 2. 반복되는 머뭇거림과 오해를 수정한 뒤 n=20 미니 테스트를 진행한다.
 3. 그 전까지 `candidate_pending_human_validation`을 유지하고 심리검사, 궁합, 관계 예측, 검증 완료 표현을 쓰지 않는다.
 
-### P2 — 후속 디자인·DX 부채
+### 보존 기록 — 당시 P2
 
 - 620px 고정형 데스크톱 레이아웃과 중첩 카드 구조를 넓은 화면 정보 구조로 재설계한다.
 - WeddingCode 하드코딩 색상을 공유 디자인 토큰으로 옮긴다.
@@ -151,14 +173,14 @@ git diff --check
 
 `UPDATE_LOG.md`는 실제 운영 배포 기록이므로 이번 로컬/PR 작업만으로 갱신하지 않았다.
 
-## 로컬 작업 누락 점검
+## 보존 기록 — 당시 로컬 작업 누락 점검
 
 - 현재 브랜치의 어제 candidate.9 작업은 `d6ff8e88`에 존재한다.
 - upstream이 없는 로컬 브랜치 3개는 모두 `origin/main`의 조상이라 고유 미업로드 커밋이 아니다.
 - 유일한 별도 stash `local-stale-2026-06-11 (playwright devdep + screenshot script)`는 현재 PR에 섞지 않고 원격 `archive/local-stale-2026-06-11` 브랜치로 보존했다.
 - archive 로컬·원격 SHA는 모두 `fda1be093c67baed7006b19b7c4136cf58707409`이며 원본 stash도 삭제하지 않았다.
 
-## 출시 판단
+## 보존 기록 — 당시 출시 판단
 
 - Draft PR 업로드: **GO**
 - PR을 ready로 전환: **DB 마이그레이션 실행 계획과 capability 폐기 담당자가 정해진 뒤 판단**

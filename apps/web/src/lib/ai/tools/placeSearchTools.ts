@@ -56,15 +56,25 @@ function detectPrivateRoom(texts: string[]): boolean {
   return roomKeywords.some((keyword) => combined.includes(keyword));
 }
 
-function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
+function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs = 4000,
+  parentSignal?: AbortSignal
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  const signal = parentSignal
+    ? AbortSignal.any([parentSignal, controller.signal])
+    : controller.signal;
+  return fetch(url, { ...options, signal }).finally(() => clearTimeout(timer));
 }
 
 export async function executeSearchNearbyPlaces(
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<ToolExecutionResult> {
+  signal?.throwIfAborted();
   const query = input.query as string;
   const clientId = process.env.NAVER_CLIENT_ID ?? process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
@@ -88,7 +98,8 @@ export async function executeSearchNearbyPlaces(
     const localResponse = await fetchWithTimeout(
       `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=5&sort=comment`,
       { headers: naverHeaders },
-      5000
+      5000,
+      signal
     );
 
     if (!localResponse.ok) {
@@ -154,7 +165,8 @@ export async function executeSearchNearbyPlaces(
         const blogResponse = await fetchWithTimeout(
           `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(`"${place.name}" 후기`)}&display=3&sort=sim`,
           { headers: naverHeaders },
-          3000
+          3000,
+          signal
         );
         if (!blogResponse.ok) return null;
         return await blogResponse.json();
@@ -187,6 +199,9 @@ export async function executeSearchNearbyPlaces(
       displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.`,
     };
   } catch (err) {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : err;
+    }
     const errMsg = String(err);
     console.error("search_nearby_places 에러:", errMsg);
     return {

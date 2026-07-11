@@ -73,7 +73,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: profile, error } = await supabase
+    const serviceClient = getServiceClient();
+
+    const { data: profile, error } = await serviceClient
       .from("community_profiles")
       .select("*")
       .eq("user_id", user.id)
@@ -87,7 +89,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const serviceClient = getServiceClient();
     const { count: actualPostCount } = await serviceClient
       .from("community_posts")
       .select("id", { count: "exact", head: true })

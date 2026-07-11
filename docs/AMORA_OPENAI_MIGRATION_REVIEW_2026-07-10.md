@@ -1,0 +1,134 @@
+# 아모라 OpenAI GPT-5.6 전환 보수 검토 (2026-07-10)
+
+## 결론
+
+코드 기준 아모라 런타임의 Anthropic 의존은 제거했다. 일반 상담·도구 오케스트레이션은
+`gpt-5.6-luna`가 맡고, 계약·분쟁/안전 신호·같은 세션의 반복 수정 턴만
+`gpt-5.6-terra`로 승격한다. 별도 요약/분류, 갈등 자동 판정, 커뮤니티 AI 댓글,
+프로액티브 채팅·케어 이메일은 숨은 비용과 삭제 경합을 줄이기 위해 코드에서 꺼져 있다.
+정적 검증과 프로덕션 빌드는 통과했지만, 아래 운영 게이트가 끝나기 전에는 배포하지 않는다.
+
+1. production catalog로 누락된 핵심 base-table baseline을 만들고 빈 DB fresh reset과 production snapshot upgrade를 모두 통과
+2. 실제 OpenAI 프로젝트 키로 Terra/Luna 접근 권한·2라운드 도구·PDF·refusal·abort canary
+3. `20260710010000` 이후 DB 마이그레이션을 provider/traffic drain 유지보수 창에서 순서대로 적용하고 권한·RPC·동시성 원격 검증
+4. OpenAI 프로젝트 예산·알림·rate limit과 운영 환경변수 설정
+5. Supabase/Vercel/Resend/OpenAI의 실제 계약 법인·처리 리전·DPA를 확인한 국외 처리 고지 확정
+
+## 모델과 비용 정책
+
+| 용도 | 모델 | 기본 추론 | 제한 |
+|---|---|---|---|
+| 일반 상담·도구 계획 | `gpt-5.6-luna` | `none` | 출력 800, 입력 48K, 도구 라운드 1회·최대 생성 2회 |
+| 계약·분쟁/안전·반복 수정 | `gpt-5.6-terra` | `none` | 결정적 규칙으로만 승격, 같은 출력·입력 상한 |
+| 별도 요약·결정 추출·분류·프로필·AI 댓글 | `gpt-5.6-luna` | `none` | 코드 하드 비활성, 재도입 전 별도 승인 |
+
+- 모든 생성은 `store:false`, standard service tier, SDK 자동 재시도 0회다.
+- 모델 ID는 코드에서 정확히 `gpt-5.6-luna`/`gpt-5.6-terra`만 허용하고 reasoning은
+  `none`만 허용한다. 환경변수 suffix·고추론 설정으로 비용 정책이 바뀌면 호출 전에 실패한다.
+- 선택된 Terra/Luna 입력은 공식 input-token count를 실제 생성 전에 실행하고 48K를 넘으면 차단한다.
+- 사용자 무료 상담 턴(커플 30)과 실제 provider 생성(전역 일일 60)을 분리했다. 이 값은
+  production 코드의 하드 상한이라 과거 환경변수가 100/300으로 남아도 올라가지 않고 더 낮추는 것만 가능하다.
+- production에서는 비용 장부를 환경변수로 끄거나 장부 장애를 fail-open으로 바꿀 수 없다.
+- 도구 후속 생성은 무료 상담 횟수를 추가 차감하지 않지만 전역 provider 천장은 소모한다.
+- 프롬프트 캐시는 Terra/Luna 모두 explicit/no-breakpoint로 두어 애플리케이션이 사용자 원문
+  cache write를 요청하지 않는다. 계약상 보존 조건을 확정하기 전의 보수 기본값이다.
+- 비용 장부는 요청별 usage를 따로 계산해 여러 라운드 합산 때문에 장문 요율을 오적용하지 않는다.
+
+## 보안·정합성 수정
+
+- 클라이언트 이름·역할·예식 상태를 비데모 요청에서 신뢰하지 않고 DB 값으로 재구성한다.
+- 요청 3.5MiB, 첨부 총 2MiB/3개, PDF 20페이지, 첨부 추출문자 15K, 최근 메시지 20개·
+  총 24K문자로 제한한다.
+- URL 첨부를 제거해 SSRF 경로를 없애고 이미지/PDF/DOCX 실제 형식·압축폭탄·픽셀 수를 검증한다.
+- 모든 도구 인자를 서버에서 타입·enum·금액 상한·날짜·중첩 크기까지 다시 검증한다.
+- 비공개 상담과 첨부가 있는 턴은 읽기 전용 도구만 허용한다.
+- 예약 생성·취소 및 삭제성 도구는 서버 발급 exact-action 확인 토큰 전까지 모델에서 비활성이다.
+- 요청 전체를 해시 장부로 먼저 선점하고, 완료 요청은 저장된 메시지를 SSE로 재생한다.
+- 도구별 장부도 원자 선점하며 불확실한 상태에서는 재실행하지 않는다.
+- 최종 메시지·성공 감사 로그·요청 완료를 하나의 DB 트랜잭션으로 commit한다.
+- 비공개 삭제와 비공개 응답 저장은 같은 profile 행을 잠그고 삭제 세대를 검증한다.
+- 비공개 턴은 파생 요약/결정/프로필을 만들지 않고 감사 장부에도 원문을 복제하지 않는다.
+- `progress` RPC 실패 시 stale 전체 JSON 덮어쓰기 폴백을 제거해 동시 수정 유실을 막는다.
+- 계정 탈퇴는 lifecycle marker와 service-only 영속 작업을 한 DB 트랜잭션으로 접수한다.
+  서버 worker가 provider lease 종료를 확인하고, 소유가 증명된 storage prefix를 지운 뒤
+  DB 비식별화·Auth 삭제를 계속한다. 앱/브라우저가 닫혀도 재시도하며 8회 실패는 dead-letter로
+  격리한다. 커플 초기화는 기존처럼 202 polling으로 완료를 확인한다.
+- 한 명이 떠난 기존 couple은 초대 재사용을 영구 차단해 새 파트너가 과거 shared 대화·AI 기억·
+  예약 개인정보를 상속하지 못하게 한다.
+- 모바일 가입·비밀번호 복구는 위조 가능한 헤더 우회를 제거하고 Turnstile이 있는 웹 흐름으로만
+  연결한다. 모바일 소셜 로그인은 PKCE·검증된 App/Universal Link 적용 전까지 코드에서 꺼져 있다.
+- 관리자 seed API는 인증과 production seed gate를 통과한 요청 안에서만 service client를 만든다.
+  네 route의 import·인증 실패·gate 차단 순서를 15개 회귀 테스트로 고정해 빌드 시 비밀값 없는
+  모듈 평가와 우회 요청이 privileged client를 먼저 만들지 못하게 했다.
+- 커뮤니티 신규 업로드는 JPEG/PNG/GIF/WebP만 허용하며 magic byte와 실제 디코더 형식,
+  가로·세로·픽셀·애니메이션 프레임/누적 픽셀을 검증한다. 일일 20개 한도는 service-only DB
+  예약 장부와 user/day advisory lock으로 원자화했다. Storage metadata INSERT가 같은 트랜잭션에서
+  활성 예약을 소비하므로 만료 예약은 안전하게 해제되고 늦은 commit은 거절된다. 영상 신규 업로드 UI/API는 함께 비활성이다.
+- 외부 처리 계약과 리전 고지가 확정될 때까지 웹/모바일 PostHog·Sentry 송신은 키와 무관하게
+  코드에서 비활성이다.
+
+## 데이터·보존
+
+- AI 원문·직접 식별자는 90일 경과 후 일일 비식별화 처리한다.
+- 비식별 비용·보안 장부와 원문 없는 요청 해시 tombstone은 1년 경과 후 일일 삭제한다.
+- private 삭제 RPC는 메시지·피드백·요약·결정·프로필·연결 감사 payload를 한 트랜잭션에서
+  삭제/비식별화하고 요청 tombstone의 메시지 링크도 제거한다.
+- `chat_feedback.message_id`의 legacy TEXT와 메시지 UUID 비교 타입 불일치를 수정했다.
+
+## UX·디자인 검토 반영
+
+- 웹 메인 채팅·사이드패널·모바일에 AI 생성 고지와 정책 링크를 일관되게 표시했다.
+- 배지 대비·12px 최소 글자·모바일 터치 타깃·선택 상태를 보강했다.
+- 첨부 선택 UI를 서버 정책(3개/총 2MiB, 이미지·PDF·DOCX)과 맞추고 `.doc` 오허용을 제거했다.
+- 비공개 삭제/공유 초기화 문구가 실제 동작 범위를 과장하지 않도록 고쳤다.
+- WeddingCode는 16문항 개인 결과만 브라우저에서 계산·최대 30일 보관한다. 과거 plaintext `ct`와
+  response UUID가 유출된 커플 초대·비교 및 익명 응답 수집 API는 모두 410으로 하드 차단했고,
+  DB 후속 마이그레이션은 기존 token을 NULL로 폐기하고 재부착을 CHECK 제약으로 막는다.
+
+## 검증 결과
+
+- `pnpm qa:local`: CI와 같은 비밀값 없는 정적검증용 placeholder 환경에서 통과
+- Web TypeScript / ESLint / Vitest: 통과 (`65 files`, `503 tests`)
+- Next.js production build: 통과 (`101` static pages 생성)
+- Mobile release readiness: `56 passed`, warning/failure 0
+- Mobile lint/typecheck, shared/design-token typecheck: 통과
+- `pnpm audit --prod`: 알려진 취약점 0
+- `git diff --check`, 비밀값 패턴 검사, 비용 보고 스크립트 syntax: 통과
+- 로컬 Docker와 실제 OpenAI/Supabase 운영 자격증명이 없어 DB 실행 검증·실모델 canary는 미수행
+
+## 남은 보수적 위험
+
+- **P0 — fresh DB 재현 불가**: 기존 migration chain은 `profiles`, `vendors`,
+  `vendor_products`, `vendor_images`, `vendor_bookings`, `vendor_favorites`를 생성하지 않은 채
+  ALTER한다. 운영 catalog를 추측해 baseline을 만들면 데이터·제약을 틀릴 수 있으므로,
+  검토된 schema dump와 fresh/snapshot 양방향 staging 검증 전에는 어떤 신규 migration도 배포 금지다.
+- **P0 — 운영 WeddingCode capability 폐기 미확인**: 다른 컴퓨터 작업의 과거 Git revision에
+  노출된 production `ct`/response UUID는 코드에서 하드 차단했고 `1100`/`1200`에 DB 폐기 fence를
+  넣었지만, 운영 DB에는 아직 적용하지 않았다. QA row 삭제 또는 token NULL, pair RPC 부재,
+  CHECK 제약을 원격 확인하기 전에는 production capability가 폐기됐다고 선언하지 않는다.
+- 가입 메일은 전송 실패 시 방금 만든 Auth 사용자를 보상 삭제하지만, 영속 email outbox와
+  재시도/dead-letter가 없다. 공급자가 성공을 반환한 뒤 실제 전달이 유실되는 경우까지 보장하려면
+  outbox를 추가해야 한다.
+- 계정 삭제 큐의 dead-letter 알림·운영 대시보드와 legacy/공유 storage의 수동 reconciliation
+  절차는 배포 전 확정해야 한다. 소유가 불명확한 파일은 다른 사용자 보호를 위해 자동 삭제하지 않는다.
+- mutation commit과 도구 결과 장부 갱신은 서로 다른 트랜잭션이다. 요청 전체 tombstone이 같은
+  ID 재실행을 막고 고위험 도구는 비활성이나, 사용자가 새 요청 ID로 동일 작업을 다시 명령하면
+  내부 상태를 먼저 확인해야 한다. 장기적으로 mutation별 DB RPC 안에 semantic idempotency를 둔다.
+- 모바일은 SSE를 provider 중립 형식으로 파싱하지만 현재 응답 전체를 받은 뒤 처리한다. 실시간
+  토큰 표시가 필요하면 React Native 스트림 지원 경로를 별도로 구현한다.
+- PDF 페이지 수의 정규식 검사는 보조 방어다. 실제 비용 경계는 OpenAI exact token count가 맡는다.
+- 외부 처리 리전·계약 고지가 확정되지 않았으므로 법무 검토 전 운영 배포는 금지한다.
+- existing one-slot couple·legacy private derived rows·owner 없는 축의금 행은 마이그레이션 preflight가
+  자동 추정하지 않고 중단한다. 백업·inventory·운영자 repair 후 재실행해야 한다.
+- 0500 DDL과 0800 Storage trigger는 runtime lock 순서·구버전 업로드 route와 교차할 수 있으므로
+  live traffic 및 provider를 완전히 drain한 유지보수 창에서만 적용한다. 새 route-before-DB는 503,
+  DB-before-old-route는 업로드 거절로 fail-closed지만 무중단 rolling deploy 계약은 아니다.
+
+## 공식 근거
+
+- OpenAI 모델 가이드: https://developers.openai.com/api/docs/guides/latest-model
+- Terra: https://developers.openai.com/api/docs/models/gpt-5.6-terra
+- Luna: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+- 가격: https://developers.openai.com/api/docs/pricing
+- 프롬프트 캐시: https://developers.openai.com/api/docs/guides/prompt-caching
+- 데이터 제어: https://developers.openai.com/api/docs/guides/your-data

@@ -20,11 +20,31 @@ import type {
   ChatMessageTarget,
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
-import { determineStage } from "@/lib/ai/stage-router";
 import type { AmoraActionItem } from "@/lib/amora/actions";
 import { useAuthStore } from "./authStore";
 
 type ClearScope = "shared" | "private";
+
+function createChatRequestId(prefix = "web"): string {
+  const value =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}:${value}`.slice(0, 120);
+}
+
+async function fetchChatLifecycle(init: RequestInit): Promise<{ response: Response; data: Record<string, unknown> }> {
+  for (let attempt = 0; attempt < 360; attempt++) {
+    const response = await fetch("/api/chat/messages", init);
+    const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (response.status !== 202) return { response, data };
+    const retryMs = typeof data.retryAfterMs === "number"
+      ? Math.max(500, Math.min(5000, data.retryAfterMs))
+      : 1000;
+    await new Promise((resolve) => setTimeout(resolve, retryMs));
+  }
+  throw new Error("진행 중인 AI 요청 종료를 기다리는 시간이 초과되었습니다.");
+}
 
 function latestIso(...values: Array<string | null | undefined>): string | null {
   const valid = values.filter((v): v is string => typeof v === "string" && v.length > 0);
@@ -798,7 +818,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
     captureEvent("chat_message_sent", { target });
 
-    const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
     const uniqueImages = dedupeChatAttachments(images);
 
@@ -807,69 +826,32 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // Idempotency용 UUID — 같은 sendMessage 호출의 모든 fetch (browser retry 포함)는
     // 동일한 ID를 사용. 서버는 이걸로 chat_messages dedup.
-    const clientRequestId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const clientRequestId = createChatRequestId();
 
-    // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
-    const imagePaths: string[] = [];
-    if (uniqueImages.length > 0 && !isDemo) {
-      for (const img of uniqueImages) {
-        try {
-          const ext = img.mediaType.split("/")[1] || "jpg";
-          const fileName = `${coupleId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-          const byteChars = atob(img.base64);
-          const byteArray = new Uint8Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++) {
-            byteArray[i] = byteChars.charCodeAt(i);
-          }
-          const blob = new Blob([byteArray], { type: img.mediaType });
-          const { error: uploadErr } = await supabase.storage
-            .from("chat-image")
-            .upload(fileName, blob, { contentType: img.mediaType });
-          if (!uploadErr) {
-            imagePaths.push(fileName);
-          } else {
-            console.warn("Storage 업로드 실패 (무시):", uploadErr.message);
-          }
-        } catch (err) {
-          console.warn("Storage 업로드 에러 (무시):", err);
-        }
-      }
-    }
-
-    // 이미지 storage path가 있으면 메타데이터에 추가
-    const finalMetadata = imagePaths.length > 0
-      ? { ...msgMetadata, imagePaths }
-      : msgMetadata;
+    // 첨부는 현재 요청에서만 OpenAI로 전송하고 Storage에는 복제하지 않는다.
+    // private/account/reset 삭제 뒤 blob이 남는 lifecycle을 완성하기 전까지
+    // 영구 채팅 첨부 보관은 코드상 비활성화한다.
+    const finalMetadata = msgMetadata;
 
     // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)
     // 기본은 'shared' — 사용자가 명시적으로 private 모드 선택 시에만 다른 값
     const finalVisibility = visibility ?? "shared";
 
     if (!isDemo) {
-      // D3: 클라이언트 측 stage_tag 계산 (wedding_date 기반 순수 함수)
-      const userStageTag = determineStage(weddingContext?.weddingDate ?? null);
-
-      const { data: inserted, error: insertErr } = await supabase
-        .from("chat_messages")
-        .insert({
-          couple_id: coupleId,
-          sender_id: senderId,
-          sender_type: senderRole,
-          role: "user",
+      const insertResponse = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coupleId,
           content,
-          metadata: finalMetadata,
-          stage_tag: userStageTag,
-          specialist_type: null, // 유저 메시지는 specialist 없음
+          target: finalMetadata?.target ?? null,
           visibility: finalVisibility,
-        })
-        .select()
-        .single();
-
-      if (insertErr) {
-        console.error("메시지 저장 에러:", insertErr);
+        }),
+      });
+      const insertPayload = await insertResponse.json().catch(() => ({}));
+      const inserted = insertPayload?.message;
+      if (!insertResponse.ok || !inserted || typeof inserted !== "object") {
+        console.error("메시지 저장 에러:", insertPayload?.error);
         set({ error: "메시지 전송에 실패했습니다." });
         return;
       }
@@ -1049,12 +1031,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     try {
       const roleLabel = senderRole === "bride" ? "신부" : "신랑";
       const isDemo = document.cookie.includes("demo_mode=true");
+      const clientRequestId = createChatRequestId("greeting");
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
-          coupleId, senderName, senderRole, weddingContext, isDemo,
+          coupleId, senderName, senderRole, weddingContext, isDemo, clientRequestId,
         }),
         signal: abortController.signal,
       });
@@ -1134,12 +1117,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
 
       const isDemo = document.cookie.includes("demo_mode=true");
+      const clientRequestId = createChatRequestId("mediation");
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: recentMessages,
-          coupleId, senderName, senderRole, weddingContext, isDemo,
+          coupleId, senderName, senderRole, weddingContext, isDemo, clientRequestId,
         }),
         signal: abortController.signal,
       });
@@ -1194,12 +1178,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // 서버 응답에서 받은 clearedAt 사용 — DB·클라이언트 동기화
     let serverClearedAt: string | null = null;
     if (!isDemo) {
-      const res = await fetch("/api/chat/messages", {
+      const { response: res, data } = await fetchChatLifecycle({
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ coupleId, mode }),
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message = typeof data?.error === "string" ? data.error : "채팅 정리에 실패했습니다.";
         set({ error: message });
