@@ -507,6 +507,8 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <input
+                    name="name"
+                    aria-label="이름"
                     type="text"
                     value={nameInput}
                     onChange={(e) => {
@@ -517,10 +519,10 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveName} disabled={saving} aria-label="이름 저장" className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => { setEditingName(false); setNameError(""); }} aria-label="이름 편집 취소" className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -535,7 +537,9 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
+                  aria-label="이름 편집"
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
@@ -561,16 +565,18 @@ export default function SettingsPage() {
               {editingDate ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
+                    name="weddingDate"
+                    aria-label="결혼 예정일"
                     type="date"
                     value={dateInput}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveDate} disabled={saving} aria-label="결혼 예정일 저장" className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingDate(false)} aria-label="결혼 예정일 편집 취소" className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -578,7 +584,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{dateStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
+                    aria-label="결혼 예정일 편집"
                     className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -596,6 +604,8 @@ export default function SettingsPage() {
               {editingVenue ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
+                    name="venue"
+                    aria-label="예식장"
                     type="text"
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
@@ -604,10 +614,10 @@ export default function SettingsPage() {
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveVenue} disabled={saving} aria-label="예식장 저장" className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingVenue(false)} aria-label="예식장 편집 취소" className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -615,7 +625,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F] truncate">{venueStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
+                    aria-label="예식장 편집"
                     className="w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -634,6 +646,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="flex items-center">
                     <input
+                      name="budgetManwon"
+                      aria-label="설정 예산 (만원)"
                       type="number"
                       value={budgetInput}
                       onChange={(e) => setBudgetInput(e.target.value)}
@@ -643,10 +657,10 @@ export default function SettingsPage() {
                     />
                     <span className="text-sm text-[#B5ADA3] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveBudget} disabled={saving} aria-label="설정 예산 저장" className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingBudget(false)} aria-label="설정 예산 편집 취소" className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -654,7 +668,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{budgetStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    aria-label="설정 예산 편집"
                     className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -698,8 +714,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.weddingStyle === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -721,8 +739,10 @@ export default function SettingsPage() {
                 const selected = (draftPrefs.priorities ?? []).includes(opt.value);
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => togglePriority(opt.value)}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -744,8 +764,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.budgetTendency === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -767,8 +789,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.guestCount === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
