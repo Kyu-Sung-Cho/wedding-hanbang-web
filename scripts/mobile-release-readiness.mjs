@@ -58,7 +58,11 @@ const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
 const mobileSupabase = readText("apps/mobile/src/lib/supabase.ts");
 const mobileLogin = readText("apps/mobile/app/(auth)/login.tsx");
+const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
+const expectedEasCliVersion = "20.5.1";
+const repositoryNodeVersion = rootPackage.engines?.node?.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1];
+const repositoryPnpmVersion = rootPackage.packageManager?.match(/^pnpm@(.+)$/)?.[1];
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
 expect(appConfig.name === expectedAppName, `Expo app name is ${expectedAppName}`);
@@ -125,14 +129,24 @@ if (typeof easProjectId === "string" && easProjectId.trim().length > 0) {
   warn("EAS projectId is empty; run eas:init after logging into the hanbang Expo account");
 }
 
-expect(easConfig.cli?.appVersionSource === "local", "EAS uses local app version source");
+expect(easConfig.cli?.version === expectedEasCliVersion, "EAS CLI version is pinned");
+expect(easConfig.cli?.requireCommit === true, "EAS requires a clean commit before remote builds");
+expect(easConfig.cli?.appVersionSource === "remote", "EAS manages build versions remotely");
 expect(easConfig.build?.development?.environment === "development", "EAS development profile uses development environment");
 expect(easConfig.build?.development?.developmentClient === true, "EAS development profile builds a dev client");
 expect(easConfig.build?.preview?.environment === "preview", "EAS preview profile uses preview environment");
 expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profile is internal distribution");
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
+expect(repositoryNodeVersion !== undefined && easConfig.build?.production?.node === repositoryNodeVersion, "EAS production uses the repository Node version");
+expect(repositoryPnpmVersion !== undefined && easConfig.build?.production?.pnpm === repositoryPnpmVersion, "EAS production uses the repository pnpm version");
+expect(easConfig.build?.production?.corepack === true, "EAS production enables Corepack");
+expect(easConfig.build?.production?.channel === "production", "EAS production binary uses the production update channel");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
+expect(mobilePackage.dependencies?.["expo-application"] === "~7.0.8", "Mobile declares expo-application directly");
+expect(mobileProfile.includes('from "expo-application"'), "Mobile profile reads native application metadata");
+expect(mobileProfile.includes("Application.nativeApplicationVersion"), "Mobile profile displays the native app version");
+expect(mobileProfile.includes("Application.nativeBuildVersion"), "Mobile profile displays the native build version");
 
 for (const scriptName of [
   "eas:init",
@@ -142,7 +156,10 @@ for (const scriptName of [
   "eas:submit:ios",
   "eas:submit:android",
 ]) {
-  expect(Boolean(mobilePackage.scripts?.[scriptName]), `Mobile package script ${scriptName} exists`);
+  expect(
+    mobilePackage.scripts?.[scriptName]?.includes(`eas-cli@${expectedEasCliVersion}`),
+    `Mobile package script ${scriptName} pins EAS CLI`
+  );
 }
 
 expect(Boolean(rootPackage.scripts?.["mobile:release-check"]), "Root mobile:release-check script exists");

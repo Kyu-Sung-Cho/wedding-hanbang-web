@@ -32,7 +32,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import Constants from "expo-constants";
+import * as Application from "expo-application";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
 interface ProfileData {
@@ -173,11 +173,8 @@ export default function ProfileScreen() {
         : null;
   const initial = profile?.name?.charAt(0) ?? "?";
 
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const buildNumber =
-    Constants.expoConfig?.ios?.buildNumber ??
-    Constants.expoConfig?.android?.versionCode?.toString() ??
-    "1";
+  const appVersion = Application.nativeApplicationVersion ?? "1.0.0";
+  const buildNumber = Application.nativeBuildVersion ?? "1";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

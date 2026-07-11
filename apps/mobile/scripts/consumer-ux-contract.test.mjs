@@ -20,13 +20,16 @@ test("dashboard partner activity affordance opens the schedule", () => {
   assert.match(banner, /<ChevronRight/);
 });
 
-test("profile app version is static and can intentionally suppress the chevron", () => {
+test("profile app version is read-only and uses native binary metadata", () => {
   const profile = readSource("app/(tabs)/profile.tsx");
   const appUi = readSource("src/components/ui/AppUI.tsx");
   const versionRow = profile.match(/<MenuItem\s+icon=\{Info\}[\s\S]*?\/>/)?.[0] ?? "";
 
   assert.doesNotMatch(versionRow, /onPress=/);
   assert.match(versionRow, /hideChevron/);
+  assert.match(profile, /Application\.nativeApplicationVersion/);
+  assert.match(profile, /Application\.nativeBuildVersion/);
+  assert.doesNotMatch(profile, /Constants\.expoConfig/);
   assert.match(appUi, /right === undefined \? <ChevronRight/);
 });
 

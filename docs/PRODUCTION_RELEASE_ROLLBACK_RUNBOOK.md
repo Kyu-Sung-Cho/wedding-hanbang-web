@@ -141,7 +141,7 @@ post-deploy DB contract, migration dry-run 0개, Storage retirement, anon denial
 
 Vercel Instant Rollback은 코드 deployment를 바꾸지만 DB나 이후 변경된 환경 변수를 되돌리지 않는다. 공식 기준: [Vercel Instant Rollback](https://vercel.com/docs/instant-rollback), [Vercel CLI rollback](https://vercel.com/docs/cli/rollback)
 
-EAS production update channel이 없으면 OTA rollback 경로가 없는 상태다. signed build와 store submit을 분리하고, build artifact·signing certificate·store rollout 상태를 release evidence에 남긴다.
+EAS production binary는 `production` update channel에 고정한다. 다만 실제 OTA publish·rollback rehearsal 전에는 이를 검증된 복구 경로로 간주하지 않는다. signed build와 store submit을 분리하고, build artifact·signing certificate·store rollout 상태를 release evidence에 남긴다.
 
 ## 복구 실행 전 최종 승인
 
