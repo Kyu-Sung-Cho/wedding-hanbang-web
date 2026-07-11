@@ -181,6 +181,7 @@ export default function SettingsPage() {
   const [comingSoonToast, setComingSoonToast] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [journeySaveError, setJourneySaveError] = useState("");
 
   useEffect(() => {
     if (!couple) return;
@@ -270,9 +271,11 @@ export default function SettingsPage() {
   // 날짜 저장
   const saveDate = async () => {
     setSaving(true);
-    await updateJourney({ wedding_date: dateInput || null });
+    setJourneySaveError("");
+    const saved = await updateJourney({ wedding_date: dateInput || null });
     setSaving(false);
-    setEditingDate(false);
+    if (saved) setEditingDate(false);
+    else setJourneySaveError("결혼 예정일을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 예산 저장
@@ -280,17 +283,21 @@ export default function SettingsPage() {
     const value = parseInt(budgetInput) * 10000;
     if (isNaN(value) || value <= 0) return;
     setSaving(true);
-    await updateJourney({ total_budget: value });
+    setJourneySaveError("");
+    const saved = await updateJourney({ total_budget: value });
     setSaving(false);
-    setEditingBudget(false);
+    if (saved) setEditingBudget(false);
+    else setJourneySaveError("예산을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 예식장 저장 — 빈 문자열은 null로 (미정 상태)
   const saveVenue = async () => {
     setSaving(true);
-    await updateJourney({ venue: venueInput.trim() || null });
+    setJourneySaveError("");
+    const saved = await updateJourney({ venue: venueInput.trim() || null });
     setSaving(false);
-    setEditingVenue(false);
+    if (saved) setEditingVenue(false);
+    else setJourneySaveError("예식장을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 웨딩 스타일 선호도 — journey.progress.__preferences 안에 저장됨.
@@ -322,9 +329,13 @@ export default function SettingsPage() {
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
     try {
-      await updateJourney({
+      const saved = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
+      if (!saved) {
+        setDraftPrefs(prefs ?? {});
+        setJourneySaveError("웨딩 스타일을 저장하지 못했습니다. 이전 값으로 되돌렸어요.");
+      }
     } catch {
       setDraftPrefs(prefs ?? {});
     } finally {
@@ -484,6 +495,12 @@ export default function SettingsPage() {
             <p className="text-base text-[#504444] font-light mt-1">{userEmail}</p>
           </div>
         </div>
+
+        {journeySaveError && (
+          <p className="mb-4 rounded-xl border border-[#E4B7B7] bg-[#FFF5F5] px-4 py-3 text-sm text-[#9A3F3F]" role="alert">
+            {journeySaveError}
+          </p>
+        )}
 
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
