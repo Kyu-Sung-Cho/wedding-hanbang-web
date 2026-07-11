@@ -53,6 +53,28 @@ describe("public journey contract", () => {
     expect(landing).toContain("베타 계정 만들기");
   });
 
+  it("supports mobile keyboards and password managers on the auth form", () => {
+    const login = readSource("src/app/(auth)/login/page.tsx");
+
+    expect(login).toContain('name="email"');
+    expect(login).toContain('inputMode="email"');
+    expect(login).toContain('autoComplete="email"');
+    expect(login).toContain('name="password"');
+    expect(login).toContain('"current-password"');
+    expect(login).toContain('"new-password"');
+  });
+
+  it("uses server community feed data only as a one-time mount seed", () => {
+    const community = readSource("src/components/community/CommunityLandingClient.tsx");
+
+    expect(community).toContain("const [initialFeedAvailable, setInitialFeedAvailable] = useState(true)");
+    expect(community).toContain("initialFeedAvailable &&");
+    expect(community).toContain("setInitialFeedAvailable(false)");
+    expect(community.indexOf("setInitialFeedAvailable(false)")).toBeLessThan(
+      community.indexOf("hydrateInitialFeed(initialFeed)"),
+    );
+  });
+
   it("boots a server-verified example session without initializing Supabase first", () => {
     const serverLayout = readSource("src/app/(app)/layout.tsx");
     const clientLayout = readSource("src/app/(app)/AppClientLayout.tsx");

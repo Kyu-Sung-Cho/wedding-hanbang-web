@@ -24,6 +24,7 @@
     "supabase:security:probe": "node ./scripts/supabase-anon-probe.mjs",
     "supabase:lifecycle:smoke": "node ./scripts/supabase-lifecycle-smoke.mjs",
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
+    "security:secrets": "node ./scripts/scan-tracked-secrets.mjs",
     "amora:costs": "node ./scripts/amora-cost-report.mjs",
     "amora:openai:smoke": "node ./scripts/amora-openai-smoke.mjs",
     "qa:local": "node ./scripts/verify-local.mjs",

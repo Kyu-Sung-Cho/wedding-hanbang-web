@@ -147,7 +147,8 @@ BEGIN
       AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
       AND procedure_row.proconfig @>
         ARRAY['search_path=public, storage, pg_temp']::text[]
-      AND md5(procedure_row.prosrc) = '2f2ef78416318e6dd8fbd66c3507a2f9'
+      AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+        '2f2ef78416318e6dd8fbd66c3507a2f9'
       AND procedure_row.proargnames IS NULL
       AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
       AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')

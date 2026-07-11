@@ -1,6 +1,6 @@
 -- 사전등록 테이블
 CREATE TABLE IF NOT EXISTS preregistrations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   name TEXT,
   wedding_date TEXT,

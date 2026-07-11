@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   resetAuth: vi.fn(),
   initializeAuth: vi.fn(),
   resetChat: vi.fn(),
-  resetCommunity: vi.fn(),
+  refreshCommunity: vi.fn(),
   onAuthStateChange: vi.fn(),
   unsubscribe: vi.fn(),
 }));
@@ -34,7 +34,9 @@ vi.mock("@/stores/chatStore", () => ({
 
 vi.mock("@/stores/communityStore", () => ({
   useCommunityStore: {
-    getState: () => ({ reset: mocks.resetCommunity }),
+    getState: () => ({
+      refreshAfterAuthChange: mocks.refreshCommunity,
+    }),
   },
 }));
 
@@ -100,5 +102,32 @@ describe("useAuthSessionSync", () => {
 
     act(() => root.render(<Harness enabled={false} />));
     expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebuilds the public community feed after an auth identity change", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://test.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test-anon-key");
+    mocks.onAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: mocks.unsubscribe } },
+    });
+    mocks.createClient.mockReturnValue({
+      auth: { onAuthStateChange: mocks.onAuthStateChange },
+    });
+
+    act(() => root.render(<Harness />));
+
+    const onAuthStateChange = mocks.onAuthStateChange.mock.calls[0]?.[0];
+    expect(onAuthStateChange).toBeTypeOf("function");
+    if (typeof onAuthStateChange !== "function") {
+      throw new Error("auth state callback was not registered");
+    }
+    act(() => {
+      onAuthStateChange("SIGNED_IN", { user: { id: "user-1" } });
+    });
+
+    expect(mocks.resetChat).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshCommunity).toHaveBeenCalledTimes(1);
+    expect(mocks.resetAuth).toHaveBeenCalledTimes(1);
+    expect(mocks.initializeAuth).toHaveBeenCalledWith({ force: true });
   });
 });

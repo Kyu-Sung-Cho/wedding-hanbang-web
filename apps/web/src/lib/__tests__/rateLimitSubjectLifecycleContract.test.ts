@@ -71,6 +71,20 @@ describe("rate-limit subject lifecycle contract", () => {
     );
   });
 
+  it("forces service-role mutations through the ordered RPC", () => {
+    expect(migration).toMatch(
+      /REVOKE ALL PRIVILEGES ON TABLE public\.rate_limit_buckets[\s\S]*?FROM PUBLIC, anon, authenticated, service_role;/,
+    );
+    expect(migration).toMatch(
+      /REVOKE INSERT \(key, count, reset_at, updated_at, subject_user_id\)[\s\S]*?REVOKE UPDATE \(key, count, reset_at, updated_at, subject_user_id\)/,
+    );
+    expect(migration).toContain(
+      "GRANT SELECT, DELETE ON TABLE public.rate_limit_buckets TO service_role;",
+    );
+    expect(migration).toContain("has_any_column_privilege(");
+    expect(migration).toContain("RATE_LIMIT_TABLE_ACL_CONTRACT_MISMATCH");
+  });
+
   it("passes only an explicit optional subject to the canonical RPC", () => {
     expect(rateLimit).toMatch(
       /checkRateLimitPersistent\([\s\S]*?subjectUserId\?: string \| null/,

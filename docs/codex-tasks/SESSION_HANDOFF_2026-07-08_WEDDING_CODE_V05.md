@@ -1,7 +1,7 @@
 # Session Handoff - 2026-07-08 WeddingCode v0.5
 
 > [!WARNING]
-> **Historical handoff snapshot.** The response collection, partner invite, pairing, and couple-report flow described below is now code-hard-disabled with HTTP 410. Only local individual results remain; use `docs/CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md` before acting.
+> **Historical handoff snapshot.** The response collection, partner invite, pairing, and couple-report flow described below is now code-hard-disabled with HTTP 410. Only local individual results remain; use `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md` before acting.
 
 This handoff is for continuing Wedding Hanbang / WeddingCode work from another computer without re-discovering the latest state.
 

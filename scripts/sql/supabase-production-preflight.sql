@@ -424,7 +424,7 @@ WITH orphan_slots AS (
 ) AS (
   VALUES
     ('public.apply_journey_progress_patch(uuid,jsonb,text[])', 'jsonb',
-      'search_path=public', '8b4fa7b975715aa7cb6bcf076052c498',
+      'search_path=public', '8fb08367706397c9a1d00e299a48e7d5',
       '20260611160000', NULL::text),
     ('public.create_booking_atomic(uuid,uuid,date,text,uuid,uuid,text,text,text,text,numeric,text)',
       'uuid', 'search_path=public', '3493fa940491a5a5efcce1bf1f6ac497',
@@ -634,7 +634,8 @@ WITH orphan_slots AS (
            AND procedure_row.prosecdef
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
            AND procedure_row.proconfig @> ARRAY[required.expected_search_path]::text[]
-           AND md5(procedure_row.prosrc) = required.expected_source_md5
+           AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+             required.expected_source_md5
            AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE') =
              NOT EXISTS (
                SELECT 1 FROM dependency_service_denied_functions denied
@@ -652,14 +653,14 @@ WITH orphan_slots AS (
   signature, expected_source_md5, creator_version, forward_version
 ) AS (
   VALUES
-    ('public.community_recalc_rank()', '070769036bb3cd472e06d4ea3379d926', '20260408000000', '20260711145000'),
-    ('public.create_profile_on_signup()', '3c97ea7d667eb6a4bf559fd443c3f485', '20260210000000', '20260711145000'),
+    ('public.community_recalc_rank()', 'c742d9e87a9c815491d03c574690772c', '20260408000000', '20260711145000'),
+    ('public.create_profile_on_signup()', '84a6f9f7f2c366bb87703fcc25cc2f22', '20260210000000', '20260711145000'),
     ('public.guard_amora_user_message_insert()', '3b3a72bfb77bfd27a0b7f43b718cb4c0', '20260710050000', '20260711145000'),
     ('public.guard_profile_self_insert()', 'e1a79bcb72eb8b1df1c5edb70f181e44', '20260710050000', '20260711145000'),
-    ('public.prevent_cohort_membership_client_write()', 'b8c0bf3e9f104911c0e3e94d36067e7a', '20260615090000', '20260711145000'),
-    ('public.prevent_couple_ownership_self_change()', '184d1fd07d3883f35ca476886c8499f0', '20260612130000', '20260711145000'),
-    ('public.prevent_couple_slot_self_change()', 'fe0d2190241cbae1d15bdb9bbafdb883', '20260614110000', '20260711145000'),
-    ('public.prevent_is_admin_self_change()', '7f0279b856ed9c49d9d857a68cfda8f1', '20260612120000', '20260711145000')
+    ('public.prevent_cohort_membership_client_write()', '5947d166102367678683a8ae71c2b72d', '20260615090000', '20260711145000'),
+    ('public.prevent_couple_ownership_self_change()', '697c40535a23d739a271b0b4e3b2ffbf', '20260612130000', '20260711145000'),
+    ('public.prevent_couple_slot_self_change()', 'c795f37d371b8143d50b45d65de96411', '20260614110000', '20260711145000'),
+    ('public.prevent_is_admin_self_change()', '9395ea55bfc5192e10ef000e0421d7b3', '20260612120000', '20260711145000')
 ), client_denied_trigger_function_status AS (
   SELECT required.signature,
          required.creator_version,
@@ -669,14 +670,16 @@ WITH orphan_slots AS (
            AND pg_get_function_result(procedure_row.oid) = 'trigger'
            AND procedure_row.prosecdef
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
-           AND md5(procedure_row.prosrc) = required.expected_source_md5
+           AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+             required.expected_source_md5
            AS existing_compatible,
          procedure_row.oid IS NOT NULL
            AND pg_get_function_result(procedure_row.oid) = 'trigger'
            AND procedure_row.prosecdef
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
            AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
-           AND md5(procedure_row.prosrc) = required.expected_source_md5
+           AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+             required.expected_source_md5
            AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
            AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
            AND NOT has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')
@@ -948,6 +951,36 @@ WITH orphan_slots AS (
           AND index_row.indisready
           AND pg_get_indexdef(index_class.oid) =
             'CREATE INDEX idx_rate_limit_buckets_subject_user_id ON public.rate_limit_buckets USING btree (subject_user_id) WHERE (subject_user_id IS NOT NULL)'
+      )
+      AND has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'SELECT'
+      )
+      AND has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'DELETE'
+      )
+      AND NOT has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'INSERT'
+      )
+      AND NOT has_any_column_privilege(
+        'service_role', 'public.rate_limit_buckets', 'INSERT'
+      )
+      AND NOT has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'UPDATE'
+      )
+      AND NOT has_any_column_privilege(
+        'service_role', 'public.rate_limit_buckets', 'UPDATE'
+      )
+      AND NOT has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'TRUNCATE'
+      )
+      AND NOT has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'REFERENCES'
+      )
+      AND NOT has_any_column_privilege(
+        'service_role', 'public.rate_limit_buckets', 'REFERENCES'
+      )
+      AND NOT has_table_privilege(
+        'service_role', 'public.rate_limit_buckets', 'TRIGGER'
       ) AS rate_limit_subject_contract_exact,
     to_regclass('public.account_deletion_jobs') IS NOT NULL
       AS account_deletion_jobs_present,

@@ -5,7 +5,7 @@
 ## 현재 출시 판정 (2026-07-11)
 
 - OpenAI Luna·Terra 런타임과 새 migration 체인은 폐기 가능한 Supabase preview에서 검증했다.
-- 폐기 가능한 preview에서 baseline부터 `20260711148000`까지 migration 107개를 빈 DB에 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, lifecycle smoke와 anon 10-table probe가 모두 통과했다.
+- 폐기 가능한 preview에서 baseline부터 `20260711148000`까지 migration 107개를 빈 DB에 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, lifecycle smoke와 anon 10-table probe가 모두 통과했다. 함수 source hash는 CRLF를 제거한 뒤 비교해 Windows/Linux replay 결과가 같고, rate-limit bucket은 service role도 직접 INSERT/UPDATE하지 못하며 canonical RPC만 사용한다.
 - 운영 배포는 **NO-GO**다. 직접 DB/Storage 쓰기 차단 증거가 `not_configured`이고, 운영 데이터 정합성 blocker와 maintenance 이후 백업 gate가 남아 있으며, Vercel 운영 환경 변수도 아직 검증하지 않았다.
 - Git에 migration이 존재하는 것과 운영 DB에 적용된 것은 별개다. 아래 gate를 모두 통과하기 전에는 운영 DB를 변경하지 않는다.
 

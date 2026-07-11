@@ -1,7 +1,7 @@
 # 보안 감사 2.2 — 돈 계열 API 인증 감사 (2026-07-03)
 
 > [!WARNING]
-> **역사 보안 감사 스냅샷입니다.** UUID만으로 공개하는 견적 capability URL을 안전하다고 본 아래 판정은 폐기되었습니다. 현재 공개는 소유자의 명시적 게시·철회와 `is_public=true`를 요구하며, 최신 기준은 `CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`를 따릅니다.
+> **역사 보안 감사 스냅샷입니다.** UUID만으로 공개하는 견적 capability URL을 안전하다고 본 아래 판정은 폐기되었습니다. 현재 공개는 소유자의 명시적 게시·철회와 `is_public=true`를 요구하며, 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 
 > 대상: `api/money`, `api/bookings`, `api/amora/quote-check` 계열.
 > 방법: 4개 공격 각도(IDOR·service-role 오남용·비용/남용·데이터오염/유령/노출) 병렬 감사 →

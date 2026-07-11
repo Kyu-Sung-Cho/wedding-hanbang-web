@@ -1,7 +1,7 @@
 # Daily Summary - 2026-07-02
 
 > [!WARNING]
-> **Historical handoff snapshot.** Branch, commit, CI, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md` before acting.
+> **Historical handoff snapshot.** Branch, commit, CI, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md` before acting.
 
 This document records the July 2 work so the project can be resumed from another computer without losing context.
 

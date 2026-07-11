@@ -4,6 +4,14 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(process.cwd(), "../..");
 const migrationsDir = resolve(repoRoot, "supabase/migrations");
+const preregistrationBootstrapMigration = readFileSync(
+  resolve(migrationsDir, "20260201000000_preregistrations.sql"),
+  "utf8"
+);
+const vendorLeadMigration = readFileSync(
+  resolve(migrationsDir, "20260511020000_vendor_lead_pipeline.sql"),
+  "utf8"
+);
 const contractDir = resolve(repoRoot, "supabase/contract-migrations");
 
 const amoraMigration = readFileSync(
@@ -123,6 +131,30 @@ const contractSqlNames = readdirSync(contractDir).filter((name) =>
 );
 
 describe("expand-only mobile migration contract", () => {
+  it("uses search-path-independent UUID defaults during fresh replay", () => {
+    for (const migration of [
+      preregistrationBootstrapMigration,
+      vendorLeadMigration,
+    ]) {
+      expect(migration).toContain("DEFAULT gen_random_uuid()");
+      expect(migration).not.toContain("uuid_generate_v4()");
+    }
+  });
+
+  it("normalizes CRLF before exact function-source hashing", () => {
+    for (const name of [
+      "20260711144000_lock_account_deletion_trigger_function_acl.sql",
+      "20260711145000_lock_service_only_function_acl.sql",
+      "20260711146000_disable_unproven_vendor_uploads.sql",
+      "20260711147000_rate_limit_subject_lifecycle.sql",
+    ]) {
+      const migration = readFileSync(resolve(migrationsDir, name), "utf8");
+      expect(migration, name).not.toMatch(/md5\([^\n]*\.prosrc\)/);
+      expect(migration, name).toContain("chr(13)");
+    }
+  });
+
+
   it("owns transaction boundaries for migrations with gates, locks, or destructive DDL", () => {
     const atomicMigrations = [
       legacyCoreBaseline,
@@ -246,6 +278,12 @@ describe("expand-only mobile migration contract", () => {
     );
     expect(serviceOnlyFunctionAclMigration).toContain(
       "TRIGGER_FUNCTION_ACL_CONTRACT_MISMATCH"
+    );
+    expect(serviceOnlyFunctionAclMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.create_profile_on_signup()"
+    );
+    expect(serviceOnlyFunctionAclMigration).toContain(
+      "84a6f9f7f2c366bb87703fcc25cc2f22"
     );
     expect(serviceOnlyFunctionAclMigration).toContain(
       "RETENTION_MAINTENANCE_CRON_CONTRACT_MISMATCH"

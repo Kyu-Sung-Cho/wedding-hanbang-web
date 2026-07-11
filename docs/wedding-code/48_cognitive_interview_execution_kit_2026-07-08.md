@@ -1,7 +1,7 @@
 # WeddingCode v0.5 Cognitive Interview Execution Kit
 
 > [!WARNING]
-> **역사 연구 실행안입니다.** production 응답 수집, 파트너 초대·페어링, 커플 리포트는 현재 HTTP 410으로 하드 비활성입니다. 아래 링크·응답 마커 절차를 실행하지 말고 `../CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`를 따르세요.
+> **역사 연구 실행안입니다.** production 응답 수집, 파트너 초대·페어링, 커플 리포트는 현재 HTTP 410으로 하드 비활성입니다. 아래 링크·응답 마커 절차를 실행하지 말고 `../CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따르세요.
 
 Date: 2026-07-08
 Use after: `47_prod_couple_flow_qa_2026-07-08.md`

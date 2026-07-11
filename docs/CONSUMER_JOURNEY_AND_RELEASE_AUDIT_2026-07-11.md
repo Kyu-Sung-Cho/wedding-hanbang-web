@@ -9,11 +9,13 @@
 - 폐기 가능한 Supabase preview를 완전히 비운 뒤 baseline부터 `20260711148000`까지 migration 107개를 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract도 통과했다.
 - 커플 합류·초기화·차단된 초대 코드·legacy 6자리 코드 복구·구성원 0명 커플 거부·계정 삭제 격리를 실제 PostgreSQL lifecycle smoke로 검증했다.
 - anon key로 민감 테이블 10개를 조회했을 때 모두 정확한 권한 거부가 발생했다.
-- AI 보존 함수와 persistent rate-limit RPC에 남아 있던 anon/auth 실행 권한을 제거했다. rate-limit은 service role과 `rl:` + 64자리 해시 키만 허용하고, 인증 사용자 subject는 탈퇴 lifecycle FK·잠금·cascade로 정리한다. 업체 이미지·사업자등록증의 일반 사용자 업로드는 provenance·보존 정책이 승인될 때까지 차단한다.
-- 최종 DB 상태와 production-like rate-limit secret 조건에서 실제 OpenAI 호출로 `gpt-5.6-luna`와 `gpt-5.6-terra`의 SSE 스트리밍, 동일 요청 replay, 단일 메시지 저장, 정확한 감사 모델 기록을 확인했다. 최종 응답 길이는 각각 319자와 423자였고 테스트 데이터는 정리했다.
-- Web Vitest 119개 파일·824개 테스트와 모바일 UX 11개 테스트, 전체 typecheck·lint, 104개 정적 페이지 production build, 모바일 release check 56개, production dependency audit가 모두 통과했다.
+- AI 보존 함수와 persistent rate-limit RPC에 남아 있던 anon/auth 실행 권한을 제거했다. rate-limit은 service role과 `rl:` + 64자리 해시 키만 허용하고, 인증 사용자 subject는 탈퇴 lifecycle FK·잠금·cascade로 정리한다. service role도 bucket의 직접 INSERT/UPDATE는 할 수 없고 canonical RPC만 쓰도록 고정해 계정 삭제와의 잠금 순서 역전을 막았다. 업체 이미지·사업자등록증의 일반 사용자 업로드는 provenance·보존 정책이 승인될 때까지 차단한다.
+- 최종 DB 상태와 production-like rate-limit secret 조건에서 실제 OpenAI 호출로 `gpt-5.6-luna`와 `gpt-5.6-terra`의 SSE 스트리밍, 동일 요청 replay, 단일 메시지 저장, 정확한 감사 모델 기록을 확인했다. 마지막 fresh reset 뒤 응답 길이는 각각 259자와 386자였고 테스트 데이터는 정리했다.
+- Web Vitest 120개 파일·833개 테스트와 모바일 UX 11개 테스트, 전체 typecheck·lint, 104개 정적 페이지 production build, 모바일 release check 56개, production dependency audit가 모두 통과했다.
 - 웹은 새 커플 공간 요청이 전송된 뒤 응답이 유실돼도 이전 여정을 계속 편집하지 않고 새로고침한다. 모바일은 새 couple ID를 확인하기 전까지 편집 데이터를 비우고 복구 전용 화면으로 막는다.
 - OpenAI 런타임에서 Anthropic 호출은 사용하지 않으며 기본 Luna, 제한된 고난도 조건에서만 Terra로 승격한다.
+- 실제 브라우저에서 데스크톱과 375×812 모바일의 웨딩 홈·WeddingCode·로그인·maintenance·아모라 인증 리다이렉트를 재검증했다. 커뮤니티 초기 빈 feed의 무한 skeleton, 모바일 카테고리 줄바꿈, 로그인 자동완성, WeddingCode 진행률 설명, 인증 변경 시 이전 사용자의 투표·북마크 캐시와 늦은 feed 응답 경합을 수정했다.
+- 과거 개발 계획 문서에 실제 카카오 플랫폼 키 3개가 2026-04-09부터 Git 이력과 현재 tree에 남아 있음을 독립 검증했다. 저장소는 private이지만 모든 repo reader와 clone에는 노출됐으므로 현재 문서에서 값을 제거하고 추적 파일 secret scan을 QA 첫 단계에 추가했다. Kakao 콘솔의 키 교체·기존 키 삭제·제한 설정·사용량 감사와 조율된 이력 정리는 아직 남아 있다.
 
 ### 아직 확인되지 않은 것
 
@@ -56,12 +58,12 @@
 |---|---:|---|
 | 소비자 안내의 정직성 | 8.5/10 | 결제·확정 예약·가상 피팅·보장 수치와 미검증 수치를 제거하고 업체 연결 준비 상태를 명시 |
 | 가입·복귀·장애 복구 | 8.0/10 | 프로필 장애를 로그아웃으로 오인하지 않고, 초안·실패 입력과 허용된 복귀 경로를 보존. 실제 OAuth E2E는 미완료 |
-| 아모라 코드 안전·비용 설계 | 8.0/10 | Luna 기본/Terra 제한 승격, 읽기 중심, 멱등 비용 예약, 실패 무료 턴 환불, 도구 축소, 결정적 위기 응답. 실모델·실DB 미검증 |
-| 아모라 운영 신뢰도 | 4.5/10 | OpenAI 키·모델 접근·스트리밍·도구 응답·429/5xx·중단 canary가 아직 없음 |
+| 아모라 코드 안전·비용 설계 | 8.7/10 | Luna 기본/Terra 제한 승격, 읽기 중심, 멱등 비용 예약, 실패 무료 턴 환불, 도구 축소, 결정적 위기 응답을 fresh DB와 실제 모델 기본 경로까지 검증 |
+| 아모라 운영 신뢰도 | 6.5/10 | Luna/Terra 접근·한국어 SSE·replay·감사 저장은 통과. 도구 후속·PDF/이미지·429/5xx·중단·장시간 운용 canary는 남음 |
 | 업체 연결 소비자 보호 | 7.5/10 | 신규 요청을 PII 처리 전에 하드 차단하고 과거·예시 목록을 분리. 실제 전달·수락·거절·변경·취소·철회 왕복은 없음 |
-| 개인정보·커뮤니티 보안 | 6.5/10 | 보존 job과 서버 필드 보호 코드는 추가됐지만 미배포. 커뮤니티 base table 민감 열 조회와 베타 이메일 확인이 남음 |
-| 디자인·접근성 | 7.5/10 | 상태·재시도·44px 터치·dialog focus 계약을 보강. 큰 글씨·스크린리더·실기기 전수 검증은 미완료 |
-| migration·구버전 호환 | 6.5/10 | expand-only 원칙과 정적 계약은 유지. 실제 fresh/upgrade, 마지막 배포 앱, JWT 권한 증거가 없음 |
+| 개인정보·커뮤니티 보안 | 7.5/10 | 보존·권한·민감 테이블 anon 거부·rate-limit lifecycle은 preview에서 통과. 운영 적용, 베타 이메일 확인과 법무 승인은 남음 |
+| 디자인·접근성 | 8.2/10 | 상태·재시도·44px 터치·dialog focus·모바일 grid·진행률 설명·로그인 자동완성을 브라우저에서 보강. 큰 글씨·스크린리더·실기기 전수 검증은 미완료 |
+| migration·구버전 호환 | 8.3/10 | 빈 preview에서 107개 fresh replay와 exact contract·DB lint·anon probe를 통과. 운영 clone upgrade와 마지막 배포 앱 호환은 남음 |
 | 운영·출시 준비 | 4.5/10 | 백업·롤백·모니터링·법무·처리자 DPA·최소 앱 버전·원격 canary가 승인되지 않음 |
 
 ## 소비자가 느끼는 전체 여정
@@ -75,7 +77,7 @@
 | 온보딩·커플 연결 | “파트너와 내 기록이 섞이거나 과거 기록을 보나?” | 완료 사용자 재진입과 파괴적 자동 repair를 줄이고 재연결 확인·초대 재사용 차단 계약 유지 | 실제 두 계정의 연결·해제·재연결·한 명 탈퇴·마지막 탈퇴 검증 |
 | 라운지·예산·일정 | “무엇을 해야 하는지 모르겠고, 저장 성공처럼 보였다가 사라질까?” | 다음 행동을 위에 두고 실패·빈 상태를 분리, 기존 입력과 데이터를 유지하며 재시도 | 배열형 `progress` 키의 동시 수정은 전용 테이블 분리 전 충돌 위험 잔존 |
 | 아모라 시작 | “입장만 해도 돈이 들고, 답이 멈추면 입력이 사라지나?” | 유료 자동 인사 호출 제거, 정적 빈 상태, 웹 재시도 시 사용자 메시지 중복 방지, 모바일 120초 상한과 실패 입력 보존 | 느린 네트워크·앱 백그라운드·스트림 중단 실기기 측정 |
-| 아모라 상담 | “비싸고, 멋대로 바꾸며, 위험할 때 엉뚱한 답을 하나?” | Luna 기본/Terra 제한 승격, write·후처리·proactive off, 예약 가능성 도구 미노출, 의도별 최대 6개 읽기 도구, 결정적 위기 응답 | 실제 모델 품질·거절·도구·PDF·중단 canary와 한국어 고정 평가셋 |
+| 아모라 상담 | “비싸고, 멋대로 바꾸며, 위험할 때 엉뚱한 답을 하나?” | Luna 기본/Terra 제한 승격, write·후처리·proactive off, 예약 가능성 도구 미노출, 의도별 최대 6개 읽기 도구, 결정적 위기 응답. 실제 Luna/Terra 한국어 SSE·replay 통과 | 거절·도구 후속·PDF/이미지·중단·오류 canary와 한국어 고정 평가셋 |
 | 업체 탐색·시세 | “정보가 없는 건가, 서버가 고장 난 건가? 평균 두 개를 더하면 내 총비용인가?” | 업체·상품·시간 로드 실패와 진짜 빈 상태를 분리하고 재시도. 예식장·스드메 평균을 별도 조사값으로 표시하고 단순 합계·통합 순위를 제거 | 공급자 데이터 최신성·정정 SLA, 업체 확인 창구, 가격 출처 주기적 대조 |
 | 업체 연결(준비 중) | “버튼을 누르면 업체에 갔나? 목록 상태가 실제 거래인가?” | 웹·모바일 전송 버튼과 문의를 숨기거나 비활성화하고, 구버전 POST도 PII 처리 전 503으로 차단. 목록은 과거·예시 조회용이라고 명시 | 실제 업체 전달·수신 증빙, 수락·거절·변경·취소 왕복, 연락처 보존·철회 E2E와 법적 고지 |
 | 커뮤니티·견적 | “실명, 검증 서류, 견적이 퍼지거나 신고가 조작되나?” | 가명 표시, 견적 기본 비공개, 서로 다른 신고자 기준 검수, 검수 중 게시물 숨김, 서버 필드 위조 방지 코드 | base table 민감 열을 safe view/열 권한으로 차단하고 마지막 배포 앱과 전환. 실제 신고·차단·철회 E2E |
@@ -159,8 +161,8 @@
 ### P1: 공개 베타 전 필수
 
 1. 정식 법적 주체와 개인정보 보호책임자를 확정하고 사업자·연락처·처리방침 고지를 법무 검토한다. 그 전에는 추가 PII를 처리하는 불특정 다수 공개 베타를 시작하지 않는다.
-2. OpenAI 키를 넣고 Luna/Terra 접근, 한국어 스트리밍, 도구 결과, PDF/이미지, refusal, abort, 429/5xx canary를 작은 예산으로 통과한다.
-3. Supabase 프로젝트와 migration history를 대조하고 백업을 만든 뒤, 빈 DB fresh reset과 운영 크기 복원본 upgrade를 별도 스테이징에서 통과한다.
+2. Luna/Terra 접근·한국어 스트리밍·replay는 통과했다. 남은 도구 후속, PDF/이미지, refusal, abort, 429/5xx canary를 작은 예산으로 통과한다.
+3. 빈 preview fresh reset은 통과했다. 운영 migration history를 대조하고 maintenance 이후 백업을 만든 뒤 운영 크기 복원본 upgrade를 별도 스테이징에서 통과한다.
 4. 실제 PostgreSQL 비용 probe를 수행한다: 동시 61개 예약, 전역 count 59 경계, 동일 요청·순번 중복, 완료 commit 뒤 응답 유실, 직접 failed 전이, 15분 stale 요청의 5분 job 복구, 실패 무료 턴 환불, KST 자정, legacy 100/300 인자.
 5. 실제 anon·authenticated·service role JWT로 비활성 예약·문의 POST의 PII/본문 처리 이전 503 차단, `create_booking_atomic`, 업체 승인 필드, 커뮤니티 검수 필드, 신고, vendor/community storage 경로의 허용·거절을 검증한다.
 6. 커뮤니티 base table 민감 열을 safe view 또는 열 권한으로 격리하고, 마지막 배포 모바일과 최소 지원 버전 전환을 확인한다.
@@ -170,6 +172,7 @@
 10. OpenAI·Supabase·Vercel·Resend 등 외부 처리자 DPA, 처리 리전, 보존과 국외 처리 고지, 국내 AI·전자상거래 관련 문구를 법무 검토한다.
 11. 운영 `DEMO_SESSION_SECRET`을 충분히 긴 무작위 비밀값으로 설정·회전하고 미설정 fail-closed, 24시간 만료, 예시 아모라 POST 차단을 프로덕션에서 확인한다.
 12. 백업·롤백·오류 모니터링·비용 알림·dead-letter 운영·최소 앱 버전·구버전 트래픽 종료 기준을 승인한다.
+13. 과거 Git 이력에 노출된 카카오 REST·JavaScript·Native 플랫폼 키를 교체하고 기존 키를 삭제한다. REST Allowed IP·Client Secret, JavaScript 도메인·redirect, Native package/key hash·bundle 제한과 2026-04-09 이후 사용량을 확인한다. 이력 삭제가 필요하면 모든 clone·열린 PR·배포 참조를 조율한 별도 승인 작업으로 수행한다.
 
 ### P2: 추적하되 공개 베타 뒤로 미룰 수 있음
 
@@ -181,13 +184,13 @@
 
 ## 검증 증거의 한계
 
-- 최종 커밋 후보에서 웹 전체 테스트는 117개 파일·797개, 모바일 소비자 계약 테스트는 10개가 통과했다.
-- 웹·모바일·공유 패키지 타입 검사와 lint, Next.js production build가 통과했고 정적 페이지 102개를 생성했다. 모바일 실제 바이너리 빌드가 아니라 EAS 설정·소스 릴리스 점검 56개가 통과한 결과다.
+- 최종 커밋 후보에서 웹 전체 테스트는 120개 파일·833개, 모바일 소비자 계약 테스트는 11개가 통과했다.
+- 웹·모바일·공유 패키지 타입 검사와 lint, Next.js production build가 통과했고 정적 페이지 104개를 생성했다. 모바일 실제 바이너리 빌드가 아니라 EAS 설정·소스 릴리스 점검 56개가 통과한 결과다.
 - 운영 의존성 `pnpm audit --prod`는 info/low/moderate/high/critical 모두 0건이었고, 추적 파일의 대표 비밀값 패턴은 0개였다. 이는 알려진 advisory와 제한된 패턴 검사이며 공급망 안전 또는 비밀 부재의 완전한 증명이 아니다.
-- 브라우저에서 데스크톱·모바일 랜딩, 예시 로그인→라운지, 시장가격, 베타, 로그인, 소개·약관·개인정보·AI 정책을 확인했다. 예시 라운지의 첫 렌더 Supabase 선행 초기화 오류를 재현·수정한 뒤 모바일 375px에서 정상 렌더와 가로 넘침 없음까지 재검증했다.
+- 브라우저에서 데스크톱 웨딩 홈과 375×812 모바일 커뮤니티, WeddingCode 1→2번 문항 자동 진행, 로그인 자동완성, maintenance, 인증 없는 아모라의 안전한 로그인 복귀를 확인했다. 모바일 가로 넘침과 최종 console error/warning은 0건이었다.
 - `git diff --check`는 통과했다. Windows의 LF→CRLF 안내는 내용 오류가 아니라 checkout 줄바꿈 경고다.
-- 로컬 Supabase PostgreSQL이 `127.0.0.1:54322`에 실행 중이지 않아 DB lint·migration 실행·동시성 probe는 완료하지 못했다.
-- 로컬 자동 검증은 실제 OpenAI, 원격 Supabase 권한·잠금, OAuth, 이메일 전달, 업체 수락, `pg_cron`, 앱스토어 바이너리를 증명하지 않는다.
+- 폐기 가능한 원격 Supabase preview에서 107개 migration fresh replay, DB lint, lifecycle smoke, exact contract, rate-limit SQL smoke와 anon 10-table 거부를 통과했다. 이는 운영 snapshot upgrade·고동시성·장시간 `pg_cron` 복구를 증명하지 않는다.
+- 실제 OpenAI Luna/Terra 기본 경로는 통과했지만 로컬·preview 자동 검증은 도구 후속·PDF/이미지·refusal·429/5xx·중단, OAuth, 이메일 전달, 업체 수락, 앱스토어 바이너리를 증명하지 않는다.
 - 이 감사는 AI 기반 정적 검토다. 독립된 사람의 보안 리뷰, 실제 침투 테스트, 개인정보·법무 검토를 대체하지 않는다.
 
 ## Git·배포 계약

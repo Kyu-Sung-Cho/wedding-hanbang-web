@@ -210,6 +210,34 @@ GRANT EXECUTE ON FUNCTION public.enforce_application_survey_retention()
 GRANT EXECUTE ON FUNCTION public.delete_expired_rate_limit_buckets()
   TO service_role;
 
+-- Production and the historical replay differ only in formatting for this
+-- trigger body. Reinstall one explicit canonical definition so exact source
+-- contracts converge instead of inheriting whichever version happened to be
+-- present before this migration.
+CREATE OR REPLACE FUNCTION public.create_profile_on_signup()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO profiles (id, name, email, onboarding_completed, onboarding_step, created_at, updated_at)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', split_part(COALESCE(NEW.email, ''), '@', 1), 'User'),
+    NEW.email, false, 0, NOW(), NOW()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = COALESCE(EXCLUDED.email, profiles.email),
+    name = COALESCE(EXCLUDED.name, profiles.name),
+    updated_at = NOW();
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'create_profile_on_signup failed for user %: %', NEW.id, SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
 -- Trigger functions are invoked by their bound triggers and have no supported
 -- RPC surface. Remove inherited client execution and pin every definer search
 -- path; trigger execution itself does not depend on callers having EXECUTE.
@@ -289,7 +317,8 @@ BEGIN
         AND procedure_row.prosecdef
         AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
         AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
-        AND md5(procedure_row.prosrc) = v_contract.expected_source_md5
+        AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+          v_contract.expected_source_md5
         AND procedure_row.proargnames IS NOT DISTINCT FROM v_contract.expected_arg_names
         AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
         AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
@@ -303,14 +332,14 @@ BEGIN
   FOR v_contract IN
     SELECT *
     FROM (VALUES
-      ('public.community_recalc_rank()', '070769036bb3cd472e06d4ea3379d926'),
-      ('public.create_profile_on_signup()', '3c97ea7d667eb6a4bf559fd443c3f485'),
+      ('public.community_recalc_rank()', 'c742d9e87a9c815491d03c574690772c'),
+      ('public.create_profile_on_signup()', '84a6f9f7f2c366bb87703fcc25cc2f22'),
       ('public.guard_amora_user_message_insert()', '3b3a72bfb77bfd27a0b7f43b718cb4c0'),
       ('public.guard_profile_self_insert()', 'e1a79bcb72eb8b1df1c5edb70f181e44'),
-      ('public.prevent_cohort_membership_client_write()', 'b8c0bf3e9f104911c0e3e94d36067e7a'),
-      ('public.prevent_couple_ownership_self_change()', '184d1fd07d3883f35ca476886c8499f0'),
-      ('public.prevent_couple_slot_self_change()', 'fe0d2190241cbae1d15bdb9bbafdb883'),
-      ('public.prevent_is_admin_self_change()', '7f0279b856ed9c49d9d857a68cfda8f1')
+      ('public.prevent_cohort_membership_client_write()', '5947d166102367678683a8ae71c2b72d'),
+      ('public.prevent_couple_ownership_self_change()', '697c40535a23d739a271b0b4e3b2ffbf'),
+      ('public.prevent_couple_slot_self_change()', 'c795f37d371b8143d50b45d65de96411'),
+      ('public.prevent_is_admin_self_change()', '9395ea55bfc5192e10ef000e0421d7b3')
     ) expected(signature, expected_source_md5)
   LOOP
     IF NOT EXISTS (
@@ -321,7 +350,8 @@ BEGIN
         AND procedure_row.prosecdef
         AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
         AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
-        AND md5(procedure_row.prosrc) = v_contract.expected_source_md5
+        AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+          v_contract.expected_source_md5
         AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
         AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
         AND NOT has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')

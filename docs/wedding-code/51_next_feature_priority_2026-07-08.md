@@ -1,7 +1,7 @@
 # WeddingCode Next Feature Priority
 
 > [!WARNING]
-> **역사 우선순위 스냅샷입니다.** 아래 “production two-person flow verified” 상태는 현재가 아닙니다. 응답 수집·파트너 초대·페어링·커플 리포트 API는 HTTP 410이며, 최신 기준은 `../CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`를 따릅니다.
+> **역사 우선순위 스냅샷입니다.** 아래 “production two-person flow verified” 상태는 현재가 아닙니다. 응답 수집·파트너 초대·페어링·커플 리포트 API는 HTTP 410이며, 최신 기준은 `../CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 
 Date: 2026-07-08
 State: production two-person flow technically verified

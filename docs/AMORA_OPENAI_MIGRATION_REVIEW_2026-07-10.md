@@ -7,8 +7,9 @@
 - 폐기 가능한 Supabase preview를 완전히 비운 뒤 baseline부터 `20260711148000`까지 migration 107개를 연속 재실행했다. 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, DB lint도 통과했다.
 - lifecycle smoke에서 합류·재시작·차단 코드·legacy 코드 복구·zero-member 거부·계정 삭제 격리가 통과했다.
 - anonymous probe는 민감 테이블 10개 모두의 접근 거부를 확인했다.
-- AI 보존·persistent rate-limit 함수의 anon/auth 실행 권한을 제거하고 service role 전용 계약으로 고정했다. 인증 사용자 rate-limit 행은 탈퇴 lifecycle에 연결하며, provenance가 없는 업체 upload surface는 차단했다.
-- 최종 DB 상태에서 실제 OpenAI `gpt-5.6-luna`와 `gpt-5.6-terra`가 각각 SSE 스트리밍, replay, 정확한 DB 감사 모델 기록까지 통과했다.
+- AI 보존·persistent rate-limit 함수의 anon/auth 실행 권한을 제거하고 service role 전용 계약으로 고정했다. service role의 bucket 직접 INSERT/UPDATE도 회수해 canonical RPC만 사용하며, 인증 사용자 rate-limit 행은 탈퇴 lifecycle에 연결한다. provenance가 없는 업체 upload surface는 차단했다.
+- 최종 fresh DB 상태에서 실제 OpenAI `gpt-5.6-luna`와 `gpt-5.6-terra`가 각각 SSE 스트리밍, replay, 정확한 DB 감사 모델 기록까지 통과했다. 마지막 응답은 259자·386자였고 테스트 행을 정리했다.
+- 최종 로컬 검증은 Web Vitest 120개 파일·833개 테스트, 정적 페이지 104개 production build, 모바일 소비자 계약 11개·release check 56개, production dependency 취약점 0건이다.
 - 웹·모바일은 커플 재연결 응답이 모호할 때 과거 여정을 계속 편집하지 않도록 fail-closed 복구 흐름을 사용한다.
 
 다만 tool follow-up·PDF·이미지·refusal·abort·429/5xx, 높은 동시성·KST 경계·cron, 운영 clone upgrade는 아직 별도 검증 대상이다. 운영 DB에는 데이터 정합성 blocker가 있고 직접 쓰기 차단 fence와 최신 백업 gate, Vercel 운영 환경 검증도 없으므로 **production은 NO-GO이며 배포하지 않았다**.
@@ -27,8 +28,8 @@
 프로액티브 채팅·케어 이메일은 숨은 비용과 삭제 경합을 줄이기 위해 코드에서 꺼져 있다.
 정적 검증과 프로덕션 빌드는 통과했지만, 아래 운영 게이트가 끝나기 전에는 배포하지 않는다.
 
-1. production catalog로 누락된 핵심 base-table baseline을 만들고 빈 DB fresh reset과 production snapshot upgrade를 모두 통과
-2. 실제 OpenAI 프로젝트 키로 Terra/Luna 접근 권한·2라운드 도구·PDF·refusal·abort canary
+1. 빈 DB fresh reset은 통과했다. production catalog와 migration history를 대조하고 production snapshot upgrade를 통과
+2. Terra/Luna 접근·기본 한국어 SSE·replay는 통과했다. 2라운드 도구·PDF/이미지·refusal·abort·429/5xx canary를 추가 통과
 3. `20260710010000` 이후 DB 마이그레이션을 provider/traffic drain 유지보수 창에서 순서대로 적용하고 권한·RPC·동시성 원격 검증
 4. OpenAI 프로젝트 예산·알림·rate limit과 운영 환경변수 설정
 5. Supabase/Vercel/Resend/OpenAI의 실제 계약 법인·처리 리전·DPA를 확인한 국외 처리 고지 확정

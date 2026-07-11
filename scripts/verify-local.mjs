@@ -17,6 +17,10 @@ function createCommand(args) {
 
 const checks = [
   {
+    name: "tracked secret scan",
+    args: ["pnpm", "security:secrets"],
+  },
+  {
     name: "web typecheck",
     args: ["pnpm", "--filter", "@hanbang/web", "exec", "tsc", "--noEmit"],
   },

@@ -125,7 +125,7 @@ BEGIN
            pg_get_userbyid(function_row.proowner),
            function_row.prosecdef,
            function_row.proconfig,
-           md5(function_row.prosrc)
+           md5(replace(function_row.prosrc, chr(13), ''))
     INTO v_result, v_owner, v_security_definer, v_config, v_source_md5
     FROM pg_catalog.pg_proc function_row
     WHERE function_row.oid = v_function_oid;
@@ -182,7 +182,8 @@ BEGIN
         AND pg_get_userbyid(function_row.proowner) = 'postgres'
         AND function_row.prosecdef
         AND function_row.proconfig @> ARRAY[v_expected.search_path]::text[]
-        AND md5(function_row.prosrc) = v_expected.source_md5
+        AND md5(replace(function_row.prosrc, chr(13), '')) =
+          v_expected.source_md5
         AND has_function_privilege('service_role', function_row.oid, 'EXECUTE')
         AND NOT has_function_privilege('anon', function_row.oid, 'EXECUTE')
         AND NOT has_function_privilege('authenticated', function_row.oid, 'EXECUTE')

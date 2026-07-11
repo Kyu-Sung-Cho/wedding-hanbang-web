@@ -23,9 +23,10 @@ CREATE INDEX IF NOT EXISTS idx_rate_limit_buckets_subject_user_id
   ON public.rate_limit_buckets(subject_user_id)
   WHERE subject_user_id IS NOT NULL;
 
--- Direct service writes share the profile-row lifecycle lock. A subject may be
--- bound once to a legacy anonymous bucket, but an established binding is
--- immutable. NULL remains valid for IP, email, and other anonymous limiters.
+-- Keep a trigger as defense in depth for owner-side maintenance and the
+-- SECURITY DEFINER writer. The canonical RPC already owns the required
+-- profile -> bucket lock order; direct service-role INSERT/UPDATE is revoked
+-- below so a future PostgREST caller cannot invert that order.
 CREATE OR REPLACE FUNCTION public.guard_account_deletion_rate_limit_write()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -247,6 +248,24 @@ GRANT EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer, uuid)
 GRANT EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer)
   TO service_role;
 
+-- All count/binding mutations must use check_rate_limit(). The account
+-- deletion worker still needs a narrowly scoped direct DELETE, and operational
+-- health may read rows. Remove both table- and column-level mutation grants so
+-- a future service client cannot acquire bucket -> profile locks through the
+-- trigger and deadlock against account deletion's profile -> bucket order.
+REVOKE ALL PRIVILEGES ON TABLE public.rate_limit_buckets
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE INSERT (key, count, reset_at, updated_at, subject_user_id)
+  ON TABLE public.rate_limit_buckets
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE UPDATE (key, count, reset_at, updated_at, subject_user_id)
+  ON TABLE public.rate_limit_buckets
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE REFERENCES (key, count, reset_at, updated_at, subject_user_id)
+  ON TABLE public.rate_limit_buckets
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT, DELETE ON TABLE public.rate_limit_buckets TO service_role;
+
 COMMENT ON COLUMN public.rate_limit_buckets.subject_user_id IS
   'Authenticated subject lifecycle link. NULL is required for IP/email/anonymous limiters; opaque keys never contain recoverable identifiers.';
 COMMENT ON FUNCTION public.check_rate_limit(text, integer, integer, uuid) IS
@@ -327,7 +346,8 @@ BEGIN
       AND procedure_row.prosecdef
       AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
       AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
-      AND md5(procedure_row.prosrc) = '7583f22c1daf9cebea4f7a847a6a507f'
+      AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+        '7583f22c1daf9cebea4f7a847a6a507f'
       AND procedure_row.proargnames = ARRAY[
         'p_key', 'p_max_requests', 'p_window_ms', 'p_subject_user_id',
         'allowed', 'retry_after_seconds'
@@ -350,7 +370,8 @@ BEGIN
       AND procedure_row.prosecdef
       AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
       AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
-      AND md5(procedure_row.prosrc) = 'dbaddace99dcf6ddbe99da5eefe0797a'
+      AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+        'dbaddace99dcf6ddbe99da5eefe0797a'
       AND procedure_row.proargnames = ARRAY[
         'p_key', 'p_max_requests', 'p_window_ms',
         'allowed', 'retry_after_seconds'
@@ -373,13 +394,49 @@ BEGIN
       AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
       AND procedure_row.proconfig @>
         ARRAY['search_path=public, pg_temp']::text[]
-      AND md5(procedure_row.prosrc) = 'b8ebd5bbf8df5b250d36404f4d6f0a5c'
+      AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+        'b8ebd5bbf8df5b250d36404f4d6f0a5c'
       AND procedure_row.proargnames IS NULL
       AND NOT has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
       AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
       AND NOT has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')
   ) THEN
     RAISE EXCEPTION 'RATE_LIMIT_SUBJECT_GUARD_CONTRACT_MISMATCH'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF NOT has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'SELECT'
+    )
+    OR NOT has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'DELETE'
+    )
+    OR has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'INSERT'
+    )
+    OR has_any_column_privilege(
+      'service_role', 'public.rate_limit_buckets', 'INSERT'
+    )
+    OR has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'UPDATE'
+    )
+    OR has_any_column_privilege(
+      'service_role', 'public.rate_limit_buckets', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'TRUNCATE'
+    )
+    OR has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'REFERENCES'
+    )
+    OR has_any_column_privilege(
+      'service_role', 'public.rate_limit_buckets', 'REFERENCES'
+    )
+    OR has_table_privilege(
+      'service_role', 'public.rate_limit_buckets', 'TRIGGER'
+    )
+  THEN
+    RAISE EXCEPTION 'RATE_LIMIT_TABLE_ACL_CONTRACT_MISMATCH'
       USING ERRCODE = '55000';
   END IF;
 END;

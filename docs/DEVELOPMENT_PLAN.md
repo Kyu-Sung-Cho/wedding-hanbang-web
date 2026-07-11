@@ -5,7 +5,7 @@
 > 출시 목표: 2026-06-09 (2개월)
 > 월 예산: $500
 >
-> **역사 계획 주의**: 위 출시 목표와 아래 Phase 일정은 과거 계획이다. 현재 출시 판정은 `CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`와 실제 코드·테스트를 우선한다. 아모라는 Luna 기본/Terra 제한 승격이며 모델 기반 쓰기 도구는 현재 비활성이다.
+> **역사 계획 주의**: 위 출시 목표와 아래 Phase 일정은 과거 계획이다. 현재 출시 판정은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`와 실제 코드·테스트를 우선한다. 아모라는 Luna 기본/Terra 제한 승격이며 모델 기반 쓰기 도구는 현재 비활성이다.
 
 ---
 
@@ -331,9 +331,10 @@ Text Tertiary:      #7D7166
 
 ### 카카오
 - 앱 ID: 1381347
-- REST API 키: 1a499ef14f83252c6b708c453d9eafc4
-- 네이티브 앱 키: 5b5e688bab03b36088187d8634b541cc
-- JavaScript 키: 40cd7bb2eacef8519cf7faaf37fbac6d
+- REST API 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- 네이티브 앱 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- JavaScript 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- 2026-07-11 보안 조치: 과거 Git 이력에 노출된 플랫폼 키는 교체·기존 키 삭제·사용량 감사 전까지 신뢰하지 않음
 - ⚠️ account_email: 비즈앱 전환 전까지 사용 불가
 
 ### Apple Developer

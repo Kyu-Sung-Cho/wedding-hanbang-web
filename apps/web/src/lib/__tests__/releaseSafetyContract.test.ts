@@ -154,6 +154,10 @@ describe("release safety contract", () => {
       expect(preflightSignatures).toContain(signature);
     }
     for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain(
+        "md5(replace(procedure_row.prosrc, chr(13), ''))"
+      );
+      expect(sql).toContain("8fb08367706397c9a1d00e299a48e7d5");
       expect(sql).toContain("0518d47d1da58e822a8b6ba662bd06eb");
       expect(sql).toContain("b8ebd5bbf8df5b250d36404f4d6f0a5c");
       expect(sql).toContain("b0184ebdb2888d329ef714726d7f76f6");
@@ -358,6 +362,13 @@ describe("release safety contract", () => {
       expect(sql).toContain("b8ebd5bbf8df5b250d36404f4d6f0a5c");
       expect(sql).toContain("rate_limit_buckets_subject_user_id_fkey");
       expect(sql).toContain("idx_rate_limit_buckets_subject_user_id");
+      expect(sql).toContain("has_any_column_privilege(");
+      expect(sql).toContain(
+        "'service_role', 'public.rate_limit_buckets', 'INSERT'"
+      );
+      expect(sql).toContain(
+        "'service_role', 'public.rate_limit_buckets', 'UPDATE'"
+      );
     }
     expect(productionPreflight).toContain("rate_limit_subject_contract_exact");
     expect(postDeploy).toContain("rate_limit_subject_contract_exact");

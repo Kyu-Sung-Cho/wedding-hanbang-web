@@ -1,7 +1,7 @@
 # Session Handoff - 2026-07-01
 
 > [!WARNING]
-> **Historical handoff snapshot.** Branch, commit, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md` before acting.
+> **Historical handoff snapshot.** Branch, commit, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md` before acting.
 
 This handoff is for continuing Wedding Hanbang web/mobile work from another computer.
 

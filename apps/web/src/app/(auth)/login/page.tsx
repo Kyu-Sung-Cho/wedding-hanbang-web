@@ -284,7 +284,9 @@ export default function LoginPage() {
                     <label htmlFor="auth-name" className="sr-only">이름</label>
                     <input
                       id="auth-name"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       value={name}
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -301,7 +303,10 @@ export default function LoginPage() {
                 <label htmlFor="auth-email" className="sr-only">이메일</label>
                 <input
                   id="auth-email"
+                  name="email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
@@ -314,7 +319,9 @@ export default function LoginPage() {
                   <label htmlFor="auth-password" className="sr-only">비밀번호</label>
                   <input
                     id="auth-password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
@@ -377,7 +384,9 @@ export default function LoginPage() {
                       <label htmlFor="auth-password-confirm" className="sr-only">비밀번호 확인</label>
                       <input
                         id="auth-password-confirm"
+                        name="passwordConfirm"
                         type={showPasswordConfirm ? "text" : "password"}
+                        autoComplete="new-password"
                         value={passwordConfirm}
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                         onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}

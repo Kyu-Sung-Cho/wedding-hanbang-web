@@ -8,7 +8,10 @@ import { useCommunityStore } from "@/stores/communityStore";
 
 function resetUserScopedStores() {
   useChatStore.getState().reset();
-  useCommunityStore.getState().reset();
+  // The community feed is public, but its rows contain user-specific vote and
+  // bookmark projections. Clear identity-scoped state and cache, preserve the
+  // active feed selection, and rebuild it for the new identity.
+  void useCommunityStore.getState().refreshAfterAuthChange();
 }
 
 export function useAuthSessionSync(enabled = true) {

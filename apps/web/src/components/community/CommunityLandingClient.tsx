@@ -244,6 +244,7 @@ export default function CommunityLandingClient({
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotal, setSearchTotal] = useState(0);
+  const [initialFeedAvailable, setInitialFeedAvailable] = useState(true);
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
@@ -252,6 +253,7 @@ export default function CommunityLandingClient({
   const hasFocusedFeed = Boolean(selectedCategory || tagQuery || authorQuery || isSearching);
   const showFullFeed = feedQuery === "all" || hasFocusedFeed;
   const canUseInitialFeed =
+    initialFeedAvailable &&
     !isSearching &&
     !selectedCategory &&
     !tagQuery &&
@@ -259,7 +261,7 @@ export default function CommunityLandingClient({
     normalizedSort === "new" &&
     normalizedPeriod === "week" &&
     posts.length === 0 &&
-    Boolean(initialFeed?.posts.length);
+    initialFeed !== undefined;
   const feedPosts = canUseInitialFeed ? (initialFeed?.posts ?? []) : posts;
   const visiblePosts = isSearching ? searchResults : showFullFeed ? feedPosts : feedPosts.slice(0, 10);
   const activeTotal = isSearching ? searchTotal : canUseInitialFeed ? (initialFeed?.total ?? 0) : total;
@@ -346,9 +348,14 @@ export default function CommunityLandingClient({
   }, [isSearching, searchHasMore, searchLoading, searchPage, searchQuery, selectedCategory]);
 
   useEffect(() => {
+    if (!initialFeedAvailable) return;
+    // SSR data is a one-time mount seed. Consuming it again after an auth
+    // reset would overwrite the new identity's vote/bookmark projections and
+    // invalidate the authenticated refresh request.
+    setInitialFeedAvailable(false);
     if (!canUseInitialFeed || !initialFeed) return;
     useCommunityStore.getState().hydrateInitialFeed(initialFeed);
-  }, [canUseInitialFeed, initialFeed]);
+  }, [canUseInitialFeed, initialFeed, initialFeedAvailable]);
 
   useEffect(() => {
     if (isSearching) return;
@@ -445,7 +452,13 @@ export default function CommunityLandingClient({
         isPreviewFeed={isPreviewFeed}
         fullFeedHref={fullFeedHref}
         searchQuery={searchQuery}
-        isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && visiblePosts.length === 0 : isLoading}
+        isLoading={
+          isSearching
+            ? searchLoading
+            : isPreviewFeed
+              ? isLoading && visiblePosts.length === 0 && !canUseInitialFeed
+              : isLoading
+        }
         errorMessage={isSearching ? null : errorMessage}
         clearError={clearError}
       />
@@ -560,7 +573,7 @@ function SearchHub({
       </form>
 
       <div className="mt-4 flex flex-col gap-3 md:mt-5">
-        <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-6 md:overflow-visible md:pb-0">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {primaryTopicItems.map((item) => {
             const active = isTopicActive(item);
             return (
@@ -568,7 +581,7 @@ function SearchHub({
                 key={item.label}
                 {...weddingLinkProps(item.href ?? buildCommunityHubHref(item))}
                 aria-label={`${item.label} 보기`}
-                className={`group flex min-h-[64px] min-w-[96px] flex-col items-center justify-center gap-1 rounded-[14px] border px-3 text-center transition-all md:min-w-0 ${
+                className={`group flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[14px] border px-2 text-center transition-all sm:px-3 ${
                   active
                     ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
                     : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
@@ -1159,10 +1172,12 @@ function RightPanels() {
 
 function BestPostsPanel() {
   const [posts, setPosts] = useState<TrendingPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 5_000);
     void withSessionCache("community:landing:weekly-top-posts:5", 5 * 60 * 1000, async () => {
       const normalize = (items: TrendingPost[]) =>
         items.slice(0, 5).map((post: TrendingPost) => ({
@@ -1172,20 +1187,25 @@ function BestPostsPanel() {
           comment_count: post.comment_count,
         }));
 
-      const weeklyRes = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1");
+      const weeklyRes = await fetch(
+        "/api/community/posts?sort=top&period=week&limit=5&page=1",
+        { signal: controller.signal },
+      );
       if (!weeklyRes.ok) return { posts: [] } satisfies BestPostPayload;
       const weeklyJson = await weeklyRes.json();
       return { posts: normalize(weeklyJson.posts ?? []) } satisfies BestPostPayload;
     })
+      .catch(() => ({ posts: [] }) satisfies BestPostPayload)
       .then((data) => {
         if (cancelled) return;
         setPosts(data.posts);
+        setSettled(true);
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .finally(() => window.clearTimeout(timeoutId));
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, []);
 
@@ -1202,32 +1222,30 @@ function BestPostsPanel() {
           더보기
         </Link>
       </div>
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-7 animate-pulse rounded-md bg-[#f3eadc]" />
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 집계하고 있어요.</p>
-      ) : (
-        <ol className="space-y-3">
-          {posts.map((post, index) => (
-            <li key={post.id}>
-              <Link
-                {...communityPostLinkProps(post.id)}
-                className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
-              >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
-                  {index + 1}
-                </span>
-                <span className="truncate text-[#34445a]">{post.title}</span>
-                <strong className="text-[#071629]">{formatCount(post.upvote_count)}</strong>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      )}
+      <div className="min-h-[168px]" aria-live="polite">
+        {!settled ? (
+          <p className="text-[13px] font-medium text-[#7a8290]">인기글을 불러오고 있어요.</p>
+        ) : posts.length === 0 ? (
+          <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 집계하고 있어요.</p>
+        ) : (
+          <ol className="space-y-3">
+            {posts.map((post, index) => (
+              <li key={post.id}>
+                <Link
+                  {...communityPostLinkProps(post.id)}
+                  className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
+                >
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <span className="truncate text-[#34445a]">{post.title}</span>
+                  <strong className="text-[#071629]">{formatCount(post.upvote_count)}</strong>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
       <p className="mt-5 border-t border-[#eadfc9] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
         최근 7일 좋아요 반응을 기준으로 보여드려요.
       </p>

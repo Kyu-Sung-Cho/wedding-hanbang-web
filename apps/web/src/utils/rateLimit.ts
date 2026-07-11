@@ -118,7 +118,8 @@ function getAdminClient(): SupabaseClient | null {
 
 /**
  * 서버리스 인스턴스를 넘어 공유되는 rate limit.
- * Supabase RPC가 없거나 실패하면 기존 인메모리 limiter로 fallback한다.
+ * 익명/IP/이메일 limiter만 RPC 장애 시 인스턴스 로컬 limiter로 fallback한다.
+ * 인증된 subject는 계정 lifecycle 보호를 우회하지 않도록 403/409/503으로 fail closed한다.
  */
 export async function checkRateLimitPersistent(
   key: string,

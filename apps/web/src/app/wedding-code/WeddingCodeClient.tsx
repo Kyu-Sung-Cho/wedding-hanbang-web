@@ -144,6 +144,7 @@ export default function WeddingCodeClient() {
               aria-valuemin={0}
               aria-valuemax={flow.length}
               aria-valuenow={answeredCount}
+              aria-valuetext={`${answeredCount}개 응답 완료, 현재 ${qIndex + 1}/${flow.length} 문항`}
             >
               <div
                 className="h-full rounded-full bg-[#36534E] transition-[width] duration-300 motion-reduce:transition-none"
