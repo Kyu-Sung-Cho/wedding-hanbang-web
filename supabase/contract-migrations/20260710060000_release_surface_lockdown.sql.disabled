@@ -1,6 +1,77 @@
+-- FUTURE CONTRACT MIGRATION -- intentionally outside supabase/migrations and
+-- intentionally suffixed .sql.disabled. Do not apply during the expand release.
 -- Conservative release lockdown for write surfaces that already have validated
 -- server routes. Browser/mobile PostgREST must not bypass rate limits, ownership
 -- checks, moderation, booking capacity, or server-owned fields.
+
+-- This file is a contract template, not an active Supabase migration. It fails
+-- closed unless all release evidence is supplied in the same database session.
+-- See README.md for the required evidence and execution sequence.
+DO $contract_release_gate$
+DECLARE
+  v_min_version text := NULLIF(
+    current_setting('hanbang.contract_min_mobile_version', true),
+    ''
+  );
+  v_legacy_traffic text := NULLIF(
+    current_setting('hanbang.contract_legacy_mobile_traffic', true),
+    ''
+  );
+  v_backup_approval text := NULLIF(
+    current_setting('hanbang.contract_backup_approval', true),
+    ''
+  );
+  v_change_ticket text := NULLIF(
+    current_setting('hanbang.contract_change_ticket', true),
+    ''
+  );
+BEGIN
+  IF v_min_version IS NULL
+    OR v_legacy_traffic <> 'zero-for-14-days'
+    OR v_backup_approval <> 'approved'
+    OR v_change_ticket IS NULL
+  THEN
+    RAISE EXCEPTION
+      'MOBILE_CONTRACT_RELEASE_GATE_REQUIRED min_version=% legacy_traffic=% backup=% ticket=%',
+      v_min_version, v_legacy_traffic, v_backup_approval, v_change_ticket
+      USING ERRCODE = '55000';
+  END IF;
+END;
+$contract_release_gate$;
+
+-- Retire the legacy mobile partner-row read only after the gate above. New
+-- clients use get_my_partner_public() and no longer depend on this broad row
+-- contract.
+CREATE OR REPLACE FUNCTION public.can_read_profile(p_profile_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(auth.role(), '') = 'service_role'
+    OR p_profile_id = auth.uid();
+$$;
+REVOKE ALL ON FUNCTION public.can_read_profile(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_read_profile(uuid) TO authenticated, service_role;
+
+-- Retire legacy direct chat writes after every supported client uses
+-- /api/chat/messages.
+DROP POLICY IF EXISTS "chat_insert_couple" ON public.chat_messages;
+REVOKE INSERT ON TABLE public.chat_messages FROM authenticated;
+
+-- Retire legacy attachment and vendor upload surfaces only after the Storage
+-- inventory/retention gate in README.md is complete.
+UPDATE storage.buckets SET public = false WHERE id = 'chat-image';
+DROP POLICY IF EXISTS "chat-image authenticated write" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image authenticated update" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image authenticated delete" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image couple folder write" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image couple folder update" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image couple folder delete" ON storage.objects;
+DROP POLICY IF EXISTS "업체: 본인 이미지 업로드" ON storage.objects;
+DROP POLICY IF EXISTS "업체: 본인 이미지 삭제" ON storage.objects;
+DROP POLICY IF EXISTS "업체: 사업자등록증 업로드" ON storage.objects;
 
 -- The prior migration adds owner_user_id without guessing legacy ownership.
 -- Stop before changing visibility if any ledger rows still need export-backed
