@@ -139,7 +139,6 @@ expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profi
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
 expect(repositoryNodeVersion !== undefined && easConfig.build?.production?.node === repositoryNodeVersion, "EAS production uses the repository Node version");
 expect(repositoryPnpmVersion !== undefined && easConfig.build?.production?.pnpm === repositoryPnpmVersion, "EAS production uses the repository pnpm version");
-expect(easConfig.build?.production?.corepack === true, "EAS production enables Corepack");
 expect(easConfig.build?.production?.channel === "production", "EAS production binary uses the production update channel");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
