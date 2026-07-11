@@ -366,11 +366,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     streamingToolResults,
     suggestions,
     error,
+    pendingAiRequest,
     quotaRemaining,
     initialLoadDone,
     presence,
     loadMessages,
     sendMessage,
+    retryAiResponse,
+    dismissAiError,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
@@ -850,7 +853,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const currentAttachments = [...attachments];
       setInput("");
       setAttachments([]);
-      currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
 
       // 기본 메시지 생성
       let defaultMsg = "";
@@ -870,7 +872,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         ? (role === "groom" ? "groom_private" : "bride_private")
         : "shared";
 
-      await sendMessage({
+      const userMessageStored = await sendMessage({
         content: content || defaultMsg,
         senderId: profile.id,
         senderRole: role,
@@ -886,6 +888,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         target: messageTarget,
         visibility,
       });
+
+      if (userMessageStored) {
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+        return;
+      }
+
+      // 사용자 메시지 저장 자체가 실패한 경우에만 초안을 복구한다. AI 응답만
+      // 실패한 경우에는 이미 저장된 사용자 메시지로 store가 재시도한다.
+      setInput((current) => current || content);
+      setAttachments((current) => {
+        const currentKeys = new Set(current.map(chatAttachmentKey));
+        const restored = currentAttachments.filter(
+          (attachment) => !currentKeys.has(chatAttachmentKey(attachment))
+        );
+        return [...restored, ...current].slice(0, MAX_ATTACHMENTS);
+      });
+      requestAnimationFrame(() => textareaRef.current?.focus());
     },
     [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
   );
@@ -1769,14 +1788,33 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 에러 메시지 */}
       {error && !isStreaming && (
-        <div className="mx-2 mt-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-red-600">{error}</p>
-          <button
-            onClick={() => useChatStore.setState({ error: null })}
-            className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div
+          className="mx-2 mt-2 flex flex-col items-stretch justify-between gap-3 rounded-xl bg-red-50 p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] sm:flex-row sm:items-center"
+          role="alert"
+          aria-live="assertive"
+        >
+          <p className="text-sm text-red-700">{error}</p>
+          <div className="flex flex-shrink-0 items-center justify-end gap-2">
+            {pendingAiRequest && (
+              <button
+                type="button"
+                onClick={() => void retryAiResponse()}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                aria-label="저장된 질문으로 아모라 답변 다시 받기"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                답변 다시 받기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissAiError}
+              className="rounded-md p-1 text-red-500 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              aria-label="오류 안내 닫기"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
 

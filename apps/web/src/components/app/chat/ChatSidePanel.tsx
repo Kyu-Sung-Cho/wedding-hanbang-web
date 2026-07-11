@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
+import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -53,9 +53,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     streamingToolResults,
     suggestions,
     error,
+    pendingAiRequest,
     initialLoadDone,
     loadMessages,
     sendMessage,
+    retryAiResponse,
+    dismissAiError,
     clearMessages,
     subscribeToMessages,
   } = useChatStore();
@@ -261,7 +264,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleSend = useCallback(
     async (text?: string) => {
       const content = text ?? input.trim();
-      if (!content || !coupleId || !profile) return;
+      if ((!content && attachments.length === 0) || !coupleId || !profile) return;
 
       const currentAttachments = [...attachments];
       setInput("");
@@ -278,7 +281,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         else finalContent = "이 이미지를 분석해주세요.";
       }
 
-      await sendMessage({
+      const userMessageStored = await sendMessage({
         content: finalContent,
         senderId: profile.id,
         senderRole: profile.role ?? "bride",
@@ -292,6 +295,17 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
         target: messageTarget,
+      });
+
+      if (userMessageStored) return;
+
+      setInput((current) => current || content);
+      setAttachments((current) => {
+        const currentKeys = new Set(current.map(chatAttachmentKey));
+        const restored = currentAttachments.filter(
+          (attachment) => !currentKeys.has(chatAttachmentKey(attachment))
+        );
+        return [...restored, ...current].slice(0, MAX_ATTACHMENTS);
       });
     },
     [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
@@ -459,8 +473,33 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
             {/* 에러 표시 */}
             {error && (
-              <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-xs text-red-600">{error}</p>
+              <div
+                className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5"
+                role="alert"
+                aria-live="assertive"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs leading-relaxed text-red-700">{error}</p>
+                  <button
+                    type="button"
+                    onClick={dismissAiError}
+                    className="flex-shrink-0 rounded p-0.5 text-red-500 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    aria-label="오류 안내 닫기"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                {pendingAiRequest && (
+                  <button
+                    type="button"
+                    onClick={() => void retryAiResponse()}
+                    className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    aria-label="저장된 질문으로 아모라 답변 다시 받기"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                    답변 다시 받기
+                  </button>
+                )}
               </div>
             )}
 
