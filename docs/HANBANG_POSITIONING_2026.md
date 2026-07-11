@@ -1,5 +1,8 @@
 # Wedding Hanbang Positioning 2026
 
+> [!WARNING]
+> **목표 포지셔닝 문서입니다.** 아래 거래 신뢰 네트워크·업체 연결·계약 진단·성과 지표는 현재 제공 기능이나 소비자 대상 보장이 아닙니다. 현재 업체 연결과 결제는 비활성입니다. 현재 기능과 공개 문구는 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
+
 Last updated: 2026-05-11
 
 ## One-Line Position

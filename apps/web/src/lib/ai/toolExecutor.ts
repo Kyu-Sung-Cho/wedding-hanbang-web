@@ -54,6 +54,29 @@ import {
   type ToolExecutionContext as ExecutionContext,
 } from "@/lib/ai/tools/toolTypes";
 
+function safeToolExecutionErrorCode(error: unknown): string {
+  if (error instanceof Error && error.name === "AbortError") return "tool_request_aborted";
+  const record = error && typeof error === "object"
+    ? error as { name?: unknown; status?: unknown; code?: unknown }
+    : {};
+  const cleanToken = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64);
+    return cleaned || null;
+  };
+  const parts = ["tool_execution_failed"];
+  const name = cleanToken(record.name);
+  const code = cleanToken(record.code);
+  const status = typeof record.status === "number" && Number.isSafeInteger(record.status)
+    ? record.status
+    : null;
+  if (name) parts.push(`name_${name}`);
+  if (status !== null) parts.push(`status_${status}`);
+  if (code) parts.push(`code_${code}`);
+  return parts.join(":").slice(0, 240);
+}
+import { ddayInKst } from "@/lib/utils/kstDate";
+
 export { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 
 function getAdminClient() {
@@ -225,7 +248,6 @@ function validateNumberField(
   const integerBounds: Record<string, readonly [number, number]> = {
     limit: [1, 20],
     day: [0, 6],
-    preferred_day: [0, 6],
     estimated_guests: [0, 10_000],
     guaranteed_guests: [0, 10_000],
     confirmed_rsvp_guests: [0, 10_000],
@@ -523,12 +545,18 @@ export async function executeTool(
     if (context.signal?.aborted) {
       throw context.signal.reason instanceof Error ? context.signal.reason : err;
     }
+    // Vendor/DB exceptions can contain request fragments or response bodies.
+    // Keep only bounded non-free-text diagnostics in server logs.
+    console.error("아모라 도구 실행 실패", {
+      toolName,
+      errorCode: safeToolExecutionErrorCode(err),
+    });
     return {
       toolName,
       toolInput,
-      toolOutput: { error: String(err) },
+      toolOutput: { error: "tool_execution_failed" },
       success: false,
-      displayMessage: "처리 중 오류가 발생했습니다.",
+      displayMessage: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
     };
   }
 }
@@ -1010,9 +1038,7 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
 
   let dDay: number | null = null;
   if (weddingDate) {
-    dDay = Math.ceil(
-      (new Date(weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
+    dDay = ddayInKst(weddingDate);
   }
 
   const allKeys = Object.keys(CATEGORY_LABELS);

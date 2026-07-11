@@ -77,18 +77,18 @@ const OTHER_KEYS = CATEGORY_RATIOS.filter((c) => !SDM_KEYS.includes(c.key)).map(
 // 고정 카테고리 키 세트 (커스텀 카테고리 식별용)
 const KNOWN_KEYS = new Set(CATEGORY_RATIOS.map((c) => c.key));
 
-// 숨겨진 추가 비용 경고 데이터
-const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
-  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
-  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
-  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
-  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
-  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
-  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
-  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
-  ham: { warning: "장식, 기사님 식사, 주차비", extra: "+5~20만원" },
-  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+// 계약 전에 포함 범위와 별도 조건을 확인할 항목. 가격 범위나 발생 가능성은 추정하지 않는다.
+const ADDITIONAL_COST_CHECKS: Record<string, string> = {
+  studio: "원본 데이터, 앨범 페이지, 보정본 수량",
+  dress: "헬퍼, 피팅, 수선, 소품",
+  makeup: "리허설, 혼주, 출장, 시작 시간",
+  venue: "식대, 최소보증인원, 꽃장식, 진행 서비스",
+  honeymoon: "보험, 수하물, 현지 이동, 선택 활동",
+  hanbok: "수선, 소품, 세탁·반납 조건",
+  gift: "포장, 배송, 최소 주문 수량",
+  snap: "원본 데이터, 편집본, 앨범·액자",
+  ham: "장식, 운송, 주차·현장 조건",
+  bouquet: "촬영용·본식용 구성, 보존, 부토니에",
 };
 
 // 분담 옵션
@@ -112,11 +112,11 @@ function formatWonFull(n: number): string {
   return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
-// 숨겨진 비용 경고 배지 컴포넌트
-function HiddenCostBadge({ catKey }: { catKey: string }) {
+// 추가비용 확인 배지
+function AdditionalCostCheckBadge({ catKey }: { catKey: string }) {
   const [show, setShow] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const data = HIDDEN_COSTS[catKey];
+  const data = ADDITIONAL_COST_CHECKS[catKey];
   if (!data) return null;
 
   return (
@@ -126,7 +126,7 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
         onMouseLeave={() => setShow(false)}
         onClick={() => setShow(!show)}
         className="w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
-        title="추가 비용 주의"
+        title="추가비용 확인 항목"
       >
         <AlertTriangle className="w-4 h-4" />
       </button>
@@ -137,10 +137,9 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
         >
           <div className="text-[11px] font-medium text-[#795252] mb-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            추가 비용 주의
+            계약 전 확인
           </div>
-          <p className="text-[11px] text-[#504444] leading-relaxed mb-1.5">{data.warning}</p>
-          <p className="text-[12px] font-medium text-[#795252]">{data.extra}</p>
+          <p className="text-[11px] text-[#504444] leading-relaxed">{data}</p>
           <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
             <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white" />
           </div>
@@ -349,7 +348,7 @@ function BudgetRow({
     <div
       className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#fcf9f8] transition-colors max-md:flex-wrap max-md:gap-2"
     >
-      {/* 아이콘 + 이름 + 숨겨진 비용 경고 */}
+      {/* 아이콘 + 이름 + 추가비용 확인 배지 */}
       <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-md:w-full">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isOver
@@ -359,7 +358,7 @@ function BudgetRow({
           <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
         </div>
         <span className="min-w-0 font-serif-kr text-[16px] font-normal leading-snug text-[#1b1c1c] line-clamp-2">{label}</span>
-        <HiddenCostBadge catKey={catKey} />
+        <AdditionalCostCheckBadge catKey={catKey} />
 
         {/* 모바일 전용: 상태 + 삭제를 라벨 옆에 배치 */}
         <div className="md:hidden ml-auto flex items-center gap-1.5 flex-shrink-0">
@@ -507,7 +506,7 @@ function BudgetCard({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="min-w-0 font-serif-kr text-[17px] font-normal leading-snug text-[#1b1c1c] line-clamp-2">{label}</span>
-              <HiddenCostBadge catKey={catKey} />
+              <AdditionalCostCheckBadge catKey={catKey} />
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
@@ -823,8 +822,8 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     {} as Record<PayerType, number>
   );
 
-  // 숨은 비용(hidden cost) 경고가 있는 카테고리 중 지출이 시작된 것들 — 경고 카드 표시용
-  const hiddenCostWarnings = Object.keys(HIDDEN_COSTS).filter(
+  // 확인 질문이 있는 카테고리 중 지출이 시작된 것들
+  const additionalCostCategories = Object.keys(ADDITIONAL_COST_CHECKS).filter(
     (k) => !hiddenKeys.has(k) && getCategorySpent(k) > 0
   );
 
@@ -1258,29 +1257,29 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
         {/* 하단: Hidden Costs + AI Spotlight */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
-          {/* Hidden Costs 섹션 */}
+          {/* 추가비용 확인 섹션 */}
           <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8">
             <div className="flex items-start gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-[#795252]" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">HIDDEN COSTS</p>
-                <h3 className="h-section">숨은 비용 체크</h3>
+                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">CONTRACT CHECK</p>
+                <h3 className="h-section">추가비용 확인 항목</h3>
                 <p className="text-sm text-[#504444] mt-1">
-                  {hiddenCostWarnings.length > 0
-                    ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에 추가 비용 주의가 필요해요.`
-                    : "예상치 못한 추가 지출을 미리 확인하세요."}
+                  {additionalCostCategories.length > 0
+                    ? `진행 중인 ${additionalCostCategories.length}개 카테고리의 계약 범위를 확인해보세요.`
+                    : "해당하는 항목의 포함 범위와 별도 조건을 확인하세요."}
                 </p>
               </div>
             </div>
             <div className="space-y-2.5 max-h-[240px] overflow-y-auto">
-              {(hiddenCostWarnings.length > 0
-                ? hiddenCostWarnings
-                : Object.keys(HIDDEN_COSTS).slice(0, 4)
+              {(additionalCostCategories.length > 0
+                ? additionalCostCategories
+                : Object.keys(ADDITIONAL_COST_CHECKS).slice(0, 4)
               ).map((key) => {
                 const cat = CATEGORY_RATIOS.find((c) => c.key === key);
-                const data = HIDDEN_COSTS[key];
+                const data = ADDITIONAL_COST_CHECKS[key];
                 if (!cat || !data) return null;
                 const Icon = ICON_MAP[cat.icon] ?? Building2;
                 return (
@@ -1290,9 +1289,8 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#1b1c1c]">{cat.label}</p>
-                      <p className="text-xs text-[#504444] truncate">{data.warning}</p>
+                      <p className="text-xs text-[#504444] truncate">{data}</p>
                     </div>
-                    <span className="text-xs font-medium text-[#795252] flex-shrink-0">{data.extra}</span>
                   </div>
                 );
               })}
@@ -1310,7 +1308,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
                 이 예산, 적정한가요?
               </h3>
               <p className="text-base text-white/70 mb-6 max-w-md">
-                AI 아모라가 시세와 비교해서 과잉/절약 포인트를 알려드려요.
+                아모라와 함께 입력한 예산과 계약 전 확인 질문을 정리해보세요.
               </p>
             </div>
             <Link

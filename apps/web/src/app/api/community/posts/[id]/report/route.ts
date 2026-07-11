@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { ReportReason } from "@/types/community.types";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+
+const MAX_REPORT_BODY_BYTES = 8 * 1024;
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -19,6 +22,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "게시글 ID가 올바르지 않습니다." }, { status: 400 });
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -38,10 +44,15 @@ export async function POST(
     );
     if (rlResult) return rlResult;
 
-    const { reason, details: rawDetails } = (await req.json()) as {
-      reason: ReportReason;
-      details?: string;
-    };
+    if (isBodyTooLarge(req, MAX_REPORT_BODY_BYTES)) {
+      return NextResponse.json({ error: "신고 내용이 너무 깁니다." }, { status: 413 });
+    }
+    const body = await req.json().catch(() => null);
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "신고 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const reason = typeof body.reason === "string" ? body.reason as ReportReason : null;
+    const rawDetails = typeof body.details === "string" ? body.details : undefined;
 
     // details 정화
     const details = rawDetails
@@ -99,6 +110,12 @@ export async function POST(
       });
 
     if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "이미 신고한 게시글입니다." },
+          { status: 409 }
+        );
+      }
       console.error("Report post error:", error);
       return NextResponse.json(
         { error: "신고 접수에 실패했습니다." },

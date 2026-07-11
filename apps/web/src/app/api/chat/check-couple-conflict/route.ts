@@ -1,8 +1,9 @@
 /**
  * 커플 갈등 자동 감지 + mediation 응답 생성 (C안 서버사이드 단일 진실원본).
  *
- * 호출 시점:
- *  - 커플 멤버가 chat_messages 에 메시지 INSERT 직후 (chatStore.sendMessage 에서 fire-and-forget POST)
+ * 현재 상태:
+ *  - 클라이언트 호출을 제거했고 AUTO_CONFLICT_MEDIATION_ENABLED=false로 이중 차단한다.
+ *  - 아래 구현은 향후 명시적 동의·삭제 경합·비용 원장을 다시 설계할 때만 참고한다.
  *
  * 동작:
  *  1. 인증 + 커플 매핑 확인

@@ -32,6 +32,7 @@ import type {
   BudgetTendency,
   GuestCount,
 } from "@/types/onboarding.types";
+import { parseLocalDateOnly } from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
 const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
@@ -125,20 +126,16 @@ export default function SettingsPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [coupleCodeError, setCoupleCodeError] = useState("");
 
-  // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
+  // 휴대폰 번호 (업체 상담 예약 요청 연락처)
   const [phoneInput, setPhoneInput] = useState("");
-  const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setPhoneInput(profile?.phone ?? "");
-    setPhoneConsent(Boolean(profile?.phone_care_consented_at));
-  }, [profile?.phone, profile?.phone_care_consented_at]);
+  }, [profile?.phone]);
 
-  const phoneDirty =
-    (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "") ||
-    Boolean(profile?.phone_care_consented_at) !== phoneConsent;
+  const phoneDirty = (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "");
 
   async function savePhone() {
     if (isDemo || phoneSaving) return;
@@ -147,7 +144,7 @@ export default function SettingsPage() {
     try {
       await updateProfile({
         phone: phoneInput,
-        phone_care_consent: phoneInput.replace(/[^0-9]/g, "") ? phoneConsent : false,
+        phone_care_consent: false,
       });
       setPhoneMessage("저장했어요.");
     } catch (err) {
@@ -423,7 +420,7 @@ export default function SettingsPage() {
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const weddingDate = journey?.wedding_date ? parseLocalDateOnly(journey.wedding_date) : null;
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
     : "날짜 미정";
@@ -872,39 +869,28 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
+          {/* 선제 아웃바운드는 명시 동의·철회·중복방지 E2E 전까지 하드 비활성 */}
           <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
             <div>
-              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기</p>
+              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 선제 알림 · 준비 중</p>
               <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 등 일정 전후에 아모라가 이메일로 먼저 안부를 물어요
+                현재 아모라는 사용자가 채팅을 열었을 때만 답합니다. 이메일·문자 자동 발송은 꺼져 있어요.
               </p>
             </div>
             <button
-              onClick={() => {
-                if (isDemo) return;
-                updateProfile({
-                  care_notifications_enabled: !(profile?.care_notifications_enabled ?? true),
-                }).catch(() => {});
-              }}
-              className={`w-12 h-7 rounded-full transition-colors relative ${
-                (profile?.care_notifications_enabled ?? true)
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a]"
-                  : "bg-[#B5ADA3]/30"
-              }`}
+              type="button"
+              disabled
+              aria-label="아모라 선제 알림, 준비 중"
+              className="w-12 h-7 rounded-full relative bg-[#B5ADA3]/30 cursor-not-allowed"
             >
-              <div
-                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
-                  (profile?.care_notifications_enabled ?? true) ? "left-[22px]" : "left-0.5"
-                }`}
-              />
+              <div className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm" />
             </button>
           </div>
-          {/* 휴대폰 번호 — 알림톡/문자 케어 채널 준비 (서버 저장) */}
+          {/* 사용자가 선택적으로 저장하는 연락처 */}
           <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
             <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
             <p className="text-sm text-[#B5ADA3] font-light mb-3">
-              카톡·문자 케어 오픈 시 이 번호로 아모라가 먼저 안부를 물어요 (준비 중)
+              선택적으로 저장할 수 있는 연락처입니다. 업체 연결 준비 중에는 상담 요청에 사용하거나 업체에 전송하지 않으며, 아모라 자동 알림에도 사용하지 않습니다.
             </p>
             <div className="flex gap-2">
               <input
@@ -923,28 +909,14 @@ export default function SettingsPage() {
                 {phoneSaving ? "저장 중" : "저장"}
               </button>
             </div>
-            <label className="mt-3 flex items-start gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={phoneConsent}
-                onChange={(e) => setPhoneConsent(e.target.checked)}
-                disabled={isDemo || !phoneInput.replace(/[^0-9]/g, "")}
-                className="mt-0.5 h-4 w-4 accent-[#795252]"
-              />
-              <span className="text-sm text-[#504444] font-light leading-relaxed">
-                직접 입력한 일정 안내를 카톡·문자로 받는 것에 동의합니다
-                <span className="text-[#B5ADA3]"> (언제든 여기서 해제 가능)</span>
-              </span>
-            </label>
             {phoneMessage && (
               <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
             )}
           </div>
           {[
-            { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
-            { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
-            { key: "ai" as const, label: "맞춤 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
-            { key: "marketing" as const, label: "마케팅 알림", desc: "이벤트, 할인 정보" },
+            { key: "schedule" as const, label: "앱 안 일정 카드", desc: "D-day 체크리스트 안내 표시" },
+            { key: "budget" as const, label: "앱 안 예산 카드", desc: "입력한 예산 기준 안내 표시" },
+            { key: "ai" as const, label: "앱 안 준비 팁", desc: "정적 맞춤 팁 표시" },
           ].map((item) => (
             <div
               key={item.key}
@@ -956,6 +928,10 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => toggleNotification(item.key)}
+                type="button"
+                role="switch"
+                aria-checked={notifications[item.key]}
+                aria-label={`${item.label} ${notifications[item.key] ? "끄기" : "켜기"}`}
                 className={`w-12 h-7 rounded-full transition-colors relative ${
                   notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-[#B5ADA3]/30"
                 }`}
@@ -980,7 +956,7 @@ export default function SettingsPage() {
         {[
           { label: "이용약관" },
           { label: "개인정보 처리방침" },
-          { label: "고객센터" },
+          { label: "문의 안내" },
           { label: "앱 버전", value: "v1.0.0 (Beta)" },
         ].map((item) => (
           <button

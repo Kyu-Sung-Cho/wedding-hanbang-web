@@ -7,19 +7,19 @@ const profiles = [
 ];
 
 describe("resolveBookingContact", () => {
-  it("uses authoritative couple names and the current user's saved phone", () => {
+  it("uses only the current user's authoritative name and saved phone", () => {
     expect(resolveBookingContact(profiles, "groom")).toEqual({
-      brideName: "김신부",
+      brideName: "",
       groomName: "박신랑",
       contactPhone: "01033334444",
     });
   });
 
-  it("falls back to the partner phone when the current user has none", () => {
+  it("never falls back to the partner phone without that partner's explicit consent", () => {
     expect(resolveBookingContact(
       [{ ...profiles[0], phone: null }, profiles[1]],
       "bride",
-    ).contactPhone).toBe("01033334444");
+    )).toEqual({ brideName: "김신부", groomName: "", contactPhone: null });
   });
 
   it("rejects missing or malformed phones instead of creating a blank booking", () => {

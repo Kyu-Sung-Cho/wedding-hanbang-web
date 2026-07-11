@@ -5,7 +5,7 @@ import type { AmoraQuoteCategory, AmoraQuoteRegion } from "../quoteCheck";
 const REGIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
 const CATEGORIES: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 
-function analyze(category: AmoraQuoteCategory, region: AmoraQuoteRegion, price: number) {
+function analyze(category: AmoraQuoteCategory, region: AmoraQuoteRegion, price = 300) {
   return analyzeAmoraQuoteCheck({
     category,
     region,
@@ -14,77 +14,66 @@ function analyze(category: AmoraQuoteCategory, region: AmoraQuoteRegion, price: 
   });
 }
 
-describe("지역별 중위가 비교 (정밀도 핵심)", () => {
-  it("모든 카테고리×지역 조합에서 중위가가 0보다 크다", () => {
+describe("견적 확인 신뢰 경계", () => {
+  it("항목 payload에 출처 없는 가격·비율·중요도 필드가 없다", () => {
     for (const category of CATEGORIES) {
       for (const region of REGIONS) {
-        const result = analyze(category, region, 300);
-        expect(result.marketMedianManwon, `${category}/${region}`).toBeGreaterThan(0);
-        expect(result.marketComparatorLabel, `${category}/${region}`).toBeTruthy();
+        for (const item of getQuoteCheckItems(category, region)) {
+          expect(Object.keys(item).sort()).toEqual(
+            ["category", "checkQuestion", "id", "name"].sort()
+          );
+          expect(item.checkQuestion).toBeTruthy();
+        }
       }
     }
   });
 
-  it("스드메 패키지: 서울과 경기/인천은 서로 다른 지역 중위가와 비교한다", () => {
-    const seoul = analyze("sdm_package", "seoul", 300);
-    const gyeonggi = analyze("sdm_package", "gyeonggi", 300);
-    expect(seoul.marketComparatorLabel).toContain("서울");
-    expect(gyeonggi.marketComparatorLabel).toContain("경기/인천");
-    // 참가격 통계상 서울 패키지 중위가가 경기/인천보다 뚜렷이 높다
-    expect(seoul.marketMedianManwon).toBeGreaterThan(gyeonggi.marketMedianManwon);
+  it("지역 입력으로 체크 항목의 가격이나 발생 가능성을 만들지 않는다", () => {
+    const seoul = getQuoteCheckItems("studio", "seoul");
+    const other = getQuoteCheckItems("studio", "other");
+    expect(seoul).toEqual(other);
   });
 
-  it("회귀: 경기/인천 정상 견적의 중위가 대비 %가 서울 기준으로 왜곡되지 않는다", () => {
-    // 경기/인천 패키지 중위가(230만원대) 근처 견적 200만원 —
-    // 과거 서울 합산치(380만원대)와 비교하면 -47%로 '현저히 낮음'으로 읽혔다.
-    const result = analyze("sdm_package", "gyeonggi", 200);
-    expect(result.priceDiffPercent).toBeGreaterThan(-30);
-  });
-
-  it("부산/대구는 5대광역시, 기타는 기타지역 통계와 비교한다", () => {
-    expect(analyze("sdm_package", "busan", 300).marketComparatorLabel).toContain("5대광역시");
-    expect(analyze("sdm_package", "daegu", 300).marketComparatorLabel).toContain("5대광역시");
-    expect(analyze("sdm_package", "other", 300).marketComparatorLabel).toContain("기타지역");
-  });
-
-  it("드레스/메이크업은 비교 기준 항목을 라벨에 명시한다", () => {
-    expect(analyze("dress", "seoul", 150).marketComparatorLabel).toContain("드레스");
-    expect(analyze("makeup", "busan", 70).marketComparatorLabel).toContain("메이크업");
-  });
-});
-
-describe("판정 없음 — 사실만 노출", () => {
-  it("결과에 점수·등급·판정·가격대 분류·추정액 필드가 없다", () => {
-    const result = analyze("sdm_package", "seoul", 300) as unknown as Record<string, unknown>;
+  it("결과에 가격 비교·등급·추정·필수성 필드가 없다", () => {
+    const result = analyze("sdm_package", "seoul") as unknown as Record<string, unknown>;
     for (const banned of [
+      "marketMedianManwon",
+      "marketComparatorLabel",
+      "priceDiffPercent",
+      "missingCriticalCount",
+      "missingHighCount",
+      "missingMediumCount",
+      "missingItems",
       "score",
       "grade",
       "verdict",
-      "priceTier",
-      "priceTierAutoInferred",
-      "showPriceComparison",
       "redFlags",
-      "estimatedHiddenMinManwon",
-      "estimatedHiddenMaxManwon",
-      "estimatedTotalMinManwon",
-      "estimatedTotalMaxManwon",
+      "estimatedHiddenCost",
+      "estimatedTotal",
     ]) {
-      expect(result[banned], `${banned} 필드는 제거되어야 함`).toBeUndefined();
+      expect(result[banned], banned).toBeUndefined();
     }
   });
 
-  it("요약 문구가 개수 사실만 말하고 평가 단어를 쓰지 않는다", () => {
-    const result = analyze("sdm_package", "seoul", 300);
-    expect(result.summaryTitle).toContain("확인되지 않았어요");
-    for (const judgment of ["위험", "안전", "바가지", "등급", "점수"]) {
-      expect(result.summaryTitle).not.toContain(judgment);
-      expect(result.summaryText).not.toContain(judgment);
-    }
+  it("체크하지 않은 항목을 미포함으로 단정하지 않는다", () => {
+    const result = analyze("studio", "seoul");
+    expect(result.unconfirmedItemCount).toBe(result.unconfirmedItems.length);
+    expect(result.summaryTitle).toContain("포함 여부");
+    expect(result.summaryText).toContain("미포함 판정이 아니라");
+  });
+
+  it("총괄 조사 수치는 개별 가격이 아닌 2024 조사 참고로만 분리한다", () => {
+    const result = analyze("studio", "seoul");
+    expect(result.sourceNote).toContain("2024년 5~11월 조사");
+    expect(result.sourceNote).toContain("기본금 평균 346만원");
+    expect(result.sourceNote).toContain("추가 지불 평균 174만원");
+    expect(result.sourceNote).toContain("개별 견적이나 항목별 현재 시세가 아닙니다");
+    expect(result.sourceUrl).toMatch(/^https:\/\/www\.kca\.go\.kr\//);
   });
 });
 
 describe("체크리스트 일관성", () => {
-  it("항목을 전부 체크하면 빠짐 카운트 0 + 질문 0개 + 완료 요약", () => {
+  it("항목을 전부 포함으로 표시하면 확인 필요 0개와 완료 요약을 반환한다", () => {
     const allIds = getQuoteCheckItems("sdm_package", "seoul").map((item) => item.id);
     const result = analyzeAmoraQuoteCheck({
       category: "sdm_package",
@@ -92,28 +81,28 @@ describe("체크리스트 일관성", () => {
       quotePriceManwon: 300,
       includedItemIds: allIds,
     });
-    expect(result.missingCriticalCount + result.missingHighCount + result.missingMediumCount).toBe(0);
+    expect(result.unconfirmedItemCount).toBe(0);
     expect(result.contractQuestions).toHaveLength(0);
-    expect(result.summaryTitle).toContain("모두");
+    expect(result.summaryTitle).toContain("모두 포함");
   });
 
-  it("아무것도 체크 안 하면 필수·고빈도 항목 기준 질문이 최대 6개 생성된다", () => {
-    const result = analyze("sdm_package", "seoul", 300);
-    expect(result.missingCriticalCount).toBeGreaterThan(0);
+  it("확인하지 않은 항목에서 업체 질문을 최대 6개 만든다", () => {
+    const result = analyze("sdm_package", "seoul");
+    expect(result.unconfirmedItemCount).toBeGreaterThan(0);
     expect(result.contractQuestions.length).toBeGreaterThan(0);
     expect(result.contractQuestions.length).toBeLessThanOrEqual(6);
   });
 
-  it("포함/누락 분할이 입력과 일치한다", () => {
+  it("유효하지 않은 ID는 포함으로 세지 않는다", () => {
     const items = getQuoteCheckItems("studio", "seoul");
-    const half = items.slice(0, Math.floor(items.length / 2)).map((item) => item.id);
+    const includedIds = items.slice(0, 3).map((item) => item.id);
     const result = analyzeAmoraQuoteCheck({
       category: "studio",
       region: "seoul",
       quotePriceManwon: 150,
-      includedItemIds: half,
+      includedItemIds: [...includedIds, "made_up_item"],
     });
-    expect(result.checkedItemCount).toBe(half.length);
-    expect(result.includedItems.length + result.missingItems.length).toBe(items.length);
+    expect(result.checkedItemCount).toBe(includedIds.length);
+    expect(result.includedItems.length + result.unconfirmedItems.length).toBe(items.length);
   });
 });

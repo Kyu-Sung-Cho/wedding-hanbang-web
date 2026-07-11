@@ -476,11 +476,11 @@ function QuoteCheckHero() {
               계약 전 3분 체크 · 로그인 없이 무료
             </span>
             <h1 className="mt-2.5 font-serif-kr text-[26px] font-medium leading-[1.3] text-[#071629] md:text-[30px]">
-              스드메 견적서, 빠진 항목 없는지 확인해 보세요
+              스드메 견적서, 포함 범위를 항목별로 확인해 보세요
             </h1>
             <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.65] text-[#5d6879] md:text-[14px]">
-              좋다·나쁘다 판정 대신 사실만 — 확인 안 된 항목, 한국소비자원 평균가,
-              계약 전에 업체에 보낼 질문까지 정리해 드려요.
+              항목별 가격이나 발생 가능성을 추정하지 않고, 사용자가 표시한 포함 범위와
+              계약 전에 업체에 보낼 질문을 정리해 드려요.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">

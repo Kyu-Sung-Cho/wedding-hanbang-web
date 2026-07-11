@@ -10,57 +10,40 @@ import {
 
 const MAX_W = REPORT_W - REPORT_PAD * 2;
 
-describe("견적 리포트 카드 레이아웃", () => {
-  it("초장문 항목명도 말줄임으로 폭 안에 들어간다 (38px)", () => {
+describe("추가비용 확인 카드 레이아웃", () => {
+  it("초장문 항목명도 가격 문구 없이 폭 안에서 말줄임한다", () => {
     const line = buildItemLine(
-      { name: "아주아주아주아주 길고 긴 스튜디오 원본 전체 데이터 구매 비용 항목", priceManwon: 38.5, severity: "high" },
+      { name: "아주아주아주아주 길고 긴 스튜디오 원본 전체 데이터 제공 확인 항목" },
       38,
-      approxMeasure
+      approxMeasure,
+      380
     );
-    expect(approxMeasure(line, 38)).toBeLessThanOrEqual(MAX_W);
+    expect(approxMeasure(line, 38)).toBeLessThanOrEqual(380);
     expect(line).toContain("…");
-    expect(line).toContain("평균 39만원");
+    expect(line).not.toContain("평균");
+    expect(line).not.toContain("만원");
   });
 
   it("일반 항목명은 그대로 유지된다", () => {
-    const line = buildItemLine(
-      { name: "원본구매비", priceManwon: 39, severity: "high" },
-      38,
-      approxMeasure
+    expect(buildItemLine({ name: "원본 데이터 제공" }, 38, approxMeasure)).toBe(
+      "원본 데이터 제공"
     );
-    expect(line).toBe("원본구매비 — 평균 39만원");
   });
 
-  it("태그 폭을 뺀 좁은 폭에서도 안전하다", () => {
-    const line = buildItemLine(
-      { name: "본식드레스도우미헬퍼추가비용", priceManwon: 25, severity: "critical" },
-      38,
-      approxMeasure,
-      MAX_W - 120
-    );
-    expect(approxMeasure(line, 38)).toBeLessThanOrEqual(MAX_W - 120);
-  });
-
-  it("항목 선택 — 필수 우선 정렬, 최대 6개, 나머지는 moreCount로 정직 표기", () => {
-    const items = Array.from({ length: 9 }, (_, i) => ({
-      name: `항목${i}`,
-      priceManwon: 10,
-      severity: (i < 3 ? "medium" : i < 6 ? "high" : "critical") as "critical" | "high" | "medium",
-    }));
+  it("항목 선택은 중요도를 만들지 않고 입력 순서를 유지한다", () => {
+    const items = Array.from({ length: 10 }, (_, index) => ({ name: `항목${index}` }));
     const { shown, moreCount } = selectReportItems(items);
-    expect(shown).toHaveLength(6);
-    expect(moreCount).toBe(3);
-    expect(shown.slice(0, 3).every((item) => item.severity === "critical")).toBe(true);
+    expect(shown).toEqual(items.slice(0, 8));
+    expect(moreCount).toBe(2);
   });
 
   it("0개 항목이면 moreCount 0", () => {
-    const { shown, moreCount } = selectReportItems([]);
-    expect(shown).toHaveLength(0);
-    expect(moreCount).toBe(0);
+    expect(selectReportItems([])).toEqual({ shown: [], moreCount: 0 });
   });
 
-  it("만원 포맷 — 반올림·천단위 구분", () => {
+  it("사용자 입력 견적가 포맷은 반올림·천단위 구분을 유지한다", () => {
     expect(formatReportManwon(38.5)).toBe("39만원");
     expect(formatReportManwon(1250)).toBe("1,250만원");
+    expect(MAX_W).toBeGreaterThan(0);
   });
 });

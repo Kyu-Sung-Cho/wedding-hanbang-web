@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  markAmoraProviderStarted,
   reserveAmoraProviderCall,
   reserveAmoraUserTurn,
 } from "../costGuard";
@@ -10,6 +11,8 @@ function makeAdmin(result: {
   allowed?: boolean;
   reason?: string | null;
   remaining?: number | null;
+  providerRemaining?: number | null;
+  reused?: boolean;
   error?: boolean;
   throws?: boolean;
 }) {
@@ -21,6 +24,8 @@ function makeAdmin(result: {
         allowed: result.allowed ?? true,
         reason: result.reason ?? null,
         remaining: result.remaining ?? null,
+        provider_remaining: result.providerRemaining ?? null,
+        reused: result.reused ?? false,
       }],
       error: null,
     };
@@ -65,6 +70,35 @@ describe("split Amora usage reservations", () => {
     }));
   });
 
+  it("uses the idempotent reservation RPC when request identity is provided", async () => {
+    const { admin, rpc } = makeAdmin({
+      allowed: true,
+      remaining: 29,
+      providerRemaining: 58,
+      reused: true,
+    });
+    const result = await reserveAmoraUserTurn(admin, {
+      ...BASE,
+      reservation: {
+        requestKey: "a".repeat(64),
+        requestHash: "b".repeat(64),
+        providerOrdinal: 0,
+      },
+    });
+
+    expect(result).toEqual({
+      allowed: true,
+      remaining: 29,
+      providerRemaining: 58,
+      reservationReused: true,
+    });
+    expect(rpc).toHaveBeenCalledWith("reserve_amora_usage_v2", expect.objectContaining({
+      p_request_key: "a".repeat(64),
+      p_request_hash: "b".repeat(64),
+      p_provider_ordinal: 0,
+    }));
+  });
+
   it("admins skip the couple quota but not the global provider breaker", async () => {
     const { admin, rpc } = makeAdmin({ allowed: true });
     await reserveAmoraUserTurn(admin, { ...BASE, isAdmin: true });
@@ -75,6 +109,7 @@ describe("split Amora usage reservations", () => {
 
   it.each([
     ["global_daily", "global_daily"],
+    ["couple_provider_daily", "couple_provider_daily"],
     ["couple_quota", "couple_quota"],
   ])("maps %s denial", async (rpcReason, expectedReason) => {
     const { admin } = makeAdmin({ allowed: false, reason: rpcReason });
@@ -82,6 +117,21 @@ describe("split Amora usage reservations", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe(expectedReason);
     expect(result.message).toBeTruthy();
+  });
+
+  it("marks the exact request ordinal immediately before provider entry", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+    await expect(markAmoraProviderStarted({ rpc } as never, {
+      requestKey: "a".repeat(64),
+      requestHash: "b".repeat(64),
+      providerOrdinal: 1,
+    })).resolves.toBeUndefined();
+
+    expect(rpc).toHaveBeenCalledWith("mark_amora_provider_started", {
+      p_request_key: "a".repeat(64),
+      p_request_hash: "b".repeat(64),
+      p_provider_ordinal: 1,
+    });
   });
 
   it("fails closed when the atomic ledger is unavailable", async () => {

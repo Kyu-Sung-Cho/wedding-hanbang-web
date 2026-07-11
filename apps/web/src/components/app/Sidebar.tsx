@@ -19,6 +19,7 @@ import {
 import Logo from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+import { parseLocalDateOnly } from "@hanbang/shared";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money"];
@@ -47,8 +48,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
   const userInitial = userName.charAt(0);
-  const weddingDateStr = journey?.wedding_date
-    ? new Date(journey.wedding_date).toLocaleDateString("ko-KR", {
+  const weddingDate = journey?.wedding_date ? parseLocalDateOnly(journey.wedding_date) : null;
+  const weddingDateStr = weddingDate
+    ? weddingDate.toLocaleDateString("ko-KR", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",

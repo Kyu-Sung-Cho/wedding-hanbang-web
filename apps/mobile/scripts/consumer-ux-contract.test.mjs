@@ -56,3 +56,80 @@ test("vendor favorites never fail as a silent empty set", () => {
   assert.match(source, /저장된 즐겨찾기를 불러오지 못했어요/);
   assert.match(source, /Alert\.alert\("즐겨찾기를 저장하지 못했어요"/);
 });
+
+test("vendor detail distinguishes missing, failed products, and failed slots", () => {
+  const source = readSource("app/vendors/[id].tsx");
+
+  assert.match(source, /setVendorError\(error\?\.code === "PGRST116" \? "not_found" : "load"\)/);
+  assert.match(source, /업체 정보를 불러오지 못했어요/);
+  assert.match(source, /저장된 정보가 삭제된 것은 아니에요/);
+  assert.match(source, /setProductsError\(true\)/);
+  assert.match(source, /상품 정보를 불러오지 못했어요/);
+  assert.match(source, /setSlotsError\(true\)/);
+  assert.match(source, /상담 요청 시간을 불러오지 못했어요/);
+});
+
+test("vendor availability uses the aggregate server boundary instead of partial RLS rows", () => {
+  const source = readSource("app/vendors/[id].tsx");
+  const availabilityLoader = source.match(
+    /const loadAvailableSlots = useCallback[\s\S]*?\n {2}\}, \[id, selectedProduct\]\);/
+  )?.[0] ?? "";
+
+  assert.match(availabilityLoader, /\/availability\?/);
+  assert.match(availabilityLoader, /availableHours/);
+  assert.doesNotMatch(availabilityLoader, /\.from\("vendor_bookings"\)/);
+});
+
+test("vendor booking submission stays visibly hard disabled until a real vendor channel exists", () => {
+  const vendor = readSource("app/vendors/[id].tsx");
+  const bookings = readSource("app/bookings/index.tsx");
+  const dashboard = readSource("app/(tabs)/dashboard.tsx");
+
+  assert.match(vendor, /const BOOKING_REQUESTS_ENABLED = false/);
+  assert.match(vendor, /disabled=\{!BOOKING_REQUESTS_ENABLED\}/);
+  assert.match(vendor, /visible=\{BOOKING_REQUESTS_ENABLED && bookingVisible\}/);
+  assert.match(vendor, /현재 상담 요청은 업체에 전송되지 않습니다/);
+  assert.match(vendor, /과거 상담 요청 내역 보기/);
+
+  assert.match(bookings, /과거·예시 요청 기록/);
+  assert.match(bookings, /신규 상담 요청은 현재 받지 않아요/);
+  assert.match(bookings, /const BOOKING_OUTCOMES_ENABLED = false/);
+  assert.match(bookings, /BOOKING_OUTCOMES_ENABLED && completed/);
+  assert.match(bookings, /결과 저장과 공개 후기도 현재 지원하지 않아요/);
+  assert.doesNotMatch(bookings, /업체 상세에서 상담 날짜와 상품을 선택하면 예약이 여기에 모여요/);
+  assert.doesNotMatch(bookings, /업체 탐색하기/);
+  assert.match(dashboard, /const BOOKING_OUTCOMES_ENABLED = false/);
+  assert.match(dashboard, /BOOKING_OUTCOMES_ENABLED && \(data\?\.bookingOutcomeTasks\?\.length \?\? 0\) > 0/);
+});
+
+test("vendor discovery labels registration data without promising verification or availability", () => {
+  const vendors = readSource("app/vendors/index.tsx");
+  const detail = readSource("app/vendors/[id].tsx");
+  const profile = readSource("app/(tabs)/profile.tsx");
+
+  assert.match(vendors, /품질, 최신 가격, 예약 가능 여부를 보증하지 않아요/);
+  assert.match(vendors, /정보 많은 순/);
+  assert.match(vendors, /등록 평점순/);
+  assert.doesNotMatch(vendors, /추천순|인기순/);
+  assert.doesNotMatch(vendors, /검증된 업체를 불러오고 있어요|>검증됨<|>검증</);
+  assert.match(detail, /최신 가격, 예약 가능 여부를 보증하지 않아요/);
+  assert.doesNotMatch(detail, /예약 확정 전 포함/);
+  assert.match(profile, /label="문의 안내"/);
+  assert.doesNotMatch(profile, /label="고객센터"/);
+});
+
+test("mobile onboarding copy distinguishes examples from real activity", () => {
+  const guide = readSource("src/components/AppGuide.tsx");
+  const login = readSource("app/(auth)/login.tsx");
+  const dashboard = readSource("app/(tabs)/dashboard.tsx");
+
+  assert.match(guide, /화면 예시 · 실제 사용자 데이터가 아닙니다/);
+  assert.match(guide, /예시 사용자/);
+  assert.doesNotMatch(guide, /멤버 248명/);
+  assert.doesNotMatch(guide, /제주신부/);
+  assert.doesNotMatch(guide, /결혼 준비의 모든 것/);
+  assert.doesNotMatch(login, /동의하는 것으로 간주됩니다/);
+  assert.match(login, /회원가입 전 이용약관과 개인정보처리방침/);
+  assert.doesNotMatch(dashboard, /설레는 마음, 완벽한 준비/);
+  assert.doesNotMatch(dashboard, /다음 업체 추천이 더 정확해져요/);
+});

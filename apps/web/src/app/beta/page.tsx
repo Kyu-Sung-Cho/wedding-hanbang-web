@@ -3,27 +3,18 @@ import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
 import { Check } from "lucide-react";
 import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import {
+  USER_RESEARCH_COHORT_BENEFITS,
+  USER_RESEARCH_COHORT_CONDITIONS,
+} from "@/constants/beta";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
 
 export const metadata = {
-  title: "베타 신청 · 웨딩한방",
-  description: "6주간 아모라 상담, 견적 체크, 예산·일정 준비 흐름을 함께 검증할 50쌍을 찾습니다.",
+  title: "사용자 연구 코호트 신청 · 웨딩한방",
+  description: "베타 계정 이용과 별도로, 6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구 코호트 50쌍을 찾습니다.",
 };
-
-const BENEFITS = [
-  "아모라 상담 · 견적 체크리스트 우선 체험",
-  "예산 · 일정 · 커플 준비 흐름 함께 검증",
-  "불편 사항과 필요한 기능을 개선에 직접 반영",
-  "베타 운영 변경 사항을 이메일로 안내",
-];
-
-const CONDITIONS = [
-  "2026년 6~12월 결혼 예정",
-  "신부 · 신랑 모두 참여 가능",
-  "주 1회 짧은 피드백",
-];
 
 export default async function BetaPage() {
   const current = await getBetaCount();
@@ -47,7 +38,7 @@ export default async function BetaPage() {
 
         <div className="relative z-10 max-w-[1240px] mx-auto">
           <p className="text-[11px] tracking-[0.3em] text-rose-light mb-6 font-medium">
-            베타 모집
+            사용자 연구 코호트 모집
           </p>
           <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em] max-w-3xl">
             6주간 함께해 주실
@@ -55,9 +46,9 @@ export default async function BetaPage() {
             <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
-            현재 제공 중인 아모라와 준비 도구를 6주간 먼저 경험하고,
+            일반 베타 계정 이용과 별도로, 이 페이지에서는
             <br />
-            실제 준비 과정에서 필요한 개선을 함께 찾습니다.
+            6주간 심층 피드백에 참여할 사용자 연구 코호트를 모집합니다.
           </p>
         </div>
       </section>
@@ -70,10 +61,10 @@ export default async function BetaPage() {
             {/* Benefits */}
             <div>
               <p className="text-[11px] tracking-[0.22em] text-rose-light/80 mb-7 font-medium">
-                베타 참여 혜택
+                사용자 연구 참여 혜택
               </p>
               <ul className="space-y-6">
-                {BENEFITS.map((benefit, idx) => (
+                {USER_RESEARCH_COHORT_BENEFITS.map((benefit, idx) => (
                   <li
                     key={benefit}
                     className="flex items-baseline gap-6 text-[16px] md:text-[18px] text-white/90 font-light leading-[1.65]"
@@ -93,7 +84,7 @@ export default async function BetaPage() {
                 참여 조건
               </p>
               <ul className="space-y-4 text-[14px] md:text-[15px] text-white/70 font-light leading-[1.85]">
-                {CONDITIONS.map((cond) => (
+                {USER_RESEARCH_COHORT_CONDITIONS.map((cond) => (
                   <li key={cond} className="flex items-baseline gap-5">
                     <span className="text-rose-light/40">·</span>
                     <span>{cond}</span>
@@ -114,15 +105,15 @@ export default async function BetaPage() {
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">02</span>
-                  이메일로 참여 확정 안내 (2~3일 이내)
+                  선정 결과와 다음 단계를 이메일로 안내
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">03</span>
-                  아모라 계정 생성 + 6주 동행
+                  선정된 분께 사용자 연구 시작일과 참여 방법 안내
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">04</span>
-                  베타 종료 후 변경 사항과 정식 출시 일정 안내
+                  6주 연구 종료 후 확인된 개선 사항 안내
                 </li>
               </ul>
             </div>
@@ -134,12 +125,12 @@ export default async function BetaPage() {
               <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
                 <Check className="w-8 h-8 text-rose-light mb-6" />
                 <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-4">
-                  베타 50쌍 <em className="not-italic text-rose-light">모집 완료</em>
+                  사용자 연구 50쌍 <em className="not-italic text-rose-light">모집 완료</em>
                 </h2>
                 <p className="text-white/70 text-[15px] leading-[1.8] font-light mb-6">
                   많은 관심 감사드립니다.
                   <br />
-                  베타 종료 후 정식 출시 소식을 전해드릴게요.
+                  다음 사용자 연구 일정이 정해지면 별도로 안내드릴게요.
                 </p>
                 <p className="text-white/50 text-[12px] tracking-[0.18em]">
                   현재 {current} / {BETA_TOTAL}

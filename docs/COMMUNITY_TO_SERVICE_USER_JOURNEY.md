@@ -1,5 +1,8 @@
 # 커뮤니티에서 웨딩 라운지까지 유저 저니 전략 문서
 
+> [!WARNING]
+> **목표 사용자 여정 문서입니다.** 아래 자동 일정·예산 반영, 예약 관리, 구조화된 후기 순환은 현재 동작을 보장하지 않습니다. 현재 AI는 읽기·정리 중심이고 새 업체 상담 요청·예약·결과 저장은 비활성입니다. 실제 소비자 여정은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)와 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)를 우선합니다.
+
 작성일: 2026-05-29  
 범위: 커뮤니티(`/community`) → 아모라 → 웨딩 라운지(`/lounge`) → 서비스 기능 전반  
 작성 목적: 웨딩한방의 커뮤니티와 서비스가 어떤 사용자 여정을 만들고, 각 화면이 어떤 역할을 해야 하는지 제품 관점에서 정리한다.

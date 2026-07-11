@@ -9,10 +9,22 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getServiceClient();
+    const now = new Date().toISOString();
+
+    const { error: purgeError } = await supabase
+      .from("preregistrations")
+      .delete()
+      .lt("expires_at", now);
+    if (purgeError) {
+      console.error("[admin/registrations] expired purge failed:", purgeError);
+      return NextResponse.json({ error: "보유기간이 지난 신청 정보를 정리하지 못했습니다." }, { status: 503 });
+    }
 
     const { data: registrations, error } = await supabase
       .from("preregistrations")
       .select("*")
+      .not("privacy_consent_at", "is", null)
+      .gt("expires_at", now)
       .order("created_at", { ascending: false });
 
     if (error) {

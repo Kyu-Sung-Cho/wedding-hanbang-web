@@ -21,15 +21,15 @@ const STUDIOS = [
   // ── 중급 (6곳) ──
   { name: "달리 스튜디오", location: "서울 동작구", region: "서울", priceMin: 600000, priceMax: 1500000, style: "내추럴", tags: ["사당", "가성비", "내추럴"], desc: "사당역. 합리적 가격에 자연스러운 결과물." },
   { name: "더 데이 스튜디오", location: "서울 영등포구", region: "서울", priceMin: 700000, priceMax: 1700000, style: "클래식", tags: ["여의도", "클래식", "직장인"], desc: "여의도 직장인 신랑신부를 위한 평일 야간 촬영 가능." },
-  { name: "스마일 스튜디오", location: "경기 수원시", region: "경기", priceMin: 650000, priceMax: 1600000, style: "감성", tags: ["수원", "감성", "경기남부"], desc: "수원역. 경기남부 가성비 스튜디오 평점 1위." },
+  { name: "스마일 스튜디오", location: "경기 수원시", region: "경기", priceMin: 650000, priceMax: 1600000, style: "감성", tags: ["수원", "감성", "경기남부"], desc: "경기 남부의 감성 콘셉트를 보여주는 운영 테스트용 예시." },
   { name: "원더풀 스튜디오", location: "인천 남동구", region: "인천", priceMin: 600000, priceMax: 1500000, style: "내추럴", tags: ["인천", "구월동", "넓은공간"], desc: "인천 구월동 200평 매장. 야외 정원 같이 운영." },
   { name: "리얼 스튜디오", location: "서울 광진구", region: "서울", priceMin: 700000, priceMax: 1700000, style: "모던", tags: ["건대", "모던", "젊은감각"], desc: "건대입구. 젊은 감각의 모던 컨셉 전문." },
-  { name: "메모리 스튜디오", location: "경기 부천시", region: "경기", priceMin: 600000, priceMax: 1400000, style: "클래식", tags: ["부천", "가성비", "클래식"], desc: "부천역. 부천/김포 신랑신부에게 인기." },
+  { name: "메모리 스튜디오", location: "경기 부천시", region: "경기", priceMin: 600000, priceMax: 1400000, style: "클래식", tags: ["부천", "가성비", "클래식"], desc: "부천·김포 지역의 클래식 콘셉트를 보여주는 운영 테스트용 예시." },
 
   // ── 가성비 (3곳) ──
-  { name: "굿데이 스튜디오", location: "서울 도봉구", region: "서울", priceMin: 350000, priceMax: 900000, style: "심플", tags: ["초가성비", "도봉", "심플"], desc: "쌍문역. 깔끔하고 합리적. 50만원대 패키지로 입문용 인기." },
+  { name: "굿데이 스튜디오", location: "서울 도봉구", region: "서울", priceMin: 350000, priceMax: 900000, style: "심플", tags: ["가성비", "도봉", "심플"], desc: "심플한 입문 구성을 보여주는 운영 테스트용 예시." },
   { name: "행복 스튜디오", location: "경기 의정부시", region: "경기", priceMin: 400000, priceMax: 1000000, style: "내추럴", tags: ["의정부", "경기북부", "가성비"], desc: "의정부역. 경기 북부권 가성비 스튜디오." },
-  { name: "라이트 스튜디오", location: "경기 안양시", region: "경기", priceMin: 380000, priceMax: 950000, style: "심플", tags: ["안양", "심플", "주말촬영"], desc: "안양역. 주말 촬영 슬롯 많음. 빠른 일정 가능." },
+  { name: "라이트 스튜디오", location: "경기 안양시", region: "경기", priceMin: 380000, priceMax: 950000, style: "심플", tags: ["안양", "심플", "주말촬영"], desc: "주말 운영시간 표기를 시험하기 위한 운영 테스트용 예시." },
 ];
 
 function generateStudioProducts(shop: typeof STUDIOS[0]) {
@@ -41,7 +41,7 @@ function generateStudioProducts(shop: typeof STUDIOS[0]) {
     // 프리미엄/중상급
     products.push({
       name: "베이직 패키지",
-      description: "원판 200장 + 보정 30장. 가장 인기 있는 입문 패키지.",
+      description: "원판 200장 + 보정 30장을 가정한 예시 구성.",
       price: priceMin,
       original_price: Math.round(priceMin * 1.1),
       discount_price: null,
@@ -54,7 +54,7 @@ function generateStudioProducts(shop: typeof STUDIOS[0]) {
     });
     products.push({
       name: "프리미엄 패키지",
-      description: "원판 300장 + 보정 50장 + 앨범 1권. 가장 많이 선택하는 옵션.",
+      description: "원판 300장 + 보정 50장 + 앨범 1권을 가정한 예시 구성.",
       price: Math.round(priceMin + range * 0.5),
       original_price: Math.round((priceMin + range * 0.5) * 1.12),
       discount_price: null,
@@ -82,7 +82,7 @@ function generateStudioProducts(shop: typeof STUDIOS[0]) {
     // 중급
     products.push({
       name: "베이직",
-      description: "원판 150장 + 보정 20장. 가장 합리적인 선택.",
+      description: "원판 150장 + 보정 20장을 가정한 예시 구성.",
       price: priceMin,
       original_price: null,
       discount_price: null,
@@ -201,14 +201,14 @@ export async function POST(req: Request) {
         region: shop.region,
         address: `${shop.location} ${Math.floor(Math.random() * 200) + 1}번지`,
         phone: `02-${String(Math.floor(Math.random() * 9000) + 1000)}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
-        description: shop.desc,
+        description: `[운영 테스트용 합성 데이터] ${shop.desc}`,
         price_range: `${(shop.priceMin / 10000).toLocaleString()}~${(shop.priceMax / 10000).toLocaleString()}만원`,
         price_min: shop.priceMin,
         price_max: shop.priceMax,
         tags: shop.tags,
         style_tags: [shop.style],
-        ai_recommend: true,
-        status: "approved",
+        ai_recommend: false,
+        status: "pending",
         business_hours: DEFAULT_HOURS,
         notification_settings: { booking: true, message: true, marketing: false },
       })
@@ -229,6 +229,8 @@ export async function POST(req: Request) {
         .insert({
           vendor_id: vendor.id,
           ...product,
+          // 합성 데이터에 실제 인기도 신호를 부여하지 않는다.
+          is_popular: false,
           is_active: true,
           images: [],
         });

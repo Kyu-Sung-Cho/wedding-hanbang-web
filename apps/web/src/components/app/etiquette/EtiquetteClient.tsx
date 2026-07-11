@@ -12,7 +12,12 @@ import {
   ListOrdered, CalendarPlus, StickyNote, X, Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { ETIQUETTE_PARTS, ETIQUETTE_CATEGORIES } from "@/constants/etiquetteData";
+import {
+  ETIQUETTE_CATEGORIES,
+  ETIQUETTE_GUIDE_NOTICE,
+  ETIQUETTE_OFFICIAL_SOURCES,
+  ETIQUETTE_PARTS,
+} from "@/constants/etiquetteData";
 import { useAuthStore } from "@/stores/authStore";
 import { addEvent, getEvents, updateEvent } from "@/utils/scheduleEvents";
 import type { ScheduleEvent } from "@/types/database.types";
@@ -1029,6 +1034,29 @@ function EtiquettePageInner() {
             <p className="text-[13px] font-medium leading-[1.65] text-[#5d6879]">
               {part.description}
             </p>
+            <aside
+              aria-label="예절 가이드 이용 전 확인"
+              className="mt-4 rounded-xl border border-[#e5d7bc] bg-[#fffaf0] px-4 py-3 text-[12px] leading-[1.65] text-[#5d6879]"
+            >
+              <p className="font-semibold text-[#504444]">먼저 확인해 주세요</p>
+              <p className="mt-1">{ETIQUETTE_GUIDE_NOTICE}</p>
+              <p className="mt-1">
+                주민등록번호·신분증 사진은 메모·채팅·공개 링크에 입력하지 마세요.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                {ETIQUETTE_OFFICIAL_SOURCES.map((source) => (
+                  <a
+                    key={source.href}
+                    href={source.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-[#795252] underline decoration-[#795252]/30 underline-offset-2 hover:decoration-[#795252]"
+                  >
+                    {source.label}
+                  </a>
+                ))}
+              </div>
+            </aside>
           </div>
 
           {/* 섹션 네비게이션 or 콘텐츠 */}

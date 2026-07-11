@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  BarChart3, MapPin, TrendingUp, Building2, Camera, Shirt, Palette,
+  BarChart3, MapPin, Building2, Camera, Shirt, Palette,
   Sun, Snowflake, ChevronDown, ExternalLink, ListChecks, ArrowRight,
 } from "lucide-react";
 import {
@@ -15,22 +15,20 @@ import {
   OPTION_PRICES,
   SEASONAL_DATA,
   getLatestPeriodId,
-  getNationalTotal,
-  getSeoulTotal,
+  getNationalAverages,
+  getSeoulAverages,
   getVenueOptionalItems,
 } from "@/constants/marketPrices";
-import TrendChart from "@/components/app/market-prices/TrendChart";
 import RegionalCostTable from "@/components/app/market-prices/RegionalCostTable";
 import { CONTACT } from "@/lib/constants/contact";
 
 const TABS = [
   { id: "overview", label: "종합 요약", icon: BarChart3 },
   { id: "regional", label: "지역별", icon: MapPin },
-  { id: "trend", label: "트렌드", icon: TrendingUp },
   { id: "venue", label: "예식장", icon: Building2 },
   { id: "sdm", label: "스드메", icon: Camera },
   { id: "options", label: "옵션별", icon: ListChecks },
-  { id: "seasonal", label: "성수기/비수기", icon: Sun },
+  { id: "seasonal", label: "예식장 시즌별", icon: Sun },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -49,16 +47,16 @@ function formatMan(value: number) {
   return `${value.toLocaleString()}만원`;
 }
 
-function formatWonToMan(value: number) {
-  return `${Math.round(value / 10000).toLocaleString()}만원`;
-}
-
 export default function MarketPricesClient() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [periodId, setPeriodId] = useState(getLatestPeriodId());
   const [scope, setScope] = useState<"national" | "seoul">("national");
 
   const currentPeriod = PRICE_PERIODS.find(p => p.id === periodId)!;
+  const currentNational = getNationalAverages(periodId);
+  const currentVenueAverage = Math.round(
+    (currentNational.meal + currentNational.rental + currentNational.decoration) * 10
+  ) / 10;
 
   return (
     // (app) 레이아웃 컨테이너에 기대던 페이지 — (community) 그룹은 페이지가 자체 컨테이너를 가짐
@@ -91,70 +89,87 @@ export default function MarketPricesClient() {
               정부 가격표시제 시행 중
             </div>
             <div className={BODY_TEXT}>
-              2025년 11월부터 예식장·결혼준비대행업자는 가격을 공개해야 합니다.
-              단 시행 초기, 다수 vendor가 아직 공개하지 않은 상태입니다.
-              우리가 공공 데이터를 정리하고 실거래가를 보완합니다.
+              2025년 11월부터 예식장·결혼준비대행업자의 주요 가격 공개 항목이 확대됐습니다.
+              아래 통계는 비교 기준으로만 보고, 계약 전에는 업체가 공개한 최신 가격과 최종 견적을 다시 확인하세요.
             </div>
-            <div className="mt-1 text-[12px] font-medium text-[#7a8290]">
-              공정위 「중요한 표시·광고사항 고시」 개정, 2025.11 시행
-            </div>
+            <a
+              href="https://www.kca.go.kr/home/sub.do?menukey=4004&mode=view&no=1004008123"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-medium text-[#36534E] hover:underline"
+            >
+              공정위 고시 개정 안내 · 2025년 11월 시행 <ExternalLink size={12} />
+            </a>
           </div>
         </div>
       </div>
 
-      {/* National Anchor — 정부 공식 데이터 4개 */}
+      {/* 선택한 조사월의 참가격 계약금액 — 예식장과 스드메를 분리 */}
       <section className={`${SERVICE_CARD} p-4 md:p-5`}>
         <div className="mb-4">
           <h2 className={SECTION_TITLE}>
-            결혼 비용, 숫자로 먼저 보기
+            {currentPeriod.label} 전국 계약금액
           </h2>
           <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
-            정부 공식 데이터 기반. 모든 숫자엔 출처가 있습니다.
+            참가격은 예식장과 스드메 계약금액을 분리해 제공합니다.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {/* Anchor 1 */}
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="min-w-0 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
-            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">전국 평균 결혼비용</div>
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">예식장 평균 계약금액</div>
             <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              {formatWonToMan(21010000)}
+              {formatMan(currentVenueAverage)}
             </div>
             <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
-              출처: 한국소비자원 참가격, 2025
+              식대 + 대관료 + 기본 장식 · 전국 평균
             </div>
           </div>
 
-          {/* Anchor 2 */}
           <div className="min-w-0 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
-            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">스드메 추가금 평균</div>
+            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">스드메 평균 계약금액</div>
             <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              +{formatWonToMan(1740000)}
+              {formatMan(currentNational.sdm)}
             </div>
             <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
-              출처: 정부 「결혼서비스 실태조사」, 2024 (기획재정부 발표)
+              스드메 · 전국 평균
             </div>
           </div>
 
-          {/* Anchor 3 */}
-          <div className="rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
-            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">가격 정보 어려움</div>
-            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              85.4%
-            </div>
-            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
-              출처: 한국소비자원, 2024
-            </div>
-          </div>
+        </div>
 
-          {/* Anchor 4 */}
-          <div className="rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3.5">
-            <div className="mb-2 text-[12px] font-semibold text-[#5d6879]">추가비용 경험률</div>
-            <div className="mb-2 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              83.2%
+        <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
+          예식장과 스드메는 조사 범위가 다른 별도 항목이므로 하나의 결혼비용으로 합산하지 않습니다. 각 평균은
+          개인의 실제 지출이나 중위값이 아닙니다. <a
+            href="https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 text-[#36534E] hover:underline"
+          >
+            참가격 공식 통계 <ExternalLink size={12} />
+          </a>
+        </p>
+
+        <div className="mt-4 border-t border-[#eadfc9]/70 pt-4">
+          <div className="flex flex-col gap-3 rounded-[14px] bg-[#f7f3ec] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className={KICKER}>별도 실태조사 · 2024</p>
+              <h3 className="mt-1 text-[14px] font-semibold text-[#071629]">스드메 계약 후 평균 추가비용</h3>
+              <p className="mt-1 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
+                2024년 결혼서비스 실태조사의 별도 결과입니다. 위 {currentPeriod.label} 참가격과 합산하거나
+                현재 총액처럼 직접 비교하지 않습니다.
+              </p>
             </div>
-            <div className="text-[11px] font-medium leading-tight text-[#7a8290]">
-              출처: 한국소비자원, 2024
+            <div className="shrink-0 sm:text-right">
+              <p className="font-serif-kr text-[28px] font-medium leading-none text-[#071629]">+{formatMan(174)}</p>
+              <a
+                href="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156660308"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#36534E] hover:underline"
+              >
+                정부 공식 발표 <ExternalLink size={12} />
+              </a>
             </div>
           </div>
         </div>
@@ -219,11 +234,10 @@ export default function MarketPricesClient() {
       <div className="space-y-6">
         {activeTab === "overview" && <OverviewTab periodId={periodId} />}
         {activeTab === "regional" && <RegionalTab periodId={periodId} />}
-        {activeTab === "trend" && <TrendTab />}
         {activeTab === "venue" && <VenueTab periodId={periodId} scope={scope} />}
         {activeTab === "sdm" && <SdmTab periodId={periodId} />}
         {activeTab === "options" && <OptionsTab scope={scope} />}
-        {activeTab === "seasonal" && <SeasonalTab />}
+        {activeTab === "seasonal" && <SeasonalTab periodId={periodId} />}
       </div>
 
       {/* 출처 */}
@@ -240,7 +254,7 @@ export default function MarketPricesClient() {
             </h2>
             <p className={`${BODY_TEXT} mt-2`}>
               지금 화면은 정부 공개 데이터 기준입니다. 영수증 기반 실거래가는 개인정보를 익명 처리한 뒤,
-              충분한 샘플이 쌓였을 때 더 정확한 비교 기능으로 열 예정입니다.
+              표본 수와 조사 범위를 함께 안내할 수 있을 때 비교 기능으로 열 예정입니다.
             </p>
           </div>
           <a
@@ -257,35 +271,39 @@ export default function MarketPricesClient() {
 }
 
 function OverviewTab({ periodId }: { periodId: string }) {
-  const nat = getNationalTotal(periodId);
-  const seoul = getSeoulTotal(periodId);
+  const nat = getNationalAverages(periodId);
+  const seoul = getSeoulAverages(periodId);
+  const nationalVenueAverage = Math.round((nat.meal + nat.rental + nat.decoration) * 10) / 10;
+  const seoulVenueAverage = Math.round((seoul.meal + seoul.rental + seoul.decoration) * 10) / 10;
   const sdm = SDM_PACKAGES.find(s => s.periodId === periodId && s.region === "전체");
   const seasonal = SEASONAL_DATA.find(s => s.periodId === periodId);
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
-        <StatCard label="전국 평균 총 비용" value={nat.total} />
-        <StatCard label="서울 평균 총 비용" value={seoul.total} />
-        <StatCard label="스드메 패키지 평균" value={sdm?.packageMedian ?? 0} />
+        <StatCard label="전국 예식장 평균 계약금액" value={nationalVenueAverage} sub="식대 + 대관료 + 기본 장식" />
+        <StatCard label="전국 스드메 평균 계약금액" value={nat.sdm} sub="예식장 평균과 별도 조사 항목" />
+        <StatCard label="서울 예식장 평균 계약금액" value={seoulVenueAverage} sub="식대 + 대관료 + 기본 장식" />
+        <StatCard label="서울 스드메 평균 계약금액" value={seoul.sdm} sub="예식장 평균과 별도 조사 항목" />
+        <StatCard label="스드메 패키지 중위가" value={sdm?.packageMedian ?? 0} />
         <StatCard
-          label="비수기 절약액"
+          label="예식장 비수기 계약금액 차이"
           value={seasonal?.savings ?? 0}
-          suffix="만원 절약"
-          sub={seasonal ? `성수기 ${formatMan(seasonal.peak)} -> 비수기 ${formatMan(seasonal.offPeak)}` : ""}
+          suffix="만원 차이"
+          sub={seasonal ? `예식장 중위값 ${formatMan(seasonal.peak)} → ${formatMan(seasonal.offPeak)} · 스드메 제외` : ""}
         />
       </div>
 
       <div className={`${SERVICE_CARD} overflow-hidden`}>
         <div className="px-4 py-4 md:px-5">
-          <h3 className={SECTION_TITLE}>전국 평균 비용 구성</h3>
+          <h3 className={SECTION_TITLE}>전국 예식장 평균 계약금액 구성</h3>
+          <p className={`${MUTED_TEXT} mt-1`}>스드메는 포함하지 않는 별도 조사 항목입니다.</p>
         </div>
         <div className="px-4 pb-4 md:px-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <CostBreakdownItem label="식대" value={nat.meal} total={nat.total} />
-            <CostBreakdownItem label="대관료" value={nat.rental} total={nat.total} />
-            <CostBreakdownItem label="스드메" value={nat.sdm} total={nat.total} />
-            <CostBreakdownItem label="꽃장식" value={nat.decoration} total={nat.total} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <CostBreakdownItem label="식대" value={nat.meal} total={nationalVenueAverage} />
+            <CostBreakdownItem label="대관료" value={nat.rental} total={nationalVenueAverage} />
+            <CostBreakdownItem label="기본 장식" value={nat.decoration} total={nationalVenueAverage} />
           </div>
         </div>
       </div>
@@ -325,40 +343,14 @@ function RegionalTab({ periodId }: { periodId: string }) {
       <div className="px-4 py-4 md:px-5">
         <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
           <MapPin size={18} className="text-[#36534E]" />
-          지역별 결혼 비용
+          지역별 예식장·스드메 평균
         </h3>
-        <p className={`${MUTED_TEXT} mt-1`}>식대 + 스드메 + 대관료 + 꽃장식 합산, 단위는 모두 만원입니다.</p>
+        <p className={`${MUTED_TEXT} mt-1`}>
+          예식장 평균(식대·대관료·기본 장식)과 스드메 평균을 별도 열로 비교합니다. 두 항목을 합산하거나 지역 순위로 해석하지 마세요.
+        </p>
       </div>
       <div className="px-4 pb-4 md:px-5">
         <RegionalCostTable periodId={periodId} />
-      </div>
-    </div>
-  );
-}
-
-function TrendTab() {
-  return (
-    <div className="space-y-4">
-      <div className={`${SERVICE_CARD} overflow-hidden`}>
-        <div className="px-4 py-4 md:px-5">
-          <h3 className={`${SECTION_TITLE} flex items-center gap-2`}>
-            <TrendingUp size={18} className="text-[#36534E]" />
-            18개월 비용 추이
-          </h3>
-          <p className={`${MUTED_TEXT} mt-1`}>2026년 1월부터 2027년 6월까지의 예상 시세 기준입니다.</p>
-        </div>
-        <div className="px-4 pb-4 md:px-5">
-          <TrendChart />
-        </div>
-      </div>
-
-      <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
-        <h4 className="font-serif-kr text-[20px] font-medium leading-tight text-[#071629]">주요 인사이트</h4>
-        <ul className="mt-3 grid gap-2 text-[13px] font-medium leading-[1.65] text-[#5d6879] md:grid-cols-3">
-          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">성수기와 비수기의 가격 차이는 약 400~500만원 수준입니다.</li>
-          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">스드메 가격은 280~310만원 범위에서 완만하게 상승합니다.</li>
-          <li className="rounded-[14px] border border-[#eadfc9]/70 bg-white/70 p-3">총 비용 중위값은 월별 변동이 커서 날짜 선택 영향이 큽니다.</li>
-        </ul>
       </div>
     </div>
   );
@@ -391,7 +383,7 @@ function VenueTab({ periodId, scope }: { periodId: string; scope: "national" | "
       <div className={`${SERVICE_CARD} overflow-hidden`}>
         <div className="px-4 py-4 md:px-5">
           <h3 className={SECTION_TITLE}>선택 항목</h3>
-          <p className={`${MUTED_TEXT} mt-1`}>필수가 아닌 선택 서비스입니다. 절약 포인트를 확인해보세요.</p>
+          <p className={`${MUTED_TEXT} mt-1`}>필수가 아닌 선택 서비스입니다. 비용 차이와 포함 범위를 확인해보세요.</p>
         </div>
         <div className="divide-y divide-[#eadfc9]/70">
           {VENUE_OPTIONAL_NAMES.map(name => (
@@ -486,6 +478,7 @@ function SdmTab({ periodId }: { periodId: string }) {
 }
 
 function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
+  const latestPeriod = PRICE_PERIODS[PRICE_PERIODS.length - 1];
   const categories = [
     { key: "studio" as const, label: "스튜디오 옵션", icon: Camera },
     { key: "dress" as const, label: "드레스 옵션", icon: Shirt },
@@ -504,7 +497,9 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
                 <Icon size={18} className="text-[#36534E]" />
                 {cat.label} ({items.length}개)
               </h3>
-              <p className={`${MUTED_TEXT} mt-1`}>2026년 1월 기준 중위 가격입니다.</p>
+              <p className={`${MUTED_TEXT} mt-1`}>
+                {latestPeriod.label} 최신 조사 기준 중위 가격입니다. 옵션별 데이터는 최신 조사월만 제공합니다.
+              </p>
             </div>
             <div className="divide-y divide-[#eadfc9]/70">
               {items.map(item => {
@@ -526,8 +521,9 @@ function OptionsTab({ scope }: { scope: "national" | "seoul" }) {
   );
 }
 
-function SeasonalTab() {
-  const latest = SEASONAL_DATA[SEASONAL_DATA.length - 1];
+function SeasonalTab({ periodId }: { periodId: string }) {
+  const selected = SEASONAL_DATA.find(s => s.periodId === periodId) ?? SEASONAL_DATA[SEASONAL_DATA.length - 1];
+  const selectedPeriod = PRICE_PERIODS.find(p => p.id === selected.periodId);
 
   return (
     <div className="space-y-4">
@@ -535,30 +531,35 @@ function SeasonalTab() {
         <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
           <div className="mb-3 flex items-center gap-2">
             <Sun size={20} className="text-[#36534E]" />
-            <span className="text-[13px] font-semibold text-[#071629]">성수기</span>
+            <span className="text-[13px] font-semibold text-[#071629]">예식장 성수기 중위 계약금액</span>
           </div>
-          <p className={MUTED_TEXT}>4~6월, 9~11월</p>
-          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(latest.peak)}</p>
+          <p className={MUTED_TEXT}>{selectedPeriod?.label} 조사 · 4~6월, 9~11월 · 스드메 제외</p>
+          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(selected.peak)}</p>
         </div>
         <div className={`${SERVICE_CARD_SOFT} p-4 md:p-5`}>
           <div className="mb-3 flex items-center gap-2">
             <Snowflake size={20} className="text-[#36534E]" />
-            <span className="text-[13px] font-semibold text-[#071629]">비수기</span>
+            <span className="text-[13px] font-semibold text-[#071629]">예식장 비수기 중위 계약금액</span>
           </div>
-          <p className={MUTED_TEXT}>1~3월, 7~8월, 12월</p>
-          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(latest.offPeak)}</p>
+          <p className={MUTED_TEXT}>{selectedPeriod?.label} 조사 · 1~3월, 7~8월, 12월 · 스드메 제외</p>
+          <p className="mt-2 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">{formatMan(selected.offPeak)}</p>
         </div>
       </div>
 
       <div className={`${SERVICE_CARD} p-4 text-center md:p-5`}>
-        <p className={KICKER}>AVERAGE SAVING</p>
+        <p className={KICKER}>VENUE CONTRACT AMOUNT GAP</p>
         <p className="mt-2 font-serif-kr text-[34px] font-medium leading-none text-[#36534E]">
-          {formatMan(latest.savings)}
+          {formatMan(selected.savings)}
         </p>
-        <p className={`${BODY_TEXT} mt-2`}>비수기 결혼 시 평균 절약 금액입니다.</p>
+        <p className={`${BODY_TEXT} mt-2`}>
+          같은 조사월의 예식장 중위 계약금액 차이입니다. 실제 절약 보장액이나 전체 결혼비용 차이가 아니며 스드메는 포함하지 않습니다.
+        </p>
       </div>
 
-      <TableCard title="기간별 성수기/비수기 비교" headers={["기간", "성수기", "비수기", "절약액"]}>
+      <TableCard
+        title="조사월별 예식장 성수기/비수기 중위 계약금액"
+        headers={["조사월", "성수기", "비수기", "금액 차이"]}
+      >
         {[...SEASONAL_DATA].reverse().map(s => {
           const period = PRICE_PERIODS.find(p => p.id === s.periodId);
           return (

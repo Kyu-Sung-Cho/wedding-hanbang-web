@@ -6,38 +6,46 @@ const painPoints = [
   {
     emoji: "😵‍💫",
     title: "뭐부터 해야 할지 모르겠어요",
-    desc: "블로그, 카페, 인스타 정보는 넘치는데 다 달라요. 어떤 순서로, 뭘 먼저 해야 하는지 아무도 안 알려줍니다. 처음이라 기준 자체가 없어요.",
-    stat: "50여 개",
-    statLabel: "결혼 준비 중 선택해야 할 옵션 항목 수¹",
+    desc: "블로그, 카페, 인스타 정보는 많지만 출처마다 순서와 기준이 달라요. 처음 준비할 때는 무엇부터 비교해야 할지 정리하기 어렵습니다.",
+    stat: "순서 정리",
+    statLabel: "결정할 항목을 단계별로 확인",
   },
   {
     emoji: "🔍",
     title: "어떤 업체가 좋은지 모르겠어요",
-    desc: "내 취향이 뭔지도 모르겠고, 업체마다 가격도 다르고 후기도 믿기 어려워요. 전국 업체의 64%는 가격조차 공개하지 않습니다.",
+    desc: "내 취향이 아직 선명하지 않고 업체마다 가격과 포함 항목도 달라요. 한국소비자원 조사에서는 조사 업체 중 가격을 공개한 비율이 36.1%였습니다.",
     stat: "36.1%",
-    statLabel: "가격을 공개하는 업체 비율²",
+    statLabel: "가격을 공개하는 업체 비율¹",
   },
   {
     emoji: "💸",
     title: "예산을 어떻게 짜야 할지 모르겠어요",
-    desc: "어떤 항목에 얼마를 써야 하는지 감이 안 와요. 기본금 364만원으로 계약했는데 끝나면 540만원. 추가금이 붙으면 어떻게 조정해야 할지 막막합니다.",
+    desc: "어떤 항목에 얼마를 써야 하는지 감이 안 와요. 정부 실태조사에서는 스드메 기본금 346만원에 평균 174만원의 추가비용이 더해졌습니다. 무엇을 먼저 확인해야 할지 막막합니다.",
     stat: "+174만원",
-    statLabel: "스드메 평균 추가비용³",
+    statLabel: "스드메 평균 추가비용²",
   },
   {
     emoji: "🕐",
     title: "시간은 없는데, 방문할 곳은 많고, 의견 조율은 어렵고",
     desc: "맞벌이 커플이 주말마다 상담 다니는 건 현실적으로 힘들어요. 각자 알아본 정보는 제각각이고, 카톡으로 공유하다 보면 뭘 결정한 건지 헷갈립니다.",
     stat: "1,505건",
-    statLabel: "결혼 준비 관련 소비자 불만 접수 (2023)⁴",
+    statLabel: "결혼 준비 관련 소비자 불만 접수 (2023)³",
   },
 ];
 
 const sources = [
-  "¹ 한국소비자원, 결혼서비스 가격 동향 조사, 2025",
-  "² 한국소비자원, 결혼서비스 가격 동향 조사 (515개 업체), 2025",
-  "³ 정부 「결혼서비스 발전 지원방안」 실태조사, 2024",
-  "⁴ 1372 소비자상담센터, 2021~2023",
+  {
+    label: "¹ 한국소비자원, 결혼서비스 가격 동향 조사 (515개 업체), 2025",
+    href: "https://www.kca.go.kr/kca/sub.do?menukey=5084&mode=view&no=1003902297",
+  },
+  {
+    label: "² 정부 「결혼서비스 발전 지원방안」 실태조사, 2024",
+    href: "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156660308",
+  },
+  {
+    label: "³ 정부 「결혼서비스 발전 지원방안」의 1372 상담 집계, 2021~2023",
+    href: "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156660308",
+  },
 ];
 
 export default function CustomerPainPoints() {
@@ -60,12 +68,12 @@ export default function CustomerPainPoints() {
           Problem
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight text-white mb-5">
-          결혼 준비, 왜 싸우고
+          결혼 준비, 왜 복잡하고
           <br />
-          지칠 수밖에 없을까요?
+          지치기 쉬울까요?
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[520px]">
-          복잡한 절차, 정확한 기준의 부재, 고무줄 예산, 소통의 어려움까지
+          복잡한 절차, 서로 다른 기준, 달라지는 예산, 소통의 어려움까지
           <br className="hidden md:block" />
           우리가 주목한 4가지 핵심 문제입니다.
         </p>
@@ -107,10 +115,16 @@ export default function CustomerPainPoints() {
       {/* 출처 */}
       <div className="max-w-[1100px] mx-auto mt-10 relative z-10">
         <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
-          {sources.map((src) => (
-            <span key={src} className="text-[11px] text-white/25 font-light">
-              {src}
-            </span>
+          {sources.map((source) => (
+            <a
+              key={source.label}
+              href={source.href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-white/40 font-light underline decoration-white/20 underline-offset-2 transition-colors hover:text-white/70"
+            >
+              {source.label}
+            </a>
           ))}
         </div>
       </div>

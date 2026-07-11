@@ -28,20 +28,13 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
     if (saving) return;
     setSaving(true);
     try {
-      const missingTotal =
-        result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
       const canvas = await renderQuoteReportCard({
         categoryLabel: AMORA_QUOTE_CATEGORY_LABELS[result.category],
         quotePriceManwon: result.quotePriceManwon,
-        marketMedianManwon: result.marketMedianManwon,
-        marketComparatorLabel: result.marketComparatorLabel,
         summaryTitle: result.summaryTitle,
-        missingTotal,
-        missingCriticalCount: result.missingCriticalCount,
-        items: result.missingItems.map((item) => ({
+        unconfirmedTotal: result.unconfirmedItemCount,
+        items: result.unconfirmedItems.map((item) => ({
           name: item.name,
-          priceManwon: item.priceManwon,
-          severity: item.severity,
         })),
         sourceNote: result.sourceNote,
         brand: REPORT_BRAND,

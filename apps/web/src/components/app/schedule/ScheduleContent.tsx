@@ -15,7 +15,7 @@ import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
-import { formatLocalDateOnly } from "@hanbang/shared";
+import { formatLocalDateOnly, parseLocalDateOnly } from "@hanbang/shared";
 
 const CATEGORY_KEYS = [
   "meeting", "venue", "studio", "dress", "makeup", "ring",
@@ -101,7 +101,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   );
   const weddingDateValue = journey?.wedding_date;
   const weddingDate = useMemo(
-    () => (weddingDateValue ? new Date(weddingDateValue) : null),
+    () => (weddingDateValue ? parseLocalDateOnly(weddingDateValue) : null),
     [weddingDateValue]
   );
 

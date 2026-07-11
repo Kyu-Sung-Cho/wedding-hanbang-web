@@ -238,19 +238,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemo = async () => {
-    setLoading("demo");
-    setError("");
-    try {
-      const res = await fetch("/api/demo/start", { method: "POST" });
-      if (!res.ok) throw new Error("demo start failed");
-      window.location.href = currentReturnPath() ?? "/wedding/lounge";
-    } catch {
-      setError("데모 모드를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
-      setLoading(null);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_52%,#f5f8f1_100%)] flex items-center justify-center px-5">
       {/* 배경 장식 */}
@@ -260,7 +247,7 @@ export default function LoginPage() {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
         className="relative z-10 w-full max-w-[420px]"
@@ -571,19 +558,19 @@ export default function LoginPage() {
                 <div className="flex-1 h-px bg-platinum" />
               </div>
 
-              {/* 데모 체험 */}
-              <button
-                onClick={handleDemo}
+              {/* 예시 앱 체험은 인증 흐름과 분리 */}
+              <Link
+                href="/demo/login"
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 border-[1.5px] border-[#36534E]/35 text-[#36534E] hover:border-[#36534E] hover:bg-[#EEF4F1]"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
                 </svg>
-                로그인 없이 체험하기
-              </button>
+                예시 앱 체험하기
+              </Link>
 
               <p className="text-[11px] text-[#928980] text-center mt-4 font-light">
-                체험 모드에서는 모든 기능을 미리 둘러볼 수 있습니다
+                계정 없이 별도 예시 데이터로 둘러보며, 실제 준비 정보는 저장하지 않습니다
               </p>
           </>
         </div>

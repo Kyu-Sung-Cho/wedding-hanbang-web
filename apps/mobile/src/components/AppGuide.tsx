@@ -49,7 +49,7 @@ function WelcomeSlide() {
 
       <Text style={styles.welcomeTitle}>웨딩한방</Text>
       <Text style={styles.welcomeSubtitle}>
-        결혼 준비의 모든 것, 한곳에서
+        주요 준비 기록을 한곳에서
       </Text>
 
       {/* 피처 배지 3개 */}
@@ -153,7 +153,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.chatBubbleAi}>
               <Text style={styles.chatBubbleAiText}>
-                {"예산에 맞는 3곳을 찾아봤어요 ✨"}
+                {"입력한 예산을 기준으로 비교 질문을 정리했어요 ✨"}
               </Text>
             </View>
           </View>
@@ -171,7 +171,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
       </View>
 
       <Text style={styles.mockCaption}>
-        궁금한 건 뭐든 물어보세요
+        결혼 준비 질문을 물어보세요
       </Text>
     </View>
   );
@@ -193,31 +193,31 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.communityAuthorInfo}>
               <View style={styles.communityNameRow}>
-                <Text style={styles.communityNickname}>제주신부</Text>
+              <Text style={styles.communityNickname}>예시 사용자</Text>
                 <View style={styles.communityRankBadge}>
                   <Crown size={8} color={colors.gold.DEFAULT} />
                   <Text style={styles.communityRankText}>Lv.4</Text>
                 </View>
               </View>
-              <Text style={styles.communityTime}>3시간 전</Text>
+              <Text style={styles.communityTime}>화면 예시</Text>
             </View>
           </View>
 
           {/* 게시글 본문 */}
-          <Text style={styles.communityPostTitle}>스드메 비교 후기</Text>
+          <Text style={styles.communityPostTitle}>예시: 스드메 비교 기록</Text>
           <Text style={styles.communityPostPreview}>
-            강남 3곳 다녀온 솔직 비교 리뷰입니다...
+            화면 이해를 돕기 위한 예시 글입니다...
           </Text>
 
           {/* 투표 + 댓글 */}
           <View style={styles.communityMetaRow}>
             <View style={styles.communityVote}>
               <ChevronUp size={14} color={colors.rose[500]} />
-              <Text style={styles.communityVoteText}>12</Text>
+              <Text style={styles.communityVoteText}>-</Text>
             </View>
             <View style={styles.communityComment}>
               <MessageSquare size={12} color={colors.textSecondary} />
-              <Text style={styles.communityCommentText}>5</Text>
+              <Text style={styles.communityCommentText}>-</Text>
             </View>
           </View>
         </View>
@@ -228,9 +228,9 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
             <Users size={16} color={colors.rose[500]} />
             <View style={styles.communityCohortTextWrap}>
               <Text style={styles.communityCohortTitle}>
-                2026 2분기 동기방
+                동기방 화면 예시
               </Text>
-              <Text style={styles.communityCohortSub}>멤버 248명</Text>
+              <Text style={styles.communityCohortSub}>실제 게시글·인원 아님</Text>
             </View>
           </View>
           <View style={styles.communityCohortJoin}>
@@ -240,7 +240,7 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
       </View>
 
       <Text style={styles.mockCaption}>
-        같은 시기 커플들과 정보 공유
+        화면 예시 · 실제 사용자 데이터가 아닙니다
       </Text>
     </View>
   );
@@ -318,7 +318,7 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
       </View>
 
       <Text style={styles.mockCaption}>
-        숨은 비용까지 꼼꼼하게
+        직접 입력한 예산과 일정을 확인
       </Text>
     </View>
   );
@@ -347,7 +347,7 @@ function StartSlide({ onStart, onNeverShow }: {
 
       <Text style={styles.startTitle}>준비되셨나요?</Text>
       <Text style={styles.startSubtitle}>
-        무료로 모든 기능을 이용하세요
+        현재 베타에서 제공하는 준비 도구를 차근차근 둘러보세요
       </Text>
 
       {/* 시작하기 버튼 */}

@@ -1,5 +1,7 @@
 # 웨딩한방 마스터 청사진 — 최종 통합본 (2026-06-10)
 
+> **역사 전략 청사진**: 현재 구현·출시 상태를 뜻하지 않는다. 2026-07-11 기준 모델 기반 쓰기/proactive/자동 갈등 중재는 비활성이고, 견적 입력의 자동 업체 리드 활용도 명시 동의 전까지 허용하지 않는다. 최신 판정은 `CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`와 실제 코드를 우선한다.
+
 > 이 문서가 최상위. 오늘 나온 6개 분석(STRATEGY_REVIEW / COMMUNITY_KEY_CONCEPT / QUOTE_LEDGER / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT)을 하나로 통합.
 > 파운더 확정 결정 반영: ①AI 페르소나 위장 해체 ②계약-법률 서비스 금지 ③견적 등기소 보류 ④커뮤니티·친언니 우선 ⑤궁극 모델 = 업체 입점 윈윈윈(보증료 재정의).
 

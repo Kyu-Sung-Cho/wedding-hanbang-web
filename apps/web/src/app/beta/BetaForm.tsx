@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 import DatePickerPopover from "./DatePickerPopover";
@@ -8,6 +8,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import { readStoredUtm } from "@/utils/utm";
+import { ymdInKst } from "@/lib/utils/kstDate";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -20,16 +21,22 @@ interface BetaFormProps {
 type Role = "bride" | "groom" | "";
 
 export default function BetaForm({ current, total, progress }: BetaFormProps) {
+  const [earliestWeddingDate, setEarliestWeddingDate] = useState("2026-07-01");
   const showCounter = shouldShowBetaCounter(current);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [weddingDate, setWeddingDate] = useState("");
   const [role, setRole] = useState<Role>("");
   const [message, setMessage] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  useEffect(() => {
+    setEarliestWeddingDate(ymdInKst());
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +47,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
     }
     if (!role) {
       setError("신부 또는 신랑을 선택해주세요.");
+      return;
+    }
+    if (!privacyConsent) {
+      setError("개인정보 수집·이용 안내를 확인하고 동의해주세요.");
       return;
     }
     if (TURNSTILE_ENABLED && !turnstileToken) {
@@ -66,6 +77,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           role: role || undefined,
           message: message || undefined,
           isBetaCandidate: true,
+          privacyConsent,
           turnstileToken,
           utmSource,
           utmMedium,
@@ -95,7 +107,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
-          감사합니다. 2~3일 이내 참여 확정 메일을 보내드릴게요.
+          감사합니다. 신청 내용을 검토한 뒤 참여 여부와 다음 단계를 이메일로 안내드릴게요.
           <br />
           <span className="text-white/60">{email}</span>
         </p>
@@ -122,7 +134,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
   return (
     <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
       <p className="text-[11px] tracking-[0.28em] text-rose-light font-medium mb-6">
-        베타 50쌍 한정
+        사용자 연구 코호트 · 50쌍
       </p>
 
       {showCounter ? (
@@ -147,7 +159,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         </>
       ) : (
         <p className="mb-10 text-[13px] font-medium tracking-[0.16em] text-white/55">
-          베타 신청 접수 중
+          사용자 연구 신청 접수 중
         </p>
       )}
 
@@ -156,6 +168,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <Field label="이메일" required>
           <input
             type="email"
+            aria-label="이메일"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
@@ -168,6 +181,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <Field label="이름">
           <input
             type="text"
+            aria-label="이름"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="김OO"
@@ -213,16 +227,17 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           <DatePickerPopover
             value={weddingDate}
             onChange={setWeddingDate}
-            min="2026-06-01"
+            min={earliestWeddingDate}
             max="2026-12-31"
             disabled={submitting}
             placeholder="날짜 선택"
           />
-          <p className="text-[11px] text-white/40 mt-1.5">2026년 6~12월 (미정이면 비워두셔도 됩니다)</p>
+          <p className="text-[11px] text-white/40 mt-1.5">2026년 7~12월 (미정이면 비워두셔도 됩니다)</p>
         </Field>
 
         <Field label="한 줄 메시지">
           <textarea
+            aria-label="한 줄 메시지"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="아모라를 어떻게 알게 되셨는지, 어떤 부분이 궁금하신지 알려주세요."
@@ -233,10 +248,28 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
+        <label className="flex items-start gap-3 rounded-xl border border-white/15 bg-white/[0.03] p-4 text-[12px] leading-relaxed text-white/70">
+          <input
+            type="checkbox"
+            checked={privacyConsent}
+            onChange={(event) => setPrivacyConsent(event.target.checked)}
+            disabled={submitting}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[#d4afa0]"
+          />
+          <span>
+            사용자 연구 코호트 신청 접수와 안내를 위해 이메일, 선택 입력한 이름·예식일·메시지를 수집하는 데 동의합니다.
+            신청 정보의 보관 기준은 접수일로부터 180일입니다. 보관기간이 지난 신청은 매일 한 번 정리되어,
+            만료 후 최대 약 24시간 이내 삭제됩니다. 그 전에도 삭제를 요청할 수 있습니다.{" "}
+            <Link href="/privacy" className="font-medium text-white underline underline-offset-2">
+              개인정보처리방침
+            </Link>
+          </span>
+        </label>
+
         {TURNSTILE_ENABLED && <TurnstileWidget onVerify={setTurnstileToken} />}
 
         {error && (
-          <p className="text-[13px] text-rose-light leading-relaxed">{error}</p>
+          <p className="text-[13px] text-rose-light leading-relaxed" role="alert">{error}</p>
         )}
 
         <button
@@ -251,7 +284,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
             </>
           ) : (
             <>
-              베타 신청하기
+              사용자 연구 신청하기
               <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </>
           )}
@@ -288,12 +321,12 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="text-[11px] tracking-[0.2em] text-white/60 mb-2.5 block font-medium">
         {label}
         {required && <span className="text-rose-light ml-1">*</span>}
       </span>
       {children}
-    </label>
+    </div>
   );
 }

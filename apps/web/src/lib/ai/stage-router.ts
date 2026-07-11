@@ -8,12 +8,11 @@
 // =============================================
 
 import type { StageTag, SpecialistType } from "@/types/moat.types";
+import { ddayInKst } from "@/lib/utils/kstDate";
 
 // -------------------------------------------
 // Stage 계산
 // -------------------------------------------
-
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 export function determineStage(
   weddingDate: string | null | undefined,
@@ -21,10 +20,8 @@ export function determineStage(
 ): StageTag {
   if (!weddingDate) return "planning_0";
 
-  const wedding = new Date(weddingDate);
-  if (Number.isNaN(wedding.getTime())) return "planning_0";
-
-  const daysUntil = Math.floor((wedding.getTime() - today.getTime()) / DAY_MS);
+  const daysUntil = ddayInKst(weddingDate, today);
+  if (daysUntil === null) return "planning_0";
 
   if (daysUntil > 180) return "planning_0";
   if (daysUntil > 30) return "preparation_1";

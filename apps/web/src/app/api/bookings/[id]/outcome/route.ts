@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { syncBookingProgressAfterOutcome } from "@/lib/bookings/progressSync";
 import { recordDecision } from "@/lib/memory/record-decision";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
   cleanOptionalBoolean,
@@ -14,9 +14,16 @@ import {
 } from "@/utils/requestValidation";
 
 export const dynamic = "force-dynamic";
+export const BOOKING_OUTCOMES_ENABLED = false as const;
+export const BOOKING_OUTCOMES_DISABLED_CODE = "booking_outcomes_disabled" as const;
 
 const MAX_BODY_BYTES = 24 * 1024;
 const MAX_AMOUNT = 1_000_000_000;
+const OUTCOME_ELIGIBLE_BOOKING_STATUSES = new Set([
+  "service_completed",
+  "settled",
+  "completed",
+]);
 
 interface OutcomeBody {
   actualAmount: number;
@@ -126,6 +133,26 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  // 실제 업체 전달·완료 증빙이 없는 과거/예시 기록은 조회 전용이다.
+  // 구버전/직접 호출도 인증과 본문 파싱 전에 막아 결과·후기 mutation을 남기지 않는다.
+  if (!BOOKING_OUTCOMES_ENABLED) {
+    return NextResponse.json(
+      {
+        error: "과거·예시 요청은 조회 전용입니다. 결과 저장과 공개 후기는 현재 지원하지 않습니다.",
+        code: BOOKING_OUTCOMES_DISABLED_CODE,
+      },
+      { status: 503 },
+    );
+  }
+
+  return patchBookingOutcome(request, context);
+}
+
+/** 재활성화 전 검증할 잠재 구현. 공개 Route Handler는 위의 fail-closed 게이트를 통과해야만 호출한다. */
+export async function patchBookingOutcome(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
@@ -142,7 +169,7 @@ export async function PATCH(
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:outcome", request, user.id),
       { maxRequests: 20, windowMs: 60 * 60 * 1000 }
     );
@@ -175,21 +202,35 @@ export async function PATCH(
       return NextResponse.json({ error: "예약을 찾을 수 없습니다." }, { status: 404 });
     }
 
+    const terminalStatus = booking.status;
+    if (!terminalStatus || !OUTCOME_ELIGIBLE_BOOKING_STATUSES.has(terminalStatus)) {
+      return NextResponse.json(
+        { error: "서비스 완료가 확인된 예약만 결과와 후기를 저장할 수 있습니다." },
+        { status: 409 }
+      );
+    }
+
     const { data: updatedBooking, error: updateError } = await admin
       .from("vendor_bookings")
       .update({
         actual_amount: outcome.actualAmount,
         contracted_amount: outcome.contractedAmount,
-        status: "completed",
       })
       .eq("id", id)
       .eq("couple_id", profile.couple_id)
+      .eq("status", terminalStatus)
       .select("id, status, amount, contracted_amount, actual_amount")
-      .single();
+      .maybeSingle();
 
-    if (updateError || !updatedBooking) {
+    if (updateError) {
       console.error("Booking outcome update error:", updateError);
       return NextResponse.json({ error: "예약 결과 저장에 실패했습니다." }, { status: 500 });
+    }
+    if (!updatedBooking) {
+      return NextResponse.json(
+        { error: "예약 상태가 변경되었습니다. 완료 상태를 확인한 뒤 다시 시도해주세요." },
+        { status: 409 }
+      );
     }
 
     const review = await upsertVendorReview({ admin, booking, userId: user.id, outcome });

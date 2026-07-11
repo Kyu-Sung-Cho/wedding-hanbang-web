@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createHash, createHmac } from "node:crypto";
 
 // 간단한 인메모리 Rate Limiter (서버리스 환경)
 // Vercel 서버리스에서는 인스턴스당 메모리 — 완벽하지 않지만 기본 방어용
 const buckets = new Map<string, { count: number; resetAt: number }>();
+
+function protectedRateLimitKey(rawKey: string): string {
+  const secret = process.env.RATE_LIMIT_KEY_SECRET?.trim();
+  const digest = secret && secret.length >= 32
+    ? createHmac("sha256", secret).update(`weddinghanbang-rate-limit-v1\0${rawKey}`).digest("hex")
+    : createHash("sha256").update(`weddinghanbang-rate-limit-v1\0${rawKey}`).digest("hex");
+  return `rl:${digest}`;
+}
 
 // 5분마다 오래된 엔트리 정리
 let lastCleanup = Date.now();
@@ -42,12 +51,13 @@ export function checkRateLimit(
   config: RateLimitConfig,
 ): NextResponse | null {
   cleanup();
+  const protectedKey = protectedRateLimitKey(key);
 
   const now = Date.now();
-  const bucket = buckets.get(key);
+  const bucket = buckets.get(protectedKey);
 
   if (!bucket || bucket.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + config.windowMs });
+    buckets.set(protectedKey, { count: 1, resetAt: now + config.windowMs });
     return null;
   }
 
@@ -83,10 +93,11 @@ export async function checkRateLimitPersistent(
 ): Promise<NextResponse | null> {
   const admin = getAdminClient();
   if (!admin) return checkRateLimit(key, config);
+  const protectedKey = protectedRateLimitKey(key);
 
   try {
     const { data, error } = await admin.rpc("check_rate_limit", {
-      p_key: key,
+      p_key: protectedKey,
       p_max_requests: config.maxRequests,
       p_window_ms: config.windowMs,
     });

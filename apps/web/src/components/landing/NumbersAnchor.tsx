@@ -10,13 +10,16 @@ interface AnchorCard {
   label: string;
   value: string;
   source: string;
+  href: string;
 }
 
+const KCA_DECEMBER_2025 = "https://www.kca.go.kr/home/sub.do?menukey=4004&mode=view&no=1004008123&page=1";
+
 const CARDS: AnchorCard[] = [
-  { label: "전국 평균 결혼서비스", value: "₩21,010,000", source: "한국소비자원, 2025" },
-  { label: "스드메 추가금 평균", value: "+₩1,740,000", source: "정부 결혼서비스 실태조사, 2024" },
-  { label: "가격 정보 어려움", value: "85.4%", source: "한국소비자원, 2024" },
-  { label: "추가비용 경험률", value: "83.2%", source: "한국소비자원, 2024" },
+  { label: "전국 평균 결혼서비스", value: "₩20,910,000", source: "한국소비자원, 2025년 12월", href: KCA_DECEMBER_2025 },
+  { label: "서울 강남 평균", value: "₩35,990,000", source: "한국소비자원, 2025년 12월", href: KCA_DECEMBER_2025 },
+  { label: "전국 중간 식대", value: "₩58,000", source: "한국소비자원, 2025년 12월", href: KCA_DECEMBER_2025 },
+  { label: "조사 지역", value: "14개", source: "한국소비자원, 2025년 12월", href: KCA_DECEMBER_2025 },
 ];
 
 export default function NumbersAnchor() {
@@ -38,7 +41,7 @@ export default function NumbersAnchor() {
             언제나 <em className="not-italic text-rose-500">출처</em>가 있습니다.
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            자체 집계가 아닌, 검증 가능한 정부 공식 수치만 인용합니다.
+            공개 기관 자료의 조사 시점과 범위를 함께 표시합니다. 최신 가격은 시세 화면에서 다시 확인하세요.
           </p>
         </motion.div>
 
@@ -64,9 +67,14 @@ export default function NumbersAnchor() {
               </p>
 
               {/* 출처 */}
-              <p className="mt-12 text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium pt-5 border-t border-platinum/60">
+              <a
+                href={card.href}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-12 text-[12px] md:text-[13px] tracking-[0.12em] text-taupe-400 font-medium pt-5 border-t border-platinum/60 underline underline-offset-4 hover:text-rose-500"
+              >
                 출처 &nbsp; {card.source}
-              </p>
+              </a>
             </motion.div>
           ))}
         </div>

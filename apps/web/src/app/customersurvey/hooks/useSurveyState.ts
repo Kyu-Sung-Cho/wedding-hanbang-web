@@ -5,6 +5,8 @@ import { sections, type Question } from '../data/questions';
 import { validateAnswer } from '../utils/validation';
 
 const LOCAL_STORAGE_KEY = 'wedding_survey_draft';
+const DRAFT_VERSION = 2;
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type SurveyStatus = 'intro' | 'in_progress' | 'screen_out' | 'completed';
 
@@ -17,19 +19,49 @@ export interface SurveyState {
   startTime: number;
 }
 
+interface SurveyDraftEnvelope {
+  version: number;
+  savedAt: number;
+  state: Partial<SurveyState>;
+}
+
 function loadDraft(): Partial<SurveyState> | null {
   try {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved) as Partial<SurveyDraftEnvelope>;
+    if (
+      parsed.version !== DRAFT_VERSION ||
+      typeof parsed.savedAt !== 'number' ||
+      !parsed.state ||
+      Date.now() - parsed.savedAt > DRAFT_TTL_MS
+    ) {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      return null;
+    }
+    return parsed.state;
   } catch {
-    // localStorage 접근 불가 시 무시
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // 저장소를 사용할 수 없는 브라우저에서는 임시저장을 건너뛴다.
+    }
   }
   return null;
 }
 
 function saveDraft(state: SurveyState) {
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+    const safeAnswers = { ...state.answers };
+    const safeOtherTexts = { ...state.otherTexts };
+    delete safeAnswers.q23;
+    delete safeOtherTexts.q23;
+    const envelope: SurveyDraftEnvelope = {
+      version: DRAFT_VERSION,
+      savedAt: Date.now(),
+      state: { ...state, answers: safeAnswers, otherTexts: safeOtherTexts },
+    };
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(envelope));
   } catch {
     // localStorage 접근 불가 시 무시
   }
@@ -84,7 +116,7 @@ export function useSurveyState() {
     setHasDraft(false);
   }, []);
 
-  // 자동 저장
+  // 연락처를 제외한 작성 중 응답만 현재 브라우저에 24시간 임시 저장
   useEffect(() => {
     if (status === 'in_progress') {
       saveDraft({

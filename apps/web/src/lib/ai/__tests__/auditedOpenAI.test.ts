@@ -40,7 +40,11 @@ describe("createOpenAIResponseWithAudit", () => {
       instructions: "summary",
       input: "conversation",
       maxOutputTokens: 100,
-      audit: { interactionType: "chat_turn", userId: "user-1" },
+      audit: {
+        interactionType: "chat_turn",
+        userId: "user-1",
+        userInput: "비용 장부에 복제하면 안 되는 대화",
+      },
       client,
     })).rejects.toThrow("audit unavailable");
 
@@ -91,6 +95,8 @@ describe("createOpenAIResponseWithAudit", () => {
       model: "gpt-5.6-luna",
       tokensInput: 50,
       tokensOutput: 8,
+      userInput: null,
+      aiOutput: null,
       cacheWriteTokens: 5,
       cacheReadTokens: 10,
       metadata: expect.objectContaining({ ai_provider: "openai", model_role: "fast" }),
@@ -123,12 +129,73 @@ describe("createOpenAIResponseWithAudit", () => {
 
     expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
       success: false,
-      errorMessage: expect.stringContaining("max_output_tokens"),
+      errorMessage: "openai_response_error",
       tokensInput: 70,
       tokensOutput: 9,
       cacheWriteTokens: 7,
       cacheReadTokens: 11,
     }));
+  });
+
+  it("audits a completed empty response once and then fails closed", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: "   ",
+      model: "gpt-5.6-luna",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: {
+        input_tokens: 25,
+        input_tokens_details: { cache_write_tokens: 0, cached_tokens: 0 },
+        output_tokens: 0,
+      },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "summary",
+      input: "conversation",
+      maxOutputTokens: 100,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      client,
+    })).rejects.toThrow("no output text");
+
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      errorMessage: "empty_response",
+      tokensInput: 25,
+      tokensOutput: 0,
+      userInput: null,
+      aiOutput: null,
+    }));
+  });
+
+  it("stores bounded provider codes instead of reflected SDK error messages", async () => {
+    const providerError = Object.assign(
+      new Error("request failed while echoing private input: wedding date 2027-01-02"),
+      { name: "RateLimitError", status: 429, code: "rate_limit_exceeded" }
+    );
+    const create = vi.fn().mockRejectedValue(providerError);
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "summary",
+      input: "private input",
+      maxOutputTokens: 100,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      client,
+    })).rejects.toBe(providerError);
+
+    const audit = mocks.logAIInteraction.mock.calls[0]?.[0];
+    expect(audit.errorMessage).toBe(
+      "provider_request_failed:name_RateLimitError:status_429:code_rate_limit_exceeded"
+    );
+    expect(audit.errorMessage).not.toContain("wedding date");
+    expect(audit.userInput).toBeNull();
+    expect(audit.aiOutput).toBeNull();
   });
 
   it("forwards cancellation to the Responses API", async () => {
@@ -176,5 +243,27 @@ describe("createOpenAIResponseWithAudit", () => {
     })).rejects.toMatchObject({ name: "AbortError" });
 
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects auxiliary requests above the shared 800-token output ceiling", async () => {
+    const create = vi.fn();
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "summary",
+      input: "conversation",
+      maxOutputTokens: 801,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      client,
+    })).rejects.toThrow("between 1 and 800");
+
+    expect(create).not.toHaveBeenCalled();
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      userInput: null,
+      aiOutput: null,
+      errorMessage: "provider_request_failed:name_Error",
+    }));
   });
 });

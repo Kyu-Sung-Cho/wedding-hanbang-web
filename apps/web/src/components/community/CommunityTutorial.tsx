@@ -7,7 +7,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="community-cohort"]',
     title: "같은 시기 결혼하는 동기방",
     description:
-      "결혼 분기를 고르면 같은 분기 예비부부와 익명 채팅방에 입장해요. 가격·후기·고민을 실시간으로 나누는 공간이에요.",
+      "결혼 분기를 고르면 같은 분기 예비부부와 익명 채팅방에 입장해요. 가격·후기·고민을 함께 나누는 공간이에요.",
   },
   {
     selector: '[data-tutorial-target="community-categories"]',

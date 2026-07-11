@@ -1,6 +1,10 @@
-// 아모라 케어 아웃바운드 크론 — "앱을 열어야 인사하는 친언니"를 "먼저 연락하는 친언니"로.
+// 아모라 케어 아웃바운드 크론 — 보류 중인 과거 구현.
 //
-// 매일 아침(09:30 KST, vercel.json crons) 전 커플의 due 모멘트(D-3/D-1/D+1)를 계산해서:
+// 현재 CARE_MOMENTS_CRON_ENABLED=false이며 배포 스케줄도 등록하지 않는다.
+// 설정 화면·프로필 API·DB 기본값도 별도로 opt-in을 막고 있으므로 이 파일의
+// 아래 발송 구현이 존재한다는 사실을 현재 제공 기능으로 해석하면 안 된다.
+// 재활성화 전에는 명시적 채널별 동의, 철회, 발송 감사, 삭제 경합과 비용 상한을
+// 새로 검증해야 한다. 과거 설계는 due 모멘트(D-3/D-1/D+1)를 계산해서:
 //  1) 채팅에 아모라 메시지를 먼저 넣어두고 (proactive 라우트와 동일 dedupe —
 //     chat_messages 유니크 인덱스(couple_id, metadata->>client_request_id))
 //  2) "이번 크론이 삽입에 성공한 커플"에게만 이메일을 보낸다.
@@ -11,7 +15,7 @@
 // 안전장치: CRON_SECRET Bearer 필수(fail-closed) / 수신 설정(care_notifications_enabled)
 // 존중 / 실행당 발화 상한 / 이메일 실패는 무시(다음 날 셀이 지나면 자연 소멸 — 스팸 재시도 없음).
 //
-// 채널 로드맵: Phase1 이메일(현재) → Phase2 Expo 푸시(모바일 출시 시 여기에 추가)
+// 과거 채널 로드맵: Phase1 이메일 → Phase2 Expo 푸시(모바일 출시 시 여기에 추가)
 // → Phase3 카카오 알림톡(채널 개설 후). 문구·dedupe·스케줄은 그대로 재사용.
 
 import { createClient as createAdminClient } from "@supabase/supabase-js";

@@ -1,5 +1,6 @@
 const AUTH_RETURN_BASE = "https://hanbang.invalid";
 const MAX_AUTH_RETURN_PATH_LENGTH = 6_000;
+export const AUTH_RETURN_PATH_HEADER = "x-hanbang-auth-return-path";
 
 export function sanitizeAuthReturnPath(value: unknown): string | null {
   if (typeof value !== "string") return null;

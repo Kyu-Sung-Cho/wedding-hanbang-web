@@ -20,4 +20,12 @@ describe("browser Supabase initialization boundary", () => {
       expect(source).toMatch(/useEffect\(\(\) => \{[\s\S]*const supabase = createClient\(\)/);
     }
   );
+
+  it("never exposes internal exception messages or stacks to consumers", () => {
+    const source = readFileSync(join(process.cwd(), "src/app/global-error.tsx"), "utf8");
+
+    expect(source).not.toContain("error.message");
+    expect(source).not.toContain("error.stack");
+    expect(source).toContain('href="/support"');
+  });
 });

@@ -66,6 +66,19 @@ describe("useAuthStore", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    it("enters a server-verified demo session without touching the auth API", async () => {
+      await useAuthStore.getState().initialize({ verifiedDemo: true });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(useAuthStore.getState()).toMatchObject({
+        user: { id: "demo" },
+        isDemo: true,
+        isInitialized: true,
+        isLoading: false,
+        initError: null,
+      });
+    });
+
     it("populates user/profile/couple/journey on successful /api/auth/me", async () => {
       const fakeData = {
         user: { id: "u1", email: "test@example.com" },

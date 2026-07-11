@@ -17,7 +17,13 @@ const ChatSidePanel = dynamic(
   { ssr: false },
 );
 
-export default function AppClientLayout({ children }: { children: React.ReactNode }) {
+export default function AppClientLayout({
+  children,
+  initialDemo,
+}: {
+  children: React.ReactNode;
+  initialDemo: boolean;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [retryingAuth, setRetryingAuth] = useState(false);
@@ -28,11 +34,11 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   const { initialize, isInitialized, isLoading, isDemo, initError } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);
-  useAuthSessionSync(!isDemo);
+  useAuthSessionSync(!initialDemo && !isDemo);
 
   useEffect(() => {
-    if (!isInitialized) void initialize();
-  }, [initialize, isInitialized]);
+    if (!isInitialized) void initialize({ verifiedDemo: initialDemo });
+  }, [initialDemo, initialize, isInitialized]);
 
   const retryAuthentication = async () => {
     if (retryingAuth) return;

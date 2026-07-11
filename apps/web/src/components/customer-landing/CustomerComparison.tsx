@@ -3,11 +3,11 @@
 import { motion } from "framer-motion";
 
 const rows = [
-  { label: "상담 시간", old: "영업시간 내 방문 상담만 가능", new: "24시간 AI 즉시 상담" },
-  { label: "드레스 선택", old: "업체마다 가격이 달라 비교 불가", new: "AI가 예산·취향 기반 업체 비교 추천" },
-  { label: "비용 투명성", old: "업체마다 다른 견적, 숨겨진 추가 비용", new: "항목별 평균가 비교, 추가비용 사전 알림" },
-  { label: "예산 관리", old: "엑셀·메모장으로 수동 관리", new: "실시간 자동 추적, 커플 공유" },
-  { label: "일정 관리", old: "카톡으로 공유, 뭐 했는지 기억 안남", new: "D-day 맞춤 체크리스트 자동 제안" },
+  { label: "상담 시간", old: "영업시간에 질문을 모아 문의", new: "아모라에게 필요할 때 질문하고 답변을 참고" },
+  { label: "업체 선택", old: "여러 채널의 정보를 따로 정리", new: "후보와 비교 질문을 한곳에서 정리" },
+  { label: "비용 확인", old: "견적마다 다른 포함 항목을 직접 대조", new: "시세와 견적 체크리스트로 확인 항목 정리" },
+  { label: "예산 관리", old: "각자 엑셀·메모장으로 기록", new: "입력한 예산과 지출을 커플이 함께 확인" },
+  { label: "일정 관리", old: "카톡으로 공유해 변경 내역이 흩어짐", new: "D-day 체크리스트와 직접 등록한 일정 공유" },
   { label: "커플 소통", old: "각자 알아보고 카톡으로 공유", new: "하나의 플랫폼에서 함께 확인·결정" },
 ];
 
@@ -31,9 +31,9 @@ export default function CustomerComparison() {
           기존 방식 vs 웨딩한방
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          같은 결혼 준비, 완전히 다른 경험.
+          흩어진 기록과 비교 기준을 한곳에서 확인하고,
           <br className="hidden md:block" />
-          시간과 비용, 둘 다 아끼세요.
+          커플이 함께 준비 과정을 정리하세요.
         </p>
       </motion.div>
 

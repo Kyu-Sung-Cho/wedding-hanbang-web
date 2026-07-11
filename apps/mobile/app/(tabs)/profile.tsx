@@ -329,7 +329,7 @@ export default function ProfileScreen() {
             />
             <MenuItem
               icon={HelpCircle}
-              label="고객센터"
+              label="문의 안내"
               onPress={() =>
                 Linking.openURL("https://hanbang.ai/support")
               }

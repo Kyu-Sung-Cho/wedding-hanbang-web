@@ -19,7 +19,7 @@ const vendor = {
 };
 
 describe("booking progress sync", () => {
-  it("adds a booking event and increments the matching category spent", () => {
+  it("adds a pending consultation request without spending the quoted amount", () => {
     const result = buildBookingCreatedProgressPatch({
       progress: {
         dress: {
@@ -35,15 +35,18 @@ describe("booking progress sync", () => {
     });
 
     expect(result.scheduleAdded).toBe(true);
-    expect(result.budgetUpdated).toBe(true);
-    expect(result.syncedCategoryKey).toBe("dress");
-    expect(result.syncedNewSpent).toBe(1_700_000);
-    expect(result.budgetExceededBy).toBe(700_000);
+    expect(result.budgetUpdated).toBe(false);
+    expect(result.syncedCategoryKey).toBeNull();
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.budgetExceededBy).toBe(0);
     expect(result.syncedEvent.id).toBe(`evt_booking_${booking.id}`);
     expect(result.syncedEvent.sourceKey).toBe(`booking:${booking.id}`);
-    expect(result.syncedEvent.title).toContain("B드레스");
+    expect(result.syncedEvent.title).toContain("B드레스 럭셔리 수입 오리지널 상담 요청");
+    expect(result.syncedEvent.memo).toContain("상담 요청 자동 등록");
     expect(result.patch).toHaveProperty("__events");
-    expect(result.patch).toHaveProperty("dress");
+    expect(result.patch).not.toHaveProperty("dress");
+    expect(result.patch.__booking_costs).toEqual({ [booking.id]: 0 });
+    expect(result.nextProgress.dress).toMatchObject({ spent: 200_000 });
   });
 
   it("updates an existing booking event without charging the budget twice", () => {
@@ -75,6 +78,7 @@ describe("booking progress sync", () => {
     expect(result.budgetUpdated).toBe(false);
     expect(result.syncedNewSpent).toBeNull();
     expect(result.nextProgress.dress).toMatchObject({ spent: 1_500_000 });
+    expect(result.patch).not.toHaveProperty("__booking_costs");
     expect(result.syncedEvent.title).toContain("13:00");
     expect(result.syncedEvent.createdAt).toBe(existingEvent.createdAt);
   });
@@ -89,9 +93,41 @@ describe("booking progress sync", () => {
     expect(result.scheduleAdded).toBe(true);
     expect(result.budgetUpdated).toBe(false);
     expect(result.syncedCategoryKey).toBeNull();
+    expect(result.patch.__booking_costs).toEqual({ [booking.id]: 0 });
   });
 
-  it("adjusts category spent by only the outcome delta for synced bookings", () => {
+  it("adds the full completed outcome after a pending zero-cost marker", () => {
+    const created = buildBookingCreatedProgressPatch({
+      progress: {
+        dress: {
+          label: "드레스",
+          budget: 2_800_000,
+          spent: 200_000,
+        },
+      },
+      booking,
+      vendor,
+    });
+
+    const outcome = buildBookingOutcomeProgressPatch({
+      progress: created.nextProgress,
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        previousActualAmount: null,
+        actualAmount: 1_900_000,
+      },
+      vendor,
+    });
+
+    expect(outcome.previousContribution).toBe(0);
+    expect(outcome.budgetDelta).toBe(1_900_000);
+    expect(outcome.syncedNewSpent).toBe(2_100_000);
+    expect(outcome.patch.dress).toMatchObject({ spent: 2_100_000 });
+    expect(outcome.patch.__booking_costs).toEqual({ [booking.id]: 1_900_000 });
+  });
+
+  it("keeps the legacy event fallback when adjusting an older booking outcome", () => {
     const result = buildBookingOutcomeProgressPatch({
       progress: {
         __events: [{
@@ -236,6 +272,33 @@ describe("booking progress sync", () => {
     expect(result.syncedNewSpent).toBe(0);
     expect(result.patch.__events).toEqual([]);
     expect(result.patch.dress).toMatchObject({ spent: 0 });
+    expect(result.patch.__booking_costs).toEqual({});
+  });
+
+  it("removes a pending request marker without reverting unspent budget", () => {
+    const created = buildBookingCreatedProgressPatch({
+      progress: {
+        dress: {
+          label: "드레스",
+          budget: 2_800_000,
+          spent: 200_000,
+        },
+      },
+      booking,
+      vendor,
+    });
+
+    const result = buildBookingCancelledProgressPatch({
+      progress: created.nextProgress,
+      booking,
+      vendor,
+    });
+
+    expect(result.scheduleRemoved).toBe(true);
+    expect(result.budgetReverted).toBe(false);
+    expect(result.revertedAmount).toBe(0);
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.nextProgress.dress).toMatchObject({ spent: 200_000 });
     expect(result.patch.__booking_costs).toEqual({});
   });
 

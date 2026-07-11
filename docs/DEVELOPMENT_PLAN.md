@@ -1,9 +1,11 @@
 # 웨딩한방 웹/앱 통합 개발 플랜
 
-> 최종 업데이트: 2026-07-10 (AI 공급자·모델 갱신)
-> 개발자: 솔로 (Claude Code 활용)
+> 최종 업데이트: 2026-07-11 (현재 구현 경계 교정)
+> 개발자: 솔로 (Codex/ChatGPT 활용)
 > 출시 목표: 2026-06-09 (2개월)
 > 월 예산: $500
+>
+> **역사 계획 주의**: 위 출시 목표와 아래 Phase 일정은 과거 계획이다. 현재 출시 판정은 `CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`와 실제 코드·테스트를 우선한다. 아모라는 Luna 기본/Terra 제한 승격이며 모델 기반 쓰기 도구는 현재 비활성이다.
 
 ---
 
@@ -13,7 +15,7 @@
 wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 │
 ├── apps/
-│   ├── web/                              Next.js 15 (App Router)
+│   ├── web/                              Next.js 16 (App Router)
 │   │   └── Vercel → hanbang.ai           라이브 중
 │   └── mobile/                           Expo SDK 54 (Expo Router 6)
 │       └── EAS → App Store / Play Store   개발 중
@@ -31,7 +33,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 
 | 레이어 | 웹 | 앱 |
 |--------|-----|-----|
-| 프레임워크 | Next.js 15 | Expo SDK 54 |
+| 프레임워크 | Next.js 16 | Expo SDK 54 |
 | 라우팅 | App Router | Expo Router 6 |
 | 스타일링 | Tailwind CSS 4 | React Native StyleSheet |
 | 상태 (클라이언트) | Zustand | Zustand |
@@ -204,7 +206,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 | 카카오 로그인 | ✅ 완료 |
 | Apple 로그인 | Week 6 |
 | 대시보드 | D-day, 진행률, 오늘의 할 일 |
-| AI 채팅 (아모라) | GPT-5.6 Terra 스트리밍, Luna 보조 처리, 대화 저장 |
+| AI 채팅 (아모라) | GPT-5.6 Luna 기본 스트리밍, 계약·분쟁/안전·최근 반복 교정만 Terra 승격, 대화 저장 |
 | 체크리스트/일정 | 읽기 + 체크 |
 | 예산 | 읽기 전용 |
 | 커뮤니티 피드 | 읽기 + 좋아요 + 북마크 |
