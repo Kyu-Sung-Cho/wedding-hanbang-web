@@ -29,7 +29,6 @@ import {
   Lock,
   LogOut,
   Trash2,
-  FileText,
   X,
   Eye,
   EyeOff,
@@ -654,14 +653,20 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>알림 설정</Text>
         </View>
         <Surface style={styles.card}>
+          <Text style={styles.toggleNotice} accessibilityRole="text">
+            알림 종류별 제어는 아직 준비 중이에요. 현재 알림 전체 허용·차단은 휴대폰의 앱 설정에서 변경해 주세요.
+          </Text>
+          <View style={styles.divider} />
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>푸시 알림</Text>
-              <Text style={styles.toggleHint}>일정, 예산 알림을 받아요</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="푸시 알림 설정, 준비 중"
               value={pushEnabled}
               onValueChange={togglePush}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -672,11 +677,13 @@ export default function SettingsScreen() {
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>커뮤니티 알림</Text>
-              <Text style={styles.toggleHint}>댓글, 좋아요 알림을 받아요</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="커뮤니티 알림 설정, 준비 중"
               value={communityNotifEnabled}
               onValueChange={toggleCommunity}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -687,11 +694,13 @@ export default function SettingsScreen() {
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>파트너 메시지 알림</Text>
-              <Text style={styles.toggleHint}>파트너가 보낸 메시지 알림</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="파트너 메시지 알림 설정, 준비 중"
               value={partnerNotifEnabled}
               onValueChange={togglePartner}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -824,14 +833,6 @@ export default function SettingsScreen() {
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
 
-          <View style={styles.divider} />
-
-          <ActionRow
-            icon={<FileText size={16} color={colors.noir[800]} />}
-            title="오픈소스 라이선스"
-            onPress={() => Linking.openURL("https://hanbang.ai/licenses")}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
-          />
         </Surface>
 
         {/* 회원 탈퇴 (위험 영역) */}
@@ -1022,6 +1023,11 @@ const styles = StyleSheet.create({
   },
 
   // 알림 토글 행
+  toggleNotice: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 19,
+  },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1039,7 +1045,7 @@ const styles = StyleSheet.create({
   },
   toggleHint: {
     fontSize: 12,
-    color: colors.taupe[400],
+    color: colors.textTertiary,
     marginTop: 2,
   },
 

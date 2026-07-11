@@ -10,7 +10,7 @@ interface CustomerCTAProps {
 
 export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const loginHref = demoMode ? "/demo/login" : "/login";
+  const loginHref = "/login";
   return (
     <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}

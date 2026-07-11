@@ -294,7 +294,9 @@ export default function LoginPage() {
               <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
                 {mode === "signup" && (
                   <div>
+                    <label htmlFor="auth-name" className="sr-only">이름</label>
                     <input
+                      id="auth-name"
                       type="text"
                       value={name}
                       onChange={(e) => { setName(e.target.value); setError(""); }}
@@ -309,7 +311,9 @@ export default function LoginPage() {
                     )}
                   </div>
                 )}
+                <label htmlFor="auth-email" className="sr-only">이메일</label>
                 <input
+                  id="auth-email"
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
@@ -320,7 +324,9 @@ export default function LoginPage() {
 
                 {/* 비밀번호 (forgot 모드에서는 숨김) */}
                 {mode !== "forgot" && <div className="relative">
+                  <label htmlFor="auth-password" className="sr-only">비밀번호</label>
                   <input
+                    id="auth-password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
@@ -332,7 +338,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[#928980] hover:text-[#36534E] transition-colors"
-                    tabIndex={-1}
+                    aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                   >
                     {showPassword ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -381,7 +387,9 @@ export default function LoginPage() {
                 {mode === "signup" && (
                   <div>
                     <div className="relative">
+                      <label htmlFor="auth-password-confirm" className="sr-only">비밀번호 확인</label>
                       <input
+                        id="auth-password-confirm"
                         type={showPasswordConfirm ? "text" : "password"}
                         value={passwordConfirm}
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
@@ -397,7 +405,7 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-[#928980] hover:text-[#36534E] transition-colors"
-                        tabIndex={-1}
+                        aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                       >
                         {showPasswordConfirm ? (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -433,10 +441,10 @@ export default function LoginPage() {
                 )}
 
                 {error && (
-                  <p className="text-[12px] text-[#9A6B62] px-1">{error}</p>
+                  <p className="text-[12px] text-[#9A6B62] px-1" role="alert" aria-live="assertive">{error}</p>
                 )}
                 {success && (
-                  <div className="bg-[#36534E]/5 border border-[#36534E]/20 rounded-xl px-4 py-3">
+                  <div className="bg-[#36534E]/5 border border-[#36534E]/20 rounded-xl px-4 py-3" role="status" aria-live="polite">
                     <p className="text-[13px] text-[#36534E] font-medium flex items-center gap-2">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                       {success}
@@ -458,6 +466,12 @@ export default function LoginPage() {
                         ? "회원가입"
                         : "비밀번호 재설정 링크 보내기"}
                 </button>
+                {mode === "signup" && (
+                  <p className="px-2 text-center text-[11px] leading-5 text-[#635b51]">
+                    회원가입을 누르면 <Link href="/terms" className="underline underline-offset-2">이용약관</Link>과{" "}
+                    <Link href="/privacy" className="underline underline-offset-2">개인정보처리방침</Link>에 동의합니다.
+                  </p>
+                )}
               </form>
 
               {/* 모드 전환 */}

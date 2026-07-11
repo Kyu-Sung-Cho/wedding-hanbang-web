@@ -9,14 +9,14 @@ export const revalidate = 60;
 
 export const metadata = {
   title: "베타 신청 · 웨딩한방",
-  description: "6주간 함께해 주실 50쌍을 찾습니다. 실거래가 · Contract Diff 무료 Premium, 정식 출시 시 6개월 연장.",
+  description: "6주간 아모라 상담, 견적 체크, 예산·일정 준비 흐름을 함께 검증할 50쌍을 찾습니다.",
 };
 
 const BENEFITS = [
-  "실거래가 · Contract Diff 무료 Premium",
-  "아모라 풀 기능 우선 사용",
-  "종료 후 6개월 무료 연장",
-  "정식 출시 시 선배 신부 인증",
+  "아모라 상담 · 견적 체크리스트 우선 체험",
+  "예산 · 일정 · 커플 준비 흐름 함께 검증",
+  "불편 사항과 필요한 기능을 개선에 직접 반영",
+  "베타 운영 변경 사항을 이메일로 안내",
 ];
 
 const CONDITIONS = [
@@ -32,7 +32,7 @@ export default async function BetaPage() {
 
   return (
     <main className="min-h-screen bg-noir-800">
-      <CustomerNav />
+      <CustomerNav darkAtTop />
 
       {/* Hero */}
       <section className="relative pt-[120px] md:pt-[160px] pb-[clamp(60px,8vw,100px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
@@ -55,15 +55,15 @@ export default async function BetaPage() {
             <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
-            아모라의 전 기능을 6주간 먼저 경험하고,
+            현재 제공 중인 아모라와 준비 도구를 6주간 먼저 경험하고,
             <br />
-            정식 출시 후에도 6개월 무료로 이어집니다.
+            실제 준비 과정에서 필요한 개선을 함께 찾습니다.
           </p>
         </div>
       </section>
 
       {/* Body: 좌측 혜택·조건 + 우측 신청 카드 */}
-      <section className="px-[clamp(20px,5vw,60px)] pb-[clamp(80px,10vw,140px)]">
+      <section id="cta" className="scroll-mt-24 px-[clamp(20px,5vw,60px)] pb-[clamp(80px,10vw,140px)]">
         <div className="max-w-[1240px] mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 lg:gap-20 items-start">
           {/* 좌측 */}
           <div className="space-y-14">
@@ -122,7 +122,7 @@ export default async function BetaPage() {
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">04</span>
-                  종료 후 6개월 무료 연장 + 선배 신부 인증
+                  베타 종료 후 변경 사항과 정식 출시 일정 안내
                 </li>
               </ul>
             </div>

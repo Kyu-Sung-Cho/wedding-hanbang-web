@@ -122,14 +122,16 @@ export default function RootLayout() {
     };
   }, []);
 
-  // 푸시 알림 등록 (EAS Build에서만 작동, Expo Go에서는 스킵)
+  // 알림 종류별 동의·토큰 폐기 계약이 연결되기 전에는 시작 시 권한을 묻지 않는다.
+  // 운영자가 명시적으로 플래그를 켠 빌드에서만 등록한다.
   useEffect(() => {
-    if (fontsLoaded && !__DEV__) {
+    const pushEnabled = process.env.EXPO_PUBLIC_PUSH_NOTIFICATIONS_ENABLED === "true";
+    if (fontsLoaded && !__DEV__ && signedIn && pushEnabled) {
       import("@/lib/notifications").then(({ registerForPushNotifications }) => {
         registerForPushNotifications().catch(() => {});
       });
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, signedIn]);
 
   if ((!fontsLoaded && !fontError) || !authReady) {
     return (

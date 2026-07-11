@@ -599,21 +599,27 @@ function SiteFooter() {
         <p className="my-3 text-[13px] font-bold text-[#647083]">
           AI가 기억하는 가장 든든한 결혼 준비
         </p>
-        <div className="flex gap-[10px]">
-          {["IG", "YT", "N"].map((item) => (
-            <Link
-              key={item}
-              href="/about"
-              className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#d8deea] text-[12px] font-black text-[#061a34]"
-            >
-              {item}
-            </Link>
-          ))}
-        </div>
+        <a
+          href={CONTACT.instagramHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-[34px] items-center justify-center rounded-full border border-[#d8deea] px-3 text-[12px] font-black text-[#061a34]"
+        >
+          Instagram
+        </a>
       </div>
 
-      <FooterCol title="서비스" items={["커뮤니티", "시세 정보", "결혼 예절", "소개"]} />
-      <FooterCol title="정책" items={["이용약관", "개인정보처리방침", "위치기반서비스 이용약관", "환불 규정 안내"]} />
+      <FooterCol title="서비스" items={[
+        { label: "커뮤니티", href: weddingPath() },
+        { label: "시세 정보", href: weddingPath("/market-prices") },
+        { label: "결혼 예절", href: weddingPath("/etiquette") },
+        { label: "소개", href: "/about" },
+      ]} />
+      <FooterCol title="정책" items={[
+        { label: "이용약관", href: "/terms" },
+        { label: "개인정보처리방침", href: "/privacy" },
+        { label: "AI 정책", href: "/ai-policy" },
+      ]} />
       <div className="flex flex-col gap-2">
         <h3 className="mb-2 text-[14px] font-black text-[#071629]">연락</h3>
         <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.email}</span>
@@ -635,13 +641,13 @@ function SiteFooter() {
   );
 }
 
-function FooterCol({ title, items }: { title: string; items: string[] }) {
+function FooterCol({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="mb-2 text-[14px] font-black text-[#071629]">{title}</h3>
       {items.map((item) => (
-        <Link key={item} href="/about" className="text-[13px] font-semibold text-[#5b6676]">
-          {item}
+        <Link key={item.href} href={item.href} className="text-[13px] font-semibold text-[#5b6676]">
+          {item.label}
         </Link>
       ))}
     </div>
