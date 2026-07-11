@@ -8,11 +8,12 @@ const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
 interface CustomerNavProps {
   demoMode?: boolean;
+  darkAtTop?: boolean;
 }
 
-export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
+export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const loginHref = demoMode ? "/demo/login" : "/login";
+  const loginHref = "/login";
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -46,6 +47,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
     { href: "/about", label: "소개", scroll: false },
     { href: "#cta", label: "베타 신청", scroll: true },
   ];
+  const useDarkColors = darkAtTop && !scrolled && !menuOpen;
 
   return (
     <>
@@ -57,7 +59,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
         }`}
       >
         <a href={demoMode ? "/demo" : "/"} className="no-underline">
-          <Logo size="sm" />
+          <Logo size="sm" variant={useDarkColors ? "white" : "default"} />
         </a>
 
         {/* 데스크톱 메뉴 */}
@@ -68,7 +70,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
                 key={link.href}
                 href={link.href}
                 onClick={(e) => handleClick(e, link.href)}
-                className="relative text-charcoal text-[14px] font-normal tracking-wide no-underline hover:text-noir-800 transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full"
+                className={`relative text-[14px] font-normal tracking-wide no-underline transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full ${useDarkColors ? "text-white/85 hover:text-white" : "text-charcoal hover:text-noir-800"}`}
               >
                 {link.label}
               </a>
@@ -76,7 +78,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
               <a
                 key={link.href}
                 href={link.href}
-                className="relative text-charcoal text-[14px] font-normal tracking-wide no-underline hover:text-noir-800 transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full"
+                className={`relative text-[14px] font-normal tracking-wide no-underline transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full ${useDarkColors ? "text-white/85 hover:text-white" : "text-charcoal hover:text-noir-800"}`}
               >
                 {link.label}
               </a>
@@ -98,17 +100,17 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
           aria-label="메뉴"
         >
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 origin-center ${
+            className={`block w-5 h-[1.5px] transition-all duration-300 origin-center ${useDarkColors ? "bg-white" : "bg-noir-800"} ${
               menuOpen ? "rotate-45 translate-y-[6.5px]" : ""
             }`}
           />
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 ${
+            className={`block w-5 h-[1.5px] transition-all duration-300 ${useDarkColors ? "bg-white" : "bg-noir-800"} ${
               menuOpen ? "opacity-0 scale-x-0" : ""
             }`}
           />
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 origin-center ${
+            className={`block w-5 h-[1.5px] transition-all duration-300 origin-center ${useDarkColors ? "bg-white" : "bg-noir-800"} ${
               menuOpen ? "-rotate-45 -translate-y-[6.5px]" : ""
             }`}
           />

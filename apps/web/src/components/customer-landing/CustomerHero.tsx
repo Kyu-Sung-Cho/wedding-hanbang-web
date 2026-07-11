@@ -10,7 +10,7 @@ interface CustomerHeroProps {
 
 export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const loginHref = demoMode ? "/demo/login" : "/login";
+  const loginHref = "/login";
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-ivory-50">
       {/* 배경 */}

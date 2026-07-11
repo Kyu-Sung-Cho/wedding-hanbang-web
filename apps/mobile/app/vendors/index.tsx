@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable,
-  RefreshControl, TextInput, Linking, Image,
+  RefreshControl, TextInput, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
+  Search, MapPin, Store, BadgeCheck, Star, Heart,
   ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -319,10 +319,6 @@ export default function VendorsScreen() {
 
   useEffect(() => { loadVendors(); }, [loadVendors]);
 
-  function openVendorRegister() {
-    Linking.openURL("https://hanbang.ai/vendor/register");
-  }
-
   const verifiedCount = vendors.filter((vendor) => vendor.is_verified).length;
   const priceKnownCount = vendors.filter((vendor) => getDisplayPrice(vendor) !== "문의 필요").length;
   const curatedCount = vendors.filter((vendor) => vendor.ai_recommend).length;
@@ -630,19 +626,6 @@ export default function VendorsScreen() {
         />
       )}
 
-      {/* 하단 업체 등록 버튼 */}
-      <View style={s.bottomBar}>
-        <Pressable
-          style={({ pressed }) => [
-            s.registerBtn,
-            pressed && { transform: [{ scale: 0.97 }] },
-          ]}
-          onPress={openVendorRegister}
-        >
-          <Plus size={18} color={colors.rose[500]} />
-          <Text style={s.registerBtnText}>업체 등록하기</Text>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }
@@ -988,34 +971,4 @@ const s = StyleSheet.create({
   footerContainer: { alignItems: "center", paddingVertical: 16 },
   footerCount: { fontSize: 12, color: colors.textTertiary },
 
-  // 하단 업체 등록 바
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    paddingBottom: 32,
-  },
-  registerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: colors.rose[500],
-    backgroundColor: colors.surface,
-  },
-  registerBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.rose[500],
-    fontFamily: "NotoSansKR_400Regular",
-  },
 });

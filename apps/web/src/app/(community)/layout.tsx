@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Instagram, Mail, MessageCircle, Play, ShieldCheck } from "lucide-react";
+import { Instagram, Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
@@ -49,18 +49,19 @@ function CommunityFooter() {
           </p>
           <div className="mt-5 flex gap-3">
             {[
-              { icon: Instagram, label: "Instagram" },
-              { icon: Play, label: "YouTube" },
-              { icon: MessageCircle, label: "Kakao" },
+              { icon: Instagram, label: "Instagram", href: CONTACT.instagramHref },
+              { icon: Mail, label: "이메일", href: `mailto:${CONTACT.email}` },
             ].map((item) => (
-              <Link
+              <a
                 key={item.label}
-                {...weddingLinkProps()}
+                href={item.href}
+                target={item.href.startsWith("http") ? "_blank" : undefined}
+                rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 aria-label={item.label}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
                 <item.icon className="h-4 w-4" />
-              </Link>
+              </a>
             ))}
           </div>
         </div>

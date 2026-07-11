@@ -164,7 +164,7 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -183,7 +183,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   placeholder="비밀번호"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.textTertiary}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   onSubmitEditing={handleEmailLogin}
@@ -221,7 +221,7 @@ export default function LoginScreen() {
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
               <Pressable onPress={() => openSecureWebAuth("signup")}>
-                <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
+                <Text style={[styles.link, { color: colors.rose[600] }]}>회원가입</Text>
               </Pressable>
             </View>
           </View>

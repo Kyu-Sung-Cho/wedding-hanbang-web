@@ -363,7 +363,7 @@ export default function OnboardingScreen() {
                   value={inviteCode}
                   onChangeText={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
                   placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_EXAMPLE})`}
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.textTertiary}
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={COUPLE_INVITE_CODE_LENGTH}
@@ -386,7 +386,7 @@ export default function OnboardingScreen() {
                     value={weddingDate}
                     onChangeText={setWeddingDate}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.taupe[400]}
+                    placeholderTextColor={colors.textTertiary}
                     keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
                     maxLength={10}
                   />
@@ -410,7 +410,7 @@ export default function OnboardingScreen() {
                 value={venue}
                 onChangeText={setVenue}
                 placeholder="예식장 이름 (선택)"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.textTertiary}
               />
 
               <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산</Text>
@@ -420,7 +420,7 @@ export default function OnboardingScreen() {
                   value={budget}
                   onChangeText={setBudget}
                   placeholder="예: 3000"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
                 />
                 <View style={styles.budgetUnitBox}>
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
   },
-  roleLabelActive: { color: colors.rose[500] },
+  roleLabelActive: { color: colors.noir[800] },
 
   // Step 2: 커플
   optionCard: {
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 4,
   },
-  optionTitleActive: { color: colors.rose[500] },
+  optionTitleActive: { color: colors.noir[800] },
   optionDesc: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",
