@@ -60,6 +60,16 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Expand/contract compatibility window: the published mobile binary uploads
+  -- directly with an authenticated JWT and cannot create a reservation first.
+  -- Its existing own-folder RLS policy plus 0500's lifecycle trigger remain the
+  -- authorization boundary. The new server route uses service_role and must
+  -- consume a reservation. Authenticated bypass is removed only by the gated
+  -- future contract migration after old-client traffic reaches zero.
+  IF COALESCE(auth.role(), '') = 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
   v_user_text := (storage.foldername(NEW.name))[1];
   BEGIN
     v_user_id := v_user_text::uuid;

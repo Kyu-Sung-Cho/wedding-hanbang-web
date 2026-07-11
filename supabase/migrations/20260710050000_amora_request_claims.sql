@@ -27,16 +27,13 @@ ALTER TABLE public.couples
 ALTER TABLE public.couples
   ADD COLUMN IF NOT EXISTS amora_replacement_blocked_at timestamptz;
 
--- A pre-migration one-slot couple cannot be distinguished safely from a
--- relationship where the former partner already left. Preserve every row, but
--- quarantine partner replacement until the remaining member deliberately
--- starts a new relationship. Couples created by the safe RPC below are not
--- affected because they are created after this one-time quarantine.
-UPDATE public.couples
-SET amora_replacement_blocked_at = COALESCE(amora_replacement_blocked_at, now()),
-    invite_code = NULL,
-    updated_at = now()
-WHERE (bride_id IS NULL) <> (groom_id IS NULL);
+-- Expand-only release rule: a pre-migration one-slot couple cannot be
+-- distinguished safely from a legitimate solo journey. Never infer that a
+-- partner departed, clear an invite, or detach journey data in an automatic
+-- migration. A future operator-authored migration may mark individually
+-- audited couple ids only after an export, classification, and change approval.
+-- The lifecycle RPCs below still mark couples when a *new, observed* departure
+-- happens after this migration; that event has provenance and is not guessed.
 
 -- Historical environments already have these compatibility columns, but the
 -- checked-in baseline did not create them on a fresh database. Profiles and
@@ -127,8 +124,9 @@ CREATE TRIGGER trg_guard_profile_self_insert
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_profile_self_insert();
 
--- The base table is own-row only. Partner UI gets an intentionally tiny shape
--- through get_my_partner_public() instead of SELECT * on the partner profile.
+-- Expand phase keeps the published mobile contract that reads the currently
+-- linked partner's name directly. New clients use get_my_partner_public(); the
+-- broader row contract is retired only in the gated future contract migration.
 CREATE OR REPLACE FUNCTION public.can_read_profile(p_profile_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -137,7 +135,24 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE(auth.role(), '') = 'service_role'
-    OR p_profile_id = auth.uid();
+    OR p_profile_id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles AS caller
+      JOIN public.couples AS couple ON couple.id = caller.couple_id
+      JOIN public.profiles AS partner
+        ON partner.id = p_profile_id
+       AND partner.couple_id = couple.id
+      WHERE caller.id = auth.uid()
+        AND caller.account_deleting_at IS NULL
+        AND caller.amora_membership_resetting_at IS NULL
+        AND partner.account_deleting_at IS NULL
+        AND couple.amora_shared_resetting_at IS NULL
+        AND (
+          (couple.bride_id = caller.id AND couple.groom_id = partner.id)
+          OR (couple.groom_id = caller.id AND couple.bride_id = partner.id)
+        )
+    );
 $$;
 REVOKE ALL ON FUNCTION public.can_read_profile(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.can_read_profile(uuid) TO authenticated, service_role;
@@ -850,21 +865,10 @@ REVOKE ALL ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text,
 REVOKE ALL ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text, numeric, jsonb) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text, numeric, jsonb) TO service_role;
 
-DO $$
-DECLARE v_couple record;
-BEGIN
-  FOR v_couple IN
-    SELECT id FROM public.couples
-    WHERE amora_replacement_blocked_at IS NULL
-      AND (invite_code IS NULL OR invite_code !~ '^WH-[A-Z0-9]{12}$')
-    FOR UPDATE
-  LOOP
-    UPDATE public.couples
-    SET invite_code = public.generate_invite_code(), updated_at = now()
-    WHERE id = v_couple.id;
-  END LOOP;
-END;
-$$;
+-- Do not rewrite historical invite codes in the expand migration. Invalid or
+-- missing legacy codes can represent several states that require an audited
+-- production classification. Newly created couples receive a safe code in the
+-- RPC above; historical repairs belong in a separately approved data migration.
 
 -- Authenticated clients may only create genuine user rows. AI/assistant rows
 -- remain service-role only even though the compatibility columns now exist.
@@ -1070,8 +1074,10 @@ REVOKE ALL ON FUNCTION public.insert_amora_user_message(uuid, uuid, text, text, 
 REVOKE ALL ON FUNCTION public.insert_amora_user_message(uuid, uuid, text, text, text) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.insert_amora_user_message(uuid, uuid, text, text, text) TO service_role;
 
-DROP POLICY IF EXISTS "chat_insert_couple" ON public.chat_messages;
-REVOKE INSERT ON TABLE public.chat_messages FROM authenticated;
+-- Compatibility window: the hardened policy and trigger above keep the
+-- published mobile direct-INSERT path safe while new clients use the server
+-- route. Revocation lives in the gated future contract migration.
+GRANT INSERT ON TABLE public.chat_messages TO authenticated;
 
 -- Reassert privacy RLS after later hardening migrations introduced a broad
 -- couple-only summary policy (and an older decision FOR ALL policy remained).
@@ -1175,16 +1181,9 @@ CREATE POLICY couples_select_own ON public.couples
   FOR SELECT TO authenticated
   USING (public.is_couple_member(id));
 
--- Persistent chat attachment lifecycle is intentionally disabled. The bucket
--- stays private and authenticated users cannot create/update/delete objects;
--- legacy blobs require a Storage API inventory/purge before production rollout.
-UPDATE storage.buckets SET public = false WHERE id = 'chat-image';
-DROP POLICY IF EXISTS "chat-image authenticated write" ON storage.objects;
-DROP POLICY IF EXISTS "chat-image authenticated update" ON storage.objects;
-DROP POLICY IF EXISTS "chat-image authenticated delete" ON storage.objects;
-DROP POLICY IF EXISTS "chat-image couple folder write" ON storage.objects;
-DROP POLICY IF EXISTS "chat-image couple folder update" ON storage.objects;
-DROP POLICY IF EXISTS "chat-image couple folder delete" ON storage.objects;
+-- Expand-only: existing chat attachment access remains unchanged. Bucket
+-- retirement and policy removal are staged in the future contract migration
+-- after old-client traffic and object retention have both been verified.
 
 -- Community media remains supported, but every write shares the profile lock
 -- with account deletion. If upload wins, deletion waits and then removes it; if
@@ -1227,11 +1226,9 @@ CREATE TRIGGER trg_guard_user_media_storage_write
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_user_media_storage_write();
 
--- Vendor media upload UI is not active. Remove the legacy any-authenticated
--- upload policies so JWT holders cannot use the project as arbitrary storage.
-DROP POLICY IF EXISTS "업체: 본인 이미지 업로드" ON storage.objects;
-DROP POLICY IF EXISTS "업체: 본인 이미지 삭제" ON storage.objects;
-DROP POLICY IF EXISTS "업체: 사업자등록증 업로드" ON storage.objects;
+-- Expand-only: legacy vendor media policies are not retired here. Their removal
+-- is part of the future contract migration and requires a published-client
+-- inventory plus a minimum-version gate.
 
 CREATE TABLE IF NOT EXISTS public.amora_request_claims (
   request_key text PRIMARY KEY CHECK (request_key ~ '^[a-f0-9]{64}$'),
