@@ -10,6 +10,7 @@ import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
+import { isCoupleInviteCode } from "@hanbang/shared";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -49,7 +50,7 @@ export default function OnboardingPage() {
         return store.role !== null;
       case 2:
         if (store.coupleAction === "join") {
-          return /^WH-[A-Z0-9]{6,12}$/.test(store.partnerInviteCode);
+          return isCoupleInviteCode(store.partnerInviteCode);
         }
         return store.coupleAction !== null;
       case 3:

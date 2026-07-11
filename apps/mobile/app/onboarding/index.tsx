@@ -9,6 +9,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  COUPLE_INVITE_CODE_EXAMPLE,
+  COUPLE_INVITE_CODE_LENGTH,
+  isCoupleInviteCode,
+  manwonInputToWon,
+  normalizeCoupleInviteCode,
+} from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
 
 type Role = "bride" | "groom";
@@ -196,7 +203,7 @@ export default function OnboardingScreen() {
   function canNext(): boolean {
     switch (step) {
       case 1: return role !== null;
-      case 2: return coupleAction === "create" || (coupleAction === "join" && inviteCode.length >= 6);
+      case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
       case 3: return true;
       case 4: return true; // 선호도는 선택사항
       default: return false;
@@ -224,7 +231,7 @@ export default function OnboardingScreen() {
           partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
           weddingDate: weddingDateUndecided ? null : weddingDate || null,
           venue: venue || null,
-          totalBudget: budget ? parseInt(budget) : 0,
+          totalBudget: budget ? manwonInputToWon(budget) : 0,
           progress,
         }),
       });
@@ -354,11 +361,12 @@ export default function OnboardingScreen() {
                 <TextInput
                   style={styles.inviteCodeInput}
                   value={inviteCode}
-                  onChangeText={setInviteCode}
-                  placeholder="초대코드 입력 (예: WH-ABC123)"
+                  onChangeText={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
+                  placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_EXAMPLE})`}
                   placeholderTextColor={colors.taupe[400]}
                   autoCapitalize="characters"
-                  maxLength={10}
+                  autoCorrect={false}
+                  maxLength={COUPLE_INVITE_CODE_LENGTH}
                 />
               )}
             </View>
