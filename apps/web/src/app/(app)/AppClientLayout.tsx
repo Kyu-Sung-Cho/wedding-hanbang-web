@@ -1,16 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
-import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+
+const ChatSidePanel = dynamic(
+  () => import("@/components/app/chat/ChatSidePanel"),
+  { ssr: false },
+);
 
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -66,7 +71,9 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         )}
       </div>
 
-      <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
+      {chatPanelOpen && !isChatPage && (
+        <ChatSidePanel isOpen onClose={() => setChatPanelOpen(false)} />
+      )}
 
       {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
         <button
