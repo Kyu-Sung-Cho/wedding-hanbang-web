@@ -42,6 +42,39 @@ function rateLimitResponse(retryAfter: number): NextResponse {
   );
 }
 
+function protectedSubjectRateLimitResponse(errorCode?: string): NextResponse {
+  if (errorCode === "42501") {
+    return NextResponse.json(
+      {
+        code: "ACCOUNT_REQUEST_BLOCKED",
+        error: "현재 계정 상태로는 요청을 처리할 수 없습니다.",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (errorCode === "22023") {
+    return NextResponse.json(
+      {
+        code: "RATE_LIMIT_SUBJECT_CONFLICT",
+        error: "요청 상태가 일치하지 않습니다. 새로고침 후 다시 시도해주세요.",
+      },
+      { status: 409 },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      code: "RATE_LIMIT_UNAVAILABLE",
+      error: "요청 보호 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    },
+    {
+      status: 503,
+      headers: { "Retry-After": "5" },
+    },
+  );
+}
+
 /**
  * Rate limit 체크.
  * @returns null이면 통과, NextResponse면 차단됨
@@ -90,9 +123,14 @@ function getAdminClient(): SupabaseClient | null {
 export async function checkRateLimitPersistent(
   key: string,
   config: RateLimitConfig,
+  subjectUserId?: string | null,
 ): Promise<NextResponse | null> {
   const admin = getAdminClient();
-  if (!admin) return checkRateLimit(key, config);
+  if (!admin) {
+    return subjectUserId
+      ? protectedSubjectRateLimitResponse()
+      : checkRateLimit(key, config);
+  }
   const protectedKey = protectedRateLimitKey(key);
 
   try {
@@ -100,10 +138,13 @@ export async function checkRateLimitPersistent(
       p_key: protectedKey,
       p_max_requests: config.maxRequests,
       p_window_ms: config.windowMs,
+      p_subject_user_id: subjectUserId ?? null,
     });
     if (error) {
-      console.error("[rateLimit] persistent check failed; falling back:", error.message);
-      return checkRateLimit(key, config);
+      console.error("[rateLimit] persistent check failed:", error.message);
+      return subjectUserId
+        ? protectedSubjectRateLimitResponse(error.code)
+        : checkRateLimit(key, config);
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -113,8 +154,10 @@ export async function checkRateLimitPersistent(
     const retryAfter = Number(result?.retry_after_seconds ?? Math.ceil(config.windowMs / 1000));
     return rateLimitResponse(retryAfter);
   } catch (err) {
-    console.error("[rateLimit] persistent check exception; falling back:", err);
-    return checkRateLimit(key, config);
+    console.error("[rateLimit] persistent check exception:", err);
+    return subjectUserId
+      ? protectedSubjectRateLimitResponse()
+      : checkRateLimit(key, config);
   }
 }
 

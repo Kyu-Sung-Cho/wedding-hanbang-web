@@ -1,8 +1,13 @@
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '110s';
+
 -- Deterministic retention for public application/survey collection.
 
 -- Prevent rolling old-shape inserts from racing the NULL backfill and NOT NULL
--- transition. The migration runner's per-file transaction contract is a
--- staging release gate.
+-- transition. This file owns an explicit transaction so the locks, rewrites,
+-- constraints, and schedules either commit together or roll back together.
 LOCK TABLE public.preregistrations IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE public.customer_survey_responses IN ACCESS EXCLUSIVE MODE;
 
@@ -191,3 +196,5 @@ COMMENT ON COLUMN public.customer_survey_responses.expires_at IS
   'Anonymous product-research response deletion deadline (maximum 365 days).';
 COMMENT ON FUNCTION public.enforce_application_survey_retention() IS
   'Daily deterministic deletion of expired beta applications and anonymous survey responses.';
+
+COMMIT;

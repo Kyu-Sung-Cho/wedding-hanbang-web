@@ -1,0 +1,7 @@
+{
+  "productionSupabaseProjectRefs": [
+    "slrtobkksjmxgzatjyqb"
+  ],
+  "productionWebBaseUrl": "https://hanbang.ai",
+  "productionDatabaseWriteFence": "not_configured"
+}

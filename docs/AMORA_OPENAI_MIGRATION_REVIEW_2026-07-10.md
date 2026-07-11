@@ -1,5 +1,22 @@
 # 아모라 OpenAI GPT-5.6 전환 보수 검토 (2026-07-10)
 
+## 2026-07-11 현재 증거
+
+이 문서는 2026-07-10 당시의 감사 기록이다. 아래의 “실제 OpenAI·Supabase를 검증하지 못했다”, “fresh DB 재현 불가”, 과거 테스트 수 같은 문장은 현재 상태가 아니라 당시 상태를 설명한다. 최신 판정은 다음과 같다.
+
+- 폐기 가능한 Supabase preview를 완전히 비운 뒤 baseline부터 `20260711148000`까지 migration 107개를 연속 재실행했다. 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, DB lint도 통과했다.
+- lifecycle smoke에서 합류·재시작·차단 코드·legacy 코드 복구·zero-member 거부·계정 삭제 격리가 통과했다.
+- anonymous probe는 민감 테이블 10개 모두의 접근 거부를 확인했다.
+- AI 보존·persistent rate-limit 함수의 anon/auth 실행 권한을 제거하고 service role 전용 계약으로 고정했다. 인증 사용자 rate-limit 행은 탈퇴 lifecycle에 연결하며, provenance가 없는 업체 upload surface는 차단했다.
+- 최종 DB 상태에서 실제 OpenAI `gpt-5.6-luna`와 `gpt-5.6-terra`가 각각 SSE 스트리밍, replay, 정확한 DB 감사 모델 기록까지 통과했다.
+- 웹·모바일은 커플 재연결 응답이 모호할 때 과거 여정을 계속 편집하지 않도록 fail-closed 복구 흐름을 사용한다.
+
+다만 tool follow-up·PDF·이미지·refusal·abort·429/5xx, 높은 동시성·KST 경계·cron, 운영 clone upgrade는 아직 별도 검증 대상이다. 운영 DB에는 데이터 정합성 blocker가 있고 직접 쓰기 차단 fence와 최신 백업 gate, Vercel 운영 환경 검증도 없으므로 **production은 NO-GO이며 배포하지 않았다**.
+
+최신 종합 판정은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md), 실행 절차는 [`SUPABASE_REMOTE_OPERATIONS.md`](./SUPABASE_REMOTE_OPERATIONS.md)를 따른다.
+
+---
+
 > **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 비용 예약, 실패 무료 턴 환불, 비소모 preflight, 의도별 도구 축소와 결정적 위기 응답이 추가됐다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 신규 DB migration은 운영 적용이 확인되지 않았으므로 이 문서의 과거 테스트 수치나 완료 표현을 운영 증거로 사용하지 않는다.
 
 ## 결론

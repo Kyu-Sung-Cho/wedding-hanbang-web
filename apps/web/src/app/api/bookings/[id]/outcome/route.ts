@@ -171,7 +171,8 @@ export async function patchBookingOutcome(
 
     const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:outcome", request, user.id),
-      { maxRequests: 20, windowMs: 60 * 60 * 1000 }
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+      user.id,
     );
     if (rlResult) return rlResult;
 

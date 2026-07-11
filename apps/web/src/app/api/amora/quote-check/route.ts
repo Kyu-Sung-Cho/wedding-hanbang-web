@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     const limited = await checkRateLimitPersistent(rateLimitKey("amora:quote-check", req, user?.id), {
       maxRequests: user ? 40 : 12,
       windowMs: 60 * 60 * 1000,
-    });
+    }, user?.id);
     if (limited) return limited;
 
     const body = (await req.json()) as QuoteCheckBody;

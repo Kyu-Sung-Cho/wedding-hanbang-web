@@ -33,6 +33,8 @@ if ($Help) {
   exit 0
 }
 
+throw "This mutation path is retired. Use supabase:ship:safe with an explicit project ref."
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 

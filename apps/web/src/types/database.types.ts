@@ -26,7 +26,8 @@ export interface Profile {
 
 export interface Couple {
   id: string;
-  invite_code: string;
+  /** Null for retired/blocked couples or legacy rows pending server regeneration. */
+  invite_code: string | null;
   bride_id: string | null;
   groom_id: string | null;
   created_at: string;

@@ -1,3 +1,8 @@
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '110s';
+
 -- Durable, service-only account deletion queue.
 --
 -- The authenticated request and the lifecycle marker are committed in the
@@ -49,8 +54,7 @@ BEGIN
             AND couple.bride_id = profile.id)
           OR (profile.role::text = 'groom'
             AND couple.groom_id = profile.id)
-        ) THEN 1 + (SELECT count(*) FROM public.invitations AS invitation
-          WHERE invitation.couple_id = profile.couple_id)
+        ) THEN 1
         ELSE 0
         END
     ) > 500
@@ -58,8 +62,7 @@ BEGIN
     SELECT 1
     FROM storage.objects
     WHERE bucket_id IN (
-      'community-images', 'community-videos', 'guestbook-uploads',
-      'invitation-photos', 'chat-image'
+      'community-images', 'community-videos', 'guestbook-uploads', 'chat-image'
     )
     GROUP BY bucket_id, (storage.foldername(name))[1]
     HAVING count(*) > 20000
@@ -266,9 +269,10 @@ CREATE TRIGGER guard_delete_rate_limit_buckets
   BEFORE INSERT OR UPDATE ON public.rate_limit_buckets
   FOR EACH ROW EXECUTE FUNCTION public.guard_account_deletion_rate_limit_write();
 
--- Extend the existing Storage trigger to serialize guestbook/invitation writes
--- with their proven owner lifecycle. Unknown legacy buckets remain untouched
--- until provenance is repaired; guessing those paths could delete shared data.
+-- Extend the existing Storage trigger to serialize community/guestbook writes
+-- with their proven owner lifecycle. Unknown or retired legacy buckets remain
+-- untouched until provenance is repaired; guessing those paths could delete
+-- shared data.
 CREATE OR REPLACE FUNCTION public.guard_user_media_storage_write()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -278,12 +282,10 @@ AS $$
 DECLARE
   v_scope_text text;
   v_scope_id uuid;
-  v_couple_id uuid;
   v_deleting_at timestamptz;
 BEGIN
   IF NEW.bucket_id NOT IN (
-    'community-images', 'community-videos',
-    'guestbook-uploads', 'invitation-photos'
+    'community-images', 'community-videos', 'guestbook-uploads'
   ) THEN
     RETURN NEW;
   END IF;
@@ -303,7 +305,7 @@ BEGIN
     IF NOT FOUND OR v_deleting_at IS NOT NULL THEN
       RAISE EXCEPTION 'community media owner is not active' USING ERRCODE = '42501';
     END IF;
-  ELSIF NEW.bucket_id = 'guestbook-uploads' THEN
+  ELSE
     SELECT profile.account_deleting_at INTO v_deleting_at
     FROM public.guestbooks AS guestbook
     JOIN public.profiles AS profile ON profile.id = guestbook.owner_id
@@ -311,20 +313,6 @@ BEGIN
     FOR UPDATE OF profile;
     IF NOT FOUND OR v_deleting_at IS NOT NULL THEN
       RAISE EXCEPTION 'guestbook media owner is not active' USING ERRCODE = '42501';
-    END IF;
-  ELSE
-    SELECT invitation.couple_id INTO v_couple_id
-    FROM public.invitations AS invitation
-    WHERE invitation.id = v_scope_id;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'invitation media owner is not active' USING ERRCODE = '42501';
-    END IF;
-    SELECT couple.amora_shared_resetting_at INTO v_deleting_at
-    FROM public.couples AS couple
-    WHERE couple.id = v_couple_id
-    FOR UPDATE;
-    IF NOT FOUND OR v_deleting_at IS NOT NULL THEN
-      RAISE EXCEPTION 'invitation media owner is not active' USING ERRCODE = '42501';
     END IF;
   END IF;
   RETURN NEW;
@@ -489,7 +477,7 @@ GRANT EXECUTE ON FUNCTION public.claim_account_deletion_jobs(uuid, integer, inte
 
 -- Persist a minimal, validated storage snapshot before destructive DB/auth
 -- work. This closes the crash window where auth cascade could otherwise erase
--- the ownership rows needed to find guestbook/invitation objects on retry.
+-- the ownership rows needed to find active user-media objects on retry.
 CREATE OR REPLACE FUNCTION public.save_account_deletion_storage_inventory(
   p_job_id uuid,
   p_worker_token uuid,
@@ -520,8 +508,7 @@ BEGIN
       SELECT 1
       FROM jsonb_array_elements(p_inventory) AS item(value)
       WHERE COALESCE(item.value->>'bucket', '') NOT IN (
-          'community-images', 'community-videos', 'guestbook-uploads',
-          'invitation-photos', 'chat-image'
+          'community-images', 'community-videos', 'guestbook-uploads', 'chat-image'
         )
         OR COALESCE(item.value->>'prefix', '') !~
           '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -729,3 +716,5 @@ $$;
 REVOKE ALL ON FUNCTION public.account_deletion_queue_health()
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.account_deletion_queue_health() TO service_role;
+
+COMMIT;

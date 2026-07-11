@@ -1,5 +1,34 @@
 # 소비자 여정·보안·아모라 출시 감사
 
+## 2026-07-11 재검증 업데이트
+
+이 절이 아래의 초기 감사 기록보다 우선한다. 초기 기록은 당시의 보수적 판단과 발견 경위를 보존하되, 현재 검증 상태는 다음 증거로 판단한다.
+
+### 새로 확인된 것
+
+- 폐기 가능한 Supabase preview를 완전히 비운 뒤 baseline부터 `20260711148000`까지 migration 107개를 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract도 통과했다.
+- 커플 합류·초기화·차단된 초대 코드·legacy 6자리 코드 복구·구성원 0명 커플 거부·계정 삭제 격리를 실제 PostgreSQL lifecycle smoke로 검증했다.
+- anon key로 민감 테이블 10개를 조회했을 때 모두 정확한 권한 거부가 발생했다.
+- AI 보존 함수와 persistent rate-limit RPC에 남아 있던 anon/auth 실행 권한을 제거했다. rate-limit은 service role과 `rl:` + 64자리 해시 키만 허용하고, 인증 사용자 subject는 탈퇴 lifecycle FK·잠금·cascade로 정리한다. 업체 이미지·사업자등록증의 일반 사용자 업로드는 provenance·보존 정책이 승인될 때까지 차단한다.
+- 최종 DB 상태와 production-like rate-limit secret 조건에서 실제 OpenAI 호출로 `gpt-5.6-luna`와 `gpt-5.6-terra`의 SSE 스트리밍, 동일 요청 replay, 단일 메시지 저장, 정확한 감사 모델 기록을 확인했다. 최종 응답 길이는 각각 319자와 423자였고 테스트 데이터는 정리했다.
+- Web Vitest 119개 파일·824개 테스트와 모바일 UX 11개 테스트, 전체 typecheck·lint, 104개 정적 페이지 production build, 모바일 release check 56개, production dependency audit가 모두 통과했다.
+- 웹은 새 커플 공간 요청이 전송된 뒤 응답이 유실돼도 이전 여정을 계속 편집하지 않고 새로고침한다. 모바일은 새 couple ID를 확인하기 전까지 편집 데이터를 비우고 복구 전용 화면으로 막는다.
+- OpenAI 런타임에서 Anthropic 호출은 사용하지 않으며 기본 Luna, 제한된 고난도 조건에서만 Terra로 승격한다.
+
+### 아직 확인되지 않은 것
+
+- tool follow-up, 실제 PDF·이미지 입력, refusal, abort, 429/5xx, 장시간 스트림 단절의 실비용 canary
+- 높은 동시성에서의 quota 경쟁, KST 일일 경계, `pg_cron` 장시간 운용과 장애 복구
+- 운영 스냅샷 clone에서의 전체 upgrade·lock 시간·rollback rehearsal
+- 실제 운영 Vercel 환경 변수와 배포 SHA, production URL canary
+- 법률·개인정보 처리 주체, DPA, 국외 이전, 보존·삭제 고지의 최종 승인
+
+### 출시 판정
+
+코드·preview·OpenAI 실제 호출 검증은 크게 진전됐지만 **운영 배포는 아직 NO-GO**다. 운영에는 초대 코드·legacy Amora·개인정보·계정 삭제 관련 정합성 blocker가 남아 있고, 직접 DB/Storage 쓰기 차단 증거가 `not_configured`이며, maintenance 이후 완료 백업과 Vercel 운영 환경 검증도 없다. 따라서 이 감사는 “OpenAI 전환과 새 체인이 작동함”을 입증하지만 “운영 배포 완료”를 의미하지 않는다.
+
+---
+
 감사 기준일: 2026-07-11
 현재 서비스 기준: [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)
 대상: 웹, 모바일, 공유 패키지, Supabase migration/RLS/RPC, 아모라 런타임, 공개 문구, 개인정보·약관, 저장소 문서와 Git 이력

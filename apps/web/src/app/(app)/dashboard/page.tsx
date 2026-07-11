@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -193,6 +193,8 @@ export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
+  const [inviteCodeLoading, setInviteCodeLoading] = useState(false);
+  const [inviteCodeError, setInviteCodeError] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryMeta | null>(null);
 
@@ -219,22 +221,41 @@ export default function DashboardPage() {
     [progress]
   );
 
+  const loadInviteCode = useCallback(async () => {
+    if (!couple || partner || isDemo) return;
+    setInviteCodeLoading(true);
+    setInviteCodeError("");
+    try {
+      const response = await fetch("/api/couple/code", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as {
+        inviteCode?: string;
+        requiresRelinkConfirmation?: boolean;
+      };
+      if (!response.ok) throw new Error("invite lookup failed");
+      setInviteCode(data.inviteCode ?? "");
+      setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
+    } catch {
+      setInviteCodeError("커플 초대 정보를 불러오지 못했습니다.");
+    } finally {
+      setInviteCodeLoading(false);
+    }
+  }, [couple, isDemo, partner]);
+
   useEffect(() => {
-    if (!couple || partner || inviteCode || isDemo) return;
-    fetch("/api/couple/code")
-      .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string; requiresRelinkConfirmation?: boolean }) => {
-        if (data.inviteCode) setInviteCode(data.inviteCode);
-        setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
-      })
-      .catch(() => {});
-  }, [couple, inviteCode, isDemo, partner]);
+    if (inviteCode) return;
+    void loadInviteCode();
+  }, [inviteCode, loadInviteCode]);
 
   async function copyCode() {
     if (!inviteCode) return;
-    await navigator.clipboard.writeText(inviteCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setCopied(true);
+      setInviteCodeError("");
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setInviteCodeError("코드를 복사하지 못했습니다. 설정에서 직접 선택해 복사해 주세요.");
+    }
   }
 
   async function updateCategoryStatus(key: string, status: Status) {
@@ -285,6 +306,31 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 text-[#061a34]">
+      {couple && !partner && (inviteCodeLoading || inviteCodeError) && (
+        <section
+          className={`rounded-[18px] border p-4 ${
+            inviteCodeError
+              ? "border-[#e4b7b7] bg-[#fff5f5]"
+              : "border-[#eadfc9] bg-white/90"
+          }`}
+          role={inviteCodeError ? "alert" : "status"}
+          aria-live="polite"
+        >
+          <p className={`text-[13px] font-medium ${inviteCodeError ? "text-[#9a3f3f]" : "text-[#5d6879]"}`}>
+            {inviteCodeError || "커플 연결 정보를 확인하고 있어요..."}
+          </p>
+          {inviteCodeError && (
+            <button
+              type="button"
+              onClick={() => void loadInviteCode()}
+              disabled={inviteCodeLoading}
+              className="mt-2 text-[13px] font-semibold text-[#36534E] underline underline-offset-2 disabled:opacity-50"
+            >
+              다시 불러오기
+            </button>
+          )}
+        </section>
+      )}
       {couple && !partner && requiresRelinkConfirmation && (
         <section className="rounded-[18px] border border-[#d9c3ae] bg-[#fffaf4] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <p className="text-[15px] font-semibold text-[#071629]">새 커플 공간으로 안전하게 시작해 주세요</p>

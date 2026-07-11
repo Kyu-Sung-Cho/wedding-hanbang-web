@@ -1,3 +1,8 @@
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '110s';
+
 -- Compatibility-conscious marketplace/community lockdown. Published catalog,
 -- booking-read, vote and bookmark contracts stay available, but direct
 -- state-machine writes and dormant guestbook access are intentionally retired.
@@ -312,7 +317,7 @@ REVOKE ALL ON FUNCTION public.guard_community_comment_server_fields()
 -- Keep one report per reporter/target. Existing duplicate spam is collapsed to
 -- its oldest row before unique indexes are installed.
 -- The early table lock blocks inserts between deduplication and index creation.
--- Supabase migrations execute transactionally; staging must verify that runner contract.
+-- This file owns an explicit transaction; staging verifies rollback behavior.
 WITH ranked AS (
   SELECT id,
          row_number() OVER (
@@ -461,3 +466,5 @@ COMMENT ON FUNCTION public.guard_vendor_server_fields() IS
   'Defense in depth: direct consumer roles cannot approve or rank vendors.';
 COMMENT ON FUNCTION public.guard_community_post_server_fields() IS
   'Defense in depth: authors cannot forge moderation, verification, AI, or counter fields.';
+
+COMMIT;

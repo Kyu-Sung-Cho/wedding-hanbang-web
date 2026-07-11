@@ -133,3 +133,27 @@ test("mobile onboarding copy distinguishes examples from real activity", () => {
   assert.doesNotMatch(dashboard, /설레는 마음, 완벽한 준비/);
   assert.doesNotMatch(dashboard, /다음 업체 추천이 더 정확해져요/);
 });
+
+test("settings reconciles replacement-couple requests before showing failure", () => {
+  const source = readSource("app/settings/index.tsx");
+  const unlockStart = source.indexOf("async function unlockLegacyInvite()");
+  const recoveryStart = source.indexOf("async function recoverLegacyRelinkState()", unlockStart);
+  const unlock = source.slice(unlockStart, recoveryStart);
+  const recoveryEnd = source.indexOf("function confirmLegacyRelink()", recoveryStart);
+  const recovery = source.slice(recoveryStart, recoveryEnd);
+
+  assert.ok(unlockStart >= 0);
+  assert.ok(recoveryStart > unlockStart);
+  assert.match(unlock, /loadSettings\(\{ requireInviteState: true \}\)/);
+  assert.match(unlock, /setInitialData\(null\);\s*setRelinkRecoveryRequired\(true\);/);
+  assert.match(unlock, /observedFreshCouple/);
+  assert.match(unlock, /observedOriginalCouple/);
+  assert.match(unlock, /refreshedInviteState\.requiresRelinkConfirmation/);
+  assert.match(unlock, /if \(observedFreshCouple\)/);
+  assert.match(unlock, /else if \(observedOriginalCouple && requestError/);
+  assert.doesNotMatch(unlock, /catch \(error\) \{\s*Alert\.alert/);
+
+  assert.match(recovery, /if \(observedOriginalCouple\)/);
+  assert.match(recovery, /setRelinkRecoveryRequired\(false\)/);
+  assert.match(recovery, /이전 일정과 예산을 계속 수정할 수 있어요/);
+});

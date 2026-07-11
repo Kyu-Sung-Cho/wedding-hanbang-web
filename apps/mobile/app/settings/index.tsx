@@ -71,6 +71,56 @@ type CommunityProfileResponse = {
   error?: string;
 };
 
+type CoupleInviteState = {
+  inviteCode: string | null;
+  isFullyLinked: boolean;
+  requiresRelinkConfirmation: boolean;
+};
+
+type SettingsLoadResult = {
+  settings: SettingsData;
+  inviteState: CoupleInviteState | null;
+};
+
+type ApiErrorBody = {
+  error?: unknown;
+  message?: unknown;
+};
+
+function apiErrorMessage(body: ApiErrorBody, fallback: string): string {
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  return fallback;
+}
+
+async function readCoupleInviteState(): Promise<CoupleInviteState> {
+  const response = await apiFetch("/api/couple/code");
+  const body = (await response.json().catch(() => ({}))) as ApiErrorBody & {
+    inviteCode?: unknown;
+    isFullyLinked?: unknown;
+    requiresRelinkConfirmation?: unknown;
+  };
+  if (!response.ok) {
+    throw new Error(apiErrorMessage(body, "커플 코드를 확인하지 못했습니다."));
+  }
+
+  const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode : null;
+  const requiresRelinkConfirmation = body.requiresRelinkConfirmation === true;
+  if (
+    typeof body.isFullyLinked !== "boolean"
+    || (inviteCode === null && !requiresRelinkConfirmation)
+    || (inviteCode !== null && !/^WH-[A-F0-9]{12}$/.test(inviteCode))
+  ) {
+    throw new Error("커플 코드 상태를 확인하지 못했습니다.");
+  }
+
+  return {
+    inviteCode,
+    isFullyLinked: body.isFullyLinked,
+    requiresRelinkConfirmation,
+  };
+}
+
 export default function SettingsScreen() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
@@ -99,6 +149,8 @@ export default function SettingsScreen() {
   const [isFullyLinked, setIsFullyLinked] = useState(false);
   const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
   const [relinking, setRelinking] = useState(false);
+  const [relinkRecoveryRequired, setRelinkRecoveryRequired] = useState(false);
+  const [relinkRecoveryPreviousCoupleId, setRelinkRecoveryPreviousCoupleId] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
 
   // 알림 설정 로드
@@ -136,31 +188,38 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
   }, []);
 
-  // 현재 데이터 로드
-  useEffect(() => {
-    (async () => {
-      try {
+  // 현재 데이터 로드. 새 커플 공간을 만든 직후에도 이 함수 전체를 다시
+  // 실행해 이전 couple/journey를 화면에 남기지 않는다.
+  const loadSettings = useCallback(async (
+    options: { requireInviteState?: boolean } = {}
+  ): Promise<SettingsLoadResult | null> => {
+    setLoading(true);
+    try {
         const {
           data: { user },
+          error: userError,
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (userError) throw userError;
+        if (!user) return null;
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("name, role, couple_id")
           .eq("id", user.id)
           .single();
+        if (profileError) throw profileError;
 
         let weddingDate = "";
         let venue = "";
         let totalBudget = "";
 
         if (profile?.couple_id) {
-          const { data: journey } = await supabase
+          const { data: journey, error: journeyError } = await supabase
             .from("wedding_journeys")
             .select("wedding_date, venue, total_budget")
             .eq("couple_id", profile.couple_id)
             .single();
+          if (journeyError) throw journeyError;
 
           if (journey) {
             weddingDate = journey.wedding_date ?? "";
@@ -181,6 +240,14 @@ export default function SettingsScreen() {
           communityNickname = profile?.name ?? "";
         }
 
+        // 이전 커플 화면 상태를 먼저 비운 뒤 새 멤버십을 조회한다.
+        setPartnerName(null);
+        setInviteCode(null);
+        setIsFullyLinked(false);
+        setRequiresRelinkConfirmation(false);
+
+        let currentInviteState: CoupleInviteState | null = null;
+
         // 파트너 정보 로드
         if (profile?.couple_id) {
           try {
@@ -190,17 +257,18 @@ export default function SettingsScreen() {
             if (partners && partners.length > 0) {
               setPartnerName(partners[0]?.name ?? null);
             }
-
-            // 커플 초대 코드 조회
-            const codeRes = await apiFetch("/api/couple/code");
-            if (codeRes.ok) {
-              const codeData = await codeRes.json();
-              setInviteCode(codeData.inviteCode ?? null);
-              setIsFullyLinked(codeData.isFullyLinked ?? false);
-              setRequiresRelinkConfirmation(codeData.requiresRelinkConfirmation === true);
-            }
           } catch (err) {
             console.error("파트너 정보 로드 오류:", err);
+          }
+
+          try {
+            currentInviteState = await readCoupleInviteState();
+            setInviteCode(currentInviteState.inviteCode);
+            setIsFullyLinked(currentInviteState.isFullyLinked);
+            setRequiresRelinkConfirmation(currentInviteState.requiresRelinkConfirmation);
+          } catch (err) {
+            console.error("커플 코드 상태 로드 오류:", err);
+            if (options.requireInviteState) throw err;
           }
         }
 
@@ -217,13 +285,21 @@ export default function SettingsScreen() {
 
         setData(loadedData);
         setInitialData(loadedData);
+        return { settings: loadedData, inviteState: currentInviteState };
       } catch (err) {
         console.error("설정 로드 오류:", err);
+        throw err;
       } finally {
         setLoading(false);
       }
-    })();
   }, []);
+
+  useEffect(() => {
+    void loadSettings().catch(() => {
+      // The screen keeps its existing values and exposes the normal retry path
+      // through a remount; mutation flows show a dedicated recovery alert.
+    });
+  }, [loadSettings]);
 
   function updateField(field: keyof SettingsData, value: string) {
     setData((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -388,20 +464,117 @@ export default function SettingsScreen() {
   }
 
   async function unlockLegacyInvite() {
+    let returnedInviteCode: string | null = null;
+    let requestError: string | null = null;
+    const previousCoupleId = data?.coupleId ?? relinkRecoveryPreviousCoupleId;
+    setRelinkRecoveryPreviousCoupleId(previousCoupleId);
+    // Remove all editable old-journey state before dispatch. The mutation can
+    // commit even if its HTTP response is lost.
+    setData(null);
+    setInitialData(null);
+    setRelinkRecoveryRequired(true);
     setRelinking(true);
     try {
       const response = await apiFetch("/api/couple/code", {
         method: "POST",
         body: JSON.stringify({ confirmLegacyRelink: true }),
       });
-      const body = await response.json().catch(() => ({}));
+      const body = (await response.json().catch(() => ({}))) as ApiErrorBody & {
+        inviteCode?: unknown;
+      };
       if (!response.ok || typeof body.inviteCode !== "string") {
-        throw new Error(body.error ?? "초대 코드를 만들지 못했습니다.");
+        throw new Error(apiErrorMessage(body, "초대 코드를 만들지 못했습니다."));
       }
-      setInviteCode(body.inviteCode);
-      setRequiresRelinkConfirmation(false);
+      returnedInviteCode = body.inviteCode;
     } catch (error) {
-      Alert.alert("초대 코드 오류", error instanceof Error ? error.message : "초대 코드를 만들지 못했습니다.");
+      requestError = error instanceof Error ? error.message : "초대 코드를 만들지 못했습니다.";
+    } finally {
+      try {
+        const refreshed = await loadSettings({ requireInviteState: true });
+        const refreshedSettings = refreshed?.settings ?? null;
+        const refreshedInviteState = refreshed?.inviteState ?? null;
+        const observedFreshCouple = Boolean(
+          refreshedSettings?.coupleId
+          && refreshedSettings.coupleId !== previousCoupleId
+          && refreshedInviteState?.inviteCode
+          && !refreshedInviteState.requiresRelinkConfirmation
+        );
+        const observedOriginalCouple = Boolean(
+          previousCoupleId
+          && refreshedSettings?.coupleId === previousCoupleId
+          && refreshedInviteState?.inviteCode === null
+          && refreshedInviteState.requiresRelinkConfirmation
+        );
+
+        if (observedFreshCouple) {
+          setRelinkRecoveryRequired(false);
+          setInviteCode(returnedInviteCode ?? refreshedInviteState?.inviteCode ?? null);
+          setRequiresRelinkConfirmation(false);
+        } else if (observedOriginalCouple && requestError && returnedInviteCode === null) {
+          // A primary profile/journey read plus the blocked invite state proves
+          // the replacement transaction did not commit. The loaded old state
+          // is therefore safe to edit again.
+          setRelinkRecoveryRequired(false);
+          Alert.alert(
+            "새 커플 공간을 만들지 못했어요",
+            `${requestError} 이전 결혼 정보는 그대로 유지됩니다.`
+          );
+        } else {
+          setData(null);
+          setInitialData(null);
+          setRelinkRecoveryRequired(true);
+        }
+      } catch {
+        // Keep the screen non-editable until a primary read proves which
+        // couple the profile now belongs to.
+        setData(null);
+        setInitialData(null);
+        setRelinkRecoveryRequired(true);
+      }
+      setRelinking(false);
+    }
+  }
+
+  async function recoverLegacyRelinkState() {
+    setRelinking(true);
+    try {
+      const refreshed = await loadSettings({ requireInviteState: true });
+      const refreshedSettings = refreshed?.settings ?? null;
+      const refreshedInviteState = refreshed?.inviteState ?? null;
+      const observedFreshCouple = Boolean(
+        refreshedSettings?.coupleId
+        && refreshedSettings.coupleId !== relinkRecoveryPreviousCoupleId
+        && refreshedInviteState?.inviteCode
+        && !refreshedInviteState.requiresRelinkConfirmation
+      );
+      const observedOriginalCouple = Boolean(
+        relinkRecoveryPreviousCoupleId
+        && refreshedSettings?.coupleId === relinkRecoveryPreviousCoupleId
+        && refreshedInviteState?.inviteCode === null
+        && refreshedInviteState.requiresRelinkConfirmation
+      );
+
+      if (observedFreshCouple) {
+        setRelinkRecoveryRequired(false);
+        return;
+      }
+      if (observedOriginalCouple) {
+        setRelinkRecoveryRequired(false);
+        Alert.alert(
+          "이전 정보가 안전하게 유지되고 있어요",
+          "새 커플 공간 생성은 반영되지 않았습니다. 이전 일정과 예산을 계속 수정할 수 있어요."
+        );
+        return;
+      }
+      throw new Error("authoritative relink state not observable");
+    } catch {
+      setData(null);
+      setInitialData(null);
+      setRelinkRecoveryRequired(true);
+      Alert.alert(
+        "아직 상태를 확인하지 못했어요",
+        "네트워크를 확인한 뒤 다시 시도해 주세요. 확인 전에는 이전 결혼 정보를 수정할 수 없습니다."
+      );
     } finally {
       setRelinking(false);
     }
@@ -461,8 +634,8 @@ export default function SettingsScreen() {
                       });
 
                       if (res.status !== 202) {
-                        const body = await res.json().catch(() => ({}));
-                        throw new Error(body.error ?? "탈퇴 처리 중 오류가 발생했어요");
+                        const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
+                        throw new Error(apiErrorMessage(body, "탈퇴 처리 중 오류가 발생했어요"));
                       }
 
                       // 서버의 영속 큐가 접수했으므로 앱이 닫혀도 삭제는 계속된다.
@@ -498,6 +671,31 @@ export default function SettingsScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <AppHeader title="설정" onBack={() => router.back()} />
         <LoadingState label="설정을 불러오는 중이에요" />
+      </SafeAreaView>
+    );
+  }
+
+  if (relinkRecoveryRequired) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="설정" onBack={() => router.back()} />
+        <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+          <Surface style={styles.card}>
+            <Text style={styles.sectionTitle}>새 커플 공간을 확인하고 있어요</Text>
+            <Text style={styles.fieldHint}>
+              응답이 끊겨 서버 반영 여부를 다시 확인해야 합니다. 확인 전에는 이전 일정과 예산을 수정할 수 없어요.
+            </Text>
+            <PrimaryButton
+              tone="rose"
+              style={styles.saveButton}
+              onPress={() => void recoverLegacyRelinkState()}
+              disabled={relinking}
+              icon={relinking ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
+            >
+              {relinking ? "확인 중" : "상태 다시 확인"}
+            </PrimaryButton>
+          </Surface>
+        </View>
       </SafeAreaView>
     );
   }

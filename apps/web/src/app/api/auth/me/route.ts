@@ -100,14 +100,16 @@ export async function GET(request: Request) {
       // 커플 정보
       const { data: coupleData, error: coupleErr } = await supabase
         .from("couples")
-        .select("*")
+        .select("id, bride_id, groom_id, created_at, updated_at")
         .eq("id", profile.couple_id)
         .single();
 
       if (coupleErr) _debug.coupleSelectError = coupleErr.message;
 
       if (coupleData) {
-        couple = coupleData;
+        // Invite tokens are served only by the ownership-verifying code RPC.
+        // Keep the auth-state shape stable without duplicating that secret.
+        couple = { ...coupleData, invite_code: null };
 
         // 파트너 정보
         const partnerId =

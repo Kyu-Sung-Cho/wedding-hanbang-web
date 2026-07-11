@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -25,6 +25,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
 import { createClient } from "@/lib/supabase/client";
+import { shouldReloadAfterFreshSpaceResponse } from "@/lib/couple/relinkResponse";
 import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
@@ -90,6 +91,18 @@ type ProfileUpdateResponse = {
   error?: string;
 };
 
+type ApiMessageResponse = {
+  error?: unknown;
+  message?: unknown;
+  inviteCode?: unknown;
+};
+
+function apiResponseMessage(data: ApiMessageResponse, fallback: string): string {
+  if (typeof data.message === "string" && data.message.trim()) return data.message;
+  if (typeof data.error === "string" && data.error.trim()) return data.error;
+  return fallback;
+}
+
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -124,6 +137,7 @@ export default function SettingsPage() {
   const [isFullyLinked, setIsFullyLinked] = useState(false);
   const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [coupleCodeLoading, setCoupleCodeLoading] = useState(false);
   const [coupleCodeError, setCoupleCodeError] = useState("");
 
   // 휴대폰 번호 (업체 상담 예약 요청 연락처)
@@ -180,33 +194,56 @@ export default function SettingsPage() {
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [journeySaveError, setJourneySaveError] = useState("");
 
-  useEffect(() => {
-    if (!couple) return;
-
+  const loadCoupleCode = useCallback(async () => {
+    if (!couple) {
+      setCoupleCode("");
+      setIsFullyLinked(false);
+      setRequiresRelinkConfirmation(false);
+      return;
+    }
     if (isDemo) {
       setCoupleCode(couple.invite_code ?? "WH-DEMO01");
       setIsFullyLinked(Boolean(couple.bride_id && couple.groom_id));
+      setRequiresRelinkConfirmation(false);
+      setCoupleCodeError("");
       return;
     }
-
-    fetch("/api/couple/code")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.inviteCode) setCoupleCode(d.inviteCode);
-        if (d.isFullyLinked) setIsFullyLinked(true);
-        setRequiresRelinkConfirmation(d.requiresRelinkConfirmation === true);
-      })
-      .catch(() => {});
+    setCoupleCodeLoading(true);
+    setCoupleCodeError("");
+    try {
+      const response = await fetch("/api/couple/code", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error("커플 코드를 불러오지 못했습니다.");
+      setCoupleCode(typeof data.inviteCode === "string" ? data.inviteCode : "");
+      setIsFullyLinked(data.isFullyLinked === true);
+      setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
+    } catch {
+      setCoupleCodeError("커플 코드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setCoupleCodeLoading(false);
+    }
   }, [couple, isDemo]);
 
-  const handleCopy = () => {
+  useEffect(() => {
+    void loadCoupleCode();
+  }, [loadCoupleCode]);
+
+  const handleCopy = async () => {
     if (!coupleCode) return;
-    navigator.clipboard.writeText(coupleCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(coupleCode);
+      setCopied(true);
+      setCoupleCodeError("");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCoupleCodeError("코드를 복사하지 못했습니다. 코드를 길게 눌러 직접 복사해 주세요.");
+    }
   };
 
   const handleRegenerateCode = async () => {
+    const isCreatingFreshSpace = requiresRelinkConfirmation;
+    let freshSpaceRequestDispatched = false;
+    let freshSpaceResponseStatus: number | null = null;
     setRegenerating(true);
     setCoupleCodeError("");
     try {
@@ -215,22 +252,38 @@ export default function SettingsPage() {
         return;
       }
 
+      freshSpaceRequestDispatched = isCreatingFreshSpace;
       const res = await fetch("/api/couple/code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmLegacyRelink: requiresRelinkConfirmation }),
+        body: JSON.stringify({ confirmLegacyRelink: isCreatingFreshSpace }),
       });
-      const data = await res.json();
-      if (res.ok && data.inviteCode) {
+      freshSpaceResponseStatus = res.status;
+      const data = (await res.json().catch(() => ({}))) as ApiMessageResponse;
+      if (res.ok && typeof data.inviteCode === "string") {
+        if (isCreatingFreshSpace) {
+          // Reconciliation happens in finally even if the committed response
+          // is lost or cannot be parsed.
+          return;
+        }
         setCoupleCode(data.inviteCode);
         setRequiresRelinkConfirmation(false);
       } else {
-        setCoupleCodeError(data.error ?? "초대 코드를 만들지 못했습니다.");
+        setCoupleCodeError(apiResponseMessage(data, "초대 코드를 만들지 못했습니다."));
       }
     } catch {
       setCoupleCodeError("초대 코드를 만들지 못했습니다.");
     } finally {
-      setRegenerating(false);
+      if (
+        freshSpaceRequestDispatched
+        && shouldReloadAfterFreshSpaceResponse(freshSpaceResponseStatus)
+      ) {
+        // The server may have committed even when the response was lost. A
+        // full reload is the only safe boundary before any old-journey edit.
+        window.location.reload();
+      } else {
+        setRegenerating(false);
+      }
     }
   };
 
@@ -366,10 +419,10 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: deleteReason }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as ApiMessageResponse;
 
       if (res.status !== 202) {
-        setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
+        setDeleteError(apiResponseMessage(data, "계정 삭제에 실패했습니다."));
         return;
       }
 
@@ -802,8 +855,26 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {coupleCodeLoading && !partner && (
+            <p className="mb-3 text-sm text-[#6F645C]" role="status" aria-live="polite">
+              커플 연결 정보를 확인하고 있어요...
+            </p>
+          )}
+
           {coupleCodeError && (
-            <p className="mb-3 text-sm text-[#9B3A3A]" role="alert">{coupleCodeError}</p>
+            <div className="mb-3 rounded-lg border border-[#E4B7B7] bg-[#FFF5F5] p-3" role="alert">
+              <p className="text-sm text-[#9B3A3A]">{coupleCodeError}</p>
+              {!isDemo && (
+                <button
+                  type="button"
+                  onClick={() => void loadCoupleCode()}
+                  disabled={coupleCodeLoading}
+                  className="mt-2 text-sm font-medium text-[#795252] underline underline-offset-2 disabled:opacity-50"
+                >
+                  다시 불러오기
+                </button>
+              )}
+            </div>
           )}
 
           {partner ? (

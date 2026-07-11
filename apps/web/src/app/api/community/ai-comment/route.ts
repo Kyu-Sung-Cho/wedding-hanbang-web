@@ -51,14 +51,14 @@ export async function POST(req: NextRequest) {
   }
   try {
     const { authorized, userId } = await verifyAdmin(req);
-    if (!authorized) {
+    if (!authorized || !userId) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
     const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-comment", req, userId), {
       maxRequests: 30,
       windowMs: 60 * 60 * 1000,
-    });
+    }, userId);
     if (limited) return limited;
 
     const { postId } = (await req.json()) as { postId: string };

@@ -76,7 +76,8 @@ export async function POST(req: Request) {
     // Rate limit: 10 bookings per hour per user
     const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:create", req, user.id),
-      { maxRequests: 10, windowMs: 60 * 60 * 1000 }
+      { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+      user.id,
     );
     if (rlResult) return rlResult;
 

@@ -34,6 +34,8 @@ if ($Help) {
   exit 0
 }
 
+throw "Broad history repair is retired. Use supabase:baseline:core for the single reviewed version."
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 

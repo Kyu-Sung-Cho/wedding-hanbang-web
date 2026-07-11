@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const limited = await checkRateLimitPersistent(rateLimitKey("chat:messages:create", request, user.id), {
       maxRequests: 30,
       windowMs: 60 * 1000,
-    });
+    }, user.id);
     if (limited) return limited;
 
     const body = await request.json().catch(() => null);

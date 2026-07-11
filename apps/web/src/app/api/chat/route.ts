@@ -705,7 +705,7 @@ export async function POST(request: Request) {
   const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
     maxRequests: 60,
     windowMs: 60 * 60 * 1000,
-  });
+  }, user.id);
   if (limited) return limited;
 
   const requestAttachments = attachments ?? body.images ?? [];

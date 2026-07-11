@@ -31,7 +31,7 @@ function createMockAdmin(options: MockAdminOptions = {}) {
   const removedScopes = new Set<string>();
 
   function queryResult(table: string) {
-    if (table === "guestbooks" || table === "invitations") return { data: [], error: null };
+    if (table === "guestbooks") return { data: [], error: null };
     return { data: null, error: null };
   }
 
@@ -157,6 +157,7 @@ describe("processAccountDeletionJob", () => {
       { bucket: "community-videos", prefix: USER_ID },
       { bucket: "chat-image", prefix: COUPLE_ID },
     ]));
+    expect(mock.fromCalls).not.toContain("invitations");
 
     const inventorySave = mock.events.indexOf("rpc:save_account_deletion_storage_inventory");
     const storageRemove = mock.events.indexOf("storage:remove:community-images");

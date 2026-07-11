@@ -1,3 +1,18 @@
+BEGIN;
+
+-- Production rollout requires a drained maintenance window. Never wait
+-- indefinitely for ACCESS EXCLUSIVE locks, and roll the whole migration back
+-- if a bounded statement cannot finish during that window.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '110s';
+
+-- A retired or replacement-blocked couple must not retain a joinable code.
+-- Production's legacy baseline made this column NOT NULL, while the lifecycle
+-- functions below intentionally revoke a code with NULL. Make that invariant
+-- explicit before installing any function that can enter the retired state.
+ALTER TABLE public.couples
+  ALTER COLUMN invite_code DROP NOT NULL;
+
 -- Durable, payload-free request tombstones. A whole chat request is claimed
 -- before any model/tool call, so retries cannot re-run mutations even when a
 -- model produces slightly different arguments on the second generation.
@@ -26,6 +41,9 @@ ALTER TABLE public.couples
   ADD COLUMN IF NOT EXISTS amora_context_changed_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE public.couples
   ADD COLUMN IF NOT EXISTS amora_replacement_blocked_at timestamptz;
+ALTER TABLE public.couples
+  ADD CONSTRAINT couples_blocked_invite_revoked
+  CHECK (amora_replacement_blocked_at IS NULL OR invite_code IS NULL);
 
 -- Expand-only release rule: a pre-migration one-slot couple cannot be
 -- distinguished safely from a legitimate solo journey. Never infer that a
@@ -547,7 +565,13 @@ BEGIN
     RAISE EXCEPTION 'invite cannot be rotated after linking' USING ERRCODE = '55000';
   END IF;
 
-  IF v_invite_code IS NULL OR COALESCE(p_rotate, false) THEN
+  -- Legacy deployments issued shorter or otherwise incompatible codes. Repair
+  -- them only after this RPC has locked and verified the actual member slot;
+  -- never reopen those weak formats on the unauthenticated join surface.
+  IF v_invite_code IS NULL
+    OR v_invite_code !~ '^WH-[A-F0-9]{12}$'
+    OR COALESCE(p_rotate, false)
+  THEN
     v_invite_code := public.generate_invite_code();
     UPDATE public.couples
     SET invite_code = v_invite_code, updated_at = now()
@@ -710,6 +734,7 @@ BEGIN
   WHERE invite_code = v_code
     AND amora_shared_resetting_at IS NULL
     AND amora_replacement_blocked_at IS NULL
+    AND (bride_id IS NOT NULL OR groom_id IS NOT NULL)
   FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'Invite unavailable.');
@@ -865,10 +890,9 @@ REVOKE ALL ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text,
 REVOKE ALL ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text, numeric, jsonb) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_amora_couple_safely(uuid, text, date, text, numeric, jsonb) TO service_role;
 
--- Do not rewrite historical invite codes in the expand migration. Invalid or
--- missing legacy codes can represent several states that require an audited
--- production classification. Newly created couples receive a safe code in the
--- RPC above; historical repairs belong in a separately approved data migration.
+-- Do not bulk-rewrite historical invite codes in the expand migration. The
+-- locked get_or_rotate RPC above lazily repairs only a code whose requesting
+-- user has been verified as the current owner of the corresponding slot.
 
 -- Authenticated clients may only create genuine user rows. AI/assistant rows
 -- remain service-role only even though the compatibility columns now exist.
@@ -2935,3 +2959,5 @@ BEGIN
   );
 END;
 $$;
+
+COMMIT;

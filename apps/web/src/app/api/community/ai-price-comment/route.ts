@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-price-comment", req, loggingUserId ?? undefined), {
       maxRequests: loggingUserId ? 80 : 30,
       windowMs: 60 * 60 * 1000,
-    });
+    }, loggingUserId);
     if (limited) return limited;
 
     const startedAt = startLatencyClock();

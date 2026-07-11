@@ -261,7 +261,8 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
     );
     expect(checkRateLimitPersistent).toHaveBeenCalledWith(
       "booking:outcome:user-1",
-      { maxRequests: 20, windowMs: 60 * 60 * 1000 }
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+      "user-1",
     );
   });
 

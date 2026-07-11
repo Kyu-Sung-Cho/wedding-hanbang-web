@@ -33,6 +33,8 @@ if ($Help) {
   exit 0
 }
 
+throw "Legacy history normalization is retired; no unchecked linked-project mutation is allowed."
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 

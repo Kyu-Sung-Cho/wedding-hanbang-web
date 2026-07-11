@@ -23,7 +23,6 @@ const SAFE_STORAGE_BUCKETS = [
   "community-images",
   "community-videos",
   "guestbook-uploads",
-  "invitation-photos",
   "chat-image",
 ] as const;
 
@@ -168,22 +167,10 @@ async function collectSafeStorageInventory(
     const partnerId = membership.role === "bride" ? couple?.groom_id : couple?.bride_id;
     const isSoleOwner = ownsSlot && partnerId === null;
 
-    // A couple with another member is shared. No chat/invitation object is
-    // deleted in that case because historical objects have no per-author
-    // storage provenance.
+    // A couple with another member is shared. No chat object is deleted in
+    // that case because historical objects have no per-author provenance.
     if (isSoleOwner) {
       scopes.push({ bucket: "chat-image", prefix: membership.coupleId });
-      const { data: invitations, error: invitationsError } = await admin
-        .from("invitations")
-        .select("id")
-        .eq("couple_id", membership.coupleId);
-      if (invitationsError) fail("INVITATION_INVENTORY_FAILED");
-      for (const invitation of invitations ?? []) {
-        if (typeof invitation.id !== "string" || !UUID_PATTERN.test(invitation.id)) {
-          fail("INVITATION_INVENTORY_INVALID");
-        }
-        scopes.push({ bucket: "invitation-photos", prefix: invitation.id });
-      }
     }
   }
 
@@ -341,7 +328,10 @@ async function deleteDirectUserData(
   await must("CHAT_MESSAGES_DELETE_FAILED", admin.from("chat_messages").delete().eq("sender_id", userId));
   await must("VENDOR_REVIEWS_DELETE_FAILED", admin.from("vendor_reviews").delete().eq("customer_id", userId));
   await must("VENDOR_VIEWS_DELETE_FAILED", admin.from("vendor_views").delete().eq("viewer_id", userId));
-  await must("RATE_LIMIT_DELETE_FAILED", admin.from("rate_limit_buckets").delete().like("key", `%:${userId}`));
+  await must("RATE_LIMIT_DELETE_FAILED", admin
+    .from("rate_limit_buckets")
+    .delete()
+    .eq("subject_user_id", userId));
   await must("LEGACY_DELETION_USER_SCRUB_FAILED", admin
     .from("account_deletions")
     .update({ user_id: null, email: null, reason: "unknown" })
@@ -371,7 +361,7 @@ export async function processAccountDeletionJob(
   let inventory = parseStorageInventory(job.storage_inventory);
   if (!authUser && inventory === null) {
     // An externally deleted auth row erased ownership joins before this worker
-    // could snapshot them. Guessing guestbook/invitation prefixes could delete
+    // could snapshot them. Guessing guestbook/chat prefixes could delete
     // shared data, so require operator reconciliation instead.
     fail("SUBJECT_MISSING_BEFORE_INVENTORY");
   }
