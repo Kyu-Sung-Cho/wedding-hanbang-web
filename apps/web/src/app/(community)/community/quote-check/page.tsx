@@ -12,6 +12,7 @@ import {
   Copy,
   Instagram,
   Loader2,
+  LockKeyhole,
   MessageCircle,
   PenLine,
   Share2,
@@ -29,6 +30,12 @@ import ReportCardButton from "./ReportCardButton";
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
+
+type QuoteSaveStatus =
+  | "not_requested"
+  | "authentication_required"
+  | "saved"
+  | "save_failed";
 
 const SEVERITY_LABELS = {
   critical: "필수",
@@ -76,9 +83,11 @@ export default function AmoraQuoteCheckPage() {
   const [memo, setMemo] = useState("");
   const [bookingChannel, setBookingChannel] = useState("unknown");
   const [quoteStage, setQuoteStage] = useState("quote_only");
+  const [saveToAccount, setSaveToAccount] = useState(false);
   const [includedItemIds, setIncludedItemIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<QuoteSaveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -92,6 +101,8 @@ export default function AmoraQuoteCheckPage() {
     setRegion(nextRegion);
     setIncludedItemIds(new Set());
     setResult(null);
+    setSavedId(null);
+    setSaveStatus(null);
     setError(null);
   };
 
@@ -112,6 +123,7 @@ export default function AmoraQuoteCheckPage() {
     setLoading(true);
     setResult(null);
     setSavedId(null);
+    setSaveStatus(null);
     captureEvent("quote_check_submitted", { category, region });
 
     try {
@@ -127,12 +139,20 @@ export default function AmoraQuoteCheckPage() {
           includedItemIds: [...includedItemIds],
           bookingChannel,
           quoteStage,
+          saveToAccount,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "결과를 가져오지 못했습니다.");
       setResult(data.analysis as AmoraQuoteCheckResult);
       setSavedId(typeof data.savedId === "string" ? data.savedId : null);
+      setSaveStatus(
+        ["not_requested", "authentication_required", "saved", "save_failed"].includes(
+          data.saveStatus
+        )
+          ? (data.saveStatus as QuoteSaveStatus)
+          : "save_failed"
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "결과를 가져오지 못했습니다.");
     } finally {
@@ -199,6 +219,8 @@ export default function AmoraQuoteCheckPage() {
                   onChange={(event) => {
                     setRegion(event.target.value as AmoraQuoteRegion);
                     setResult(null);
+                    setSavedId(null);
+                    setSaveStatus(null);
                     setError(null);
                   }}
                   className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
@@ -222,6 +244,8 @@ export default function AmoraQuoteCheckPage() {
                     onChange={(event) => {
                       setQuotePrice(event.target.value);
                       setResult(null);
+                      setSavedId(null);
+                      setSaveStatus(null);
                     }}
                     className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 pr-12 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
                   />
@@ -282,6 +306,28 @@ export default function AmoraQuoteCheckPage() {
                 className="w-full resize-none rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#36534E]"
               />
             </label>
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-[#e5d8ca] bg-[#fbf8f2] px-4 py-3">
+              <input
+                type="checkbox"
+                checked={saveToAccount}
+                onChange={(event) => setSaveToAccount(event.target.checked)}
+                disabled={loading}
+                className="mt-1 h-4 w-4 rounded border-[#b9afa6] accent-[#36534E]"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-[#263832]">
+                  <LockKeyhole className="h-4 w-4" />
+                  내 계정에 비공개 저장
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-[#635b51]">
+                  기본값은 저장 안 함입니다. 선택하면 견적가·업체명·메모·선택 항목과 결과가 내 계정에 저장됩니다.
+                  서비스 운영상 필요한 관리자 접근을 제외하고, 공유 버튼으로 공개 링크를 켜기 전에는 다른 이용자가 볼 수 없습니다.
+                  업체명은 업체 발굴이나 영업 리드 생성에 사용하지 않습니다.
+                  {result ? " 선택 변경은 다음 결과 보기부터 적용됩니다." : ""}
+                </span>
+              </span>
+            </label>
           </section>
 
           <section className="mt-5 rounded-xl border border-[#e5d8ca] bg-white p-4 sm:p-5 lg:p-6">
@@ -318,7 +364,9 @@ export default function AmoraQuoteCheckPage() {
             </button>
           </section>
 
-          {result && <ResultPanel result={result} savedId={savedId} />}
+          {result && (
+            <ResultPanel result={result} savedId={savedId} saveStatus={saveStatus} />
+          )}
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
@@ -410,9 +458,11 @@ function ItemGroup({
 function ResultPanel({
   result,
   savedId,
+  saveStatus,
 }: {
   result: AmoraQuoteCheckResult;
   savedId: string | null;
+  saveStatus: QuoteSaveStatus | null;
 }) {
   const missingTotal =
     result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
@@ -424,6 +474,9 @@ function ResultPanel({
   const [shareCopied, setShareCopied] = useState(false);
   const [shareSharing, setShareSharing] = useState(false);
   const [instaCopied, setInstaCopied] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [visibilityChanging, setVisibilityChanging] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   // missingItems 중 추가금 발생 가능성이 높은 것 우선 — 공유/포스트 노출용
   const topMissing = useMemo(() => {
@@ -512,9 +565,57 @@ function ResultPanel({
     return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
   };
 
+  const enablePublicLink = async (): Promise<string | null> => {
+    if (!savedId) return null;
+    setShareError(null);
+
+    if (!isPublic) {
+      setVisibilityChanging(true);
+      try {
+        const response = await fetch(`/api/amora/quote-check/${savedId}/share`, {
+          method: "POST",
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.isPublic !== true) {
+          throw new Error(data.error ?? "공개 링크를 켜지 못했습니다.");
+        }
+        setIsPublic(true);
+      } catch (err) {
+        setShareError(err instanceof Error ? err.message : "공개 링크를 켜지 못했습니다.");
+        return null;
+      } finally {
+        setVisibilityChanging(false);
+      }
+    }
+
+    return `${window.location.origin}/quote/${savedId}`;
+  };
+
+  const revokePublicLink = async () => {
+    if (!savedId || !isPublic) return;
+    setVisibilityChanging(true);
+    setShareError(null);
+    try {
+      const response = await fetch(`/api/amora/quote-check/${savedId}/share`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.isPublic !== false) {
+        throw new Error(data.error ?? "공개 링크를 끄지 못했습니다.");
+      }
+      setIsPublic(false);
+      setShareCopied(false);
+      setInstaCopied(false);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "공개 링크를 끄지 못했습니다.");
+    } finally {
+      setVisibilityChanging(false);
+    }
+  };
+
   const shareResult = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
+    const url = await enablePublicLink();
+    if (!url) return;
     const title = `${result.summaryTitle}`;
     const text = buildShareText(false);
 
@@ -542,8 +643,8 @@ function ResultPanel({
   // 인스타그램은 웹에서 텍스트 직접 공유가 안 되므로 — 텍스트를 클립보드로 복사하고
   // 인스타그램을 새 탭으로 열어줌. 사용자가 스토리/DM/게시물에 붙여넣어 공유.
   const shareToInstagram = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
+    const url = await enablePublicLink();
+    if (!url) return;
     const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
     try {
       await navigator.clipboard.writeText(text);
@@ -571,6 +672,27 @@ function ResultPanel({
           </div>
         </div>
       </div>
+
+      {saveStatus === "not_requested" && (
+        <p className="mt-4 rounded-lg border border-[#e5d8ca] bg-white px-4 py-3 text-xs leading-5 text-[#635b51]">
+          이번 결과는 계정에 저장하지 않았습니다. 공개 링크도 만들어지지 않았어요.
+        </p>
+      )}
+      {saveStatus === "authentication_required" && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+          로그인되어 있지 않아 계정에 저장하지 않았습니다. 결과는 정상적으로 계산됐지만 공개 링크는 만들 수 없어요.
+        </p>
+      )}
+      {saveStatus === "save_failed" && (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
+          결과는 계산됐지만 계정 저장에 실패했습니다. 이 상태에서는 공개 링크가 만들어지지 않습니다. 잠시 후 다시 시도해주세요.
+        </p>
+      )}
+      {saveStatus === "saved" && (
+        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+          내 계정에 비공개로 저장했습니다. 아래 공유 버튼을 누르기 전에는 다른 이용자가 볼 수 없습니다.
+        </p>
+      )}
 
       {/* 메트릭 카드 — 전부 사실: 입력가 · 참고 시세(비교 기준 명시) · 빠진 항목 */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -645,18 +767,34 @@ function ResultPanel({
         <div className="mt-3 rounded-lg border border-[#e5d8ca] bg-white p-3">
           <div className="flex flex-col gap-3">
             <p className="text-xs leading-5 text-[#635b51]">
-              <strong className="text-[#263832]">고민되면 친구·파트너에게 보내세요.</strong>
+              <strong className="text-[#263832]">
+                {isPublic ? "공개 링크가 켜져 있습니다." : "현재 결과는 비공개입니다."}
+              </strong>
               <br />
-              공유 텍스트에는 견적가, 요약, 빠진 항목 세부 리스트가 포함돼요. 메모·업체명은 제외됩니다.
+              {isPublic
+                ? "링크를 아는 누구나 분야·지역·견적가와 결과 요약을 볼 수 있습니다. 공개 링크를 끄면 더 이상 열리지 않습니다."
+                : "공유 버튼을 누르면 공개 링크가 켜지고, 링크를 아는 누구나 분야·지역·견적가와 결과 요약을 볼 수 있습니다."}
+              <br />
+              업체명·메모·계약 질문·협상 문구는 공개 페이지와 공유 텍스트에서 제외됩니다.
             </p>
+            {shareError && (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {shareError}
+              </p>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={shareResult}
-                disabled={shareSharing}
+                disabled={shareSharing || visibilityChanging}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#36534E] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
-                {shareCopied ? (
+                {visibilityChanging ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    공개 설정 중
+                  </>
+                ) : shareCopied ? (
                   <>
                     <Check className="h-3.5 w-3.5 text-emerald-600" />
                     링크·세부항목 복사됨
@@ -664,14 +802,15 @@ function ResultPanel({
                 ) : (
                   <>
                     <Share2 className="h-3.5 w-3.5" />
-                    카톡·메시지로 공유
+                    {isPublic ? "카톡·메시지로 다시 공유" : "공개 링크 켜고 공유"}
                   </>
                 )}
               </button>
               <button
                 type="button"
                 onClick={shareToInstagram}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
+                disabled={visibilityChanging}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
                 {instaCopied ? (
                   <>
@@ -685,6 +824,17 @@ function ResultPanel({
                   </>
                 )}
               </button>
+              {isPublic && (
+                <button
+                  type="button"
+                  onClick={revokePublicLink}
+                  disabled={visibilityChanging}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                >
+                  <LockKeyhole className="h-3.5 w-3.5" />
+                  공개 링크 끄기
+                </button>
+              )}
             </div>
           </div>
         </div>
