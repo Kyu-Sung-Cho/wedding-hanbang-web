@@ -116,7 +116,11 @@ export async function POST(request: Request) {
         .single();
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("[clear-request] create_failed");
+        return NextResponse.json(
+          { error: "대화 정리 요청을 저장하지 못했습니다.", code: "clear_request_create_failed" },
+          { status: 500 }
+        );
       }
       return NextResponse.json({ success: true, message: inserted });
     }
@@ -153,8 +157,11 @@ export async function POST(request: Request) {
         ? { clearedAt: response.cleared_at }
         : {}),
     });
-  } catch (err) {
-    console.error("[clear-request] error:", err);
-    return NextResponse.json({ error: "처리 실패" }, { status: 500 });
+  } catch {
+    console.error("[clear-request] request_failed");
+    return NextResponse.json(
+      { error: "대화 정리 요청을 처리하지 못했습니다.", code: "clear_request_failed" },
+      { status: 500 }
+    );
   }
 }

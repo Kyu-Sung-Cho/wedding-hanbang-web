@@ -359,12 +359,13 @@ export async function POST(req: NextRequest) {
       reason: detection.reason,
       llmVerified: detection.llmVerified,
     });
-  } catch (err) {
-    console.error("check-couple-conflict 에러:", err);
+  } catch {
+    console.error("[check-couple-conflict] request_failed");
     return NextResponse.json(
       {
         triggered: false,
-        reason: `error: ${err instanceof Error ? err.message : "unknown"}`,
+        reason: "internal_error",
+        code: "conflict_check_failed",
       },
       { status: 500 },
     );

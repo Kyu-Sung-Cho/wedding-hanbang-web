@@ -44,9 +44,9 @@ export async function GET(request: Request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (sessionError) {
-      console.error("콜백: 세션 교환 에러:", sessionError.message);
+      console.error("[auth-callback] session_exchange_failed");
       const errorPath = pathWithAuthReturn(
-        `${loginPath}?error=${encodeURIComponent(sessionError.message)}`,
+        `${loginPath}?error=session_exchange_failed`,
         returnPath
       );
       return NextResponse.redirect(new URL(errorPath, origin));
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (profileError) {
-      console.error("콜백: 프로필 조회 에러:", profileError.message);
+      console.error("[auth-callback] profile_lookup_failed");
       const recoveryPath = pathWithAuthReturn(
         "/wedding/onboarding?error=profile_unavailable",
         returnPath
@@ -97,11 +97,10 @@ export async function GET(request: Request) {
     // 실제 로그인 시 데모 모드 쿠키 제거
     clearDemoCookies(response);
     return response;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("콜백: 예외 발생:", msg);
+  } catch {
+    console.error("[auth-callback] callback_failed");
     const errorPath = pathWithAuthReturn(
-      `${loginPath}?error=${encodeURIComponent(msg)}`,
+      `${loginPath}?error=callback_failed`,
       returnPath
     );
     return NextResponse.redirect(new URL(errorPath, origin));

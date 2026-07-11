@@ -9,7 +9,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 const QUOTE_ID = "12345678-1234-4234-9234-123456789abc";
 
-function mockPublicRead(data: unknown) {
+function mockPublicRead(data: unknown, error: unknown = null) {
   const eqCalls: Array<[string, unknown]> = [];
   const query = {
     select: vi.fn(() => query),
@@ -17,7 +17,7 @@ function mockPublicRead(data: unknown) {
       eqCalls.push([column, value]);
       return query;
     }),
-    maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+    maybeSingle: vi.fn().mockResolvedValue({ data, error }),
   };
   const admin = { from: vi.fn(() => query) };
   vi.mocked(createAdminClient).mockReturnValue(
@@ -37,6 +37,7 @@ function context() {
 describe("/api/amora/quote-check/[id]/public GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
   it("requires explicit publication and returns only the redacted projection", async () => {
@@ -87,5 +88,35 @@ describe("/api/amora/quote-check/[id]/public GET", () => {
     const response = await GET(request(), context());
 
     expect(response.status).toBe(404);
+  });
+
+  it("redacts database errors from both the response and server log", async () => {
+    const sensitiveMessage = "row contains user@example.com";
+    mockPublicRead(null, { message: sensitiveMessage, code: "XX000" });
+
+    const response = await GET(request(), context());
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: "결과를 불러올 수 없습니다.",
+      code: "quote_check_unavailable",
+    });
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(sensitiveMessage);
+  });
+
+  it("redacts unexpected exceptions", async () => {
+    const sensitiveMessage = "configuration included secret-value";
+    vi.mocked(createAdminClient).mockImplementation(() => {
+      throw new Error(sensitiveMessage);
+    });
+
+    const response = await GET(request(), context());
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.code).toBe("quote_check_unavailable");
+    expect(JSON.stringify(body)).not.toContain(sensitiveMessage);
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(sensitiveMessage);
   });
 });
