@@ -201,11 +201,17 @@ export default function LoginPage() {
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from("profiles")
               .select("onboarding_completed")
               .eq("id", loggedInUser.id)
-              .single();
+              .maybeSingle();
+
+            if (profileError) {
+              console.error("로그인 후 프로필 조회 실패:", profileError.message);
+              setError("프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+              return;
+            }
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";

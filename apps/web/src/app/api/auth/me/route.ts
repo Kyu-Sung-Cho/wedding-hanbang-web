@@ -2,6 +2,16 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
+function profileUnavailableResponse() {
+  return NextResponse.json(
+    {
+      code: "PROFILE_UNAVAILABLE",
+      error: "프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+    },
+    { status: 503, headers: { "Retry-After": "3" } }
+  );
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -26,10 +36,14 @@ export async function GET(request: Request) {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profileSelectErr) {
-      _debug.profileSelectError = profileSelectErr.message;
+      console.error("AUTH_PROFILE_LOOKUP_FAILED", {
+        userId: user.id,
+        reason: profileSelectErr.message,
+      });
+      return profileUnavailableResponse();
     }
 
     if (profileData) {
@@ -56,23 +70,26 @@ export async function GET(request: Request) {
         p_name: safeName,
       });
       if (profileInsertErr) {
-        _debug.profileInsertError = profileInsertErr.message;
+        console.error("AUTH_PROFILE_ENSURE_FAILED", {
+          userId: user.id,
+          reason: profileInsertErr.message,
+        });
+        return profileUnavailableResponse();
       } else {
         const { data: newProfile, error: newProfileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
-          .single();
-        if (newProfileError) _debug.profileSelectAfterInsertError = newProfileError.message;
+          .maybeSingle();
+        if (newProfileError || !newProfile) {
+          console.error("AUTH_PROFILE_LOOKUP_AFTER_ENSURE_FAILED", {
+            userId: user.id,
+            reason: newProfileError?.message ?? "profile_missing_after_ensure",
+          });
+          return profileUnavailableResponse();
+        }
         profile = newProfile;
       }
-    }
-
-    if (!profile) {
-      return NextResponse.json({
-        user: { id: user.id, email: user.email },
-        ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
-      });
     }
 
     let couple = null;

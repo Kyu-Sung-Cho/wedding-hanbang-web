@@ -25,6 +25,7 @@ import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -115,6 +116,7 @@ export default function PostWritePage() {
 function PostWriteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
   const prefillKind = searchParams.get("prefill");
@@ -192,16 +194,18 @@ function PostWriteContent() {
 
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
-        const redirect = encodeURIComponent(
-          weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
+        const requestedPath = weddingPath(
+          `/community/post/write${currentQuery ? `?${currentQuery}` : ""}`
         );
-        router.replace(`/login?redirect=${redirect}`);
+        router.replace(
+          pathWithAuthReturn("/login", sanitizeAuthReturnPath(requestedPath))
+        );
         return;
       }
       setUserId(data.user.id);
       setAuthChecked(true);
     });
-  }, [router, editId]);
+  }, [router, currentQuery]);
 
   // 수정 모드: 기존 글 로드
   useEffect(() => {

@@ -71,6 +71,13 @@ export async function GET(request: Request) {
 
     if (profileError) {
       console.error("콜백: 프로필 조회 에러:", profileError.message);
+      const recoveryPath = pathWithAuthReturn(
+        "/wedding/onboarding?error=profile_unavailable",
+        returnPath
+      );
+      const response = NextResponse.redirect(new URL(recoveryPath, origin));
+      clearDemoCookies(response);
+      return response;
     }
 
     if (!profile || !profile.onboarding_completed) {
