@@ -156,7 +156,7 @@ function PayerSelector({
   onChange,
 }: {
   value: PayerType;
-  onChange: (v: PayerType) => void;
+  onChange: (v: PayerType) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -187,7 +187,9 @@ function PayerSelector({
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false); }}
+              onClick={async () => {
+                if (await onChange(opt.value)) setOpen(false);
+              }}
               className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                 value === opt.value
                   ? "bg-[#795252]/5 text-[#795252] font-medium"
@@ -214,13 +216,14 @@ function InlineMoneyEdit({
   highlight,
 }: {
   value: number;
-  onSave: (v: number) => void;
-  onReset?: () => void;
+  onSave: (v: number) => Promise<boolean>;
+  onReset?: () => Promise<boolean>;
   label: string;
   highlight?: "spent" | "budget";
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -235,12 +238,14 @@ function InlineMoneyEdit({
     setEditing(true);
   };
 
-  const save = () => {
+  const save = async () => {
     const num = parseFloat(text);
     if (!isNaN(num) && num >= 0) {
-      onSave(Math.round(num * 10000));
+      setSaving(true);
+      const saved = await onSave(Math.round(num * 10000));
+      setSaving(false);
+      if (saved) setEditing(false);
     }
-    setEditing(false);
   };
 
   const cancel = () => setEditing(false);
@@ -254,14 +259,15 @@ function InlineMoneyEdit({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") save();
+            if (e.key === "Enter") void save();
             if (e.key === "Escape") cancel();
           }}
+          disabled={saving}
           className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
         />
         <span className="text-[11px] text-[#B5ADA3]">만원</span>
-        <button onClick={save} className="w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10" title="저장">
-          <Check className="w-3.5 h-3.5" />
+        <button disabled={saving} onClick={() => void save()} className="w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10 disabled:opacity-50" title="저장">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
         </button>
         <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]" title="취소">
           <X className="w-3.5 h-3.5" />
@@ -292,7 +298,7 @@ function InlineMoneyEdit({
       </button>
       {onReset && value > 0 && (
         <button
-          onClick={onReset}
+          onClick={() => void onReset()}
           className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
@@ -327,10 +333,10 @@ function BudgetRow({
   status: string;
   payer: PayerType;
   totalBudget: number;
-  onBudgetChange: (key: string, val: number) => void;
-  onSpentChange: (key: string, val: number) => void;
-  onSpentReset: (key: string) => void;
-  onPayerChange: (key: string, payer: PayerType) => void;
+  onBudgetChange: (key: string, val: number) => Promise<boolean>;
+  onSpentChange: (key: string, val: number) => Promise<boolean>;
+  onSpentReset: (key: string) => Promise<boolean>;
+  onPayerChange: (key: string, payer: PayerType) => Promise<boolean>;
   onDelete?: (key: string) => void;
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
@@ -476,10 +482,10 @@ function BudgetCard({
   status: string;
   payer: PayerType;
   totalBudget: number;
-  onBudgetChange: (key: string, val: number) => void;
-  onSpentChange: (key: string, val: number) => void;
-  onSpentReset: (key: string) => void;
-  onPayerChange: (key: string, payer: PayerType) => void;
+  onBudgetChange: (key: string, val: number) => Promise<boolean>;
+  onSpentChange: (key: string, val: number) => Promise<boolean>;
+  onSpentReset: (key: string) => Promise<boolean>;
+  onPayerChange: (key: string, payer: PayerType) => Promise<boolean>;
   onDelete?: (key: string) => void;
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
@@ -689,6 +695,19 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
   const [newCatBudget, setNewCatBudget] = useState("");
   const [newCatSpent, setNewCatSpent] = useState("");
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const persistJourney = useCallback(
+    async (updates: Parameters<typeof updateJourney>[0]): Promise<boolean> => {
+      setSaveError(null);
+      const saved = await updateJourney(updates);
+      if (!saved) {
+        setSaveError("저장하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 유지됩니다.");
+      }
+      return saved;
+    },
+    [updateJourney],
+  );
 
 
   // progress에서 커스텀 카테고리 추출
@@ -821,9 +840,9 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
           budget: newBudget,
         },
       };
-      await updateJourney({ progress: newProgress });
+      return persistJourney({ progress: newProgress });
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handleSpentChange = useCallback(
@@ -837,24 +856,24 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
           spent: newSpent,
         },
       };
-      await updateJourney({ progress: newProgress });
+      return persistJourney({ progress: newProgress });
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handleSpentReset = useCallback(
     async (key: string) => {
       const existing = progress[key];
-      if (!existing) return;
+      if (!existing) return true;
       const rest = { ...existing };
       delete rest.spent;
       const newProgress = {
         ...progress,
         [key]: { ...rest, category: key },
       };
-      await updateJourney({ progress: newProgress });
+      return persistJourney({ progress: newProgress });
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handlePayerChange = useCallback(
@@ -868,9 +887,9 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
           payer: newPayer,
         },
       };
-      await updateJourney({ progress: newProgress });
+      return persistJourney({ progress: newProgress });
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handleAddCategory = useCallback(
@@ -890,23 +909,23 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
           ...(spentVal > 0 ? { spent: spentVal } : {}),
         },
       };
-      await updateJourney({ progress: newProgress });
+      const saved = await persistJourney({ progress: newProgress });
+      if (!saved) return;
       setNewCatLabel("");
       setNewCatBudget("");
       setNewCatSpent("");
       setShowAddModal(false);
     },
-    [newCatLabel, newCatBudget, newCatSpent, progress, updateJourney]
+    [newCatLabel, newCatBudget, newCatSpent, persistJourney, progress]
   );
 
   const handleResetCategory = useCallback(
     async (key: string) => {
       const rest = { ...progress };
       delete rest[key];
-      await updateJourney({ progress: rest });
-      setDeletingKey(null);
+      if (await persistJourney({ progress: rest })) setDeletingKey(null);
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handleDeleteCategory = useCallback(
@@ -915,21 +934,21 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
         const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
         const rest = { ...progress };
         delete rest[key];
-        await updateJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> });
+        if (!await persistJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> })) return;
       } else {
         const rest = { ...progress };
         delete rest[key];
-        await updateJourney({ progress: rest });
+        if (!await persistJourney({ progress: rest })) return;
       }
       setDeletingKey(null);
     },
-    [progress, updateJourney]
+    [persistJourney, progress]
   );
 
   const handleTotalBudgetSave = async () => {
     const num = parseFloat(totalText);
     if (!isNaN(num) && num > 0) {
-      await updateJourney({ total_budget: Math.round(num * 10000) });
+      if (!await persistJourney({ total_budget: Math.round(num * 10000) })) return;
     }
     setEditingTotal(false);
   };
@@ -943,6 +962,14 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
             : "space-y-4"
         }
       >
+        {saveError && (
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>{saveError}</span>
+            <button type="button" onClick={() => setSaveError(null)} className="shrink-0 rounded p-0.5 hover:bg-red-100" aria-label="저장 오류 닫기">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {/* 상단 스탯 3개 - Editorial */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* Total Budget */}
